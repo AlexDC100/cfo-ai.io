@@ -1729,6 +1729,84 @@ Verdict: **PROVEN RED**
 
 ---
 
+## artifact-export
+
+A1–A5 — an `.xlsx` / `.pptx` / `.docx` built from RESOLVED figures. The builder derives nothing, an absent cell is a glyph rather than a zero, every fact cell carries its source and snapshot, and the bytes are deterministic.
+
+| | |
+|---|---|
+| command | `.venv/bin/python -m pytest tests/engine/test_artifact_export.py -q` |
+| work count | junit, floor **20** tests |
+| canary | `test_a1_a_disagreeing_total_is_written_static_and_says_why`, `test_a2_an_absent_cell_is_a_glyph_not_a_zero_and_not_an_empty_cell` |
+
+Five plants were applied, each reverted. The two worth recording in full are the one that proves the honesty rule and the one that proved the *gate itself* was too weak.
+
+**PLANT** — the builder always writes a live `SUM()`, whether or not it reproduces the served total:
+
+```diff
+--- src/engine/api/_artifact_export.py
++++ src/engine/api/_artifact_export.py
+-                    top_level_rows if (live and faithful and len(top_level_rows) <= _MAX_SUM_ARGS) else None,
++                    top_level_rows,  # PLANT: always write the formula
+```
+
+**RED** — exit `1`:
+
+```
+FAILED tests/engine/test_artifact_export.py::test_a1_a_disagreeing_total_is_written_static_and_says_why
+FAILED tests/engine/test_artifact_export.py::test_a1_a_gap_in_the_rows_withholds_the_formula
+2 failed, 22 passed in 0.54s
+```
+
+**REVERT** — exit `0`, `24 passed in 0.50s`.
+
+**The defect a builder test could not see.** The route returned `422` on every POST while every builder test was green, the module imported cleanly and the typecheck was clean. `_artifact_export` carries `from __future__ import annotations`, so annotations are STRINGS FastAPI resolves against the MODULE's globals — and fastapi is imported inside `build_router` so the pure builders stay importable without it. A handler annotated `request: Request` therefore resolved to nothing and FastAPI read it as an unknown QUERY parameter: `{"loc":["query","request"],"type":"missing"}`. Same trap as `CreateCheckoutRequest` (root CLAUDE.md, "Backend cleanup"). `test_the_route_returns_bytes_not_a_422` now exercises the route; re-planting the forward-ref annotation fails it and `test_the_route_refuses_rather_than_guessing` together.
+
+The other four, all observed RED and reverted: dropping `_rewrite_zip_deterministic` (`test_a4_no_entry_carries_a_wall_clock_timestamp[xlsx]`); writing `0` instead of the missing glyph (`test_a2_an_absent_cell_is_a_glyph…`); suppressing the provenance comment (`test_a3_every_fact_cell_carries_its_source_and_snapshot`); removing `ppt/theme/theme1.xml` from the package (`test_package_is_structurally_sound[pptx-req2]`).
+
+**The plant that improved the gate.** Restoring the wall clock reddened the *timestamp* assertion but **not** the byte-determinism one — two builds a few milliseconds apart read the same second and produced identical bytes. A determinism test that passes only because it ran fast is TC-9's shape: its clean result is indistinguishable from "the clock never had a chance to move". `test_a4_the_same_request_produces_the_same_bytes` now moves `time.localtime` between three builds, and the re-run of the same plant fails both assertions.
+
+Verdict: **PROVEN RED**
+
+---
+
+## artifact-law
+
+B-COMPLETE / B-NOLIB / B-ONEACCENT / B-REDRESERVED — the eight artifact kinds are each wired end to end, no chart library is imported in the lane, every colour resolves to a token, and semantic red is reserved.
+
+| | |
+|---|---|
+| command | `node scripts/check_artifact_law.mjs` |
+| work count | stdout, floor **14** lane source files |
+| canary | `ARTIFACT LAW`, `8/8 kinds wired` |
+
+**PLANT** — the comparison kind loses its resolve branch:
+
+```diff
+--- frontend/components/cfo/canvas/artifacts/Artifact.tsx
++++ frontend/components/cfo/canvas/artifacts/Artifact.tsx
+-    if (spec.kind === "comparison")
+-      return { kind: "comparison" as const, ...comparisonFrom(spec as ComparisonSpec, evidence, trust) };
+```
+
+**RED** — exit `1`:
+
+```
+  comparison   7/8 wirings
+B-COMPLETE — 1 violation(s):
+  comparison: missing wiring: resolved
+```
+
+**REVERT** — exit `0`, `PASS — 8/8 kinds wired, no chart library, colours are tokens, red is reserved.`
+
+Three more, all observed RED and reverted: `import { BarChart } from "recharts"` in `ChartArtifact.tsx` (`B-NOLIB`); `NEGATIVE_FILL = "rgb(198,40,40)"` (`B-ONEACCENT` — note a hex lint would not have seen this, which is why the rule is on colour VALUES rather than on hex); `text-alert` on a slide heading (`B-REDRESERVED`).
+
+**Two plants that were GREEN, and what they changed.** This gate's first draft searched the whole of `Artifact.tsx` for `kind === "<kind>"`. A refuter deleted the comparison branch outright and the gate still printed **7/7 for every kind** — because `figureCensus()`, a helper at the bottom of the same file, also names every kind. The detector's subject was gone and its canary survived, which is TC-6 exactly. The check now extracts the resolve block and the render block by their own boundaries and searches each separately, and both halves were re-planted and observed RED. The second green was `if (false && spec.kind === "comparison")`: that shape belongs to `no-plants`, which catches it as `[disabled branch: if (false && …)]` — recorded here so the next person does not add a duplicate rule.
+
+Verdict: **PROVEN RED**
+
+---
+
 ## tsc
 
 THE GATE THIS PAGE IS NAMED FOR. A real per-project typecheck, with a baseline that may only shrink.

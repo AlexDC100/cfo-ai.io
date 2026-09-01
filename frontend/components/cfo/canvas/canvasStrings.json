@@ -1,0 +1,298 @@
+{
+  "en": {
+    "canvas": {
+      "title": "Canvas",
+      "open": "Open the canvas",
+      "close": "Close the canvas",
+      "openFullPage": "Open in full page",
+      "resize": "Resize the canvas",
+      "resizeHint": "Drag to resize · arrow keys adjust",
+      "header": {
+        "noWorkspace": "No workspace",
+        "noPeriod": "No period",
+        "trustBalanced": "Balanced",
+        "trustAdjusted": "Auto-adjusted",
+        "trustUnverified": "Unverified",
+        "trustImbalance": "Material imbalance",
+        "trustLabel": "Balance status"
+      },
+      "rail": {
+        "title": "Threads",
+        "new": "New thread",
+        "delete": "Delete thread",
+        "empty": "No threads yet.",
+        "untitled": "Untitled",
+        "show": "Show threads",
+        "hide": "Hide threads",
+        "count_one": "{{count}} thread",
+        "count_other": "{{count}} threads"
+      },
+      "empty": {
+        "title": "Build something from this workspace",
+        "lead": "Ask in plain language. Every figure comes back traceable to its source cell.",
+        "noState": "Load a period to get suggestions computed from your own numbers.",
+        "slashLead": "Or use a command:",
+        "slashLeadShort": "Type / for commands."
+      },
+      "composer": {
+        "placeholder": "Ask, or type / for a command…",
+        "placeholderSimple": "Ask about this month…",
+        "send": "Send",
+        "attach": "Attach a document",
+        "stop": "Stop",
+        "slashHint": "Commands skip routing and go straight to the artifact."
+      },
+      "slash": {
+        "chart": {
+          "label": "/chart",
+          "hint": "Draw a metric over time"
+        },
+        "table": {
+          "label": "/table",
+          "hint": "Lay figures out in rows"
+        },
+        "compare": {
+          "label": "/compare",
+          "hint": "Two periods, side by side"
+        },
+        "scenario": {
+          "label": "/scenario",
+          "hint": "Move a lever, see the effect"
+        },
+        "export": {
+          "label": "/export",
+          "hint": "Take this away as a file"
+        },
+        "explain": {
+          "label": "/explain",
+          "hint": "Why the figure looks like this"
+        }
+      },
+      "plan": {
+        "boardPack": {
+          "label": "Board pack"
+        },
+        "periodReview": {
+          "label": "Period review"
+        },
+        "step": {
+          "statements": "Pulling statements",
+          "charts": "Building charts",
+          "assemble": "Assembling the pack",
+          "ratios": "Computing ratios",
+          "compare": "Comparing periods"
+        },
+        "running": "Running",
+        "done": "Done",
+        "failed": "Stopped"
+      },
+      "artifact": {
+        "figures": "Figures",
+        "chart": "Chart",
+        "table": "Table",
+        "compare": "Comparison",
+        "scenario": "Scenario",
+        "export": "Export",
+        "explain": "Explanation",
+        "pin": "Pin to dashboard",
+        "unpin": "Unpin from dashboard",
+        "pinned": "Pinned",
+        "copy": "Copy",
+        "copied": "Copied",
+        "recompute": "Recompute",
+        "pending": "Waiting for the engine…",
+        "empty": "The engine returned no figures for this one.",
+        "renderer": "This artifact type has no renderer in this build yet — the figures below are what the engine returned."
+      },
+      "entry": {
+        "stale": "Answered for a different period. Figures are not shown.",
+        "staleAction": "Recompute for {{period}}",
+        "staleActionNoPeriod": "Recompute",
+        "restored": "Restored from an earlier session.",
+        "you": "You",
+        "assistant": "CFO AI"
+      },
+      "attach": {
+        "drop": "Drop to attach",
+        "dropHint": "Goes through the normal upload — period picker, detection and all the usual guards.",
+        "queued": "Queued for analysis. The thread will report when it lands.",
+        "blocked": "Not uploaded — your plan's document allowance is used up.",
+        "cancelled": "Upload cancelled.",
+        "failed": "Upload could not start.",
+        "reading": "Attaching {{name}}…",
+        "unsupported": "That file type is not a financial document this workspace can read."
+      },
+      "followUp": {
+        "title": "Next"
+      },
+      "pro": {
+        "spec": "Spec",
+        "metrics": "Metric ids",
+        "series": "Raw series",
+        "show": "Show the spec",
+        "hide": "Hide the spec"
+      },
+      "simple": {
+        "one": "One thing you could do next"
+      },
+      "state": {
+        "thinking": "Reading the statements…",
+        "composing": "Composing…",
+        "free": "Answered locally — no model call.",
+        "unavailable": "The assistant is unavailable right now. The figures above still come from the engine."
+      },
+      "bridge": {
+        "metric": "Metric",
+        "value": "Value"
+      }
+    }
+  },
+  "ro": {
+    "canvas": {
+      "title": "Canvas",
+      "open": "Deschide canvasul",
+      "close": "Închide canvasul",
+      "openFullPage": "Deschide pe pagină întreagă",
+      "resize": "Redimensionează canvasul",
+      "resizeHint": "Trage pentru a redimensiona · tastele săgeți ajustează",
+      "header": {
+        "noWorkspace": "Fără spațiu de lucru",
+        "noPeriod": "Fără perioadă",
+        "trustBalanced": "Echilibrat",
+        "trustAdjusted": "Ajustat automat",
+        "trustUnverified": "Neverificat",
+        "trustImbalance": "Dezechilibru material",
+        "trustLabel": "Starea echilibrului"
+      },
+      "rail": {
+        "title": "Fire",
+        "new": "Fir nou",
+        "delete": "Șterge firul",
+        "empty": "Niciun fir încă.",
+        "untitled": "Fără titlu",
+        "show": "Arată firele",
+        "hide": "Ascunde firele",
+        "count_one": "{{count}} fir",
+        "count_other": "{{count}} fire"
+      },
+      "empty": {
+        "title": "Construiește ceva din acest spațiu de lucru",
+        "lead": "Întreabă în limbaj natural. Fiecare cifră se întoarce cu sursa ei.",
+        "noState": "Încarcă o perioadă ca să primești sugestii calculate din cifrele tale.",
+        "slashLead": "Sau folosește o comandă:",
+        "slashLeadShort": "Scrie / pentru comenzi."
+      },
+      "composer": {
+        "placeholder": "Întreabă, sau scrie / pentru o comandă…",
+        "placeholderSimple": "Întreabă despre luna asta…",
+        "send": "Trimite",
+        "attach": "Atașează un document",
+        "stop": "Oprește",
+        "slashHint": "Comenzile sar peste rutare și merg direct la artefact."
+      },
+      "slash": {
+        "chart": {
+          "label": "/chart",
+          "hint": "Desenează un indicator în timp"
+        },
+        "table": {
+          "label": "/table",
+          "hint": "Așază cifrele pe rânduri"
+        },
+        "compare": {
+          "label": "/compare",
+          "hint": "Două perioade, una lângă alta"
+        },
+        "scenario": {
+          "label": "/scenario",
+          "hint": "Mișcă o pârghie, vezi efectul"
+        },
+        "export": {
+          "label": "/export",
+          "hint": "Ia asta cu tine ca fișier"
+        },
+        "explain": {
+          "label": "/explain",
+          "hint": "De ce arată cifra așa"
+        }
+      },
+      "plan": {
+        "boardPack": {
+          "label": "Pachet pentru consiliu"
+        },
+        "periodReview": {
+          "label": "Analiza perioadei"
+        },
+        "step": {
+          "statements": "Extrag situațiile",
+          "charts": "Construiesc graficele",
+          "assemble": "Asamblez pachetul",
+          "ratios": "Calculez indicatorii",
+          "compare": "Compar perioadele"
+        },
+        "running": "În lucru",
+        "done": "Gata",
+        "failed": "Oprit"
+      },
+      "artifact": {
+        "figures": "Cifre",
+        "chart": "Grafic",
+        "table": "Tabel",
+        "compare": "Comparație",
+        "scenario": "Scenariu",
+        "export": "Export",
+        "explain": "Explicație",
+        "pin": "Fixează pe tabloul de bord",
+        "unpin": "Elimină de pe tabloul de bord",
+        "pinned": "Fixat",
+        "copy": "Copiază",
+        "copied": "Copiat",
+        "recompute": "Recalculează",
+        "pending": "Aștept motorul…",
+        "empty": "Motorul nu a returnat cifre pentru asta.",
+        "renderer": "Acest tip de artefact nu are încă un randator în această versiune — cifrele de mai jos sunt ce a returnat motorul."
+      },
+      "entry": {
+        "stale": "Răspuns pentru altă perioadă. Cifrele nu sunt afișate.",
+        "staleAction": "Recalculează pentru {{period}}",
+        "staleActionNoPeriod": "Recalculează",
+        "restored": "Restaurat dintr-o sesiune anterioară.",
+        "you": "Tu",
+        "assistant": "CFO AI"
+      },
+      "attach": {
+        "drop": "Eliberează pentru a atașa",
+        "dropHint": "Trece prin încărcarea normală — alegerea perioadei, detecția și toate verificările obișnuite.",
+        "queued": "În coadă pentru analiză. Firul va raporta când e gata.",
+        "blocked": "Neîncărcat — alocarea de documente a planului tău e consumată.",
+        "cancelled": "Încărcare anulată.",
+        "failed": "Încărcarea nu a putut porni.",
+        "reading": "Atașez {{name}}…",
+        "unsupported": "Acest tip de fișier nu e un document financiar pe care acest spațiu îl poate citi."
+      },
+      "followUp": {
+        "title": "Mai departe"
+      },
+      "pro": {
+        "spec": "Specificație",
+        "metrics": "Id-uri de indicatori",
+        "series": "Serie brută",
+        "show": "Arată specificația",
+        "hide": "Ascunde specificația"
+      },
+      "simple": {
+        "one": "Un lucru pe care l-ai putea face mai departe"
+      },
+      "state": {
+        "thinking": "Citesc situațiile…",
+        "composing": "Compun…",
+        "free": "Răspuns local — fără apel la model.",
+        "unavailable": "Asistentul nu e disponibil acum. Cifrele de mai sus vin tot din motor."
+      },
+      "bridge": {
+        "metric": "Indicator",
+        "value": "Valoare"
+      }
+    }
+  }
+}

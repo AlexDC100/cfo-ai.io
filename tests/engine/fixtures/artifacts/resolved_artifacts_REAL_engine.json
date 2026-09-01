@@ -1,0 +1,3111 @@
+{
+  "_meta": {
+    "artifact_version": "ar1",
+    "captured_by": "tests/engine/fixtures/artifacts/capture.py",
+    "sources": [
+      {
+        "file": "files/scandia_frozen_tb_2025.xlsx",
+        "period_id": "p-scandia-fy2025",
+        "tb_rows": 382
+      },
+      {
+        "file": "files/carniprod_tb_2025.xlsx",
+        "period_id": "p-carniprod-fy2025",
+        "tb_rows": 367
+      }
+    ],
+    "spec_version": "as1"
+  },
+  "cases": {
+    "absent_period_gap": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "gap",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "absent_period_gap",
+          "caption": "December 2025 vs November 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "line",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            },
+            {
+              "currency": "RON",
+              "label": "November 2025",
+              "slot_id": "p-scandia-nofile"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "amount_minor": 4834908159,
+          "artifact_id": "absent_period_gap",
+          "currency": "RON",
+          "fact": "revenue",
+          "kind": "money",
+          "label_key": "capsule.metric.revenue",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "revenue",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 48349081.59
+        },
+        {
+          "artifact_id": "absent_period_gap",
+          "code": "no_source_file",
+          "detail": "November 2025 has no attached file.",
+          "fix": "Upload the trial balance for November 2025.",
+          "kind": "gap",
+          "missing": [
+            "November 2025"
+          ],
+          "series_id": "revenue",
+          "slot_id": "p-scandia-nofile",
+          "tool": "get_facts",
+          "type": "gap",
+          "upsell_key": ""
+        },
+        {
+          "artifact_id": "absent_period_gap",
+          "cells": 1,
+          "currency": "RON",
+          "fact_units": {
+            "revenue": "money"
+          },
+          "facts": {
+            "revenue": 48349081.59
+          },
+          "gaps": 1,
+          "notes": [
+            "Some cells could not be resolved; each one says what is missing."
+          ],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "kind",
+          "metrics",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 8,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 4
+      },
+      "payload": {
+        "kind": "line",
+        "metrics": [
+          {
+            "metric": "revenue"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-scandia-nofile"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "absent_period_gap",
+        "cells": [
+          {
+            "amount_minor": 4834908159,
+            "currency": "RON",
+            "fact": "revenue",
+            "kind": "money",
+            "label_key": "capsule.metric.revenue",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "revenue",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 48349081.59
+          }
+        ],
+        "currency": "RON",
+        "fact_units": {
+          "revenue": "money"
+        },
+        "facts": {
+          "revenue": 48349081.59
+        },
+        "gaps": [
+          {
+            "code": "no_source_file",
+            "detail": "November 2025 has no attached file.",
+            "fix": "Upload the trial balance for November 2025.",
+            "kind": "gap",
+            "missing": [
+              "November 2025"
+            ],
+            "series_id": "revenue",
+            "slot_id": "p-scandia-nofile",
+            "tool": "get_facts",
+            "upsell_key": ""
+          }
+        ],
+        "notes": [
+          "Some cells could not be resolved; each one says what is missing."
+        ],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "absent_period_gap",
+          "caption": "December 2025 vs November 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "line",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            },
+            {
+              "currency": "RON",
+              "label": "November 2025",
+              "slot_id": "p-scandia-nofile"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "cross_entity_refused": {
+      "frame_types": [
+        "skeleton",
+        "refusal",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "cross_entity_refused",
+          "caption": "December 2025 vs December 2025",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            },
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-carniprod-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "alternative": "Plot one entity, or ask for each on its own.",
+          "artifact_id": "cross_entity_refused",
+          "code": "same_entity",
+          "detail": "this artifact would put org-carniprod and org-scandia side by side; bars the reader subtracts by eye are a comparison, and a comparison across entities does not describe one business",
+          "kind": "refusal",
+          "series_id": "",
+          "slot_id": "",
+          "type": "refusal"
+        },
+        {
+          "artifact_id": "cross_entity_refused",
+          "cells": 0,
+          "currency": null,
+          "fact_units": {},
+          "facts": {},
+          "gaps": 0,
+          "notes": [
+            "This artifact was refused rather than drawn."
+          ],
+          "refusals": 1,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 9,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 5
+      },
+      "payload": {
+        "derive": "delta",
+        "kind": "bar",
+        "metrics": [
+          {
+            "metric": "revenue"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-carniprod-fy2025"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "cross_entity_refused",
+        "cells": [],
+        "currency": null,
+        "fact_units": {},
+        "facts": {},
+        "gaps": [],
+        "notes": [
+          "This artifact was refused rather than drawn."
+        ],
+        "ok": false,
+        "refusals": [
+          {
+            "alternative": "Plot one entity, or ask for each on its own.",
+            "code": "same_entity",
+            "detail": "this artifact would put org-carniprod and org-scandia side by side; bars the reader subtracts by eye are a comparison, and a comparison across entities does not describe one business",
+            "kind": "refusal",
+            "series_id": "",
+            "slot_id": ""
+          }
+        ],
+        "skeleton": {
+          "artifact_id": "cross_entity_refused",
+          "caption": "December 2025 vs December 2025",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            },
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-carniprod-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "delta_with_an_absent_period": {
+      "frame_types": [
+        "skeleton",
+        "gap",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "delta_with_an_absent_period",
+          "caption": "December 2025 vs November 2025",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → November 2025",
+              "slot_id": "p-scandia-fy2025->p-scandia-nofile"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "artifact_id": "delta_with_an_absent_period",
+          "code": "no_source_file",
+          "detail": "November 2025 has no attached file.",
+          "fix": "Upload the trial balance for November 2025.",
+          "kind": "gap",
+          "missing": [
+            "November 2025"
+          ],
+          "series_id": "",
+          "slot_id": "p-scandia-fy2025->p-scandia-nofile",
+          "tool": "compare_periods",
+          "type": "gap",
+          "upsell_key": ""
+        },
+        {
+          "artifact_id": "delta_with_an_absent_period",
+          "cells": 0,
+          "currency": null,
+          "fact_units": {},
+          "facts": {},
+          "gaps": 1,
+          "notes": [
+            "Some cells could not be resolved; each one says what is missing."
+          ],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 9,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 5
+      },
+      "payload": {
+        "derive": "delta",
+        "kind": "delta_table",
+        "metrics": [
+          {
+            "metric": "revenue"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-scandia-nofile"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "delta_with_an_absent_period",
+        "cells": [],
+        "currency": null,
+        "fact_units": {},
+        "facts": {},
+        "gaps": [
+          {
+            "code": "no_source_file",
+            "detail": "November 2025 has no attached file.",
+            "fix": "Upload the trial balance for November 2025.",
+            "kind": "gap",
+            "missing": [
+              "November 2025"
+            ],
+            "series_id": "",
+            "slot_id": "p-scandia-fy2025->p-scandia-nofile",
+            "tool": "compare_periods",
+            "upsell_key": ""
+          }
+        ],
+        "notes": [
+          "Some cells could not be resolved; each one says what is missing."
+        ],
+        "ok": false,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "delta_with_an_absent_period",
+          "caption": "December 2025 vs November 2025",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → November 2025",
+              "slot_id": "p-scandia-fy2025->p-scandia-nofile"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "kpi_all_metrics": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "kpi_all_metrics",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "kpi_grid",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_assets",
+              "series_id": "total_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_liabilities",
+              "series_id": "total_liabilities",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity",
+              "series_id": "equity",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_assets",
+              "series_id": "current_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_liabilities",
+              "series_id": "current_liabilities",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.working_capital",
+              "series_id": "working_capital",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.expenses",
+              "series_id": "expenses",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.ebitda",
+              "series_id": "ebitda",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_result",
+              "series_id": "net_result",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.difference",
+              "series_id": "difference",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity_plus_liabilities",
+              "series_id": "equity_plus_liabilities",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "Balance sheet at a glance",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "amount_minor": 5276471779,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "total_assets",
+          "kind": "money",
+          "label_key": "capsule.metric.total_assets",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "total_assets",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 52764717.79
+        },
+        {
+          "amount_minor": 4500812864,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "total_liabilities",
+          "kind": "money",
+          "label_key": "capsule.metric.total_liabilities",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "total_liabilities",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 45008128.64
+        },
+        {
+          "amount_minor": 775658915,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "total_equity",
+          "kind": "money",
+          "label_key": "capsule.metric.equity",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "equity",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 7756589.15
+        },
+        {
+          "amount_minor": 2688276349,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "current_assets",
+          "kind": "money",
+          "label_key": "capsule.metric.current_assets",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "current_assets",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 26882763.49
+        },
+        {
+          "amount_minor": 2898863656,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "cur_liab",
+          "kind": "money",
+          "label_key": "capsule.metric.current_liabilities",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "current_liabilities",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 28988636.56
+        },
+        {
+          "amount_minor": -210587307,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "working_capital",
+          "kind": "money",
+          "label_key": "capsule.metric.working_capital",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "working_capital",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": -2105873.07
+        },
+        {
+          "amount_minor": 4834908159,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "revenue",
+          "kind": "money",
+          "label_key": "capsule.metric.revenue",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "revenue",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 48349081.59
+        },
+        {
+          "amount_minor": 4794621243,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "total_expenses",
+          "kind": "money",
+          "label_key": "capsule.metric.expenses",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "expenses",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 47946212.43
+        },
+        {
+          "amount_minor": 525629814,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "ebitda",
+          "kind": "money",
+          "label_key": "capsule.metric.ebitda",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "ebitda",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 5256298.14
+        },
+        {
+          "amount_minor": 40286916,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "net_income",
+          "kind": "money",
+          "label_key": "capsule.metric.net_result",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "net_result",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 402869.16
+        },
+        {
+          "amount_minor": 0,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "drift",
+          "kind": "money",
+          "label_key": "capsule.metric.difference",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "difference",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 0.0
+        },
+        {
+          "amount_minor": 5276471779,
+          "artifact_id": "kpi_all_metrics",
+          "currency": "RON",
+          "fact": "equity_plus_liabilities",
+          "kind": "money",
+          "label_key": "capsule.metric.equity_plus_liabilities",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "equity_plus_liabilities",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 52764717.79
+        },
+        {
+          "artifact_id": "kpi_all_metrics",
+          "cells": 12,
+          "currency": "RON",
+          "fact_units": {
+            "cur_liab": "money",
+            "current_assets": "money",
+            "drift": "money",
+            "ebitda": "money",
+            "equity_plus_liabilities": "money",
+            "net_income": "money",
+            "revenue": "money",
+            "total_assets": "money",
+            "total_equity": "money",
+            "total_expenses": "money",
+            "total_liabilities": "money",
+            "working_capital": "money"
+          },
+          "facts": {
+            "cur_liab": 28988636.56,
+            "current_assets": 26882763.49,
+            "drift": 0.0,
+            "ebitda": 5256298.14,
+            "equity_plus_liabilities": 52764717.79,
+            "net_income": 402869.16,
+            "revenue": 48349081.59,
+            "total_assets": 52764717.79,
+            "total_equity": 7756589.15,
+            "total_expenses": 47946212.43,
+            "total_liabilities": 45008128.64,
+            "working_capital": -2105873.07
+          },
+          "gaps": 0,
+          "notes": [],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "kind",
+          "metrics",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "periods",
+          "title"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 30,
+        "prose_chars_checked": 25,
+        "prose_fields_checked": 1,
+        "strings_scanned": 15
+      },
+      "payload": {
+        "kind": "kpi_grid",
+        "metrics": [
+          {
+            "metric": "total_assets"
+          },
+          {
+            "metric": "total_liabilities"
+          },
+          {
+            "metric": "equity"
+          },
+          {
+            "metric": "current_assets"
+          },
+          {
+            "metric": "current_liabilities"
+          },
+          {
+            "metric": "working_capital"
+          },
+          {
+            "metric": "revenue"
+          },
+          {
+            "metric": "expenses"
+          },
+          {
+            "metric": "ebitda"
+          },
+          {
+            "metric": "net_result"
+          },
+          {
+            "metric": "difference"
+          },
+          {
+            "metric": "equity_plus_liabilities"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025"
+        ],
+        "title": "Balance sheet at a glance"
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "kpi_all_metrics",
+        "cells": [
+          {
+            "amount_minor": 5276471779,
+            "currency": "RON",
+            "fact": "total_assets",
+            "kind": "money",
+            "label_key": "capsule.metric.total_assets",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "total_assets",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 52764717.79
+          },
+          {
+            "amount_minor": 4500812864,
+            "currency": "RON",
+            "fact": "total_liabilities",
+            "kind": "money",
+            "label_key": "capsule.metric.total_liabilities",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "total_liabilities",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 45008128.64
+          },
+          {
+            "amount_minor": 775658915,
+            "currency": "RON",
+            "fact": "total_equity",
+            "kind": "money",
+            "label_key": "capsule.metric.equity",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "equity",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 7756589.15
+          },
+          {
+            "amount_minor": 2688276349,
+            "currency": "RON",
+            "fact": "current_assets",
+            "kind": "money",
+            "label_key": "capsule.metric.current_assets",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "current_assets",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 26882763.49
+          },
+          {
+            "amount_minor": 2898863656,
+            "currency": "RON",
+            "fact": "cur_liab",
+            "kind": "money",
+            "label_key": "capsule.metric.current_liabilities",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "current_liabilities",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 28988636.56
+          },
+          {
+            "amount_minor": -210587307,
+            "currency": "RON",
+            "fact": "working_capital",
+            "kind": "money",
+            "label_key": "capsule.metric.working_capital",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "working_capital",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": -2105873.07
+          },
+          {
+            "amount_minor": 4834908159,
+            "currency": "RON",
+            "fact": "revenue",
+            "kind": "money",
+            "label_key": "capsule.metric.revenue",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "revenue",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 48349081.59
+          },
+          {
+            "amount_minor": 4794621243,
+            "currency": "RON",
+            "fact": "total_expenses",
+            "kind": "money",
+            "label_key": "capsule.metric.expenses",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "expenses",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 47946212.43
+          },
+          {
+            "amount_minor": 525629814,
+            "currency": "RON",
+            "fact": "ebitda",
+            "kind": "money",
+            "label_key": "capsule.metric.ebitda",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "ebitda",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 5256298.14
+          },
+          {
+            "amount_minor": 40286916,
+            "currency": "RON",
+            "fact": "net_income",
+            "kind": "money",
+            "label_key": "capsule.metric.net_result",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "net_result",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 402869.16
+          },
+          {
+            "amount_minor": 0,
+            "currency": "RON",
+            "fact": "drift",
+            "kind": "money",
+            "label_key": "capsule.metric.difference",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "difference",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 0.0
+          },
+          {
+            "amount_minor": 5276471779,
+            "currency": "RON",
+            "fact": "equity_plus_liabilities",
+            "kind": "money",
+            "label_key": "capsule.metric.equity_plus_liabilities",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "equity_plus_liabilities",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 52764717.79
+          }
+        ],
+        "currency": "RON",
+        "fact_units": {
+          "cur_liab": "money",
+          "current_assets": "money",
+          "drift": "money",
+          "ebitda": "money",
+          "equity_plus_liabilities": "money",
+          "net_income": "money",
+          "revenue": "money",
+          "total_assets": "money",
+          "total_equity": "money",
+          "total_expenses": "money",
+          "total_liabilities": "money",
+          "working_capital": "money"
+        },
+        "facts": {
+          "cur_liab": 28988636.56,
+          "current_assets": 26882763.49,
+          "drift": 0.0,
+          "ebitda": 5256298.14,
+          "equity_plus_liabilities": 52764717.79,
+          "net_income": 402869.16,
+          "revenue": 48349081.59,
+          "total_assets": 52764717.79,
+          "total_equity": 7756589.15,
+          "total_expenses": 47946212.43,
+          "total_liabilities": 45008128.64,
+          "working_capital": -2105873.07
+        },
+        "gaps": [],
+        "notes": [],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "kpi_all_metrics",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "kpi_grid",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_assets",
+              "series_id": "total_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_liabilities",
+              "series_id": "total_liabilities",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity",
+              "series_id": "equity",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_assets",
+              "series_id": "current_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_liabilities",
+              "series_id": "current_liabilities",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.working_capital",
+              "series_id": "working_capital",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.expenses",
+              "series_id": "expenses",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.ebitda",
+              "series_id": "ebitda",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_result",
+              "series_id": "net_result",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.difference",
+              "series_id": "difference",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity_plus_liabilities",
+              "series_id": "equity_plus_liabilities",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "Balance sheet at a glance",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "ratio_delta_is_refused": {
+      "frame_types": [
+        "skeleton",
+        "refusal",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "ratio_delta_is_refused",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_ratio",
+              "series_id": "current_ratio",
+              "unit": "ratio"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "alternative": "Plot current_ratio per period instead of its change.",
+          "artifact_id": "ratio_delta_is_refused",
+          "code": "no_delta_for_unit",
+          "detail": "current_ratio is not money, and this surface does not subtract dimensionless figures across periods",
+          "kind": "refusal",
+          "series_id": "current_ratio",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "refusal"
+        },
+        {
+          "artifact_id": "ratio_delta_is_refused",
+          "cells": 0,
+          "currency": null,
+          "fact_units": {},
+          "facts": {},
+          "gaps": 0,
+          "notes": [
+            "Some comparisons were refused rather than performed."
+          ],
+          "refusals": 1,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 9,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 5
+      },
+      "payload": {
+        "derive": "delta",
+        "kind": "delta_table",
+        "metrics": [
+          {
+            "metric": "current_ratio"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-scandia-fy2025-again"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "ratio_delta_is_refused",
+        "cells": [],
+        "currency": null,
+        "fact_units": {},
+        "facts": {},
+        "gaps": [],
+        "notes": [
+          "Some comparisons were refused rather than performed."
+        ],
+        "ok": false,
+        "refusals": [
+          {
+            "alternative": "Plot current_ratio per period instead of its change.",
+            "code": "no_delta_for_unit",
+            "detail": "current_ratio is not money, and this surface does not subtract dimensionless figures across periods",
+            "kind": "refusal",
+            "series_id": "current_ratio",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+          }
+        ],
+        "skeleton": {
+          "artifact_id": "ratio_delta_is_refused",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_ratio",
+              "series_id": "current_ratio",
+              "unit": "ratio"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "ratios_one_period": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "cell",
+        "cell",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "ratios_one_period",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_ratio",
+              "series_id": "current_ratio",
+              "unit": "ratio"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity_ratio",
+              "series_id": "equity_ratio",
+              "unit": "percent"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_margin",
+              "series_id": "net_margin",
+              "unit": "percent"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "artifact_id": "ratios_one_period",
+          "denominator_minor": 2898863656,
+          "fact": "current_ratio",
+          "kind": "ratio",
+          "label_key": "capsule.metric.current_ratio",
+          "numerator_minor": 2688276349,
+          "operand_currency": "RON",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "current_ratio",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "ratio",
+          "value": 0.9273552219111336
+        },
+        {
+          "artifact_id": "ratios_one_period",
+          "denominator_minor": 5276471779,
+          "fact": "equity_share",
+          "kind": "ratio",
+          "label_key": "capsule.metric.equity_ratio",
+          "numerator_minor": 775658915,
+          "operand_currency": "RON",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "equity_ratio",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "percent",
+          "value": 0.14700332864227
+        },
+        {
+          "artifact_id": "ratios_one_period",
+          "denominator_minor": 4834908159,
+          "fact": "net_margin",
+          "kind": "ratio",
+          "label_key": "capsule.metric.net_margin",
+          "numerator_minor": 40286916,
+          "operand_currency": "RON",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "net_margin",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "percent",
+          "value": 0.008332509051905653
+        },
+        {
+          "artifact_id": "ratios_one_period",
+          "cells": 3,
+          "currency": null,
+          "fact_units": {
+            "current_ratio": "ratio",
+            "equity_share": "percent",
+            "net_margin": "percent"
+          },
+          "facts": {
+            "current_ratio": 0.9273552219111336,
+            "equity_share": 0.14700332864227,
+            "net_margin": 0.008332509051905653
+          },
+          "gaps": 0,
+          "notes": [],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "kind",
+          "metrics",
+          "metric",
+          "metric",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 11,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 5
+      },
+      "payload": {
+        "kind": "table",
+        "metrics": [
+          {
+            "metric": "current_ratio"
+          },
+          {
+            "metric": "equity_ratio"
+          },
+          {
+            "metric": "net_margin"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "ratios_one_period",
+        "cells": [
+          {
+            "denominator_minor": 2898863656,
+            "fact": "current_ratio",
+            "kind": "ratio",
+            "label_key": "capsule.metric.current_ratio",
+            "numerator_minor": 2688276349,
+            "operand_currency": "RON",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "current_ratio",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "ratio",
+            "value": 0.9273552219111336
+          },
+          {
+            "denominator_minor": 5276471779,
+            "fact": "equity_share",
+            "kind": "ratio",
+            "label_key": "capsule.metric.equity_ratio",
+            "numerator_minor": 775658915,
+            "operand_currency": "RON",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "equity_ratio",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "percent",
+            "value": 0.14700332864227
+          },
+          {
+            "denominator_minor": 4834908159,
+            "fact": "net_margin",
+            "kind": "ratio",
+            "label_key": "capsule.metric.net_margin",
+            "numerator_minor": 40286916,
+            "operand_currency": "RON",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "net_margin",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "percent",
+            "value": 0.008332509051905653
+          }
+        ],
+        "currency": null,
+        "fact_units": {
+          "current_ratio": "ratio",
+          "equity_share": "percent",
+          "net_margin": "percent"
+        },
+        "facts": {
+          "current_ratio": 0.9273552219111336,
+          "equity_share": 0.14700332864227,
+          "net_margin": 0.008332509051905653
+        },
+        "gaps": [],
+        "notes": [],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "ratios_one_period",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_ratio",
+              "series_id": "current_ratio",
+              "unit": "ratio"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity_ratio",
+              "series_id": "equity_ratio",
+              "unit": "percent"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_margin",
+              "series_id": "net_margin",
+              "unit": "percent"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "self_delta_is_exactly_zero": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "cell",
+        "cell",
+        "cell",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "self_delta_is_exactly_zero",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_assets",
+              "series_id": "total_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_result",
+              "series_id": "net_result",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.ebitda",
+              "series_id": "ebitda",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "amount_minor": 0,
+          "artifact_id": "self_delta_is_exactly_zero",
+          "currency": "RON",
+          "fact": "total_assets_delta",
+          "kind": "money",
+          "label_key": "capsule.metric.total_assets.delta",
+          "provenance": {
+            "basis": "December 2025 (re-filed) minus December 2025",
+            "derived": "delta",
+            "entity_id": "org-scandia",
+            "from_period_id": "p-scandia-fy2025",
+            "from_snapshot_id": "sha256-p-scandia-fy2025",
+            "period_id": "p-scandia-fy2025-again",
+            "period_label": "December 2025 (re-filed)",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "to_period_id": "p-scandia-fy2025-again",
+            "to_snapshot_id": "sha256-p-scandia-fy2025"
+          },
+          "scope": "December 2025 (re-filed) vs December 2025",
+          "series_id": "total_assets",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "cell",
+          "unit": "money",
+          "value": 0.0
+        },
+        {
+          "amount_minor": 0,
+          "artifact_id": "self_delta_is_exactly_zero",
+          "currency": "RON",
+          "fact": "revenue_delta",
+          "kind": "money",
+          "label_key": "capsule.metric.revenue.delta",
+          "provenance": {
+            "basis": "December 2025 (re-filed) minus December 2025",
+            "derived": "delta",
+            "entity_id": "org-scandia",
+            "from_period_id": "p-scandia-fy2025",
+            "from_snapshot_id": "sha256-p-scandia-fy2025",
+            "period_id": "p-scandia-fy2025-again",
+            "period_label": "December 2025 (re-filed)",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "to_period_id": "p-scandia-fy2025-again",
+            "to_snapshot_id": "sha256-p-scandia-fy2025"
+          },
+          "scope": "December 2025 (re-filed) vs December 2025",
+          "series_id": "revenue",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "cell",
+          "unit": "money",
+          "value": 0.0
+        },
+        {
+          "amount_minor": 0,
+          "artifact_id": "self_delta_is_exactly_zero",
+          "currency": "RON",
+          "fact": "net_income_delta",
+          "kind": "money",
+          "label_key": "capsule.metric.net_result.delta",
+          "provenance": {
+            "basis": "December 2025 (re-filed) minus December 2025",
+            "derived": "delta",
+            "entity_id": "org-scandia",
+            "from_period_id": "p-scandia-fy2025",
+            "from_snapshot_id": "sha256-p-scandia-fy2025",
+            "period_id": "p-scandia-fy2025-again",
+            "period_label": "December 2025 (re-filed)",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "to_period_id": "p-scandia-fy2025-again",
+            "to_snapshot_id": "sha256-p-scandia-fy2025"
+          },
+          "scope": "December 2025 (re-filed) vs December 2025",
+          "series_id": "net_result",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "cell",
+          "unit": "money",
+          "value": 0.0
+        },
+        {
+          "amount_minor": 0,
+          "artifact_id": "self_delta_is_exactly_zero",
+          "currency": "RON",
+          "fact": "ebitda_delta",
+          "kind": "money",
+          "label_key": "capsule.metric.ebitda.delta",
+          "provenance": {
+            "basis": "December 2025 (re-filed) minus December 2025",
+            "derived": "delta",
+            "entity_id": "org-scandia",
+            "from_period_id": "p-scandia-fy2025",
+            "from_snapshot_id": "sha256-p-scandia-fy2025",
+            "period_id": "p-scandia-fy2025-again",
+            "period_label": "December 2025 (re-filed)",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "to_period_id": "p-scandia-fy2025-again",
+            "to_snapshot_id": "sha256-p-scandia-fy2025"
+          },
+          "scope": "December 2025 (re-filed) vs December 2025",
+          "series_id": "ebitda",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "cell",
+          "unit": "money",
+          "value": 0.0
+        },
+        {
+          "artifact_id": "self_delta_is_exactly_zero",
+          "cells": 4,
+          "currency": "RON",
+          "fact_units": {
+            "ebitda_delta": "money",
+            "net_income_delta": "money",
+            "revenue_delta": "money",
+            "total_assets_delta": "money"
+          },
+          "facts": {
+            "ebitda_delta": 0.0,
+            "net_income_delta": 0.0,
+            "revenue_delta": 0.0,
+            "total_assets_delta": 0.0
+          },
+          "gaps": 0,
+          "notes": [],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "metric",
+          "metric",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 15,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 8
+      },
+      "payload": {
+        "derive": "delta",
+        "kind": "delta_table",
+        "metrics": [
+          {
+            "metric": "total_assets"
+          },
+          {
+            "metric": "revenue"
+          },
+          {
+            "metric": "net_result"
+          },
+          {
+            "metric": "ebitda"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-scandia-fy2025-again"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "self_delta_is_exactly_zero",
+        "cells": [
+          {
+            "amount_minor": 0,
+            "currency": "RON",
+            "fact": "total_assets_delta",
+            "kind": "money",
+            "label_key": "capsule.metric.total_assets.delta",
+            "provenance": {
+              "basis": "December 2025 (re-filed) minus December 2025",
+              "derived": "delta",
+              "entity_id": "org-scandia",
+              "from_period_id": "p-scandia-fy2025",
+              "from_snapshot_id": "sha256-p-scandia-fy2025",
+              "period_id": "p-scandia-fy2025-again",
+              "period_label": "December 2025 (re-filed)",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "to_period_id": "p-scandia-fy2025-again",
+              "to_snapshot_id": "sha256-p-scandia-fy2025"
+            },
+            "scope": "December 2025 (re-filed) vs December 2025",
+            "series_id": "total_assets",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+            "unit": "money",
+            "value": 0.0
+          },
+          {
+            "amount_minor": 0,
+            "currency": "RON",
+            "fact": "revenue_delta",
+            "kind": "money",
+            "label_key": "capsule.metric.revenue.delta",
+            "provenance": {
+              "basis": "December 2025 (re-filed) minus December 2025",
+              "derived": "delta",
+              "entity_id": "org-scandia",
+              "from_period_id": "p-scandia-fy2025",
+              "from_snapshot_id": "sha256-p-scandia-fy2025",
+              "period_id": "p-scandia-fy2025-again",
+              "period_label": "December 2025 (re-filed)",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "to_period_id": "p-scandia-fy2025-again",
+              "to_snapshot_id": "sha256-p-scandia-fy2025"
+            },
+            "scope": "December 2025 (re-filed) vs December 2025",
+            "series_id": "revenue",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+            "unit": "money",
+            "value": 0.0
+          },
+          {
+            "amount_minor": 0,
+            "currency": "RON",
+            "fact": "net_income_delta",
+            "kind": "money",
+            "label_key": "capsule.metric.net_result.delta",
+            "provenance": {
+              "basis": "December 2025 (re-filed) minus December 2025",
+              "derived": "delta",
+              "entity_id": "org-scandia",
+              "from_period_id": "p-scandia-fy2025",
+              "from_snapshot_id": "sha256-p-scandia-fy2025",
+              "period_id": "p-scandia-fy2025-again",
+              "period_label": "December 2025 (re-filed)",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "to_period_id": "p-scandia-fy2025-again",
+              "to_snapshot_id": "sha256-p-scandia-fy2025"
+            },
+            "scope": "December 2025 (re-filed) vs December 2025",
+            "series_id": "net_result",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+            "unit": "money",
+            "value": 0.0
+          },
+          {
+            "amount_minor": 0,
+            "currency": "RON",
+            "fact": "ebitda_delta",
+            "kind": "money",
+            "label_key": "capsule.metric.ebitda.delta",
+            "provenance": {
+              "basis": "December 2025 (re-filed) minus December 2025",
+              "derived": "delta",
+              "entity_id": "org-scandia",
+              "from_period_id": "p-scandia-fy2025",
+              "from_snapshot_id": "sha256-p-scandia-fy2025",
+              "period_id": "p-scandia-fy2025-again",
+              "period_label": "December 2025 (re-filed)",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "to_period_id": "p-scandia-fy2025-again",
+              "to_snapshot_id": "sha256-p-scandia-fy2025"
+            },
+            "scope": "December 2025 (re-filed) vs December 2025",
+            "series_id": "ebitda",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+            "unit": "money",
+            "value": 0.0
+          }
+        ],
+        "currency": "RON",
+        "fact_units": {
+          "ebitda_delta": "money",
+          "net_income_delta": "money",
+          "revenue_delta": "money",
+          "total_assets_delta": "money"
+        },
+        "facts": {
+          "ebitda_delta": 0.0,
+          "net_income_delta": 0.0,
+          "revenue_delta": 0.0,
+          "total_assets_delta": 0.0
+        },
+        "gaps": [],
+        "notes": [],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "self_delta_is_exactly_zero",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "delta",
+          "group_by": "period",
+          "kind": "delta_table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.total_assets",
+              "series_id": "total_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.net_result",
+              "series_id": "net_result",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.ebitda",
+              "series_id": "ebitda",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "self_pct_change_is_exactly_zero": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "self_pct_change_is_exactly_zero",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "pct_change",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "artifact_id": "self_pct_change_is_exactly_zero",
+          "denominator_minor": 4834908159,
+          "fact": "revenue_pct_change",
+          "kind": "ratio",
+          "label_key": "capsule.metric.revenue.pct_change",
+          "numerator_minor": 0,
+          "operand_currency": "RON",
+          "provenance": {
+            "basis": "December 2025 (re-filed) minus December 2025",
+            "derived": "delta",
+            "entity_id": "org-scandia",
+            "from_period_id": "p-scandia-fy2025",
+            "from_snapshot_id": "sha256-p-scandia-fy2025",
+            "period_id": "p-scandia-fy2025-again",
+            "period_label": "December 2025 (re-filed)",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "to_period_id": "p-scandia-fy2025-again",
+            "to_snapshot_id": "sha256-p-scandia-fy2025"
+          },
+          "scope": "December 2025 (re-filed) vs December 2025",
+          "series_id": "revenue",
+          "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+          "type": "cell",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "artifact_id": "self_pct_change_is_exactly_zero",
+          "cells": 1,
+          "currency": null,
+          "fact_units": {
+            "revenue_pct_change": "percent"
+          },
+          "facts": {
+            "revenue_pct_change": 0.0
+          },
+          "gaps": 0,
+          "notes": [],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 9,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 5
+      },
+      "payload": {
+        "derive": "pct_change",
+        "kind": "bar",
+        "metrics": [
+          {
+            "metric": "revenue"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025",
+          "p-scandia-fy2025-again"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "self_pct_change_is_exactly_zero",
+        "cells": [
+          {
+            "denominator_minor": 4834908159,
+            "fact": "revenue_pct_change",
+            "kind": "ratio",
+            "label_key": "capsule.metric.revenue.pct_change",
+            "numerator_minor": 0,
+            "operand_currency": "RON",
+            "provenance": {
+              "basis": "December 2025 (re-filed) minus December 2025",
+              "derived": "delta",
+              "entity_id": "org-scandia",
+              "from_period_id": "p-scandia-fy2025",
+              "from_snapshot_id": "sha256-p-scandia-fy2025",
+              "period_id": "p-scandia-fy2025-again",
+              "period_label": "December 2025 (re-filed)",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "to_period_id": "p-scandia-fy2025-again",
+              "to_snapshot_id": "sha256-p-scandia-fy2025"
+            },
+            "scope": "December 2025 (re-filed) vs December 2025",
+            "series_id": "revenue",
+            "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again",
+            "unit": "percent",
+            "value": 0.0
+          }
+        ],
+        "currency": null,
+        "fact_units": {
+          "revenue_pct_change": "percent"
+        },
+        "facts": {
+          "revenue_pct_change": 0.0
+        },
+        "gaps": [],
+        "notes": [],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "self_pct_change_is_exactly_zero",
+          "caption": "December 2025 vs December 2025 (re-filed)",
+          "decimals": 0,
+          "derive": "pct_change",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025 → December 2025 (re-filed)",
+              "slot_id": "p-scandia-fy2025->p-scandia-fy2025-again"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "share_of_assets": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "cell",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "share_of_assets",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "share",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_assets",
+              "series_id": "current_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity",
+              "series_id": "equity",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "artifact_id": "share_of_assets",
+          "denominator_minor": 5276471779,
+          "fact": "current_assets_share_of_total_assets",
+          "kind": "ratio",
+          "label_key": "capsule.metric.current_assets.share",
+          "numerator_minor": 2688276349,
+          "operand_currency": "RON",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "",
+          "series_id": "current_assets",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "percent",
+          "value": 0.5094836969846324
+        },
+        {
+          "artifact_id": "share_of_assets",
+          "denominator_minor": 5276471779,
+          "fact": "equity_share_of_total_assets",
+          "kind": "ratio",
+          "label_key": "capsule.metric.equity.share",
+          "numerator_minor": 775658915,
+          "operand_currency": "RON",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "",
+          "series_id": "equity",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "percent",
+          "value": 0.14700332864227
+        },
+        {
+          "artifact_id": "share_of_assets",
+          "cells": 2,
+          "currency": null,
+          "fact_units": {
+            "current_assets_share_of_total_assets": "percent",
+            "equity_share_of_total_assets": "percent"
+          },
+          "facts": {
+            "current_assets_share_of_total_assets": 0.5094836969846324,
+            "equity_share_of_total_assets": 0.14700332864227
+          },
+          "gaps": 0,
+          "notes": [],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "denominator",
+          "derive",
+          "kind",
+          "metrics",
+          "metric",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 11,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 6
+      },
+      "payload": {
+        "denominator": "total_assets",
+        "derive": "share",
+        "kind": "bar",
+        "metrics": [
+          {
+            "metric": "current_assets"
+          },
+          {
+            "metric": "equity"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "share_of_assets",
+        "cells": [
+          {
+            "denominator_minor": 5276471779,
+            "fact": "current_assets_share_of_total_assets",
+            "kind": "ratio",
+            "label_key": "capsule.metric.current_assets.share",
+            "numerator_minor": 2688276349,
+            "operand_currency": "RON",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "",
+            "series_id": "current_assets",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "percent",
+            "value": 0.5094836969846324
+          },
+          {
+            "denominator_minor": 5276471779,
+            "fact": "equity_share_of_total_assets",
+            "kind": "ratio",
+            "label_key": "capsule.metric.equity.share",
+            "numerator_minor": 775658915,
+            "operand_currency": "RON",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "",
+            "series_id": "equity",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "percent",
+            "value": 0.14700332864227
+          }
+        ],
+        "currency": null,
+        "fact_units": {
+          "current_assets_share_of_total_assets": "percent",
+          "equity_share_of_total_assets": "percent"
+        },
+        "facts": {
+          "current_assets_share_of_total_assets": 0.5094836969846324,
+          "equity_share_of_total_assets": 0.14700332864227
+        },
+        "gaps": [],
+        "notes": [],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "share_of_assets",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "share",
+          "group_by": "period",
+          "kind": "bar",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.current_assets",
+              "series_id": "current_assets",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.equity",
+              "series_id": "equity",
+              "unit": "money"
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    },
+    "unknown_metric_gap": {
+      "frame_types": [
+        "skeleton",
+        "cell",
+        "gap",
+        "complete"
+      ],
+      "frames": [
+        {
+          "artifact_id": "unknown_metric_gap",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "",
+              "series_id": "ebitda_margin",
+              "unit": ""
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        {
+          "amount_minor": 4834908159,
+          "artifact_id": "unknown_metric_gap",
+          "currency": "RON",
+          "fact": "revenue",
+          "kind": "money",
+          "label_key": "capsule.metric.revenue",
+          "provenance": {
+            "entity_id": "org-scandia",
+            "period_id": "p-scandia-fy2025",
+            "period_label": "December 2025",
+            "snapshot_id": "sha256-p-scandia-fy2025",
+            "source": "assembled_canonical_v1",
+            "tier": "canonical_bs"
+          },
+          "scope": "December 2025",
+          "series_id": "revenue",
+          "slot_id": "p-scandia-fy2025",
+          "type": "cell",
+          "unit": "money",
+          "value": 48349081.59
+        },
+        {
+          "artifact_id": "unknown_metric_gap",
+          "code": "unknown_metric",
+          "detail": "'ebitda_margin' is not a metric this surface serves.",
+          "fix": "Ask for one of: current_assets, current_liabilities, current_ratio, difference, ebitda, equity, equity_plus_liabilities, equity_ratio, expenses, net_margin, net_result, revenue, total_assets, total_liabilities, working_capital.",
+          "kind": "gap",
+          "missing": [
+            "ebitda_margin"
+          ],
+          "series_id": "ebitda_margin",
+          "slot_id": "p-scandia-fy2025",
+          "tool": "get_facts",
+          "type": "gap",
+          "upsell_key": ""
+        },
+        {
+          "artifact_id": "unknown_metric_gap",
+          "cells": 1,
+          "currency": "RON",
+          "fact_units": {
+            "revenue": "money"
+          },
+          "facts": {
+            "revenue": 48349081.59
+          },
+          "gaps": 1,
+          "notes": [
+            "Some cells could not be resolved; each one says what is missing."
+          ],
+          "refusals": 0,
+          "type": "complete",
+          "version": "ar1"
+        }
+      ],
+      "parse_report": {
+        "ints_seen": 0,
+        "keys_seen": [
+          "kind",
+          "metrics",
+          "metric",
+          "metric",
+          "periods"
+        ],
+        "lists_walked": 2,
+        "nodes_walked": 9,
+        "prose_chars_checked": 0,
+        "prose_fields_checked": 0,
+        "strings_scanned": 4
+      },
+      "payload": {
+        "kind": "table",
+        "metrics": [
+          {
+            "metric": "revenue"
+          },
+          {
+            "metric": "ebitda_margin"
+          }
+        ],
+        "periods": [
+          "p-scandia-fy2025"
+        ]
+      },
+      "resolved": {
+        "ambiguous_facts": [],
+        "artifact_id": "unknown_metric_gap",
+        "cells": [
+          {
+            "amount_minor": 4834908159,
+            "currency": "RON",
+            "fact": "revenue",
+            "kind": "money",
+            "label_key": "capsule.metric.revenue",
+            "provenance": {
+              "entity_id": "org-scandia",
+              "period_id": "p-scandia-fy2025",
+              "period_label": "December 2025",
+              "snapshot_id": "sha256-p-scandia-fy2025",
+              "source": "assembled_canonical_v1",
+              "tier": "canonical_bs"
+            },
+            "scope": "December 2025",
+            "series_id": "revenue",
+            "slot_id": "p-scandia-fy2025",
+            "unit": "money",
+            "value": 48349081.59
+          }
+        ],
+        "currency": "RON",
+        "fact_units": {
+          "revenue": "money"
+        },
+        "facts": {
+          "revenue": 48349081.59
+        },
+        "gaps": [
+          {
+            "code": "unknown_metric",
+            "detail": "'ebitda_margin' is not a metric this surface serves.",
+            "fix": "Ask for one of: current_assets, current_liabilities, current_ratio, difference, ebitda, equity, equity_plus_liabilities, equity_ratio, expenses, net_margin, net_result, revenue, total_assets, total_liabilities, working_capital.",
+            "kind": "gap",
+            "missing": [
+              "ebitda_margin"
+            ],
+            "series_id": "ebitda_margin",
+            "slot_id": "p-scandia-fy2025",
+            "tool": "get_facts",
+            "upsell_key": ""
+          }
+        ],
+        "notes": [
+          "Some cells could not be resolved; each one says what is missing."
+        ],
+        "ok": true,
+        "refusals": [],
+        "skeleton": {
+          "artifact_id": "unknown_metric_gap",
+          "caption": "December 2025",
+          "decimals": 0,
+          "derive": "",
+          "group_by": "period",
+          "kind": "table",
+          "note": "",
+          "series": [
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "capsule.metric.revenue",
+              "series_id": "revenue",
+              "unit": "money"
+            },
+            {
+              "emphasis": "",
+              "label": "",
+              "label_key": "",
+              "series_id": "ebitda_margin",
+              "unit": ""
+            }
+          ],
+          "slots": [
+            {
+              "currency": "RON",
+              "label": "December 2025",
+              "slot_id": "p-scandia-fy2025"
+            }
+          ],
+          "subtitle": "",
+          "title": "",
+          "type": "skeleton",
+          "version": "ar1",
+          "x_label": "",
+          "y_label": ""
+        },
+        "version": "ar1"
+      }
+    }
+  },
+  "fact_index_summary": {
+    "derivations": [
+      "",
+      "delta",
+      "pct_change",
+      "share"
+    ],
+    "entity_id": "org-scandia",
+    "group_by": [
+      "period",
+      "metric"
+    ],
+    "kinds": [
+      "line",
+      "bar",
+      "table",
+      "kpi_grid",
+      "delta_table"
+    ],
+    "metrics": [
+      {
+        "label_key": "capsule.metric.current_assets",
+        "metric": "current_assets",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.current_liabilities",
+        "metric": "current_liabilities",
+        "unit": "money"
+      },
+      {
+        "derived_from": [
+          "current_assets",
+          "current_liabilities"
+        ],
+        "label_key": "capsule.metric.current_ratio",
+        "metric": "current_ratio",
+        "unit": "ratio"
+      },
+      {
+        "label_key": "capsule.metric.difference",
+        "metric": "difference",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.ebitda",
+        "metric": "ebitda",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.equity",
+        "metric": "equity",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.equity_plus_liabilities",
+        "metric": "equity_plus_liabilities",
+        "unit": "money"
+      },
+      {
+        "derived_from": [
+          "equity",
+          "total_assets"
+        ],
+        "label_key": "capsule.metric.equity_ratio",
+        "metric": "equity_ratio",
+        "unit": "percent"
+      },
+      {
+        "label_key": "capsule.metric.expenses",
+        "metric": "expenses",
+        "unit": "money"
+      },
+      {
+        "derived_from": [
+          "net_result",
+          "revenue"
+        ],
+        "label_key": "capsule.metric.net_margin",
+        "metric": "net_margin",
+        "unit": "percent"
+      },
+      {
+        "label_key": "capsule.metric.net_result",
+        "metric": "net_result",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.revenue",
+        "metric": "revenue",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.total_assets",
+        "metric": "total_assets",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.total_liabilities",
+        "metric": "total_liabilities",
+        "unit": "money"
+      },
+      {
+        "label_key": "capsule.metric.working_capital",
+        "metric": "working_capital",
+        "unit": "money"
+      }
+    ],
+    "periods": [
+      {
+        "currency": "RON",
+        "entity_id": "org-scandia",
+        "has_account_detail": true,
+        "has_source_file": true,
+        "label": "December 2025",
+        "period_end": "2025-12-31",
+        "period_id": "p-scandia-fy2025"
+      },
+      {
+        "currency": "RON",
+        "entity_id": "org-carniprod",
+        "has_account_detail": true,
+        "has_source_file": true,
+        "label": "December 2025",
+        "period_end": "2025-12-31",
+        "period_id": "p-carniprod-fy2025"
+      },
+      {
+        "currency": "RON",
+        "entity_id": "org-scandia",
+        "has_account_detail": false,
+        "has_source_file": false,
+        "label": "November 2025",
+        "period_end": "",
+        "period_id": "p-scandia-nofile"
+      },
+      {
+        "currency": "RON",
+        "entity_id": "org-scandia",
+        "has_account_detail": true,
+        "has_source_file": true,
+        "label": "December 2025 (re-filed)",
+        "period_end": "2025-12-31",
+        "period_id": "p-scandia-fy2025-again"
+      }
+    ],
+    "rule": "Name ids only. Every figure is resolved by the engine from the served statements; a digit anywhere in your answer is rejected.",
+    "version": "as1"
+  }
+}

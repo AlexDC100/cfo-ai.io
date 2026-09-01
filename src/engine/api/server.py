@@ -33,6 +33,7 @@ from ..storage import PostgresAdapter, create_engine_from_url
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
 from ._capsule_tools import build_router as create_capsule_router
+from ._artifact_export import build_router as create_artifact_export_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
 from ._health import build_router as create_health_router
@@ -254,6 +255,12 @@ def create_app(
     # registry is a frozen allowlist of eight READS; there is no route
     # here that mutates anything (see _capsule_tools.py's C2 contract).
     app.include_router(create_capsule_router())
+    # THE ARTIFACTS — POST /api/artifacts/export. Takes RESOLVED figures
+    # (the facts gateway already produced them client-side) and writes
+    # .xlsx / .pptx / .docx bytes. It derives nothing, reads no store and
+    # calls no model; the single sum it performs decides whether a live
+    # SUM() formula may be written and never replaces a served total.
+    app.include_router(create_artifact_export_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

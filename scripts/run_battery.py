@@ -243,6 +243,22 @@ def _engine_gates() -> List[Gate]:
         # ratios invariant across currencies. Named separately from
         # `pytest` because a fabricated figure fails silently, so its gate
         # must not. Plant log: design_review/capsule/GATES.md
+        # A1-A5 — THE ARTIFACT EXPORT BUILDER. An .xlsx/.pptx/.docx built
+        # from RESOLVED figures: it derives nothing, an absent cell is a
+        # glyph rather than a zero (an empty numeric cell is summed as
+        # zero by the next person who drags a SUM across it), every fact
+        # cell carries its source and snapshot as a comment, and the
+        # bytes are deterministic — openpyxl stamps docProps with
+        # datetime.now() and zipfile stamps every entry with
+        # time.localtime(), and both are pinned. Named separately from
+        # `pytest` because a file that leaves the product with the
+        # numbers and none of their provenance fails silently.
+        # Plant log: design_review/artifacts/GATES.md
+        Gate("artifact-export",
+             [PY, "-m", "pytest", "tests/engine/test_artifact_export.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_a1_a_disagreeing_total_is_written_static_and_says_why",
+                       "test_a2_an_absent_cell_is_a_glyph_not_a_zero_and_not_an_empty_cell")),
         Gate("capsule-gates",
              [PY, "-m", "pytest", "tests/engine/test_capsule_gates.py", "-q"],
              work_junit=True, floor=15, units="tests",
@@ -454,6 +470,19 @@ def _frontend_gates() -> List[Gate]:
         # accumulated across 32 files. The 0.2s runtime was the tell; a green
         # gate invites nobody to read its runtime. The work count below is
         # the direct antibody: the false green reported ZERO project files.
+        # B-COMPLETE / B-NOLIB / B-ONEACCENT / B-REDRESERVED — the eight
+        # artifact kinds are each wired end to end (schema walk, resolve
+        # branch, render branch, renderer, fixture, gate case), no chart
+        # library is imported anywhere in the lane, every colour resolves
+        # to a token, and semantic red appears only where it means
+        # something. Static, because a runtime suite cannot see a kind
+        # that lost its renderer — the other seven keep the suite green
+        # and the total looks healthy (TC-6).
+        # Plant log: design_review/artifacts/GATES.md
+        Gate("artifact-law", ["node", "scripts/check_artifact_law.mjs"],
+             work_rx=r"GATE-WORK artifact-law units=(\d+)", floor=14,
+             units="lane source files",
+             canaries=("ARTIFACT LAW", "8/8 kinds wired")),
         Gate("tsc", ["node", "scripts/check_tsc.mjs"],
              work_rx=r"GATE-WORK tsc units=(\d+)", floor=400,
              units="project files typechecked",

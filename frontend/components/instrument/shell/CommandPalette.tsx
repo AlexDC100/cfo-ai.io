@@ -1050,22 +1050,31 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
   }, [query, open, mode]);
 
-  // ── global keys: ⌘J into Ask, and type-to-open ──────────────────────
+  // ── global keys: type-to-open ───────────────────────────────────────
   //
-  // Registered in the CAPTURE phase at window so ⌘J is claimed BEFORE
-  // AppShell's bubble-phase handler (which routes ⌘J to the full chat
-  // page) ever sees it. `stopPropagation` on a window-capture listener
-  // ends the dispatch, so no shared file had to be edited for this
-  // binding — flagged as a cross-lane note rather than a silent grab.
+  // ⌘J USED TO BE CLAIMED HERE, in the capture phase, with a
+  // `stopPropagation` that ended the dispatch before AppShell's
+  // bubble-phase handler saw it. That grab was written when ⌘J meant
+  // "navigate to the full /chat page", and beating it to the key was the
+  // right call at the time.
+  //
+  // ⌘J now opens THE CANVAS (components/cfo/canvas), and the split it
+  // creates is the product's shape: ⌘K is this surface — navigation,
+  // entities, actions and Tier-0 answers that cost nothing — and ⌘J is
+  // where generative work happens, beside the numbers rather than on
+  // another page. A capture-phase grab here would silently win that
+  // contest, and the palette would keep opening for exactly the work it
+  // handed away.
+  //
+  // So the branch is gone rather than re-pointed. Ask mode in THIS
+  // surface is still reached the way it always was — type a question and
+  // press Enter, or activate the Ask row — and the palette's own
+  // escalation (`onOpenAi`) is what AppShell wires to the canvas.
+  //
+  // The type-to-open behaviour below is untouched.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
-      if (meta && !e.shiftKey && e.key.toLowerCase() === "j") {
-        e.preventDefault();
-        e.stopPropagation();
-        enterAnswerMode("");
-        return;
-      }
       if (open || meta || e.altKey) return;
       if (e.key.length !== 1) return;
       if (!/[\p{L}\p{N}]/u.test(e.key)) return;

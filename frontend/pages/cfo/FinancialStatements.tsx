@@ -76,6 +76,10 @@ import { convertFromTo } from "@/lib/money";
 import { openStagedFile } from "@/lib/stagedFilePreview";
 import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+// The LEAF module, not the barrel: importing `canvas/index` here would
+// pull CanvasPanel and its whole subtree into this page's chunk for the
+// sake of one 40-line handoff.
+import { takeCanvasAttachment } from "@/components/cfo/canvas/canvasAttach";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { AiReadBadge, BSStatementView } from "@/components/cfo/BSStatementView";
 import {
@@ -1057,6 +1061,30 @@ export default function FinancialStatements() {
   useEffect(() => {
     writeStagedFiles("dashboard", stagedFiles);
   }, [stagedFiles]);
+
+  // ── THE CANVAS HAND-OFF (Part D, attach) ────────────────────────────
+  //
+  // Dropping a file into the ⌘J canvas must not become a SECOND
+  // ingestion path — that path would bypass the period picker, the
+  // period detection, the 25 MB guard, the budget-deck interception, the
+  // 402 extra-document confirmation and the 429 quota block, every one
+  // of which lives in this component and exists because something went
+  // wrong without it.
+  //
+  // So the canvas stages the File in `canvas/canvasAttach` and routes
+  // here, and this is the whole consumer: take it once, hand it to
+  // `onFileChosen` — the SAME entry point this page's own dropzone
+  // uses. Nothing about the flow below changes.
+  //
+  // `takeCanvasAttachment` is consuming and TTL'd, so a remount cannot
+  // re-stage the same document and an hour-old drop is not honoured.
+  useEffect(() => {
+    const handed = takeCanvasAttachment();
+    if (handed) void onFileChosen(handed);
+    // Mount only: the hand-off is a one-shot, and `onFileChosen` is a
+    // render-local closure that would re-run this every render if listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Stage one file (budget decks route straight to Variance; oversize is
   // rejected). Does NOT upload — that happens on Start scan via scanOneFile.

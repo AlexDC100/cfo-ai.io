@@ -121,7 +121,11 @@ export const SHELL_NAV_ALL: ShellNavItem[] = [
   { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analyze" },
   { to: "/alerts",     labelKey: "sidebar.alerts",     icon: Bell,            testId: "sidebar-alerts",     group: "analyze" },
   { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "explore" },
-  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "ask", shortcutKey: "J" },
+  // No `shortcutKey` on this row. ⌘J opens the CANVAS, not /chat, and
+  // `CommandPalette` renders this field as the row's kbd hint — so
+  // leaving it would put "⌘J" beside a row that goes somewhere else, in
+  // the one surface people use to learn the shortcuts.
+  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "ask" },
 ];
 
 export const SHELL_GROUP_ORDER: ShellNavGroup[] = ["overview", "analyze", "explore", "ask"];
@@ -289,11 +293,15 @@ export function Sidebar({
             >
               {t("sidebar.chat")}
             </span>
-            {!effectivelyCollapsed && (
-              <kbd className="ml-1 hidden sm:inline text-[10px] font-mono font-normal opacity-70 group-hover:opacity-100">
-                ⌘J
-              </kbd>
-            )}
+            {/* THE ⌘J HINT WAS REMOVED, not re-pointed (2026-09-01).
+                ⌘J opens THE CANVAS (components/cfo/canvas) — a
+                right-side workspace panel — while this row still
+                navigates to the full /chat page. Two different
+                destinations behind one advertised key is worse than no
+                hint at all, and which destination this ROW should have
+                is a decision for whoever owns the rail, not something
+                to settle silently from the canvas lane. The row is
+                unchanged; only the false claim is gone. */}
           </NavLink>
         </div>
         {groups.filter((g) => g.key !== "ask").map((g) => (

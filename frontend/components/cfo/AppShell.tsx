@@ -40,6 +40,13 @@ import { CommandCenter } from "./command";
 // actions, recent periods and companies. The old file stays for git
 // archaeology but is no longer mounted.
 import { CommandPalette } from "@/components/instrument/shell/CommandPalette";
+// THE CANVAS (Part A). ⌘J no longer navigates to /chat — it opens a
+// full-height right-side workspace panel where generative work happens.
+// ⌘K keeps the Capsule: navigation, entities, actions and Tier-0 answers
+// that cost nothing. The split is the point — one surface for GETTING
+// SOMEWHERE, one for MAKING SOMETHING — and the Capsule stays fast
+// precisely because artifact-building left it.
+import { CanvasPanel } from "./canvas";
 import { SIDEBAR_TOGGLE_EVENT } from "./Sidebar";
 import { DocsPanel } from "./DocsPanel";
 import { CouncilSphereHost } from "./CouncilSphereHost";
@@ -90,6 +97,7 @@ export function AppShell({ children }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
 
   // ── iOS/Android native shell integration (see frontend/lib/nativeShell.ts
   // and mobile/README.md). Inside the shell the TopHeader isn't rendered at
@@ -257,8 +265,14 @@ export function AppShell({ children }: Props) {
         e.preventDefault();
         setSearchOpen(true);
       } else if (key === "j" && !e.shiftKey) {
+        // ⌘J — THE CANVAS. It used to navigate to /chat; that route is
+        // still reachable from the rail and from every in-page chip, and
+        // is still where a prompt-carrying `openAskCfoAi(...)` lands.
+        // What changed is the KEYBOARD gesture: the fastest path to
+        // "make me something" should not cost a full-page navigation
+        // away from the numbers you are making it about.
         e.preventDefault();
-        openAskCfoAi();
+        setCanvasOpen((v) => !v);
       } else if (e.key === ".") {
         e.preventDefault();
         try { window.dispatchEvent(new Event(SIDEBAR_TOGGLE_EVENT)); } catch { /* SSR */ }
@@ -470,8 +484,18 @@ export function AppShell({ children }: Props) {
       <CommandPalette
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        onOpenAi={openAskCfoAi}
+        // The Capsule's own escalation. Anything generative belongs on
+        // the canvas, so the palette's "ask" hand-off opens it rather
+        // than navigating to /chat.
+        onOpenAi={() => {
+          setSearchOpen(false);
+          setCanvasOpen(true);
+        }}
       />
+      {/* THE CANVAS — mounted at the shell so it survives route changes:
+          jumping to a statement row from a provenance dot must not throw
+          away the document you were building. */}
+      <CanvasPanel open={canvasOpen} onOpenChange={setCanvasOpen} />
     </div>
   );
 }

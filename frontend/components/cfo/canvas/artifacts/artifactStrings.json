@@ -1,0 +1,254 @@
+{
+  "en": {
+    "artifact": {
+      "kind": {
+        "chart": "Chart",
+        "table": "Table",
+        "spreadsheet": "Spreadsheet",
+        "slide": "Slides",
+        "document": "Document",
+        "scenario": "Scenario",
+        "comparison": "Comparison",
+        "finding": "Finding"
+      },
+      "action": {
+        "refine": "Refine",
+        "export": "Export",
+        "pin": "Pin to dashboard",
+        "pinned": "Pinned",
+        "copy": "Copy",
+        "copied": "Copied",
+        "evidence": "Show evidence",
+        "hideEvidence": "Hide evidence",
+        "undo": "Undo",
+        "redo": "Redo"
+      },
+      "refine": {
+        "placeholder": "Refine — \"make it quarterly\", \"add last year\", \"exclude intercompany\"",
+        "applying": "Refining…",
+        "notAChart": "That shape only applies to a chart.",
+        "noPrecision": "This artifact has no numeric precision to set.",
+        "noSort": "This artifact has no rows to sort.",
+        "noTranspose": "This artifact has no axes to swap.",
+        "version": "Version {{n}}",
+        "versionOf": "Version {{n}} of {{total}}",
+        "reverted": "Reverted to version {{n}}"
+      },
+      "citation": {
+        "period_one": "Period",
+        "period_other": "Periods",
+        "snapshot": "Snapshot",
+        "source": "Source",
+        "trust": "Trust",
+        "noSource": "Source not recorded",
+        "incomplete": "Partial — the retrieval reported a gap",
+        "derived": "Derived from {{facts}}"
+      },
+      "chart": {
+        "empty": "No series could be resolved from the evidence.",
+        "waterfallRefused": "The bridge needs integer amounts on every step; the evidence did not carry them.",
+        "donutNegative": "A share cannot be drawn from values that include a negative.",
+        "donutEmpty": "A share needs a positive whole.",
+        "totalDisagrees": "The steps do not add up to the reported total. Both are shown; neither was adjusted.",
+        "totalAgrees": "Steps reconcile to the reported total.",
+        "reportedTotal": "Reported total",
+        "derivedTotal": "Sum of steps",
+        "axis": "Axis",
+        "legend": "Legend"
+      },
+      "table": {
+        "total": "Total",
+        "expand": "Show accounts",
+        "collapse": "Hide accounts",
+        "accounts": "Accounts",
+        "empty": "No rows.",
+        "sortBy": "Sort by {{column}}"
+      },
+      "scenario": {
+        "atRest": "At rest",
+        "driver": "Driver",
+        "output": "Result",
+        "engineValue": "Engine",
+        "parityExact": "Reproduces the engine exactly at rest.",
+        "parityDrift": "Does not reproduce the engine at rest — projection withheld.",
+        "parityUnverifiable": "The engine published no value for this metric, so there was nothing to check against.",
+        "withheld": "Projection withheld",
+        "reset": "Reset",
+        "noDrivers": "None of the drivers this scenario names are present in the evidence."
+      },
+      "driver": {
+        "revenue": "Revenue",
+        "expenses": "Total expenses",
+        "ebitda": "EBITDA",
+        "cash": "Cash",
+        "current_assets": "Current assets",
+        "current_liabilities": "Current liabilities",
+        "net_debt": "Net debt",
+        "equity": "Equity",
+        "total_assets": "Total assets"
+      },
+      "comparison": {
+        "standard": "Accounting standard",
+        "basis": {
+          "period": "Period vs period",
+          "peer": "Company vs peer",
+          "budget": "Actual vs budget",
+          "scenario": "Scenario vs base"
+        },
+        "oneRuler": "All columns are measured under {{standard}}."
+      },
+      "finding": {
+        "recompute": "Recompute without this item",
+        "withItem": "As reported",
+        "withoutItem": "Without this item",
+        "touched": "Removed from {{operands}}",
+        "refusal": {
+          "absent_metric": "That metric is not one this build recomputes.",
+          "absent_amount": "The item carries no money amount to remove.",
+          "no_operand": "Removing it would take an operand below the amount removed.",
+          "refused": "The recomputation refused — an operand was absent or zero."
+        }
+      },
+      "export": {
+        "xlsx": "Excel workbook",
+        "pptx": "Slides",
+        "docx": "Document",
+        "csv": "CSV",
+        "building": "Building…",
+        "failed": "The export could not be built.",
+        "unavailable": "Exports need the engine; it is not reachable right now."
+      },
+      "refused": {
+        "title": "This artifact was refused",
+        "body": "The composition named figures the retrieval did not return, so nothing was drawn. Nothing here was approximated."
+      },
+      "missing": "—"
+    }
+  },
+  "ro": {
+    "artifact": {
+      "kind": {
+        "chart": "Grafic",
+        "table": "Tabel",
+        "spreadsheet": "Foaie de calcul",
+        "slide": "Slide-uri",
+        "document": "Document",
+        "scenario": "Scenariu",
+        "comparison": "Comparație",
+        "finding": "Constatare"
+      },
+      "action": {
+        "refine": "Ajustează",
+        "export": "Exportă",
+        "pin": "Fixează pe tablou",
+        "pinned": "Fixat",
+        "copy": "Copiază",
+        "copied": "Copiat",
+        "evidence": "Arată dovezile",
+        "hideEvidence": "Ascunde dovezile",
+        "undo": "Anulează",
+        "redo": "Refă"
+      },
+      "refine": {
+        "placeholder": "Ajustează — „pe trimestre”, „adaugă anul trecut”, „exclude intercompany”",
+        "applying": "Se ajustează…",
+        "notAChart": "Forma aceea se aplică doar unui grafic.",
+        "noPrecision": "Acest artefact nu are precizie numerică de setat.",
+        "noSort": "Acest artefact nu are rânduri de sortat.",
+        "noTranspose": "Acest artefact nu are axe de schimbat.",
+        "version": "Versiunea {{n}}",
+        "versionOf": "Versiunea {{n}} din {{total}}",
+        "reverted": "Revenit la versiunea {{n}}"
+      },
+      "citation": {
+        "period_one": "Perioadă",
+        "period_other": "Perioade",
+        "snapshot": "Instantaneu",
+        "source": "Sursă",
+        "trust": "Încredere",
+        "noSource": "Sursa nu a fost înregistrată",
+        "incomplete": "Parțial — extragerea a raportat o lipsă",
+        "derived": "Derivat din {{facts}}"
+      },
+      "chart": {
+        "empty": "Nicio serie nu a putut fi rezolvată din dovezi.",
+        "waterfallRefused": "Puntea are nevoie de sume întregi pe fiecare pas; dovezile nu le conțineau.",
+        "donutNegative": "O pondere nu poate fi desenată din valori care includ un negativ.",
+        "donutEmpty": "O pondere are nevoie de un întreg pozitiv.",
+        "totalDisagrees": "Pașii nu se adună la totalul raportat. Sunt arătate ambele; niciunul nu a fost ajustat.",
+        "totalAgrees": "Pașii se reconciliază cu totalul raportat.",
+        "reportedTotal": "Total raportat",
+        "derivedTotal": "Suma pașilor",
+        "axis": "Axă",
+        "legend": "Legendă"
+      },
+      "table": {
+        "total": "Total",
+        "expand": "Arată conturile",
+        "collapse": "Ascunde conturile",
+        "accounts": "Conturi",
+        "empty": "Niciun rând.",
+        "sortBy": "Sortează după {{column}}"
+      },
+      "scenario": {
+        "atRest": "În repaus",
+        "driver": "Factor",
+        "output": "Rezultat",
+        "engineValue": "Motor",
+        "parityExact": "Reproduce exact motorul în repaus.",
+        "parityDrift": "Nu reproduce motorul în repaus — proiecția este reținută.",
+        "parityUnverifiable": "Motorul nu a publicat o valoare pentru această măsură, deci nu a existat nimic de verificat.",
+        "withheld": "Proiecție reținută",
+        "reset": "Resetează",
+        "noDrivers": "Niciunul dintre factorii numiți de acest scenariu nu apare în dovezi."
+      },
+      "driver": {
+        "revenue": "Cifra de afaceri",
+        "expenses": "Total cheltuieli",
+        "ebitda": "EBITDA",
+        "cash": "Numerar",
+        "current_assets": "Active circulante",
+        "current_liabilities": "Datorii curente",
+        "net_debt": "Datorie netă",
+        "equity": "Capitaluri proprii",
+        "total_assets": "Total active"
+      },
+      "comparison": {
+        "standard": "Standard contabil",
+        "basis": {
+          "period": "Perioadă vs perioadă",
+          "peer": "Companie vs comparabile",
+          "budget": "Realizat vs buget",
+          "scenario": "Scenariu vs bază"
+        },
+        "oneRuler": "Toate coloanele sunt măsurate sub {{standard}}."
+      },
+      "finding": {
+        "recompute": "Recalculează fără acest element",
+        "withItem": "Cum a fost raportat",
+        "withoutItem": "Fără acest element",
+        "touched": "Scăzut din {{operands}}",
+        "refusal": {
+          "absent_metric": "Acea măsură nu este una pe care această versiune o recalculează.",
+          "absent_amount": "Elementul nu are o sumă de eliminat.",
+          "no_operand": "Eliminarea ar duce un operand sub suma eliminată.",
+          "refused": "Recalcularea a refuzat — un operand a fost absent sau zero."
+        }
+      },
+      "export": {
+        "xlsx": "Registru Excel",
+        "pptx": "Slide-uri",
+        "docx": "Document",
+        "csv": "CSV",
+        "building": "Se construiește…",
+        "failed": "Exportul nu a putut fi construit.",
+        "unavailable": "Exporturile au nevoie de motor; nu este accesibil acum."
+      },
+      "refused": {
+        "title": "Acest artefact a fost refuzat",
+        "body": "Compoziția a numit cifre pe care extragerea nu le-a returnat, deci nu s-a desenat nimic. Nimic de aici nu a fost aproximat."
+      },
+      "missing": "—"
+    }
+  }
+}
