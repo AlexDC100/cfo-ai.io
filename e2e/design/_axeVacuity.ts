@@ -46,9 +46,36 @@
  *      can be cleared by chrome with no page under it. Neither is
  *      sufficient, which is why both are here.
  *
- * A route with NO recorded floor THROWS rather than checking nothing —
- * an unrecorded route is exactly how the next surface joins the gate
- * un-floored and goes dark for free.
+ *   3. A FLOOR THAT NAMES THE CONTENT REGION — how many elements the
+ *      route's `<main>` holds. Signals 1 and 2 are BOTH satisfiable by
+ *      the APP SHELL alone, and that is measured, not feared. With
+ *      `<main>` emptied on the live stack (2026-09-01, dark), four
+ *      routes were probed directly and all four still cleared both
+ *      checks above, i.e. the gate reported "axe clean" with the entire
+ *      content region deleted:
+ *
+ *        route        shell-only nodes   page floor   verdict then
+ *        /dashboard         289             280       PASSED
+ *        /benchmark         289             130       PASSED
+ *        /chat              294             190       PASSED (guard)
+ *        /workspace         295             220       PASSED
+ *
+ *      The canary LIVES in that shell, so it cannot see this either. A
+ *      floor on the page total is a floor on a SUM, and the shell is an
+ *      addend big enough to carry it. Holding that measured ~290 against
+ *      the other six recorded floors: / (280) and /dashboard/scenarios
+ *      (260) would also have passed — inferred, not probed — while
+ *      /products (320), /dashboard/variance (320), /settings (450) and
+ *      /public-companies (1000) would have been caught by the page
+ *      floor. Six of ten blind, four of those six measured directly.
+ *      That is TC-6 exactly: a floor on a sum cannot see one addend
+ *      collapse. So the content region gets its own recorded
+ *      expectation, and it is plant-proven per route.
+ *
+ * A route with NO recorded floor — in EITHER table — THROWS rather than
+ * checking nothing. An unrecorded route is exactly how the next surface
+ * joins the gate un-floored and goes dark for free, and a route added to
+ * one table but not the other is half-floored, which reads as covered.
  *
  * THE NUMBERS ARE MEASURED, NOT GUESSED
  * -------------------------------------
@@ -74,6 +101,27 @@
  * the next reader learns to ignore it. Every floor is still at least
  * 14x the 9 nodes the proven-vacuous run examined, so the gap it has to
  * discriminate is two orders of magnitude, not a few percent.
+ *
+ * CONTENT-REGION counts, same stack, same four states, 2026-09-01 —
+ * `document.querySelector("main").querySelectorAll("*").length`. The
+ * unit deliberately differs from the page floor above: this one asks
+ * whether the ROUTE'S OWN CONTENT exists, and a DOM count answers that
+ * without a second axe pass and without depending on which rules axe
+ * happens to cover. The spread across the four states is ZERO on nine
+ * of ten routes (only /public-companies moves, 1343 -> 1346), so the
+ * 40% floor here is even more slack than it looks:
+ *
+ *   route                  pro/lt pro/dk sim/lt sim/dk  min   floor
+ *   /dashboard               165    165    165    165    165     60
+ *   /chat                    123    123    123    123    123     45
+ *   /products                310    310    310    310    310    120
+ *   /public-companies       1343   1343   1346   1346   1343    500
+ *   /dashboard/scenarios     216    216    216    216    216     80
+ *   /dashboard/variance      396    396    396    396    396    150
+ *   /benchmark                46     46     46     46     46     15
+ *   /settings                415    415    415    415    415    160
+ *   /workspace                80     80     80     80     80     30
+ *   /                        165    165    165    165    165     60
  */
 import { expect, type Page } from "@playwright/test";
 
@@ -103,6 +151,25 @@ export const AXE_NODE_FLOORS = new Map<string, number>([
   ["/settings", 450],
   ["/workspace", 220],
   ["/", 280],
+]);
+
+/** The route's content region. The canary above lives in the SHELL, and
+ *  so does most of the node count, so neither can speak for this. */
+export const MAIN_REGION = "main";
+
+/** Per-route floor on elements inside `<main>`. See the second table
+ *  above for the measurements these are derived from. */
+export const AXE_MAIN_FLOORS = new Map<string, number>([
+  ["/dashboard", 60],
+  ["/chat", 45],
+  ["/products", 120],
+  ["/public-companies", 500],
+  ["/dashboard/scenarios", 80],
+  ["/dashboard/variance", 150],
+  ["/benchmark", 15],
+  ["/settings", 160],
+  ["/workspace", 30],
+  ["/", 60],
 ]);
 
 /** Nodes axe actually looked at, across every rule outcome. */
@@ -141,6 +208,17 @@ export async function assertAxeExaminedTheSurface(
     );
   }
 
+  const mainFloor = AXE_MAIN_FLOORS.get(route);
+  if (mainFloor === undefined) {
+    throw new Error(
+      `[axe vacuity] ${label} ${route}: no recorded CONTENT-REGION floor for this `
+      + 'route. It has a page-total floor but none for its `<main>`, so it is '
+      + 'half-floored: the app shell alone examines ~290 nodes and would carry '
+      + 'the page floor with the content region deleted. Measure it on the live '
+      + 'stack and add it to AXE_MAIN_FLOORS in e2e/design/_axeVacuity.ts.',
+    );
+  }
+
   const shell = await page.locator(SHELL_CANARY).count();
   expect(
     shell,
@@ -158,4 +236,20 @@ export async function assertAxeExaminedTheSurface(
     + 'on a /dashboard that painted nothing and PASSED. This surface did not '
     + 'render enough for a clean result to mean anything.',
   ).toBeGreaterThanOrEqual(floor);
+
+  const mainCount = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    return el ? el.querySelectorAll("*").length : -1;
+  }, MAIN_REGION);
+  expect(
+    mainCount,
+    `[axe vacuity] ${label} ${route}: the content region <${MAIN_REGION}> holds `
+    + `${mainCount < 0 ? "no element at all" : `${mainCount} element(s)`}, floor `
+    + `${mainFloor}. The two checks above are BOTH satisfiable by the app shell `
+    + 'alone — measured: with <main> emptied, four probed routes still examined '
+    + '289-295 nodes and still carried the canary, which lives in that shell, and '
+    + 'all four still reported "axe clean". So this '
+    + "route's own content did not render, and a clean axe result here is a fact "
+    + 'about the chrome, not about the surface under test.',
+  ).toBeGreaterThanOrEqual(mainFloor);
 }
