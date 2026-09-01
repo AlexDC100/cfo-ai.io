@@ -118,12 +118,66 @@
  *   /public-companies       1343   1343   1346   1346   1343    500
  *   /dashboard/scenarios     216    216    216    216    216     80
  *   /dashboard/variance      396    396    396    396    396    150
- *   /benchmark                46     46     46     46     46     15
+ *   /benchmark                46     46     46     46     46     30  (was 15)
  *   /settings                415    415    415    415    415    160
  *   /workspace                80     80     80     80     80     30
  *   /                        165    165    165    165    165     60
+ *
+ * ══ A FOURTH SIGNAL: THE FLOOR PASSED ON A CRASHED ROUTE ══════════════
+ *
+ * MEASURED 2026-09-01 on the live test-mode stack. Everything above
+ * asks "did enough render?". Nothing asked "is what rendered the PAGE,
+ * or the ERROR CARD?" — and the two are not distinguishable by count,
+ * because `RouteErrorBoundary` (App.tsx:447, keyed by pathname, mounted
+ * INSIDE `<main>`) paints a real, substantial card.
+ *
+ * Forced by blocking each route's lazy chunk, then measured exactly
+ * what this helper measures:
+ *
+ *   route (crashed)   main   axe nodes   shell canary   recorded floors
+ *   /benchmark          21        343       present      15 / 130  PASSED
+ *   /workspace          21        343       present      30 / 220  (main red)
+ *   /chat               21        342       present      45 / 190  (main red)
+ *
+ * So `/benchmark` — floor 15, the lowest in the table, because the route
+ * is genuinely thin — reported **"axe clean"** with its entire content
+ * replaced by "This page needs a refresh". The shell canary lives in the
+ * shell and survives; the node floor of 130 is cleared 2.6x over by the
+ * shell alone; and 21 > 15. Three signals, all green, on a broken page.
+ * Note the crash also carried ONE serious violation today (the shell's
+ * own contrast), so the spec still went red — for the WRONG REASON. When
+ * that contrast debt is paid, the crash reports clean.
+ *
+ * The error card's size, both branches, measured rather than reasoned:
+ *
+ *   ChunkLoadError branch (no dev <pre>)          main = 21
+ *   render-throw branch   (dev <pre> stack)       main = 22
+ *
+ * TWO fixes, because either alone is the failure this file exists to
+ * document:
+ *
+ *   1. AN EXACT DISCRIMINATOR, not arithmetic. `ERROR_CARD` names the
+ *      one element the boundary always paints. A count-based check can
+ *      only ever be lucky about this; a named element cannot. It also
+ *      catches the crash on routes whose floors happen to sit above 22
+ *      today, and on every route added later.
+ *   2. NO FLOOR MAY SIT BELOW THE ERROR CARD. `/benchmark` goes 15 -> 30
+ *      (above the measured 22 by 8, and 65% of its healthy 46 — tighter
+ *      slack than the 40% convention, which is the price of a route this
+ *      thin), and the rule is enforced MECHANICALLY per route below, so
+ *      the next surface cannot join the table under 22 and read as
+ *      covered.
+ *
+ * A named anchor in product code is itself a stale-anchor hazard — the
+ * exact disease `scripts/check_stale_gates.mjs` hunts — so the anchor is
+ * PROVEN AGAINST ITS SOURCE on every call: if the testid is renamed or
+ * the component moves, this throws instead of quietly discriminating
+ * nothing.
  */
 import { expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 /** Structural shape of `new AxeBuilder(...).analyze()`'s result. Typed
  *  here rather than imported so this file adds no new dependency. */
@@ -166,11 +220,76 @@ export const AXE_MAIN_FLOORS = new Map<string, number>([
   ["/public-companies", 500],
   ["/dashboard/scenarios", 80],
   ["/dashboard/variance", 150],
-  ["/benchmark", 15],
+  // 15 -> 30. At 15 this route reported "axe clean" with its content
+  // region replaced by the RouteErrorBoundary card (measured: 21
+  // elements). 30 clears the card's measured maximum of 22 by 8.
+  ["/benchmark", 30],
   ["/settings", 160],
   ["/workspace", 30],
   ["/", 60],
 ]);
+
+// ══════════════════════════════════════════════════════════════════════
+// THE CRASHED-ROUTE DISCRIMINATOR
+// ══════════════════════════════════════════════════════════════════════
+
+/** The one element `RouteErrorBoundary` always paints in its error
+ *  branch — both the ChunkLoadError and the render-throw variants. */
+export const ERROR_CARD = '[data-testid="route-error-clear-restart"]';
+
+/** The component that renders it. Named so the anchor can be proven
+ *  against its source rather than trusted. */
+export const ERROR_CARD_SOURCE = "frontend/components/cfo/RouteErrorBoundary.tsx";
+
+/** Elements the error card puts inside `<main>`. MEASURED 2026-09-01:
+ *  21 on the ChunkLoadError branch, 22 on the render-throw branch (the
+ *  dev-only `<pre>` stack). The maximum is what a floor has to beat. */
+export const ERROR_CARD_MAIN_ELEMENTS = 22;
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+let anchorProven = false;
+
+/**
+ * Prove the discriminator still names something real.
+ *
+ * A guard keyed to a `data-testid` in product code is a stale anchor
+ * waiting to happen: rename the attribute and this file goes on
+ * asserting `count === 0` forever, which is trivially true and reads
+ * green. Cheap to prevent — read the component and look for the
+ * literal. Once per process; the file does not change mid-run.
+ */
+export function assertErrorCardAnchorIsReal(): void {
+  if (anchorProven) return;
+  const file = path.join(REPO_ROOT, ERROR_CARD_SOURCE);
+  let src = "";
+  try {
+    src = readFileSync(file, "utf8");
+  } catch {
+    throw new Error(
+      `[axe vacuity] cannot read ${ERROR_CARD_SOURCE}. The crashed-route `
+      + 'discriminator is anchored to that component; if it moved, this guard '
+      + 'is asserting the absence of an element nothing can render — a stale '
+      + 'anchor, which passes for free. Point ERROR_CARD_SOURCE at the '
+      + "boundary's new home in e2e/design/_axeVacuity.ts.",
+    );
+  }
+  // The FULL attribute literal, closing quote included. A bare substring
+  // check is not enough and that is measured, not feared: planting
+  // `data-testid="route-error-clear-restart-RENAMED"` left
+  // `includes("route-error-clear-restart")` TRUE, so the first draft of
+  // this guard passed while `ERROR_CARD` matched nothing — a stale
+  // anchor certified by its own anti-stale-anchor check.
+  if (!src.includes('data-testid="route-error-clear-restart"')) {
+    throw new Error(
+      `[axe vacuity] ${ERROR_CARD_SOURCE} no longer contains the testid `
+      + `"route-error-clear-restart" that ${ERROR_CARD} matches. The guard `
+      + 'that tells a crashed route from a rendered one is now anchored to '
+      + 'nothing and would pass on every page, broken or not. Re-anchor it on '
+      + "whatever the error branch renders now — do not delete the check.",
+    );
+  }
+  anchorProven = true;
+}
 
 /** Nodes axe actually looked at, across every rule outcome. */
 export function axeNodesExamined(results: AxeResultsLike): number {
@@ -219,6 +338,25 @@ export async function assertAxeExaminedTheSurface(
     );
   }
 
+  // THE FLOOR MUST BEAT THE ERROR CARD, mechanically, per route.
+  // `/benchmark` sat at 15 and reported "axe clean" on a crashed route
+  // for exactly this reason. Enforcing it here rather than in a comment
+  // is what stops the next thin route from joining the table under the
+  // card's size and reading as covered.
+  if (mainFloor <= ERROR_CARD_MAIN_ELEMENTS) {
+    throw new Error(
+      `[axe vacuity] ${label} ${route}: its content-region floor is ${mainFloor}, `
+      + `at or below the ${ERROR_CARD_MAIN_ELEMENTS} elements RouteErrorBoundary `
+      + 'paints inside <main> (measured: 21 on the ChunkLoadError branch, 22 on '
+      + 'the render-throw branch). A floor that low cannot tell this route from '
+      + 'a crashed one — which is not hypothetical: /benchmark at 15 PASSED with '
+      + 'its whole content region replaced by "This page needs a refresh". Raise '
+      + 'the floor above ' + `${ERROR_CARD_MAIN_ELEMENTS}` + ' in AXE_MAIN_FLOORS, '
+      + 'or if this route\'s real content is genuinely smaller than the error '
+      + 'card, say so here explicitly — do not lower the constant.',
+    );
+  }
+
   const shell = await page.locator(SHELL_CANARY).count();
   expect(
     shell,
@@ -236,6 +374,24 @@ export async function assertAxeExaminedTheSurface(
     + 'on a /dashboard that painted nothing and PASSED. This surface did not '
     + 'render enough for a clean result to mean anything.',
   ).toBeGreaterThanOrEqual(floor);
+
+  // IS WHAT RENDERED THE PAGE, OR THE ERROR CARD? Asked BEFORE the
+  // content floor so a crash is diagnosed as a crash rather than as a
+  // thin page — and asked at all because no count can answer it.
+  assertErrorCardAnchorIsReal();
+  const errorCards = await page
+    .locator(`${MAIN_REGION} ${ERROR_CARD}`)
+    .count();
+  expect(
+    errorCards,
+    `[axe vacuity] ${label} ${route}: the content region <${MAIN_REGION}> holds `
+    + `the RouteErrorBoundary card (${ERROR_CARD}), so this route THREW and what `
+    + 'axe examined is an error card, not the surface under test. Measured '
+    + '2026-09-01: a crashed route still carries the shell canary, still '
+    + 'examines ~343 axe nodes, and still paints 21-22 elements in <main> — '
+    + 'enough to clear /benchmark\'s old floor of 15 and report "axe clean" on '
+    + 'a broken page.',
+  ).toBe(0);
 
   const mainCount = await page.evaluate((sel) => {
     const el = document.querySelector(sel);

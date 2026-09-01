@@ -28,7 +28,57 @@ import { join } from 'node:path'
 
 const ROOT = process.cwd()
 const BASELINE = 'design_review/TSC_BASELINE.txt'
-const PROJECTS = ['tsconfig.app.json', 'tsconfig.node.json']
+
+// PER-PROJECT CANARY AND FLOOR — TC-6, learned the hard way twice.
+//
+// This gate used to carry ONE canary (`frontend/main.tsx`) and ONE floor
+// (400) over the SUM of every project. That is the `import-boundary`
+// shape exactly: the frontend half collapsed 517 -> 1 while the total
+// stayed above a global floor, and both named canaries survived, because
+// they lived in the half that did not collapse.
+//
+// Concretely, and this is not hypothetical here: `tsconfig.e2e.json` is
+// added below covering 41 files. Under the old single-floor scheme, if
+// that project's `include` were mistyped tomorrow and matched nothing,
+// the total would fall 714 -> 673, still 1.7x the global floor of 400,
+// and `frontend/main.tsx` would still be seen. The gate would print
+// GREEN while the entire Playwright suite went unchecked again — the
+// very defect this project was added to close.
+//
+// So each project names a file it MUST have loaded and a count it MUST
+// clear, and both are asserted after every project has run.
+const PROJECTS = [
+  {
+    config: 'tsconfig.app.json',
+    // The app entry point: if the project graph is real, tsc loaded it.
+    canary: 'frontend/main.tsx',
+    floor: 400,        // 682 measured 2026-09-01
+    label: 'app',
+  },
+  {
+    config: 'tsconfig.node.json',
+    // This project is exactly one file by design; the canary IS the
+    // subject, and the floor of 1 is not slack, it is the whole project.
+    canary: 'vite.config.ts',
+    floor: 1,          // 1 measured 2026-09-01
+    label: 'node',
+  },
+  {
+    // THE SUITE IS SOURCE TOO. `e2e/` was in NO tsconfig project until
+    // 2026-09-01, so this gate — the one written because
+    // `npx tsc --noEmit` checked zero files — said NOTHING about any of
+    // the 37 spec/helper files that constitute the Playwright gates.
+    // TC-9 one directory over. A spec that does not compile cannot fail
+    // correctly, and a broken gate is the false green the battery exists
+    // to prevent.
+    config: 'tsconfig.e2e.json',
+    // The shared helper every authed spec imports. If discovery breaks,
+    // this is the first file to vanish.
+    canary: 'e2e/_helpers.ts',
+    floor: 30,         // 41 measured 2026-09-01 (37 e2e .ts + 3 configs/scripts)
+    label: 'e2e',
+  },
+]
 
 // THE WORK COUNT IS THIS GATE'S WHOLE POINT.
 //
@@ -44,11 +94,17 @@ const PROJECTS = ['tsconfig.app.json', 'tsconfig.node.json']
 // check; it only makes it answerable.
 let projectFilesChecked = 0
 const projectFilesSeen = new Set()
+/** label -> Set of project files THAT project loaded. Per-project, because
+ *  a union cannot see one member collapse (TC-6). */
+const seenByProject = new Map()
 
 function run(project) {
+  const mine = new Set()
+  seenByProject.set(project.label, mine)
   let out = ''
   try {
-    out = execFileSync('npx', ['tsc', '-p', project, '--noEmit', '--listFiles'],
+    out = execFileSync('npx',
+      ['tsc', '-p', project.config, '--noEmit', '--listFiles'],
       { cwd: ROOT, encoding: 'utf8',
         maxBuffer: 64 * 1024 * 1024,
         stdio: ['ignore', 'pipe', 'pipe'] })
@@ -63,6 +119,7 @@ function run(project) {
     if (line.endsWith('.d.ts')) continue
     if (!line.startsWith(ROOT)) continue
     projectFilesSeen.add(line)
+    mine.add(line)
   }
   return out
 }
@@ -84,21 +141,37 @@ for (const p of PROJECTS) all = all.concat(parse(run(p)))
 all.sort()
 projectFilesChecked = projectFilesSeen.size
 
-// DISCOVERY CANARY. `frontend/main.tsx` is the app entry point: if the
-// project graph is real, tsc loaded it. This is the assertion the old
-// gate could not make, and the one that would have failed in 0.2s
-// instead of passing.
-const TSC_CANARY = 'frontend/main.tsx'
-const sawCanary = [...projectFilesSeen].some(
-  (f) => f.endsWith(`/${TSC_CANARY}`))
-if (!sawCanary || projectFilesChecked === 0) {
+// DISCOVERY CANARY AND FLOOR, PER PROJECT — asserted here, AFTER every
+// project has run (TC-3: a check inside the loop cannot fire for a
+// component the loop never visited).
+//
+// A canary names a FILE and a floor names a NUMBER, and each on its own
+// survives the failure it exists to catch: the canary if the collapse
+// spares that one file, the floor if it is a SUM and only one addend
+// goes. So this is per project, and both are required.
+const projectReport = []
+let discoveryBroken = false
+for (const p of PROJECTS) {
+  const mine = seenByProject.get(p.label) ?? new Set()
+  const count = mine.size
+  const sawCanary = [...mine].some((f) => f.endsWith(`/${p.canary}`))
+  projectReport.push({ ...p, count, sawCanary })
+  if (!sawCanary || count < p.floor) discoveryBroken = true
+}
+
+if (discoveryBroken) {
   console.log('TYPECHECK GATE: DISCOVERY BROKEN')
-  console.log(`  projects: ${PROJECTS.join(', ')}`)
-  console.log(`  tsc loaded ${projectFilesChecked} project file(s); `
-    + `canary ${TSC_CANARY} ${sawCanary ? 'seen' : 'NOT seen'}`)
-  console.log('  This is the original defect: a solution-style tsconfig')
-  console.log('  ("files": [] + references) makes tsc check NOTHING and')
-  console.log('  exit 0. Zero errors over zero files is not a pass.')
+  for (const r of projectReport) {
+    const ok = r.sawCanary && r.count >= r.floor
+    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${r.label} (${r.config}): `
+      + `${r.count} file(s), floor ${r.floor}; `
+      + `canary ${r.canary} ${r.sawCanary ? 'seen' : 'NOT seen'}`)
+  }
+  console.log('')
+  console.log('  This is the original defect, per project: a tsconfig that')
+  console.log('  matches nothing makes tsc check NOTHING and exit 0. Zero')
+  console.log('  errors over zero files is not a pass — and a global floor')
+  console.log('  over the SUM cannot see one project collapse (TC-6).')
   process.exit(1)
 }
 
@@ -126,11 +199,17 @@ for (const k of all) {
 
 console.log('TYPECHECK GATE')
 console.log('='.repeat(62))
-console.log(`  projects: ${PROJECTS.join(', ')}`)
+// The SUM line the battery's work-count layer reads. It is kept, and it
+// is deliberately NOT the only floor: see the per-project lines below,
+// which are what actually gate this script when CI invokes it directly.
 console.log(`GATE-WORK tsc units=${projectFilesChecked} floor=400 `
   + `label=project-files-typechecked`)
+for (const r of projectReport) {
+  console.log(`GATE-WORK tsc-${r.label} units=${r.count} floor=${r.floor} `
+    + `label=${r.config} canary=${r.canary}:seen`)
+}
 console.log(`  ${projectFilesChecked} project file(s) actually loaded by tsc `
-  + `(canary ${TSC_CANARY} seen)`)
+  + `across ${PROJECTS.length} project(s); every canary seen`)
 console.log(`  ${all.length} errors (baseline ${baseline.length}, `
   + `new ${fresh.length}, healed ${remaining.length})`)
 

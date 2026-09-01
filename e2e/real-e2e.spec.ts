@@ -112,7 +112,11 @@ test.describe(REAL ? "real e2e" : "real e2e (skipped — set E2E_REAL=1 to run)"
     // directly with User B's token; expect 404 (RLS hides the row).
     const result = await page.evaluate(async () => {
       const apiUrl = (window as unknown as { __VITE_API_URL?: string }).__VITE_API_URL ?? "http://127.0.0.1:8000";
-      // @ts-expect-error window.supabase shim if exposed; else null
+      // The `window as unknown as {...}` cast below already types this
+      // access; the `@ts-expect-error` that used to sit here suppressed
+      // nothing and, once e2e/ joined a tsconfig project, was itself the
+      // error (TS2578, unused directive). It had been invisible for as
+      // long as the suite was unchecked.
       const supa = (window as unknown as { supabase?: { auth: { getSession: () => Promise<{ data: { session: { access_token: string } | null } }> } } }).supabase;
       if (!supa) return { skipped: true };
       const sess = await supa.auth.getSession();
