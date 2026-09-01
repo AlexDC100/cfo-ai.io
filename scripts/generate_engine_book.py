@@ -878,6 +878,9 @@ def render_index() -> str:
         "| [testing_conventions.md](testing_conventions.md) | TC-### testing rules, each naming the incident that produced it — real-output fixtures, proven-RED gates, census canaries | hand-maintained |"
     )
     lines.append(
+        "| [../parked/generative-canvas.md](../parked/generative-canvas.md) | PARKED mission: the generative artifact workspace — what exists on branch `parked/generative-canvas`, what was learned, and the conditions for resuming it | hand-maintained |"
+    )
+    lines.append(
         "| [gates.md](gates.md) | THE GATE REGISTER — every battery gate's work count, floor, canary and the plant that was observed RED | hand-maintained |"
     )
     lines.append(
