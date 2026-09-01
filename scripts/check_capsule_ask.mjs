@@ -321,7 +321,17 @@ function gateTriggerAccessibleName() {
 // silently disagree about what the budget is. Asserting the number here
 // and the census there means neither lane can move the budget alone.
 
-const HEADER_BUDGET_TARGET = 4;
+// OWNER AMENDMENT 2026-08-31: FIVE, not four. Simple|Pro was restored
+// to the bar, reversing the Prompt-16 placement.
+//
+// This is the FIFTH law that had to move for that one reversal —
+// after SANCTIONED_DESKTOP, L4 in check_header_law.mjs, H1's live
+// census and H0's self-audit. It was missed on the first pass and
+// caught by the battery, which is the argument for keeping every one
+// of them as an assertion rather than deleting the ones that get
+// inconvenient: a duplicated expectation nobody updates is how the
+// bar and its budget end up disagreeing silently.
+const HEADER_BUDGET_TARGET = 5;
 
 function gateHeaderBudget() {
   const specPath = path.join(ROOT, "e2e/design/header.spec.ts");
@@ -361,7 +371,7 @@ function gateHeaderBudget() {
     fail(
       "K8",
       `header.spec.ts pins ${shape}; the H1 budget for this wave is ` +
-        `${HEADER_BUDGET_TARGET} (brand · capsule · bell · avatar).`,
+        `${HEADER_BUDGET_TARGET} (brand · capsule · dial · bell · avatar).`,
     );
   } else {
     notes.push(`K8: header.spec.ts pins ${shape}`);
@@ -477,9 +487,30 @@ function walkHasAttr(attr) {
   }
   if (!ATTR_CACHE) {
     ATTR_CACHE = new Set();
-    for (const p of walk(path.join(ROOT, "frontend"), (n) => /\.tsx?$/.test(n))) {
+    // e2e/ too: a gate that PLANTS an attribute and then selects it is
+    // its own producer, and looking only in frontend/ calls that dead.
+    const producerRoots = [path.join(ROOT, "frontend"), path.join(ROOT, "e2e")];
+    for (const p of producerRoots.flatMap((r) => walk(r, (n) => /\.tsx?$/.test(n)))) {
       const src = read(p);
+      // THREE PRODUCER SHAPES, because matching only the first is the
+      // false-positive half of this census.
+      //
+      //   <div data-foo=…>                     a literal JSX attribute
+      //   const ATTR = "data-foo"              a named constant, then
+      //                                        applied indirectly
+      //   el.setAttribute("data-foo", …)       set imperatively
+      //
+      // Scanning literals alone reported `data-suppressed-title` as
+      // having no producer while `CapsuleTooltipGuard` emits it through
+      // `SUPPRESSED_TITLE_ATTR`, and reported a spec's own
+      // `setAttribute` plant as dead. Both are the same mistake this
+      // gate exists to catch, made by the gate: a scan that cannot see a
+      // producer reports the producer missing rather than reporting that
+      // it cannot see.
       for (const m of src.matchAll(/\b(data-[a-z0-9-]+|cmdk-[a-z-]+)\s*[=}]/gi)) {
+        ATTR_CACHE.add(m[1].toLowerCase());
+      }
+      for (const m of src.matchAll(/["'`](data-[a-z0-9-]+|cmdk-[a-z-]+)["'`]/gi)) {
         ATTR_CACHE.add(m[1].toLowerCase());
       }
     }

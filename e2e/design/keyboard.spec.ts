@@ -74,7 +74,9 @@ test.describe("D6 keyboard — focus rings and the palette", () => {
     await page.keyboard.press("Meta+k");
 
     // Palette surfaces in this app: Radix dialog or a cmdk root.
-    const palette = page.locator('[role="dialog"], [cmdk-root]');
+    const palette = page.locator('[role="dialog"]')  // The cmdk attribute half was dropped: that library is an UNUSED
+    // dependency (zero imports), so it matched nothing and quietly widened
+    // this locator to look tolerant.;
     const appeared = await palette
       .first()
       .waitFor({ state: "visible", timeout: 3000 })

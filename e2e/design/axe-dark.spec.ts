@@ -86,7 +86,7 @@ test.describe("D1 axe (Terminal theme) — serious/critical a11y violations", ()
       await dismissPublicTestBanner(page);
 
       const results = await new AxeBuilder({ page })
-        .exclude('[data-testid="test-mode-banner"]')
+        .exclude('[data-testid="public-test-mode-banner"]')
         .analyze();
 
       // See the note in axe.spec.ts: a surface that never rendered
