@@ -474,3 +474,65 @@ node scripts/check_hermetic.mjs   units=14, 28 comparisons, 1488 tests both ways
 ```
 BATTERY: PASS — 30/31 gates green, 1 VACUOUS (public-sitemaps)
 ```
+
+---
+
+# The Supabase write question — CLOSED with production evidence
+
+Owner-approved read-only query against production, 2026-08-31, run
+through the backend container's service-role credentials. **Selects
+only; nothing was written.**
+
+## What the table actually holds
+
+```
+GET /rest/v1/fx_rates_cache?select=*
+200
+[{"id":"current","base":"EUR",
+  "rates":{"EUR":1,"RON":5.2489,"USD":1.1541116974494283},
+  "source":"BNR","as_of":"2026-08-05",
+  "fetched_at":"2026-08-05T11:09:17.271+00:00",
+  "updated_at":"2026-08-05T11:09:17.271+00:00"}]
+
+GET /rest/v1/fx_rates_cache?select=id   (Prefer: count=exact)
+Content-Range: 0-0/1
+```
+
+**Exactly one row in the entire table** — a singleton keyed `current`.
+Its content is public BNR reference rates. No user data, no
+organisation scope, no foreign key to anything.
+
+## The verdict
+
+A write **did** occur inside the exposure window (2026-07-27 →
+2026-08-31): `updated_at` is 2026-08-05. So the earlier answer — "not a
+clean yes" — was the right one to give, and the mechanism named then is
+the mechanism that fired: a client-side `GET functions/v1/fx-rates`
+causes a service-role `upsert` when the cached row is older than 24h.
+
+What the evidence establishes:
+
+- **Blast radius is one singleton row of public exchange rates.** That
+  is the maximum, not an estimate — the table cannot hold more.
+- **No other table was written.** The suite's recorded traffic never
+  touched `/rest/v1/`, `/rest/v1/rpc/`, `/auth/v1/` or `/storage/v1/`;
+  the only live URL reached was the fx-rates function.
+- **Not attributable to the test suite specifically.** Production uses
+  the same Edge Function, so the 2026-08-05 refresh could be any caller.
+  Attribution would need the function's invocation logs.
+
+**Still unchecked, and named rather than glossed:** the fx-rates Edge
+Function invocation logs, which would attribute the Aug-5 write to a
+caller. Everything else the earlier report listed as missing is now
+answered by the two queries above.
+
+**Closing position: harmless, but recorded.** One row of public FX data
+refreshed once in a 35-day window, by a caller that cannot be
+identified from the data alone. Nothing user-owned was reachable, and
+the anon key in `.env` is `sb_publishable_…` — RLS-bound, no service
+scope.
+
+Incidentally: `updated_at` has not moved in 26 days, which means the
+>24h refresh is not firing in production either. That is a separate
+question about FX freshness, not about this incident, and it is left
+for the owner rather than folded into this closure.
