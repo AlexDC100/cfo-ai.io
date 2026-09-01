@@ -972,7 +972,36 @@ test.describe("K5 — measured, not promised", () => {
 //   literal `top-[112px]`, which is precisely "no morph".
 
 const MORPH_CENTRE_TOL = 24;
-const MORPH_TOP_GAP_TOL = 24;
+//: THE GAP BETWEEN THE CAPSULE AND THE PANEL — A DECIDED CONSTRAINT.
+//:
+//: This was one-sided (`gap <= 24`), which meant a NEGATIVE gap passed.
+//: A card resting at y=8 — physically COVERING the pill the reader
+//: clicked — scored green, because -60 is comfortably <= 24. A gate that
+//: greenlights the worst available outcome is worse than no gate, so the
+//: bound is two-sided now: the panel may never overlap its own trigger.
+//:
+//: The UPPER bound is a recorded owner decision, not a measurement that
+//: drifted. Three constraints are algebraically incompatible:
+//:   (A) the panel is anchored to the capsule at rest
+//:   (B) the composer never moves between rest, typing and answering
+//:   (C) the resting card hugs its content
+//: Under (A)+(B) the ceiling IS `restContent + 60`, so the air at rest
+//: and the answering canvas are literally the same pixels — shrinking
+//: one shrinks the other.
+//:
+//: The alternative was BUILT AND MEASURED, not argued: dropping (A)
+//: takes K6 to 4/4 green at 23.5px, but typing and answering fall
+//: 358 -> 268px. The owner ruled that the answering canvas is where the
+//: product's value appears and the resting gap is cosmetic beside it —
+//: so (A) and (B) are kept, (C) is dropped, and this gap is the price.
+//:
+//: It is therefore an EXPECTATION, not debt. A red gate nobody
+//: understands becomes noise; this one is converted into the honest
+//: number with the reasoning attached, so that "fixing" it by
+//: reintroducing the covering-the-pill build is a visible regression
+//: rather than a tidy-up. THE BOUND MAY SHRINK, NEVER GROW.
+const MORPH_TOP_GAP_MAX = 120;   // measured 113.5 under the ruling
+const MORPH_TOP_GAP_MIN = 0;     // never cover the trigger
 
 test.describe("K6 — the overlay grows out of the capsule, and nothing jumps", () => {
   test.setTimeout(150_000);
@@ -1083,9 +1112,22 @@ test.describe("K6 — the overlay grows out of the capsule, and nothing jumps", 
 
     expect(
       gap,
-      `K6: ${gap.toFixed(1)}px of empty space between the capsule and the panel it ` +
-        `is supposed to have become. A hard-coded top offset cannot morph.`,
-    ).toBeLessThanOrEqual(MORPH_TOP_GAP_TOL);
+      `K6: the panel OVERLAPS the capsule by ${Math.abs(gap).toFixed(1)}px — it is ` +
+        `covering the control the reader clicked. This is the failure the old ` +
+        `one-sided bound could not see: it asked only whether the gap was small ` +
+        `enough, so every negative value passed, including a card resting on top ` +
+        `of its own trigger.`,
+    ).toBeGreaterThanOrEqual(MORPH_TOP_GAP_MIN);
+
+    expect(
+      gap,
+      `K6: ${gap.toFixed(1)}px between the capsule and the panel, against a ` +
+        `recorded ceiling of ${MORPH_TOP_GAP_MAX}px. That ceiling is a decided ` +
+        `constraint — see the note on MORPH_TOP_GAP_MAX — and it may SHRINK, ` +
+        `never grow. If the panel has drifted further from its trigger, the ` +
+        `anchoring broke; if you are raising this number to make it pass, you ` +
+        `are recording a regression as an expectation.`,
+    ).toBeLessThanOrEqual(MORPH_TOP_GAP_MAX);
   });
 
   // ── WIDTH: DERIVED, NOT CONSTANT ────────────────────────────────────
