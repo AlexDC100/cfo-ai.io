@@ -3,9 +3,9 @@
     "modes": {
       "switch": {
         "label": "View mode",
-        "simple": "Simple",
-        "pro": "Pro",
-        "hint": "Simple tells the story of your numbers in plain language. Pro shows the full instrument — every statement, ratio and reconciliation. Same figures in both.",
+        "simple": "Light view",
+        "pro": "Pro view",
+        "hint": "Light view tells the story of your numbers in plain language. Pro view shows the full instrument — every statement, ratio and reconciliation. Same figures in both.",
         "paletteLabel": "Switch to {{mode}} view"
       },
       "onboarding": {
@@ -26,8 +26,8 @@
     "modes": {
       "switch": {
         "label": "Mod de afișare",
-        "simple": "Simplu",
-        "pro": "Pro",
+        "simple": "Vedere simplă",
+        "pro": "Vedere Pro",
         "hint": "Simplu îți spune povestea cifrelor pe înțelesul tău. Pro arată instrumentul complet — fiecare situație, indicator și reconciliere. Aceleași cifre în ambele.",
         "paletteLabel": "Comută pe modul {{mode}}"
       },
