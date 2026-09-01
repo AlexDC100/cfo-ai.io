@@ -159,7 +159,9 @@ describe("zone 1 — the context strip is ONE line", () => {
       "pro",
       { onFixUnattached: (id: string) => jumped.push(id) },
     );
-    const fix = screen.getByTestId("capsule-fix-unattached");
+    const fix = screen.getByTestId("capsule-open-thing");
+    expect(fix.dataset.openKind).toBe("unattached");
+    expect(fix.dataset.action).toBe("fix-unattached");
     expect(fix.textContent).toContain("2 periods without a file");
     fireEvent.click(fix);
     expect(jumped).toEqual(["p-nov"]);
@@ -167,7 +169,12 @@ describe("zone 1 — the context strip is ONE line", () => {
 
   it("renders the count as plain text when the host cannot act on it", () => {
     renderView(snapshot({ unattached: [{ periodId: "p1", label: "Nov 2025" }] }));
-    expect(screen.queryByTestId("capsule-fix-unattached")).toBeNull();
+    // The ZONE still renders — it is the ACTION that does not, because
+    // the host supplied no handler. A dead button is worse than a
+    // sentence, and an absent sentence is worse than both.
+    const open = screen.getByTestId("capsule-open-thing");
+    expect(open.getAttribute("data-action")).toBeNull();
+    expect(open.tagName).toBe("SPAN");
     expect(screen.getByTestId("capsule-context-strip").textContent).toContain(
       "1 period without a file",
     );

@@ -1,0 +1,360 @@
+{
+  "base": "http://localhost:5173",
+  "route": "/chat",
+  "at": "measured",
+  "sidebar": [
+    {
+      "label": "Ask CFO AI⌘J",
+      "href": "/chat?period=demo-meridian",
+      "x": 12,
+      "y": 72
+    },
+    {
+      "label": "Dashboard",
+      "href": "/dashboard?period=demo-meridian",
+      "x": 0,
+      "y": 146
+    },
+    {
+      "label": "Workspaces",
+      "href": "/workspace?period=demo-meridian",
+      "x": 0,
+      "y": 184
+    },
+    {
+      "label": "Scenarios",
+      "href": "/dashboard/scenarios?period=demo-meridian",
+      "x": 0,
+      "y": 254
+    },
+    {
+      "label": "Benchmark",
+      "href": "/benchmark?period=demo-meridian",
+      "x": 0,
+      "y": 292
+    },
+    {
+      "label": "Products",
+      "href": "/products?period=demo-meridian",
+      "x": 0,
+      "y": 330
+    },
+    {
+      "label": "Budget vs Actual vs LY",
+      "href": "/dashboard/variance?period=demo-meridian",
+      "x": 0,
+      "y": 368
+    },
+    {
+      "label": "Public Companies",
+      "href": "/public-companies?period=demo-meridian",
+      "x": 0,
+      "y": 438
+    },
+    {
+      "label": "Settings",
+      "href": "/settings?period=demo-meridian",
+      "x": 0,
+      "y": 776
+    },
+    {
+      "label": "Switch to Terminal theme",
+      "href": null,
+      "x": 0,
+      "y": 814
+    },
+    {
+      "label": "Collapse sidebar",
+      "href": null,
+      "x": 0,
+      "y": 852
+    }
+  ],
+  "rest": {
+    "overlay": {
+      "x": 254,
+      "y": 158,
+      "w": 680,
+      "h": 208
+    },
+    "testids": [
+      {
+        "testid": "capsule-stack",
+        "tag": "div",
+        "text": "Period not dated·Not verified·3 periods without a fileSept 2026 is unattached — which document unlocks the statements?Fr",
+        "x": 255,
+        "y": 159,
+        "w": 678,
+        "h": 206
+      },
+      {
+        "testid": "capsule-empty-state",
+        "tag": "div",
+        "text": "Period not dated·Not verified·3 periods without a fileSept 2026 is unattached — which document unlocks the statements?Fr",
+        "x": 255,
+        "y": 173,
+        "w": 678,
+        "h": 106
+      },
+      {
+        "testid": "capsule-context-strip",
+        "tag": "div",
+        "text": "Period not dated·Not verified·3 periods without a file",
+        "x": 255,
+        "y": 173,
+        "w": 678,
+        "h": 32
+      },
+      {
+        "testid": "capsule-status-dot",
+        "tag": "span",
+        "text": "",
+        "x": 269,
+        "y": 186,
+        "w": 6,
+        "h": 6
+      },
+      {
+        "testid": "capsule-context-period",
+        "tag": "span",
+        "text": "Period not dated",
+        "x": 283,
+        "y": 181,
+        "w": 84,
+        "h": 17
+      },
+      {
+        "testid": "capsule-context-trust",
+        "tag": "span",
+        "text": "Not verified",
+        "x": 384,
+        "y": 181,
+        "w": 59,
+        "h": 17
+      },
+      {
+        "testid": "capsule-fix-unattached",
+        "tag": "button",
+        "text": "3 periods without a file",
+        "x": 460,
+        "y": 181,
+        "w": 113,
+        "h": 17
+      },
+      {
+        "testid": "capsule-suggestions",
+        "tag": "div",
+        "text": "Sept 2026 is unattached — which document unlocks the statements?From this workspace's period list",
+        "x": 255,
+        "y": 205,
+        "w": 678,
+        "h": 74
+      },
+      {
+        "testid": "capsule-suggestion",
+        "tag": "button",
+        "text": "Sept 2026 is unattached — which document unlocks the statements?",
+        "x": 269,
+        "y": 215,
+        "w": 420,
+        "h": 36
+      },
+      {
+        "testid": "capsule-suggestion-basis",
+        "tag": "p",
+        "text": "From this workspace's period list",
+        "x": 269,
+        "y": 261,
+        "w": 650,
+        "h": 14
+      },
+      {
+        "testid": "capsule-composer-block",
+        "tag": "div",
+        "text": "↑↓ move · Tab to ask · esc⌘↵full chat",
+        "x": 255,
+        "y": 291,
+        "w": 678,
+        "h": 74
+      },
+      {
+        "testid": "capsule-keys",
+        "tag": "span",
+        "text": "↑↓ move · Tab to ask · esc",
+        "x": 804,
+        "y": 298,
+        "w": 115,
+        "h": 15
+      },
+      {
+        "testid": "capsule-verb-icon",
+        "tag": "svg",
+        "text": "",
+        "x": 269,
+        "y": 330,
+        "w": 16,
+        "h": 16
+      },
+      {
+        "testid": "capsule-composer",
+        "tag": "textarea",
+        "text": "",
+        "x": 295,
+        "y": 323,
+        "w": 514,
+        "h": 32
+      },
+      {
+        "testid": "capsule-send",
+        "tag": "button",
+        "text": "",
+        "x": 891,
+        "y": 323,
+        "w": 28,
+        "h": 28
+      },
+      {
+        "testid": "capsule-underline",
+        "tag": "span",
+        "text": "",
+        "x": 255,
+        "y": 363,
+        "w": 678,
+        "h": 2
+      }
+    ],
+    "rows": [
+      {
+        "tag": "button",
+        "testid": "capsule-fix-unattached",
+        "rowSource": null,
+        "rowFamily": null,
+        "href": null,
+        "aria": null,
+        "text": "3 periods without a file",
+        "x": 460,
+        "y": 181,
+        "w": 113,
+        "h": 17
+      },
+      {
+        "tag": "button",
+        "testid": "capsule-suggestion",
+        "rowSource": "suggestion",
+        "rowFamily": null,
+        "href": null,
+        "aria": "Ask: Sept 2026 is unattached — which document unlocks the statements? — From this workspace's period list",
+        "text": "Sept 2026 is unattached — which document unlocks the statements?",
+        "x": 269,
+        "y": 215,
+        "w": 420,
+        "h": 36
+      },
+      {
+        "tag": "button",
+        "testid": "capsule-send",
+        "rowSource": null,
+        "rowFamily": null,
+        "href": null,
+        "aria": "Ask",
+        "text": "",
+        "x": 891,
+        "y": 323,
+        "w": 28,
+        "h": 28
+      }
+    ],
+    "texts": [
+      {
+        "text": "Ask a question, or jump to a page",
+        "tag": "h2",
+        "testid": "command-palette",
+        "x": 254,
+        "y": 158,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "text": "Period not dated",
+        "tag": "span",
+        "testid": "capsule-context-period",
+        "x": 283,
+        "y": 181,
+        "w": 84,
+        "h": 17
+      },
+      {
+        "text": "·",
+        "tag": "span",
+        "testid": "capsule-context-strip",
+        "x": 375,
+        "y": 181,
+        "w": 1,
+        "h": 17
+      },
+      {
+        "text": "Not verified",
+        "tag": "span",
+        "testid": "capsule-context-trust",
+        "x": 384,
+        "y": 181,
+        "w": 59,
+        "h": 17
+      },
+      {
+        "text": "·",
+        "tag": "span",
+        "testid": "capsule-context-strip",
+        "x": 450,
+        "y": 181,
+        "w": 1,
+        "h": 17
+      },
+      {
+        "text": "3 periods without a file",
+        "tag": "button",
+        "testid": "capsule-fix-unattached",
+        "x": 460,
+        "y": 181,
+        "w": 113,
+        "h": 17
+      },
+      {
+        "text": "Sept 2026 is unattached — which document unlocks the statements?",
+        "tag": "button",
+        "testid": "capsule-suggestion",
+        "x": 269,
+        "y": 215,
+        "w": 420,
+        "h": 36
+      },
+      {
+        "text": "From this workspace's period list",
+        "tag": "p",
+        "testid": "capsule-suggestion-basis",
+        "x": 269,
+        "y": 261,
+        "w": 650,
+        "h": 14
+      },
+      {
+        "text": "↑↓ move · Tab to ask · esc",
+        "tag": "span",
+        "testid": "capsule-keys",
+        "x": 804,
+        "y": 298,
+        "w": 115,
+        "h": 15
+      },
+      {
+        "text": "⌘↵",
+        "tag": "kbd",
+        "testid": "capsule-fullchat-hint",
+        "x": 819,
+        "y": 330,
+        "w": 21,
+        "h": 18
+      }
+    ]
+  }
+}

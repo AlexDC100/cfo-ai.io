@@ -571,6 +571,58 @@ export interface CapsuleContextModel {
   unattachedFirst: CapsuleUnattachedPeriod | null;
 }
 
+/**
+ * THE ONE OPEN THING the pulse line names, or null.
+ *
+ * The strip used to concatenate every count it had: "Period not dated ·
+ * Not verified · 3 periods without a file · 2 findings". Four clauses on
+ * one 28px line, two of them statistics the reader cannot act on, and
+ * the eye has to parse all four to find the one that matters. A pulse
+ * line states ONE thing, and it has to be the most consequential one.
+ *
+ * ── The ranking, and why the imbalance is not in it ───────────────────
+ *
+ *   1. UNATTACHED. A period with no document is the only condition here
+ *      that no amount of analysis can answer around, and it is the only
+ *      one with a one-click fix, so it is both the most consequential
+ *      and the most actionable.
+ *   2. FINDINGS. Things the contract surfaced and the reader has not
+ *      looked at.
+ *
+ * A material imbalance is MORE consequential than either — and it is
+ * deliberately absent, because the verdict word sits immediately to the
+ * left in the same line. Promoting it here would print the same fact
+ * twice in one sentence, which is how the strip got to four clauses in
+ * the first place.
+ *
+ * Returns a MODEL, never copy: the surface owns the wording and the
+ * pluralisation. `periodId` rides along so the count can be a
+ * DESTINATION rather than a statistic — a count the reader cannot act on
+ * is the thing this function exists to stop rendering.
+ */
+export type CapsuleOpenThing =
+  | { kind: "unattached"; count: number; periodId: string; label: string }
+  | { kind: "findings"; count: number };
+
+export function mostConsequentialOpen(
+  context: CapsuleContextModel,
+): CapsuleOpenThing | null {
+  if (!context) return null;
+  const first = context.unattachedFirst;
+  if (context.unattachedCount > 0 && first) {
+    return {
+      kind: "unattached",
+      count: context.unattachedCount,
+      periodId: first.periodId,
+      label: first.label,
+    };
+  }
+  if (context.findingCount > 0) {
+    return { kind: "findings", count: context.findingCount };
+  }
+  return null;
+}
+
 /** The context zone's model. Pure; same rules as the suggestions. */
 export function buildCapsuleContext(
   snapshot: CapsuleWorkspaceSnapshot,

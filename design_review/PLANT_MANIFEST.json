@@ -1,0 +1,24 @@
+{
+  "_README": [
+    "REGISTERED PLANTS. A plant is a defect deliberately introduced to prove a",
+    "gate can fail (TC-2). It is a TEMPORARY state and must never be committed.",
+    "",
+    "WHY THIS FILE EXISTS. `check_no_plants.mjs` matched textual markers, and a",
+    "lane wrote one the pattern did not anticipate: it caught `G8 PLANT` and",
+    "walked past `PLANT 2 \u2014 approximate the denominator instead of refusing`,",
+    "which would have shipped a FABRICATED DENOMINATOR to users \u2014 a plausible",
+    "percentage for a figure whose real share is unknown. Broadening the regex",
+    "closed that one shape; the next lane will invent a different one.",
+    "",
+    "Markers are lane-authored, so a convention only one side follows is not a",
+    "protocol. This makes it two-sided:",
+    "  - a suspicious shape in product source must be REGISTERED here, or the",
+    "    gate fails on it;",
+    "  - a registered entry whose plant is ABSENT also fails, so a stale",
+    "    registration cannot silently widen the allowance.",
+    "",
+    "An entry is only ever correct WHILE a plant is live. The steady state of",
+    "this file is an empty `plants` array."
+  ],
+  "plants": []
+}

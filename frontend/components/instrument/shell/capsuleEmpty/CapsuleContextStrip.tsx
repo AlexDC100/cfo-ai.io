@@ -14,8 +14,19 @@
 //   · the PERIOD MONTH — "Dec 2025". Never a company name (the r0 loop
 //     caught exactly that; `useCapsuleSnapshot` is where it was fixed)
 //   · the verdict WORD, the engine's own
-//   · "N periods without a file" — as a BUTTON, because a count the
-//     reader cannot act on is a statistic, and this one has a fix
+//   · THE ONE OPEN THING — "3 periods without a file" — as a BUTTON,
+//     because a count the reader cannot act on is a statistic, and this
+//     one has a fix
+//
+// ── ONE open thing, not every count we happen to hold ─────────────────
+//
+// This line used to end with BOTH counts: "… · 3 periods without a file
+// · 2 findings". Measured at 1440 that is four clauses on a 28px band,
+// and the reader has to read all four to find the one that matters.
+// `mostConsequentialOpen` picks exactly one and states the ranking it
+// used; the findings count did not move to a worse place, it moved to
+// the place it was already stated better — the question chips below,
+// which name the finding instead of counting it.
 //
 // Everything here is a count or a label. No amount, no ratio, no
 // converted anything, so nothing in this file needs the money path.
@@ -24,7 +35,11 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import "./capsuleEmptyI18n";
-import type { CapsuleContextModel, CapsuleTrustBand } from "@/lib/capsuleSuggestions";
+import {
+  mostConsequentialOpen,
+  type CapsuleContextModel,
+  type CapsuleTrustBand,
+} from "@/lib/capsuleSuggestions";
 
 /** Band → the dot's colour token. Mirrors TrustChip, so the header dot
  *  and this strip can never disagree about the same period. */
@@ -140,7 +155,7 @@ export function CapsuleContextStrip({
     band && band !== "unverified"
       ? trustLabel ?? t(`capsuleEmpty.trust.${band}`)
       : t("capsuleEmpty.strip.unverified");
-  const unattached = context.unattachedFirst;
+  const open = mostConsequentialOpen(context);
 
   return (
     <div
@@ -178,32 +193,37 @@ export function CapsuleContextStrip({
         {verdict}
       </span>
 
-      {context.unattachedCount > 0 && (
+      {open && (
         <>
           {SEP}
-          {onFixUnattached && unattached ? (
+          {open.kind === "unattached" && onFixUnattached ? (
             <button
               type="button"
-              data-testid="capsule-fix-unattached"
-              onClick={() => onFixUnattached(unattached.periodId)}
+              data-testid="capsule-open-thing"
+              data-open-kind={open.kind}
+              // The ACTION, beside the zone identity. The census counts
+              // the zone; a spec that means "the fix is a live button"
+              // asserts this instead of re-deriving it from the kind.
+              data-action="fix-unattached"
+              onClick={() => onFixUnattached(open.periodId)}
               className={`shrink-0 ${linkCls}`}
             >
-              {t("capsuleEmpty.strip.unattached", { count: context.unattachedCount })}
+              {t("capsuleEmpty.strip.unattached", { count: open.count })}
             </button>
           ) : (
-            <span className="shrink-0">
-              {t("capsuleEmpty.strip.unattached", { count: context.unattachedCount })}
+            /* No handler, or a kind with no one-click fix: the same
+               sentence as plain text rather than a button that does
+               nothing when pressed. */
+            <span
+              data-testid="capsule-open-thing"
+              data-open-kind={open.kind}
+              className="shrink-0"
+            >
+              {open.kind === "unattached"
+                ? t("capsuleEmpty.strip.unattached", { count: open.count })
+                : t("capsuleEmpty.strip.findings", { count: open.count })}
             </span>
           )}
-        </>
-      )}
-
-      {context.findingCount > 0 && (
-        <>
-          {SEP}
-          <span data-testid="capsule-context-findings" className="shrink-0">
-            {t("capsuleEmpty.strip.findings", { count: context.findingCount })}
-          </span>
         </>
       )}
     </div>

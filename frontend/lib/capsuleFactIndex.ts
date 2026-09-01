@@ -123,6 +123,27 @@ export type FactRef = {
    *  vocabulary (`_ratio_units._MONEY_FACTS`). A consumer that must not
    *  cite an undeclared name filters on this. */
   engineDeclared?: boolean;
+  /** The served canonical row's own SECTION (`current_assets`,
+   *  `equity`, …), carried verbatim on `source: "statement_line"` facts
+   *  and set on nothing else.
+   *
+   *  It exists for exactly one consumer — `classShareOf`, which answers
+   *  "how big is this line inside its own class". Without it that share
+   *  would have to be computed against a total the consumer picked,
+   *  which is a different claim: the engine decided which section a row
+   *  belongs to, and a second opinion assembled on the client would
+   *  disagree with the balance sheet the reader can open. */
+  section?: string;
+  /** The ENGINE's own subtotal for that section (`CanonicalBs.sections
+   *  [].subtotal`), carried verbatim beside it.
+   *
+   *  Deliberately NOT a client-side sum of the rows in the section: the
+   *  served subtotal is what the balance sheet prints, and re-adding the
+   *  rows here would produce a second number that disagrees with it the
+   *  first time the engine files a row somewhere the client did not
+   *  expect. Set only when the served subtotal is finite and non-zero —
+   *  a share against nothing is unanswerable, not 100%. */
+  sectionTotal?: number;
 };
 
 /** One period as the index knows it. */
@@ -518,6 +539,15 @@ function buildPeriodFactsInto(
 
   // ── Statement lines, verbatim ────────────────────────────────────────
   const rows: readonly CanonicalBsRow[] = canonical?.rows ?? [];
+  // The engine's own section subtotals, by section id. Absent sections
+  // simply do not appear — `sectionTotal` is then left unset and the
+  // share refuses (F1).
+  const sectionTotals = new Map<string, number>();
+  for (const section of canonical?.sections ?? []) {
+    if (!section || typeof section.subtotal !== "number") continue;
+    if (!Number.isFinite(section.subtotal) || section.subtotal === 0) continue;
+    sectionTotals.set(section.id, section.subtotal);
+  }
   for (const row of rows) {
     if (!row || typeof row.amount !== "number" || !Number.isFinite(row.amount)) continue;
     out.push({
@@ -536,6 +566,11 @@ function buildPeriodFactsInto(
       source: "statement_line",
       accountCodes: row.account_codes,
       engineDeclared: false,
+      // Carried, never derived. A row the engine did not file under a
+      // section gets no section here, and `classShareOf` then refuses
+      // rather than guessing one from the row id.
+      section: typeof row.section === "string" && row.section ? row.section : undefined,
+      sectionTotal: sectionTotals.get(row.section),
     });
   }
 
@@ -922,6 +957,120 @@ export function factFor(
   if (!wanted) return bucket[0];
   for (const fact of bucket) if (fact.periodId === wanted) return fact;
   return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// THE RESTING BRIEF — what the surface can say before a word is typed
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * A statement line's SHARE OF ITS OWN CLASS, or null.
+ *
+ * "461 is 21,923 RON" is a number. "461 is 21,923 RON — 0.1% of current
+ * assets" is the same number with a sense of scale attached, and the
+ * scale is the part a reader cannot get from the balance sheet without
+ * doing the division themselves.
+ *
+ * THREE REFUSALS, all of them F1/F3 restated:
+ *   · not a statement line, or no section  → null. There is no "share of
+ *     everything" fallback; a metric that is not filed under a class has
+ *     no class to be a share of.
+ *   · no served section subtotal            → null. The engine's number
+ *     or nothing — see `FactRef.sectionTotal`.
+ *   · a non-money fact                      → null. A ratio's share of a
+ *     section is not a quantity.
+ *
+ * The division is NATIVE-UNIT (F3): both operands are the same period in
+ * the same source currency, so the result is dimensionless and does not
+ * move when the display-currency dial does. It is returned as a FRACTION,
+ * not a formatted percent — the surface owns the rendering, and a figure
+ * formatted here would bypass the money path.
+ */
+export function classShareOf(
+  fact: FactRef | null | undefined,
+): { share: number; section: string } | null {
+  if (!fact || fact.source !== "statement_line") return null;
+  if (fact.unit !== "money") return null;
+  const section = fact.section;
+  const total = fact.sectionTotal;
+  if (!section) return null;
+  // ABSENT IS NOT ZERO, and it is not "close enough" either. An absent
+  // or zero section subtotal has no share to compute, so this REFUSES.
+  //
+  // A stopped wave left a plant here that fell back to `fact.value * 100`
+  // — a fabricated denominator, which renders a plausible percentage for
+  // a figure whose real share is unknown. That is the failure mode this
+  // codebase exists to prevent, dressed as a convenience.
+  if (typeof total !== "number" || !Number.isFinite(total) || total === 0) {
+    return null;
+  }
+  const share = fact.value / total;
+  if (!Number.isFinite(share)) return null;
+  return { share, section };
+}
+
+/**
+ * THE ORDER THE RESTING TILES ARE PICKED IN.
+ *
+ * Money before ratios, and inside money the four figures an operator
+ * opens this product to read. It is a DECLARED preference list rather
+ * than a scoring function because the resting surface has to be the same
+ * every time it opens: a tile that reorders itself between two openings
+ * of the same workspace is a tile the reader has to re-read.
+ *
+ * The list is longer than the three slots on purpose — it is a fallback
+ * CHAIN, so a period that carries no revenue shows the next thing it
+ * does carry instead of showing two tiles and a hole.
+ */
+export const RESTING_FACT_ORDER: readonly string[] = Object.freeze([
+  "revenue", "ebitda", "cash", "net_debt", "net_result",
+  "total_assets", "equity", "working_capital",
+  "current_ratio", "equity_ratio", "net_debt_ebitda", "net_margin",
+]);
+
+/** The fact that outranks the whole list when the books do not balance.
+ *  A workspace whose balance sheet is out is not one where revenue is
+ *  the most consequential number on screen. */
+const IMBALANCE_FACT = "difference";
+
+/**
+ * Up to `limit` headline facts for the ACTIVE period, ranked.
+ *
+ * Everything here is derived from what the index actually carries:
+ *
+ *   · a fact the period does not have contributes nothing — the tile row
+ *     is short, never padded (F1). Zero tiles is a legal answer;
+ *   · `difference` is promoted to the FRONT when it is present and
+ *     non-zero, because an unbalanced period's most consequential figure
+ *     is the gap. A zero difference is not promoted and is never shown
+ *     as a tile: "the books balance" is the trust chip's sentence, and
+ *     printing a 0 beside three real figures reads as a fourth
+ *     measurement rather than as an absence of one;
+ *   · order is otherwise `RESTING_FACT_ORDER`, so the same workspace
+ *     opens the same way twice (F4).
+ *
+ * No clock, no storage, no fetch — the same index always yields the same
+ * tiles in the same order.
+ */
+export function restingFacts(index: FactIndex, limit = 3): FactRef[] {
+  if (!index || limit <= 0) return [];
+  const out: FactRef[] = [];
+  const seen = new Set<string>();
+
+  const take = (key: string): void => {
+    if (out.length >= limit || seen.has(key)) return;
+    const fact = factFor(index, key);
+    if (!fact) return;
+    if (!Number.isFinite(fact.value)) return;
+    seen.add(key);
+    out.push(fact);
+  };
+
+  const drift = factFor(index, IMBALANCE_FACT);
+  if (drift && Number.isFinite(drift.value) && drift.value !== 0) take(IMBALANCE_FACT);
+
+  for (const key of RESTING_FACT_ORDER) take(key);
+  return out;
 }
 
 /** The standing period context a Tier-1 prompt is cached against: the

@@ -1301,6 +1301,61 @@ Verdict: **PROVEN RED**
 
 ---
 
+## test-env-isolation
+
+No test path may be able to write to production.
+
+| | |
+|---|---|
+| command | `node scripts/check_test_env_isolation.mjs` |
+| work count | stdout `units=N` env vars examined, floor **1** |
+| canary | `TEST-ENV ISOLATION`, `sanctioned supabase` |
+
+**THE INCIDENT (2026-09-01).** `.env` pointed `VITE_SUPABASE_URL` at the
+production project; `.env.local` set `VITE_PUBLIC_TEST_MODE=1`. Vite
+merges them, so the dev server served a build that was **in test mode
+and wired to production**. Every Playwright cold boot authenticated as
+the fixed test identity, hit the cold-boot false zero in
+`fetchOrgsForUser()`, and ensure-default created a real organisation —
+about one every twelve seconds while suites ran.
+
+**8,880 junk "Test workspace" organisations out of 8,913 — 99.6% of that
+table was created by test scaffolding.**
+
+**This was the SECOND time in one week.** The first was the vitest suite,
+green only because a real Supabase URL sat in an untracked `.env`. That
+was fixed with `envPin.ts` + `hermeticEnv.json` — and the fix covered
+**vitest only**. Playwright drives the dev server, which never consults
+the manifest, so the hole stayed open in the path that was actually
+writing. A gate that closes one runner is not a gate on the class.
+
+**PLANT** — restore the combination that shipped:
+
+```diff
+--- .env.local
+-VITE_SUPABASE_URL=https://test.supabase.co
++VITE_SUPABASE_URL=https://<production-ref>.supabase.co
+```
+
+**RED**:
+
+```
+FAIL — a TEST PATH CAN WRITE TO PRODUCTION:
+  .env + .env.local  (MERGED — the flag and the URL are in different files)
+      test-mode flag(s): VITE_PUBLIC_TEST_MODE
+      supabase host    : <production-ref>.supabase.co
+```
+
+The **merged** check is the one that matters: the flag and the URL lived
+in different files, so a per-file check would have passed both.
+
+**REVERT** — `.env.local` re-pinned to the manifest's value; gate returns
+to `PASS — no test path resolves a non-sanctioned Supabase project.`
+
+**Vacuity probe:** `--probe-vacuity` empties the file list and the gate
+fails with `DISCOVERY BROKEN — examined 0 environment variables`, rather
+than reporting isolation for a machine it never looked at.
+
 ## hermetic
 
 The test suite must not depend on an untracked local file.

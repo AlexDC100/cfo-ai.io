@@ -397,6 +397,19 @@ def _frontend_gates() -> List[Gate]:
         # at production. Differential: every recorded variable must
         # resolve identically with the local dotenv files loaded and with
         # none. ~50s, which is why it sits near the end.
+        # NO TEST PATH MAY BE ABLE TO WRITE TO PRODUCTION. The sibling of
+        # `hermetic`, and the hole `hermetic` did not cover: that gate made
+        # VITEST hermetic, while Playwright drives the DEV SERVER, which
+        # reads dotenv directly and never consults the manifest. `.env`
+        # held the production Supabase URL and `.env.local` held
+        # VITE_PUBLIC_TEST_MODE=1; vite merges them, so the dev server ran
+        # in test mode against production and every cold boot created a
+        # real organisation. 8,880 junk rows, 99.6% of that table.
+        Gate("test-env-isolation",
+             ["node", "scripts/check_test_env_isolation.mjs"],
+             work_rx=r"units=(\d+)", floor=1,
+             units="env vars examined",
+             canaries=("TEST-ENV ISOLATION", "sanctioned supabase")),
         Gate("hermetic", ["node", "scripts/check_hermetic.mjs"],
              work_rx=r"GATE-WORK hermetic units=(\d+)", floor=14,
              units="recorded environment variables",

@@ -1,0 +1,235 @@
+{
+  "sidebar": [
+    {
+      "href": "/chat?period=demo-meridian",
+      "path": "/chat",
+      "label": "Ask CFO AI⌘J"
+    },
+    {
+      "href": "/dashboard?period=demo-meridian",
+      "path": "/dashboard",
+      "label": "Dashboard"
+    },
+    {
+      "href": "/workspace?period=demo-meridian",
+      "path": "/workspace",
+      "label": "Workspaces"
+    },
+    {
+      "href": "/dashboard/scenarios?period=demo-meridian",
+      "path": "/dashboard/scenarios",
+      "label": "Scenarios"
+    },
+    {
+      "href": "/benchmark?period=demo-meridian",
+      "path": "/benchmark",
+      "label": "Benchmark"
+    },
+    {
+      "href": "/products?period=demo-meridian",
+      "path": "/products",
+      "label": "Products"
+    },
+    {
+      "href": "/dashboard/variance?period=demo-meridian",
+      "path": "/dashboard/variance",
+      "label": "Budget vs Actual vs LY"
+    },
+    {
+      "href": "/public-companies?period=demo-meridian",
+      "path": "/public-companies",
+      "label": "Public Companies"
+    },
+    {
+      "href": "/settings?period=demo-meridian",
+      "path": "/settings",
+      "label": "Settings"
+    }
+  ],
+  "rest": {
+    "overlayH": 208,
+    "tiles": [],
+    "chips": [
+      {
+        "testid": "capsule-suggestion",
+        "text": "Sept 2026 is unattached — which document unlocks the statements?",
+        "provenance": null,
+        "fact": null,
+        "gap": null
+      }
+    ],
+    "strip": [
+      {
+        "testid": "capsule-context-strip",
+        "text": "Period not dated·Not verified·3 periods without a file",
+        "provenance": null,
+        "fact": null,
+        "gap": null
+      }
+    ],
+    "jumps": [],
+    "provenanceNodes": [],
+    "factNodes": [],
+    "numerals": [
+      {
+        "text": "3 periods without a file",
+        "owner": "capsule-fix-unattached",
+        "provenance": false
+      },
+      {
+        "text": "Sept 2026 is unattached — which document unlocks the statements?",
+        "owner": "capsule-suggestion",
+        "provenance": false
+      }
+    ],
+    "rows": [
+      {
+        "testid": "capsule-fix-unattached",
+        "rowSource": null,
+        "rowFamily": null,
+        "navTo": null,
+        "text": "3 periods without a file"
+      },
+      {
+        "testid": "capsule-suggestion",
+        "rowSource": "suggestion",
+        "rowFamily": null,
+        "navTo": null,
+        "text": "Sept 2026 is unattached — which document unlocks the statements?"
+      },
+      {
+        "testid": "capsule-send",
+        "rowSource": null,
+        "rowFamily": null,
+        "navTo": null,
+        "text": ""
+      }
+    ],
+    "spendDuringOpenAndRest": []
+  },
+  "accountLookup": [
+    {
+      "code": "5121",
+      "ms": 313,
+      "rows": 2,
+      "spend": 0,
+      "askFallback": true,
+      "sectionLabels": [],
+      "text": "Ask a question, or jump to a pageAnswer “5121”↑↓ move · Tab to ask · esc5121⌘↵full chat",
+      "rowTexts": [
+        "Answer “5121”",
+        ""
+      ]
+    },
+    {
+      "code": "411",
+      "ms": 276,
+      "rows": 2,
+      "spend": 0,
+      "askFallback": true,
+      "sectionLabels": [],
+      "text": "Ask a question, or jump to a pageAnswer “411”↑↓ move · Tab to ask · esc411⌘↵full chat",
+      "rowTexts": [
+        "Answer “411”",
+        ""
+      ]
+    },
+    {
+      "code": "121",
+      "ms": 277,
+      "rows": 2,
+      "spend": 0,
+      "askFallback": true,
+      "sectionLabels": [],
+      "text": "Ask a question, or jump to a pageAnswer “121”↑↓ move · Tab to ask · esc121⌘↵full chat",
+      "rowTexts": [
+        "Answer “121”",
+        ""
+      ]
+    },
+    {
+      "code": "401",
+      "ms": 277,
+      "rows": 2,
+      "spend": 0,
+      "askFallback": true,
+      "sectionLabels": [],
+      "text": "Ask a question, or jump to a pageAnswer “401”↑↓ move · Tab to ask · esc401⌘↵full chat",
+      "rowTexts": [
+        "Answer “401”",
+        ""
+      ]
+    },
+    {
+      "code": "9999",
+      "ms": 289,
+      "rows": 2,
+      "spend": 0,
+      "askFallback": true,
+      "sectionLabels": [],
+      "text": "Ask a question, or jump to a pageAnswer “9999”↑↓ move · Tab to ask · esc9999⌘↵full chat",
+      "rowTexts": [
+        "Answer “9999”",
+        ""
+      ]
+    }
+  ],
+  "rowBudget": [
+    {
+      "q": "a",
+      "visibleRows": 19
+    },
+    {
+      "q": "cash",
+      "visibleRows": 14
+    },
+    {
+      "q": "dash",
+      "visibleRows": 2
+    },
+    {
+      "q": "period",
+      "visibleRows": 2
+    },
+    {
+      "q": "5121",
+      "visibleRows": 2
+    },
+    {
+      "q": "bal",
+      "visibleRows": 2
+    }
+  ],
+  "handoff": {
+    "url": "http://localhost:5173/chat?period=demo-meridian",
+    "beforeThreads": {
+      "cfo-ai-chat-history-v1:00000000-0000-4000-8000-000000000002": 0
+    },
+    "afterThreads": {
+      "cfo-ai-chat-history-v1:00000000-0000-4000-8000-000000000002": 0,
+      "cfo-ai-chat-history-v1": 1
+    },
+    "composerBefore": {
+      "tag": "button",
+      "testid": "header-command-bar"
+    },
+    "afterFocus": {
+      "tag": "button",
+      "testid": "header-command-bar",
+      "placeholder": null,
+      "value": "",
+      "inCapsule": false
+    },
+    "chatComposers": [
+      {
+        "testid": "chat-input",
+        "placeholder": "Ask about Meridian Industries SRL…",
+        "value": "what moved gross margin",
+        "inCapsule": false
+      }
+    ],
+    "capsuleStillOpen": 0
+  },
+  "spendTotal": [],
+  "requestCount": 1162
+}
