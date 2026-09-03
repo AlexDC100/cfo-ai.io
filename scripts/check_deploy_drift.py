@@ -32,6 +32,11 @@ import sys
 HOST = "root@187.124.0.37"
 CONTAINER = "cfo-ai-backend"
 
+#: KNOWN BLIND SPOT: the sample is engine-only. A frontend-only deploy
+#: gap (ea6df1f vs f1e5824 was exactly that) is invisible here, because
+#: the bundle is a build artifact and source hashes do not map to it.
+#: The honest frontend signal is the deployed commit SHA; recorded, not
+#: gold-plated in this pass.
 #: Sampled rather than exhaustive: enough to catch a stale image, cheap
 #: enough to run nightly. Each is a file a real change would touch.
 SAMPLE = [
@@ -65,11 +70,22 @@ def main():
     drift = []
     checked = 0
     for rel in SAMPLE:
-        local_path = os.path.join(root, "src", rel)
-        if not os.path.exists(local_path):
+        # HASH THE COMMITTED BLOB, NOT THE CHECKOUT.
+        #
+        # This read the working-tree file, and on 2026-09-03 it reported
+        # `_ratio_units.py DRIFT` while production matched HEAD exactly —
+        # a running lane had the file modified and uncommitted. A drift
+        # check that fires on someone's in-flight edit is a check that
+        # cries wolf, and the nightly VPS copy (deploy/drift_check.sh)
+        # is immune only because it clones origin/main. Read HEAD here
+        # for the same reason: the question is "does production match
+        # what is COMMITTED", never "what is on this laptop right now".
+        blob = subprocess.run(
+            ["git", "show", "HEAD:src/%s" % rel],
+            capture_output=True, cwd=root, timeout=30)
+        if blob.returncode != 0:
             continue
-        with open(local_path, "rb") as fh:
-            local = hashlib.sha256(fh.read()).hexdigest()[:16]
+        local = hashlib.sha256(blob.stdout).hexdigest()[:16]
         r = sh("ssh -o BatchMode=yes %s \"docker exec %s sha256sum /app/src/%s\""
                % (HOST, CONTAINER, rel))
         remote = (r.stdout or "").strip().split(" ")[0][:16]
