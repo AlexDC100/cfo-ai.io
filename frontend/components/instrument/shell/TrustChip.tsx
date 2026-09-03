@@ -15,7 +15,7 @@
 // carries (difference, mapping version, extraction lane, reconciliation
 // receipt, diagnosis codes) — listed verbatim, row by row.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import "./shellI18n";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sheet";
 import { Chip, type ChipTone } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { factsFrom, type ServedFacts } from "@/lib/servedFacts";
 
@@ -44,6 +45,15 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
   const { t, i18n } = useTranslation();
   const period = useActivePeriod();
   const [open, setOpen] = useState(false);
+  // Where focus lands when the receipt opens. Radix moves it to the first
+  // tabbable element inside the sheet, and since the receipt's figures
+  // wear the provenance affordance that element is now the DIFFERENCE
+  // figure — whose card opens on focus. Measured: headerLaw H3b went red
+  // with the mapping pack found twice, once in the Mapping row and once
+  // in a card nobody asked for. Focus goes to the title instead, so the
+  // dialog still takes focus (a11y) and the first card opens only when a
+  // reader tabs to it.
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const facts: ServedFacts | null = useMemo(
     () => (period.statements ? factsFrom(period.statements) : null),
@@ -94,6 +104,43 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
 
   const rec = facts.reconciliation();
   const diagnosis = facts.diagnosis();
+
+  // ── where the receipt's three figures come from ────────────────────
+  // Each names the served field it was read from, the extraction method
+  // the rows behind it were read with, and the mapping pack that filed
+  // them — the same three the balance-sheet subtotals name, because a
+  // difference over served totals is an aggregate in no cell. The two
+  // reconciliation figures add what the receipt itself carries: its
+  // content hash as the snapshot, and (for the applied delta) the origin
+  // that proposed it, the model when one did, and when it was applied.
+  const method = extraction?.method;
+  const pack = facts.mappingVersion() ?? undefined;
+  // Named as the GATEWAY accessor the receipt actually reads (TC-7), not
+  // the raw envelope property: this component never touches
+  // canonical_bs totals directly, and the import-boundary gate
+  // (F-DIFFERENCE) rightly refuses a label that claims it does.
+  const differenceOrigin: AmountProvenance | null = provenanceOf({
+    source: "servedFacts.difference() · assets − (equity + liabilities)",
+    method,
+    pack,
+  });
+  const originalDifferenceOrigin: AmountProvenance | null = rec
+    ? provenanceOf({
+        source: "canonical_bs.reconciliation.original_difference",
+        method,
+        pack,
+        snapshot: rec.content_hash,
+      })
+    : null;
+  const appliedDeltaOrigin: AmountProvenance | null = rec
+    ? provenanceOf({
+        source: "canonical_bs.reconciliation.applied_delta",
+        method: [rec.origin, rec.model, rec.prompt_version].filter(Boolean).join(" · ") || undefined,
+        pack,
+        snapshot: rec.content_hash,
+        computedAt: rec.applied_at ?? undefined,
+      })
+    : null;
 
   return (
     <>
@@ -160,9 +207,17 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
           side="right"
           data-testid="trust-receipt"
           className="w-[min(400px,calc(100vw-2rem))] border-l border-rule bg-surface p-0 text-ink"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            titleRef.current?.focus();
+          }}
         >
           <div className="border-b border-rule-soft px-5 pb-4 pt-5">
-            <SheetTitle className="text-[15px] font-semibold tracking-tight text-ink">
+            <SheetTitle
+              ref={titleRef}
+              tabIndex={-1}
+              className="text-[15px] font-semibold tracking-tight text-ink outline-none"
+            >
               {t("shell.trust.receiptTitle")}
             </SheetTitle>
             <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">
@@ -181,7 +236,13 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
                 </span>
               </ReceiptRow>
               <ReceiptRow label={t("shell.trust.difference")}>
-                <Amount value={facts.difference()} kind="money" currency={currency} className="text-[12.5px]" />
+                <Amount
+                  value={facts.difference()}
+                  kind="money"
+                  currency={currency}
+                  className="text-[12.5px]"
+                  provenance={differenceOrigin}
+                />
               </ReceiptRow>
               {facts.mappingVersion() && (
                 <ReceiptRow label={t("shell.trust.mapping")}>
@@ -208,12 +269,25 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
                 <dl>
                   {typeof rec.original_difference === "number" && (
                     <ReceiptRow label={t("shell.trust.originalDifference")}>
-                      <Amount value={rec.original_difference} kind="money" currency={currency} className="text-[12.5px]" />
+                      <Amount
+                        value={rec.original_difference}
+                        kind="money"
+                        currency={currency}
+                        className="text-[12.5px]"
+                        provenance={originalDifferenceOrigin}
+                      />
                     </ReceiptRow>
                   )}
                   {typeof rec.applied_delta === "number" && (
                     <ReceiptRow label={t("shell.trust.appliedDelta")}>
-                      <Amount value={rec.applied_delta} kind="money" currency={currency} signed className="text-[12.5px]" />
+                      <Amount
+                        value={rec.applied_delta}
+                        kind="money"
+                        currency={currency}
+                        signed
+                        className="text-[12.5px]"
+                        provenance={appliedDeltaOrigin}
+                      />
                     </ReceiptRow>
                   )}
                   {rec.placement && (

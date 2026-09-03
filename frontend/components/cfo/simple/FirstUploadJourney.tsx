@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { Amount, AmountGroup } from "@/components/instrument/Amount";
+import type { AmountProvenance } from "@/components/instrument/Provenance";
 import { Chip, type ChipTone } from "@/components/instrument/Panel";
 import { Term } from "@/components/instrument/Term";
 import type { Recommendation } from "@/lib/financialReport";
@@ -82,6 +83,9 @@ export interface FirstUploadJourneyProps {
   /** Done = finished OR skipped — the caller marks the guard key and
    *  unmounts; the story dashboard is underneath. */
   onDone: () => void;
+  /** Origin of the three figures — the SAME objects the story dashboard
+   *  underneath receives (`lib/headlineProvenance`). Null → plain. */
+  provenance?: Partial<Record<"revenue" | "profit" | "cash", AmountProvenance | null>>;
 }
 
 export function FirstUploadJourney(props: FirstUploadJourneyProps) {
@@ -101,6 +105,7 @@ function JourneyInner({
   trustChip,
   recommendations,
   onDone,
+  provenance,
 }: FirstUploadJourneyProps) {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
@@ -144,10 +149,10 @@ function JourneyInner({
             <div className="grid w-full max-w-[420px] grid-cols-1 gap-2">
               {(
                 [
-                  ["revenue", cRevenue, "journey-figure-revenue"],
-                  ["net_profit", cProfit, "journey-figure-profit"],
+                  ["revenue", cRevenue, "journey-figure-revenue", provenance?.revenue],
+                  ["net_profit", cProfit, "journey-figure-profit", provenance?.profit],
                 ] as const
-              ).map(([id, value, testid]) => (
+              ).map(([id, value, testid, origin]) => (
                 <div
                   key={id}
                   data-testid={testid}
@@ -157,7 +162,7 @@ function JourneyInner({
                     <Term id={id} />
                   </span>
                   <span className="shrink-0 text-[20px] font-medium leading-none text-ink">
-                    <Amount value={value} currency={symbol} />
+                    <Amount value={value} currency={symbol} provenance={origin ?? null} />
                   </span>
                 </div>
               ))}
@@ -169,7 +174,7 @@ function JourneyInner({
                   {t("story.cash.label")}
                 </span>
                 <span className="shrink-0 text-[20px] font-medium leading-none text-ink">
-                  <Amount value={cCash} currency={symbol} />
+                  <Amount value={cCash} currency={symbol} provenance={provenance?.cash ?? null} />
                 </span>
               </div>
             </div>

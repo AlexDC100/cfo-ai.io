@@ -35,6 +35,7 @@ import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { BSStatementView } from "@/components/cfo/BSStatementView";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { computeRatios, verdictLabel, type RatioVerdict } from "@/lib/financialReport";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import { buildPublicStatements } from "@/lib/publicCompanyAdapters";
 import type { Currency } from "@/lib/rates";
 import {
@@ -44,6 +45,7 @@ import {
   type Dimension,
   type NasdaqErrorEnvelope,
   type PublicCompanyEnvelope,
+  type PublicCompanyPeriod,
 } from "@/lib/publicCompanyApi";
 
 const VALID_DIMS: Dimension[] = ["ARY", "ARQ", "ART", "MRY", "MRQ", "MRT"];
@@ -187,6 +189,39 @@ export default function PublicCompanyDashboard() {
   );
 }
 
+// ── where a public-company figure comes from ──────────────────────────
+//
+// A `PublicCompanyPeriod` names its own origin: `source` is the vendor
+// dataset it was normalised from ("nasdaq_sharadar_sf1"),
+// `normalizer_version` the mapping that filed it, `fiscal_period_end`
+// the period. A figure read off the period names the field it was read
+// from; a ratio `computeRatios` derived on the client says so in its
+// method and names the feed its inputs came from. The market block adds
+// its own `as_of` — the day the price was observed, which is not the
+// fiscal period and must not be filed as one.
+
+function periodFieldOrigin(
+  p: PublicCompanyPeriod,
+  field: string,
+  extra: Partial<AmountProvenance> = {},
+): AmountProvenance | null {
+  return provenanceOf({
+    source: `${p.source} · ${field}`,
+    pack: p.normalizer_version,
+    period: p.fiscal_period_end,
+    ...extra,
+  });
+}
+
+function derivedRatioOrigin(p: PublicCompanyPeriod, key: string): AmountProvenance | null {
+  return provenanceOf({
+    source: p.source,
+    method: `derived · computeRatios · ${key}`,
+    pack: p.normalizer_version,
+    period: p.fiscal_period_end,
+  });
+}
+
 // ── Full dashboard (all 5 tabs wired) ─────────────────────────────────
 
 function FullDashboard({
@@ -237,7 +272,7 @@ function FullDashboard({
       </TabsContent>
 
       <TabsContent value="ratios" className="pt-5">
-        {ratios ? <RatiosTab ratios={ratios} /> : null}
+        {ratios ? <RatiosTab ratios={ratios} period={adapted.current} /> : null}
       </TabsContent>
 
       <TabsContent value="valuation" className="pt-5">
@@ -259,24 +294,39 @@ const VERDICT_TONE: Record<RatioVerdict, ChipTone> = {
   critical: "alert",
 };
 
-/** One ratio figure through the instrument, by unit. */
-function RatioValue({ r, className }: {
+/** One ratio figure through the instrument, by unit. Every unit but "%"
+ *  wears the derivation's origin; PercentLevel carries no provenance
+ *  prop, so the percent ratios render plain (a known gap, not a claim). */
+function RatioValue({ r, className, provenance = null }: {
   r: { value: number; unit: "x" | "%" | "days" | "ratio" };
   className?: string;
+  provenance?: AmountProvenance | null;
 }) {
   if (r.unit === "%") return <PercentLevel value={r.value} className={className} />;
-  if (r.unit === "x") return <Amount kind="multiple" value={r.value} cap={99} className={className} />;
+  if (r.unit === "x") {
+    return (
+      <Amount kind="multiple" value={r.value} cap={99} className={className} provenance={provenance} />
+    );
+  }
   if (r.unit === "days") {
     return (
       <span className={`font-mono tabular-nums ${className ?? ""}`.trim()}>
-        <Amount kind="count" value={r.value} fractionDigits={0} /> d
+        <Amount kind="count" value={r.value} fractionDigits={0} provenance={provenance} /> d
       </span>
     );
   }
-  return <Amount kind="count" value={r.value} fractionDigits={2} className={className} />;
+  return (
+    <Amount kind="count" value={r.value} fractionDigits={2} className={className} provenance={provenance} />
+  );
 }
 
-function RatiosTab({ ratios }: { ratios: ReturnType<typeof computeRatios> }) {
+function RatiosTab({
+  ratios,
+  period,
+}: {
+  ratios: ReturnType<typeof computeRatios>;
+  period: PublicCompanyPeriod;
+}) {
   const groups: { label: string; list: typeof ratios.profitability }[] = [
     { label: "Profitability", list: ratios.profitability },
     { label: "Liquidity",     list: ratios.liquidity },
@@ -303,7 +353,7 @@ function RatiosTab({ ratios }: { ratios: ReturnType<typeof computeRatios> }) {
                   </Chip>
                 </div>
                 <div className="text-[20px] text-ink leading-tight">
-                  <RatioValue r={r} />
+                  <RatioValue r={r} provenance={derivedRatioOrigin(period, r.key)} />
                 </div>
                 <div className="text-[11px] text-ink-mute mt-1">{r.benchmark}</div>
                 <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">
@@ -333,6 +383,10 @@ function ValuationTab({ envelope }: { envelope: PublicCompanyEnvelope }) {
       </Panel>
     );
   }
+  // The market block's own observation date rides as computedAt — a
+  // price is as of a DAY, and that day is not the fiscal period.
+  const mk = (field: string) =>
+    periodFieldOrigin(current, `market_metrics.${field}`, { computedAt: market.as_of });
   return (
     <div className="space-y-6" data-testid="public-company-valuation">
       <section>
@@ -342,13 +396,13 @@ function ValuationTab({ envelope }: { envelope: PublicCompanyEnvelope }) {
         {/* ONE AmountGroup over the two money tiles — cap and EV share a scale. */}
         <MoneyAmountGroup values={[market.market_cap, market.enterprise_value]} fromCurrency={source}>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ValTile label="Market Cap"       value={<MoneyAmount value={market.market_cap}       fromCurrency={source} />} />
-            <ValTile label="Enterprise Value" value={<MoneyAmount value={market.enterprise_value} fromCurrency={source} />} />
-            <ValTile label="EV / EBITDA"      value={<Amount kind="multiple" value={market.ev_ebitda} cap={99} fractionDigits={1} />} />
-            <ValTile label="EV / EBIT"        value={<Amount kind="multiple" value={market.ev_ebit} cap={99} fractionDigits={1} />} />
-            <ValTile label="EV / Revenue"     value={<Amount kind="multiple" value={market.ev_revenue} cap={99} />} />
-            <ValTile label="P / E"            value={<Amount kind="multiple" value={market.pe_ratio} cap={99} fractionDigits={1} />} />
-            <ValTile label="P / B"            value={<Amount kind="multiple" value={market.pb_ratio} cap={99} fractionDigits={1} />} />
+            <ValTile label="Market Cap"       value={<MoneyAmount value={market.market_cap}       fromCurrency={source} provenance={mk("market_cap")} />} />
+            <ValTile label="Enterprise Value" value={<MoneyAmount value={market.enterprise_value} fromCurrency={source} provenance={mk("enterprise_value")} />} />
+            <ValTile label="EV / EBITDA"      value={<Amount kind="multiple" value={market.ev_ebitda} cap={99} fractionDigits={1} provenance={mk("ev_ebitda")} />} />
+            <ValTile label="EV / EBIT"        value={<Amount kind="multiple" value={market.ev_ebit} cap={99} fractionDigits={1} provenance={mk("ev_ebit")} />} />
+            <ValTile label="EV / Revenue"     value={<Amount kind="multiple" value={market.ev_revenue} cap={99} provenance={mk("ev_revenue")} />} />
+            <ValTile label="P / E"            value={<Amount kind="multiple" value={market.pe_ratio} cap={99} fractionDigits={1} provenance={mk("pe_ratio")} />} />
+            <ValTile label="P / B"            value={<Amount kind="multiple" value={market.pb_ratio} cap={99} fractionDigits={1} provenance={mk("pb_ratio")} />} />
             <ValTile label="Dividend yield"   value={<PercentLevel value={market.dividend_yield != null ? market.dividend_yield * 100 : null} fractionDigits={2} />} />
           </div>
         </MoneyAmountGroup>

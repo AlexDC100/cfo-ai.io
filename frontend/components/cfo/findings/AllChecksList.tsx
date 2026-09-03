@@ -24,12 +24,63 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 
+import {
+  ProvenanceAffordance,
+  provenanceOf,
+  type AmountProvenance,
+} from "@/components/instrument/Provenance";
 import type { Currency } from "@/lib/rates";
 import type { CheckRow, FindingsReport } from "@/lib/findings";
 
 import { ABSENT, ElementLabel, FigureValue, asCurrency } from "./parts";
 import { comparatorWord } from "./ThresholdMeter";
 import "./findingsI18n";
+
+// ── where a check row's two figures come from ──────────────────────────
+//
+// A check row carries `rule_id` and `profile_id`: which rule ran, under
+// which profile's thresholds. It does NOT carry the parameter file the
+// limit was read from — but the report's findings do (`threshold.source`),
+// keyed by the same (rule, parameter) pair `_finding.check_record` builds
+// the row from. So the limit's source is a LOOKUP into the same payload,
+// never a guess: rows whose rule surfaced nowhere name only the rule and
+// profile. The observed value names the rule, the parameter it measured
+// and the profile; a check row carries no snapshot or line refs, so it
+// claims none.
+
+/** `threshold.source` for every (rule, parameter) the report's findings
+ *  name — surfaced, info and demoted alike. */
+export function thresholdSourcesOf(report: FindingsReport): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const f of [...report.surfaced, ...report.info, ...report.demoted]) {
+    const t = f.elements.threshold;
+    if (t && t.source) out.set(checkKey(t.rule_id, t.parameter), t.source);
+  }
+  return out;
+}
+
+export function checkLimitProvenance(
+  c: Pick<CheckRow, "rule_id" | "parameter" | "profile_id">,
+  sources: Map<string, string>,
+): AmountProvenance | null {
+  const under = [c.rule_id ? `rule ${c.rule_id}` : null, c.profile_id ? `profile ${c.profile_id}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return provenanceOf({
+    source: sources.get(checkKey(c.rule_id, c.parameter)),
+    method: under || undefined,
+  });
+}
+
+export function checkObservedProvenance(
+  c: Pick<CheckRow, "rule_id" | "parameter" | "profile_id">,
+): AmountProvenance | null {
+  const measured = [c.rule_id, c.parameter].filter(Boolean).join(" · ");
+  if (!measured) return null;
+  return provenanceOf({
+    method: `measured by rule ${measured}${c.profile_id ? ` · profile ${c.profile_id}` : ""}`,
+  });
+}
 
 interface Group {
   id: string;
@@ -144,7 +195,16 @@ export function dedupeNoteSegments(note: string): string {
   return out.join("; ");
 }
 
-function CheckTable({ rows, currency }: { rows: CheckRow[]; currency: Currency }) {
+function CheckTable({
+  rows,
+  currency,
+  sources,
+}: {
+  rows: CheckRow[];
+  currency: Currency;
+  /** `threshold.source` by (rule, parameter) — see `thresholdSourcesOf`. */
+  sources: Map<string, string>;
+}) {
   const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
@@ -191,14 +251,18 @@ function CheckTable({ rows, currency }: { rows: CheckRow[]; currency: Currency }
                     {comparatorWord(c.comparator, t)}
                   </span>
                 ) : null}
-                <FigureValue value={c.limit} unit={c.unit} currency={currency} />
+                <ProvenanceAffordance provenance={checkLimitProvenance(c, sources)}>
+                  <FigureValue value={c.limit} unit={c.unit} currency={currency} />
+                </ProvenanceAffordance>
               </td>
               <td
                 className="py-1.5 pr-3 text-right text-ink"
                 data-observed-exact={c.observed === null ? undefined : String(c.observed)}
                 title={c.observed === null ? undefined : String(c.observed)}
               >
-                <FigureValue value={c.observed} unit={c.unit} currency={currency} />
+                <ProvenanceAffordance provenance={checkObservedProvenance(c)}>
+                  <FigureValue value={c.observed} unit={c.unit} currency={currency} />
+                </ProvenanceAffordance>
               </td>
               {/* The group heading already says whether these fired, so
                   a per-row "Did not fire" is a column of the same word.
@@ -224,6 +288,7 @@ export function AllChecksList({
   const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   const groups = useMemo(() => classify(report), [report]);
+  const sources = useMemo(() => thresholdSourcesOf(report), [report]);
   const cur = asCurrency(currency ?? report.surfaced[0]?.sourceCurrency ?? "RON");
   const total = report.checks.length;
 
@@ -278,7 +343,7 @@ export function AllChecksList({
                 </p>
               ) : null}
               <div className="mt-2">
-                <CheckTable rows={g.rows} currency={cur} />
+                <CheckTable rows={g.rows} currency={cur} sources={sources} />
               </div>
             </div>
           ))}

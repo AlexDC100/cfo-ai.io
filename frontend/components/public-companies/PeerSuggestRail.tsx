@@ -23,6 +23,7 @@ import { useActivePeriod } from "@/lib/activePeriod";
 import { useWorkspaceName } from "@/lib/workspaceName";
 import { toast } from "@/hooks/use-toast";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf } from "@/components/instrument/Provenance";
 import { Chip, Panel, PanelHeader } from "@/components/instrument/Panel";
 import { pickMagnitude } from "@/lib/amountFormat";
 import { workspaceIndustryToSector } from "./pciData";
@@ -128,10 +129,19 @@ export function PeerSuggestRail({ rows, onSelectTicker }: Props) {
                     </span>
                     {/* No inline currency on magnitude-scaled figures — the
                         page header's RON chip declares the unit once. */}
+                    {/* The snapshot names its own origin: `source` (the universe
+                        feed — "demo" is stated as plainly as "nasdaq"), the
+                        fiscal period the figure belongs to, and when the row
+                        was last refreshed. Nothing else is in the payload. */}
                     <Amount
                       value={r.revenue}
                       magnitude={pickMagnitude([r.revenue])}
                       className="text-[11.5px] text-ink"
+                      provenance={provenanceOf({
+                        source: r.source,
+                        period: r.latestPeriod ?? undefined,
+                        computedAt: r.lastUpdated,
+                      })}
                     />
                   </div>
                 )}

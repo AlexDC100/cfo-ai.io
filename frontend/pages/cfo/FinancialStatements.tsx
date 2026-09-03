@@ -65,6 +65,14 @@ import {
   markJourneySeen,
 } from "@/components/cfo/simple/FirstUploadJourney";
 import { KeyMetricsRow } from "@/components/cfo/KeyMetricsRow";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
+import {
+  NO_HEADLINE_PROVENANCE,
+  buildHeadlineProvenance,
+  plBuiltFromLineItems,
+  type HeadlineProvenance,
+} from "@/lib/headlineProvenance";
+import { FigureProvenanceProvider, type FigureProvenanceMap } from "@/lib/figureProvenanceContext";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
 import "@/components/cfo/dashInstrumentI18n";
 import { isNativeShell } from "@/lib/nativeShell";
@@ -702,8 +710,61 @@ export default function FinancialStatements() {
     const totalOperatingExpenses =
       pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
         ?.subtotalAmount ?? null;
-    return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip, totalOperatingExpenses };
+    return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip, totalOperatingExpenses, pl };
   }, [statements, totals, remotePeriod.lineItems, remotePeriod.metrics, remotePeriod.detectedType, dashboardCanonicalMargins, t]);
+
+  // ── PROVENANCE for the headline figures — built ONCE, beside them ──────
+  // The same object goes to the Pro key-metric row, Simple's story
+  // overview, the first-upload journey and (by context) the configurable
+  // tiles, so no surface can name an origin another surface disagrees
+  // with. Each field is verified against the figure to the cent inside
+  // `buildHeadlineProvenance` before it is claimed; a figure whose origin
+  // the payload does not state renders plain.
+  const headlineProvenance: HeadlineProvenance = useMemo(() => {
+    if (!statements || !totals || !headline) return NO_HEADLINE_PROVENANCE;
+    return buildHeadlineProvenance({
+      statements,
+      pl: headline.pl,
+      fromLineItems: plBuiltFromLineItems(remotePeriod.lineItems),
+      metrics: remotePeriod.metrics,
+      sourceDocumentFilename: remotePeriod.sourceDocumentFilename,
+      periodLabel: statements.periodLabel ?? remotePeriod.label,
+      values: {
+        revenue: headline.totalOperatingRevenue,
+        ebitda: headline.tileEbitdaRon,
+        profit: headline.tileNetProfitRon,
+        cash: statements.balanceSheet.cash,
+        totalDebt: totals.totalDebt,
+        netDebt: totals.netDebt,
+      },
+    });
+  }, [
+    statements,
+    totals,
+    headline,
+    remotePeriod.lineItems,
+    remotePeriod.metrics,
+    remotePeriod.sourceDocumentFilename,
+    remotePeriod.label,
+  ]);
+
+  // The configurable tiles read the SAME origins by concept key. The
+  // entry carries the value it was built for; `useFigureProvenance`
+  // refuses to attach it to any other number.
+  const figureProvenanceMap: FigureProvenanceMap = useMemo(() => {
+    if (!statements || !totals || !headline) return {};
+    const revenue = { value: headline.totalOperatingRevenue, provenance: headlineProvenance.revenue };
+    return {
+      revenue,
+      operating_revenue: revenue,
+      net_turnover: revenue,
+      ebitda: { value: headline.tileEbitdaRon, provenance: headlineProvenance.ebitda },
+      net_profit: { value: headline.tileNetProfitRon, provenance: headlineProvenance.profit },
+      cash: { value: statements.balanceSheet.cash, provenance: headlineProvenance.cash },
+      total_debt: { value: totals.totalDebt, provenance: headlineProvenance.totalDebt },
+      net_debt: { value: totals.netDebt, provenance: headlineProvenance.netDebt },
+    };
+  }, [statements, totals, headline, headlineProvenance]);
 
   // ── 2026 redesign: hero health verdict ──────────────────────────────────
   // Reuses the EXACT same reader the Risks tab mounts — engine canonical
@@ -728,6 +789,30 @@ export default function FinancialStatements() {
       return null;
     }
   }, [statements, remotePeriod.assembled_metrics, metricsByName]);
+
+  // Where the hero score came from. `computeCreditScore` returns the
+  // engine's `composite_score` verbatim on the canonical path and a
+  // client composite otherwise; the served field is claimed ONLY when it
+  // equals the score on screen, so the card can never point at an
+  // envelope figure the reader is not looking at.
+  const heroProvenance: AmountProvenance | null = useMemo(() => {
+    if (!heroCredit || !Number.isFinite(heroCredit.score)) return null;
+    const served = (
+      remotePeriod.assembled_metrics as { credit?: { composite_score?: unknown } } | null
+    )?.credit?.composite_score;
+    const period = statements?.periodLabel ?? remotePeriod.label ?? undefined;
+    if (typeof served === "number" && Math.abs(served - heroCredit.score) <= 0.005) {
+      return provenanceOf({
+        source: "assembled_metrics.credit.composite_score",
+        method: "engine composite credit score",
+        period,
+      });
+    }
+    return provenanceOf({
+      method: "client composite · computeCreditScore over the served statements",
+      period,
+    });
+  }, [heroCredit, remotePeriod.assembled_metrics, remotePeriod.label, statements?.periodLabel]);
 
   // Per-concept vs-last-period trend, read from the SAME multi-year series
   // that already feeds the KPI sparklines (no new fetches). Null when fewer
@@ -1482,6 +1567,7 @@ export default function FinancialStatements() {
             trustBand={accuracyRead.band}
             trustChip={<TrustChip band={accuracyRead.band} />}
             recommendations={recommendations}
+            provenance={headlineProvenance}
             onDone={() => {
               markJourneySeen();
               setJourneyArmed(false);
@@ -1816,6 +1902,7 @@ export default function FinancialStatements() {
               <HeroVerdictCard
                 credit={heroCredit}
                 companyName={statements?.companyName ?? null}
+                provenance={heroProvenance}
               />
               <StoryOverview
                 currency={statements.currency}
@@ -1829,6 +1916,7 @@ export default function FinancialStatements() {
                 revenueTrend={trendFor("operating_revenue")}
                 recommendations={recommendations}
                 onJumpToTab={onTabChange}
+                provenance={headlineProvenance}
               />
             </>
           ) : (
@@ -1854,6 +1942,7 @@ export default function FinancialStatements() {
             <HeroVerdictCard
               credit={heroCredit}
               companyName={statements?.companyName ?? null}
+              provenance={heroProvenance}
             />
 
             {statements && totals && headline && (
@@ -1866,6 +1955,7 @@ export default function FinancialStatements() {
                     value: headline.totalOperatingRevenue,
                     trend: trendFor("operating_revenue"),
                     testid: "key-metric-revenue",
+                    provenance: headlineProvenance.revenue,
                   },
                   {
                     label: t("dashV2.metricEbitda"),
@@ -1873,6 +1963,7 @@ export default function FinancialStatements() {
                     value: headline.tileEbitdaRon,
                     trend: trendFor("ebitda"),
                     testid: "key-metric-ebitda",
+                    provenance: headlineProvenance.ebitda,
                   },
                   {
                     label: t("dashV2.metricCash"),
@@ -1880,6 +1971,7 @@ export default function FinancialStatements() {
                     value: statements.balanceSheet.cash,
                     trend: trendFor("cash"),
                     testid: "key-metric-cash",
+                    provenance: headlineProvenance.cash,
                   },
                   {
                     label: t("dashV2.metricNetDebt"),
@@ -1887,6 +1979,7 @@ export default function FinancialStatements() {
                     value: totals.netDebt,
                     trend: null,
                     testid: "key-metric-net-debt",
+                    provenance: headlineProvenance.netDebt,
                   },
                 ]}
               />
@@ -1914,6 +2007,7 @@ export default function FinancialStatements() {
                 <div title={headline.sourceTooltip ?? undefined}>
                   <DashboardProvider>
                     <DashboardViewProvider>
+                     <FigureProvenanceProvider value={figureProvenanceMap}>
                       <ConfigurableDashboard
                         overrides={{
                           operating_revenue: headline.totalOperatingRevenue,
@@ -1927,6 +2021,7 @@ export default function FinancialStatements() {
                         }}
                         series={multiYearSeries}
                       />
+                     </FigureProvenanceProvider>
                     </DashboardViewProvider>
                   </DashboardProvider>
                   {headline.sourceTooltip && remotePeriod.detectedType === "statutory_f30_f10" && (
@@ -5072,9 +5167,13 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
 function HeroVerdictCard({
   credit,
   companyName,
+  provenance = null,
 }: {
   credit: ReturnType<typeof computeCreditScore> | null;
   companyName?: string | null;
+  /** Origin of the score — the served envelope field when the score IS
+   *  that field, the client derivation otherwise. Null → plain. */
+  provenance?: AmountProvenance | null;
 }) {
   const { t } = useTranslation();
   if (!credit || !Number.isFinite(credit.score)) {
@@ -5131,6 +5230,7 @@ function HeroVerdictCard({
               value={credit.score}
               fractionDigits={Number.isInteger(credit.score) ? 0 : 1}
               className={`text-[28px] font-medium leading-none ${tone.accent}`}
+              provenance={provenance}
             />
             <span className="font-mono text-[11px] tabular-nums text-ink-soft">
               {t("dashIx.scoreOutOf")}

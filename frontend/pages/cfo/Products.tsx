@@ -96,6 +96,7 @@ import {
   type ChipTone,
 } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf } from "@/components/instrument/Provenance";
 import {
   MoneyAmount,
   MoneyAmountGroup,
@@ -1197,7 +1198,12 @@ export default function Products() {
           const drilledCategory = categoryFilter;
           if (viewMode === "all") {
             return (
-              <SkuTable rows={filtered} currency={sourceCurrency} onSelect={(s) => setSelectedSkuId(s.id)} />
+              <SkuTable
+                rows={filtered}
+                currency={sourceCurrency}
+                onSelect={(s) => setSelectedSkuId(s.id)}
+                sourceFilename={dataset.source_filename}
+              />
             );
           }
           if (drilledCategory) {
@@ -1207,7 +1213,12 @@ export default function Products() {
                   categoryLabel={drilledCategory}
                   onClick={() => setUrlParam("category", null)}
                 />
-                <SkuTable rows={filtered} currency={sourceCurrency} onSelect={(s) => setSelectedSkuId(s.id)} />
+                <SkuTable
+                  rows={filtered}
+                  currency={sourceCurrency}
+                  onSelect={(s) => setSelectedSkuId(s.id)}
+                  sourceFilename={dataset.source_filename}
+                />
               </div>
             );
           }
@@ -2318,12 +2329,33 @@ function SkuTable({
   rows,
   currency,
   onSelect,
+  sourceFilename = null,
 }: {
   rows: SkuAggregate[];
   currency: Currency;
   onSelect: (sku: SkuAggregate) => void;
+  /** The uploaded sales file behind these rows (`dataset.source_filename`).
+   *  Null → the figures name only the aggregate they came from. */
+  sourceFilename?: string | null;
 }) {
   const { t } = useTranslation();
+  // Where a SKU row's figures come from. The row is served VERBATIM from
+  // the engine's `sku_aggregates` table (the payload says so, and says how
+  // many sales lines of the upload it aggregates in `line_row_count`);
+  // the upload itself is the dataset's `source_filename`. That is the
+  // whole origin — no sheet, no cell: an aggregate over N lines is in
+  // none of them. Percent (gm_pct) and the per-row counts render through
+  // paths that carry no provenance prop and stay plain.
+  const skuOrigin = (s: SkuAggregate) =>
+    provenanceOf({
+      source: [sourceFilename, "sku_aggregates"]
+        .filter((x): x is string => typeof x === "string" && x.length > 0)
+        .join(" · "),
+      method:
+        typeof s.line_row_count === "number"
+          ? `engine aggregate over ${s.line_row_count} sales lines`
+          : undefined,
+    });
   const parentRef = useRef<HTMLDivElement>(null);
   // The Signal column was rendering `BUCKET_META[s.classification]` which
   // surfaced the engine's legacy 6-classification labels (Anchor / Keep /
@@ -2482,7 +2514,7 @@ function SkuTable({
                       <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.volume")}</div>
                       <div className="text-ink">
                         {s.volume_tons !== null
-                          ? <><Amount kind="count" value={s.volume_tons} fractionDigits={1} />t</>
+                          ? <><Amount kind="count" value={s.volume_tons} fractionDigits={1} provenance={skuOrigin(s)} />t</>
                           : "—"}
                       </div>
                     </div>
@@ -2490,7 +2522,7 @@ function SkuTable({
                       <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.niv")}</div>
                       <div className="text-ink">
                         {s.niv_krn !== null
-                          ? <MoneyAmount value={s.niv_krn * 1000} fromCurrency={currency} />
+                          ? <MoneyAmount value={s.niv_krn * 1000} fromCurrency={currency} provenance={skuOrigin(s)} />
                           : "—"}
                       </div>
                     </div>
@@ -2503,7 +2535,7 @@ function SkuTable({
                     <div>
                       <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("totals.gm")}</div>
                       <div className={`font-medium ${gm < 0 ? "text-alert" : "text-ink"}`}>
-                        <MoneyAmount value={gm * 1000} fromCurrency={currency} signed />
+                        <MoneyAmount value={gm * 1000} fromCurrency={currency} signed provenance={skuOrigin(s)} />
                       </div>
                     </div>
                     <div>
@@ -2519,7 +2551,7 @@ function SkuTable({
                         data-dio-available={s.days_inventory_on_hand != null ? "true" : "false"}
                       >
                         {s.days_inventory_on_hand != null
-                          ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} />d</span>
+                          ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} provenance={skuOrigin(s)} />d</span>
                           : <span className="text-ink-soft/70">—</span>}
                       </div>
                     </div>
@@ -2556,16 +2588,16 @@ function SkuTable({
                     )}
                   </div>
                   <div className="text-right text-ink-soft">
-                    <Amount kind="count" value={s.volume_tons} fractionDigits={1} />
+                    <Amount kind="count" value={s.volume_tons} fractionDigits={1} provenance={skuOrigin(s)} />
                   </div>
                   <div className="text-right text-ink-soft">
-                    <MoneyAmount value={s.niv_krn !== null ? s.niv_krn * 1000 : null} fromCurrency={currency} />
+                    <MoneyAmount value={s.niv_krn !== null ? s.niv_krn * 1000 : null} fromCurrency={currency} provenance={skuOrigin(s)} />
                   </div>
                   <div className={`text-right ${(s.gm_pct ?? 0) < 0 ? "text-alert" : "text-ink"}`}>
                     <PercentLevel value={s.gm_pct !== null ? s.gm_pct * 100 : null} />
                   </div>
                   <div className={`text-right font-medium ${gm < 0 ? "text-alert" : "text-ink"}`}>
-                    <MoneyAmount value={gm * 1000} fromCurrency={currency} signed />
+                    <MoneyAmount value={gm * 1000} fromCurrency={currency} signed provenance={skuOrigin(s)} />
                   </div>
                   <div
                     className="text-right"
@@ -2578,7 +2610,7 @@ function SkuTable({
                     data-dio-available={s.days_inventory_on_hand != null ? "true" : "false"}
                   >
                     {s.days_inventory_on_hand != null
-                      ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} /></span>
+                      ? <span className="text-ink"><Amount kind="count" value={Math.round(s.days_inventory_on_hand)} provenance={skuOrigin(s)} /></span>
                       : <span className="text-ink-soft/70 font-mono">—</span>}
                   </div>
                   <div className="text-center text-[11.5px] text-ink-soft font-mono tabular-nums">{s.line_row_count ?? "—"}</div>

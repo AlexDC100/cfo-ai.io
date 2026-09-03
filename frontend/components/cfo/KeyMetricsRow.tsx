@@ -8,13 +8,19 @@
 // magnitude — "295,1 M" beside "17,7 M", never "295,1 M" beside "17.703.055".
 // Values convert to the display currency HERE (one place, the shared
 // useConvertedAmounts hook Simple also reads) and render through <Amount>;
-// the YoY delta is a chip with <Amount kind="percent">. No provenance is
-// passed — these are assembled aggregates whose payload carries no source
-// ref, and the affordance is never faked.
+// the YoY delta is a chip with <Amount kind="percent">.
+//
+// PROVENANCE rides on the item. The page builds it ONCE beside the figure
+// (`lib/headlineProvenance`) and passes the same object to Simple's twins,
+// so the origin a reader is shown cannot differ by mode any more than the
+// figure can. An item with `provenance: null` renders plain — the
+// affordance is never faked, and the YoY delta (a derived comparison
+// over a series) never wears it.
 
 import { useTranslation } from "react-i18next";
 
 import { Amount, AmountGroup } from "@/components/instrument/Amount";
+import type { AmountProvenance } from "@/components/instrument/Provenance";
 import { Chip } from "@/components/instrument/Panel";
 import { useConvertedAmounts } from "@/components/cfo/simple/convertedAmounts";
 
@@ -24,6 +30,9 @@ export interface KeyMetricItem {
   value: number;
   trend: { pct: number; prevLabel: string } | null;
   testid: string;
+  /** Where the figure came from, when the payload says. Omitted or null
+   *  → the figure renders without the affordance. */
+  provenance?: AmountProvenance | null;
 }
 
 export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; currency: string }) {
@@ -46,6 +55,7 @@ export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; cur
             displayCurrency={displaySymbol}
             trend={it.trend}
             testid={it.testid}
+            provenance={it.provenance ?? null}
           />
         ))}
       </div>
@@ -63,6 +73,7 @@ function KeyMetricCard({
   displayCurrency,
   trend,
   testid,
+  provenance,
 }: {
   label: string;
   desc: string;
@@ -70,6 +81,7 @@ function KeyMetricCard({
   displayCurrency: string;
   trend: { pct: number; prevLabel: string } | null;
   testid?: string;
+  provenance: AmountProvenance | null;
 }) {
   const { t } = useTranslation();
   return (
@@ -92,7 +104,7 @@ function KeyMetricCard({
         className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em]"
         data-testid={testid ? `${testid}-amount` : undefined}
       >
-        <Amount value={value} currency={displayCurrency} />
+        <Amount value={value} currency={displayCurrency} provenance={provenance} />
       </div>
       <p className="mt-1.5 text-[11.5px] text-ink-soft leading-snug">{desc}</p>
       {trend && (

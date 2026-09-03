@@ -10,6 +10,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+// TooltipProvider mirrors App.tsx. REQUIRED since 2026-09-03: every
+// year row's figures wear the provenance affordance (the document and
+// site the extract was read from, the year, the confidence) — a Radix
+// tooltip, which throws without its provider.
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Currency store is context-backed (throws outside its provider) — mock
 // the hooks the page consumes, same pattern as servedFactsCrossSurface.
@@ -65,9 +70,11 @@ describe("MultiYearHistory (instrument pass)", () => {
 
   it("renders the extract with mono figures and no serif display", async () => {
     const { container } = render(
-      <MemoryRouter initialEntries={["/multi-year-history"]}>
-        <MultiYearHistory />
-      </MemoryRouter>,
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/multi-year-history"]}>
+          <MultiYearHistory />
+        </MemoryRouter>
+      </TooltipProvider>,
     );
 
     // Header (PageHeader, not the old gradient hero)

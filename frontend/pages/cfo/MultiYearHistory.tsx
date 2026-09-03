@@ -18,6 +18,7 @@ import { Loader2, TrendingUp, TrendingDown, Building2, Hash, MapPin, Globe } fro
 // panels/chips from the kit, every figure mono via the Amount family.
 import { PageHeader, Panel, PanelHeader } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import {
   MoneyAmount,
   MoneyAmountGroup,
@@ -75,6 +76,21 @@ export default function MultiYearHistory() {
   // Display-currency code for table captions (the cells drop per-cell
   // units to keep the ledger quiet; the caption carries the unit once).
   const { display } = useDisplayMoney();
+
+  // Where a year's figures come from: the uploaded public-records
+  // document (its filename) and the site it was pulled from, the year as
+  // the period, and the extract's own confidence. The payload carries no
+  // page or table anchor and no extraction method, so none is claimed.
+  const yearOrigin = (year: number): AmountProvenance | null =>
+    extract
+      ? provenanceOf({
+          source: [extract.document?.filename, extract.source_site]
+            .filter((x): x is string => typeof x === "string" && x.length > 0)
+            .join(" · "),
+          period: String(year),
+          confidence: extract.confidence ?? undefined,
+        })
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -211,7 +227,7 @@ export default function MultiYearHistory() {
               />
               <KpiTile
                 label="Employees"
-                value={<Amount kind="count" value={latest.salariati ?? 0} />}
+                value={<Amount kind="count" value={latest.salariati ?? 0} provenance={yearOrigin(latest.year)} />}
                 sub={(() => {
                   const prev = years[1];
                   if (!prev || !prev.salariati || !latest.salariati) return "";
@@ -271,7 +287,7 @@ export default function MultiYearHistory() {
                     <tr key={y.year} className={`border-t border-rule-soft first:border-t-0 h-8 ${lossYear ? "bg-alert-tint/40" : ""}`}>
                       <td className="px-4 py-1 font-mono font-medium text-ink tabular-nums">{y.year}</td>
                       <td className="px-3 py-1 text-right">
-                        <MoneyAmount value={y.cifra_afaceri} fromCurrency="RON" unit={false} />
+                        <MoneyAmount value={y.cifra_afaceri} fromCurrency="RON" unit={false} provenance={yearOrigin(y.year)} />
                         {revGrowth != null && (
                           <span className={`ml-1 font-mono tabular-nums text-[10px] ${revGrowth >= 0 ? "text-success" : "text-alert"}`}>
                             {revGrowth >= 0 ? "+" : ""}{revGrowth.toFixed(0)}%
@@ -279,15 +295,15 @@ export default function MultiYearHistory() {
                         )}
                       </td>
                       <td className={`px-3 py-1 text-right ${lossYear ? "text-alert" : ""}`}>
-                        <MoneyAmount value={y.profit_net} fromCurrency="RON" unit={false} />
+                        <MoneyAmount value={y.profit_net} fromCurrency="RON" unit={false} provenance={yearOrigin(y.year)} />
                       </td>
                       <td className={`px-3 py-1 text-right ${lossYear ? "text-alert" : "text-ink-soft"}`}>
                         <PercentLevel value={y.net_margin_pct} />
                       </td>
-                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.total_assets} fromCurrency="RON" unit={false} /></td>
-                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.datorii_totale} fromCurrency="RON" unit={false} /></td>
-                      <td className="px-3 py-1 text-right"><MoneyAmount value={y.capitaluri_proprii} fromCurrency="RON" unit={false} /></td>
-                      <td className="px-3 py-1 text-right text-ink-mute"><Amount kind="count" value={y.salariati} /></td>
+                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.total_assets} fromCurrency="RON" unit={false} provenance={yearOrigin(y.year)} /></td>
+                      <td className="px-3 py-1 text-right text-ink-soft"><MoneyAmount value={y.datorii_totale} fromCurrency="RON" unit={false} provenance={yearOrigin(y.year)} /></td>
+                      <td className="px-3 py-1 text-right"><MoneyAmount value={y.capitaluri_proprii} fromCurrency="RON" unit={false} provenance={yearOrigin(y.year)} /></td>
+                      <td className="px-3 py-1 text-right text-ink-mute"><Amount kind="count" value={y.salariati} provenance={yearOrigin(y.year)} /></td>
                     </tr>
                   );
                 })}

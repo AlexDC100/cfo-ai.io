@@ -30,12 +30,51 @@ import { Download, FileText, Printer, Loader2 } from "lucide-react";
 // via the Amount family, semantic color only on severity/sentiment.
 import { Chip, PageHeader as InstrumentPageHeader, Panel, PanelHeader, type ChipTone } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import {
   CappedMultiple,
   MoneyAmount,
   MoneyAmountGroup,
   PercentLevel,
 } from "@/components/comparison/MoneyAmount";
+
+// ── where a report figure comes from ──────────────────────────────────
+//
+// Every table on this page reads a field off the served envelope by
+// name — `assembled_pl.revenue`, `assembled_bs.cash`,
+// `assembled_cf.delta_inventory` — so the field path IS the origin, and
+// a reader with the /api/period JSON can open it. The uploaded document
+// rides in front when the period names one. A row that ADDS or NEGATES
+// served fields says so in `method` and names the fields it combined;
+// nothing here points a derived row at a field that does not contain it.
+//
+// The KPI tiles at the top sit inside `LearnableNumber` (a button) and
+// stay plain — nesting the affordance in a control would put one
+// interactive element inside another. Same known gap the balance sheet
+// carries. The ratio tables render through PercentLevel / CappedMultiple,
+// which carry no provenance prop, and the valuation envelope is client
+// arithmetic over the reader's multiples; both stay plain and are
+// recorded as such in the census.
+
+interface ReportOrigin {
+  /** `assembled_pl.<field>` → the card. */
+  field: (path: string, note?: string) => AmountProvenance | null;
+  /** A row this page computed from served fields. */
+  derived: (formula: string) => AmountProvenance | null;
+}
+
+function reportOrigin(sourceDocument: string | null | undefined, periodEnd: string): ReportOrigin {
+  const doc = sourceDocument && sourceDocument.length > 0 ? sourceDocument : null;
+  return {
+    field: (path, note) =>
+      provenanceOf({
+        source: [doc, path].filter(Boolean).join(" · "),
+        method: note,
+        period: periodEnd,
+      }),
+    derived: (formula) => provenanceOf({ method: `derived · ${formula}`, period: periodEnd }),
+  };
+}
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
@@ -247,6 +286,7 @@ export default function ComprehensiveReport() {
   const companyName = report.statements.companyName ?? "Company";
   const periodEnd = report.period.period_end ?? "—";
   const currency = report.period.currency ?? "RON";
+  const origin = reportOrigin(report.period.source_document?.filename, periodEnd);
   const credit = readCreditFromMetrics(metricsByName);
   const recs = report.recommendations ?? [];
   const alerts = report.alerts ?? [];
@@ -368,19 +408,19 @@ export default function ComprehensiveReport() {
           {/* ── 2. P&L ──────────────────────────────────────────────── */}
           <section id="pnl" data-testid="report-section-2-pnl">
             <SectionHeader number={2} title="P&L" />
-            <PnlTable pl={pl} currency={currency} />
+            <PnlTable pl={pl} currency={currency} origin={origin} />
           </section>
 
           {/* ── 3. BALANCE SHEET ────────────────────────────────────── */}
           <section id="bs" data-testid="report-section-3-bs">
             <SectionHeader number={3} title="Balance Sheet" />
-            <BsTable bs={bs} currency={currency} />
+            <BsTable bs={bs} currency={currency} origin={origin} />
           </section>
 
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
           <section id="cf" data-testid="report-section-4-cf">
             <SectionHeader number={4} title="Cash Flow Statement" />
-            <CashFlowTable cf={cf} currency={currency} />
+            <CashFlowTable cf={cf} currency={currency} origin={origin} />
           </section>
 
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
@@ -594,9 +634,11 @@ function KpiGrid({
   );
 }
 
-function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: string }) {
+function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; currency: string; origin: ReportOrigin }) {
   const { fmt, displayCurrency } = useReportFmt(currency);
   const revenue = pl.revenue ?? 0;
+  const f = (path: string) => origin.field(`assembled_pl.${path}`);
+  const neg = (path: string) => origin.field(`assembled_pl.${path}`, "presented negative");
 
   // Operational net profit (engine field, despite the legacy name) and the
   // 722 capitalized-own-work memo. Statutory ct-121 = operational + 722;
@@ -617,28 +659,34 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
     | "headline"        // operational net-profit headline (primary emphasis)
     | "reconciliation"  // the 722 bridge lines (lesser emphasis)
     | "memo";
-  type Row = { label: string; val: number | undefined; style: RowStyle };
+  type Row = { label: string; val: number | undefined; style: RowStyle; origin: AmountProvenance | null };
 
   const rows: Row[] = [
-    { label: "Net turnover",                              val: pl.revenue,                style: "subtotal" },
-    { label: "Capitalized own work (722, non-cash memo)", val: pl.capitalized_own_work_memo, style: "memo" },
-    { label: "Other operating income",                    val: pl.other_operating_income, style: "indent" },
-    { label: "Total operating revenue",                   val: pl.total_operating_revenue, style: "subtotal" },
-    { label: "Cost of goods sold",                        val: -(pl.cogs ?? 0),           style: "indent" },
-    { label: "Operating expenses",                        val: -(pl.opex_total ?? 0),     style: "indent" },
-    { label: "Depreciation & amortization",               val: -(pl.depreciation ?? 0),   style: "indent" },
-    { label: "EBITDA (cash view)",                        val: pl.ebitda_cash ?? pl.ebitda_operational, style: "highlight" },
-    { label: "EBITDA (statutory)",                        val: pl.ebitda_statutory,       style: "highlight" },
-    { label: "EBIT",                                      val: pl.ebit,                   style: "indent" },
+    { label: "Net turnover",                              val: pl.revenue,                style: "subtotal", origin: f("revenue") },
+    { label: "Capitalized own work (722, non-cash memo)", val: pl.capitalized_own_work_memo, style: "memo", origin: f("capitalized_own_work_memo") },
+    { label: "Other operating income",                    val: pl.other_operating_income, style: "indent", origin: f("other_operating_income") },
+    { label: "Total operating revenue",                   val: pl.total_operating_revenue, style: "subtotal", origin: f("total_operating_revenue") },
+    { label: "Cost of goods sold",                        val: -(pl.cogs ?? 0),           style: "indent", origin: neg("cogs") },
+    { label: "Operating expenses",                        val: -(pl.opex_total ?? 0),     style: "indent", origin: neg("opex_total") },
+    { label: "Depreciation & amortization",               val: -(pl.depreciation ?? 0),   style: "indent", origin: neg("depreciation") },
+    {
+      label: "EBITDA (cash view)",
+      val: pl.ebitda_cash ?? pl.ebitda_operational,
+      style: "highlight",
+      origin: f(pl.ebitda_cash != null ? "ebitda_cash" : "ebitda_operational"),
+    },
+    { label: "EBITDA (statutory)",                        val: pl.ebitda_statutory,       style: "highlight", origin: f("ebitda_statutory") },
+    { label: "EBIT",                                      val: pl.ebit,                   style: "indent", origin: f("ebit") },
     {
       label: "Net financial result",
       val: (pl.financial_income ?? 0) - (pl.financial_expense ?? 0) - (pl.interest_expense ?? 0),
       style: "indent",
+      origin: origin.derived("assembled_pl.financial_income − financial_expense − interest_expense"),
     },
-    { label: "Pre-tax profit",                            val: pl.pretax,                 style: "subtotal" },
-    { label: "Income tax",                                val: -(pl.tax ?? 0),            style: "indent" },
+    { label: "Pre-tax profit",                            val: pl.pretax,                 style: "subtotal", origin: f("pretax") },
+    { label: "Income tax",                                val: -(pl.tax ?? 0),            style: "indent", origin: neg("tax") },
     // ── Operational net profit — THE headline figure ──────────────────
-    { label: "Net profit — operational (excl. 722)",      val: opNetProfit,               style: "headline" },
+    { label: "Net profit — operational (excl. 722)",      val: opNetProfit,               style: "headline", origin: f("net_income_statutory") },
   ];
 
   // ── 722 reconciliation bridge — only when 722 is materially non-zero.
@@ -647,8 +695,13 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
   // report uses ("Operational → + 722 → Statutory ct 121").
   if (has722) {
     rows.push(
-      { label: "+ Capitalized own work (722)",            val: capOwnWork,                style: "reconciliation" },
-      { label: "= Net profit — statutory (ct 121)",       val: statNetProfit,             style: "reconciliation" },
+      { label: "+ Capitalized own work (722)",            val: capOwnWork,                style: "reconciliation", origin: f("capitalized_own_work_memo") },
+      {
+        label: "= Net profit — statutory (ct 121)",
+        val: statNetProfit,
+        style: "reconciliation",
+        origin: origin.derived("assembled_pl.net_income_statutory + capitalized_own_work_memo"),
+      },
     );
   }
 
@@ -693,7 +746,7 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
                 >
                   <td className={`px-4 py-1 ${labelCls[r.style]}`}>{r.label}</td>
                   <td className="px-3 py-1 text-right">
-                    <MoneyAmount value={v} fromCurrency={currency as Currency} unit={false} />
+                    <MoneyAmount value={v} fromCurrency={currency as Currency} unit={false} provenance={r.origin} />
                   </td>
                   <td className="px-3 py-1 text-right text-ink-soft">
                     <PercentLevel value={v != null && revenue > 0 ? (v / revenue) * 100 : null} />
@@ -725,40 +778,48 @@ function PnlTable({ pl, currency }: { pl: Record<string, number>; currency: stri
   );
 }
 
-function BsTable({ bs, currency }: { bs: Record<string, number>; currency: string }) {
+type BsRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
+
+function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currency: string; origin: ReportOrigin }) {
   const total = bs.total_assets ?? 0;
-  const assetRows: Array<[string, number | undefined]> = [
-    ["Cash", bs.cash],
-    ["Accounts receivable (net)", bs.ar_net],
-    ["Inventory", bs.inventory ?? 0],
-    ["Other current assets", bs.ar_other ?? 0],
-    ["PP&E (net)", bs.ppe_net ?? 0],
-    ["Intangibles (net)", bs.intangibles_net ?? 0],
-    ["Investments", bs.investments ?? 0],
+  const f = (path: string) => origin.field(`assembled_bs.${path}`);
+  const assetRows: BsRow[] = [
+    ["Cash", bs.cash, f("cash")],
+    ["Accounts receivable (net)", bs.ar_net, f("ar_net")],
+    ["Inventory", bs.inventory ?? 0, f("inventory")],
+    ["Other current assets", bs.ar_other ?? 0, f("ar_other")],
+    ["PP&E (net)", bs.ppe_net ?? 0, f("ppe_net")],
+    ["Intangibles (net)", bs.intangibles_net ?? 0, f("intangibles_net")],
+    ["Investments", bs.investments ?? 0, f("investments")],
   ];
-  const liabRows: Array<[string, number | undefined]> = [
-    ["Share capital", bs.share_capital],
-    ["Reserves & retained earnings", (bs.revaluation_reserves ?? 0) + (bs.retained_earnings ?? 0) + (bs.other_equity_non_revaluation ?? 0)],
-    ["Current-year P&L", bs.current_year_pnl ?? 0],
-    ["Long-term debt", bs.lt_debt ?? 0],
-    ["Short-term debt", bs.st_debt ?? 0],
-    ["Accounts payable", bs.ap],
-    ["Other current liabilities", bs.ap_other],
-    ["Dividends payable", bs.ap_dividends ?? 0],
+  const liabRows: BsRow[] = [
+    ["Share capital", bs.share_capital, f("share_capital")],
+    [
+      "Reserves & retained earnings",
+      (bs.revaluation_reserves ?? 0) + (bs.retained_earnings ?? 0) + (bs.other_equity_non_revaluation ?? 0),
+      origin.derived("assembled_bs.revaluation_reserves + retained_earnings + other_equity_non_revaluation"),
+    ],
+    ["Current-year P&L", bs.current_year_pnl ?? 0, f("current_year_pnl")],
+    ["Long-term debt", bs.lt_debt ?? 0, f("lt_debt")],
+    ["Short-term debt", bs.st_debt ?? 0, f("st_debt")],
+    ["Accounts payable", bs.ap, f("ap")],
+    ["Other current liabilities", bs.ap_other, f("ap_other")],
+    ["Dividends payable", bs.ap_dividends ?? 0, f("ap_dividends")],
   ];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} reference={total} currency={currency} />
-      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} reference={total} currency={currency} />
+      <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} totalOrigin={f("total_assets")} reference={total} currency={currency} />
+      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} totalOrigin={origin.derived("assembled_bs.total_equity + total_liabilities")} reference={total} currency={currency} />
     </div>
   );
 }
 
-function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
+function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, currency }: {
   title: string;
-  rows: Array<[string, number | undefined]>;
+  rows: BsRow[];
   totalLabel: string;
   totalValue: number | undefined;
+  totalOrigin: AmountProvenance | null;
   reference: number;
   currency: string;
 }) {
@@ -775,11 +836,11 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
           </tr>
         </thead>
         <tbody>
-          {rows.map(([label, val]) => (
+          {rows.map(([label, val, rowOrigin]) => (
             <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
               <td className="px-4 py-1">{label}</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} />
+                <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
               </td>
               <td className="px-3 py-1 text-right text-ink-soft">
                 {val != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}
@@ -789,7 +850,7 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
           <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
             <td className="px-4 py-1">{totalLabel}</td>
             <td className="px-3 py-1 text-right">
-              <MoneyAmount value={totalValue} fromCurrency={currency as Currency} unit={false} />
+              <MoneyAmount value={totalValue} fromCurrency={currency as Currency} unit={false} provenance={totalOrigin} />
             </td>
             <td className="px-3 py-1"></td>
           </tr>
@@ -799,47 +860,53 @@ function BsHalf({ title, rows, totalLabel, totalValue, reference, currency }: {
   );
 }
 
-function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string }) {
+function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string; origin: ReportOrigin }) {
   const { displayCurrency } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
   const n = (k: string) => (typeof cf[k] === "number" ? (cf[k] as number) : 0);
+  // The served envelope says whether this statement is approximated
+  // (`is_approximated`); the figure says the same thing in its method
+  // so the ~ in the label and the card can never disagree.
+  const f = (k: string) =>
+    origin.field(`assembled_cf.${k}`, isApprox ? "indirect method · approximated" : undefined);
 
-  const sections: Array<{ title: string; rows: Array<[string, number]>; subtotal: [string, number]; }> = [
+  type CfRow = [label: string, value: number, origin: AmountProvenance | null];
+  const sections: Array<{ title: string; rows: CfRow[]; subtotal: CfRow; }> = [
     {
       title: "Operating",
       rows: [
-        ["Net profit", n("net_profit")],
-        ["+ Depreciation & amortization", n("depreciation")],
-        ["+ Provision movements", n("provision_movement")],
-        ["Δ Inventory", n("delta_inventory")],
-        ["Δ Receivables", n("delta_receivables")],
-        ["Δ Trade payables", n("delta_trade_pay")],
-        ["Δ Tax payables", n("delta_tax_pay")],
+        ["Net profit", n("net_profit"), f("net_profit")],
+        ["+ Depreciation & amortization", n("depreciation"), f("depreciation")],
+        ["+ Provision movements", n("provision_movement"), f("provision_movement")],
+        ["Δ Inventory", n("delta_inventory"), f("delta_inventory")],
+        ["Δ Receivables", n("delta_receivables"), f("delta_receivables")],
+        ["Δ Trade payables", n("delta_trade_pay"), f("delta_trade_pay")],
+        ["Δ Tax payables", n("delta_tax_pay"), f("delta_tax_pay")],
       ],
-      subtotal: ["Cash from operating activities", n("cash_from_operating")],
+      subtotal: ["Cash from operating activities", n("cash_from_operating"), f("cash_from_operating")],
     },
     {
       title: "Investing",
       rows: [
-        ["Capex (CIP, 231 additions)", n("capex_real")],
-        ["Other capex (approximated)", n("capex_other_approx")],
-        ["Δ Construction in progress", n("cip_change")],
-        ["Δ Affiliates", n("affiliate_change")],
-        ["+ Dividends received", n("dividends_received")],
-        ["+ Interest received", n("interest_received")],
+        ["Capex (CIP, 231 additions)", n("capex_real"), f("capex_real")],
+        ["Other capex (approximated)", n("capex_other_approx"), f("capex_other_approx")],
+        ["Δ Construction in progress", n("cip_change"), f("cip_change")],
+        ["Δ Affiliates", n("affiliate_change"), f("affiliate_change")],
+        ["+ Dividends received", n("dividends_received"), f("dividends_received")],
+        ["+ Interest received", n("interest_received"), f("interest_received")],
       ],
-      subtotal: ["Cash used in investing", n("cash_used_in_investing")],
+      subtotal: ["Cash used in investing", n("cash_used_in_investing"), f("cash_used_in_investing")],
     },
     {
       title: "Financing",
       rows: [
-        ["Δ Long-term debt", n("delta_lt_debt")],
-        ["Δ Short-term bank credit", n("delta_st_bank")],
-        ["− Interest paid", n("interest_paid")],
-        ["− Dividends paid", n("dividends_paid")],
+        ["Δ Long-term debt", n("delta_lt_debt"), f("delta_lt_debt")],
+        ["Δ Short-term bank credit", n("delta_st_bank"), f("delta_st_bank")],
+        ["− Interest paid", n("interest_paid"), f("interest_paid")],
+        ["− Dividends paid", n("dividends_paid"), f("dividends_paid")],
       ],
-      subtotal: ["Cash used in financing", n("cash_used_in_financing")],
+      subtotal: ["Cash used in financing", n("cash_used_in_financing"), f("cash_used_in_financing")],
     },
   ];
 
@@ -868,18 +935,18 @@ function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean |
           />
           <table className="w-full text-[12.5px]">
             <tbody>
-              {s.rows.map(([label, val]) => (
+              {s.rows.map(([label, val, rowOrigin]) => (
                 <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
                   <td className="px-4 py-1 pl-8 text-ink-soft">{isApprox ? `~ ${label}` : label}</td>
                   <td className="px-3 py-1 text-right">
-                    <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} />
+                    <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
                   </td>
                 </tr>
               ))}
               <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
                 <td className="px-4 py-1">{s.subtotal[0]}</td>
                 <td className="px-3 py-1 text-right">
-                  <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} />
+                  <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} provenance={s.subtotal[2]} />
                 </td>
               </tr>
             </tbody>
@@ -892,7 +959,7 @@ function CashFlowTable({ cf, currency }: { cf: Record<string, number | boolean |
             <tr className="h-8 bg-bg-2/60 font-semibold text-ink">
               <td className="px-4 py-1">Net change in cash</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={n("net_change_in_cash")} fromCurrency={currency as Currency} unit={false} />
+                <MoneyAmount value={n("net_change_in_cash")} fromCurrency={currency as Currency} unit={false} provenance={f("net_change_in_cash")} />
               </td>
             </tr>
           </tbody>

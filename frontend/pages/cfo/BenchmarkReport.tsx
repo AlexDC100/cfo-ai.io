@@ -46,6 +46,7 @@ import { IndustryBadge, IndustryPicker } from "@/components/cfo/industry";
 import { ExplainButton } from "@/components/cfo/simple/ExplainButton";
 import { glossaryIdForMetric, type ExplainFigure } from "@/lib/explain";
 import { formatAmount, formatExact, formatMultiple } from "@/lib/amountFormat";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import { useActiveLocale } from "@/lib/locale";
 import { ComingSoon } from "@/components/cfo/ComingSoon";
 import { Level1BenchmarkView } from "@/components/cfo/Level1BenchmarkView";
@@ -1156,6 +1157,21 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
     moneyFromMlei(p.net_profit_mlei),
   ]);
 
+  // Each peer row names its own `source` (the public filing set it was
+  // read from) and fiscal year — the figure wears exactly those, and a
+  // row that carries neither renders plain. The leader panel restates a
+  // peer row's revenue; its origin is that row's, claimed only when the
+  // row is found and its figure is the one on the panel.
+  const peerOrigin = (p: DeepPeer): AmountProvenance | null =>
+    provenanceOf({
+      source: p.source ?? undefined,
+      period: p.fiscal_year != null ? String(p.fiscal_year) : undefined,
+    });
+  const leaderRow = deep.peers.find(
+    (p) => p.tier === "leader" && p.revenue_mlei === deep.leader_revenue_mlei,
+  );
+  const leaderOrigin = leaderRow ? peerOrigin(leaderRow) : null;
+
   return (
     <section data-testid="benchmark-deep-peers" className="space-y-3">
       <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">
@@ -1171,7 +1187,7 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
             {deep.leader_year ? (
               <span className="text-[12.5px] text-ink-soft">
                 {deep.leader_year} ·{" "}
-                <MoneyAmount value={moneyFromMlei(deep.leader_revenue_mlei)} fromCurrency="RON" />{" "}
+                <MoneyAmount value={moneyFromMlei(deep.leader_revenue_mlei)} fromCurrency="RON" provenance={leaderOrigin} />{" "}
                 {t("benchmarkPage.peersTable.leaderRevenue")} ·{" "}
                 <PercentLevel value={deep.leader_net_margin_pct} />{" "}
                 {t("benchmarkPage.peersTable.leaderMargin")}
@@ -1224,10 +1240,10 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
                     <td className="px-4 py-1">{p.company_name}</td>
                     <td className="px-3 py-1 text-right font-mono tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
                     <td className="px-3 py-1 text-right">
-                      <MoneyAmount value={moneyFromMlei(p.revenue_mlei)} fromCurrency="RON" unit={false} />
+                      <MoneyAmount value={moneyFromMlei(p.revenue_mlei)} fromCurrency="RON" unit={false} provenance={peerOrigin(p)} />
                     </td>
                     <td className={`px-3 py-1 text-right font-medium ${profitColor}`}>
-                      <MoneyAmount value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" unit={false} signed />
+                      <MoneyAmount value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" unit={false} signed provenance={peerOrigin(p)} />
                     </td>
                     <td className={`px-3 py-1 text-right font-medium ${profitColor}`}>
                       <PercentLevel value={p.net_margin_pct} />

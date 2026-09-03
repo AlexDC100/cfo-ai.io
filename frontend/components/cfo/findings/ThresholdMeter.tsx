@@ -14,12 +14,56 @@
 
 import { useTranslation } from "react-i18next";
 
+import {
+  ProvenanceAffordance,
+  provenanceOf,
+  type AmountProvenance,
+} from "@/components/instrument/Provenance";
 import type { Currency } from "@/lib/rates";
 import type { FindingThreshold } from "@/lib/findings";
 
 import { ElementLabel, FigureValue, toneFor } from "./parts";
 import type { FindingSeverity } from "@/lib/findings";
 import "./findingsI18n";
+
+// ── where the two figures come from ────────────────────────────────────
+//
+// The LIMIT was read from a parameter file: `threshold.source` names it
+// ("profiles.yaml#detectors.liquidity_cash_tight.thresholds…"), and
+// `rule_id` names the rule that applies it. That is the whole origin —
+// no accounts, no period, no snapshot: a limit is not measured on a
+// balance sheet.
+//
+// The OBSERVED value was measured by that rule on THIS period, from the
+// facts the finding cites — so it carries the finding's own provenance
+// (source, line refs, snapshot, period) with the rule and parameter as
+// its method. When the finding carries no provenance, only the rule and
+// parameter remain, which is still a checkable claim (the same row
+// exists under All checks).
+
+/** The limit's origin: the parameter file and the rule. Null when the
+ *  payload names neither. */
+export function thresholdLimitProvenance(
+  threshold: Pick<FindingThreshold, "rule_id" | "source">,
+): AmountProvenance | null {
+  return provenanceOf({
+    source: threshold.source,
+    method: threshold.rule_id ? `rule ${threshold.rule_id}` : undefined,
+  });
+}
+
+/** The observed value's origin: the finding's provenance, measured by
+ *  the rule on the named parameter. */
+export function thresholdObservedProvenance(
+  threshold: Pick<FindingThreshold, "rule_id" | "parameter">,
+  finding: AmountProvenance | null | undefined,
+): AmountProvenance | null {
+  const measured = [threshold.rule_id, threshold.parameter].filter(Boolean).join(" · ");
+  return provenanceOf({
+    ...(finding ?? {}),
+    method: measured ? `measured by rule ${measured}` : undefined,
+  });
+}
 
 const COMPARATOR_KEY: Record<string, string> = {
   ">": "fnd.cmp.gt",
@@ -58,6 +102,7 @@ export function ThresholdMeter({
   facts,
   factUnits,
   showSource = true,
+  provenance = null,
 }: {
   threshold: FindingThreshold;
   severity: FindingSeverity;
@@ -65,10 +110,15 @@ export function ThresholdMeter({
   facts: Record<string, number>;
   factUnits: Record<string, string>;
   showSource?: boolean;
+  /** The finding's own provenance (`findingProvenance`), for the OBSERVED
+   *  figure. The limit's origin comes from the threshold itself. */
+  provenance?: AmountProvenance | null;
 }) {
   const { t } = useTranslation();
   const tone = toneFor(severity);
   const geo = meterGeometry(threshold.limit, threshold.observed);
+  const limitOrigin = thresholdLimitProvenance(threshold);
+  const observedOrigin = thresholdObservedProvenance(threshold, provenance);
 
   return (
     <section data-testid="fnd-threshold">
@@ -81,24 +131,28 @@ export function ThresholdMeter({
           comparator: comparatorWord(threshold.comparator, t),
         })}{" "}
         <span className="font-medium text-ink">
-          <FigureValue
-            value={threshold.limit}
-            unit={threshold.unit}
-            facts={facts}
-            factUnits={factUnits}
-            currency={currency}
-          />
+          <ProvenanceAffordance provenance={limitOrigin}>
+            <FigureValue
+              value={threshold.limit}
+              unit={threshold.unit}
+              facts={facts}
+              factUnits={factUnits}
+              currency={currency}
+            />
+          </ProvenanceAffordance>
         </span>
         {". "}
         <span className="text-ink-mute">{t("fnd.observedLead")} </span>
         <span className={`font-medium ${tone.text}`}>
-          <FigureValue
-            value={threshold.observed}
-            unit={threshold.unit}
-            facts={facts}
-            factUnits={factUnits}
-            currency={currency}
-          />
+          <ProvenanceAffordance provenance={observedOrigin}>
+            <FigureValue
+              value={threshold.observed}
+              unit={threshold.unit}
+              facts={facts}
+              factUnits={factUnits}
+              currency={currency}
+            />
+          </ProvenanceAffordance>
         </span>
         .
       </p>

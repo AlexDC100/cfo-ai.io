@@ -33,6 +33,14 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, within, cleanup } from "@testing-library/react";
+// TooltipProvider mirrors App.tsx, which mounts one around the whole
+// tree. REQUIRED since 2026-09-03: the trust receipt's three figures
+// (difference, original difference, applied delta) wear the provenance
+// affordance — a Radix tooltip naming the served field, extraction
+// method and mapping pack — and Radix throws without its provider. This
+// test going red the moment the receipt got them is the measurement that
+// it had none before.
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // ── jsdom polyfills Radix needs ────────────────────────────────────────
 if (typeof window !== "undefined") {
@@ -176,12 +184,14 @@ function renderHeader(overrides: Partial<Parameters<typeof TopHeader>[0]> = {}) 
   const onOpenPalette = vi.fn();
   const onOpenSidebar = vi.fn();
   const utils = render(
-    <TopHeader
-      onOpenAi={onOpenAi}
-      onOpenSidebar={onOpenSidebar}
-      onOpenPalette={onOpenPalette}
-      {...overrides}
-    />,
+    <TooltipProvider>
+      <TopHeader
+        onOpenAi={onOpenAi}
+        onOpenSidebar={onOpenSidebar}
+        onOpenPalette={onOpenPalette}
+        {...overrides}
+      />
+    </TooltipProvider>,
   );
   return { ...utils, onOpenAi, onOpenPalette, onOpenSidebar };
 }
@@ -292,7 +302,11 @@ function renderTrustChip(facts: ReturnType<typeof fakeFacts> | null) {
   renderRealTrustChip = true;
   mockFacts = facts;
   mockActivePeriod = { statements: { currency: "RON" }, isLoading: false };
-  return render(<TrustChip />);
+  return render(
+    <TooltipProvider>
+      <TrustChip />
+    </TooltipProvider>,
+  );
 }
 
 describe("H3a — the status→tone map is locked, band by band", () => {

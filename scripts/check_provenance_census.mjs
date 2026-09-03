@@ -55,7 +55,7 @@
  * Zero dependencies. `node scripts/check_provenance_census.mjs`.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -80,6 +80,75 @@ const FLOOR_AFFORDANCES = 10;
 /** Files allowed to carry no payload verdict yet. A ceiling, not a
  *  floor: it may shrink, never grow. Measured 2026-09-02 at 12. */
 const CEILING_UNAUDITED = 12;
+
+// ── P4 — PER-SURFACE FLOORS (TC-6) ─────────────────────────────────────
+//
+// FLOOR_AFFORDANCES above is a floor on a SUM, and this repo has already
+// measured what a sum is worth: `import-boundary` printed "boundary holds"
+// with one half collapsed 517 -> 1, because the total stayed above the
+// global floor. Here the Capsule alone carries 10 of the 24 affordance-
+// bearing sites; the statements could lose every one of theirs and the
+// sum would still clear 10.
+//
+// So each named surface records its OWN floor, over its OWN files, and a
+// breach names the surface. Floors are what the committed base MEASURES,
+// not intentions: a surface whose files are all HAS_MISSING carries 0 and
+// is printed VACUOUS rather than green — a zero floor cannot red, and
+// saying so is the difference between a gate and a decoration. The lane
+// that threads a HAS_MISSING file RAISES its surface's floor in the same
+// change; the census count-drift check makes forgetting that loud.
+//
+// The live twin of this table — counted in a browser against real engine
+// output, one Playwright test per surface — is e2e/design/provenance.spec.ts.
+const SURFACES = {
+  dashboard: {
+    floor: 0,
+    files: [
+      "frontend/components/cfo/KeyMetricsRow.tsx",
+      "frontend/components/cfo/simple/StoryOverview.tsx",
+      "frontend/components/cfo/simple/FirstUploadJourney.tsx",
+      "frontend/components/dashboard/MetricCard.tsx",
+      "frontend/pages/cfo/FinancialStatements.tsx",
+      "frontend/components/instrument/shell/TrustChip.tsx",
+    ],
+  },
+  statements: {
+    floor: 6,
+    files: ["frontend/components/cfo/BSStatementView.tsx"],
+  },
+  findings: {
+    floor: 3,
+    files: [
+      "frontend/components/cfo/findings/parts.tsx",
+      "frontend/components/cfo/findings/EvidenceLine.tsx",
+      "frontend/components/cfo/findings/ThresholdMeter.tsx",
+      "frontend/components/cfo/findings/FindingCard.tsx",
+      "frontend/components/cfo/findings/AllChecksList.tsx",
+      "frontend/components/cfo/findings/ImpactRow.tsx",
+    ],
+  },
+  capsule: {
+    floor: 10,
+    files: [
+      "frontend/components/instrument/shell/capsuleAnswer/CapsuleFigures.tsx",
+      "frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx",
+      "frontend/components/instrument/shell/capsuleAnswer/CapsuleFactCard.tsx",
+      "frontend/components/instrument/shell/capsuleEmpty/CapsuleFactTiles.tsx",
+      "frontend/components/instrument/shell/capsuleEmpty/CapsuleAccountCard.tsx",
+    ],
+  },
+  "public-companies": {
+    floor: 1,
+    files: [
+      "frontend/components/public-companies/MarketSurface.tsx",
+      "frontend/pages/cfo/PublicCompanyDashboard.tsx",
+      "frontend/components/public-companies/BenchmarkingPanel.tsx",
+      "frontend/components/public-companies/MarketPulseStrip.tsx",
+      "frontend/components/public-companies/MarketsOverview.tsx",
+      "frontend/components/public-companies/PeerSuggestRail.tsx",
+    ],
+  },
+};
 
 /** Files the census MUST see. Absent => DISCOVERY BROKEN. Each is here
  *  because it is a named surface in the mission: the instrument itself,
@@ -327,6 +396,47 @@ for (const f of Object.keys(entries)) {
     failures.push(
       `STALE ENTRY: ${f} is registered but renders no figures. A stale ` +
         "registration silently widens the allowance.",
+    );
+  }
+}
+
+// ── P4: per-surface floors, asserted AFTER discovery (TC-3) ────────────
+const surfaceRows = [];
+for (const [name, spec] of Object.entries(SURFACES)) {
+  let sites = 0;
+  let bearing = 0;
+  let seen = 0;
+  for (const f of spec.files) {
+    if (!existsSync(join(ROOT, f))) {
+      failures.push(
+        `SURFACE ROSTER STALE: ${name} lists ${f}, which is not on disk. A floor over ` +
+          "a file that no longer exists is an allowance nobody is using.",
+      );
+      continue;
+    }
+    const m = measured.get(f);
+    if (!m) continue; // renders no figure today; the registry side says so
+    seen += 1;
+    sites += m.sites;
+    bearing += m.affordances + m.provenanceProps;
+  }
+  surfaceRows.push({ name, floor: spec.floor, files: seen, sites, bearing });
+  console.log(
+    `GATE-WORK provenance-surface-${name} units=${bearing} floor=${spec.floor} ` +
+      `label=affordance-bearing-sites${spec.floor === 0 ? " (VACUOUS: floor is zero)" : ""}`,
+  );
+  if (seen === 0) {
+    failures.push(
+      `SURFACE VACUITY: none of the ${spec.files.length} file(s) rostered under ${name} ` +
+        "renders a figure. The surface has no subject, or its roster is wrong.",
+    );
+  }
+  if (bearing < spec.floor) {
+    failures.push(
+      `SURFACE FLOOR: ${name} renders ${bearing} affordance-bearing site(s) across its ` +
+        `${seen} figure file(s), floor ${spec.floor} — the ${name} surface lost its dots ` +
+        `(the product-wide total is still ${totalAffordances + totalProvenanceProps}, ` +
+        "which is why a sum cannot see this).",
     );
   }
 }

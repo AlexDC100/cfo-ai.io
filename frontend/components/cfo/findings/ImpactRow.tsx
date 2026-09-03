@@ -17,11 +17,45 @@
 
 import { useTranslation } from "react-i18next";
 
+import {
+  ProvenanceAffordance,
+  provenanceOf,
+  type AmountProvenance,
+} from "@/components/instrument/Provenance";
 import type { Currency } from "@/lib/rates";
 import { formatSignedDimensionless, type FindingImpact } from "@/lib/findings";
 
 import { ElementLabel, FigureValue } from "./parts";
 import "./findingsI18n";
+
+// ── where the two endpoints come from ──────────────────────────────────
+//
+// Both were computed by the engine on the SAME snapshot the finding was
+// measured against, from the facts it cites — so they carry the finding's
+// provenance. But an impact is a PROJECTION, not a reading: the adjusted
+// figure is the metric with this finding's subject removed, and nobody's
+// trial balance contains it. `method` says so in as many words, so the
+// card never implies the number was read from a sheet. Without the
+// finding's provenance there is nothing to stand behind either endpoint,
+// and both render plain — the visible Pro method line already names the
+// kind and the metric.
+
+export function impactProvenance(
+  impact: Pick<FindingImpact, "kind" | "metric" | "baseline_fact" | "adjusted_fact">,
+  finding: AmountProvenance | null | undefined,
+  endpoint: "baseline" | "adjusted",
+): AmountProvenance | null {
+  if (!finding) return null;
+  const fact = endpoint === "baseline" ? impact.baseline_fact : impact.adjusted_fact;
+  const what =
+    endpoint === "baseline"
+      ? `${impact.kind} · baseline ${impact.metric}`
+      : `${impact.kind} · projection — ${impact.metric} recomputed without this item`;
+  return provenanceOf({
+    ...finding,
+    method: fact ? `${what} · fact ${fact}` : what,
+  });
+}
 
 export function ImpactRow({
   impact,
@@ -31,6 +65,7 @@ export function ImpactRow({
   recomputed,
   compact = false,
   showMethod = false,
+  provenance = null,
 }: {
   impact: FindingImpact;
   currency: Currency;
@@ -41,6 +76,9 @@ export function ImpactRow({
   compact?: boolean;
   /** Pro only: name the metric and the impact kind under the sentence. */
   showMethod?: boolean;
+  /** The finding's own provenance (`findingProvenance`). Null → both
+   *  endpoints render plain. */
+  provenance?: AmountProvenance | null;
 }) {
   const { t } = useTranslation();
   const isMoney = impact.unit === "money";
@@ -52,24 +90,28 @@ export function ImpactRow({
       });
 
   const baseline = (
-    <FigureValue
-      value={impact.baseline}
-      unit={impact.unit}
-      fact={impact.baseline_fact ?? undefined}
-      facts={facts}
-      factUnits={factUnits}
-      currency={currency}
-    />
+    <ProvenanceAffordance provenance={impactProvenance(impact, provenance, "baseline")}>
+      <FigureValue
+        value={impact.baseline}
+        unit={impact.unit}
+        fact={impact.baseline_fact ?? undefined}
+        facts={facts}
+        factUnits={factUnits}
+        currency={currency}
+      />
+    </ProvenanceAffordance>
   );
   const adjusted = (
-    <FigureValue
-      value={impact.adjusted}
-      unit={impact.unit}
-      fact={impact.adjusted_fact ?? undefined}
-      facts={facts}
-      factUnits={factUnits}
-      currency={currency}
-    />
+    <ProvenanceAffordance provenance={impactProvenance(impact, provenance, "adjusted")}>
+      <FigureValue
+        value={impact.adjusted}
+        unit={impact.unit}
+        fact={impact.adjusted_fact ?? undefined}
+        facts={facts}
+        factUnits={factUnits}
+        currency={currency}
+      />
+    </ProvenanceAffordance>
   );
 
   return (

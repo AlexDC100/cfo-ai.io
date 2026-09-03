@@ -28,6 +28,7 @@ import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 
+import { ProvenanceAffordance } from "@/components/instrument/Provenance";
 import { NarrativeText } from "@/lib/narrativeMoney";
 import { useIsSimple } from "@/lib/viewMode";
 import {
@@ -40,8 +41,21 @@ import { ActionChecklist } from "./ActionChecklist";
 import { EvidenceLine } from "./EvidenceLine";
 import { FindingActions } from "./FindingActions";
 import { ImpactRow } from "./ImpactRow";
-import { ThresholdMeter, comparatorWord } from "./ThresholdMeter";
-import { ABSENT, Chip, ElementLabel, FigureValue, asCurrency, toneFor } from "./parts";
+import {
+  ThresholdMeter,
+  comparatorWord,
+  thresholdLimitProvenance,
+  thresholdObservedProvenance,
+} from "./ThresholdMeter";
+import {
+  ABSENT,
+  Chip,
+  ElementLabel,
+  FigureValue,
+  asCurrency,
+  findingProvenance,
+  toneFor,
+} from "./parts";
 import "./findingsI18n";
 
 export interface FindingCardProps {
@@ -71,6 +85,10 @@ export function FindingCard({
   const facts = finding.factsCited;
   const units = finding.factUnits;
   const full = !simple || expanded;
+  // The finding's own provenance, mapped once. The evidence figures, the
+  // observed threshold value and both impact endpoints all descend from
+  // it; the limit's origin comes from the threshold itself.
+  const origin = findingProvenance(evidence?.provenance);
 
   return (
     <article
@@ -141,24 +159,30 @@ export function FindingCard({
                 components={{
                   obs: (
                     <span className={tone.text}>
-                      <FigureValue
-                        value={threshold.observed}
-                        unit={threshold.unit}
-                        facts={facts}
-                        factUnits={units}
-                        currency={currency}
-                      />
+                      <ProvenanceAffordance
+                        provenance={thresholdObservedProvenance(threshold, origin)}
+                      >
+                        <FigureValue
+                          value={threshold.observed}
+                          unit={threshold.unit}
+                          facts={facts}
+                          factUnits={units}
+                          currency={currency}
+                        />
+                      </ProvenanceAffordance>
                     </span>
                   ),
                   lim: (
                     <span>
-                      <FigureValue
-                        value={threshold.limit}
-                        unit={threshold.unit}
-                        facts={facts}
-                        factUnits={units}
-                        currency={currency}
-                      />
+                      <ProvenanceAffordance provenance={thresholdLimitProvenance(threshold)}>
+                        <FigureValue
+                          value={threshold.limit}
+                          unit={threshold.unit}
+                          facts={facts}
+                          factUnits={units}
+                          currency={currency}
+                        />
+                      </ProvenanceAffordance>
                     </span>
                   ),
                 }}
@@ -199,6 +223,7 @@ export function FindingCard({
                   factUnits={units}
                   recomputed={recomputed}
                   compact
+                  provenance={origin}
                 />
               ) : null}
               {action ? <ActionChecklist action={action} limit={1} /> : <MissingSlot element="action" />}
@@ -233,6 +258,7 @@ export function FindingCard({
                       facts={facts}
                       factUnits={units}
                       showSource={!compact}
+                      provenance={origin}
                     />
                   ) : (
                     <MissingSlot element="threshold" />
@@ -247,6 +273,7 @@ export function FindingCard({
                       factUnits={units}
                       recomputed={recomputed}
                       showMethod={!simple}
+                      provenance={origin}
                     />
                   ) : (
                     <MissingSlot element="impact" />

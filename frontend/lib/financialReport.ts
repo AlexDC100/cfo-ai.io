@@ -1365,6 +1365,22 @@ export function renderReportHtml(s: Statements): string {
   // footer read the served envelope; this renderer never branches on
   // `s.canonical_bs` presence itself (the module knows).
   const sf = factsFrom(s);
+  // PROVENANCE NOTE — the served envelope's own words, only when it
+  // carries them (HTML can hold a note; a CSV cannot). Names the sheet the
+  // balance sheet was read from, the extraction method and the mapping
+  // pack — the same fields the on-screen affordance shows. Absent
+  // fields yield no clause, never a dash.
+  const provenanceNote = (() => {
+    const cbsTop = sf.canonicalForRender();
+    if (!cbsTop) return "";
+    const parts = [
+      cbsTop.extraction?.sheet ? `sheet ${escapeHtml(cbsTop.extraction.sheet)}` : null,
+      cbsTop.extraction?.method ? `read ${escapeHtml(cbsTop.extraction.method)}` : null,
+      cbsTop.mapping_version ? `mapping pack ${escapeHtml(cbsTop.mapping_version)}` : null,
+    ].filter((x): x is string => x !== null);
+    if (parts.length === 0) return "";
+    return ` Balance-sheet provenance: ${parts.join(" &middot; ")}; each balance-sheet row above names its account codes.`;
+  })();
   const r = computeRatios(s);
   const recs = generateRecommendations(s, r);
 
@@ -2073,7 +2089,7 @@ export function renderReportHtml(s: Statements): string {
 
   <aside class="basis-note">
     <strong>Basis of preparation</strong>
-    Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.
+    Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.${provenanceNote}
   </aside>
 
   <footer class="footer">

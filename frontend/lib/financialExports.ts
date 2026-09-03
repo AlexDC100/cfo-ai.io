@@ -95,6 +95,21 @@ export function buildExcelWorkbook(s: Statements, currencyCtx?: ExportCurrencyCo
     ["Net debt", t.netDebt],
     ["Total equity", sf.totalEquity()],
     [],
+    // PROVENANCE — the served envelope's own words, only when it carries
+    // them. A cell can hold a note (unlike CSV, which has no comment
+    // syntax); an envelope that names no sheet or method yields no row,
+    // never a dash. Same fields the on-screen affordance shows.
+    ...(cbs
+      ? ([
+          ["PROVENANCE"],
+          ...(cbs.extraction?.sheet ? [["Source sheet", cbs.extraction.sheet]] : []),
+          ...(cbs.extraction?.method ? [["Extraction method", cbs.extraction.method]] : []),
+          ...(cbs.extraction?.parser_version ? [["Parser", cbs.extraction.parser_version]] : []),
+          ...(cbs.mapping_version ? [["Mapping pack", cbs.mapping_version]] : []),
+          ["Balance-sheet rows carry their account codes on the Balance Sheet sheet."],
+          [],
+        ] as (string | number)[][])
+      : []),
     ["AUDIT FOOTER"],
     // Currency conversion note — only when display ≠ canonical (EUR).
     ...(currencyCtx && currencyCtx.display !== "EUR"
