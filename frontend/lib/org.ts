@@ -27,6 +27,8 @@ import { clearWorkspaceScopedData } from "@/lib/clearWorkspaceData";
 import { queryClient } from "@/lib/queryClient";
 import { writeWorkspaceName } from "@/lib/workspaceName";
 import { hydrateOrgPrefs, hydrateUserPrefs, resetPrefs } from "@/lib/prefs";
+import { isPublicTestMode } from "@/lib/testMode";
+import { ensureTestModeSession } from "@/lib/testModeSession";
 
 export interface Organization {
   id: string;
@@ -95,12 +97,47 @@ interface OrgListResult {
   error: boolean;
 }
 
+/**
+ * How long a caller waits for a session that the app believes already exists.
+ * `useAuth().status === "signed_in"` is set from a real session everywhere
+ * except PUBLIC_TEST_MODE, so outside test mode this window only ever covers
+ * the narrow case of a session that expired between the status flip and this
+ * read — Supabase emits SIGNED_OUT shortly after, which re-runs load().
+ */
+const SESSION_WAIT_MS = 3_000;
+const SESSION_POLL_MS = 100;
+
+/** The signed-in user, waiting a bounded moment for a session that is still
+ *  being established. Null once the window expires. */
+async function awaitSessionUser(
+  supabase: NonNullable<ReturnType<typeof getSupabase>>,
+): Promise<{ id: string } | null> {
+  const deadline = Date.now() + SESSION_WAIT_MS;
+  for (;;) {
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user ?? null;
+    if (user) return user;
+    if (Date.now() >= deadline) return null;
+    await new Promise((r) => setTimeout(r, SESSION_POLL_MS));
+  }
+}
+
 /** Every workspace the signed-in user belongs to, archived ones included. */
 async function fetchOrgsForUser(): Promise<OrgListResult> {
   const supabase = getSupabase();
   if (!supabase) return { orgs: [], error: false };
-  const { data: session } = await supabase.auth.getSession();
-  if (!session.session?.user) return { orgs: [], error: false };
+  // PUBLIC_TEST_MODE: AuthProvider reports signed_in synchronously while the
+  // real Supabase session arrives async from /api/test-mode/session. Await the
+  // shared bootstrap rather than racing it — see lib/testModeSession.ts.
+  if (isPublicTestMode) await ensureTestModeSession();
+  const user = await awaitSessionUser(supabase);
+  // NO SESSION IS NOT A ZERO. `list_workspaces` was never called, so an empty
+  // list here says nothing about how many workspaces the account has. Reporting
+  // it as `error` makes it the retry state it actually is: ensure-default
+  // cannot fire on it (the false zero that cloned 247 junk workspaces by
+  // 2026-08-04 and 8,498 by 2026-09-01) and resolveActive will not clear the
+  // remembered workspace id on it.
+  if (!user) return { orgs: [], error: true };
 
   const { data, error } = await supabase.rpc("list_workspaces");
   if (error) {
@@ -490,6 +527,11 @@ export function useActiveOrg(): ActiveOrgState {
       if (created) {
         cachedOrgListPromise = fetchOrgsForUser();
         ({ orgs: list, error: listError } = await cachedOrgListPromise);
+        // Only ONE instance wins ensureDefaultWorkspace's per-user guard; every
+        // other mounted useActiveOrg() awaited the same empty promise and would
+        // otherwise commit `all: []` (org === null) for the rest of the page
+        // load. Poke them to re-read the list the create just produced.
+        emitOrgChange();
       }
     }
 
