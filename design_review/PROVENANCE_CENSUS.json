@@ -1,0 +1,255 @@
+{
+  "_README": [
+    "THE PROVENANCE CENSUS — one verdict per file that renders a figure.",
+    "Read by scripts/check_provenance_census.mjs, which discovers the sites",
+    "itself and fails on anything unregistered, stale, or count-drifted.",
+    "",
+    "THE QUESTION EACH ENTRY ANSWERS: does the payload this file renders",
+    "actually carry provenance, and does the reader get the affordance?",
+    "",
+    "  HAS_SHOWS     payload carries it, affordance rendered",
+    "  HAS_MISSING   payload (or its upstream) carries it, affordance NOT",
+    "                rendered here — remaining work, named",
+    "  LACKS_SILENT  there is no origin to name, and nothing is claimed",
+    "  LACKS_SHOWS   an affordance over a payload with nothing behind it.",
+    "                The gate FAILS on this bucket; it is never a state to",
+    "                sit in. One was found live on 2026-09-02 and fixed",
+    "                (CapsuleTier0Preview put the PERIOD LABEL in the field",
+    "                the card labels Source).",
+    "  UNAUDITED     nobody opened this file to decide. Capped, so the debt",
+    "                is visible and cannot grow quietly. Assigning a real",
+    "                bucket to a file nobody read would be the clean-sweep-",
+    "                over-no-subject failure this repo keeps catching.",
+    "",
+    "`sites` and `affordances` are MEASURED counts, not intentions. They",
+    "drift the moment a figure is added or loses its provenance, and the",
+    "gate fails until someone re-states the verdict."
+  ],
+  "sites": {
+    "frontend/components/instrument/Amount.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 0,
+      "affordances": 2,
+      "why": "THE INSTRUMENT. Delegates to ProvenanceAffordance when the payload has substance; falls back to a plain rounding tooltip (no data-provenance, no dotted rule) when it does not."
+    },
+    "frontend/components/cfo/BSStatementView.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 4,
+      "affordances": 6,
+      "why": "Rows carry account_codes; the envelope carries extraction.sheet/method and mapping_version. Item rows get accounts+sheet+method+pack; aggregates get engine-subtotal+method+pack and deliberately NO sheet. KNOWN GAP: rows rendering a <LearnableNumber> (a button) are skipped to avoid nesting interactive elements."
+    },
+    "frontend/components/cfo/findings/parts.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 1,
+      "affordances": 2,
+      "why": "FigureCell wraps the cited figure in the affordance, fed by findingProvenance() — source, line_refs as accounts, snapshot_id, period_id."
+    },
+    "frontend/components/cfo/findings/EvidenceLine.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 1,
+      "affordances": 1,
+      "why": "Passes the finding's own provenance to each cited FigureCell, alongside the dots and the provenance line it already painted."
+    },
+    "frontend/components/instrument/shell/capsuleAnswer/CapsuleFigures.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 6,
+      "affordances": 3,
+      "why": "Money and dimensionless both wear it now. CapsuleFactMeta has no sheet or account, so it names period + tool (method) + snapshot and claims NO source — the mislabel that put periodLabel under Source is fixed."
+    },
+    "frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 2,
+      "affordances": 3,
+      "why": "WAS the LACKS_SHOWS case: `{ source: fact.periodLabel }` on every fact. Now amountProvenanceFor(fact) for both branches, so the sheet and account codes it always had are what the reader sees."
+    },
+    "frontend/components/instrument/shell/capsuleEmpty/CapsuleFactTiles.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 1,
+      "affordances": 3,
+      "why": "The MONEY branch was bare while its percent sibling carried the affordance; money now wraps NarrativeText in the same one."
+    },
+    "frontend/components/instrument/shell/capsuleEmpty/CapsuleAccountCard.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 1,
+      "affordances": 1,
+      "why": "Share-of-class is DERIVED, so it shows the row's accounts and period with a method naming the division and its denominator; the balance renders through FactTileValue, which carries its own."
+    },
+    "frontend/components/instrument/shell/capsuleAnswer/CapsuleFactCard.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 1,
+      "affordances": 0,
+      "why": "Renders CapsuleFigures.FigureValue, which owns the affordance. Zero here is correct: a second one would be a second card over the same number."
+    },
+    "frontend/components/public-companies/MarketSurface.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 2,
+      "affordances": 1,
+      "why": "MarketFigureProvenance maps cleanly — source+concept, form as method, taxonomy as pack, accession as snapshot, filed as computedAt. Absent provenance renders plain."
+    },
+
+    "frontend/components/cfo/KeyMetricsRow.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "The four dashboard headline figures. KeyMetricItem is {label,desc,value,trend} — the canonical provenance the caller holds is dropped at the prop boundary. Threading it is a change to this component's contract and its two Simple-mode twins at once."
+    },
+    "frontend/components/cfo/simple/StoryOverview.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "Simple mode's twin of KeyMetricsRow, same accessors, same dropped provenance. Must move with it — mode parity (M1) asserts the two render cent-identical figures."
+    },
+    "frontend/components/cfo/simple/FirstUploadJourney.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "Same three accessors again (revenue/profit/cash) on the first-upload surface."
+    },
+    "frontend/components/cfo/findings/ThresholdMeter.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "FindingThreshold carries rule_id and source. The source already renders as a VISIBLE line under the meter — better than a hover — but the limit and observed figures themselves carry nothing."
+    },
+    "frontend/components/cfo/findings/FindingCard.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "The compact threshold figures; same payload as ThresholdMeter, without even the visible source line."
+    },
+    "frontend/components/cfo/findings/AllChecksList.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "CheckRow carries rule_id and profile_id — which rule ran and under which profile. That is a real, checkable origin for a limit; it is not on the figure."
+    },
+    "frontend/components/cfo/findings/ImpactRow.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 2,
+      "affordances": 0,
+      "why": "baseline_fact / adjusted_fact name the cited facts, and the card holds the finding's provenance. An impact is a PROJECTION though, so the card would need to say so in `method` rather than imply the adjusted figure was read from a sheet."
+    },
+    "frontend/components/instrument/shell/TrustChip.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 3,
+      "affordances": 0,
+      "why": "The reconciliation receipt carries content_hash, origin, applied_at, model and prompt_version — a full provenance payload sitting one prop away from three figures that show none of it."
+    },
+    "frontend/pages/cfo/FinancialStatements.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 1,
+      "affordances": 0,
+      "why": "The dashboard host. It holds the canonical meta it passes to BSStatementView, and does not pass it to its own figure."
+    },
+    "frontend/components/dashboard/MetricCard.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 8,
+      "affordances": 0,
+      "why": "The configurable dashboard tile. Every figure arrives as {value, format} from the metric resolver; the period's canonical provenance exists upstream and is not threaded to the resolver's output."
+    },
+    "frontend/pages/cfo/PublicCompanyDashboard.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 16,
+      "affordances": 0,
+      "why": "Ratio tiles arrive as {value, unit} from computeRatios. The underlying MarketFigure objects DO carry provenance (MarketSurface renders it) — it is lost in the ratio computation, which is where it would have to be carried."
+    },
+
+    "frontend/components/comparison/MoneyAmount.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 6,
+      "affordances": 0,
+      "why": "A transparent wrapper: converts source→display currency and spreads ...rest into <Amount>, so a caller's `provenance` passes through untouched. It holds no payload of its own and must claim nothing."
+    },
+    "frontend/components/scenarios/ScenarioComparison.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 3,
+      "affordances": 0,
+      "why": "Scenario deltas are what the reader modelled, not what was read. There is no cell behind a lever the user just dragged, and inventing one would be the worst bucket."
+    },
+    "frontend/components/scenarios/AdjustmentEditor.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "The lever's own value chip — the number the user is currently typing. Same reason as ScenarioComparison."
+    },
+    "frontend/pages/cfo/Settings.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "The live FX cross-rates readout. Its rate provenance renders as a visible block beside it, which the file's own comment already states; the figure claims nothing."
+    },
+
+    "frontend/components/cfo/products/CategoriesOverview.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 4,
+      "affordances": 0,
+      "why": "Product/SKU aggregates from an uploaded sales dataset. Not opened this pass."
+    },
+    "frontend/pages/cfo/Products.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 32,
+      "affordances": 0,
+      "why": "The largest single figure surface in the product (32 sites). Its source file already rides as a visible chip; whether the per-SKU payload carries a row anchor was not established."
+    },
+    "frontend/components/cfo/workspace/WorkspaceSettingsV2.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 1,
+      "affordances": 0,
+      "why": "One figure on a settings surface. Not opened this pass."
+    },
+    "frontend/components/comparison/KpiVarianceStrip.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 3,
+      "affordances": 0,
+      "why": "Budget-vs-actual deltas. The budget half comes from an uploaded ComparisonDataset whose provenance shape was not established."
+    },
+    "frontend/components/comparison/VarianceTable.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 3,
+      "affordances": 0,
+      "why": "Same dataset as KpiVarianceStrip; audit the two together."
+    },
+    "frontend/components/public-companies/BenchmarkingPanel.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 2,
+      "affordances": 0,
+      "why": "Peer-cohort figures. The panel paints a cohort provenance line of its own; whether the figures carry one was not established."
+    },
+    "frontend/components/public-companies/MarketPulseStrip.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 2,
+      "affordances": 0,
+      "why": "Movement figures with a stated delay note. Not opened this pass."
+    },
+    "frontend/components/public-companies/MarketsOverview.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 4,
+      "affordances": 0,
+      "why": "Registry-level market figures. Not opened this pass."
+    },
+    "frontend/components/public-companies/PeerSuggestRail.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 1,
+      "affordances": 0,
+      "why": "One key figure per suggested peer. Not opened this pass."
+    },
+    "frontend/pages/cfo/BenchmarkReport.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 5,
+      "affordances": 0,
+      "why": "Benchmark report figures. Not opened this pass."
+    },
+    "frontend/pages/cfo/ComprehensiveReport.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 17,
+      "affordances": 0,
+      "why": "Mostly derived scores (Altman Z″) and day counts; a derived figure's honest provenance is its DERIVATION, which is a different mapping from the statement one. Not established this pass."
+    },
+    "frontend/pages/cfo/MultiYearHistory.tsx": {
+      "bucket": "UNAUDITED",
+      "sites": 10,
+      "affordances": 0,
+      "why": "Public-records figures by year (data.gov.ro filings). These almost certainly carry a filing anchor; not established this pass."
+    }
+  }
+}

@@ -47,6 +47,7 @@
 import { useTranslation } from "react-i18next";
 
 import { Amount } from "@/components/instrument/Amount";
+import { ProvenanceAffordance } from "@/components/instrument/Provenance";
 import { formatMoneyFrom } from "@/lib/money";
 import { NarrativeText } from "@/lib/narrativeMoney";
 import type { Currency, Rates } from "@/lib/rates";
@@ -114,18 +115,31 @@ export function FactTileValue({
       />
     );
   }
+  // MONEY GETS THE SAME AFFORDANCE, by wrapping rather than re-rendering.
+  //
+  // Money cannot go through `<Amount>` here — `NarrativeText` is the only
+  // path that owns the display-currency decision, and a tile spelling a
+  // number differently from the prose beside it reads as a disagreement
+  // about the number. So the affordance wraps the money renderer.
+  //
+  // Until 2026-09-02 this branch returned bare, so a MONEY tile — the
+  // common case — carried no affordance while its percent sibling six
+  // lines up did. The e2e law "every numeral in a tile sits under
+  // [data-provenance]" (capsule-brief N4) had no money tile to fail on
+  // because tiles were not rendering at all on the measured host.
   const currency = (fact.currency ?? "RON") as Currency;
   return (
-    <NarrativeText
-      // The NATIVE spelling is the fallback the renderer falls back TO
-      // when no rate exists, so it has to already be the right one.
-      text={formatMoneyFrom(fact.value, currency, currency, {} as Rates, { fractionDigits: 2 })}
-      template={`{{money:${fact.factKey}}}`}
-      facts={{ [fact.factKey]: fact.value }}
-      factUnits={{ [fact.factKey]: "money" }}
-      sourceCurrency={currency}
-      className={className}
-    />
+    <ProvenanceAffordance provenance={provenance} className={className}>
+      <NarrativeText
+        // The NATIVE spelling is the fallback the renderer falls back TO
+        // when no rate exists, so it has to already be the right one.
+        text={formatMoneyFrom(fact.value, currency, currency, {} as Rates, { fractionDigits: 2 })}
+        template={`{{money:${fact.factKey}}}`}
+        facts={{ [fact.factKey]: fact.value }}
+        factUnits={{ [fact.factKey]: "money" }}
+        sourceCurrency={currency}
+      />
+    </ProvenanceAffordance>
   );
 }
 

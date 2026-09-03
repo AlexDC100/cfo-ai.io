@@ -29,18 +29,48 @@
 import { useTranslation } from "react-i18next";
 
 import { Amount } from "@/components/instrument/Amount";
+import { ProvenanceAffordance } from "@/components/instrument/Provenance";
 import { formatMoneyFrom } from "@/lib/money";
 import { NarrativeText } from "@/lib/narrativeMoney";
 import type { Currency, Rates } from "@/lib/rates";
 import { plainFor } from "@/lib/glossary";
-import type { FactRef } from "@/lib/capsuleFactIndex";
+import { amountProvenanceFor, type FactRef } from "@/lib/capsuleFactIndex";
 import { NOTE_DEFINITION, type Tier0Answer } from "@/lib/capsuleTier0";
 
 import "./capsuleAnswerI18n";
 import { hasCopy, metricLabel } from "./capsuleAnswerI18n";
 
-/** One fact, rendered through whichever path its DECLARED unit names. */
+/** One fact, rendered through whichever path its DECLARED unit names,
+ *  and wearing the ONE provenance affordance either way.
+ *
+ *  ── A FABRICATED AFFORDANCE WAS HERE, AND IT IS THE WORST KIND ──────
+ *
+ *  Until 2026-09-02 this read:
+ *
+ *      provenance={ fact.provenance || fact.periodLabel
+ *          ? { source: fact.periodLabel || fact.provenance?.docId }
+ *          : undefined }
+ *
+ *  Three defects in three lines, all pointing the same way:
+ *
+ *   1. `periodLabel` was preferred over the real provenance, so a fact
+ *      that DID carry a sheet and account codes rendered "Source
+ *      FY 2025" and threw the checkable half away.
+ *   2. `periodLabel` is required on every `FactRef`, so the condition
+ *      was true for every fact in the index — the affordance appeared
+ *      universally and therefore distinguished nothing.
+ *   3. A period is not a source. The card labels that field "Source",
+ *      so the reader was told where the number came from, incorrectly.
+ *
+ *  That is the failure the whole affordance exists to avoid: a figure
+ *  offering a provenance jump that lands nowhere teaches the reader the
+ *  affordance is decorative, and then the ones that DO land stop being
+ *  believed. `amountProvenanceFor` is the shared, honest builder — it
+ *  returns null when there is nothing behind the figure, and a period
+ *  alone does not qualify. */
 function Tier0Value({ fact, className }: { fact: FactRef; className?: string }) {
+  const provenance = amountProvenanceFor(fact);
+
   if (fact.unit !== "money") {
     const kind =
       fact.unit === "percent" ? "percent" : fact.unit === "ratio" ? "multiple" : "count";
@@ -48,11 +78,7 @@ function Tier0Value({ fact, className }: { fact: FactRef; className?: string }) 
       <Amount
         value={fact.value}
         kind={kind}
-        provenance={
-          fact.provenance || fact.periodLabel
-            ? { source: fact.periodLabel || fact.provenance?.docId }
-            : undefined
-        }
+        provenance={provenance}
         className={className}
       />
     );
@@ -62,20 +88,28 @@ function Tier0Value({ fact, className }: { fact: FactRef; className?: string }) 
   // list use, bound to a one-entry facts map. The alternative — calling
   // a formatter here — would give this surface its own spelling of a
   // number the canvas below is about to spell differently.
+  //
+  // `<Amount>` cannot carry the affordance for a money fact, because
+  // money must not go through `<Amount>` here. So the affordance WRAPS
+  // the money renderer instead — same component, same card, same
+  // hover/focus/Escape as the dimensionless branch above. Before this,
+  // a money fact — the common case — got no affordance at all while its
+  // percent sibling did.
   const currency = (fact.currency ?? "RON") as Currency;
   return (
-    <NarrativeText
-      // Same fallback text the figure list builds, for the same reason:
-      // when no rate exists the renderer refuses the conversion and
-      // falls back to NATIVE — and the native spelling has to already
-      // be the right one, not an empty string.
-      text={formatMoneyFrom(fact.value, currency, currency, {} as Rates, { fractionDigits: 2 })}
-      template={`{{money:${fact.factKey}}}`}
-      facts={{ [fact.factKey]: fact.value }}
-      factUnits={{ [fact.factKey]: "money" }}
-      sourceCurrency={currency}
-      className={className}
-    />
+    <ProvenanceAffordance provenance={provenance} className={className}>
+      <NarrativeText
+        // Same fallback text the figure list builds, for the same reason:
+        // when no rate exists the renderer refuses the conversion and
+        // falls back to NATIVE — and the native spelling has to already
+        // be the right one, not an empty string.
+        text={formatMoneyFrom(fact.value, currency, currency, {} as Rates, { fractionDigits: 2 })}
+        template={`{{money:${fact.factKey}}}`}
+        facts={{ [fact.factKey]: fact.value }}
+        factUnits={{ [fact.factKey]: "money" }}
+        sourceCurrency={currency}
+      />
+    </ProvenanceAffordance>
   );
 }
 

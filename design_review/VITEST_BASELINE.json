@@ -6,6 +6,7 @@
     "frontend/components/cfo/__tests__/currencyToggle.test.tsx": 3,
     "frontend/components/cfo/__tests__/headerLaw.test.tsx": 20,
     "frontend/components/cfo/__tests__/statementNotesCurrency.test.tsx": 4,
+    "frontend/components/cfo/__tests__/statementProvenance.test.tsx": 8,
     "frontend/components/cfo/chat/__tests__/aiDegraded.test.tsx": 8,
     "frontend/components/cfo/chat/__tests__/cfoComposer.test.tsx": 4,
     "frontend/components/cfo/chat/__tests__/chatScope.test.ts": 4,
@@ -33,7 +34,8 @@
     "frontend/components/cfo/workspace/__tests__/moveFileDialog.test.tsx": 10,
     "frontend/components/cfo/workspace/__tests__/periodFiling.test.tsx": 25,
     "frontend/components/instrument/__tests__/amount.test.tsx": 7,
-    "frontend/components/instrument/shell/__tests__/capsuleCraft.test.tsx": 15,
+    "frontend/components/instrument/__tests__/provenance.test.tsx": 10,
+    "frontend/components/instrument/shell/__tests__/capsuleCraft.test.tsx": 16,
     "frontend/components/instrument/shell/__tests__/capsuleShell.test.ts": 27,
     "frontend/components/instrument/shell/__tests__/capsuleSpendBoundary.test.tsx": 13,
     "frontend/components/instrument/shell/__tests__/modeSwitch.test.tsx": 4,
@@ -62,6 +64,7 @@
     "frontend/lib/__tests__/bsReconcileFlow.test.tsx": 18,
     "frontend/lib/__tests__/buildBsStatementCanonical.test.ts": 5,
     "frontend/lib/__tests__/capsuleAskGates.test.ts": 13,
+    "frontend/lib/__tests__/capsuleBrief.test.ts": 25,
     "frontend/lib/__tests__/capsuleFactIndex.test.ts": 32,
     "frontend/lib/__tests__/capsuleGates.test.ts": 29,
     "frontend/lib/__tests__/capsuleLatency.test.ts": 18,
@@ -103,6 +106,7 @@
     "frontend/pages/cfo/__tests__/multiYearHistory.smoke.test.tsx": 1,
     "frontend/pages/cfo/__tests__/onboarding.test.tsx": 5,
     "frontend/test/example.test.ts": 1,
-    "frontend/test/harness.test.ts": 6
+    "frontend/test/harness.test.ts": 6,
+    "frontend/test/hermeticity.test.ts": 17
   }
 }

@@ -5,13 +5,19 @@
 // the enclosing <AmountGroup>, accounting negatives — all owned in one
 // place so a screen cannot invent its own number style.
 //
-// THE SIGNATURE — provenance on hover. When (and only when) the value
-// arrives with provenance in the payload, the figure gets a 1px dotted
-// underline in accent at 40% and a hover/focus card naming the source,
-// method, pack and snapshot. Where provenance isn't in the payload the
-// figure renders WITHOUT the affordance — the component refuses a
-// provenance prop with no substance (never fake trust; gate plants a
-// fake and expects refusal).
+// THE SIGNATURE — provenance on hover AND on focus. When (and only when)
+// the value arrives with provenance in the payload, the figure gets a
+// 1px dotted underline in accent at 40% and a card naming what the
+// payload actually holds. The affordance itself lives in
+// `./Provenance` — <Amount> is one of its callers, not its owner,
+// because the money path (`lib/narrativeMoney`) and the statement
+// renderers paint figures this component never sees and they need the
+// SAME affordance, not a second one that drifts.
+//
+// Where provenance isn't in the payload the figure renders WITHOUT the
+// affordance — `hasProvenance` refuses a provenance prop with no
+// substance (never fake trust; the gate plants a fake and expects
+// refusal).
 
 import { ReactNode, createContext, useContext, useMemo } from "react";
 
@@ -32,6 +38,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  ProvenanceAffordance,
+  hasProvenance,
+  type AmountProvenance,
+} from "./Provenance";
+
+// The payload type and its substance check are DEFINED in ./Provenance —
+// every figure path shares one shape or they are not the same affordance.
+// Re-exported here because <Amount> was their address for the whole
+// codebase and moving a type should not be a rename across 40 files.
+export { hasProvenance, type AmountProvenance };
 
 // ── magnitude groups ───────────────────────────────────────────────────
 
@@ -52,82 +69,6 @@ export function AmountGroup({
     <MagnitudeContext.Provider value={magnitude}>
       {children}
     </MagnitudeContext.Provider>
-  );
-}
-
-// ── provenance ─────────────────────────────────────────────────────────
-
-export interface AmountProvenance {
-  /** "sheet Balanta · row 214 · col G" or "page 3". */
-  source?: string;
-  /** mechanical | mechanical_mapped | llm-verified. */
-  method?: string;
-  /** Verification score when the method carries one (0..1). */
-  confidence?: number;
-  /** e.g. "ro-omfp1802-v1". */
-  pack?: string;
-  /** ISO timestamp of the computation. */
-  computedAt?: string;
-  /** Short content hash of the snapshot. */
-  snapshot?: string;
-}
-
-/** True when the payload actually carries something worth a tooltip.
- *  An empty object must NOT produce the affordance — that would be a
- *  trust chrome with nothing behind it. */
-export function hasProvenance(p: AmountProvenance | null | undefined): p is AmountProvenance {
-  if (!p) return false;
-  return Boolean(p.source || p.method || p.pack || p.snapshot);
-}
-
-function ProvenanceCard({
-  p,
-  exact,
-  conversionNote,
-}: {
-  p: AmountProvenance;
-  exact: string;
-  conversionNote?: string;
-}) {
-  return (
-    <div className="max-w-[280px] space-y-1.5 text-left">
-      <div className="font-mono text-[13px] tabular-nums text-ink">{exact}</div>
-      <dl className="space-y-0.5 text-[11px] leading-snug text-ink-soft">
-        {p.source && (
-          <div>
-            <dt className="inline text-ink-mute">Source&nbsp;</dt>
-            <dd className="inline font-mono">{p.source}</dd>
-          </div>
-        )}
-        {p.method && (
-          <div>
-            <dt className="inline text-ink-mute">Method&nbsp;</dt>
-            <dd className="inline">
-              {p.method}
-              {typeof p.confidence === "number" && (
-                <span className="font-mono tabular-nums"> · {Math.round(p.confidence * 100)}%</span>
-              )}
-            </dd>
-          </div>
-        )}
-        {p.pack && (
-          <div>
-            <dt className="inline text-ink-mute">Pack&nbsp;</dt>
-            <dd className="inline font-mono">{p.pack}</dd>
-          </div>
-        )}
-        {(p.computedAt || p.snapshot) && (
-          <div className="font-mono text-[10.5px] text-ink-mute">
-            {p.computedAt ? `computed ${p.computedAt}` : null}
-            {p.computedAt && p.snapshot ? " · " : null}
-            {p.snapshot ? `snapshot ${p.snapshot}` : null}
-          </div>
-        )}
-        {conversionNote && (
-          <div className="pt-0.5 text-[10.5px] italic text-ink-mute">{conversionNote}</div>
-        )}
-      </dl>
-    </div>
   );
 }
 
@@ -203,23 +144,39 @@ export function Amount({
       ? tooltipExtra ?? display
       : formatExact(value, { locale, currency: kind === "money" ? currency : null });
 
+  // PROVENANCE goes to the shared affordance, so this figure and a
+  // statement row and a Capsule money span all open the SAME card.
+  if (withProvenance) {
+    return (
+      <ProvenanceAffordance
+        provenance={provenance}
+        exact={exact}
+        conversionNote={conversionNote}
+        className={`font-mono tabular-nums ${className ?? ""}`.trim()}
+      >
+        {display}
+      </ProvenanceAffordance>
+    );
+  }
+
+  // NOT provenance: a capped multiple ("≥99×") or a percent shown as a
+  // multiplier still owes the reader its exact value. Deliberately a
+  // plain tooltip with no `data-provenance` and no dotted underline —
+  // the affordance means "this figure names its origin", and a rounding
+  // disclosure that borrowed the same chrome would dilute it to
+  // decoration on the figures that DO carry an origin.
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>
         <span
           tabIndex={0}
-          data-provenance={withProvenance ? "true" : undefined}
-          className={`cursor-help font-mono tabular-nums underline decoration-brand/40 decoration-dotted decoration-1 underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${className ?? ""}`.trim()}
+          className={`cursor-help font-mono tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${className ?? ""}`.trim()}
         >
           {display}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="border-rule bg-popover text-popover-foreground shadow-3">
-        {withProvenance ? (
-          <ProvenanceCard p={provenance} exact={exact} conversionNote={conversionNote} />
-        ) : (
-          <span className="font-mono text-[12px] tabular-nums">{exact}</span>
-        )}
+        <span className="font-mono text-[12px] tabular-nums">{exact}</span>
       </TooltipContent>
     </Tooltip>
   );

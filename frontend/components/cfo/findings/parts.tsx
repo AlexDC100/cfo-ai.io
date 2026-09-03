@@ -11,6 +11,11 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  ProvenanceAffordance,
+  provenanceOf,
+  type AmountProvenance,
+} from "@/components/instrument/Provenance";
 import { NarrativeText } from "@/lib/narrativeMoney";
 import type { Currency } from "@/lib/rates";
 import {
@@ -18,6 +23,7 @@ import {
   moneyTemplate,
   resolveMoneyFact,
   type FindingFigure,
+  type FindingProvenance,
   type FindingSeverity,
   type FindingUnit,
 } from "@/lib/findings";
@@ -204,17 +210,51 @@ export function FigureValue({
   return <span className={`tabular-nums ${className}`}>{text}</span>;
 }
 
-/** A cited figure: its engine-authored label above its value. */
+/**
+ * A finding's own provenance, mapped onto the shared affordance payload.
+ *
+ * ONE FIELD PER KIND OF CLAIM, and every one of these is checkable:
+ *   source      the detector's declared origin
+ *   line_refs   the statement lines the finding cites — the account-level
+ *               anchor, so it goes in `accounts`, not folded into source
+ *   snapshot_id the served envelope this was measured against
+ *   period_id   which period; on its own it never earns the affordance
+ *
+ * Returns null when the finding carries no provenance, and the figure
+ * then renders exactly as it did before — plain.
+ */
+export function findingProvenance(
+  p: FindingProvenance | null | undefined,
+): AmountProvenance | null {
+  if (!p) return null;
+  return provenanceOf({
+    source: p.source,
+    accounts: p.line_refs.join(", "),
+    period: p.period_id,
+    snapshot: p.snapshot_id ?? undefined,
+  });
+}
+
+/** A cited figure: its engine-authored label above its value.
+ *
+ *  The evidence section already paints provenance DOTS and a provenance
+ *  LINE for the finding as a whole. What it could not do was attach that
+ *  origin to the individual figure a reader is looking at, which is where
+ *  the question actually gets asked ("where did THAT number come from?").
+ *  The affordance closes that, and only when the payload carries one. */
 export function FigureCell({
   figure,
   facts,
   factUnits,
   currency,
+  provenance,
 }: {
   figure: FindingFigure;
   facts: Record<string, number>;
   factUnits: Record<string, string>;
   currency: Currency;
+  /** The finding's own provenance. Omitted → no affordance. */
+  provenance?: AmountProvenance | null;
 }) {
   return (
     <div className="min-w-0" data-testid={`fnd-figure-${figure.fact}`}>
@@ -225,14 +265,16 @@ export function FigureCell({
         {figure.label}
       </div>
       <div className="mt-0.5 text-[14px] font-medium leading-tight text-ink">
-        <FigureValue
-          value={figure.value}
-          unit={figure.unit}
-          fact={figure.fact}
-          facts={facts}
-          factUnits={factUnits}
-          currency={currency}
-        />
+        <ProvenanceAffordance provenance={provenance}>
+          <FigureValue
+            value={figure.value}
+            unit={figure.unit}
+            fact={figure.fact}
+            facts={facts}
+            factUnits={factUnits}
+            currency={currency}
+          />
+        </ProvenanceAffordance>
       </div>
     </div>
   );

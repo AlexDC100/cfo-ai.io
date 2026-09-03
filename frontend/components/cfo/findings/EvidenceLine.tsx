@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import type { Currency } from "@/lib/rates";
 import type { FindingEvidence } from "@/lib/findings";
 
-import { Chip, ElementLabel, FigureCell } from "./parts";
+import { Chip, ElementLabel, FigureCell, findingProvenance } from "./parts";
 import "./findingsI18n";
 
 function Dot({ filled, label }: { filled: boolean; label: string }) {
@@ -112,6 +112,11 @@ export function EvidenceLine({
             facts={facts}
             factUnits={factUnits}
             currency={currency}
+            /* The finding's OWN provenance, on the figure it describes.
+               Null when the payload carries none, and the figure then
+               renders plain — the dots above still say, honestly, which
+               components are missing. */
+            provenance={findingProvenance(p)}
           />
         ))}
       </div>

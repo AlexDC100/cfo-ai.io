@@ -456,6 +456,39 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,
              units="narrative producers",
              canaries=("NARRATIVE-UNITS",)),
+        # PROVENANCE ON HOVER — the census and the contrast, in that order.
+        #
+        # The census is the two-sided registry: it discovers every figure
+        # render site, fails on any that carries no payload verdict, and
+        # fails on the FABRICATION SHAPE that shipped — a `source:` fed
+        # from a period label, which put "Source  FY 2025" over a figure
+        # whose real sheet and account codes were being discarded. In the
+        # battery because that defect was found by READING, and reading
+        # is not a control.
+        Gate("provenance-census", ["node", "scripts/check_provenance_census.mjs"],
+             work_rx=r"GATE-WORK provenance-sites units=(\d+)", floor=80,
+             units="figure render sites",
+             canaries=("PROVENANCE CENSUS", "GATE-WORK provenance-census")),
+        # The affordance's own contrast, computed from the token sheet in
+        # BOTH themes. Its subject is exactly the class that shipped: the
+        # card's labels used `--ink-mute`, which measures 3.53:1 on the
+        # popover in light — an AA failure that reads perfectly fine, and
+        # the dotted underline that announces provenance measured 1.78:1
+        # against a 3:1 non-text floor. Neither is visible to a screenshot
+        # diff or to a human eye; both are arithmetic.
+        Gate("provenance-contrast", ["node", "scripts/check_provenance_contrast.mjs"],
+             work_rx=r"GATE-WORK provenance-contrast units=(\d+)", floor=6,
+             units="colour nodes measured in both themes",
+             # Both canaries are lines only a REAL run can print: the
+             # first names the file the subjects are parsed out of (so a
+             # gate that lost its component is loud), the second is the
+             # underline row's own threshold label (so a gate that lost
+             # the non-text check is loud). The floor of 6 is 2 themes x
+             # (2 text classes + 1 underline) — it went from 20 to 6 when
+             # the gate stopped measuring a hand-written list and started
+             # measuring the component, which is fewer nodes and a real
+             # subject instead of more nodes and a copy.
+             canaries=("subjects parsed from", "non-text 3:1")),
         Gate("global-positioning", ["node", "scripts/check_global_positioning.mjs"],
              work_rx=r"GATE-WORK global-positioning units=(\d+)", floor=400,
              units="frontend files scanned",

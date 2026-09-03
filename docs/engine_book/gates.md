@@ -1885,3 +1885,141 @@ Verdict: **PROVEN RED**
 
 ---
 
+
+## provenance-census
+
+Every figure render site in the frontend carries a recorded verdict about
+whether its payload actually holds provenance — and the one shape that
+FABRICATES provenance is detected mechanically.
+
+| | |
+|---|---|
+| command | `node scripts/check_provenance_census.mjs` |
+| work count | stdout `GATE-WORK provenance-sites units=N`, floor **80** figure render sites |
+| canary | `PROVENANCE CENSUS`, `GATE-WORK provenance-census` |
+| registry | `design_review/PROVENANCE_CENSUS.json` (two-sided: unregistered file FAILS, stale entry FAILS, count drift FAILS) |
+
+**THE INCIDENT IT ENCODES.** Found by reading, 2026-09-02, in
+`frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx`:
+
+```tsx
+provenance={
+  fact.provenance || fact.periodLabel
+    ? { source: fact.periodLabel || fact.provenance?.docId }
+    : undefined
+}
+```
+
+Three defects pointing the same way. `periodLabel` was PREFERRED over the
+real provenance, so a fact carrying a sheet name and account codes threw
+both away. `periodLabel` is required on every `FactRef`, so the condition
+was true for every fact in the index — the affordance appeared universally
+and therefore distinguished nothing. And a period is not a source: the
+card renders that field under a heading reading "Source", so every Tier-0
+figure told the reader an origin it did not have.
+
+That is the failure the affordance exists to prevent. A figure that offers
+a provenance jump and lands nowhere teaches the reader the affordance is
+decorative, and then the ones that DO land stop being believed. Reading is
+what found it; reading is not a control.
+
+**PLANT** — the original expression, restored verbatim:
+
+```diff
+--- frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx
+-        provenance={provenance}
++        provenance={
++          fact.provenance || fact.periodLabel
++            ? { source: fact.periodLabel || fact.provenance?.docId }
++            : undefined
++        }
+```
+
+**RED** — exit `1`:
+
+```
+FAIL — 1 finding(s):
+  · FABRICATION SHAPE at frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx:56 — `source: fact.periodLabel`. A period, a scope, a date or a bare label is not a SOURCE. The card labels that field "Source"; feed it what the figure was read from, or use the `period` field.
+```
+
+**REVERT** — plant removed, exit `0`:
+
+```
+PASS — 156 figure site(s) across 37 file(s), each with a recorded provenance verdict; no fabricated affordance.
+```
+
+**KNOWN LIMIT, stated rather than smoothed over.** The antibody matches
+one shape — a `source:` whose value's leaf identifier names a period, a
+scope, a date or a bare label. The next fabrication will look different.
+That is why the REGISTRY exists alongside it: a new figure site changes a
+measured count, and the author has to record a payload verdict before the
+gate goes green. The registry's fifth bucket, `UNAUDITED`, is capped at 12
+files so the unexamined debt is visible and cannot grow quietly.
+
+**SELF-TEST, 2026-09-02.** `--probe-vacuity` was silently IGNORED — the gate ran its full 156-site census and printed PASS while claiming to probe itself. Now wired into discovery: exit **1**, `units=0 floor=20`. The gate always did red on empty discovery; it had never proved that about itself.
+
+## provenance-contrast
+
+The provenance affordance's own colours, computed from the token sheet in
+BOTH themes: every text class at AA 4.5:1 against `--popover`, and the
+dotted underline at the 3:1 WCAG 1.4.11 floor for a non-text indicator.
+
+| | |
+|---|---|
+| command | `node scripts/check_provenance_contrast.mjs` |
+| work count | stdout `GATE-WORK provenance-contrast units=N`, floor **6** colour nodes across both themes |
+| canary | `PROVENANCE AFFORDANCE — CONTRAST`, `provenance underline` |
+
+**THE INCIDENT IT ENCODES.** Two, both live at HEAD on 2026-09-02, both
+invisible to the eye and to a screenshot diff.
+
+The card's labels and its snapshot line used `--ink-mute`, which measures
+**3.53:1** on the popover in light theme — an AA failure on every label in
+the card. An earlier pass on this codebase found AA failing on 10 of 16
+text nodes from the same single-token cause.
+
+Worse in kind: the dotted rule under a provenanced figure is the ONLY
+signal that the figure HAS provenance before anyone hovers it, which makes
+it a non-text UI indicator. At `brand/40` it composites to **1.78:1** in
+light and **2.27:1** in dark, against a 3:1 floor. `brand/70` was tried and
+reaches only 2.93:1 in light — still failing, and exactly the "close
+enough" a human eye would have shipped. It is now `brand/80` (3.50:1 /
+5.48:1).
+
+**THE GATE'S OWN FIRST BUG, also recorded.** Version one declared its
+subjects as constants inside the script. Lowering the component's alpha
+back to 40% left the gate GREEN, because it was measuring its own copy of
+the design rather than the design — TC-7, the same shape as a fix that
+once landed on `CapsuleJumpList` while `CommandPalette.renderRow` was what
+painted. Every subject is now parsed out of `Provenance.tsx`.
+
+**PLANT** — the alpha that shipped, restored:
+
+```diff
+--- frontend/components/instrument/Provenance.tsx
+-    ? "underline decoration-brand/80 decoration-dotted decoration-1 underline-offset-4"
++    ? "underline decoration-brand/40 decoration-dotted decoration-1 underline-offset-4"
+```
+
+**RED** — exit `1`:
+
+```
+  FAIL   1.78:1  underline  --brand @ 40% on --surface (non-text 3:1)
+  FAIL   2.27:1  underline  --brand @ 40% on --surface (non-text 3:1)
+FAIL — 2 finding(s):
+  · light: the provenance underline (--brand @ 40%) composites to 1.78:1 — below the 3:1 WCAG 1.4.11 threshold for a non-text indicator. It is the only thing that says a figure HAS provenance before you hover it.
+  · dark: the provenance underline (--brand @ 40%) composites to 2.27:1 — below the 3:1 WCAG 1.4.11 threshold for a non-text indicator. It is the only thing that says a figure HAS provenance before you hover it.
+```
+
+**REVERT** — `/80` restored, exit `0`:
+
+```
+PASS — 6 colour node(s) measured across both themes; every text node at or above AA 4.5:1 and the underline above 3:1.
+```
+
+**KNOWN LIMIT.** This reads declared tokens and declared classes. It
+cannot see an overlay, a blend mode, or a colour applied by a parent —
+those need a rendered browser and are a different gate. Both defects it
+encodes lived in the declarations, which is why this is where it looks.
+
+**SELF-TEST, 2026-09-02.** `--probe-vacuity` was silently IGNORED — exit 0 with real measurements. Its discovery is a fixed six-entry roster, the easiest kind to hollow out. Now wired: exit **1**, `DISCOVERY BROKEN: 2 measurements, floor 6` — the residual 2 being the underline × 2 themes, so the floor is calibrated against the roster rather than pulled from the air.

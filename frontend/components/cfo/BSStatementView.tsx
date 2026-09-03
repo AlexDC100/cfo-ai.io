@@ -38,6 +38,12 @@ import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { BalanceSheetMap } from "@/components/learning/BalanceSheetMap";
 import { BALANCE_SHEET_GUIDE } from "@/components/learning/balanceSheetGuide";
 import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./AccountChip";
+import {
+  ProvenanceAffordance,
+  hasProvenance,
+  provenanceOf,
+  type AmountProvenance,
+} from "@/components/instrument/Provenance";
 // THE DIAL — Simple mode opens the BS totals-first (builder-marked
 // subtotal/total rows only) behind "Show all lines"; plain-text labels
 // with a glossary match get the <Term> affordance. Pro is untouched —
@@ -143,7 +149,13 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
       {/* ASSETS */}
       <div className="bs-section-title" data-guide="bs-assets">{t("statements.bs.assets")}</div>
       {statement.assetSections.map((section, i) => (
-        <BSSectionView key={`a-${i}`} section={section} currency={statement.currency} keyOnly={keyOnly} />
+        <BSSectionView
+          key={`a-${i}`}
+          section={section}
+          currency={statement.currency}
+          keyOnly={keyOnly}
+          canonical={statement.canonical}
+        />
       ))}
       <div
         className="bs-total-row"
@@ -173,7 +185,13 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
       <div className="bs-section-title" data-guide="bs-equity">{t("statements.bs.equityLiab")}</div>
       <div data-guide="bs-liabilities" />
       {statement.equityLiabSections.map((section, i) => (
-        <BSSectionView key={`el-${i}`} section={section} currency={statement.currency} keyOnly={keyOnly} />
+        <BSSectionView
+          key={`el-${i}`}
+          section={section}
+          currency={statement.currency}
+          keyOnly={keyOnly}
+          canonical={statement.canonical}
+        />
       ))}
       <div
         className="bs-total-row"
@@ -226,9 +244,14 @@ function BSSectionView({
   section,
   currency,
   keyOnly = false,
+  canonical,
 }: {
   section: BSSection;
   currency: string;
+  /** Engine meta for the served envelope — the sheet the rows were read
+   *  from, how they were read, and under which mapping pack. Absent on
+   *  the legacy (non-canonical) build path, and then no row claims one. */
+  canonical?: BSCanonicalMeta;
   /** THE DIAL — Simple collapsed state: only builder-marked subtotal/total
    *  rows render; item/contra/note detail hides. Synthetic reconciliation
    *  rows stay visible — an adjusting entry never hides from the reader. */
@@ -255,7 +278,7 @@ function BSSectionView({
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
       {visibleLines.map((line, i) => (
-        <BSLineView key={i} line={line} currency={currency} />
+        <BSLineView key={i} line={line} currency={currency} canonical={canonical} />
       ))}
       {section.subtotalLabel && (
         <>
@@ -303,8 +326,12 @@ function BSSectionView({
               </>
             ) : (
               <>
-                <span className="bs-amount">{fmt(section.subtotalOpening)}</span>
-                <span className="bs-amount">{fmt(section.subtotalClosing)}</span>
+                <BsAmountCell provenance={bsAggregateProvenance(canonical)}>
+                  {fmt(section.subtotalOpening)}
+                </BsAmountCell>
+                <BsAmountCell provenance={bsAggregateProvenance(canonical)}>
+                  {fmt(section.subtotalClosing)}
+                </BsAmountCell>
               </>
             )}
             <span className="bs-delta">{formatDelta(section.subtotalDelta ?? 0, fmt)}</span>
@@ -315,7 +342,15 @@ function BSSectionView({
   );
 }
 
-function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
+function BSLineView({
+  line,
+  currency,
+  canonical,
+}: {
+  line: BSLine;
+  currency: string;
+  canonical?: BSCanonicalMeta;
+}) {
   const fmt = useAmountFormatter(currency);
   const { t } = useTranslation();
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
@@ -394,6 +429,17 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
     ? `(${fmt(Math.abs(line.closing ?? 0))})`
     : fmt(line.closing);
   const deltaValue = line.delta ?? (line.closing ?? 0) - (line.opening ?? 0);
+  // KNOWN GAP, stated rather than smoothed over: the affordance goes on
+  // the PLAIN amount cells only. The `conceptKey` branch renders a
+  // `<LearnableNumber>`, which is a <button>; putting a focusable
+  // provenance trigger around it would nest one interactive element
+  // inside another — the exact defect this file already guards against
+  // for <Term> inside LearnableRowLabel, and an axe violation. Those
+  // rows still show their account codes visibly through <AccountChip>,
+  // so the checkable half is on screen; the sheet / method / pack are
+  // not. Closing it properly means teaching LearnableNumber to carry a
+  // second disclosure, which is that component's owner's call.
+  const rowProvenance = bsRowProvenance(line, canonical);
 
   return (
     <div
@@ -454,13 +500,97 @@ function BSLineView({ line, currency }: { line: BSLine; currency: string }) {
         </>
       ) : (
         <>
-          <span className="bs-amount">{openingFmt}</span>
-          <span className="bs-amount">{closingFmt}</span>
+          <BsAmountCell provenance={rowProvenance}>{openingFmt}</BsAmountCell>
+          <BsAmountCell provenance={rowProvenance}>{closingFmt}</BsAmountCell>
         </>
       )}
       <span className="bs-delta">{formatDelta(deltaValue, fmt)}</span>
     </div>
   );
+}
+
+/**
+ * One amount cell, wearing the provenance affordance when the row has
+ * one to stand behind.
+ *
+ * DOM SHAPE IS LOAD-BEARING HERE. The mobile layout places columns with
+ * `.bs-row > .bs-amount:nth-of-type(n)`, so this must emit exactly one
+ * SPAN carrying `bs-amount` either way — the affordance replaces the
+ * span, it does not wrap it in a second one.
+ */
+function BsAmountCell({
+  provenance,
+  children,
+}: {
+  provenance: AmountProvenance | null;
+  children: React.ReactNode;
+}) {
+  if (!hasProvenance(provenance)) {
+    return <span className="bs-amount">{children}</span>;
+  }
+  return (
+    <ProvenanceAffordance provenance={provenance} className="bs-amount" side="left">
+      {children}
+    </ProvenanceAffordance>
+  );
+}
+
+/**
+ * WHAT AN AGGREGATE ROW CAN HONESTLY SAY — which is LESS.
+ *
+ * A section subtotal is not in any cell. It is the engine's own figure,
+ * computed over rows it read. So this names no sheet and no accounts:
+ * pointing a subtotal at a sheet cell would point at a cell that does
+ * not contain it, and that is a provenance jump landing nowhere with
+ * extra steps.
+ *
+ * What is true, and useful: it came from the engine's canonical
+ * balance-sheet object, the underlying rows were read by a named method,
+ * and the mapping pack that filed them is named. Null on the legacy
+ * path, where none of that exists.
+ */
+function bsAggregateProvenance(
+  canonical: BSCanonicalMeta | undefined,
+): AmountProvenance | null {
+  if (!canonical) return null;
+  return provenanceOf({
+    source: "engine subtotal",
+    method: canonical.extraction?.method,
+    pack: canonical.mappingVersion,
+  });
+}
+
+/**
+ * WHAT A BALANCE-SHEET ROW CAN HONESTLY SAY ABOUT ITSELF.
+ *
+ * This is the chain `scripts/capsule_demo_partial.py` walks to the cent:
+ * the served row names its ACCOUNT CODES ("2131, 2132, 2133"), and the
+ * envelope names the SHEET they were read from, HOW they were read, and
+ * under which MAPPING PACK. Together those are enough for a reader to
+ * open their own trial balance and check the figure — which is the whole
+ * point, and the reason a period label would not have been.
+ *
+ *   accounts  line.accountCode, the builder's "+"-joined account list
+ *   source    extraction.sheet — the sheet in the uploaded file
+ *   method    extraction.method (deterministic | llm | mechanical_mapped)
+ *   pack      mappingVersion — e.g. "ro_omfp1802_v2"
+ *
+ * Returns null on the LEGACY build path (no canonical envelope) and on
+ * any row with no account codes — a subtotal is an aggregate, and an
+ * aggregate that pointed at a sheet cell would be pointing at a cell
+ * that does not contain it.
+ */
+function bsRowProvenance(
+  line: BSLine,
+  canonical: BSCanonicalMeta | undefined,
+): AmountProvenance | null {
+  if (!line.accountCode) return null;
+  return provenanceOf({
+    accounts: line.accountCode.split("+").join(", "),
+    source: canonical?.extraction?.sheet,
+    method: canonical?.extraction?.method,
+    pack: canonical?.mappingVersion,
+  });
 }
 
 // ─── AUTO-RECONCILE (canonical status strip) ─────────────────────────────

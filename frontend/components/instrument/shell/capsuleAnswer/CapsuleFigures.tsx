@@ -24,6 +24,7 @@
 import { useTranslation } from "react-i18next";
 
 import { Amount, type AmountProvenance } from "@/components/instrument/Amount";
+import { ProvenanceAffordance, hasProvenance } from "@/components/instrument/Provenance";
 import { FACT_TO_SOURCE } from "@/lib/linkifyAlertBody";
 import { formatMoneyFrom } from "@/lib/money";
 import { NarrativeText } from "@/lib/narrativeMoney";
@@ -73,14 +74,30 @@ function sourceForFact(meta: CapsuleFactMeta): TraceableSource | null {
   );
 }
 
+/** What a tool-produced fact can honestly say about itself.
+ *
+ *  A `CapsuleFactMeta` carries a period, a snapshot id and the TOOL that
+ *  produced it. It does NOT carry a sheet, a cell or an account code —
+ *  the retrieval layer does not thread those through — so this builds no
+ *  `source` and no `accounts`. Naming a source it does not have would be
+ *  the CapsuleTier0Preview defect again.
+ *
+ *  It used to write the PERIOD LABEL into `source`, which the card
+ *  renders under a "Source" heading. The period now has its own field
+ *  and the tool goes to `method`, which is what it is: how the figure
+ *  was obtained. `period` alone does not buy the affordance (see
+ *  `hasProvenance`), so a fact with no snapshot and no tool renders
+ *  plain — correctly. */
 function provenanceFor(meta: CapsuleFactMeta): AmountProvenance | null {
-  const source = meta.periodLabel || meta.scope || "";
   const p: AmountProvenance = {};
-  if (source) p.source = source;
+  const period = meta.periodLabel || meta.scope || "";
+  if (period) p.period = period;
+  if (meta.tool) p.method = meta.tool;
   if (meta.snapshotId) p.snapshot = meta.snapshotId;
-  // `<Amount>` refuses an empty provenance object and renders without
-  // the affordance — which is the correct outcome, so no defaulting.
-  return p.source || p.snapshot ? p : null;
+  // `hasProvenance` refuses a payload with no substance and the figure
+  // renders without the affordance — the correct outcome, so no
+  // defaulting and no placeholder.
+  return hasProvenance(p) ? p : null;
 }
 
 // ── the value ──────────────────────────────────────────────────────────
@@ -126,16 +143,23 @@ export function FigureValue({
   // prose does. Conversion, the missing-rate refusal, the provenance
   // title and the source-row link all come from the one path; the
   // provenance DOT beside it is this surface's own addition.
+  //
+  // The affordance WRAPS that renderer rather than replacing it, so a
+  // money figure and its dimensionless sibling in the same list open the
+  // same card. Underline off: the money span inside already draws its
+  // own dotted rule when a conversion was refused, and two dotted rules
+  // on one number reads as a defect rather than as two disclosures.
   const native = (meta.currency ?? evidence.currency ?? "RON") as Currency;
   return (
-    <NarrativeText
-      text={formatMoneyFrom(meta.value, native, native, {} as Rates, { fractionDigits: 2 })}
-      template={`{{money:${meta.fact}}}`}
-      facts={evidence.facts}
-      factUnits={evidence.factUnits}
-      sourceCurrency={native}
-      className={className}
-    />
+    <ProvenanceAffordance provenance={provenance} className={className} underline={false}>
+      <NarrativeText
+        text={formatMoneyFrom(meta.value, native, native, {} as Rates, { fractionDigits: 2 })}
+        template={`{{money:${meta.fact}}}`}
+        facts={evidence.facts}
+        factUnits={evidence.factUnits}
+        sourceCurrency={native}
+      />
+    </ProvenanceAffordance>
   );
 }
 

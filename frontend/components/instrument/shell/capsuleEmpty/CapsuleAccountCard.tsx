@@ -43,7 +43,7 @@
 import { useTranslation } from "react-i18next";
 
 import { Amount } from "@/components/instrument/Amount";
-import { classShareOf, type FactRef } from "@/lib/capsuleFactIndex";
+import { amountProvenanceFor, classShareOf, type FactRef } from "@/lib/capsuleFactIndex";
 import type { Tier0Answer } from "@/lib/capsuleTier0";
 import type { TraceableSource } from "@/lib/traceableSource";
 
@@ -69,11 +69,21 @@ function ShareOfClass({ fact }: { fact: FactRef }) {
   // renders. There is no "—" and no "n/a" — the line is simply not
   // claimed.
   if (!share) return null;
+  // The share is DERIVED, so its provenance says so: the accounts and
+  // period come from the row it divides, and the method names the
+  // division and its denominator. A share that showed the row's own
+  // provenance unqualified would present a computed ratio as if it had
+  // been read off the sheet.
+  const rowProvenance = amountProvenanceFor(fact);
+  const provenance = rowProvenance
+    ? { ...rowProvenance, method: `share of ${share.section} subtotal` }
+    : null;
   return (
     <span data-testid="capsule-account-share" className="inline-flex items-baseline gap-1">
       <Amount
         value={share.share * 100}
         kind="percent"
+        provenance={provenance}
         className="text-[11.5px] text-ink-soft"
       />
       <span className="text-[11.5px] text-ink-soft">

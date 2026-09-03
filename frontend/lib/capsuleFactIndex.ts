@@ -1102,21 +1102,42 @@ export function amountKindFor(unit: string): "money" | "percent" | "multiple" | 
   }
 }
 
-/** `AmountProvenance` for a fact — the tooltip payload, built from what
- *  the fact actually carries. Returns null when there is nothing behind
- *  it, so the surface never renders a trust affordance over an empty
- *  card. */
-export function amountProvenanceFor(
-  fact: FactRef,
-): { source?: string; method?: string } | null {
+/** `AmountProvenance` for a fact — the affordance payload, built from
+ *  what the fact actually carries. Returns null when there is nothing
+ *  behind it, so the surface never renders a trust affordance over an
+ *  empty card.
+ *
+ *  ONE FIELD PER KIND OF CLAIM. Account codes used to be folded into
+ *  `source` as "accounts 461", and the period was not carried at all —
+ *  which is how a sibling surface came to put the PERIOD LABEL in the
+ *  source slot and render "Source  FY 2025" over a figure whose real
+ *  origin (sheet + accounts) it was discarding. A period is not a
+ *  source and an account is not a sheet; the card labels them
+ *  separately because they are separately checkable.
+ *
+ *  `period` alone never buys the affordance — every fact in the index
+ *  carries one (see `hasProvenance`). It rides along to say WHICH
+ *  period the cited cells belong to. */
+export function amountProvenanceFor(fact: FactRef): {
+  source?: string;
+  accounts?: string;
+  period?: string;
+  method?: string;
+} | null {
   const bits: string[] = [];
   if (fact.provenance?.cell) bits.push(fact.provenance.cell);
-  if (fact.provenance?.account) bits.push(`accounts ${fact.provenance.account}`);
   if (fact.provenance?.docId) bits.push(`doc ${fact.provenance.docId}`);
   const source = bits.join(" · ");
+  const accounts =
+    fact.provenance?.account || (fact.accountCodes ?? []).join(", ") || "";
   const method = fact.derivation
     ? `${fact.derivation.op} of ${fact.derivation.operands.join(" / ")}`
     : fact.source;
-  if (!source && !method) return null;
-  return { source: source || undefined, method };
+  if (!source && !accounts && !method) return null;
+  return {
+    source: source || undefined,
+    accounts: accounts || undefined,
+    period: fact.periodLabel || undefined,
+    method,
+  };
 }
