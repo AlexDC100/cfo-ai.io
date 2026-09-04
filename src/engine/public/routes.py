@@ -7,7 +7,9 @@ Routes:
   GET  /api/public/health                  → key configured? subscription tier?
   GET  /api/public/search?q=AAPL           → search results (free tier endpoint)
   GET  /api/public/companies/{ticker}      → full envelope (needs SF1 for periods)
-  POST /api/public/companies/{ticker}/sync → force refresh
+  POST /api/public/companies/{ticker}/sync → force refresh (SHIELDED)
+  POST /api/public/companies/{ticker}/refresh → bust caches (SHIELDED)
+  POST /api/public/companies/compare       → local-only peer bundle (public)
 
 §24 contract: every error path returns a stable JSON envelope:
   {"error": {"code": "nasdaq_xxx", "message": "<user-facing>", "details": {…}}}
@@ -19,10 +21,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from . import pipeline
+# Cache-bust shield (rate limit + operator bearer). MODULE scope on purpose:
+# this file uses `from __future__ import annotations`, so anything FastAPI has
+# to resolve from an endpoint signature must be visible in module globals.
+from .refresh_shield import guard as _refresh_guard
 from .adapter import Dimension
 from .errors import (
     NasdaqEntitlementError,
@@ -130,11 +136,33 @@ def build_router() -> APIRouter:
     @router.post("/companies/{ticker}/sync")
     def sync_company(
         ticker: str,
+        request: Request,
         dimensions: Optional[str] = Query(
             None,
             description="Comma-separated dimensions (default: ARY,ARQ)",
         ),
     ) -> Dict[str, Any]:
+        """SHIELDED (engine.public.refresh_shield) — the strongest upstream
+        amplifier on the public surface.
+
+        Unlike /refresh next door, this route does not merely make the next
+        read cold: `pipeline.sync_company` calls `get_company_envelope` once
+        per requested dimension, and each of those pulls TICKERS + SF1 +
+        DAILY from the provider inside this handler, spending the adapter's
+        metered daily budget. Anonymous and unbounded until 2026-09-04.
+
+        It is SHIELDED rather than WALLED because it is a live user surface:
+        `PublicCompanyDashboard.tsx`'s refresh button calls it via
+        `syncPublicCompany`. Failing closed on an unset token would break
+        that button for every visitor to protect a provider quota, which is
+        the wrong trade — the opposite of the two WALLED operator routes in
+        the intelligence router. The guard runs BEFORE any provider call, so
+        a 429 spends nothing upstream, and it shares ONE bucket with the
+        other shielded routes so a loop cannot alternate between them.
+        """
+        limited = _refresh_guard(request, route="/api/public/companies/{ticker}/sync")
+        if limited is not None:
+            return limited  # type: ignore[return-value]
         dims_list = None
         if dimensions:
             requested = [d.strip().upper() for d in dimensions.split(",") if d.strip()]
@@ -229,11 +257,24 @@ def build_router() -> APIRouter:
         return get_price_history(ticker, range=r, force_refresh=refresh)
 
     @router.post("/companies/{ticker}/refresh")
-    def refresh_company(ticker: str) -> Dict[str, Any]:
+    def refresh_company(ticker: str, request: Request) -> Dict[str, Any]:
         """Force-bust caches for one ticker — universe warm cache (so
         the table re-pulls live SF1 next render) + price-history cache
         for every range. Doesn't trigger a fetch itself; the next read
-        will hit the live providers."""
+        will hit the live providers.
+
+        SHIELDED (engine.public.refresh_shield): a valid ENGINE_API_TOKEN
+        bearer is never limited; anonymous callers spend one token from a
+        per-client bucket and get 429 + Retry-After over the budget. The
+        guard runs BEFORE any cache is touched, so a 429 mutates nothing.
+        With the token unset the bearer path is simply unavailable and the
+        anonymous path still serves — deliberately NOT the fail-closed
+        contract of tests/engine/test_cron_auth.py; see the shield's
+        module docstring for why the asymmetry is intended.
+        """
+        limited = _refresh_guard(request, route="/api/public/companies/{ticker}/refresh")
+        if limited is not None:
+            return limited  # type: ignore[return-value]
         from .price_history_service import clear_warm_cache as _clear_ph
         from .universe_service import clear_warm_cache as _clear_uni
         # The universe cache is universe-wide (not per-ticker); the
@@ -265,6 +306,17 @@ def build_router() -> APIRouter:
 
         Returns:
             {"tickers": [...], "rows": [snapshot, ...], "missing": [...]}
+
+        PUBLIC BY DESIGN — deliberately neither walled nor shielded, and
+        that is a measured decision rather than an oversight. It writes
+        nothing, and it reaches no upstream: `universe.universe_meta()` is a
+        comprehension over the in-module DEFAULT_UNIVERSE tuple and
+        `demo_universe.demo_snapshot_for` is a dict lookup in a static
+        table. Work per call is bounded by the 20-ticker cap enforced above,
+        so the worst an anonymous loop achieves is ordinary CPU on a route
+        that is cheaper than the GET pages beside it. Adding a limiter here
+        would spend the shared cache-bust budget on calls that cost no
+        provider quota. Pinned by tests/engine/test_public_post_surface.py.
         """
         tickers = payload.get("tickers") or []
         if not isinstance(tickers, list):
