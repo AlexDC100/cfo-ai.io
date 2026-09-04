@@ -122,8 +122,8 @@ def create_workspaces_router() -> APIRouter:
         Auth is the engine bearer token (ENGINE_API_TOKEN), not a user JWT —
         this is scheduler-only.
 
-        Unlike the renewal-reminder cron in _billing.py, which runs open when
-        ENGINE_API_TOKEN is unset, this endpoint FAILS CLOSED: it erases
+        Like the renewal-reminder cron in _billing.py (fail-closed since
+        2026-09-04), this endpoint FAILS CLOSED: it erases
         customer data irreversibly, so an unconfigured deployment must not be
         able to trigger it anonymously.
         """

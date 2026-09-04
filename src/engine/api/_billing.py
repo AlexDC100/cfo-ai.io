@@ -1673,10 +1673,20 @@ def build_router() -> APIRouter:
         Auth is the engine bearer token (ENGINE_API_TOKEN) — not a user JWT —
         so this is restricted to scheduler infrastructure."""
         token = os.environ.get("ENGINE_API_TOKEN")
-        if token:
-            jwt = _require_jwt(authorization)
-            if jwt != token:
-                raise HTTPException(401, "Invalid scheduler token.")
+        if not token:
+            # FAIL CLOSED (2026-09-04). This used to run OPEN when the token
+            # was unset — and it is unset in production — so an anonymous
+            # POST could mass-send renewal e-mails to real customers. Same
+            # rule as /api/workspaces/cron/purge-expired now. Gate:
+            # tests/engine/test_cron_auth.py.
+            raise HTTPException(
+                503,
+                "ENGINE_API_TOKEN is not configured; refusing to run the "
+                "renewal-reminder cron unauthenticated.",
+            )
+        jwt = _require_jwt(authorization)
+        if jwt != token:
+            raise HTTPException(401, "Invalid scheduler token.")
         t14 = send_founder_renewal_reminders(days_ahead=14)
         t3 = send_founder_renewal_reminders(days_ahead=3)
         return {"t14": t14, "t3": t3}
