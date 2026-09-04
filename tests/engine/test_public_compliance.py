@@ -256,19 +256,71 @@ class TestRateLimit:
         )
 
     def test_xff_preferred_over_socket_peer(self):
+        """The forwarded chain beats the socket peer, keyed on the LAST hop.
+
+        Caddy fronts this backend with a bare ``reverse_proxy``, so it
+        APPENDS the real peer: the final entry is ours, every earlier one is
+        caller-written. Two genuinely different clients therefore differ in
+        the LAST hop, and must get separate buckets even behind one Caddy.
+        """
         clock = FakeClock()
         limiter = ratelimit.TokenBucketLimiter(1, burst=1, clock=clock)
-        # Same Caddy peer, different forwarded clients → separate buckets.
         r1 = SimpleNamespace(
-            headers={"user-agent": "m", "x-forwarded-for": "192.0.2.1, 10.0.0.1"},
+            headers={"user-agent": "m", "x-forwarded-for": "10.0.0.1, 192.0.2.1"},
             client=SimpleNamespace(host="172.18.0.2"),
         )
         r2 = SimpleNamespace(
-            headers={"user-agent": "m", "x-forwarded-for": "192.0.2.2, 10.0.0.1"},
+            headers={"user-agent": "m", "x-forwarded-for": "10.0.0.1, 192.0.2.2"},
             client=SimpleNamespace(host="172.18.0.2"),
         )
         assert limiter.check(r1) is None
         assert limiter.check(r2) is None  # not sharing r1's bucket
+
+    def test_rotating_the_spoofed_leftmost_hop_cannot_mint_new_buckets(self):
+        """The bypass this module shipped with, closed.
+
+        Everything before the final hop is written by the caller. Keying on
+        index 0 let one abuser mint a fresh bucket per request by rotating a
+        header, so the shield over 600k public company pages was decorative.
+        ``funnel._client_ip`` was fixed this way (D2); this module was not
+        back-ported until 2026-09-04.
+
+        PLANT: restore ``xff.split(",")[0]`` in
+        ``engine.public_ro.ratelimit._client_ip``. RED: the second call is
+        allowed instead of limited. REVERT: green.
+        """
+        clock = FakeClock()
+        limiter = ratelimit.TokenBucketLimiter(1, burst=1, clock=clock)
+        first = SimpleNamespace(
+            headers={"user-agent": "m", "x-forwarded-for": "203.0.113.9, 192.0.2.1"},
+            client=SimpleNamespace(host="172.18.0.2"),
+        )
+        assert limiter.check(first) is None, "the first call should pass"
+        for spoof in ("198.51.100.7", "203.0.113.250", "10.9.9.9", "8.8.8.8"):
+            rotated = SimpleNamespace(
+                headers={"user-agent": "m",
+                         "x-forwarded-for": "%s, 192.0.2.1" % spoof},
+                client=SimpleNamespace(host="172.18.0.2"),
+            )
+            assert limiter.check(rotated) is not None, (
+                "RATE LIMIT BYPASSED — rotating the caller-written leftmost hop "
+                "to %s minted a fresh bucket; the limiter must key on the last "
+                "hop, the only one our own proxy appended." % spoof
+            )
+
+    def test_the_limiter_and_the_funnel_read_the_same_hop(self):
+        """Two helpers, one topology. They drifted once; they must not again."""
+        from engine.public_ro import funnel as _funnel
+
+        for chain in ("10.9.9.9, 203.0.113.7",
+                      "a, b, c",
+                      "  1.1.1.1 ,  2.2.2.2  ",
+                      "203.0.113.7"):
+            req = SimpleNamespace(headers={"x-forwarded-for": chain},
+                                  client=SimpleNamespace(host="172.18.0.2"))
+            assert ratelimit._client_ip(req) == _funnel._client_ip(req), (
+                "HOP SEMANTICS DRIFTED on %r: ratelimit=%r funnel=%r"
+                % (chain, ratelimit._client_ip(req), _funnel._client_ip(req)))
 
     def test_env_tuning_and_module_entrypoint(self, monkeypatch):
         monkeypatch.setenv("PUBLIC_RO_RATE_PER_MIN", "1")

@@ -1352,10 +1352,23 @@ the Pages copy never advertises a sitemap on its own origin.)
 - **The page cache key digests whole rows**, not picked columns — a
   denylist (`updated_at`, `provenance`), never an allowlist. A new column
   costs a cache miss; a forgotten one serves a wrong fact.
-- **`_client_ip` takes the RIGHTMOST `X-Forwarded-For` hop.** Caddy
+- **`_client_ip` must take the RIGHTMOST `X-Forwarded-For` hop.** Caddy
   appends, so index 0 is attacker-written. Correct for exactly one
   trusted hop, which is what runs today (`via: 1.1 Caddy`, DNS straight
-  at the VPS). A CDN in front would invert it.
+  at the VPS — re-verified 2026-09-04). A CDN in front would invert it.
+  **CORRECTION (2026-09-04):** this described `public_ro/funnel.py` only.
+  `public_ro/ratelimit.py` still read `hops[0]` — the caller-written hop —
+  so the shield over the 600k-page storefront was bypassable by rotating
+  one header, and a test (`test_xff_preferred_over_socket_peer`) had
+  pinned that behaviour as if intended. The D2 fix was never back-ported.
+  Repaired the same day: `ratelimit`, `funnel` and
+  `engine.public.refresh_shield` now read the same hop, pinned by
+  `test_the_limiter_and_the_funnel_read_the_same_hop` and
+  `test_rotating_the_spoofed_leftmost_hop_cannot_mint_new_buckets`.
+  **The lesson is the general one:** when a hardening fix lands in one
+  module, grep for every sibling that reads the same thing — and never let
+  a test pin a defect you have merely decided not to fix yet, because the
+  next engineer reads a red gate as a reason to revert the repair.
 - Container has no `curl` or `ps`; only `/app/data` is a mounted volume,
   so anything staged elsewhere is wiped by a rebuild.
 
