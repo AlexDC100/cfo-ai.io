@@ -279,3 +279,62 @@ violations assertion, because the logged-out page rendered real
 violations rather than nothing. That reds the spec, not the guard. The
 targeted canary plant above is what proves the guard. A plant that
 produces a red for the wrong reason is not evidence.
+
+## TC-10 — No cutoff or threshold is ever written as prose
+
+**Rule.** A threshold, band ladder, zone cutoff, benchmark or materiality
+floor renders from the SAME data the verdict was computed with. Prose that
+restates a number is a second copy of the number, and a copy drifts.
+
+**The shape, found 2026-09-04.** The frontend deleted a hardcoded replica
+of the engine's credit band ladder (`compositeToGrade()`), and the ladder
+survived as *sentences*: the model label and the caveat both spelled
+`AAA ≥ 90 … CC < 25` as string literals. Under an engine re-band the
+document then said the letter was **B**, the ladder was **B ≥ 20**, and two
+lines later **B ≥ 40** — all within one section, on screen and in both
+deliverables. It got *worse* when the model sentence was made mandatory
+beside every letter, because the frozen copy then printed in more places
+than the replica ever had. The same shape lives in every ratio row
+(`bands`, then a `benchmark` string restating them, then a `commentary`
+closure with a third inline copy), in the Altman methodology note seven
+lines from the declaration that said it was fixed, and in the learning
+popovers' definitions in both languages.
+
+**The antibody.** One spelling function per kind of cutoff (`spellLadder`,
+`spellWeights`), fed the bands the verdict actually used, on the same
+result object. A gate that plants a re-band and then reads every
+`GRADE ≥ N` / `> X safe` claim out of the PRODUCED bytes — DOM, HTML
+document, workbook — and requires each to be in the ladder the letter was
+banded with. Grep for the defect with: a numeric threshold inside a string
+literal in `frontend/`, both languages' translation files included.
+
+## TC-11 — State what a gate fails on AFTER the defect is repaired
+
+**Rule.** For every gate, write down what it reds on once the bug it guards
+is gone. If the honest answer is "the fix", the gate is protecting the bug.
+
+**Three green gates in one session were asserting the defect as their law.**
+
+| Gate | What it asserted | What it actually protected |
+|---|---|---|
+| `test_xff_preferred_over_socket_peer` | two requests differing only in the **leftmost** forwarded hop get separate buckets | the header-rotation bypass of the public rate limiter, restated as an invariant |
+| `financialCompletenessLaw` (first form) | `if (c.credit !== undefined)` … | the silent switch to a parallel scoring model it was written to prevent |
+| `servedFactsAbsentTotals` (first form) | `Number.isFinite(v)` over every ratio | every substituted zero — finiteness is not honesty |
+
+A fourth, same family: `test_firm_tenancy` *pinned* a live Capsule
+defect ("assert the bug is STILL present") as documentation. A pinned
+defect is a live finding to triage now, not a record.
+
+**Why it matters.** A red gate reads as "your change broke something". When
+the gate encodes the bug, the next engineer reverts the fix to get back to
+green — and the defect is now defended by the test suite. `PYTEST_DESELECTS`
+is the same trap at battery scale: two honest tests were switched off for
+months over a "known adapter defect" that turned out to be a wrong fixture,
+and the next wave to touch it drew the wrong conclusion in the silence.
+
+**The antibody.** Each plant-log section in `gates.md` names the plant
+that reds it (TC-2) — add the inverse: the one-line statement of the
+correct behaviour the gate would ALSO red on, if that behaviour were
+wrong. Assert the CLAIM (is this figure real? is this row unchanged?),
+never a shape property of it (finite, non-null, present). Prefer an xfail
+with a reason to a deselect; prefer a fix to either.
