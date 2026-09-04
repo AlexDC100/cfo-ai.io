@@ -1516,6 +1516,18 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
     # — completed into canonical_bs.excluded at this seam (same helper
     # the offline determinism/reprocessing scripts run).
     pack.merge_parser_exclusions(assembled, parsed.get("parser_excluded"))
+    # Anchor provenance on the WRITE path too. This call site already
+    # threads the anchor (the line above), so the labels here are almost
+    # always `anchored` — but they must be emitted on both paths, or a
+    # reader would have to know which seam produced a payload before it
+    # could trust `net_income_statutory`. See `_annotate_net_income_anchor`.
+    _statutory = parsed.get("statutory_net_profit_anchor")
+    _annotate_net_income_anchor(
+        assembled,
+        _statutory,
+        "parsed_tb_rows" if _statutory is not None else None,
+        applied=_statutory is not None,
+    )
     return assembled
 
 
@@ -4434,6 +4446,327 @@ def _run_pipeline_sync(document_id: str) -> None:
             logger.exception("[pipeline] release_document_reservation failed (non-fatal)")
 
 
+# ── Statutory net-income anchor (account 121) — ONE resolver ──────────
+#
+# CLAUDE.md Appendix A §3 / Step 11: the CLOSING BALANCE OF ACCOUNT 121
+# IS the statutory net profit. The class-6/7 reconstruction is the
+# validation check, never the authoritative number.
+#
+# `assemble_statements()` honours that rule — but it can only see the
+# anchor when a caller hands it `account_121_anchor_override`, because
+# `accounts_to_assemble_shape()` routes 121 to `ignore_control` and drops
+# the row before assembly (chart_of_accounts.py ~1085-1105).
+#
+# The persist path threads it (stage_map, `assemble_statements(...)`
+# below). Every REBUILD-FROM-LINE-ITEMS path did not, so the same books
+# served a raw reconstruction under the statutory name. Measured across
+# the golden corpus (docs: design_review/engine/NET_INCOME_ANCHOR.md):
+#
+#   book                    account 121      rebuild served     factor
+#   saga_10_col_realestate    -801,604.14    -30,391,418.38      37.9x
+#   saga_10_col_agras        7,533,676.02     14,106,102.03       1.9x
+#   saga_10_col_carniprod    1,435,533.59      5,843,449.04       4.1x
+#   saga_10_col_retail       3,205,212.62      1,161,957.98       0.36x
+#   saga_10_col                402,869.16        171,665.97       0.43x
+#   pdf_positional             650,887.06        615,350.00       0.95x
+#
+# and it is not one field: net_income_statutory drags
+# free_cash_flow_proxy, assembled_bs.current_year_pnl,
+# assembled_bs.total_equity (the NAV cascade's book-equity floor) and
+# bs_balance_delta with it — 30 disagreeing fields across 7 books, all
+# 30 resolved by threading the anchor.
+#
+# THE RULE: a rebuild path calls `_assemble_with_statutory_anchor()`,
+# never `assemble_statements()` directly. Threading the anchor at one
+# seam and forgetting it at the next IS the defect, so resolving it,
+# passing it and labelling the result are fused into one call that
+# cannot be half-done. Gated by
+# tests/engine/test_rebuild_net_income_anchor.py.
+
+#: `assembled_pl.net_income_anchor_status` vocabulary.
+NET_INCOME_ANCHOR_ANCHORED = "anchored"
+NET_INCOME_ANCHOR_WITHIN_TOLERANCE = "within_tolerance"
+NET_INCOME_ANCHOR_ABSENT = "absent"
+
+
+def _statutory_anchor_for(
+    period_row: Optional[Dict[str, Any]],
+    line_items: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[Optional[float], Optional[str]]:
+    """Resolve account 121's closing balance for a period being REBUILT
+    from its persisted line items. Returns `(anchor, source)`; both None
+    when no anchor is recoverable.
+
+    Sources, in order:
+
+    1. ``period.assembled_canonical_v1.canonical_bs.invariants
+       .p121_cross_check.p121`` — AUTHORITATIVE. It is literally the
+       value `pack.compute_statutory_net_profit_anchor(tb_rows)` returned
+       at write time, carried onto the envelope by the canonical adapter
+       (canonical_adapter.py ~1557) and rounded to the cent. Nothing
+       downstream mutates it.
+
+       NOT used: the equity result ROW (``rows[id=current_year_profit]``).
+       It looks like the same number and usually is, but it is
+       `p121_cents + pl_net_cents` under `result_basis ==
+       "sf_closing_column"` (canonical_adapter.py ~1615), so the P&L net
+       leaks into it — measured on corpus/saga_compact_6_col, where the
+       row reads 500.00 against an account 121 of 0.00. It also flips id
+       to `current_year_loss` on a negative result and is omitted
+       entirely when the result is zero. It is a presentation row, not
+       the anchor.
+
+    2. A persisted 121 line item. Today this never fires: 121 is
+       `ignore_control`, so `accounts_to_assemble_shape()` drops it and
+       `stage_persist` never writes it — measured 0 of 0 across all 7
+       corpus books that carry a p121. Kept because a non-deterministic
+       extraction lane may emit a 121 row, and because if the mapping
+       ever stops dropping it this path must be the one that wins, not a
+       silent reconstruction.
+
+    3. Nothing. The caller serves the reconstruction and SAYS SO (see
+       `_annotate_net_income_anchor`). This is today's outcome on the
+       Radar surface, whose `LIGHT_PERIOD_COLUMNS` projection
+       (_radar.py:64) selects `assembled_canonical_v1->>schema_version`
+       but never the envelope object itself.
+
+       A light projection can opt back in WITHOUT paying for the whole
+       envelope column by selecting the scalar under the alias `p121`:
+
+           p121:assembled_canonical_v1->canonical_bs->invariants
+                ->p121_cross_check->>p121
+
+       which source 1 below accepts alongside the nested object. That
+       one added column is all `_radar.LIGHT_PERIOD_COLUMNS` would need
+       to serve an anchored figure; the column is read here rather than
+       there so the projection stays the only thing that has to change.
+    """
+    flat = (period_row or {}).get("p121")
+    if flat is not None:
+        try:
+            return float(flat), "envelope_p121_cross_check"
+        except (TypeError, ValueError):
+            pass
+
+    env = (period_row or {}).get("assembled_canonical_v1")
+    if isinstance(env, dict):
+        # The persisted shape nests invariants under `canonical_bs`; the
+        # SERVED shape (`_reconcile.served_canonical_bs` output) IS the
+        # canonical_bs, so its invariants sit at the top. Accept both —
+        # a caller handing either object must resolve the same anchor.
+        for holder in (env.get("canonical_bs"), env):
+            if not isinstance(holder, dict):
+                continue
+            block = ((holder.get("invariants") or {}) or {}).get("p121_cross_check")
+            if isinstance(block, dict) and block.get("p121") is not None:
+                try:
+                    return float(block["p121"]), "envelope_p121_cross_check"
+                except (TypeError, ValueError):
+                    pass
+
+    total = 0.0
+    seen = False
+    for li in (line_items or []):
+        if str((li or {}).get("ro_account_code") or "").strip().startswith("121"):
+            try:
+                total += float(li.get("amount") or 0)
+                seen = True
+            except (TypeError, ValueError):
+                continue
+    if seen:
+        return round(total, 2), "line_items_121"
+    return None, None
+
+
+def _anchor_kwargs(assembler: Any, anchor: Optional[float]) -> Dict[str, Any]:
+    """`{"account_121_anchor_override": anchor}` when there is an anchor
+    AND `assembler` accepts that kwarg, else `{}`.
+
+    The capability probe is load-bearing, not defensive noise: the
+    review/reanalyze route assembles through
+    `get_pack(overrides.confirmed_country_code)`, and the Hungarian
+    pack's `assemble_statements` (hu_hungary/pack.py:127) has no such
+    parameter. Reanalysing an RO period — whose envelope DOES carry a
+    p121 — under a confirmed country of HU would raise TypeError and
+    500 the route.
+    """
+    if anchor is None:
+        return {}
+    try:
+        import inspect
+        params = inspect.signature(assembler).parameters
+    except (TypeError, ValueError):  # pragma: no cover — builtins/C funcs
+        return {}
+    if "account_121_anchor_override" not in params and not any(
+        p.kind is p.VAR_KEYWORD for p in params.values()
+    ):
+        return {}
+    return {"account_121_anchor_override": float(anchor)}
+
+
+def _assemble_with_statutory_anchor(
+    assembler: Any,
+    accounts: List[Dict[str, Any]],
+    *,
+    period_row: Optional[Dict[str, Any]],
+    line_items: Optional[List[Dict[str, Any]]],
+    **assemble_kwargs: Any,
+) -> Dict[str, Any]:
+    """THE ONLY WAY a rebuild path may call `assemble_statements()`.
+
+    Resolve → thread → label, as one indivisible step. The defect this
+    exists to prevent was not "someone wrote the wrong number"; it was
+    that resolving the anchor, passing it to the assembler, and telling
+    the reader what happened were three separate acts, so a seam could
+    do one and skip the others and still look finished. Fusing them
+    means a new rebuild seam either goes through here and is correct, or
+    does not and is visible to `test_every_rebuild_call_site_threads_
+    the_anchor`.
+    """
+    anchor, source = _statutory_anchor_for(period_row, line_items)
+    anchor_kwargs = _anchor_kwargs(assembler, anchor)
+    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs)
+    _annotate_net_income_anchor(
+        assembled, anchor, source,
+        applied=_anchor_reached_the_assembler(assembled, anchor, anchor_kwargs),
+    )
+    return assembled
+
+
+def _anchor_reached_the_assembler(
+    assembled: Optional[Dict[str, Any]],
+    anchor: Optional[float],
+    anchor_kwargs: Dict[str, Any],
+) -> bool:
+    """Did the assembler ACTUALLY receive the anchor? Read the answer off
+    its own output, never off the caller's intent.
+
+    `assemble_statements` copies the anchor it resolved into
+    `assembled_canonical_v1.canonical_bs.invariants.p121_cross_check
+    .p121` (chart_of_accounts.py:1714 → canonical_adapter.py:1556), so
+    that field is a witness: if it equals what we handed over, the value
+    was received.
+
+    Trusting `bool(anchor_kwargs)` instead would mean trusting that the
+    kwargs dict we built was also passed — which is precisely the class
+    of mistake this whole change exists to remove. A caller that
+    resolves an anchor and then drops it on the way to the assembler
+    must end up labelled `absent`, not `within_tolerance`.
+
+    Fallback: when the pack emits no p121 cross-check block at all
+    (a non-RO pack), there is no witness and the caller's intent is all
+    there is. When the block EXISTS but carries a null p121, that is a
+    real answer — the assembler had no anchor — and it is honoured, even
+    though a BS-only extract lands there with an anchor that simply had
+    no P&L to apply to. Calling that `absent` is conservative and never
+    misleading: there is no reconstruction being passed off as statutory.
+    """
+    if anchor is None:
+        return False
+    block = None
+    if isinstance(assembled, dict):
+        env = assembled.get("assembled_canonical_v1")
+        if isinstance(env, dict):
+            cbs = env.get("canonical_bs")
+            if isinstance(cbs, dict):
+                block = (cbs.get("invariants") or {}).get("p121_cross_check")
+    if not isinstance(block, dict):
+        return bool(anchor_kwargs)
+    witnessed = block.get("p121")
+    if witnessed is None:
+        return False
+    try:
+        return abs(float(witnessed) - float(anchor)) < 0.005
+    except (TypeError, ValueError):
+        return False
+
+
+def _annotate_net_income_anchor(
+    assembled: Optional[Dict[str, Any]],
+    anchor: Optional[float],
+    source: Optional[str],
+    *,
+    applied: bool,
+) -> None:
+    """Stamp the anchor provenance onto `assembled.statements
+    .assembled_pl`, in place. Called on EVERY path that produces an
+    `assembled_pl` — persist and rebuild alike — so the field set never
+    depends on which seam the reader came through.
+
+    Adds, always:
+      · ``net_income_reconstructed``   the class-6/7 build-up, i.e. the
+        number `net_income_statutory` would carry with no anchor.
+        Derived as `net_income_operational + capitalized_own_work_memo`
+        — that identity IS the assembler's pre-override expression
+        (chart_of_accounts.py:1069), so this costs nothing and needs no
+        second assembly.
+      · ``net_income_statutory_anchor``  account 121, or null.
+      · ``net_income_anchor_source``     where the anchor came from.
+      · ``net_income_anchor_status``     anchored | within_tolerance |
+        absent.
+
+    `net_income_statutory` itself is left ALONE — never nulled. The
+    frontend reads it through `?? 0` fallbacks
+    (frontend/lib/canonicalMetrics.ts), so a null would render as a
+    fabricated zero. A labelled number the reader can check beats a
+    blank they cannot.
+
+    STATUS IS OBSERVED, NOT RE-DERIVED:
+
+      absent            no anchor reached the assembler — either none was
+                        resolvable, or one was but the pack's
+                        `assemble_statements` has no override parameter
+                        (`applied=False`). Either way the served figure is
+                        a reconstruction and says so.
+      anchored          the served `net_income_statutory` equals account
+                        121 to the cent — true exactly when the
+                        assembler's 5%-of-max(|121|, 100k) override fired,
+                        or when the reconstruction already agreed.
+      within_tolerance  the anchor WAS given to the assembler and the
+                        assembler deliberately kept the reconstruction
+                        (inside its band).
+
+    Reading the decision off the assembler's OUTPUT, rather than
+    re-implementing its threshold here, is what stops this helper from
+    drifting away from the rule it reports on. `applied` is what makes
+    that reading safe: without it, a site that resolved the anchor and
+    forgot to pass it would produce a large gap and get labelled
+    `within_tolerance` — the exact defect, wearing a reassuring label.
+
+    `net_income_statutory_anchor` is emitted whenever an anchor was
+    RESOLVED, `applied` or not, so a reader can always see the account
+    121 figure and check the gap themselves.
+    """
+    if not isinstance(assembled, dict):
+        return
+    pl = ((assembled.get("statements") or {}) or {}).get("assembled_pl")
+    if not isinstance(pl, dict):
+        return
+
+    def _num(key: str) -> Optional[float]:
+        val = pl.get(key)
+        return float(val) if isinstance(val, (int, float)) else None
+
+    operational = _num("net_income_operational")
+    capitalized = _num("capitalized_own_work_memo")
+    statutory = _num("net_income_statutory")
+
+    pl["net_income_reconstructed"] = (
+        round(operational + (capitalized or 0.0), 2)
+        if operational is not None else None
+    )
+    pl["net_income_statutory_anchor"] = (
+        round(float(anchor), 2) if anchor is not None else None
+    )
+    pl["net_income_anchor_source"] = source if anchor is not None else None
+    if anchor is None or not applied:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ABSENT
+    elif statutory is not None and abs(statutory - float(anchor)) < 0.005:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ANCHORED
+    else:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_WITHIN_TOLERANCE
+
+
 def _apply_envelope_truth_to_statements(
     statements: Dict[str, Any], period: Dict[str, Any]
 ) -> None:
@@ -4772,8 +5105,16 @@ def _rebuild_assembled_for_briefing(
             rule = _coa_mod.bucket_for(acct["code"])
             if rule and rule.sign == -1:
                 acct["amount"] = -acct["amount"]
-        assembled_full = _coa_mod.assemble_statements(
+        # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+        # Without it this seam serves a raw class-6/7 reconstruction
+        # under the statutory name, on every surface that reads it: the
+        # Capsule's statements context, Radar's `s_engine` facts, the
+        # firm attention lane, and the regenerated briefing.
+        assembled_full = _assemble_with_statutory_anchor(
+            _coa_mod.assemble_statements,
             recovered_accounts,
+            period_row=period,
+            line_items=line_items,
             company_name=statements["companyName"] or "Entity",
             currency=statements["currency"],
             period_label=str(statements["periodLabel"]) if statements["periodLabel"] else "Period",
@@ -6819,8 +7160,18 @@ def build_router() -> APIRouter:
                 rule = _coa_mod.bucket_for(acct["code"])
                 if rule and rule.sign == -1:
                     acct["amount"] = -acct["amount"]
-            assembled_full = _coa_mod.assemble_statements(
+            # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+            # This is the Statements page P&L, the Valuation tab, the
+            # cash-flow statement and the NAV cascade's book-equity
+            # floor; it does NOT go through
+            # `_rebuild_assembled_for_briefing`, which is why the anchor
+            # has to be resolved through the shared helper at every site
+            # rather than fixed once at the seam.
+            assembled_full = _assemble_with_statutory_anchor(
+                _coa_mod.assemble_statements,
                 recovered_accounts,
+                period_row=period,
+                line_items=line_items,
                 company_name=statements["companyName"] or "Entity",
                 currency=statements["currency"],
                 period_label=str(statements["periodLabel"]) if statements["periodLabel"] else "Period",
@@ -7790,11 +8141,20 @@ def build_router() -> APIRouter:
                 if rule and rule.sign == -1:
                     acct["amount"] = -acct["amount"]
 
+            # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+            # Review overrides re-bucket ACCOUNTS; they never re-open the
+            # statutory result, so the anchor still governs here. The
+            # kwarg is probed rather than passed blind because `pack` is
+            # `get_pack(confirmed_country_code)` and a non-RO pack has no
+            # such parameter (see `_anchor_kwargs`).
             original_bucket_for = pack.bucket_for
             pack.bucket_for = override_bucket_for  # type: ignore[assignment]
             try:
-                assembled_full = pack.assemble_statements(
+                assembled_full = _assemble_with_statutory_anchor(
+                    pack.assemble_statements,
                     recovered_accounts,
+                    period_row=period,
+                    line_items=line_items,
                     company_name=org.get("name") or "Entity",
                     currency=period.get("currency", "RON"),
                     period_label=str(period.get("period_end")) or "Period",
