@@ -3167,3 +3167,50 @@ if __name__ == "__main__":
 ---
 
 *End of CLAUDE.md. Read once per session. Internalize. Then proceed.*
+
+---
+
+## 22. Three production hotfixes found by sweeping the real app (2026-09-04)
+
+A Cockpit critic mentioned in passing that the firm-tenancy suite had
+**pinned** a Capsule defect it stumbled on. Verified live and fixed the
+same hour, then a sweep of every mutating route of the real `create_app()`
+found two more. All three shipped per §14 (single-file rsync to explicit
+destinations → `docker compose build backend && up -d` → container hash ==
+HEAD blob → live probe → F-A3.1 GREEN → `check_deploy_drift.py` IN SYNC).
+
+| commit | defect | live symptom |
+|---|---|---|
+| `b3104a3` | `ToolCall` (Capsule tools request model) was closure-local inside `build_router` under `from __future__ import annotations` | `POST /api/capsule/tools/{name}` answered **422 `loc: [query, body]` to every request** — every grounded Capsule tool call (`get_facts` / `get_account` / `list_findings`) from `capsuleToolsApi.ts` had been failing in production. Live: 422 → 401. |
+| `a078c31` | `ContactSalesRequest` closure-local in `_billing.py` (same shape); a `-> JSONResponse` return annotation in `public_market/search.py` whose import was closure-local | every contact-sales submission 422'd (`loc: [query, req]`); `/openapi.json` and `/docs` 500'd. Live: body now validated on `[body, name]`, `/openapi.json` 200 with 177 paths. |
+| `6f994fc` | `POST /api/billing/cron/renewal-reminders` skipped its bearer check when `ENGINE_API_TOKEN` was unset | **latent, not live** — the token turned out to be set in production (both crons answer 401), so nothing was exposed; now fails closed (503) like `purge-expired` and the firm crons. The commit message's "the token IS unset in production" was written before that was measured and is wrong. |
+
+**Corrections to §16 (Backend cleanup):** "runtime request handling is
+unaffected either way" was wrong — the nested `ContactSalesRequest` broke
+the route's body binding, not just the schema. "`ENGINE_API_TOKEN` is not
+yet in `.env`" is stale — it is set on the backend container.
+
+**Why none of this was caught: every Playwright spec intercepts
+`**/api/capsule/tools/**` (to keep the UI gates hermetic), so the real
+binding was exercised by nothing.** Rule, now enforced: **an intercepted
+route is a route with no gate.** Two battery gates carry it:
+
+- **`route-binding`** (`tests/engine/test_route_bindings.py`): sends a JSON
+  body to every POST/PUT/PATCH route of the real app (87) and reds on the
+  body-as-query shape; AST-scans every future-annotations module under
+  `src/engine/api` for a `BaseModel` nested inside a function; generates the
+  full OpenAPI schema (≥100 paths). Plant-proven in `docs/engine_book/gates.md`.
+- **`cron-auth`** (`tests/engine/test_cron_auth.py`): all four scheduler
+  routes are 503 with the token unset and 401/403 on a wrong/missing bearer.
+
+**Never define a Pydantic model inside a router factory in a module with
+`from __future__ import annotations`.** Module scope, always — the gate
+above makes the nested shape a red.
+
+**Also seen in the sweep, deliberately left for the markets wave:** the
+two unauthenticated public cache-bust POSTs (`/api/public/companies/{ticker}/refresh`,
+`/api/public/intelligence/refresh-signals`) expose nothing and fetch nothing
+themselves, but make the next reads cold against upstream quotas — they
+need the public rate limiter (`public_ro/ratelimit`) or the operator bearer.
+The six `/api/cfo/*` demo routes compute from the request body and answer
+"Demo Company" on an empty one — public by design.
