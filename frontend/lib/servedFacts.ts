@@ -118,9 +118,22 @@ function centsOrNull(v: unknown): number | null {
 }
 
 /** THE single minor-units → display-float conversion. Every accessor exits
- *  through here exactly once; nothing downstream converts again. */
+ *  through here exactly once; nothing downstream converts again.
+ *
+ *  ⚠ It takes `number`, never `number | null`. `toDisplay(null)` is `0`
+ *  in JavaScript — `null / 100 === 0` — so a nullable cents field handed
+ *  to this function silently becomes a reported zero. Every absent-capable
+ *  read goes through `toDisplayOrNull` instead; `buildBsStatement`'s
+ *  `balanceCheck` was exactly this bug (`toDisplay(core.differenceCents)`
+ *  with `differenceCents: number | null`). */
 export function toDisplay(cents: number): number {
   return cents / 100;
+}
+
+/** The absent-capable form. An absent cents figure stays absent instead of
+ *  collapsing to 0 through JavaScript's `null / 100`. */
+export function toDisplayOrNull(cents: number | null): number | null {
+  return cents === null ? null : cents / 100;
 }
 
 // ─── Facts shape ────────────────────────────────────────────────────────
@@ -158,22 +171,70 @@ export interface ServedReconciliationAdjustment {
   label: string;
 }
 
+/** Where the balance-sheet difference came from.
+ *
+ *  · `served`         — read off `canonical_bs.difference` (or the legacy
+ *                       `bs_balance_delta`). A surface may name that field.
+ *  · `client-derived` — this gateway subtracted served totals. A surface
+ *                       must say so, and may name ONLY the terms in
+ *                       `differenceTerms()`.
+ *  · `unavailable`    — no served field, and the envelope did not carry
+ *                       the totals to derive one. There is no difference
+ *                       to show and no balance verdict to stand behind. */
+export type DifferenceOrigin = "served" | "client-derived" | "unavailable";
+
+/** A served total the derivation can consume. */
+export type DifferenceTerm =
+  | "assets"
+  | "equity_plus_liabilities"
+  | "equity"
+  | "liabilities";
+
 /** Internal minor-unit facts (exposed for tests / cross-surface checks). */
 export interface ServedBsFactsCents {
   source: ServedSource;
   status: CanonicalBsStatus | null;
   needsReview: boolean;
   mappingVersion: string | null;
-  totalAssetsCents: number;
-  totalEquityCents: number;
-  totalLiabilitiesCents: number;
-  equityPlusLiabilitiesCents: number;
-  currentAssetsCents: number;
-  currentLiabilitiesCents: number;
-  nonCurrentAssetsCents: number;
-  nonCurrentLiabilitiesCents: number;
-  /** assets − (equity + liabilities) as served; exactly 0 on RECONCILED. */
-  differenceCents: number;
+  // ── EVERY TOTAL IS ABSENT-CAPABLE ──────────────────────────────────
+  //
+  // These were all `number`, filled by `?? 0` and, worse, by DERIVING one
+  // side of an incomplete pair from the other. On the real carniprod
+  // envelope with `totals.liabilities` and `totals.equity_plus_liabilities`
+  // removed, `liabilities = equityPlusLiabilitiesCents − equity` evaluated
+  // to `0 − 10,689,596,791` and `totalLiabilities()` handed back
+  // −106,895,967.91 to the BS tab, the Excel/HTML exports, the capsule
+  // fact index (where it was finite, so it passed the guard AND earned a
+  // provenance card) and the distress score, whose Altman X4
+  // (equity / liabilities) came out at exactly −1.
+  //
+  // An incomplete pair makes EVERY value derived from it absent, not just
+  // the difference. Null here is "the envelope did not carry it"; a
+  // number is always a figure that was served or derived from terms that
+  // were ALL served.
+  totalAssetsCents: number | null;
+  totalEquityCents: number | null;
+  totalLiabilitiesCents: number | null;
+  equityPlusLiabilitiesCents: number | null;
+  currentAssetsCents: number | null;
+  currentLiabilitiesCents: number | null;
+  nonCurrentAssetsCents: number | null;
+  nonCurrentLiabilitiesCents: number | null;
+  /** assets − (equity + liabilities) as served; exactly 0 on RECONCILED.
+   *  NULL when the envelope served neither the field nor the totals to
+   *  derive it — an absent drift, never a zero one. */
+  differenceCents: number | null;
+  /** TRUE when `differenceCents` was READ from a served field
+   *  (`canonical_bs.difference`, or the legacy `bs_balance_delta`); FALSE
+   *  when the gateway fell back to assets − (equity + liabilities) over
+   *  the served totals. A surface naming the figure's origin may name
+   *  the field only in the first case — the fallback is client-derived
+   *  and must say so. */
+  differenceServed: boolean;
+  differenceOrigin: DifferenceOrigin;
+  /** Exactly the served totals the derivation consumed — nothing else may
+   *  appear in a sentence describing it. */
+  differenceTerms: readonly DifferenceTerm[];
 }
 
 /** The engine presenter's output, stamped on every served canonical_bs
@@ -197,17 +258,28 @@ export interface ServedFacts {
   status(): CanonicalBsStatus | null;
   needsReview(): boolean;
   mappingVersion(): string | null;
-  totalAssets(): number;
-  totalEquity(): number;
-  totalLiabilities(): number;
-  equityPlusLiabilities(): number;
-  currentAssets(): number;
-  currentLiabilities(): number;
-  nonCurrentAssets(): number;
-  nonCurrentLiabilities(): number;
-  workingCapital(): number;
-  /** THE drift — assets − (equity + liabilities) as served. */
-  difference(): number;
+  /** Served totals. NULL when the envelope did not carry the figure and
+   *  no complete set of served terms could produce it — a consumer must
+   *  state the absence, never print or divide by a stand-in. */
+  totalAssets(): number | null;
+  totalEquity(): number | null;
+  totalLiabilities(): number | null;
+  equityPlusLiabilities(): number | null;
+  currentAssets(): number | null;
+  currentLiabilities(): number | null;
+  nonCurrentAssets(): number | null;
+  nonCurrentLiabilities(): number | null;
+  workingCapital(): number | null;
+  /** THE drift — assets − (equity + liabilities) as served. NULL when the
+   *  envelope carried neither the field nor the totals: the surface then
+   *  states the absence rather than printing a fabricated 0. */
+  difference(): number | null;
+  /** Where `difference()` came from: the served field, the gateway's own
+   *  arithmetic over served totals, or nowhere. */
+  differenceOrigin(): DifferenceOrigin;
+  /** The served totals the derivation consumed. A surface describing the
+   *  derivation may name these and nothing else. */
+  differenceTerms(): readonly DifferenceTerm[];
   diagnosis(): { code: string; detail: string }[];
   reconciliation(): ServedReconciliation | null;
   reconciliationAdjustment(): ServedReconciliationAdjustment | null;
@@ -225,23 +297,95 @@ export interface ServedFacts {
 export function canonicalStatusCore(cbs: CanonicalBs): {
   status: CanonicalBsStatus;
   needsReview: boolean;
-  differenceCents: number;
-  totalAssetsCents: number;
-  equityPlusLiabilitiesCents: number;
+  /** THE drift, in cents — or `null` when it cannot be stated at all. */
+  differenceCents: number | null;
+  differenceServed: boolean;
+  differenceOrigin: DifferenceOrigin;
+  /** The served totals the derivation actually consumed. Empty when the
+   *  difference was served (nothing was derived) and when it is
+   *  unavailable (nothing could be). A surface naming the derivation
+   *  reads THIS, so it can never name a term the computation lacked. */
+  differenceTerms: readonly DifferenceTerm[];
+  /** Served `totals.assets`, or NULL — never a `?? 0` stand-in. */
+  totalAssetsCents: number | null;
+  /** The E+L SIDE: served `equity_plus_liabilities`, or the equity AND
+   *  liabilities pair together. NULL when neither route is complete. */
+  equityPlusLiabilitiesCents: number | null;
+  /** The two halves as SERVED — never derived from each other. A
+   *  consumer that needs `liabilities` reads this, not
+   *  `equityPlusLiabilitiesCents − equityCents`. */
+  equityCents: number | null;
+  liabilitiesCents: number | null;
 } {
-  const assets = centsOrNull(cbs.totals?.assets) ?? 0;
+  const assets = centsOrNull(cbs.totals?.assets);
+  const elServed = centsOrNull(cbs.totals?.equity_plus_liabilities);
+  const equity = centsOrNull(cbs.totals?.equity);
+  const liabilities = centsOrNull(cbs.totals?.liabilities);
+  // ── WHICH TERMS THE DERIVATION ACTUALLY HAS ────────────────────────
+  //
+  // This used to read every total as `?? 0` and then subtract. On an
+  // envelope whose `totals.liabilities` was missing, the receipt printed
+  // "Status BALANCED · Difference 18,990,225 RON" — and 18,990,224.60 is
+  // exactly the liabilities total that went missing, so the "drift" WAS
+  // the absent term. On `totals: {}` it printed a difference of 0 with
+  // `differenceServed: false`: a fabricated perfect balance, on the one
+  // surface in the product whose entire job is to be trustworthy.
+  //
+  // ABSENT IS NOT ZERO, and the E+L side is reachable two ways: the
+  // served `equity_plus_liabilities`, or equity AND liabilities TOGETHER
+  // — one of that pair alone is not a side, it is half of one.
+  const elTerms: DifferenceTerm[] =
+    elServed !== null
+      ? ["equity_plus_liabilities"]
+      : equity !== null && liabilities !== null
+        ? ["equity", "liabilities"]
+        : [];
   const el =
-    centsOrNull(cbs.totals?.equity_plus_liabilities) ??
-    (centsOrNull(cbs.totals?.equity) ?? 0) + (centsOrNull(cbs.totals?.liabilities) ?? 0);
+    elServed !== null
+      ? elServed
+      : elTerms.length === 2
+        ? (equity as number) + (liabilities as number)
+        : null;
+  // The served field when there is one; the fallback is recorded AS a
+  // fallback so no surface can name a field the envelope never carried.
+  const servedDifference = centsOrNull(cbs.difference);
+  const derivable = assets !== null && el !== null;
+  const differenceCents =
+    servedDifference !== null ? servedDifference : derivable ? assets - el : null;
+  const differenceOrigin: DifferenceOrigin =
+    servedDifference !== null ? "served" : derivable ? "client-derived" : "unavailable";
   return {
     status: cbs.status,
     // Boolean form only — the AI-lane ARRAY form is a different situation
     // (low-confidence lines), surfaced separately by the view meta.
     needsReview: cbs.needs_review === true,
-    differenceCents: centsOrNull(cbs.difference) ?? assets - el,
+    differenceCents,
+    differenceServed: servedDifference !== null,
+    differenceOrigin,
+    differenceTerms: differenceOrigin === "client-derived" ? ["assets", ...elTerms] : [],
+    // The TOTALS accessors keep their contract-guarded fallback: the
+    // canonical_bs contract requires `totals.assets` and the current
+    // splits, so a missing one is a malformed envelope rather than an
+    // unfiled figure. What is no longer allowed is that fallback quietly
+    // becoming a DIFFERENCE — a verdict — which is what it was doing.
+    //
+    // THE `?? 0` IS GONE HERE TOO. It was kept on the two totals on the
+    // reasoning that a missing one is "a malformed envelope rather than
+    // an unfiled figure" — but a malformed envelope does not make a
+    // fabricated figure safe, it makes it worse, because nothing
+    // downstream knows the envelope was malformed. The zero then fed
+    // `centsFromCanonical`, which derived liabilities as `0 − equity`.
     totalAssetsCents: assets,
     equityPlusLiabilitiesCents: el,
+    equityCents: equity,
+    liabilitiesCents: liabilities,
   };
+}
+
+/** a − b, absent when either side is. The one subtraction helper for
+ *  cents: `null` propagates instead of reading as 0. */
+function subCents(a: number | null, b: number | null): number | null {
+  return a === null || b === null ? null : a - b;
 }
 
 // ─── The gateway ────────────────────────────────────────────────────────
@@ -274,16 +418,20 @@ export function factsFrom(statements: Statements): ServedFacts {
     status: () => cents.status,
     needsReview: () => cents.needsReview,
     mappingVersion: () => cents.mappingVersion,
-    totalAssets: () => toDisplay(cents.totalAssetsCents),
-    totalEquity: () => toDisplay(cents.totalEquityCents),
-    totalLiabilities: () => toDisplay(cents.totalLiabilitiesCents),
-    equityPlusLiabilities: () => toDisplay(cents.equityPlusLiabilitiesCents),
-    currentAssets: () => toDisplay(cents.currentAssetsCents),
-    currentLiabilities: () => toDisplay(cents.currentLiabilitiesCents),
-    nonCurrentAssets: () => toDisplay(cents.nonCurrentAssetsCents),
-    nonCurrentLiabilities: () => toDisplay(cents.nonCurrentLiabilitiesCents),
-    workingCapital: () => toDisplay(cents.currentAssetsCents - cents.currentLiabilitiesCents),
-    difference: () => toDisplay(cents.differenceCents),
+    totalAssets: () => toDisplayOrNull(cents.totalAssetsCents),
+    totalEquity: () => toDisplayOrNull(cents.totalEquityCents),
+    totalLiabilities: () => toDisplayOrNull(cents.totalLiabilitiesCents),
+    equityPlusLiabilities: () => toDisplayOrNull(cents.equityPlusLiabilitiesCents),
+    currentAssets: () => toDisplayOrNull(cents.currentAssetsCents),
+    currentLiabilities: () => toDisplayOrNull(cents.currentLiabilitiesCents),
+    nonCurrentAssets: () => toDisplayOrNull(cents.nonCurrentAssetsCents),
+    nonCurrentLiabilities: () => toDisplayOrNull(cents.nonCurrentLiabilitiesCents),
+    workingCapital: () =>
+      toDisplayOrNull(subCents(cents.currentAssetsCents, cents.currentLiabilitiesCents)),
+    difference: () =>
+      cents.differenceCents === null ? null : toDisplay(cents.differenceCents),
+    differenceOrigin: () => cents.differenceOrigin,
+    differenceTerms: () => cents.differenceTerms,
     diagnosis: () =>
       (cbs?.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
     reconciliation: () => rec,
@@ -295,7 +443,7 @@ export function factsFrom(statements: Statements): ServedFacts {
         needsReview: cents.needsReview,
         reconciliation: rec,
         mappingVersion: cents.mappingVersion,
-        difference: toDisplay(cents.differenceCents),
+        difference: cents.differenceCents === null ? null : toDisplay(cents.differenceCents),
         currency: currency ?? statements.currency,
         statusPresentation: servedPresentation,
       }),
@@ -305,13 +453,24 @@ export function factsFrom(statements: Statements): ServedFacts {
 
 function centsFromCanonical(cbs: CanonicalBs): ServedBsFactsCents {
   const core = canonicalStatusCore(cbs);
-  const equity = centsOrNull(cbs.totals.equity) ?? 0;
-  const liabilities =
-    centsOrNull(cbs.totals.liabilities) ?? core.equityPlusLiabilitiesCents - equity;
-  // Contract guarantees the current splits on `totals`; the ?? 0 guards a
-  // malformed envelope without inventing a mixed-lane figure.
-  const currentAssets = centsOrNull(cbs.totals.current_assets) ?? 0;
-  const currentLiabilities = centsOrNull(cbs.totals.current_liabilities) ?? 0;
+  // ── THE PAIR IS COMPLETED ONLY FROM SERVED TERMS ────────────────────
+  //
+  // `equity` and `liabilities` are the two halves of one side. Completing
+  // either from the OTHER plus a `?? 0`-ed side total is how a missing
+  // liabilities figure became −106.9 M. Each half may be completed only
+  // from the SERVED side total minus the SERVED other half — never from
+  // an `el` that was itself derived out of the pair (that is circular:
+  // it hands back the term it was built from), and never at all when a
+  // term of that subtraction is absent.
+  const equityServed = core.equityCents;
+  const liabilitiesServed = core.liabilitiesCents;
+  const elServed = centsOrNull(cbs.totals.equity_plus_liabilities);
+  const equity = equityServed ?? subCents(elServed, liabilitiesServed);
+  const liabilities = liabilitiesServed ?? subCents(elServed, equityServed);
+  // The current splits are contract-guaranteed, so an absent one is a
+  // malformed envelope — which is a reason to REFUSE, not to print 0.
+  const currentAssets = centsOrNull(cbs.totals.current_assets);
+  const currentLiabilities = centsOrNull(cbs.totals.current_liabilities);
   return {
     source: "canonical",
     status: core.status,
@@ -323,9 +482,15 @@ function centsFromCanonical(cbs: CanonicalBs): ServedBsFactsCents {
     equityPlusLiabilitiesCents: core.equityPlusLiabilitiesCents,
     currentAssetsCents: currentAssets,
     currentLiabilitiesCents: currentLiabilities,
-    nonCurrentAssetsCents: core.totalAssetsCents - currentAssets,
-    nonCurrentLiabilitiesCents: liabilities - currentLiabilities,
+    // Splits of an absent total are absent. `assets − currentAssets` with
+    // either side missing is not a non-current balance, it is the other
+    // side wearing a non-current label.
+    nonCurrentAssetsCents: subCents(core.totalAssetsCents, currentAssets),
+    nonCurrentLiabilitiesCents: subCents(liabilities, currentLiabilities),
     differenceCents: core.differenceCents,
+    differenceServed: core.differenceServed,
+    differenceOrigin: core.differenceOrigin,
+    differenceTerms: core.differenceTerms,
   };
 }
 
@@ -362,9 +527,8 @@ function centsFromLegacy(statements: Statements): ServedBsFactsCents {
     (hasEnvelope ? centsOrNull(ab.total_non_current_liabilities) : null) ??
     liabilities - currentLiabilities;
 
-  const difference =
-    (hasEnvelope ? centsOrNull(ab.bs_balance_delta) : null) ??
-    assets - (equity + liabilities);
+  const servedDelta = hasEnvelope ? centsOrNull(ab.bs_balance_delta) : null;
+  const difference = servedDelta ?? assets - (equity + liabilities);
 
   return {
     source: "legacy",
@@ -381,6 +545,12 @@ function centsFromLegacy(statements: Statements): ServedBsFactsCents {
     nonCurrentAssetsCents: nonCurrentAssets,
     nonCurrentLiabilitiesCents: nonCurrentLiabilities,
     differenceCents: difference,
+    differenceServed: servedDelta !== null,
+    // The legacy lane's terms are always the full triple: `hasEnvelope`
+    // consumes the three engine totals together or not at all, and the
+    // final fallback is deriveTotals, which always produces all three.
+    differenceOrigin: servedDelta !== null ? "served" : "client-derived",
+    differenceTerms: servedDelta !== null ? [] : ["assets", "equity", "liabilities"],
   };
 }
 
@@ -402,14 +572,24 @@ function summaryRonCents(v: unknown): number | null {
  *  TOTAL, derived.total_assets = I1+I2+I6 (ingest-precomputed). */
 function centsFromSummary(ps: ServedPublicSummary): ServedBsFactsCents {
   const ind = ps.indicators ?? {};
-  const assets =
-    summaryRonCents(ps.derived?.total_assets) ??
-    (summaryRonCents(ind.I1) ?? 0) +
-      (summaryRonCents(ind.I2) ?? 0) +
-      (summaryRonCents(ind.I6) ?? 0);
-  const equity = summaryRonCents(ind.I10) ?? 0;
-  const liabilities = summaryRonCents(ind.I7) ?? 0;
-  const currentAssets = summaryRonCents(ind.I2) ?? 0;
+  // ── I1 + I2 + I6 IS A SUM, NOT A BEST EFFORT ────────────────────────
+  //
+  // This read each indicator as `?? 0` and added them, so a filing whose
+  // I1 (imobilizări) did not parse published its CURRENT assets as its
+  // TOTAL assets — the same "an absent term becomes the other terms"
+  // shape as the canonical lane's `0 − equity`, on a page that is public,
+  // cached and indexed. PS1 in this repo's own invariant list already
+  // says it: "Summary facts REFUSE rather than approximate. ABSENT ≠
+  // ZERO." The ingest-precomputed `derived.total_assets` stays the
+  // preferred source; the fallback now needs all three of its terms.
+  const parts = [ind.I1, ind.I2, ind.I6].map(summaryRonCents);
+  const summed = parts.every((v) => v !== null)
+    ? (parts as number[]).reduce((a, b) => a + b, 0)
+    : null;
+  const assets = summaryRonCents(ps.derived?.total_assets) ?? summed;
+  const equity = summaryRonCents(ind.I10);
+  const liabilities = summaryRonCents(ind.I7);
+  const currentAssets = summaryRonCents(ind.I2);
   return {
     source: "public_summary",
     // Open-data summaries carry no engine verdict — null family, so the
@@ -420,17 +600,23 @@ function centsFromSummary(ps: ServedPublicSummary): ServedBsFactsCents {
     totalAssetsCents: assets,
     totalEquityCents: equity,
     totalLiabilitiesCents: liabilities,
-    equityPlusLiabilitiesCents: equity + liabilities,
+    equityPlusLiabilitiesCents:
+      equity === null || liabilities === null ? null : equity + liabilities,
     currentAssetsCents: currentAssets,
     // I7 has no maturity split — 0 here is "no detail", and no surface
     // words a drift or a split on the null-status lane.
     currentLiabilitiesCents: 0,
-    nonCurrentAssetsCents: assets - currentAssets,
+    nonCurrentAssetsCents: subCents(assets, currentAssets),
     nonCurrentLiabilitiesCents: liabilities,
     // No drift concept exists on this lane: I10+I7 deliberately omits
     // I8/I9 (venituri in avans / provizioane), so assets−(E+L) would be
     // a fake imbalance. Status is null — nothing renders a difference.
-    differenceCents: 0,
+    // NULL, not 0: "there is no drift to state" and "the drift is zero"
+    // are different claims, and only the first one is true here.
+    differenceCents: null,
+    differenceServed: false,
+    differenceOrigin: "unavailable",
+    differenceTerms: [],
   };
 }
 
@@ -478,15 +664,22 @@ export const SYNTHETIC_ROW_LABEL = "Diferențe de reconciliere";
 // ─── rawFacts — audit/receipt/undo UI ONLY ──────────────────────────────
 
 export interface RawBsFactsForAuditOnly {
-  /** The TRUE pre-adjustment source drift (receipt.original_difference). */
-  originalDifference: number;
+  /** The TRUE pre-adjustment source drift (receipt.original_difference).
+   *  NULL when the envelope carried neither a receipt figure nor the
+   *  totals to reconstruct one — this field used to be typed `number`
+   *  while being assigned `facts.difference()`, which is `number | null`,
+   *  so an unavailable drift arrived at the audit receipt as a
+   *  fabricated `0`. `strictNullChecks` is off for the frontend project,
+   *  which is why nothing said so; `scripts/check_null_boundaries.mjs`
+   *  now does. */
+  originalDifference: number | null;
   /** Pre-adjustment totals, reconstructed by reversing the served
    *  placement application. Equal to the served totals when no
-   *  reconciliation is applied. */
-  totalAssets: number;
-  totalEquity: number;
-  totalLiabilities: number;
-  equityPlusLiabilities: number;
+   *  reconciliation is applied. ABSENT when the served total was. */
+  totalAssets: number | null;
+  totalEquity: number | null;
+  totalLiabilities: number | null;
+  equityPlusLiabilities: number | null;
   appliedDelta: number;
   placement: "balance_sheet" | "pnl" | null;
 }
@@ -518,24 +711,28 @@ export function rawFactsForAuditOnly(statements: Statements): RawBsFactsForAudit
   }
   const deltaCents = centsOrNull(rec.applied_delta) ?? 0;
   const placement = rec.placement === "pnl" ? "pnl" : "balance_sheet";
+  // Reversing an adjustment out of an ABSENT total does not recover a
+  // pre-adjustment figure — it produces `−delta` wearing the total's
+  // name. `subCents` keeps the absence.
   let assets = c.totalAssetsCents;
   let equity = c.totalEquityCents;
   let liabilities = c.totalLiabilitiesCents;
   // Reverse of the engine's _apply_adjustment: "pnl" adjusted equity via
   // the result row; BS placement adjusted current liabilities (delta > 0)
   // or current assets (delta < 0).
-  if (placement === "pnl") equity -= deltaCents;
-  else if (deltaCents > 0) liabilities -= deltaCents;
-  else assets -= -deltaCents;
+  if (placement === "pnl") equity = subCents(equity, deltaCents);
+  else if (deltaCents > 0) liabilities = subCents(liabilities, deltaCents);
+  else assets = subCents(assets, -deltaCents);
+  const el = equity === null || liabilities === null ? null : equity + liabilities;
   return {
     originalDifference:
       typeof rec.original_difference === "number"
         ? rec.original_difference
-        : toDisplay(assets - (equity + liabilities)),
-    totalAssets: toDisplay(assets),
-    totalEquity: toDisplay(equity),
-    totalLiabilities: toDisplay(liabilities),
-    equityPlusLiabilities: toDisplay(equity + liabilities),
+        : toDisplayOrNull(subCents(assets, el)),
+    totalAssets: toDisplayOrNull(assets),
+    totalEquity: toDisplayOrNull(equity),
+    totalLiabilities: toDisplayOrNull(liabilities),
+    equityPlusLiabilities: toDisplayOrNull(el),
     appliedDelta: toDisplay(deltaCents),
     placement,
   };
@@ -585,8 +782,10 @@ export interface PresentStatusInput {
   needsReview?: boolean;
   reconciliation?: ServedReconciliation | null;
   mappingVersion?: string | null;
-  /** Display units — the served difference (for drift sentences). */
-  difference?: number;
+  /** Display units — the served difference (for drift sentences). NULL
+   *  when the envelope carried neither the field nor the totals to derive
+   *  one; the drift sentences then state that instead of printing 0. */
+  difference?: number | null;
   currency?: string;
   /** Engine-stamped presenter output (canonical_bs.status_presentation)
    *  — consumed verbatim as the display authority when present. */
@@ -650,8 +849,19 @@ function mirrorMicroCaption(
 
 export function presentStatus(input: PresentStatusInput): BsStatusPresentation {
   const currency = input.currency ?? "RON";
-  const diff = input.difference ?? 0;
   const w = bsCanonicalEn;
+  // `diff` used to be `input.difference ?? 0`, so an UNAVAILABLE drift
+  // printed as "Assets − (Equity + Liabilities) = RON 0.00" in every
+  // export — a fabricated perfect balance, stated as an equation whose
+  // terms the envelope never supplied. An absent drift is now spelled
+  // out as absent wherever it would otherwise be spelled as a number.
+  const diffKnown = typeof input.difference === "number" && Number.isFinite(input.difference);
+  const diff = diffKnown ? (input.difference as number) : 0;
+  const driftSentence = (prefix: string): string =>
+    diffKnown
+      ? `${w.difference}: ${prefix}${moneyEn(diff, currency)}.`
+      : `${w.difference}: not stated — the served envelope carried neither a ` +
+        `balance difference nor the totals to derive one.`;
 
   if (input.status === null || input.status === undefined) {
     // Legacy period — no engine verdict exists; the export must not claim
@@ -749,7 +959,7 @@ export function presentStatus(input: PresentStatusInput): BsStatusPresentation {
           chipCaptionKey: null,
           exportStatusCell: "MINOR_DRIFT",
           exportHeadline: `Balance check: ${w.minorDrift} — ${w.reconcile.needsReview}.`,
-          exportDetail: `${w.difference}: ${moneyEn(diff, currency)}. ${w.reconcile.needsReviewBody}`,
+          exportDetail: `${driftSentence("")} ${w.reconcile.needsReviewBody}`,
         };
       }
       return {
@@ -761,7 +971,7 @@ export function presentStatus(input: PresentStatusInput): BsStatusPresentation {
         chipCaptionKey: null,
         exportStatusCell: "MINOR_DRIFT",
         exportHeadline: `Balance check: ${w.minorDrift}.`,
-        exportDetail: `${w.difference}: Assets − (Equity + Liabilities) = ${moneyEn(diff, currency)}.`,
+        exportDetail: driftSentence("Assets − (Equity + Liabilities) = "),
       };
     case "MATERIAL_IMBALANCE":
     default:
@@ -774,7 +984,7 @@ export function presentStatus(input: PresentStatusInput): BsStatusPresentation {
         chipCaptionKey: null,
         exportStatusCell: "MATERIAL_IMBALANCE",
         exportHeadline: `Balance check: ${w.material}.`,
-        exportDetail: `${w.materialBody} ${w.difference}: Assets − (Equity + Liabilities) = ${moneyEn(diff, currency)}.`,
+        exportDetail: `${w.materialBody} ${driftSentence("Assets − (Equity + Liabilities) = ")}`,
       };
   }
 }

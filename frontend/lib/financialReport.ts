@@ -18,6 +18,35 @@
 // P&L concepts + debt decomposition (not carried by canonical_bs), but no
 // consumer below reads BS grand totals from it directly anymore.
 import { factsFrom, presentStatus } from "./servedFacts";
+// ABSENCE-AWARE ARITHMETIC — see absentAware.ts for why `safeDiv` had to
+// go. Every ratio below is built out of `Fig`s so a missing input or a
+// zero denominator produces a stated refusal instead of a confident 0.
+import {
+  absent,
+  add,
+  atLeast,
+  div,
+  known,
+  mul,
+  num,
+  pctOf,
+  sub,
+  type Fig,
+  type FigureAbsence,
+} from "./absentAware";
+
+export type { FigureAbsence } from "./absentAware";
+// TYPE-ONLY, AND DELIBERATELY SO. `financialValuation.ts` imports values
+// from this file; a value import back would be a runtime cycle. The credit
+// reader's RESULT is threaded in from the caller instead — which is also
+// the point: this module holds no scoring model of its own any more, so it
+// cannot answer a credit question without being handed the one answer.
+import type { CreditScoreResult } from "./financialValuation";
+// VALUE import, and safe: `creditModel.ts` is a leaf that imports nothing,
+// which is why the composer was moved there. This document must spell the
+// ladder with the SAME function the screens do — it had its own inline
+// sort/map/join, which is a second spelling of one table.
+import { spellLadder } from "./creditModel";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +136,29 @@ export interface PriorPeriod {
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
 }
+
+/** A named line on either statement — the vocabulary an absence manifest
+ *  and a reported-total override speak. */
+export type StatementInput = keyof BalanceSheet | keyof IncomeStatement;
+
+/** Totals a SOURCE reported directly, rather than ones reconstructed from
+ *  the line items. */
+export type ReportedTotalKey =
+  | "totalCurrentAssets"
+  | "totalNonCurrentAssets"
+  | "totalAssets"
+  | "totalCurrentLiabilities"
+  | "totalNonCurrentLiabilities"
+  | "totalLiabilities"
+  | "totalEquity"
+  | "grossProfit"
+  | "ebitda"
+  | "ebit"
+  | "pbt"
+  | "netIncome"
+  | "totalDebt"
+  | "workingCapital"
+  | "netDebt";
 
 // ─── canonical_bs v2 — the engine-owned Balance Sheet authority ─────────────
 // Contract: docs/CANONICAL_BS_V2_CONTRACT.md. Computed ONCE at write time by
@@ -413,6 +465,42 @@ export interface Statements {
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
   supplementary: SupplementaryData;
+
+  // ── WHAT THE SOURCE DID NOT CARRY ───────────────────────────────────
+  //
+  // `BalanceSheet` and `IncomeStatement` are all-number types, so a field
+  // the source never reported has to be written as SOMETHING — and every
+  // adapter wrote `0`. On a trial balance that is honest: a bucket with
+  // no accounts in it really is zero. On a vendor feed that bundles line
+  // items it is not: `interest_expense_bank` absent from a Sharadar SF1
+  // envelope means Apple's interest expense was not in the feed, not that
+  // Apple paid none — and `computeRatios` then divided by it and reported
+  // `interest_coverage 0.00x critical`, with a provenance card on it.
+  //
+  // These two fields let a source say what it actually knows without
+  // widening the numeric types (and so without changing the statement
+  // renderers, which already paint the gap glyph below 0.005).
+
+  /**
+   * Line items the SOURCE did not report. A name listed here is ABSENT —
+   * whatever number the field holds is a placeholder, and every ratio
+   * that needs it refuses instead of computing.
+   *
+   * Absent or empty on the private path: a trial balance is complete by
+   * construction, so a zero bucket is a measured zero.
+   */
+  absentInputs?: readonly StatementInput[];
+  /**
+   * Totals the SOURCE reported directly. Preferred over reconstructing
+   * them from the line items — which is what makes a feed that reports
+   * EBITDA but no cost breakdown usable at all: `deriveTotals` would
+   * rebuild EBITDA as `revenue − 0 − 0`, i.e. revenue, and every margin
+   * and coverage ratio downstream would be computed against it.
+   *
+   * Never set on the private path, where the line items ARE the source.
+   */
+  reportedTotals?: Partial<Record<ReportedTotalKey, number>>;
+
   /** Optional prior-period statements for trend lines. */
   prior?: PriorPeriod;
   /** Optional multi-year history (oldest → newest, NOT including current). */
@@ -552,29 +640,169 @@ export function deriveTotals(s: Statements): DerivedTotals {
 
 // ─── Ratios ─────────────────────────────────────────────────────────────────
 
-export type RatioVerdict = "strong" | "healthy" | "watch" | "critical";
+/** "unknown" is a REFUSAL, not a fifth band: the ratio has no value, so
+ *  it has no verdict either. It exists so nothing downstream can grade a
+ *  figure that was never computed — the pre-2026-09-04 code returned 0
+ *  from a division it could not perform and `verdictFromBands` graded
+ *  that 0 as "critical", which is how the AAPL page came to show
+ *  `interest_coverage 0.00x CRITICAL` for a company whose EBIT in the
+ *  same fixture is 123,216,000,000. */
+export type RatioVerdict = "strong" | "healthy" | "watch" | "critical" | "unknown";
 
 export interface Ratio {
   key: string;
   label: string;
-  value: number;
+  /** NULL when the ratio could not be computed. `unavailable` then says
+   *  why, and every renderer must state that rather than print a figure. */
+  value: number | null;
   unit: "x" | "%" | "days" | "ratio";
   verdict: RatioVerdict;
   benchmark: string;
+  /** Present iff `value` is null. Carries the reason in a form the UI can
+   *  turn into the product's own words — which inputs the filing did not
+   *  carry, or which denominator is zero. */
+  unavailable?: FigureAbsence;
   commentary: string;
 }
 
+// ── `bankruptcy` IS NOT A FIELD OF THIS BUNDLE, AND THAT IS THE FIX ────
+//
+// It used to be — one row, `altman_z`, built by a Z″ formula written
+// inline in `computeRatios`. That made THREE arithmetics in this codebase
+// claiming the name "Altman Z″ (1995 EM)": the engine's, the credit
+// reader's FE fallback (`altmanZScore`) and this one. Measured on the real
+// Scandia period, engine envelope intact:
+//
+//     credit reader (Risks tab · hero · /report · workbook)   0.22
+//     computeRatios().bankruptcy, no engine metric map        0.18590918
+//
+// and the second one is what `renderReportHtml` rendered, because it
+// called `computeRatios(s)` with no map. The printed board pack said
+// Z″ 0.19, badge "Critical", "Bankruptcy risk: distress zone. Action
+// required." while every screen said 0.22.
+//
+// ⚠ THREADING THE ENGINE MAP IS NOT THE FIX. It makes them agree only
+// while `calculated_metrics.altman_z_score` happens to arrive: delete
+// that ONE row and the reader still answers 0.22 (it falls back to the
+// credit envelope's own `altman_z_score`) while this group falls back to
+// its inline formula and answers 0.18590918 again. Measured. The
+// workbook learned this first (financialExports.ts:303) and stopped
+// exporting the group; the group is now gone from the type, so tsc
+// enumerates every surface that used to render it instead of a human
+// remembering to.
+//
+// THE ONE Altman row every surface renders is `altmanRatio(credit)`
+// below — the credit reader's `AltmanResult`, wearing the `Ratio` shape.
 export interface RatioBundle {
   liquidity: Ratio[];
   profitability: Ratio[];
   leverage: Ratio[];
   coverage: Ratio[];
   efficiency: Ratio[];
-  bankruptcy: Ratio[];
 }
 
 const safeDiv = (a: number, b: number): number => (b === 0 ? 0 : a / b);
 const pct = (a: number, b: number): number => safeDiv(a, b) * 100;
+
+/** The word a sentence uses where a figure would have gone. Not "—": a
+ *  dash inside prose reads as a typesetting accident, and a reader who
+ *  has to guess what it means guesses "zero". */
+export const UNREPORTED_WORD = "not reported";
+
+/** Reader-facing words for a statement line. A refusal names the CONCEPT
+ *  the filing is missing, not the camelCase field the code happens to
+ *  call it — a reader checking their own statements is looking for
+ *  "interest expense", not `interestExpense`. */
+const INPUT_WORDS: Partial<Record<StatementInput, string>> = {
+  cash: "cash",
+  accountsReceivable: "trade receivables",
+  inventory: "inventory",
+  otherCurrentAssets: "other current assets",
+  propertyPlantEquipment: "property, plant & equipment",
+  intangibles: "intangible assets",
+  otherNonCurrentAssets: "other non-current assets",
+  accountsPayable: "trade payables",
+  shortTermDebt: "short-term debt",
+  otherCurrentLiabilities: "other current liabilities",
+  longTermDebt: "long-term debt",
+  otherNonCurrentLiabilities: "other non-current liabilities",
+  shareCapital: "share capital",
+  retainedEarnings: "retained earnings",
+  otherEquity: "other equity",
+  revenue: "revenue",
+  costOfGoodsSold: "cost of sales",
+  operatingExpenses: "operating expenses",
+  depreciationAmortization: "depreciation & amortization",
+  interestExpense: "interest expense",
+  otherIncome: "other operating income",
+  taxExpense: "income tax",
+  financialIncome: "financial income",
+  financialExpense: "financial expense",
+};
+
+function inputWord(name: string): string {
+  return INPUT_WORDS[name as StatementInput] ?? name;
+}
+
+/** The i18n coordinates of a refusal: which of the three sentences, and
+ *  the interpolation values it needs.
+ *
+ *  ── WHY THIS EXISTS ────────────────────────────────────────────────
+ *  `describeAbsence` returns hard-coded English. On the ratio card and in
+ *  the ratio drawer, the verdict chip beside it renders
+ *  `t("dashV2.ratioVerdictUnknown")` — "Neraportat" in Romanian — so a
+ *  Romanian reader saw a translated chip sitting directly on top of an
+ *  English sentence. A half-translated refusal is a half-built refusal:
+ *  the reader can see the product knows the figure is missing and cannot
+ *  read WHY, which is the only part that tells them what to do next.
+ *
+ *  The structured form is what the UI renders; `describeAbsence` stays as
+ *  the ENGLISH surface for the English-by-design outputs (the generated
+ *  HTML board pack, the Excel workbook, `Ratio.commentary` as a
+ *  non-React fallback). Both are built from this one function, so the two
+ *  spellings can never diverge in substance. */
+export function absenceI18n(a: FigureAbsence): {
+  /** Key under the `ratioAbsence` bundle (components/cfo/ratioAbsenceI18n). */
+  key: "undefinedRatio" | "missingNamed" | "missingUnnamed";
+  /** Interpolation values, already reader-worded (never camelCase). */
+  vars: { denominator?: string; inputs?: string };
+  /** Canonical input words, in order — for a caller that lays them out
+   *  itself rather than using the joined string. */
+  inputWords: readonly string[];
+} {
+  if (a.kind === "undefined_ratio") {
+    return { key: "undefinedRatio", vars: { denominator: a.denominator }, inputWords: [] };
+  }
+  const words = a.inputs.map(inputWord);
+  if (words.length === 0) return { key: "missingUnnamed", vars: {}, inputWords: [] };
+  const list =
+    words.length === 1
+      ? words[0]
+      : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+  return { key: "missingNamed", vars: { inputs: list }, inputWords: words };
+}
+
+/** Turn an absence into the ENGLISH sentence a reader sees.
+ *
+ *  The two kinds are genuinely different situations and the reader's next
+ *  move differs, so they get different sentences: one says their filing
+ *  is missing something, the other says this quantity has no value for
+ *  this company. Neither is ever a blank.
+ *
+ *  ⚠ ENGLISH ONLY. Every localized surface renders `absenceI18n()` through
+ *  `components/cfo/ratioAbsenceI18n`; this stays for the outputs that are
+ *  English by contract (generated HTML report, Excel workbook). */
+export function describeAbsence(a: FigureAbsence): string {
+  const d = absenceI18n(a);
+  switch (d.key) {
+    case "undefinedRatio":
+      return `Undefined — ${d.vars.denominator} is zero, so this ratio has no value for this period.`;
+    case "missingUnnamed":
+      return "Not reported — an input this ratio needs is missing from the filing.";
+    case "missingNamed":
+      return `Not reported — this filing does not carry ${d.vars.inputs}.`;
+  }
+}
 
 function verdictFromBands(
   value: number,
@@ -626,6 +854,132 @@ export function computeRatios(
   const sup = s.supplementary;
   const days = sup.periodDays ?? 365;
 
+  // ── WHAT THIS SOURCE ACTUALLY REPORTED ──────────────────────────────
+  //
+  // Everything below is built out of `Fig`s (lib/absentAware). A `Fig` is
+  // a number that may be ABSENT and, when it is, carries the reason. The
+  // whole file used to run on
+  //
+  //     const safeDiv = (a, b) => (b === 0 ? 0 : a / b);
+  //
+  // which told two lies: a division by zero is undefined rather than
+  // zero, and by the time a value arrived here an unreported input had
+  // already been written as `0` by its adapter, so the "denominator" was
+  // a figure the filing never carried. On the repo's own AAPL fixture
+  // that produced `interest_coverage 0.00x critical` next to an EBIT of
+  // 123,216,000,000, `dpo 0 d`, `dio 232 d` and `current_ratio 0.23x` —
+  // fifteen ratios wearing provenance cards over inputs that read
+  // `cogs: 0, opex: 0, interestExpense: 0, accountsPayable: 0,
+  // longTermDebt: 0`, every one of them an ABSENT leaf.
+  const declaredAbsent = new Set<string>(s.absentInputs ?? []);
+  /** A balance-sheet line as a figure. */
+  const B = (k: keyof BalanceSheet): Fig =>
+    declaredAbsent.has(k) ? absent(k) : num(k, bs[k]);
+  /** A P&L line as a figure. */
+  const I = (k: keyof IncomeStatement): Fig =>
+    declaredAbsent.has(k) ? absent(k) : num(k, is[k] as number | undefined);
+  /** A total the SOURCE reported, when it did. */
+  const R = (k: ReportedTotalKey): number | undefined => {
+    const v = s.reportedTotals?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  };
+  /** Reported total, else the reconstruction from line items. */
+  const total = (k: ReportedTotalKey, reconstructed: Fig): Fig => {
+    const r = R(k);
+    return r === undefined ? reconstructed : known(r);
+  };
+  // A source that declares absences has no served envelope behind it (the
+  // public-company adapter builds neither `canonical_bs` nor
+  // `assembled_bs`), so the gateway's totals are bucket sums over exactly
+  // the fields the manifest describes and inherit their absences. With no
+  // manifest the gateway's own figure is authoritative and this reads it
+  // verbatim — the private path's numbers are unchanged.
+  const declaresAbsence = declaredAbsent.size > 0 || s.reportedTotals !== undefined;
+  // `read` is ABSENT-CAPABLE: the servedFacts accessors return
+  // `number | null`, and `num()` turns a null into a Fig that names the
+  // missing total. Typing it `() => number` here would have let a null
+  // through into the algebra, where it reads as 0.
+  const gate = (name: string, read: () => number | null, reconstructed: Fig): Fig =>
+    declaresAbsence ? reconstructed : num(name, read());
+
+  const currentAssets = total(
+    "totalCurrentAssets",
+    gate(
+      "current assets",
+      () => sf.currentAssets(),
+      add(B("cash"), B("accountsReceivable"), B("inventory"), B("otherCurrentAssets")),
+    ),
+  );
+  const currentLiabilities = total(
+    "totalCurrentLiabilities",
+    gate(
+      "current liabilities",
+      () => sf.currentLiabilities(),
+      add(B("accountsPayable"), B("shortTermDebt"), B("otherCurrentLiabilities")),
+    ),
+  );
+  const totalAssets = total(
+    "totalAssets",
+    gate(
+      "total assets",
+      () => sf.totalAssets(),
+      add(
+        B("cash"), B("accountsReceivable"), B("inventory"), B("otherCurrentAssets"),
+        B("propertyPlantEquipment"), B("intangibles"), B("otherNonCurrentAssets"),
+      ),
+    ),
+  );
+  const totalEquity = total(
+    "totalEquity",
+    gate(
+      "total equity",
+      () => sf.totalEquity(),
+      add(B("shareCapital"), B("retainedEarnings"), B("otherEquity")),
+    ),
+  );
+  const totalLiabilities = total(
+    "totalLiabilities",
+    gate(
+      "total liabilities",
+      () => sf.totalLiabilities(),
+      add(currentLiabilities, B("longTermDebt"), B("otherNonCurrentLiabilities")),
+    ),
+  );
+  const workingCapital = total(
+    "workingCapital",
+    gate(
+      "working capital",
+      () => sf.workingCapital(),
+      sub(currentAssets, currentLiabilities),
+    ),
+  );
+  const totalDebt = total("totalDebt", add(B("shortTermDebt"), B("longTermDebt")));
+
+  // P&L levels. `reportedTotals` first: a feed that reports EBITDA but no
+  // cost breakdown would otherwise have EBITDA rebuilt as
+  // `revenue − 0 − 0` — on AAPL that is 391.0 B standing in for the 134.7 B
+  // the same envelope reports, and every margin and coverage ratio
+  // downstream is then computed against revenue.
+  const revenue = I("revenue");
+  const grossProfit = total("grossProfit", sub(revenue, I("costOfGoodsSold")));
+  const ebitda = total(
+    "ebitda",
+    add(grossProfit, mul(I("operatingExpenses"), known(-1)), I("otherIncome")),
+  );
+  const ebit = total("ebit", sub(ebitda, I("depreciationAmortization")));
+  // `financialIncome` / `financialExpense` are OPTIONAL by declaration —
+  // "not applicable" for a simple sample rather than "not reported" — so
+  // an omitted one keeps its documented zero unless the manifest names it.
+  const finIn = declaredAbsent.has("financialIncome")
+    ? absent("financialIncome")
+    : known(is.financialIncome ?? 0);
+  const finEx = declaredAbsent.has("financialExpense")
+    ? absent("financialExpense")
+    : known(is.financialExpense ?? 0);
+  const interestExpense = I("interestExpense");
+  const pbt = total("pbt", sub(add(ebit, finIn), add(interestExpense, finEx)));
+  const netIncome = total("netIncome", sub(pbt, I("taxExpense")));
+
   // F2.2 — Canonical-or-fallback helper. Reads `m` from metricsByName if
   // present and non-null; else returns the FE-arithmetic fallback. Engine
   // emits ratios as decimals (0.132 = 13.2%); pct() in this file returns
@@ -634,55 +988,57 @@ export function computeRatios(
   const m = (name: string): number | null => {
     if (!metricsByName) return null;
     const v = metricsByName[name];
-    return typeof v === "number" ? v : null;
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
   };
-  const mOr = (name: string, fallback: number): number => {
+  /** An engine-served metric outranks any FE reconstruction — it is the
+   *  number the rest of the product already agrees on. */
+  const mOr = (name: string, fallback: Fig): Fig => {
     const v = m(name);
-    return v === null ? fallback : v;
+    return v === null ? fallback : known(v);
   };
-  const mPctOr = (name: string, fallback: number): number => {
+  const mPctOr = (name: string, fallback: Fig): Fig => {
     const v = m(name);
-    return v === null ? fallback : v * 100;
+    return v === null ? fallback : known(v * 100);
   };
 
   // Liquidity ────────────────────────────────────────────────────────────────
-  const currentRatio = mOr("current_ratio", safeDiv(sf.currentAssets(), sf.currentLiabilities()));
+  const currentRatio = mOr("current_ratio", div(currentAssets, currentLiabilities, "current liabilities"));
   const quickRatio = mOr(
     "quick_ratio",
-    safeDiv(bs.cash + bs.accountsReceivable, sf.currentLiabilities()),
+    div(add(B("cash"), B("accountsReceivable")), currentLiabilities, "current liabilities"),
   );
-  const cashRatio = mOr("cash_ratio", safeDiv(bs.cash, sf.currentLiabilities()));
+  const cashRatio = mOr("cash_ratio", div(B("cash"), currentLiabilities, "current liabilities"));
 
   // Profitability ────────────────────────────────────────────────────────────
   // F1.e + F2.2: prefer engine canonical when supplied (via either the
   // legacy `canonicalMargins` pair or the new `metricsByName` map). Engine
   // emits margins as ratios (0–1); pct() emits 0–100; multiply canonical
   // value by 100 to align units.
-  const grossMargin = mPctOr("gross_margin", pct(t.grossProfit, is.revenue));
+  const grossMargin = mPctOr("gross_margin", pctOf(grossProfit, revenue, "revenue"));
   const ebitdaMargin = m("ebitda_margin") !== null
-    ? (m("ebitda_margin") as number) * 100
+    ? known((m("ebitda_margin") as number) * 100)
     : (canonicalMargins?.ebitdaMargin != null
-        ? canonicalMargins.ebitdaMargin * 100
-        : pct(t.ebitda, is.revenue));
+        ? known(canonicalMargins.ebitdaMargin * 100)
+        : pctOf(ebitda, revenue, "revenue"));
   const netMargin = m("net_margin") !== null
-    ? (m("net_margin") as number) * 100
+    ? known((m("net_margin") as number) * 100)
     : (canonicalMargins?.netMargin != null
-        ? canonicalMargins.netMargin * 100
-        : pct(t.netIncome, is.revenue));
-  const roa = mPctOr("roa", pct(t.netIncome, sf.totalAssets()));
-  const roe = mPctOr("roe", pct(t.netIncome, sf.totalEquity()));
+        ? known(canonicalMargins.netMargin * 100)
+        : pctOf(netIncome, revenue, "revenue"));
+  const roa = mPctOr("roa", pctOf(netIncome, totalAssets, "total assets"));
+  const roe = mPctOr("roe", pctOf(netIncome, totalEquity, "total equity"));
   // F2.2 — ROIC added as a new Profitability row (engine emits; FE didn't
   // surface previously). Engine formula: operating_profit × (1 − 0.16) /
   // max(total_debt + total_equity, 1) — NOPAT over invested capital.
   const roic = mPctOr(
     "roic",
-    pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + sf.totalEquity(), 1)),
+    pctOf(mul(ebit, known(1 - 0.16)), atLeast(add(totalDebt, totalEquity), 1), "invested capital"),
   );
 
   // Leverage ─────────────────────────────────────────────────────────────────
-  const debtToEbitda = mOr("debt_to_ebitda", safeDiv(t.totalDebt, t.ebitda));
-  const debtToEquity = mOr("debt_to_equity", safeDiv(t.totalDebt, sf.totalEquity()));
-  const equityRatio = mPctOr("equity_ratio", pct(sf.totalEquity(), sf.totalAssets()));
+  const debtToEbitda = mOr("debt_to_ebitda", div(totalDebt, ebitda, "EBITDA"));
+  const debtToEquity = mOr("debt_to_equity", div(totalDebt, totalEquity, "total equity"));
+  const equityRatio = mPctOr("equity_ratio", pctOf(totalEquity, totalAssets, "total assets"));
   // F2.2 — LTV stays FE-arithmetic when propertyMarketValue is supplied
   // (user input, not engine-derived). When no override, read engine's
   // `debt_to_assets` canonical. This is one of the few FE-arithmetic sites
@@ -691,28 +1047,30 @@ export function computeRatios(
   // DO NOT "fix" this into a pure engine read — that would silently drop the
   // user's market-value input from the LTV displayed value.
   const ltv = sup.propertyMarketValue
-    ? pct(t.totalDebt, sup.propertyMarketValue)
-    : mPctOr("debt_to_assets", pct(t.totalDebt, sf.totalAssets()));
+    ? pctOf(totalDebt, known(sup.propertyMarketValue), "property market value")
+    : mPctOr("debt_to_assets", pctOf(totalDebt, totalAssets, "total assets"));
 
   // Coverage ─────────────────────────────────────────────────────────────────
   // F2.2 — interest_coverage switches from FE EBIT-basis to engine
   // EBITDA-basis canonical. Engine emits the same value as
   // `ebitda_to_interest`. Visible value shift expected (small — depreciation
   // delta between EBIT and EBITDA on both fixtures is modest).
-  const interestCoverage = mOr("interest_coverage", safeDiv(t.ebit, is.interestExpense));
+  const interestCoverage = mOr("interest_coverage", div(ebit, interestExpense, "interest expense"));
   // F2.2 — DSCR switches from FE cash-EBITDA basis to engine statutory-
   // EBITDA basis (aligns with F1.e canonical decision). EEI shift is
   // material (statutory adds 722 = 2.16M to numerator). Scandia unchanged
   // because 722 = 0.
-  const dscr = mOr("dscr", safeDiv(t.ebitda, is.interestExpense + bs.shortTermDebt));
+  const debtService = add(interestExpense, B("shortTermDebt"));
+  const dscr = mOr("dscr", div(ebitda, debtService, "interest + short-term debt"));
   // F2.2 — adjusted_dscr stays FE-arithmetic when annualLeaseExpense is
   // supplied (user input, not engine-derived). Same reasoning as LTV —
   // legitimate FE arithmetic on user input. When no lease supplied,
   // fall back to plain `dscr` (now engine canonical).
   const adjustedDscr = sup.annualLeaseExpense
-    ? safeDiv(
-        t.ebitda + sup.annualLeaseExpense,
-        is.interestExpense + bs.shortTermDebt + sup.annualLeaseExpense,
+    ? div(
+        add(ebitda, known(sup.annualLeaseExpense)),
+        add(debtService, known(sup.annualLeaseExpense)),
+        "interest + short-term debt + lease",
       )
     : dscr;
   // F2.2 — NEW row: DSCR with LT principal proxy (engine canonical).
@@ -724,7 +1082,11 @@ export function computeRatios(
     // Fallback computation matches engine pipeline.py line 1185 (lt_debt
     // proxy at /8). When the engine row is absent (pre-v2.1), compute
     // inline using the FE bs.longTermDebt.
-    safeDiv(t.ebitda, is.interestExpense + bs.longTermDebt / 8),
+    div(
+      ebitda,
+      add(interestExpense, div(B("longTermDebt"), known(8), "8")),
+      "interest + LT principal proxy",
+    ),
   );
 
   // Efficiency ───────────────────────────────────────────────────────────────
@@ -740,347 +1102,311 @@ export function computeRatios(
   // class-6 accounts (601/602/607). Industry convention uses total operating
   // expense as the DIO/DPO denominator. Using narrow `is.costOfGoodsSold`
   // here inflated Scandia's DIO from the correct ~53d to ~95d.
-  const totalOperatingExpense =
-    is.costOfGoodsSold + is.operatingExpenses + is.depreciationAmortization;
-  const dso = mOr("dso", safeDiv(bs.accountsReceivable, is.revenue) * days);
-  const dio = mOr("dio", safeDiv(bs.inventory, totalOperatingExpense) * days);
-  const dpo = mOr("dpo", safeDiv(bs.accountsPayable, totalOperatingExpense) * days);
-  const ccc = mOr("ccc", dso + dio - dpo);
-  const assetTurnover = mOr("asset_turnover", safeDiv(is.revenue, sf.totalAssets()));
+  const totalOperatingExpense = add(
+    I("costOfGoodsSold"),
+    I("operatingExpenses"),
+    I("depreciationAmortization"),
+  );
+  const dayCount = known(days);
+  const dso = mOr("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount));
+  const dio = mOr(
+    "dio",
+    mul(div(B("inventory"), totalOperatingExpense, "total operating expense"), dayCount),
+  );
+  const dpo = mOr(
+    "dpo",
+    mul(div(B("accountsPayable"), totalOperatingExpense, "total operating expense"), dayCount),
+  );
+  const ccc = mOr("ccc", sub(add(dso, dio), dpo));
+  const assetTurnover = mOr("asset_turnover", div(revenue, totalAssets, "total assets"));
 
-  // Bankruptcy — Altman Z″ (engine canonical, 1995 EM variant) ─────────────
-  // F2.2 — Switched from FE inline Z(1968) formula to engine `altman_z_score`
-  // canonical. Engine emits Z″ (1995 EM) — the variant designed for non-
-  // manufacturing / services / RE / emerging markets. Z″ uses 4 components
-  // (no sales/assets X5 term), different coefficients (6.56 / 3.26 / 6.72 /
-  // 1.05), different thresholds (safe ≥ 2.60, distress < 1.10).
+  // ── THE THIRD ALTMAN LIVED HERE AND IS DELETED ──────────────────────
   //
-  // Visible numeric shift expected on BOTH fixtures because the engine
-  // formula differs from the FE Z(1968). This is the canonical fix
-  // documented in DIAGNOSTIC_ALTMAN_CREDIT_VERDICT.md (F1.h-era).
+  // `const z = mOr("altman_z_score", <inline Z″ formula>)` produced the
+  // `bankruptcy` group. It was the third arithmetic in this codebase
+  // wearing the name "Altman Z″ (1995 EM)", and — because the standalone
+  // HTML report calls `computeRatios(s)` with no engine map — it was the
+  // one a printed board pack carried. Its verdict sentence banded with
+  // `>=` where the methodology (and `zoneFor`, and therefore every other
+  // surface) bands with `>`, so it also disagreed at the two boundary
+  // values where the word matters most. Measured:
   //
-  // Fallback path (when engine row is absent — pre-v2.1 cached periods):
-  // compute Z″ inline ONLY. The Z(1968) and Z'(1983) industry-switch
-  // branches are deleted per the F2.2 kickoff ("delete the FE industry-
-  // switch Altman path entirely"). Z″ is the single canonical variant.
-  const zEngine = m("altman_z_score");
-  const z = zEngine !== null
-    ? zEngine
-    : (
-        // FE fallback — Z″ inline (single variant, no industry switch).
-        // Z″ = 6.56·(WC/TA) + 3.26·(RE+CurrentNP)/TA + 6.72·(EBIT/TA)
-        //    + 1.05·(Equity/TL) — BS totals via the servedFacts gateway
-        // (X4 equity is the ADJUSTED figure on RECONCILED periods).
-        6.56 * safeDiv(sf.workingCapital(), sf.totalAssets()) +
-        3.26 * safeDiv(bs.retainedEarnings + t.netIncome, sf.totalAssets()) +
-        6.72 * safeDiv(t.ebit, sf.totalAssets()) +
-        1.05 * safeDiv(sf.totalEquity(), sf.totalLiabilities())
-      );
+  //     Z″ = 2.60 exactly   this row "Healthy · Bankruptcy risk: low.
+  //                          Balance sheet structurally sound."
+  //                          every other surface  Grey
+  //     Z″ = 1.10 exactly   this row "Watch · grey zone. Monitor…"
+  //                          every other surface  Distress
+  //
+  // Nothing replaces it here. `altmanRatio(credit)` below wears the same
+  // `Ratio` shape and is built from the ONE reader, so the Ratios tab,
+  // its drawer, the workbook and the printed document render one figure
+  // with one ladder and one sentence.
+
+  // ── ONE BUILDER FOR EVERY ROW ───────────────────────────────────────
+  //
+  // A refused ratio must not be graded, must not be formatted and must
+  // not carry commentary about a number nobody has. Routing every row
+  // through here is what makes that structural: there is no branch a new
+  // ratio can be added on the wrong side of.
+  const row = (
+    key: string,
+    label: string,
+    unit: Ratio["unit"],
+    f: Fig,
+    bands: { critical?: number; watch?: number; healthy?: number; strong?: number },
+    higherIsBetter: boolean,
+    benchmark: string,
+    commentary: (v: number) => string,
+  ): Ratio => {
+    if (f.value === null) {
+      const absence = f.absence ?? { kind: "missing", inputs: [] };
+      return {
+        key,
+        label,
+        value: null,
+        unit,
+        verdict: "unknown",
+        benchmark,
+        unavailable: absence,
+        commentary: describeAbsence(absence),
+      };
+    }
+    return {
+      key,
+      label,
+      value: f.value,
+      unit,
+      verdict: verdictFromBands(f.value, bands, higherIsBetter),
+      benchmark,
+      commentary: commentary(f.value),
+    };
+  };
+  /** A money figure for commentary — the gap word when it is absent, so a
+   *  sentence never quotes a number the ratios refused. */
+  const money = (f: Fig): string =>
+    f.value === null ? UNREPORTED_WORD : formatCurrency(f.value, s.currency);
 
   return {
     liquidity: [
-      {
-        key: "current_ratio",
-        label: "Current Ratio",
-        value: currentRatio,
-        unit: "x",
-        verdict: verdictFromBands(currentRatio, { strong: 2, healthy: 1.5, watch: 1 }),
-        benchmark: "≥ 1.5× healthy · ≥ 2.0× strong",
-        commentary:
-          currentRatio >= 1.5
+      row("current_ratio", "Current Ratio", "x", currentRatio,
+        { strong: 2, healthy: 1.5, watch: 1 }, true,
+        "≥ 1.5× healthy · ≥ 2.0× strong",
+        (v) =>
+          v >= 1.5
             ? "Comfortable short-term cushion against current obligations."
-            : currentRatio >= 1
+            : v >= 1
               ? "Tight but covered — monitor working capital weekly."
-              : "Current liabilities exceed current assets — liquidity stress.",
-      },
-      {
-        key: "quick_ratio",
-        label: "Quick Ratio",
-        value: quickRatio,
-        unit: "x",
-        verdict: verdictFromBands(quickRatio, { strong: 1.5, healthy: 1, watch: 0.7 }),
-        benchmark: "≥ 1.0× healthy",
-        commentary:
-          quickRatio >= 1
+              : "Current liabilities exceed current assets — liquidity stress."),
+      row("quick_ratio", "Quick Ratio", "x", quickRatio,
+        { strong: 1.5, healthy: 1, watch: 0.7 }, true,
+        "≥ 1.0× healthy",
+        (v) =>
+          v >= 1
             ? "Cash + receivables alone cover current liabilities."
-            : "Reliance on inventory liquidation to meet short-term obligations.",
-      },
-      {
-        key: "cash_ratio",
-        label: "Cash Ratio",
-        value: cashRatio,
-        unit: "x",
-        verdict: verdictFromBands(cashRatio, { strong: 0.5, healthy: 0.2, watch: 0.1 }),
-        benchmark: "≥ 0.2× healthy",
-        commentary:
-          cashRatio >= 0.2
+            : "Reliance on inventory liquidation to meet short-term obligations."),
+      row("cash_ratio", "Cash Ratio", "x", cashRatio,
+        { strong: 0.5, healthy: 0.2, watch: 0.1 }, true,
+        "≥ 0.2× healthy",
+        (v) =>
+          v >= 0.2
             ? "Adequate cash buffer for operating shocks."
-            : "Limited dry cash — exposed to revenue interruption.",
-      },
+            : "Limited dry cash — exposed to revenue interruption."),
     ],
     profitability: [
-      {
-        key: "gross_margin",
-        label: "Gross Margin",
-        value: grossMargin,
-        unit: "%",
-        verdict: verdictFromBands(grossMargin, { strong: 40, healthy: 25, watch: 15 }),
-        benchmark: "Industry-dependent · ≥ 25% healthy",
-        commentary: `${grossMargin.toFixed(1)}% gross margin on ${formatCurrency(is.revenue, s.currency)} revenue.`,
-      },
-      {
-        key: "ebitda_margin",
-        label: "EBITDA Margin",
-        value: ebitdaMargin,
-        unit: "%",
-        verdict: verdictFromBands(ebitdaMargin, { strong: 25, healthy: 15, watch: 8 }),
-        benchmark: "≥ 15% healthy · ≥ 25% strong",
-        commentary: `${formatCurrency(t.ebitda, s.currency)} EBITDA — operating cash generation.`,
-      },
-      {
-        key: "net_margin",
-        label: "Net Margin",
-        value: netMargin,
-        unit: "%",
-        verdict: verdictFromBands(netMargin, { strong: 15, healthy: 8, watch: 3 }),
-        benchmark: "≥ 8% healthy",
-        commentary: `${formatCurrency(t.netIncome, s.currency)} bottom-line profit after all costs.`,
-      },
-      {
-        key: "roa",
-        label: "Return on Assets",
-        value: roa,
-        unit: "%",
-        verdict: verdictFromBands(roa, { strong: 10, healthy: 5, watch: 2 }),
-        benchmark: "≥ 5% healthy",
-        commentary:
-          roa >= 5
+      row("gross_margin", "Gross Margin", "%", grossMargin,
+        { strong: 40, healthy: 25, watch: 15 }, true,
+        "Industry-dependent · ≥ 25% healthy",
+        (v) => `${v.toFixed(1)}% gross margin on ${money(revenue)} revenue.`),
+      row("ebitda_margin", "EBITDA Margin", "%", ebitdaMargin,
+        { strong: 25, healthy: 15, watch: 8 }, true,
+        "≥ 15% healthy · ≥ 25% strong",
+        () => `${money(ebitda)} EBITDA — operating cash generation.`),
+      row("net_margin", "Net Margin", "%", netMargin,
+        { strong: 15, healthy: 8, watch: 3 }, true,
+        "≥ 8% healthy",
+        () => `${money(netIncome)} bottom-line profit after all costs.`),
+      row("roa", "Return on Assets", "%", roa,
+        { strong: 10, healthy: 5, watch: 2 }, true,
+        "≥ 5% healthy",
+        (v) =>
+          v >= 5
             ? "Assets generating solid returns."
-            : "Asset base under-earning — review utilization.",
-      },
-      {
-        key: "roe",
-        label: "Return on Equity",
-        value: roe,
-        unit: "%",
-        verdict: verdictFromBands(roe, { strong: 20, healthy: 12, watch: 6 }),
-        benchmark: "≥ 12% healthy",
-        commentary:
-          roe >= 12
+            : "Asset base under-earning — review utilization."),
+      row("roe", "Return on Equity", "%", roe,
+        { strong: 20, healthy: 12, watch: 6 }, true,
+        "≥ 12% healthy",
+        (v) =>
+          v >= 12
             ? "Capital deployed efficiently for shareholders."
-            : "Equity returns below cost-of-capital benchmark.",
-      },
+            : "Equity returns below cost-of-capital benchmark."),
       // F2.2 — NEW row: ROIC (engine canonical). Surfaced explicitly so the
       // dashboard's Ratios tab shows the return-on-invested-capital row that
       // was previously emitted by the engine but not displayed FE-side.
-      {
-        key: "roic",
-        label: "Return on Invested Capital",
-        value: roic,
-        unit: "%",
-        verdict: verdictFromBands(roic, { strong: 15, healthy: 10, watch: 5 }),
-        benchmark: "≥ 10% healthy",
-        commentary:
-          roic >= 10
+      row("roic", "Return on Invested Capital", "%", roic,
+        { strong: 15, healthy: 10, watch: 5 }, true,
+        "≥ 10% healthy",
+        (v) =>
+          v >= 10
             ? "Invested capital earning above typical WACC."
-            : "Returns below cost of capital — value-destroying configuration.",
-      },
+            : "Returns below cost of capital — value-destroying configuration."),
     ],
     leverage: [
-      {
-        key: "debt_to_ebitda",
-        label: "Debt / EBITDA",
-        value: debtToEbitda,
-        unit: "x",
-        verdict: verdictFromBands(
-          debtToEbitda,
-          { strong: 2, healthy: 3, watch: 4.5 },
-          false,
-        ),
-        benchmark: "≤ 3× healthy · ≤ 2× strong",
-        commentary:
-          debtToEbitda <= 3
+      row("debt_to_ebitda", "Debt / EBITDA", "x", debtToEbitda,
+        { strong: 2, healthy: 3, watch: 4.5 }, false,
+        "≤ 3× healthy · ≤ 2× strong",
+        (v) =>
+          v <= 3
             ? "Debt service comfortably aligned with cash generation."
-            : debtToEbitda <= 4.5
+            : v <= 4.5
               ? "Elevated leverage — refinancing risk if EBITDA contracts."
-              : "Stretched balance sheet — covenant risk likely.",
-      },
-      {
-        key: "debt_to_equity",
-        label: "Debt / Equity",
-        value: debtToEquity,
-        unit: "x",
-        verdict: verdictFromBands(
-          debtToEquity,
-          { strong: 0.5, healthy: 1, watch: 2 },
-          false,
-        ),
-        benchmark: "≤ 1.0× healthy",
-        commentary:
-          debtToEquity <= 1
-            ? "Conservatively capitalized."
-            : "Leverage exceeds equity cushion.",
-      },
-      {
-        key: "equity_ratio",
-        label: "Equity Ratio",
-        value: equityRatio,
-        unit: "%",
-        verdict: verdictFromBands(equityRatio, { strong: 50, healthy: 30, watch: 15 }),
-        benchmark: "≥ 30% healthy",
-        commentary: `${equityRatio.toFixed(1)}% of assets funded by equity.`,
-      },
-      {
-        key: "ltv",
-        label: sup.propertyMarketValue ? "Loan-to-Value" : "Debt-to-Assets",
-        value: ltv,
-        unit: "%",
-        verdict: verdictFromBands(ltv, { strong: 50, healthy: 65, watch: 80 }, false),
-        benchmark: "≤ 65% healthy",
-        commentary:
-          ltv <= 65
+              : "Stretched balance sheet — covenant risk likely."),
+      row("debt_to_equity", "Debt / Equity", "x", debtToEquity,
+        { strong: 0.5, healthy: 1, watch: 2 }, false,
+        "≤ 1.0× healthy",
+        (v) => (v <= 1 ? "Conservatively capitalized." : "Leverage exceeds equity cushion.")),
+      row("equity_ratio", "Equity Ratio", "%", equityRatio,
+        { strong: 50, healthy: 30, watch: 15 }, true,
+        "≥ 30% healthy",
+        (v) => `${v.toFixed(1)}% of assets funded by equity.`),
+      row("ltv", sup.propertyMarketValue ? "Loan-to-Value" : "Debt-to-Assets", "%", ltv,
+        { strong: 50, healthy: 65, watch: 80 }, false,
+        "≤ 65% healthy",
+        (v) =>
+          v <= 65
             ? "Asset coverage of debt is comfortable."
-            : "Limited equity headroom against pledged assets.",
-      },
+            : "Limited equity headroom against pledged assets."),
     ],
     coverage: [
-      {
-        key: "interest_coverage",
-        label: "Interest Coverage",
-        value: interestCoverage,
-        unit: "x",
-        verdict: verdictFromBands(
-          interestCoverage,
-          { strong: 6, healthy: 3, watch: 1.5 },
-        ),
-        benchmark: "≥ 3× healthy",
-        commentary:
-          interestCoverage >= 3
+      row("interest_coverage", "Interest Coverage", "x", interestCoverage,
+        { strong: 6, healthy: 3, watch: 1.5 }, true,
+        "≥ 3× healthy",
+        (v) =>
+          v >= 3
             ? "Earnings comfortably absorb interest load."
-            : "Interest taking a meaningful bite of operating profit.",
-      },
-      {
-        key: "dscr",
-        label: "DSCR (interest + ST debt)",
-        value: dscr,
-        unit: "x",
-        verdict: verdictFromBands(dscr, { strong: 1.5, healthy: 1.25, watch: 1 }),
-        benchmark: "≥ 1.25× covenant-typical",
-        commentary:
-          dscr >= 1.25
+            : "Interest taking a meaningful bite of operating profit."),
+      row("dscr", "DSCR (interest + ST debt)", "x", dscr,
+        { strong: 1.5, healthy: 1.25, watch: 1 }, true,
+        "≥ 1.25× covenant-typical",
+        (v) =>
+          v >= 1.25
             ? "Annual cash service comfortably covered."
-            : "Debt service consumes most operating cash.",
-      },
-      {
-        key: "adjusted_dscr",
-        label: "Adjusted DSCR (incl. lease)",
-        value: adjustedDscr,
-        unit: "x",
-        verdict: verdictFromBands(
-          adjustedDscr,
-          { strong: 1.5, healthy: 1.25, watch: 1 },
-        ),
-        benchmark: "≥ 1.25× including lease commitments",
-        commentary: sup.annualLeaseExpense
-          ? "Adds lease obligation to fixed charges — lender-style view."
-          : "No lease component — same as DSCR.",
-      },
+            : "Debt service consumes most operating cash."),
+      row("adjusted_dscr", "Adjusted DSCR (incl. lease)", "x", adjustedDscr,
+        { strong: 1.5, healthy: 1.25, watch: 1 }, true,
+        "≥ 1.25× including lease commitments",
+        () =>
+          sup.annualLeaseExpense
+            ? "Adds lease obligation to fixed charges — lender-style view."
+            : "No lease component — same as DSCR."),
       // F2.2 — NEW row: DSCR including LT principal amortization proxy
       // (engine canonical). Different from adjusted_dscr above:
       // numerator is statutory EBITDA, denominator adds LT debt / 8
       // (~10-year amortization proxy) instead of lease expense. Lender-
       // style view of covenant coverage when LT debt is the dominant
       // service component.
-      {
-        key: "dscr_with_lt_principal",
-        label: "DSCR (incl. LT principal proxy)",
-        value: dscrWithLtPrincipal,
-        unit: "x",
-        verdict: verdictFromBands(
-          dscrWithLtPrincipal,
-          { strong: 1.5, healthy: 1.25, watch: 1 },
-        ),
-        benchmark: "≥ 1.25× with 10-year amortization proxy",
-        commentary:
-          dscrWithLtPrincipal >= 1.25
+      row("dscr_with_lt_principal", "DSCR (incl. LT principal proxy)", "x", dscrWithLtPrincipal,
+        { strong: 1.5, healthy: 1.25, watch: 1 }, true,
+        "≥ 1.25× with 10-year amortization proxy",
+        (v) =>
+          v >= 1.25
             ? "Comfortable coverage of interest + LT principal amortization."
-            : "Including LT principal amortization, coverage is tight — refinancing risk.",
-      },
+            : "Including LT principal amortization, coverage is tight — refinancing risk."),
     ],
     efficiency: [
-      {
-        key: "dso",
-        label: "Days Sales Outstanding",
-        value: dso,
-        unit: "days",
-        verdict: verdictFromBands(dso, { strong: 30, healthy: 45, watch: 75 }, false),
-        benchmark: "≤ 45 days healthy",
-        commentary: `Average ${dso.toFixed(0)}-day collection cycle on receivables.`,
-      },
-      {
-        key: "dio",
-        label: "Days Inventory Outstanding",
-        value: dio,
-        unit: "days",
-        verdict: verdictFromBands(dio, { strong: 30, healthy: 60, watch: 100 }, false),
-        benchmark: "≤ 60 days for FMCG · varies by industry",
-        commentary: `Inventory turns every ${dio.toFixed(0)} days.`,
-      },
-      {
-        key: "dpo",
-        label: "Days Payables Outstanding",
-        value: dpo,
-        unit: "days",
-        verdict: verdictFromBands(dpo, { strong: 60, healthy: 45, watch: 30 }),
-        benchmark: "Higher = better supplier float (within terms)",
-        commentary: `${dpo.toFixed(0)}-day average to settle suppliers.`,
-      },
-      {
-        key: "ccc",
-        label: "Cash Conversion Cycle",
-        value: ccc,
-        unit: "days",
-        verdict: verdictFromBands(ccc, { strong: 30, healthy: 60, watch: 100 }, false),
-        benchmark: "Lower is better — cash speed",
-        commentary: `${ccc.toFixed(0)}-day gap between cash out and cash in.`,
-      },
-      {
-        key: "asset_turnover",
-        label: "Asset Turnover",
-        value: assetTurnover,
-        unit: "x",
-        verdict: verdictFromBands(
-          assetTurnover,
-          { strong: 1.5, healthy: 0.8, watch: 0.4 },
-        ),
-        benchmark: "≥ 0.8× healthy (industry-dependent)",
-        commentary: `${assetTurnover.toFixed(2)}× revenue per unit of assets.`,
-      },
-    ],
-    bankruptcy: [
-      // F2.2 — Altman Z″ canonical (engine, 1995 EM variant). Replaces the
-      // FE inline Z(1968) formula AND the FE industry-switch path. Single
-      // variant, single source of truth. Thresholds updated to Z″:
-      // safe ≥ 2.60, grey 1.10–2.60, distress < 1.10 (was Z 1968's
-      // 2.60 / 1.80 / —). The label calls out the variant explicitly so
-      // users can verify against the Comprehensive Report's credit card.
-      {
-        key: "altman_z",
-        label: "Altman Z″-Score",
-        value: z,
-        unit: "ratio",
-        verdict: verdictFromBands(z, { strong: 3, healthy: 2.6, watch: 1.1 }),
-        benchmark: "≥ 2.60 safe · 1.10–2.60 grey · < 1.10 distress (Z″ 1995 EM)",
-        commentary:
-          z >= 2.6
-            ? "Bankruptcy risk: low. Balance sheet structurally sound."
-            : z >= 1.1
-              ? "Bankruptcy risk: grey zone. Monitor leverage and cash flow."
-              : "Bankruptcy risk: distress zone. Action required.",
-      },
+      row("dso", "Days Sales Outstanding", "days", dso,
+        { strong: 30, healthy: 45, watch: 75 }, false,
+        "≤ 45 days healthy",
+        (v) => `Average ${v.toFixed(0)}-day collection cycle on receivables.`),
+      row("dio", "Days Inventory Outstanding", "days", dio,
+        { strong: 30, healthy: 60, watch: 100 }, false,
+        "≤ 60 days for FMCG · varies by industry",
+        (v) => `Inventory turns every ${v.toFixed(0)} days.`),
+      row("dpo", "Days Payables Outstanding", "days", dpo,
+        { strong: 60, healthy: 45, watch: 30 }, true,
+        "Higher = better supplier float (within terms)",
+        (v) => `${v.toFixed(0)}-day average to settle suppliers.`),
+      row("ccc", "Cash Conversion Cycle", "days", ccc,
+        { strong: 30, healthy: 60, watch: 100 }, false,
+        "Lower is better — cash speed",
+        (v) => `${v.toFixed(0)}-day gap between cash out and cash in.`),
+      row("asset_turnover", "Asset Turnover", "x", assetTurnover,
+        { strong: 1.5, healthy: 0.8, watch: 0.4 }, true,
+        "≥ 0.8× healthy (industry-dependent)",
+        (v) => `${v.toFixed(2)}× revenue per unit of assets.`),
     ],
   };
 }
+
+// ─── THE ONE ALTMAN ROW ─────────────────────────────────────────────────────
+
+/** The key every Altman surface addresses this measure by. One key, so the
+ *  ratio drawer's knowledge entry, the Ratios tab and the printed document
+ *  cannot be pointed at two different explanations. */
+export const ALTMAN_RATIO_KEY = "altman_z";
+
+/** The Altman row, in `Ratio` shape, built from THE credit reader.
+ *
+ *  Every field is a projection of one `AltmanResult` — the same object the
+ *  Risks tab renders as `data-testid="altman-score"`, the hero chip prints
+ *  beside its zone pill, and the workbook's Credit & Risk sheet carries.
+ *  Nothing here bands, computes or re-words:
+ *
+ *    value      `credit.altman.score`      — the reader's number
+ *    verdict    a 1:1 rendering of `credit.altman.zone`, NOT a band table.
+ *               The old row had a fourth threshold (`strong` at 3.0) that
+ *               exists in no methodology and on no other surface; a zone
+ *               has three states, so the row has three.
+ *    benchmark  spelled from `credit.altman.thresholds` + `variant`, so a
+ *               threshold change moves the printed ladder with the number.
+ *    commentary `credit.components[0].read` — the reader's own verdict
+ *               words — followed by the model that minted them, because a
+ *               forwarded document cannot ask which model ran.
+ *
+ *  A refused score yields a refused row: `value: null`, verdict `unknown`,
+ *  and the absence sentence in `commentary`. `verdictColor("unknown")` is
+ *  neutral, so an unmeasurable Z″ is never painted like a distressed one. */
+export function altmanRatio(credit: CreditScoreResult): Ratio {
+  const a = credit.altman;
+  // The label is `credit.components[0].label`, not a literal, for the same
+  // reason the workbook reuses it: the two deliverables once disagreed
+  // about the NAME as well as the number — `Altman Z"-Score` (U+0022) on
+  // one sheet and `Altman Z″-Score` (U+2033) on the other — which reads as
+  // two measures to anyone scanning the file.
+  const label = credit.components[0]?.label ?? `Altman ${a.variant}-Score`;
+  const benchmark =
+    `≥ ${a.thresholds.safe.toFixed(2)} safe · ` +
+    `${a.thresholds.distress.toFixed(2)}–${a.thresholds.safe.toFixed(2)} grey · ` +
+    `< ${a.thresholds.distress.toFixed(2)} distress (${a.variant} 1995 EM)`;
+  if (a.score === null || a.zone === null) {
+    return {
+      key: ALTMAN_RATIO_KEY,
+      label,
+      value: null,
+      unit: "ratio",
+      verdict: "unknown",
+      benchmark,
+      unavailable: { kind: "missing", inputs: ["altman_z_score"] },
+      commentary: VERDICT_UNAVAILABLE_NOTE,
+    };
+  }
+  return {
+    key: ALTMAN_RATIO_KEY,
+    label,
+    value: a.score,
+    unit: "ratio",
+    verdict: a.zone === "safe" ? "healthy" : a.zone === "grey" ? "watch" : "critical",
+    benchmark,
+    commentary: `${credit.components[0]?.read ?? ""} · ${credit.modelLabel}`.trim(),
+  };
+}
+
+/** The sentence that travels with a REFUSED distress verdict. Same shape as
+ *  the workbook's: a recipient who opens a forwarded document cannot ask the
+ *  app why the cell is empty, and "no number" must not be read as "distress". */
+export const VERDICT_UNAVAILABLE_NOTE =
+  "Not enough of the source book was recognised to compute this verdict. " +
+  "This is a limit of the extraction, NOT a finding about the company — " +
+  "do not read it as distress.";
 
 // ─── Recommendations ────────────────────────────────────────────────────────
 
@@ -1102,8 +1428,12 @@ export interface Recommendation {
   ruleKey?: string;
   /** F5.0 Phase 7 — the structured numeric facts the rule asserted to
    *  fire. Keys match the rule's `factsCited` keys (e.g. dscr, total_debt,
-   *  current_ratio). Used to render the explainability block. */
-  factsCited?: Record<string, number>;
+   *  current_ratio). Used to render the explainability block.
+   *
+   *  A value here is `number | null`: the explainability block is where a
+   *  reader CHECKS the card's claim, so a fact the envelope never carried
+   *  has to arrive as an absence, not as a 0 that looks measured. */
+  factsCited?: Record<string, number | null>;
 }
 
 // Inline import avoids the periodFacts ↔ financialReport circular
@@ -1320,6 +1650,10 @@ export function formatNumber(n: number, decimals = 0): string {
 }
 
 export function formatRatio(r: Ratio): string {
+  // A refused ratio has no spelling as a number. Every caller — the HTML
+  // report, the Excel export, the drawer — gets the same word, so none of
+  // them can print "0.00×" for a figure nothing computed.
+  if (r.value === null || !Number.isFinite(r.value)) return UNREPORTED_WORD;
   switch (r.unit) {
     case "x":
       return `${r.value.toFixed(2)}×`;
@@ -1336,6 +1670,11 @@ export function formatRatio(r: Ratio): string {
 // <style> sheet — it cannot read the app's CSS vars), tuned to Paper.
 export function verdictColor(v: RatioVerdict): { bg: string; text: string } {
   switch (v) {
+    case "unknown":
+      // Neutral, not red. A ratio nobody could compute is not a bad
+      // ratio; colouring it like one is the grading defect in another
+      // costume.
+      return { bg: "#F1F1EF", text: "#5C5C57" }; // design-lint-allow-hex standalone generated report doc
     case "strong":
       return { bg: "#E7F3F1", text: "#0A6154" }; // design-lint-allow-hex standalone generated report doc
     case "healthy":
@@ -1354,12 +1693,42 @@ export function verdictLabel(v: RatioVerdict): string {
       ? "Healthy"
       : v === "watch"
         ? "Watch"
-        : "Critical";
+        : v === "unknown"
+          ? "Not reported"
+          : "Critical";
 }
 
 // ─── HTML report renderer ───────────────────────────────────────────────────
 
-export function renderReportHtml(s: Statements): string {
+// ── THE DOCUMENT PEOPLE PRINT AND FORWARD ───────────────────────────────
+//
+// ⚠ `credit` IS REQUIRED, AND THAT IS THE WHOLE FIX. This function used to
+// take `(s)` alone and call `computeRatios(s)` — no engine metric map, no
+// credit envelope — then render `ratioGroup("Distress Models", r.bankruptcy)`.
+// A renderer that CAN be called without the credit reader is a renderer that
+// WILL be, so the parameter is not optional and there is no default: tsc
+// names every caller instead of a reviewer noticing one.
+//
+// Measured on the real Scandia FY2025 period, engine envelope intact, read
+// out of the produced bytes:
+//
+//     Risks tab / hero / /report / workbook   Z″ 0.22   Distress   CC
+//     this document                           Z″ 0.19   badge v-critical
+//                                             "Bankruptcy risk: distress
+//                                              zone. Action required."
+//                                             …and no letter, no composite
+//                                             and no model ANYWHERE in it.
+//
+// Planting an engine re-band (letter_grade "B" with its own ladder, Z″ 3.50)
+// moved every screen and the workbook to B / 3.50 / Safe. This document did
+// not move at all — it had nothing in it that could.
+export function renderReportHtml(
+  s: Statements,
+  credit: CreditScoreResult,
+  // The engine metric map THE SAME reader was built over. Compose the two
+  // in one place — `financialExports.buildReportHtml` — never by hand.
+  metricsByName?: Record<string, number | null>,
+): string {
   const t = deriveTotals(s);
   // servedFacts gateway — the report's BS totals + the balance-status
   // footer read the served envelope; this renderer never branches on
@@ -1381,8 +1750,16 @@ export function renderReportHtml(s: Statements): string {
     if (parts.length === 0) return "";
     return ` Balance-sheet provenance: ${parts.join(" &middot; ")}; each balance-sheet row above names its account codes.`;
   })();
-  const r = computeRatios(s);
+  // The engine metric map the credit reader was built over — so every ratio
+  // in this document quotes the engine wherever the engine spoke, exactly as
+  // the screen and the workbook do. `computeRatios(s)` alone recomputed
+  // FE-side every ratio the engine had already emitted; measured on the real
+  // Scandia period that moved Interest Coverage 2.58× (Watch) → 1.46×
+  // (Critical) in the printed document only.
+  const r = computeRatios(s, undefined, metricsByName);
   const recs = generateRecommendations(s, r);
+  // THE ONE ALTMAN, and the letter that travels with it.
+  const altman = altmanRatio(credit);
 
   // Statutory-canonical pick (same pattern as `generateRecommendations` at line
   // 617-621). The standalone HTML report previously read only `is.revenue`,
@@ -1598,6 +1975,10 @@ export function renderReportHtml(s: Statements): string {
     .badge.v-healthy  { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
     .badge.v-watch    { background: #E7F3F1; color: #0A6154; border-color: #B9DBD4; } /* design-lint-allow-hex standalone generated report doc */
     .badge.v-critical { background: #F4E8E8; color: #7A1F1F; border-color: #C7A6A6; } /* design-lint-allow-hex standalone generated report doc */
+    /* A ratio the period could not produce: quiet grey, never the red a
+       reader would take for distress. */
+    .badge.v-unknown  { background: #F1F1EF; color: #5C5C57; border-color: #D8D8D3; } /* design-lint-allow-hex standalone generated report doc */
+    .ratio-card .value.unreported { font-size: 12pt; font-weight: 400; color: #5C5C57; } /* design-lint-allow-hex standalone generated report doc */
 
     /* Callouts — minimal hairline, no fill */
     .commentary, .risk, .action {
@@ -1851,10 +2232,10 @@ export function renderReportHtml(s: Statements): string {
   const ratioCard = (rt: Ratio): string => `
       <div class="ratio-card">
         <div class="label">${escapeHtml(rt.label)}</div>
-        <div class="value">${escapeHtml(formatRatio(rt))}</div>
+        <div class="value${rt.value === null ? " unreported" : ""}">${escapeHtml(formatRatio(rt))}</div>
         <div class="meta">
           <span class="badge v-${rt.verdict}">${escapeHtml(verdictLabel(rt.verdict))}</span>
-          &nbsp;${escapeHtml(rt.benchmark)}
+          &nbsp;${escapeHtml(rt.value === null ? rt.commentary : rt.benchmark)}
         </div>
       </div>
     `;
@@ -1872,6 +2253,69 @@ export function renderReportHtml(s: Statements): string {
       )
       .join("")}
   `;
+
+  // ── THE CREDIT SECTION ──────────────────────────────────────────────
+  //
+  // The letter, the composite, the model, the engine's own ladder, the
+  // one Altman and the seven weighted component reads — every one of them
+  // a projection of the `credit` this function was handed. This document
+  // holds no ladder, no band table and no arithmetic of its own, which is
+  // what makes an engine re-band move it on the same deploy as the four
+  // screens.
+  //
+  // A letter NEVER prints without its model. There are two models behind
+  // this cell and they disagree (engine CC / 24.4 against client fallback
+  // CCC / 36 on this same period), and a printed page cannot be asked
+  // which one ran.
+  const creditSection = (): string => {
+    const letterBlock =
+      credit.rating === null
+        ? `<div class="risk"><strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(VERDICT_UNAVAILABLE_NOTE)}</div>`
+        : `<div class="commentary"><strong>Scoring model:</strong> ${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</div>`;
+    // THE LADDER, SPELLED — so a re-band is visible on the page and not
+    // only inside the letter. It comes off the reader's `letterBands`, so
+    // this document never reaches past the reader into a raw envelope.
+    const ladder = spellLadder(credit.letterBands);
+    const ladderBlock = ladder
+      ? `<div class="commentary" data-report-credit-ladder><strong>Grade ladder (${escapeHtml(credit.model)}):</strong> ${escapeHtml(ladder)}</div>`
+      : "";
+    const componentRows = credit.components
+      .map(
+        (c) => `<tr>
+          <td>${escapeHtml(c.label)}</td>
+          <td class="num">${escapeHtml(c.value === null ? UNREPORTED_WORD : c.value.toFixed(2))}</td>
+          <td class="num">${escapeHtml(c.weight === null ? UNREPORTED_WORD : `${(c.weight * 100).toFixed(0)}%`)}</td>
+          <td class="num">${escapeHtml(c.contribution === null ? UNREPORTED_WORD : c.contribution.toFixed(1))}</td>
+          <td>${escapeHtml(c.read ?? UNREPORTED_WORD)}</td>
+        </tr>`,
+      )
+      .join("");
+    return `
+    <div class="grid grid-3">
+      <div class="ratio-card">
+        <div class="label">Composite credit score</div>
+        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(credit.score === null ? UNREPORTED_WORD : `${credit.score.toFixed(1)} / 100`)}</div>
+        <div class="meta">${escapeHtml(credit.model)}</div>
+      </div>
+      <div class="ratio-card">
+        <div class="label">Letter grade</div>
+        <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(credit.rating ?? UNREPORTED_WORD)}</div>
+        <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
+      </div>
+      ${ratioCard(altman)}
+    </div>
+    ${letterBlock}
+    ${ladderBlock}
+    <div class="${altman.verdict === "critical" ? "risk" : "commentary"}" data-report-altman-verdict data-zone="${escapeHtml(credit.altman.zone ?? "none")}">
+      <strong>${escapeHtml(altman.label)}:</strong> ${escapeHtml(altman.commentary)}
+    </div>
+    <table>
+      <thead><tr><th>Component</th><th class="num">Value</th><th class="num">Weight</th><th class="num">Contribution</th><th>Read</th></tr></thead>
+      <tbody>${componentRows}</tbody>
+    </table>
+    <div class="commentary">${escapeHtml(credit.caveat)}</div>
+  `;
+  };
 
   const balanceSheetTable = (): string => {
     // canonical_bs v2 — serialize the engine object verbatim (contract
@@ -2081,8 +2525,8 @@ export function renderReportHtml(s: Statements): string {
   ${ratioGroup("Capital Structure", r.leverage)}
   ${ratioGroup("Debt Coverage", r.coverage)}
 
-  <h2>Bankruptcy Risk</h2>
-  ${ratioGroup("Distress Models", r.bankruptcy)}
+  <h2>Credit &amp; Distress</h2>
+  ${creditSection()}
 
   <h2>Recommendations</h2>
   ${recs.map(recommendationCard).join("")}
@@ -2111,7 +2555,12 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function money(n: number, currency: string): string {
+function money(n: number | null | undefined, currency: string): string {
+  // ABSENT-CAPABLE. The servedFacts accessors return `number | null`, and
+  // `Math.abs(null)` is 0 — a total the envelope never carried would
+  // otherwise print as "RON 0" in the board-pack HTML, which is a
+  // reported figure, not a gap.
+  if (typeof n !== "number" || !Number.isFinite(n)) return UNREPORTED_WORD;
   // Render full number with thousands separators (e.g. "2,300,000 RON")
   // — board-pack reports show precise figures, not abbreviated.
   const sign = n < 0 ? "-" : "";
@@ -2119,9 +2568,20 @@ function money(n: number, currency: string): string {
   return `${sign}${currency} ${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-// Browser-side helper: triggers a download of the rendered HTML report.
-export function downloadReport(s: Statements): void {
-  const html = renderReportHtml(s);
+// ── `downloadReport(s)` LIVED HERE AND IS GONE ──────────────────────────
+//
+// It called `renderReportHtml(s)` — one argument, no credit reader, no
+// engine map — and it was wired straight to the Export tab's HTML card.
+// The download helper now lives in `financialExports.ts` as
+// `downloadHtmlReport(s, envelopes)`, beside `downloadExcelReport`, because
+// that module is the one that already imports the credit reader and can
+// therefore build BOTH deliverables from ONE envelopes object. Keeping the
+// helper here would have meant either a runtime import cycle or a second
+// composition point where the two documents could drift apart again.
+//
+// This is the file-writing half only — it takes bytes, never statements to
+// render from, so it cannot grow a rendering path of its own.
+export function saveHtmlReport(html: string, s: Statements): void {
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

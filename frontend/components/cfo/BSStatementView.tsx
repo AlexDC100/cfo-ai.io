@@ -10,7 +10,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { bsDelta } from "@/lib/bsStructure";
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
+import { MONEY_MISSING } from "@/lib/money";
 import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
 import type {
   CanonicalBsClassification,
@@ -41,6 +43,7 @@ import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./Account
 import {
   ProvenanceAffordance,
   hasProvenance,
+  isAbsentFigure,
   provenanceOf,
   type AmountProvenance,
 } from "@/components/instrument/Provenance";
@@ -138,10 +141,21 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
         />
       )}
 
-      {/* Column header row */}
+      {/* Column header row.
+
+          THE HEADER IS A CLAIM. "01.01.2025" over the first column says
+          the figures beneath it were measured on 01.01.2025. When the
+          served object carried no comparative at all the builder omits
+          `comparativeDate`, and this says so in words instead — the
+          reader learns the filing did not carry an opening balance
+          rather than reading a labelled column of dashes as zeroes. */}
       <div className="bs-col-header">
         <span />
-        <span>{statement.comparativeDate}</span>
+        <span data-testid="bs-comparative-header">
+          {statement.comparativeDate ?? (
+            <span className="text-ink-mute">{t("statements.bs.noComparative")}</span>
+          )}
+        </span>
         <span>{statement.asOf}</span>
         <span>Δ</span>
       </div>
@@ -172,13 +186,19 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
             {t("statements.bs.totalAssets")}
           </LearnableRowLabel>
         </span>
-        <LearnableNumber conceptKey="total_assets" value={statement.totalAssets.opening} className="bs-amount" block>
+        <BsLearnableCell conceptKey="total_assets" value={statement.totalAssets.opening}>
           {fmt(statement.totalAssets.opening)}
-        </LearnableNumber>
-        <LearnableNumber conceptKey="total_assets" value={statement.totalAssets.closing} className="bs-amount" block>
+        </BsLearnableCell>
+        <BsLearnableCell conceptKey="total_assets" value={statement.totalAssets.closing}>
           {fmt(statement.totalAssets.closing)}
-        </LearnableNumber>
-        <span className="bs-delta">{formatDelta(statement.totalAssets.delta, fmt)}</span>
+        </BsLearnableCell>
+        <span className="bs-delta">
+          {formatDelta(
+            statement.totalAssets.delta
+              ?? bsDelta(statement.totalAssets.opening, statement.totalAssets.closing),
+            fmt,
+          )}
+        </span>
       </div>
 
       {/* EQUITY & LIABILITIES */}
@@ -207,19 +227,27 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
             {t("statements.bs.totalEquityLiab")}
           </LearnableRowLabel>
         </span>
-        <LearnableNumber conceptKey="total_equity_liab" value={statement.totalEquityLiab.opening} className="bs-amount" block>
+        <BsLearnableCell conceptKey="total_equity_liab" value={statement.totalEquityLiab.opening}>
           {fmt(statement.totalEquityLiab.opening)}
-        </LearnableNumber>
-        <LearnableNumber conceptKey="total_equity_liab" value={statement.totalEquityLiab.closing} className="bs-amount" block>
+        </BsLearnableCell>
+        <BsLearnableCell conceptKey="total_equity_liab" value={statement.totalEquityLiab.closing}>
           {fmt(statement.totalEquityLiab.closing)}
-        </LearnableNumber>
-        <span className="bs-delta">{formatDelta(statement.totalEquityLiab.delta, fmt)}</span>
+        </BsLearnableCell>
+        <span className="bs-delta">
+          {formatDelta(
+            statement.totalEquityLiab.delta
+              ?? bsDelta(statement.totalEquityLiab.opening, statement.totalEquityLiab.closing),
+            fmt,
+          )}
+        </span>
       </div>
 
       {/* Balance check — legacy path only. On canonical periods the engine
           status strip above is the single verdict; the local >1 RON
           heuristic must not second-guess the engine's tolerance bands. */}
-      {!statement.canonical && Math.abs(statement.balanceCheck) > 1 && (
+      {!statement.canonical
+        && typeof statement.balanceCheck === "number"
+        && Math.abs(statement.balanceCheck) > 1 && (
         <div className="bs-imbalance-warning">
           ⚠ {t("statements.bs.drift")}: {display} {fmt(statement.balanceCheck)}.
         </div>
@@ -307,34 +335,35 @@ function BSSectionView({
             </span>
             {subtotalConceptKey ? (
               <>
-                <LearnableNumber
-                  conceptKey={subtotalConceptKey}
-                  value={section.subtotalOpening ?? 0}
-                  className="bs-amount"
-                  block
-                >
+                <BsLearnableCell conceptKey={subtotalConceptKey} value={section.subtotalOpening}>
                   {fmt(section.subtotalOpening)}
-                </LearnableNumber>
-                <LearnableNumber
-                  conceptKey={subtotalConceptKey}
-                  value={section.subtotalClosing ?? 0}
-                  className="bs-amount"
-                  block
-                >
+                </BsLearnableCell>
+                <BsLearnableCell conceptKey={subtotalConceptKey} value={section.subtotalClosing}>
                   {fmt(section.subtotalClosing)}
-                </LearnableNumber>
+                </BsLearnableCell>
               </>
             ) : (
               <>
-                <BsAmountCell provenance={bsAggregateProvenance(canonical)}>
+                <BsAmountCell
+                  provenance={bsAggregateProvenance(canonical)}
+                  value={section.subtotalOpening}
+                >
                   {fmt(section.subtotalOpening)}
                 </BsAmountCell>
-                <BsAmountCell provenance={bsAggregateProvenance(canonical)}>
+                <BsAmountCell
+                  provenance={bsAggregateProvenance(canonical)}
+                  value={section.subtotalClosing}
+                >
                   {fmt(section.subtotalClosing)}
                 </BsAmountCell>
               </>
             )}
-            <span className="bs-delta">{formatDelta(section.subtotalDelta ?? 0, fmt)}</span>
+            <span className="bs-delta">
+              {formatDelta(
+                section.subtotalDelta ?? bsDelta(section.subtotalOpening, section.subtotalClosing),
+                fmt,
+              )}
+            </span>
           </div>
         </>
       )}
@@ -380,22 +409,12 @@ function BSLineView({
           </span>
           {conceptKey ? (
             <>
-              <LearnableNumber
-                conceptKey={conceptKey}
-                value={line.opening ?? 0}
-                className="bs-amount"
-                block
-              >
+              <BsLearnableCell conceptKey={conceptKey} value={line.opening}>
                 {fmt(line.opening)}
-              </LearnableNumber>
-              <LearnableNumber
-                conceptKey={conceptKey}
-                value={line.closing ?? 0}
-                className="bs-amount"
-                block
-              >
+              </BsLearnableCell>
+              <BsLearnableCell conceptKey={conceptKey} value={line.closing}>
                 {fmt(line.closing)}
-              </LearnableNumber>
+              </BsLearnableCell>
             </>
           ) : (
             <>
@@ -404,7 +423,7 @@ function BSLineView({
             </>
           )}
           <span className="bs-delta">
-            {formatDelta((line.closing ?? 0) - (line.opening ?? 0), fmt)}
+            {formatDelta(line.delta ?? bsDelta(line.opening, line.closing), fmt)}
           </span>
         </div>
       </>
@@ -422,13 +441,15 @@ function BSLineView({
   // Contra-asset rows (accumulated depreciation, etc.) render in parens.
   // Use the formatter's `paren` opt for negatives; for absolute values
   // wrap manually since the source data may carry the negative pre-applied.
-  const openingFmt = line.isContra
-    ? `(${fmt(Math.abs(line.opening ?? 0))})`
+  // An ABSENT figure keeps the gap glyph — never "(—)", which reads as a
+  // parenthesised value, and never "(0)".
+  const openingFmt = line.isContra && !isAbsentFigure(line.opening)
+    ? `(${fmt(Math.abs(line.opening as number))})`
     : fmt(line.opening);
-  const closingFmt = line.isContra
-    ? `(${fmt(Math.abs(line.closing ?? 0))})`
+  const closingFmt = line.isContra && !isAbsentFigure(line.closing)
+    ? `(${fmt(Math.abs(line.closing as number))})`
     : fmt(line.closing);
-  const deltaValue = line.delta ?? (line.closing ?? 0) - (line.opening ?? 0);
+  const deltaValue = line.delta ?? bsDelta(line.opening, line.closing);
   // KNOWN GAP, stated rather than smoothed over: the affordance goes on
   // the PLAIN amount cells only. The `conceptKey` branch renders a
   // `<LearnableNumber>`, which is a <button>; putting a focusable
@@ -481,27 +502,21 @@ function BSLineView({
       </span>
       {conceptKey ? (
         <>
-          <LearnableNumber
-            conceptKey={conceptKey}
-            value={line.opening ?? 0}
-            className="bs-amount"
-            block
-          >
+          <BsLearnableCell conceptKey={conceptKey} value={line.opening}>
             {openingFmt}
-          </LearnableNumber>
-          <LearnableNumber
-            conceptKey={conceptKey}
-            value={line.closing ?? 0}
-            className="bs-amount"
-            block
-          >
+          </BsLearnableCell>
+          <BsLearnableCell conceptKey={conceptKey} value={line.closing}>
             {closingFmt}
-          </LearnableNumber>
+          </BsLearnableCell>
         </>
       ) : (
         <>
-          <BsAmountCell provenance={rowProvenance}>{openingFmt}</BsAmountCell>
-          <BsAmountCell provenance={rowProvenance}>{closingFmt}</BsAmountCell>
+          <BsAmountCell provenance={rowProvenance} value={line.opening}>
+            {openingFmt}
+          </BsAmountCell>
+          <BsAmountCell provenance={rowProvenance} value={line.closing}>
+            {closingFmt}
+          </BsAmountCell>
         </>
       )}
       <span className="bs-delta">{formatDelta(deltaValue, fmt)}</span>
@@ -518,18 +533,50 @@ function BSLineView({
  * SPAN carrying `bs-amount` either way — the affordance replaces the
  * span, it does not wrap it in a second one.
  */
+/**
+ * One amount cell on a row the learning layer knows a concept for.
+ *
+ * SAME REFUSAL AS `BsAmountCell`, on the other affordance. A
+ * `<LearnableNumber>` pushes its `value` onto the popover stack, which
+ * then explains that number to the reader. Handing it `opening ?? 0`
+ * for a figure the engine never served makes the popover teach a
+ * fabricated zero — the provenance card's defect wearing the learning
+ * layer's clothes. An absent figure renders the gap glyph in a plain
+ * span: there is nothing to explain about a number that was not filed.
+ */
+function BsLearnableCell({
+  conceptKey,
+  value,
+  children,
+}: {
+  conceptKey: string;
+  value: number | null | undefined;
+  children: React.ReactNode;
+}) {
+  if (isAbsentFigure(value)) return <span className="bs-amount">{children}</span>;
+  return (
+    <LearnableNumber conceptKey={conceptKey} value={value as number} className="bs-amount" block>
+      {children}
+    </LearnableNumber>
+  );
+}
+
 function BsAmountCell({
   provenance,
+  value,
   children,
 }: {
   provenance: AmountProvenance | null;
+  /** The RAW figure the formatted children paint. An absent one
+   *  (`fmt` paints its own gap state) refuses the card. */
+  value: number | null | undefined;
   children: React.ReactNode;
 }) {
-  if (!hasProvenance(provenance)) {
+  if (!hasProvenance(provenance) || isAbsentFigure(value)) {
     return <span className="bs-amount">{children}</span>;
   }
   return (
-    <ProvenanceAffordance provenance={provenance} className="bs-amount" side="left">
+    <ProvenanceAffordance provenance={provenance} value={value} className="bs-amount" side="left">
       {children}
     </ProvenanceAffordance>
   );
@@ -677,8 +724,27 @@ export function BsCanonicalStatusStrip({
     }
   }
 
-  const pct =
-    m.totalAssets !== 0 ? (Math.abs(m.difference) / Math.abs(m.totalAssets)) * 100 : 0;
+  // ── THE DRIFT SENTENCE, IN ONE PLACE ────────────────────────────────
+  //
+  // Three arms below print the difference and its % of assets. They used
+  // to build that sentence each for themselves off `m.difference`, which
+  // was a plain number because the gateway derived one from `?? 0`
+  // totals. On an envelope missing `totals.liabilities` that produced
+  // "Difference: RON 18.990.225 (15.08%)" — the drift WAS the absent
+  // liabilities total. On `totals: {}` it produced "RON 0 (0.00%)", a
+  // fabricated perfect balance.
+  //
+  // Now the gateway hands over `null` in both shapes and this ONE
+  // function decides what a reader sees, so the three arms cannot
+  // disagree about it. The percentage goes too: a share of an unknown
+  // numerator is not 0%, and `totalAssets` of 0 is not a denominator.
+  const driftText = (): string => {
+    if (isAbsentFigure(m.difference)) return t("bsCanonical.differenceUnavailable");
+    const amount = `${t("bsCanonical.difference")}: ${display} ${fmt(m.difference)}`;
+    if (isAbsentFigure(m.totalAssets) || Math.abs(m.totalAssets as number) === 0) return amount;
+    const pct = (Math.abs(m.difference as number) / Math.abs(m.totalAssets as number)) * 100;
+    return `${amount} (${pct.toFixed(2)}%)`;
+  };
 
   // ONE presenter decides the band + wording keys (servedFacts.presentStatus
   // — shared with both exports); the branches below carry layout only.
@@ -780,8 +846,7 @@ export function BsCanonicalStatusStrip({
           {t(p.chipKey)}
         </span>
         <p className="mt-0.5 text-ink-soft">
-          {t("bsCanonical.difference")}: {display} {fmt(m.difference)} (
-          {pct.toFixed(2)}%){diagLine ? ` · ${diagLine}` : ""}
+          {driftText()}{diagLine ? ` · ${diagLine}` : ""}
         </p>
         <p className="mt-0.5 text-ink-soft">
           {t("bsCanonical.reconcile.needsReviewBody")}
@@ -808,8 +873,7 @@ export function BsCanonicalStatusStrip({
         className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400"
         data-testid="bs-status-minor-drift"
       >
-        {t(p.chipKey)} — {t("bsCanonical.difference")}: {display}{" "}
-        {fmt(m.difference)} ({pct.toFixed(2)}%)
+        {t(p.chipKey)} — {driftText()}
       </div>
     );
   }
@@ -824,9 +888,7 @@ export function BsCanonicalStatusStrip({
     >
       <strong className="block text-[14px]">⚠ {t(p.chipKey)}</strong>
       <p className="mt-1">{t("bsCanonical.materialBody")}</p>
-      <p className="mt-1 font-mono tabular-nums">
-        {t("bsCanonical.difference")}: {display} {fmt(m.difference)} ({pct.toFixed(2)}%)
-      </p>
+      <p className="mt-1 font-mono tabular-nums">{driftText()}</p>
       {m.diagnosis.length > 0 && (
         <div className="mt-2">
           <span className="font-semibold">{t("bsCanonical.diagnosis")}:</span>
@@ -1167,8 +1229,11 @@ export function BsNeedsReviewPanel({
 /** Delta column formatter. Δ shows the change in display currency, no
  *  decimals (deltas are coarse-grained). Uses the same fmt() to ensure
  *  the converted value uses the user's display currency. */
-function formatDelta(value: number, fmt: (v: number | null | undefined, o?: { signed?: boolean; sign?: "positive" | "negative"; paren?: boolean }) => string): string {
-  if (!Number.isFinite(value) || Math.abs(value) < 0.5) return "0";
+function formatDelta(value: number | null | undefined, fmt: (v: number | null | undefined, o?: { signed?: boolean; sign?: "positive" | "negative"; paren?: boolean }) => string): string {
+  // ABSENT Δ paints the gap glyph, not "0". "0" says the figure did not
+  // move; when no comparative was served nothing was measured to say so.
+  if (typeof value !== "number" || !Number.isFinite(value)) return MONEY_MISSING;
+  if (Math.abs(value) < 0.5) return "0";
   // Use signed mode to force +/−, the formatter handles currency conversion
   return fmt(value, { sign: value > 0 ? "positive" : "negative" });
 }

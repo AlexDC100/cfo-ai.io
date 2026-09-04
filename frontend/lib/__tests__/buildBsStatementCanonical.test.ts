@@ -99,12 +99,27 @@ describe("buildBSStatement — canonical_bs v2 pass-through", () => {
     expect(allLines.some((l) => l.accountCode === "other")).toBe(false);
     expect(allLines.some((l) => l.label.startsWith("Other "))).toBe(false);
 
-    // Opening column: engine-supplied opening survives; null opening
-    // mirrors closing (Δ 0) — symmetric on both sides.
+    // Opening column: an engine-supplied opening survives; a NULL opening
+    // stays ABSENT.
+    //
+    // 2026-09-04 (F1) — this used to assert the mirroring convention:
+    // "null opening mirrors closing (Δ 0) — symmetric on both sides", so
+    // `Land` (served `opening: null`) was expected to report 100, its own
+    // closing balance. On the real carniprod envelope every row serves a
+    // null opening, so that convention repainted the entire comparative
+    // column and put a provenance card on all of it. Mirroring is gone;
+    // the assertion moves with it.
     expect(allLines.find((l) => l.label === "Cash at bank")?.opening).toBe(40);
-    expect(allLines.find((l) => l.label === "Land")?.opening).toBe(100);
-    expect(st.totalAssets.delta).toBe(0);
-    expect(st.totalEquityLiab.delta).toBe(0);
+    expect(allLines.find((l) => l.label === "Land")?.opening).toBeUndefined();
+    expect(allLines.find((l) => l.label === "Land")?.delta).toBeUndefined();
+    // bs_v2 serves closing-only grand totals, so there is no opening
+    // total and therefore no Δ over one.
+    expect(st.totalAssets.opening).toBeUndefined();
+    expect(st.totalAssets.delta).toBeUndefined();
+    expect(st.totalEquityLiab.opening).toBeUndefined();
+    expect(st.totalEquityLiab.delta).toBeUndefined();
+    // …but a row that DID carry a comparative keeps its measured Δ.
+    expect(allLines.find((l) => l.label === "Cash at bank")?.delta).toBe(10);
   });
 
   it("MATERIAL_IMBALANCE yields the blocking state with the diagnosis list", () => {

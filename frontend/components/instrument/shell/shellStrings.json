@@ -46,7 +46,8 @@
         "originDeterministic": "Deterministic",
         "appliedAt": "Applied",
         "rationale": "Rationale",
-        "diagnosis": "Diagnosis"
+        "diagnosis": "Diagnosis",
+        "differenceUnavailable": "Not stated — this period's envelope carried neither a balance difference nor the totals to work one out."
       },
       "palette": {
         "placeholder": "Search pages, actions, periods, companies…",
@@ -118,7 +119,8 @@
         "originDeterministic": "Deterministă",
         "appliedAt": "Aplicată",
         "rationale": "Motivație",
-        "diagnosis": "Diagnostic"
+        "diagnosis": "Diagnostic",
+        "differenceUnavailable": "Neindicată — plicul acestei perioade nu a inclus nici o diferență de echilibru, nici totalurile din care să fie calculată."
       },
       "palette": {
         "placeholder": "Caută pagini, acțiuni, perioade, companii…",

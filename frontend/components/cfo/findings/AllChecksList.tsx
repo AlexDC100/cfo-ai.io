@@ -251,7 +251,7 @@ function CheckTable({
                     {comparatorWord(c.comparator, t)}
                   </span>
                 ) : null}
-                <ProvenanceAffordance provenance={checkLimitProvenance(c, sources)}>
+                <ProvenanceAffordance provenance={checkLimitProvenance(c, sources)} value={c.limit}>
                   <FigureValue value={c.limit} unit={c.unit} currency={currency} />
                 </ProvenanceAffordance>
               </td>
@@ -260,7 +260,7 @@ function CheckTable({
                 data-observed-exact={c.observed === null ? undefined : String(c.observed)}
                 title={c.observed === null ? undefined : String(c.observed)}
               >
-                <ProvenanceAffordance provenance={checkObservedProvenance(c)}>
+                <ProvenanceAffordance provenance={checkObservedProvenance(c)} value={c.observed}>
                   <FigureValue value={c.observed} unit={c.unit} currency={currency} />
                 </ProvenanceAffordance>
               </td>

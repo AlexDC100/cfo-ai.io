@@ -78,9 +78,15 @@ export default function MultiYearHistory() {
   const { display } = useDisplayMoney();
 
   // Where a year's figures come from: the uploaded public-records
-  // document (its filename) and the site it was pulled from, the year as
-  // the period, and the extract's own confidence. The payload carries no
-  // page or table anchor and no extraction method, so none is claimed.
+  // document (its filename) and the site it was pulled from, and the year
+  // as the period. The payload carries no page or table anchor and no
+  // extraction method, so none is claimed — and `extract.confidence` is
+  // NOT passed: the card renders a confidence only beside a Method (it
+  // is that method's verification score), and this extract names none.
+  // It used to be passed and never rendered (critic finding #5,
+  // ea6df1f) — a field in the payload nobody could see. The parser's own
+  // definition is "the fraction of expected fields parsed successfully",
+  // which the footer below states in those words, where it belongs.
   const yearOrigin = (year: number): AmountProvenance | null =>
     extract
       ? provenanceOf({
@@ -88,7 +94,6 @@ export default function MultiYearHistory() {
             .filter((x): x is string => typeof x === "string" && x.length > 0)
             .join(" · "),
           period: String(year),
-          confidence: extract.confidence ?? undefined,
         })
       : null;
 
@@ -227,7 +232,9 @@ export default function MultiYearHistory() {
               />
               <KpiTile
                 label="Employees"
-                value={<Amount kind="count" value={latest.salariati ?? 0} provenance={yearOrigin(latest.year)} />}
+                // A year with no head-count in the filing is a GAP ("—"),
+                // never a zero employees wearing the filing as its source.
+                value={<Amount kind="count" value={latest.salariati} provenance={yearOrigin(latest.year)} />}
                 sub={(() => {
                   const prev = years[1];
                   if (!prev || !prev.salariati || !latest.salariati) return "";

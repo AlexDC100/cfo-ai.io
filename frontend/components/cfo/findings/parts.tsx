@@ -187,17 +187,32 @@ export function FigureValue({
     // word while its sibling converts (the Critical-461 defect).
     const resolved = fact ?? resolveMoneyFact(value, facts, factUnits);
     const named = resolved ?? LOCAL_MONEY_FACT;
-    const boundFacts = resolved ? facts : undefined;
     const native = `${currency} ${new Intl.NumberFormat("en-US", {
       maximumFractionDigits: 0,
     }).format(value)}`;
+    // ── THE MAP IS BOUND TO `value`, NOT TO THE CALLER'S FACTS ─────────
+    //
+    // This used to pass the whole `facts` map whenever a fact name
+    // resolved, so the placeholder painted `facts[named]` while the
+    // caller's provenance affordance guarded `value`. Two reads, two
+    // objects, and only one of them decided whether a card appeared —
+    // `ImpactRow` wraps this in a `<ProvenanceAffordance value={impact.
+    // baseline}>` while the template resolved `facts[impact.
+    // baseline_fact]`. On today's payloads they agree; nothing made them.
+    //
+    // The whole map bought nothing: `moneyTemplate(named)` is a SINGLE
+    // token, so the other entries were never read. Binding one entry
+    // keyed by the same name keeps the unit, keeps the currency path and
+    // keeps click-to-source (which is looked up from the NAME via
+    // `FACT_TO_SOURCE`, not from the map) — and makes it impossible for
+    // this to paint a number its guard did not see.
     return (
       <span className={`tabular-nums ${className}`}>
         <NarrativeText
           text={native}
           template={moneyTemplate(named)}
-          facts={boundFacts ?? { [named]: value }}
-          factUnits={boundFacts ? factUnits : { [named]: "money" }}
+          facts={{ [named]: value }}
+          factUnits={{ [named]: "money" }}
           sourceCurrency={currency}
         />
       </span>
@@ -265,7 +280,9 @@ export function FigureCell({
         {figure.label}
       </div>
       <div className="mt-0.5 text-[14px] font-medium leading-tight text-ink">
-        <ProvenanceAffordance provenance={provenance}>
+        {/* The figure goes to the affordance too: an absent value paints
+            the dash below and must NOT open a card over it. */}
+        <ProvenanceAffordance provenance={provenance} value={figure.value}>
           <FigureValue
             value={figure.value}
             unit={figure.unit}

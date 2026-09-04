@@ -129,7 +129,7 @@ export function FactTileValue({
   // because tiles were not rendering at all on the measured host.
   const currency = (fact.currency ?? "RON") as Currency;
   return (
-    <ProvenanceAffordance provenance={provenance} className={className}>
+    <ProvenanceAffordance provenance={provenance} value={fact.value} className={className}>
       <NarrativeText
         // The NATIVE spelling is the fallback the renderer falls back TO
         // when no rate exists, so it has to already be the right one.

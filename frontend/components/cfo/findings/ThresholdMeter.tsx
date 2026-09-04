@@ -131,7 +131,7 @@ export function ThresholdMeter({
           comparator: comparatorWord(threshold.comparator, t),
         })}{" "}
         <span className="font-medium text-ink">
-          <ProvenanceAffordance provenance={limitOrigin}>
+          <ProvenanceAffordance provenance={limitOrigin} value={threshold.limit}>
             <FigureValue
               value={threshold.limit}
               unit={threshold.unit}
@@ -144,7 +144,7 @@ export function ThresholdMeter({
         {". "}
         <span className="text-ink-mute">{t("fnd.observedLead")} </span>
         <span className={`font-medium ${tone.text}`}>
-          <ProvenanceAffordance provenance={observedOrigin}>
+          <ProvenanceAffordance provenance={observedOrigin} value={threshold.observed}>
             <FigureValue
               value={threshold.observed}
               unit={threshold.unit}

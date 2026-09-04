@@ -33,8 +33,15 @@ export interface CashFlowStatement {
 
   operating: {
     netProfit: number;
-    depreciation: number;
-    cfBeforeWcChanges: number;
+    /** ABSENT-CAPABLE. The public adapter derives D&A from the
+     *  EBITDA − EBIT identity when the feed carries no
+     *  `depreciation_total` leaf; when either term of that identity is
+     *  missing there is no D&A figure, and a `0` on this line reads as
+     *  "this company depreciates nothing". */
+    depreciation: number | null;
+    /** ABSENT when `depreciation` is — `netProfit + null` is `netProfit`,
+     *  which silently drops the add-back. */
+    cfBeforeWcChanges: number | null;
     wcChanges: CFWorkingCapitalLine[];
     cashFromOperating: number;
   };

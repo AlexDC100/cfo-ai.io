@@ -86,6 +86,7 @@
     "frontend/lib/__tests__/narrativeMoney.test.tsx": 19,
     "frontend/lib/__tests__/narrativeUnitGates.test.tsx": 13,
     "frontend/lib/__tests__/noteCurrencyUnity.test.tsx": 4,
+    "frontend/lib/__tests__/oneVerdictLeavesTheBuilding.test.tsx": 57,
     "frontend/lib/__tests__/periodDetect.test.ts": 19,
     "frontend/lib/__tests__/periodGates.test.ts": 6,
     "frontend/lib/__tests__/prefs.stableStringify.test.ts": 5,
@@ -105,6 +106,7 @@
     "frontend/lib/scenarios/__tests__/cascade.math.test.ts": 18,
     "frontend/pages/cfo/__tests__/multiYearHistory.smoke.test.tsx": 1,
     "frontend/pages/cfo/__tests__/onboarding.test.tsx": 5,
+    "frontend/pages/cfo/__tests__/oneLetterOneLadder.test.tsx": 20,
     "frontend/test/example.test.ts": 1,
     "frontend/test/harness.test.ts": 6,
     "frontend/test/hermeticity.test.ts": 17

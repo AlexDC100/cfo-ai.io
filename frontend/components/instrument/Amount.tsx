@@ -150,6 +150,7 @@ export function Amount({
     return (
       <ProvenanceAffordance
         provenance={provenance}
+        value={value}
         exact={exact}
         conversionNote={conversionNote}
         className={`font-mono tabular-nums ${className ?? ""}`.trim()}

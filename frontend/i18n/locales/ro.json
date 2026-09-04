@@ -555,7 +555,8 @@
       "totalAssets": "TOTAL ACTIVE",
       "totalEquityLiab": "TOTAL CAPITAL PROPRIU ȘI DATORII",
       "drift": "Discrepanță bilanț",
-      "note": "Notă"
+      "note": "Notă",
+      "noComparative": "Sold inițial — nedepus"
     },
     "cf": {
       "title": "FLUX DE NUMERAR",
@@ -1157,7 +1158,7 @@
     "nothingToExportBody": "Încărcați un exemplu sau o situație financiară pentru a activa exporturile HTML și Excel.",
     "pickSampleOrUpload": "Alegeți un exemplu sau încărcați",
     "exportHtmlTitle": "Raport de analiză financiară HTML",
-    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei peste 25 de indicatori cu verdicte, evaluarea riscului de faliment și recomandări prioritizate.",
+    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei peste 25 de indicatori cu verdicte, ratingul de credit și evaluarea riscului de faliment (cu modelul care le-a produs) și recomandări prioritizate.",
     "exportXlsxTitle": "Registru Excel",
     "exportXlsxBody": "Model xlsx cu 8 foi: copertă, cont de profit și pierdere, bilanț, indicatori, flux de numerar, evaluare (WACC + DCF + Graham), credit și risc, recomandări.",
     "exportPptxTitle": "Prezentare PowerPoint",
@@ -1435,7 +1436,10 @@
     "previewSheetCaption": "{{file}} · foaia „{{sheet}}” (exemplu — date fictive)",
     "previewLoadFailed": "Previzualizarea nu a putut fi încărcată: {{msg}}.",
     "downloadInstead": "Descărcați în schimb",
-    "narrativeUnavailable": "Briefingul AI este momentan indisponibil — cifrele analizei de mai jos nu sunt afectate. Se va regenera automat la următoarea scanare sau schimbare de monedă/limbă."
+    "narrativeUnavailable": "Briefingul AI este momentan indisponibil — cifrele analizei de mai jos nu sunt afectate. Se va regenera automat la următoarea scanare sau schimbare de monedă/limbă.",
+    "notAvailableShort": "—",
+    "zoneNotComputable": "Nu se poate calcula",
+    "creditNotComputable": "Nu s-a recunoscut suficient din balanța sursă pentru a calcula un rating."
   },
   "tabs": {
     "pl": "Cont de profit și pierdere",
@@ -2375,7 +2379,9 @@
     "gradeBoundary": "la limită",
     "gradeSpeculative": "speculativ",
     "gradeDistress": "dificultate",
-    "tabOverview": "Sinteză"
+    "tabOverview": "Sinteză",
+    "ratioVerdictUnknown": "Neraportat",
+    "ratioUnavailableAria": "Neraportat pentru această perioadă"
   },
   "metricsV2": {
     "title": "Indicatori",

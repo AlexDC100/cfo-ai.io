@@ -196,8 +196,13 @@ describe("all checks", () => {
 
   it("a row whose rule surfaced nowhere names only the rule and profile", async () => {
     const r = report();
-    const quiet = r.checks.find((c) => !c.fired && c.rule_id);
-    if (!quiet) throw new Error("fixture has no quiet check row");
+    // A quiet row WITH a limit. Until 2026-09-04 this picked the first
+    // quiet row, `affiliate_income_dependency` — `limit: null, observed:
+    // null` — and asserted that its DASH wore a card naming the rule.
+    // That was the fabrication (critic finding #2, ea6df1f) pinned as a
+    // pass; the refusal it should have been is the test below.
+    const quiet = r.checks.find((c) => !c.fired && c.rule_id && typeof c.limit === "number");
+    if (!quiet) throw new Error("fixture has no quiet check row with a limit");
     render(<AllChecksList report={r} defaultOpen />);
     const row = screen.getAllByTestId(`fnd-check-${quiet.rule_id}`)[0];
     const found = Array.from(row.querySelectorAll<HTMLElement>('[data-provenance="true"]'));
@@ -206,6 +211,24 @@ describe("all checks", () => {
     const text = openCardText();
     expect(text).toContain(`rule ${quiet.rule_id}`);
     expect(text).not.toContain("profiles.yaml");
+  });
+
+  it("a row whose limit and observed value are ABSENT paints two dashes and NO card", () => {
+    const r = report();
+    const absent = r.checks.find((c) => !c.fired && c.limit === null && c.observed === null);
+    if (!absent) throw new Error("fixture has no check row with an absent limit and observed");
+    render(<AllChecksList report={r} defaultOpen />);
+    const row = screen.getAllByTestId(`fnd-check-${absent.rule_id}`)[0];
+    // Both FIGURE cells (the right-aligned limit and observed columns;
+    // the parameter column paints its own dash for an empty name and is
+    // not a figure) paint the dash …
+    const dashes = Array.from(row.querySelectorAll("td.text-right")).filter(
+      (td) => td.textContent?.trim() === "—",
+    );
+    expect(dashes.length, "the absent row did not paint two figure dashes").toBe(2);
+    // … and neither wears a card: a rule name over a number that does
+    // not exist is an origin for nothing.
+    expect(row.querySelectorAll('[data-provenance="true"]').length).toBe(0);
   });
 });
 

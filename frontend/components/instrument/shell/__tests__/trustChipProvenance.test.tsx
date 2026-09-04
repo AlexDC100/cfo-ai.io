@@ -12,6 +12,18 @@
 // TC-2 was run: with `provenance={differenceOrigin}` removed from the
 // difference row, "the difference wears …" went red on
 // `no affordance rendered in the receipt`.
+//
+// THE SOURCE IS A FIELD, NOT AN ACCESSOR (2026-09-04). The difference
+// row used to name `servedFacts.difference() · …` as its Source in every
+// case — the gateway method this component read the number through,
+// chosen (the comment said) to satisfy the import-boundary gate. An
+// accessor is not where a number came from (critic finding #4,
+// ea6df1f). Now the card names the served field `canonical_bs.difference`
+// when the envelope carries it, and says "client-derived" — naming no
+// field and no snapshot — when the gateway fell back to assets − (equity
+// + liabilities) over the served totals. Both halves are measured below
+// on the same real envelope, the second with its `difference` field
+// removed.
 
 import { describe, expect, it, vi, beforeAll, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
@@ -85,10 +97,13 @@ describe("the fixture supports what the receipt would show", () => {
     expect(envelope.mapping_version).toBeTruthy();
     expect((envelope as { reconciliation?: unknown }).reconciliation ?? null).toBeNull();
   });
+  it("serves a `difference` field — the served half below is not vacuous", () => {
+    expect(typeof (envelope as { difference?: unknown }).difference).toBe("number");
+  });
 });
 
 describe("the difference row", () => {
-  it("wears the served field, the extraction method and the pack — and nothing about a receipt", async () => {
+  it("wears the SERVED field, the extraction method and the pack — and nothing about a receipt", async () => {
     periodRef.statements = statementsWith(envelope);
     renderWithProviders(<TrustChip />);
     await openReceipt();
@@ -96,11 +111,41 @@ describe("the difference row", () => {
     expect(found.length, "no affordance rendered in the receipt").toBe(1);
     expect(found[0].getAttribute("tabindex")).toBe("0");
     fireEvent.focus(found[0]);
-    await waitFor(() => expect(openCardText()).toContain("servedFacts.difference()"));
+    await waitFor(() => expect(openCardText()).toContain("canonical_bs.difference"));
     const text = openCardText();
     expect(text).toContain(envelope.extraction!.method);
     expect(text).toContain(envelope.mapping_version);
     expect(text).not.toContain("snapshot");
+    // Neither the accessor's name nor a derivation claim: the figure was
+    // READ, from a field the reader can open.
+    expect(text).not.toContain("servedFacts");
+    expect(text).not.toContain("client-derived");
+  });
+
+  it("says CLIENT-DERIVED, names no field and no snapshot, when the envelope served no difference", async () => {
+    const { difference: _dropped, ...withoutDifference } = envelope as CanonicalBs & {
+      difference?: number;
+    };
+    void _dropped;
+    periodRef.statements = statementsWith(withoutDifference as CanonicalBs);
+    renderWithProviders(<TrustChip />);
+    await openReceipt();
+    const found = affordances();
+    expect(found.length, "no affordance rendered in the receipt").toBe(1);
+    fireEvent.focus(found[0]);
+    await waitFor(() => expect(openCardText()).toContain("client-derived"));
+    const text = openCardText();
+    // 2026-09-04 — the sentence names the SERVED TOTALS the subtraction
+    // consumed, not an idealised equation. This envelope serves
+    // `totals.equity_plus_liabilities`, so the derivation used that ONE
+    // field; the old wording said "assets − (equity + liabilities)",
+    // naming two terms where one was read. See F3 in TrustChip.tsx.
+    expect(text).toContain("totals.assets − totals.equity_plus_liabilities");
+    expect(text).not.toContain("totals.equity +");
+    expect(text).not.toContain("canonical_bs.difference");
+    expect(text).not.toContain("servedFacts");
+    expect(text).not.toContain("snapshot");
+    expect(text).not.toMatch(/Source/);
   });
 });
 

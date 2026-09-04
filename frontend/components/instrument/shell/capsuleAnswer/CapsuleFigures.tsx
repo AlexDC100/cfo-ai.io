@@ -150,13 +150,36 @@ export function FigureValue({
   // own dotted rule when a conversion was refused, and two dotted rules
   // on one number reads as a defect rather than as two disclosures.
   const native = (meta.currency ?? evidence.currency ?? "RON") as Currency;
+  // ── ONE SOURCE FOR THE GUARD AND THE RENDER ─────────────────────────
+  //
+  // The affordance used to guard `meta.value` while `NarrativeText`
+  // painted `evidence.facts[meta.fact]` — the placeholder resolves out of
+  // the facts MAP, not out of the meta. Two reads of two objects, and the
+  // one that decides whether a provenance card appears was not the one
+  // the reader sees. On today's payloads they agree; nothing structural
+  // made them, so "they agree" was a property of the data, not of the
+  // code, and the next retrieval-layer change could part them silently.
+  //
+  // `shown` is resolved once. It guards the affordance, it is the
+  // fallback text, and it is the single entry in the facts map the
+  // template resolves against — so the template can only paint the number
+  // the guard approved. The map is one entry rather than
+  // `evidence.facts` for the same reason: a one-token template has no use
+  // for the others, and passing them back would reopen the seam.
+  const shown = evidence.facts?.[meta.fact];
+  const value = typeof shown === "number" && Number.isFinite(shown) ? shown : meta.value;
   return (
-    <ProvenanceAffordance provenance={provenance} className={className} underline={false}>
+    <ProvenanceAffordance
+      provenance={provenance}
+      value={value}
+      className={className}
+      underline={false}
+    >
       <NarrativeText
-        text={formatMoneyFrom(meta.value, native, native, {} as Rates, { fractionDigits: 2 })}
+        text={formatMoneyFrom(value, native, native, {} as Rates, { fractionDigits: 2 })}
         template={`{{money:${meta.fact}}}`}
-        facts={evidence.facts}
-        factUnits={evidence.factUnits}
+        facts={{ [meta.fact]: value }}
+        factUnits={{ [meta.fact]: "money" }}
         sourceCurrency={native}
       />
     </ProvenanceAffordance>

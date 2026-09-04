@@ -75,6 +75,31 @@ function reportOrigin(sourceDocument: string | null | undefined, periodEnd: stri
     derived: (formula) => provenanceOf({ method: `derived · ${formula}`, period: periodEnd }),
   };
 }
+
+// ── ABSENT ≠ ZERO ─────────────────────────────────────────────────────
+//
+// Every table below reads fields off `assembled_pl` / `assembled_bs` /
+// `assembled_cf`, and a field the pack never emitted is ABSENT, not
+// zero (PS1 — the HU pack really does serve `assembled_cf: {}`). Until
+// 2026-09-04 twenty-three sites read `pl.cogs ?? 0` and handed the zero
+// to a row whose origin named `assembled_pl.cogs`: measured with four
+// fields absent, 27 of 51 affordances opened a Source over a "0" the
+// source did not contain (critic finding #1, ea6df1f). An absent field
+// now stays undefined, the cell paints its gap state ("—"), and the
+// affordance — which refuses an absent figure — paints no card. A row
+// this page DERIVES from served fields is absent when any addend is: a
+// sum with a hole in it is not a figure.
+function negated(v: number | null | undefined): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? -v : undefined;
+}
+function sumOf(...parts: Array<number | null | undefined>): number | undefined {
+  let total = 0;
+  for (const p of parts) {
+    if (typeof p !== "number" || !Number.isFinite(p)) return undefined;
+    total += p;
+  }
+  return total;
+}
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
@@ -150,6 +175,15 @@ interface PeriodResponse {
     assembled_bs?: Record<string, number>;
     assembled_cf?: Record<string, number | boolean | string[] | undefined>;
   };
+  /** F1.i canonical envelope — the SAME field `lib/activePeriod.ts` has
+   *  read off this endpoint since F2.4 to score the Dashboard's Risks
+   *  tab. It rode this page's own `/api/period/:id` response the whole
+   *  time; this page just never declared it, so Section 7 minted its
+   *  letter grade from a hardcoded frontend band ladder while every
+   *  other surface read the engine's. See `CreditScoreCard`. */
+  assembled_metrics?: {
+    credit?: import("@/lib/financialValuation").CreditEnvelope | null;
+  } | null;
   metrics?: Array<{ name: string; value: number | null; unit?: string }>;
   alerts?: Array<RiskInventoryItem & { category?: string | null }>;
   recommendations?: Array<{
@@ -287,7 +321,12 @@ export default function ComprehensiveReport() {
   const periodEnd = report.period.period_end ?? "—";
   const currency = report.period.currency ?? "RON";
   const origin = reportOrigin(report.period.source_document?.filename, periodEnd);
-  const credit = readCreditFromMetrics(metricsByName);
+  // ONE LETTER, ONE LADDER. The card is handed the engine's credit
+  // envelope so Section 7's grade comes from `letter_grade` / the
+  // engine's own `letter_grade_bands` — the same authority the Risks
+  // tab, the hero card and the exported workbook read — instead of the
+  // frontend band table that used to live in CreditScoreCard.tsx.
+  const credit = readCreditFromMetrics(metricsByName, report.assembled_metrics?.credit ?? null);
   const recs = report.recommendations ?? [];
   const alerts = report.alerts ?? [];
 
@@ -636,7 +675,9 @@ function KpiGrid({
 
 function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; currency: string; origin: ReportOrigin }) {
   const { fmt, displayCurrency } = useReportFmt(currency);
-  const revenue = pl.revenue ?? 0;
+  // The % column's denominator. Absent revenue → no percentages, never a
+  // division guarded by a fabricated zero.
+  const revenue: number | undefined = pl.revenue;
   const f = (path: string) => origin.field(`assembled_pl.${path}`);
   const neg = (path: string) => origin.field(`assembled_pl.${path}`, "presented negative");
 
@@ -645,10 +686,11 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   // this is the explicit reconciliation bridge the board reader needs,
   // never a second competing headline. NO new computation — just summing
   // two figures the engine already emits, exactly as the EEI report does.
-  const opNetProfit  = pl.net_income_statutory ?? 0;
-  const capOwnWork   = pl.capitalized_own_work_memo ?? 0;
-  const statNetProfit = opNetProfit + capOwnWork;
-  const has722       = Math.abs(capOwnWork) > 0.5;
+  // Either one absent → the bridge is absent (see `sumOf`).
+  const opNetProfit: number | undefined = pl.net_income_statutory;
+  const capOwnWork: number | undefined = pl.capitalized_own_work_memo;
+  const statNetProfit = sumOf(opNetProfit, capOwnWork);
+  const has722 = capOwnWork != null && Math.abs(capOwnWork) > 0.5;
 
   // Row schema  →  { label, value, style, sub?, indent? }
   type RowStyle =
@@ -666,9 +708,9 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     { label: "Capitalized own work (722, non-cash memo)", val: pl.capitalized_own_work_memo, style: "memo", origin: f("capitalized_own_work_memo") },
     { label: "Other operating income",                    val: pl.other_operating_income, style: "indent", origin: f("other_operating_income") },
     { label: "Total operating revenue",                   val: pl.total_operating_revenue, style: "subtotal", origin: f("total_operating_revenue") },
-    { label: "Cost of goods sold",                        val: -(pl.cogs ?? 0),           style: "indent", origin: neg("cogs") },
-    { label: "Operating expenses",                        val: -(pl.opex_total ?? 0),     style: "indent", origin: neg("opex_total") },
-    { label: "Depreciation & amortization",               val: -(pl.depreciation ?? 0),   style: "indent", origin: neg("depreciation") },
+    { label: "Cost of goods sold",                        val: negated(pl.cogs),          style: "indent", origin: neg("cogs") },
+    { label: "Operating expenses",                        val: negated(pl.opex_total),    style: "indent", origin: neg("opex_total") },
+    { label: "Depreciation & amortization",               val: negated(pl.depreciation),  style: "indent", origin: neg("depreciation") },
     {
       label: "EBITDA (cash view)",
       val: pl.ebitda_cash ?? pl.ebitda_operational,
@@ -679,12 +721,12 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     { label: "EBIT",                                      val: pl.ebit,                   style: "indent", origin: f("ebit") },
     {
       label: "Net financial result",
-      val: (pl.financial_income ?? 0) - (pl.financial_expense ?? 0) - (pl.interest_expense ?? 0),
+      val: sumOf(pl.financial_income, negated(pl.financial_expense), negated(pl.interest_expense)),
       style: "indent",
       origin: origin.derived("assembled_pl.financial_income − financial_expense − interest_expense"),
     },
     { label: "Pre-tax profit",                            val: pl.pretax,                 style: "subtotal", origin: f("pretax") },
-    { label: "Income tax",                                val: -(pl.tax ?? 0),            style: "indent", origin: neg("tax") },
+    { label: "Income tax",                                val: negated(pl.tax),           style: "indent", origin: neg("tax") },
     // ── Operational net profit — THE headline figure ──────────────────
     { label: "Net profit — operational (excl. 722)",      val: opNetProfit,               style: "headline", origin: f("net_income_statutory") },
   ];
@@ -749,7 +791,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
                     <MoneyAmount value={v} fromCurrency={currency as Currency} unit={false} provenance={r.origin} />
                   </td>
                   <td className="px-3 py-1 text-right text-ink-soft">
-                    <PercentLevel value={v != null && revenue > 0 ? (v / revenue) * 100 : null} />
+                    <PercentLevel value={v != null && revenue != null && revenue > 0 ? (v / revenue) * 100 : null} />
                   </td>
                 </tr>
               );
@@ -781,35 +823,36 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
 type BsRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
 
 function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currency: string; origin: ReportOrigin }) {
-  const total = bs.total_assets ?? 0;
+  // The "% of assets" denominator. Absent → no percentages.
+  const total: number | undefined = bs.total_assets;
   const f = (path: string) => origin.field(`assembled_bs.${path}`);
   const assetRows: BsRow[] = [
     ["Cash", bs.cash, f("cash")],
     ["Accounts receivable (net)", bs.ar_net, f("ar_net")],
-    ["Inventory", bs.inventory ?? 0, f("inventory")],
-    ["Other current assets", bs.ar_other ?? 0, f("ar_other")],
-    ["PP&E (net)", bs.ppe_net ?? 0, f("ppe_net")],
-    ["Intangibles (net)", bs.intangibles_net ?? 0, f("intangibles_net")],
-    ["Investments", bs.investments ?? 0, f("investments")],
+    ["Inventory", bs.inventory, f("inventory")],
+    ["Other current assets", bs.ar_other, f("ar_other")],
+    ["PP&E (net)", bs.ppe_net, f("ppe_net")],
+    ["Intangibles (net)", bs.intangibles_net, f("intangibles_net")],
+    ["Investments", bs.investments, f("investments")],
   ];
   const liabRows: BsRow[] = [
     ["Share capital", bs.share_capital, f("share_capital")],
     [
       "Reserves & retained earnings",
-      (bs.revaluation_reserves ?? 0) + (bs.retained_earnings ?? 0) + (bs.other_equity_non_revaluation ?? 0),
+      sumOf(bs.revaluation_reserves, bs.retained_earnings, bs.other_equity_non_revaluation),
       origin.derived("assembled_bs.revaluation_reserves + retained_earnings + other_equity_non_revaluation"),
     ],
-    ["Current-year P&L", bs.current_year_pnl ?? 0, f("current_year_pnl")],
-    ["Long-term debt", bs.lt_debt ?? 0, f("lt_debt")],
-    ["Short-term debt", bs.st_debt ?? 0, f("st_debt")],
+    ["Current-year P&L", bs.current_year_pnl, f("current_year_pnl")],
+    ["Long-term debt", bs.lt_debt, f("lt_debt")],
+    ["Short-term debt", bs.st_debt, f("st_debt")],
     ["Accounts payable", bs.ap, f("ap")],
     ["Other current liabilities", bs.ap_other, f("ap_other")],
-    ["Dividends payable", bs.ap_dividends ?? 0, f("ap_dividends")],
+    ["Dividends payable", bs.ap_dividends, f("ap_dividends")],
   ];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <BsHalf title="Assets" rows={assetRows} totalLabel="Total assets" totalValue={bs.total_assets} totalOrigin={f("total_assets")} reference={total} currency={currency} />
-      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={(bs.total_equity ?? 0) + (bs.total_liabilities ?? 0)} totalOrigin={origin.derived("assembled_bs.total_equity + total_liabilities")} reference={total} currency={currency} />
+      <BsHalf title="Equity & Liabilities" rows={liabRows} totalLabel="Total equity + liabilities" totalValue={sumOf(bs.total_equity, bs.total_liabilities)} totalOrigin={origin.derived("assembled_bs.total_equity + total_liabilities")} reference={total} currency={currency} />
     </div>
   );
 }
@@ -820,7 +863,7 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
   totalLabel: string;
   totalValue: number | undefined;
   totalOrigin: AmountProvenance | null;
-  reference: number;
+  reference: number | undefined;
   currency: string;
 }) {
   const { displayCurrency } = useReportFmt(currency);
@@ -843,7 +886,7 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
                 <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
               </td>
               <td className="px-3 py-1 text-right text-ink-soft">
-                {val != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}
+                {val != null && reference != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}
               </td>
             </tr>
           ))}
@@ -864,14 +907,18 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
   const { displayCurrency } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
-  const n = (k: string) => (typeof cf[k] === "number" ? (cf[k] as number) : 0);
+  // A field the envelope does not carry is ABSENT (the HU pack serves
+  // `assembled_cf: {}`): the row paints "—" and no card, never a zero
+  // wearing `assembled_cf.<k>` as its source.
+  const n = (k: string): number | undefined =>
+    typeof cf[k] === "number" && Number.isFinite(cf[k] as number) ? (cf[k] as number) : undefined;
   // The served envelope says whether this statement is approximated
   // (`is_approximated`); the figure says the same thing in its method
   // so the ~ in the label and the card can never disagree.
   const f = (k: string) =>
     origin.field(`assembled_cf.${k}`, isApprox ? "indirect method · approximated" : undefined);
 
-  type CfRow = [label: string, value: number, origin: AmountProvenance | null];
+  type CfRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
   const sections: Array<{ title: string; rows: CfRow[]; subtotal: CfRow; }> = [
     {
       title: "Operating",
@@ -1054,25 +1101,38 @@ function ValuationView({ metrics, pl, bs, currency }: {
   currency: string;
 }) {
   const { displayCurrency } = useReportFmt(currency);
-  const ebitda = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda ?? 0;
-  const netDebt = (bs.total_debt ?? 0) - (bs.cash ?? 0);
-  const bookEquity = bs.total_equity ?? metrics.total_equity ?? 0;
+  // Client arithmetic over served fields, and NO provenance on any of it
+  // (the census records these as plain). Absent inputs stay absent: an
+  // EBITDA the envelope does not carry forms no multiple, a net debt
+  // with a missing addend forms no equity value, and book equity paints
+  // its gap state rather than a zero floor.
+  const ebitda: number | null | undefined = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda;
+  const hasEbitda = typeof ebitda === "number" && Number.isFinite(ebitda) && ebitda > 0;
+  const netDebt = sumOf(bs.total_debt, negated(bs.cash));
+  const bookEquity: number | null | undefined = bs.total_equity ?? metrics.total_equity;
 
-  const multiples = [
-    { label: "Conservative (6×)", mult: 6,  ev: ebitda * 6,  equity: ebitda * 6  - netDebt },
-    { label: "Mid (8×)",          mult: 8,  ev: ebitda * 8,  equity: ebitda * 8  - netDebt },
-    { label: "Premium (10×)",     mult: 10, ev: ebitda * 10, equity: ebitda * 10 - netDebt },
-  ];
+  const multiples = [6, 8, 10].map((mult) => ({
+    label: mult === 6 ? "Conservative (6×)" : mult === 8 ? "Mid (8×)" : "Premium (10×)",
+    mult,
+    ev: hasEbitda ? (ebitda as number) * mult : undefined,
+    equity: hasEbitda && netDebt != null ? (ebitda as number) * mult - netDebt : undefined,
+  }));
 
   return (
     <div className="space-y-3">
-      {ebitda <= 0 && (
+      {ebitda == null ? (
+        <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
+          EBITDA is not carried by this envelope — no EV/EBITDA multiple can be
+          formed. For asset-heavy or distressed cases, prefer NAV (book equity)
+          as the floor and revenue-multiple as a cross-check.
+        </Panel>
+      ) : !hasEbitda ? (
         <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
           EBITDA is non-positive — EV/EBITDA multiples produce meaningless values.
           For asset-heavy or distressed cases, prefer NAV (book equity) as the
           floor and revenue-multiple as a cross-check.
         </Panel>
-      )}
+      ) : null}
       <Panel className="overflow-x-auto">
         <PanelHeader title="Valuation envelope" />
         <table className="w-full text-[12.5px] min-w-[480px]">
@@ -1088,10 +1148,10 @@ function ValuationView({ metrics, pl, bs, currency }: {
               <tr key={m.label} className="border-t border-rule-soft first:border-t-0 h-8">
                 <td className="px-4 py-1 text-ink">EV/EBITDA · {m.label}</td>
                 <td className="px-3 py-1 text-right">
-                  {ebitda > 0 ? <MoneyAmount value={m.ev} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
+                  {m.ev != null ? <MoneyAmount value={m.ev} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
                 </td>
                 <td className="px-3 py-1 text-right">
-                  {ebitda > 0 ? <MoneyAmount value={m.equity} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
+                  {m.equity != null ? <MoneyAmount value={m.equity} fromCurrency={currency as Currency} unit={false} /> : <span className="text-ink-mute">n/a</span>}
                 </td>
               </tr>
             ))}

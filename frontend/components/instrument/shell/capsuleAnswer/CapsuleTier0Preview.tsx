@@ -97,7 +97,7 @@ function Tier0Value({ fact, className }: { fact: FactRef; className?: string }) 
   // percent sibling did.
   const currency = (fact.currency ?? "RON") as Currency;
   return (
-    <ProvenanceAffordance provenance={provenance} className={className}>
+    <ProvenanceAffordance provenance={provenance} value={fact.value} className={className}>
       <NarrativeText
         // Same fallback text the figure list builds, for the same reason:
         // when no rate exists the renderer refuses the conversion and

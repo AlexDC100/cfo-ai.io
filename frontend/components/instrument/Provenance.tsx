@@ -209,9 +209,34 @@ export function ProvenanceCard({
 
 // ── the affordance ─────────────────────────────────────────────────────
 
+/** True when there is no figure to stand behind a card: null, undefined,
+ *  NaN, ±Infinity. Exported so a renderer that paints its own gap state
+ *  ("—") agrees with the affordance about what "absent" means. */
+export function isAbsentFigure(value: number | null | undefined): boolean {
+  return typeof value !== "number" || !Number.isFinite(value);
+}
+
 export interface ProvenanceAffordanceProps {
   provenance: AmountProvenance | null | undefined;
   children: ReactNode;
+  /**
+   * THE FIGURE THE AFFORDANCE DECORATES — required, not optional.
+   *
+   * The card used to open over whatever was painted, including "—". A
+   * `FigureValue` given null paints the absent dash, and the wrapper
+   * around it still offered a Source, an Accounts row, a snapshot — a
+   * full provenance for a number that does not exist. The affordance
+   * structurally could not refuse, because it never saw the value. Now
+   * it does: an absent figure (null / undefined / non-finite) renders
+   * the children plain whatever the payload says. A caller wraps a
+   * NUMBER and says which one; a caller with no single number to hand
+   * over passes `absent` instead.
+   */
+  value: number | null | undefined;
+  /** Explicit refusal for a caller whose figure is not one number it
+   *  can hand over (a formatted range, a string). `true` renders the
+   *  children plain. */
+  absent?: boolean;
   /** Full-precision figure for the card's first line. */
   exact?: string;
   conversionNote?: string;
@@ -232,7 +257,10 @@ export interface ProvenanceAffordanceProps {
 
 /**
  * Wrap a figure that HAS provenance. Renders `children` untouched when it
- * does not — the caller does not branch.
+ * does not — the caller does not branch. Renders them untouched, too,
+ * when the FIGURE is absent: a payload can be complete and true while
+ * the number it describes is missing from this envelope, and that figure
+ * paints its gap state with no card (see `value`).
  *
  * HOVER and FOCUS both open it, and Escape dismisses it. That is not
  * three features: a hover-only disclosure is a disclosure a keyboard user
@@ -245,6 +273,8 @@ export interface ProvenanceAffordanceProps {
 export function ProvenanceAffordance({
   provenance,
   children,
+  value,
+  absent = false,
   exact,
   conversionNote,
   className,
@@ -253,6 +283,13 @@ export function ProvenanceAffordance({
   underline = true,
 }: ProvenanceAffordanceProps) {
   if (!hasProvenance(provenance)) return <>{children}</>;
+  // A CARD NEEDS A FIGURE. The payload may be complete and true and the
+  // number still absent — an envelope field the pack never emitted, a
+  // ratio with no denominator. The gap state is the honest render, and
+  // a gap wearing a Source teaches the reader the Source is decoration.
+  // `__tests__/provenance.test.tsx` plants a full payload over a null
+  // and expects the figure plain.
+  if (absent || isAbsentFigure(value)) return <>{children}</>;
 
   // brand at 80%, NOT 40%.
   //

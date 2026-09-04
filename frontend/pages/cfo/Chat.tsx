@@ -159,7 +159,15 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
     pushIf(lines, "Tax",                                       canonical.headline.tax);
   }
   const served = p.statements ? factsFrom(p.statements as Statements) : null;
-  if (served && (served.isCanonical || abs || served.totalAssets() !== 0)) {
+  // `totalAssets()` is ABSENT-CAPABLE. `null !== 0` is true, which would
+  // open a "Balance sheet highlights:" heading with nothing under it —
+  // every line beneath is a `pushIf` that skips a non-number. The probe
+  // asks the question it means: did the gateway state a non-zero total?
+  const servedAssets = served ? served.totalAssets() : null;
+  if (
+    served &&
+    (served.isCanonical || abs || (typeof servedAssets === "number" && servedAssets !== 0))
+  ) {
     // Grand totals via the servedFacts gateway — the ADJUSTED served
     // figures (identical to the BS tab and both exports); bucket-level
     // highlights keep their assembled_bs reads (no canonical equivalent).

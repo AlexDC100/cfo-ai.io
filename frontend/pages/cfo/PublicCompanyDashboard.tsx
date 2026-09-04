@@ -35,7 +35,8 @@ import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { BSStatementView } from "@/components/cfo/BSStatementView";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { computeRatios, verdictLabel, type RatioVerdict } from "@/lib/financialReport";
-import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
+import { type AmountProvenance } from "@/components/instrument/Provenance";
+import { derivedRatioOrigin, marketFieldOrigin } from "./publicCompanyOrigins";
 import { buildPublicStatements } from "@/lib/publicCompanyAdapters";
 import type { Currency } from "@/lib/rates";
 import {
@@ -191,36 +192,10 @@ export default function PublicCompanyDashboard() {
 
 // ── where a public-company figure comes from ──────────────────────────
 //
-// A `PublicCompanyPeriod` names its own origin: `source` is the vendor
-// dataset it was normalised from ("nasdaq_sharadar_sf1"),
-// `normalizer_version` the mapping that filed it, `fiscal_period_end`
-// the period. A figure read off the period names the field it was read
-// from; a ratio `computeRatios` derived on the client says so in its
-// method and names the feed its inputs came from. The market block adds
-// its own `as_of` — the day the price was observed, which is not the
-// fiscal period and must not be filed as one.
-
-function periodFieldOrigin(
-  p: PublicCompanyPeriod,
-  field: string,
-  extra: Partial<AmountProvenance> = {},
-): AmountProvenance | null {
-  return provenanceOf({
-    source: `${p.source} · ${field}`,
-    pack: p.normalizer_version,
-    period: p.fiscal_period_end,
-    ...extra,
-  });
-}
-
-function derivedRatioOrigin(p: PublicCompanyPeriod, key: string): AmountProvenance | null {
-  return provenanceOf({
-    source: p.source,
-    method: `derived · computeRatios · ${key}`,
-    pack: p.normalizer_version,
-    period: p.fiscal_period_end,
-  });
-}
+// The helpers live in `./publicCompanyOrigins` (own module, unit-tested
+// there): a figure read off the period names its field and period; a
+// MARKET figure names its field and the day the price was observed, and
+// carries NO period — a price day is not a fiscal year-end.
 
 // ── Full dashboard (all 5 tabs wired) ─────────────────────────────────
 
@@ -292,16 +267,39 @@ const VERDICT_TONE: Record<RatioVerdict, ChipTone> = {
   healthy: "success",
   watch: "caution",
   critical: "alert",
+  // A ratio that could not be computed is NEUTRAL. It used to fall
+  // through to "critical" because `safeDiv` returned 0 for an absent
+  // input and `verdictFromBands` graded that 0 — which is how this page
+  // came to show `interest_coverage 0.00x CRITICAL` for Apple.
+  unknown: "neutral",
 };
 
 /** One ratio figure through the instrument, by unit. Every unit but "%"
  *  wears the derivation's origin; PercentLevel carries no provenance
- *  prop, so the percent ratios render plain (a known gap, not a claim). */
+ *  prop, so the percent ratios render plain (a known gap, not a claim).
+ *
+ *  A REFUSED RATIO RENDERS NO FIGURE AND NO CARD. This is the surface
+ *  the critic measured: fifteen card-bearing ratios computed from
+ *  `?? 0` substitutions, each opening a receipt that read
+ *  `"method":"derived · computeRatios · interest_coverage",
+ *  "pack":"nasdaq_v1.0.0"` — a provenance for a number the feed never
+ *  contained. `computeRatios` now hands over `value: null` with the
+ *  reason attached, and this states it instead. */
 function RatioValue({ r, className, provenance = null }: {
-  r: { value: number; unit: "x" | "%" | "days" | "ratio" };
+  r: { value: number | null; unit: "x" | "%" | "days" | "ratio"; commentary?: string };
   className?: string;
   provenance?: AmountProvenance | null;
 }) {
+  if (r.value === null || !Number.isFinite(r.value)) {
+    return (
+      <span
+        className={`text-[13px] leading-snug text-ink-mute ${className ?? ""}`.trim()}
+        data-testid="ratio-unavailable"
+      >
+        Not reported
+      </span>
+    );
+  }
   if (r.unit === "%") return <PercentLevel value={r.value} className={className} />;
   if (r.unit === "x") {
     return (
@@ -384,9 +382,9 @@ function ValuationTab({ envelope }: { envelope: PublicCompanyEnvelope }) {
     );
   }
   // The market block's own observation date rides as computedAt — a
-  // price is as of a DAY, and that day is not the fiscal period.
-  const mk = (field: string) =>
-    periodFieldOrigin(current, `market_metrics.${field}`, { computedAt: market.as_of });
+  // price is as of a DAY, and that day is not the fiscal period, so the
+  // card carries no Period row at all.
+  const mk = (field: string) => marketFieldOrigin(current, field, market.as_of);
   return (
     <div className="space-y-6" data-testid="public-company-valuation">
       <section>

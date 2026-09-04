@@ -294,6 +294,15 @@ function fakeFacts({
     reconciliation: () => rec,
     diagnosis: () => diagnosis,
     difference: () => 12.34,
+    // The gateway says WHERE the difference came from (2026-09-04): the
+    // receipt names `canonical_bs.difference` only when it was served,
+    // and "client-derived" otherwise. This double serves it.
+    differenceOrigin: () => "served" as const,
+    // …and WHICH served totals a derivation consumed (empty on the served
+    // branch — nothing was derived). This double must carry every member
+    // the component reads: it stands in for the real gateway, and a
+    // missing method here is a TypeError at render, not a soft default.
+    differenceTerms: () => [] as const,
     mappingVersion: () => mappingVersion,
   };
 }

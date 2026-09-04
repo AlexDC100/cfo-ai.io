@@ -1,0 +1,13 @@
+frontend/components/cfo/DocumentSwitcher.tsx :: TS2345 :: Argument of type 'ListPayload | null | undefined' is not assignable to parameter of type 'ListPayload | null'.
+frontend/components/cfo/workspace/PeriodFilingReview.tsx :: TS18047 :: 'target' is possibly 'null'.
+frontend/components/cfo/workspace/PeriodFilingReview.tsx :: TS18047 :: 'target' is possibly 'null'.
+frontend/components/cfo/workspace/__tests__/attachConfirm.test.tsx :: TS18048 :: 'opts' is possibly 'undefined'.
+frontend/components/cfo/workspace/__tests__/attachConfirm.test.tsx :: TS18048 :: 'opts' is possibly 'undefined'.
+frontend/components/instrument/shell/CommandPalette.tsx :: TS2345 :: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+frontend/components/instrument/shell/CommandPalette.tsx :: TS2345 :: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+frontend/components/instrument/shell/CommandPalette.tsx :: TS2345 :: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+frontend/components/instrument/shell/ContextObject.tsx :: TS18047 :: 'full' is possibly 'null'.
+frontend/components/instrument/shell/ContextObject.tsx :: TS18047 :: 'full' is possibly 'null'.
+frontend/components/instrument/shell/ContextObject.tsx :: TS2322 :: Type 'string | null' is not assignable to type 'string'.
+frontend/lib/headlineProvenance.ts :: TS2345 :: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+frontend/pages/cfo/Settings.tsx :: TS2322 :: Type 'RefObject<HTMLInputElement | null> | undefined' is not assignable to type 'LegacyRef<HTMLInputElement> | undefined'.

@@ -77,7 +77,16 @@ export interface PublicCompanyFinancialSnapshot {
   // Provenance
   latestPeriod?: string | null;         // "FY2024" / "Q4 2024"
   latestPeriodEnd?: string | null;      // YYYY-MM-DD
-  lastUpdated: string;                  // ISO-8601
+  /** When the row's seeded / market figures were OBSERVED: the seed's
+   *  own retrieval date, the demo table's declared as-of, or the DAILY
+   *  metrics' trading day. Null when the engine holds no data timestamp
+   *  — it never stamps the process clock here (it did, until
+   *  2026-09-04, and every card read "computed <engine boot>"). */
+  lastUpdated: string | null;
+  /** When the PRICE (and day change) was quoted — the Yahoo sweep for a
+   *  BVB row, the DAILY trading day for a live row. Absent when the row
+   *  carries no quote. A seeded market cap is NOT as of this. */
+  quoteAsOf?: string | null;
   source: UniverseSource;
   confidence: number;                   // 0..1
   missingFields: string[];
@@ -87,7 +96,9 @@ export interface UniverseResponse {
   mode: UniverseMode;
   source: UniverseSource;
   count: number;
-  lastUpdated: string;
+  /** The newest row data timestamp in the payload; null when no row
+   *  carries one. Not a build time. */
+  lastUpdated: string | null;
   message: string | null;
   companies: PublicCompanyFinancialSnapshot[];
 }

@@ -12,8 +12,15 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 // TooltipProvider mirrors App.tsx. REQUIRED since 2026-09-03: every
 // year row's figures wear the provenance affordance (the document and
-// site the extract was read from, the year, the confidence) — a Radix
-// tooltip, which throws without its provider.
+// site the extract was read from, and the year) — a Radix tooltip, which
+// throws without its provider.
+//
+// THE ABSENT HEAD-COUNT (2026-09-04). The Employees tile read
+// `latest.salariati ?? 0` with the filing as its provenance — a zero
+// employees wearing a source (critic finding #5, ea6df1f). A year with
+// no head-count in the filing now renders the dash with no card;
+// measured below on a fixture whose latest year carries `salariati:
+// null`, with the full-fixture count beside it as the positive control.
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Currency store is context-backed (throws outside its provider) — mock
@@ -96,5 +103,42 @@ describe("MultiYearHistory (instrument pass)", () => {
 
     // Figures flow through the mono instrument
     expect(container.querySelector(".font-mono.tabular-nums")).toBeTruthy();
+
+    // Every affordance on the page wraps a FIGURE. 3 years × 5 money
+    // cells + 3 head-counts in the ledger + the Employees tile = 19.
+    const worn = Array.from(container.querySelectorAll('[data-provenance="true"]'));
+    expect(worn.length).toBe(19);
+    for (const el of worn) expect(el.textContent?.trim()).not.toBe("—");
+  });
+
+  it("a year with no head-count renders the dash with NO card — never zero employees wearing the filing", async () => {
+    const years = EXTRACT.extract.years.map((y, i) => (i === 0 ? { ...y, salariati: null } : y));
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ extract: { ...EXTRACT.extract, years } }),
+    })));
+    const { container } = render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/multi-year-history"]}>
+          <MultiYearHistory />
+        </MemoryRouter>
+      </TooltipProvider>,
+    );
+    expect(await screen.findByText("Exemplu Prod SRL")).toBeTruthy();
+
+    const worn = Array.from(container.querySelectorAll('[data-provenance="true"]'));
+    // 15 money cells + 2 head-counts (2022, 2021); the 2023 ledger cell
+    // and the Employees tile both lost theirs with the figure.
+    expect(worn.length).toBe(17);
+    for (const el of worn) expect(el.textContent?.trim()).not.toBe("—");
+    // The Employees TILE (its label is a div; the ledger's column header
+    // is a th with the same word) paints the dash and wears no card.
+    const label = screen.getAllByText("Employees").find((el) => el.tagName === "DIV");
+    if (!label) throw new Error("no Employees tile label");
+    const employees = label.parentElement as HTMLElement;
+    expect(employees.textContent).toContain("—");
+    expect(employees.querySelector('[data-provenance="true"]')).toBeNull();
+    // And no head-count anywhere reads "0".
+    expect(employees.textContent).not.toMatch(/\b0\b/);
   });
 });

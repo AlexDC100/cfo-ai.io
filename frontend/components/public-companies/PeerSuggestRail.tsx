@@ -130,9 +130,13 @@ export function PeerSuggestRail({ rows, onSelectTicker }: Props) {
                     {/* No inline currency on magnitude-scaled figures — the
                         page header's RON chip declares the unit once. */}
                     {/* The snapshot names its own origin: `source` (the universe
-                        feed — "demo" is stated as plainly as "nasdaq"), the
-                        fiscal period the figure belongs to, and when the row
-                        was last refreshed. Nothing else is in the payload. */}
+                        feed — "demo" is stated as plainly as "nasdaq") and the
+                        fiscal period the figure belongs to. No timestamp: the
+                        row's `lastUpdated` dates its MARKET figures, and until
+                        2026-09-04 it was the engine's process clock at boot, so
+                        this card read "computed <engine boot>" under a FY2024
+                        revenue (critic finding #3, ea6df1f). A fiscal figure's
+                        period is its date. */}
                     <Amount
                       value={r.revenue}
                       magnitude={pickMagnitude([r.revenue])}
@@ -140,7 +144,6 @@ export function PeerSuggestRail({ rows, onSelectTicker }: Props) {
                       provenance={provenanceOf({
                         source: r.source,
                         period: r.latestPeriod ?? undefined,
-                        computedAt: r.lastUpdated,
                       })}
                     />
                   </div>

@@ -304,6 +304,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "capitalized_own_work_memo",
   "cash",
   "cash_from_operating",
+  "covenant_limit",
   "cur_liab",
   "currency",
   "current_assets",
@@ -354,6 +355,37 @@ export const RESULT_ROW_IDS: readonly string[] = Object.freeze([
   "current_year_profit",
   "current_year_loss",
 ]);
+
+/**
+ * Sum a set of served rows and list ONLY the accounts that contributed.
+ *
+ * THE DEFECT THIS REPLACES. Three sites summed with `(r.amount ?? 0)` and
+ * then listed accounts with a separate `flatMap` over the SAME unfiltered
+ * rows. A row served with a null amount therefore contributed nothing to
+ * the total while its account code still appeared on the fact's card —
+ * the card naming an account that is not in the number. That is a
+ * provenance jump that lands on a real account holding a real balance the
+ * figure does not include, which is worse than landing nowhere.
+ *
+ * The filter runs ONCE and both outputs come off the same array, so the
+ * two can no longer be built from different sets. `total` is null when no
+ * row survived: a concept with no contributing row is absent, not zero.
+ */
+export function sumContributingRows(
+  rows: readonly CanonicalBsRow[],
+): { total: number | null; accounts: string[]; skipped: number } {
+  const contributing = rows.filter(
+    (r) => r && typeof r.amount === "number" && Number.isFinite(r.amount),
+  );
+  return {
+    total:
+      contributing.length > 0
+        ? contributing.reduce((sum, r) => sum + (r.amount as number), 0)
+        : null,
+    accounts: contributing.flatMap((r) => r.account_codes ?? []),
+    skipped: rows.length - contributing.length,
+  };
+}
 
 export const FACT_PERIOD_COUNT = "period_count";
 export const FACT_FINDING_COUNT = "finding_count";
@@ -579,9 +611,12 @@ function buildPeriodFactsInto(
   // one native currency. Adding two native-currency operands is not a
   // conversion. Absent rows contribute nothing (F1).
   const cashRows = rows.filter((r) => r && (r.id === "cash_operating" || r.id === "cash_fx"));
-  if (cashRows.length > 0) {
-    const total = cashRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-    const accounts = cashRows.flatMap((r) => r.account_codes ?? []);
+  // Sum and accounts come off ONE filtered array (`sumContributingRows`),
+  // so the card can never name an account whose row contributed nothing.
+  const cash = sumContributingRows(cashRows);
+  if (cash.total !== null) {
+    const total = cash.total;
+    const accounts = cash.accounts;
     out.push({
       factKey: "cash",
       label: METRIC_LABELS.cash,
@@ -627,10 +662,10 @@ function buildPeriodFactsInto(
   // `FactsGateway._result_rows_cents` does it. Absent rows refuse (F1):
   // there is no "no result row therefore zero profit" branch.
   const resultRows = rows.filter((r) => r && RESULT_ROW_IDS.indexOf(r.id) >= 0);
-  if (resultRows.length > 0) {
-    const netResult = resultRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-    money(ctx, "net_result", netResult, "statement_line",
-          resultRows.flatMap((r) => r.account_codes ?? []));
+  const result = sumContributingRows(resultRows);
+  if (result.total !== null) {
+    const netResult = result.total;
+    money(ctx, "net_result", netResult, "statement_line", result.accounts);
     // `expenses` is revenue − net_result, the gateway's own definition.
     const revenue = ctx.values.get("revenue");
     if (revenue !== undefined) {
@@ -785,7 +820,13 @@ function quickRatio(
     (r) => r && typeof r.id === "string" && r.id.indexOf("inventory") === 0,
   );
   if (inventoryRows.length === 0) return;  // no inventory concept served → refuse
-  const inventory = inventoryRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  // A served inventory row with a null amount is an inventory concept the
+  // period did not quantify. Subtracting the survivors would make the
+  // quick ratio a share of a stock level nobody measured, so this refuses
+  // the whole ratio rather than netting off a partial inventory.
+  const inv = sumContributingRows(inventoryRows);
+  if (inv.total === null || inv.skipped > 0) return;
+  const inventory = inv.total;
   const currentAssets = ctx.values.get("current_assets");
   const currentLiabilities = ctx.values.get("current_liabilities");
   if (currentAssets === undefined || currentLiabilities === undefined) return;

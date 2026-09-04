@@ -90,7 +90,10 @@ export function ImpactRow({
       });
 
   const baseline = (
-    <ProvenanceAffordance provenance={impactProvenance(impact, provenance, "baseline")}>
+    <ProvenanceAffordance
+      provenance={impactProvenance(impact, provenance, "baseline")}
+      value={impact.baseline}
+    >
       <FigureValue
         value={impact.baseline}
         unit={impact.unit}
@@ -102,7 +105,10 @@ export function ImpactRow({
     </ProvenanceAffordance>
   );
   const adjusted = (
-    <ProvenanceAffordance provenance={impactProvenance(impact, provenance, "adjusted")}>
+    <ProvenanceAffordance
+      provenance={impactProvenance(impact, provenance, "adjusted")}
+      value={impact.adjusted}
+    >
       <FigureValue
         value={impact.adjusted}
         unit={impact.unit}

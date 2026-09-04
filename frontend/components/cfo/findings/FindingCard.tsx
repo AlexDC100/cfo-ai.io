@@ -161,6 +161,7 @@ export function FindingCard({
                     <span className={tone.text}>
                       <ProvenanceAffordance
                         provenance={thresholdObservedProvenance(threshold, origin)}
+                        value={threshold.observed}
                       >
                         <FigureValue
                           value={threshold.observed}
@@ -174,7 +175,10 @@ export function FindingCard({
                   ),
                   lim: (
                     <span>
-                      <ProvenanceAffordance provenance={thresholdLimitProvenance(threshold)}>
+                      <ProvenanceAffordance
+                        provenance={thresholdLimitProvenance(threshold)}
+                        value={threshold.limit}
+                      >
                         <FigureValue
                           value={threshold.limit}
                           unit={threshold.unit}

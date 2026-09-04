@@ -16,7 +16,7 @@
 //   • multiPeriodGrowth()     — y/y trend + CAGR
 //
 // Exports:
-//   • HTML report (downloadReport) — single-file, browser-printable to PDF
+//   • HTML report (downloadHtmlReport) — single-file, browser-printable to PDF
 //   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
 
 import { useMemo, useState, useRef, useCallback, useEffect, type ReactNode } from "react";
@@ -164,9 +164,9 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  altmanRatio,
   computeRatios,
   deriveTotals,
-  downloadReport,
   formatRatio,
   generateRecommendations,
   type CanonicalBs,
@@ -175,6 +175,7 @@ import {
   type Recommendation,
   type Statements,
 } from "@/lib/financialReport";
+import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import {
   computeCostOfCapital,
   computeCreditScore,
@@ -647,6 +648,30 @@ export default function FinancialStatements() {
     }
     return out;
   }, [remotePeriod.metrics]);
+
+  // ── ONE PLACE DECIDES WHICH ENVELOPES THIS PERIOD HAS ───────────────
+  // This selection used to be written out three times (hero card, Risks
+  // tab, and not at all for the export). Three copies of a model
+  // selector are three chances for two surfaces to score the same period
+  // with different models; the export proved it, shipping the client
+  // fallback's CCC while the screen showed the engine's CC. One memo,
+  // passed to all three.
+  const creditEnvelopes = useMemo(() => {
+    const am = remotePeriod.assembled_metrics as {
+      credit?: import("@/lib/financialValuation").CreditEnvelope;
+      piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
+    } | null;
+    return {
+      credit: am?.credit,
+      piotroski:
+        am?.piotroski
+        ?? (statements as unknown as {
+          assembled_piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
+        } | null)?.assembled_piotroski,
+      metricsByName,
+    };
+  }, [remotePeriod.assembled_metrics, statements, metricsByName]);
+
   const ratios = useMemo(
     () => (statements ? computeRatios(statements, dashboardCanonicalMargins, metricsByName) : null),
     [statements, dashboardCanonicalMargins, metricsByName],
@@ -773,22 +798,19 @@ export default function FinancialStatements() {
   // rating and grade on the hero card are byte-identical to the Risks tab.
   const heroCredit = useMemo(() => {
     if (!statements) return null;
-    const creditEnvelope = (
-      remotePeriod.assembled_metrics as { credit?: import("@/lib/financialValuation").CreditEnvelope } | null
-    )?.credit;
-    const piotroskiEnvelope =
-      (remotePeriod.assembled_metrics as { piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope } | null)?.piotroski
-      ?? (statements as unknown as {
-        assembled_piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
-      }).assembled_piotroski;
     try {
-      return computeCreditScore(statements, creditEnvelope, piotroskiEnvelope, metricsByName);
+      return computeCreditScore(
+        statements,
+        creditEnvelopes.credit,
+        creditEnvelopes.piotroski,
+        creditEnvelopes.metricsByName,
+      );
     } catch {
       // Never let a scoring edge case take down the overview — the hero
       // card renders its honest "analysis pending" state instead.
       return null;
     }
-  }, [statements, remotePeriod.assembled_metrics, metricsByName]);
+  }, [statements, creditEnvelopes]);
 
   // Where the hero score came from. `computeCreditScore` returns the
   // engine's `composite_score` verbatim on the canonical path and a
@@ -796,7 +818,7 @@ export default function FinancialStatements() {
   // equals the score on screen, so the card can never point at an
   // envelope figure the reader is not looking at.
   const heroProvenance: AmountProvenance | null = useMemo(() => {
-    if (!heroCredit || !Number.isFinite(heroCredit.score)) return null;
+    if (!heroCredit || heroCredit.score === null || !Number.isFinite(heroCredit.score)) return null;
     const served = (
       remotePeriod.assembled_metrics as { credit?: { composite_score?: unknown } } | null
     )?.credit?.composite_score;
@@ -2180,7 +2202,11 @@ export default function FinancialStatements() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
-            <RatiosTabContent ratios={ratios} statements={statements} />
+            <RatiosTabContent
+              ratios={ratios}
+              statements={statements}
+              altman={heroCredit ? altmanRatio(heroCredit) : null}
+            />
           </TabsContent>
         )}
 
@@ -2390,16 +2416,9 @@ export default function FinancialStatements() {
               // composite / letter / subscores / Piotroski from
               // assembled_metrics (30/20/15/10/10/10/5 weights, F1.h
               // letter ladder, engine-emitted piotroski).
-              creditEnvelope={
-                (remotePeriod.assembled_metrics as { credit?: import("@/lib/financialValuation").CreditEnvelope } | null)?.credit
-              }
-              piotroskiEnvelope={
-                (remotePeriod.assembled_metrics as { piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope } | null)?.piotroski
-                ?? (statements as unknown as {
-                  assembled_piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
-                }).assembled_piotroski
-              }
-              metricsByName={metricsByName}
+              creditEnvelope={creditEnvelopes.credit}
+              piotroskiEnvelope={creditEnvelopes.piotroski}
+              metricsByName={creditEnvelopes.metricsByName}
             />
           </TabsContent>
         )}
@@ -2445,7 +2464,18 @@ export default function FinancialStatements() {
             </p>
             <div className="mt-auto pt-5 flex justify-end">
               <button
-                onClick={() => downloadReport(statements)}
+                onClick={() =>
+                  import("@/lib/financialExports").then((m) =>
+                    // THE SAME ENVELOPES THE SCREEN AND THE WORKBOOK USED.
+                    // This card called `downloadReport(statements)` — one
+                    // argument, no credit reader, no engine metric map —
+                    // and the document it produced said Z″ 0.19 / "distress
+                    // zone. Action required." while every screen and the
+                    // workbook one card to the right said 0.22 / CC. It also
+                    // carried no letter, no composite and no model at all.
+                    m.downloadHtmlReport(statements, creditEnvelopes),
+                  )
+                }
                 className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
               >
                 <ArrowDownToLine size={14} strokeWidth={2} />
@@ -2466,7 +2496,12 @@ export default function FinancialStatements() {
               <button
                 onClick={() =>
                   import("@/lib/financialExports").then((m) =>
-                    m.downloadExcelReport(statements),
+                    // THE SAME ENVELOPES THE SCREEN USED. Omitting them
+                    // is not a smaller export, it is an export scored by
+                    // the OTHER model: measured on the real Scandia
+                    // period, the app showed CC / 24.4 and the forwarded
+                    // workbook showed CCC / 36.
+                    m.downloadExcelReport(statements, creditEnvelopes),
                   )
                 }
                 className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
@@ -4688,7 +4723,26 @@ function DocGuideCard({ title, format, shows, where, tone }: {
 // state and renders the premium explainer drawer. Owning state here
 // keeps the Ratios surface self-contained — no upstream prop drilling,
 // no global store for an interaction that's scoped to this tab.
-function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; statements: Statements | null }) {
+function RatiosTabContent({
+  ratios,
+  statements,
+  // ── THE BANKRUPTCY ROW IS NOT PART OF THE BUNDLE ANY MORE ─────────
+  // It used to be `ratios.bankruptcy` — a Z″ computed by an arithmetic
+  // that exists nowhere else, banded by a ladder that used `>=` where
+  // every other surface uses `>`. It agreed with the Risks tab, the hero
+  // and the workbook only while `calculated_metrics.altman_z_score`
+  // happened to arrive: deleting that ONE engine row split this tab to
+  // 0.18590918 against the reader's 0.22 (measured on the real Scandia
+  // period). The row is now the reader's own, handed down from the page,
+  // so it cannot be computed a second way here.
+  altman,
+}: {
+  ratios: RatioBundle;
+  statements: Statements | null;
+  /** `altmanRatio(credit)` — NULL only when the page has no statements
+   *  to score, in which case there is no Ratios tab either. */
+  altman: Ratio | null;
+}) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Ratio | null>(null);
   return (
@@ -4707,7 +4761,7 @@ function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; stateme
         <RatioGroupSection title={t("dash.ratioEfficiency")}          ratios={ratios.efficiency}    onPick={setSelected} />
       </div>
       <div data-guide="ratios-risk">
-        <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={ratios.bankruptcy}    onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={altman ? [altman] : []} onPick={setSelected} />
       </div>
 
       {/* Premium explainer drawer — 8 sections + related-ratio pivot.
@@ -4719,6 +4773,10 @@ function RatiosTabContent({ ratios, statements }: { ratios: RatioBundle; stateme
       <RatioDetailDrawer
         ratio={selected}
         bundle={ratios}
+        /* The Altman row travels separately because it belongs to the
+           credit reader, not to `computeRatios` — the drawer needs it in
+           its key index so "related ratio" pivots still reach it. */
+        extraRatios={altman ? [altman] : undefined}
         statements={statements}
         onClose={() => setSelected(null)}
         onPickRelated={setSelected}
@@ -4789,11 +4847,13 @@ function RatioTile({
         </div>
         <span
           className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
-            ratio.verdict === "critical"
-              ? "anim-fill-red border-red-500/40"
-              : ratio.verdict === "watch"
-                ? "anim-fill-amber border-amber-500/40"
-                : "anim-fill-green border-brand/40"
+            ratio.verdict === "unknown"
+              ? "border-rule text-ink-mute"
+              : ratio.verdict === "critical"
+                ? "anim-fill-red border-red-500/40"
+                : ratio.verdict === "watch"
+                  ? "anim-fill-amber border-amber-500/40"
+                  : "anim-fill-green border-brand/40"
           }`}
         >
           {/* Localized verdict label (was the EN-only lib verdictLabel()). */}
@@ -4803,17 +4863,39 @@ function RatioTile({
               ? t("dashV2.ratioVerdictHealthy")
               : ratio.verdict === "watch"
                 ? t("dashV2.ratioVerdictWatch")
-                : t("dashV2.ratioVerdictCritical")}
+                : ratio.verdict === "unknown"
+                  ? t("dashV2.ratioVerdictUnknown")
+                  : t("dashV2.ratioVerdictCritical")}
         </span>
       </div>
-      <div className="font-mono text-[22px] font-medium text-ink leading-tight tabular-nums tracking-[-0.005em]">
-        <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
-          {formatRatio(ratio)}
-        </LearnableNumber>
-      </div>
+      {/* A REFUSED RATIO IS NOT A NUMBER, so it does not get the number
+          treatment: no `<LearnableNumber>` (its popover would explain a
+          value nobody computed), no 22px mono figure, and a NEUTRAL chip
+          rather than the red one every unknown used to fall through to.
+          The reason itself renders as the commentary below. */}
+      {ratio.value === null ? (
+        <div
+          className="text-[13px] text-ink-mute leading-snug"
+          data-testid="ratio-unavailable"
+        >
+          {t("dashV2.ratioVerdictUnknown")}
+        </div>
+      ) : (
+        <div className="font-mono text-[22px] font-medium text-ink leading-tight tabular-nums tracking-[-0.005em]">
+          <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
+            {formatRatio(ratio)}
+          </LearnableNumber>
+        </div>
+      )}
       <div className="text-[11px] text-ink-mute mt-1">{ratio.benchmark}</div>
+      {/* A REFUSAL IS RENDERED IN THE READER'S LANGUAGE. `ratio.commentary`
+          for a refused ratio is `describeAbsence()`, which is hard-coded
+          English — under a chip that says "Neraportat". The structured
+          absence carried on the row renders through the same translator
+          the chip uses, so the two halves of the refusal can no longer
+          disagree about what language the reader speaks. */}
       <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">
-        {ratio.commentary}
+        {ratio.unavailable ? absenceSentence(t, ratio.unavailable) : ratio.commentary}
       </p>
       {clickable && (
         <div className="mt-2 inline-flex items-center gap-1 text-[10.5px] text-ink-mute group-hover:text-brand-d transition-colors">
@@ -4977,8 +5059,14 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
   // concept where possible; clicking the label opens the underlying
   // ratio / metric popover (not the meta-concept). No new logic — these
   // values come straight from the rule's factsCited payload.
-  const factEntries = rec.factsCited
-    ? Object.entries(rec.factsCited).filter(([, v]) => Number.isFinite(v))
+  // `factsCited` values are `number | null`. An ABSENT fact yields NO
+  // ROW here — the "Triggered by" block shrinks rather than printing a
+  // 0 the reader would check the card's claim against. The predicate is
+  // a type guard so the narrowing is the compiler's, not a convention.
+  const factEntries: [string, number][] = rec.factsCited
+    ? Object.entries(rec.factsCited).filter(
+        (e): e is [string, number] => typeof e[1] === "number" && Number.isFinite(e[1]),
+      )
     : [];
 
   const fmtFactValue = (key: string, value: number): string => {
@@ -5164,7 +5252,11 @@ function RecommendationCard({ rec, currency }: { rec: Recommendation; currency: 
  *  computeCreditScore reader over the same engine envelopes), a
  *  plain-language verdict sentence keyed by score band, and a green/amber/
  *  red accent. Honest "analysis pending" state when no score exists. */
-function HeroVerdictCard({
+// EXPORTED so a gate can RENDER it. The surface censuses of this
+// programme called the dashboard hero "CreditScoreCard compact"; it is
+// this component, and nothing was rendering it in a test, which is how a
+// dead branch in another file got counted as its coverage.
+export function HeroVerdictCard({
   credit,
   companyName,
   provenance = null,
@@ -5176,7 +5268,9 @@ function HeroVerdictCard({
   provenance?: AmountProvenance | null;
 }) {
   const { t } = useTranslation();
-  if (!credit || !Number.isFinite(credit.score)) {
+  // A NULL score is the refusal the library now emits; keep it first so
+  // the narrowing is explicit and the pending card is what renders.
+  if (!credit || credit.score === null || !Number.isFinite(credit.score)) {
     return (
       <section
         className="rounded-md border border-rule bg-surface p-5 sm:p-6"
@@ -5242,20 +5336,41 @@ function HeroVerdictCard({
               style={{ width: `${scorePct}%` }}
             />
           </div>
+          {/* The hero prints the same number as the Risks tab, from the
+              same reader — so it prints the same model identity too. A
+              score shown without it is a score whose weights and band
+              ladder the reader cannot know. */}
+          <div
+            className="mt-2 text-[10.5px] leading-snug text-ink-mute"
+            data-testid="hero-credit-model"
+            data-model={credit.model}
+          >
+            {credit.modelLabel}
+          </div>
         </div>
         <div className="min-w-0">
-          <Tooltip delayDuration={150}>
-            <TooltipTrigger asChild>
-              <span className="inline-flex cursor-help">
-                <Chip tone={tone.chip} dot data-testid="credit-class-chip">
-                  {t("dashIx.creditClass", { grade: credit.rating })}
-                </Chip>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[260px] text-[12px] leading-snug">
-              {t("dashIx.creditClassTip")}
-            </TooltipContent>
-          </Tooltip>
+          {/* NO LETTER, NO CREDIT-CLASS CHIP. The engine can state a
+              composite for a period it shipped no band ladder for — the
+              production shape CLAUDE.md §14 records, where only
+              `calculated_metrics` survived — and `credit.rating` is then
+              null. This chip interpolated it regardless, so the hero
+              would have claimed a credit class with nothing in it. The
+              score, the gauge and the model sentence beside them still
+              render; the letter simply does not exist to show. */}
+          {credit.rating !== null ? (
+            <Tooltip delayDuration={150}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-help">
+                  <Chip tone={tone.chip} dot data-testid="credit-class-chip">
+                    {t("dashIx.creditClass", { grade: credit.rating })}
+                  </Chip>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[260px] text-[12px] leading-snug">
+                {t("dashIx.creditClassTip")}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           <p className="mt-2 text-[14px] sm:text-[15px] text-ink leading-relaxed max-w-[640px]">
             {companyName ? <span className="font-medium">{companyName}: </span> : null}
             {t(verdictKey)}
@@ -5706,7 +5821,12 @@ function ValuationPanel({
 
 // ─── RISKS & CREDIT PANEL ─────────────────────────────────────────────────
 
-function RisksPanel({
+// EXPORTED FOR THE COMPLETENESS-LAW GATE. The Risks tab is one of the
+// four surfaces `financialCompletenessLaw.test.tsx` renders field-by-
+// field against a real corpus envelope; a gate that asserted the
+// library's return value instead of this DOM would not have caught the
+// zone chip falling through to DISTRESS on a null zone.
+export function RisksPanel({
   statements,
   creditEnvelope,
   piotroskiEnvelope,
@@ -5738,23 +5858,38 @@ function RisksPanel({
     return "bg-alert-tint text-alert border-transparent";
   };
 
+  // ── ABSENT VERDICTS ARE STATED, NOT STYLED ─────────────────────────
+  // `computeCreditScore` returns `number | null` / `string | null` for
+  // the score, rating, grade, every component contribution and every
+  // Altman term. Rendering them unguarded printed a fabricated verdict:
+  // the zone chip below fell through to DISTRESS for a null zone, and
+  // the component table printed a contribution of 0.0 for a sub-score
+  // the envelope never carried. `unavail` is the one spelling.
+  const unavail = t("dash.notAvailableShort", { defaultValue: "—" });
+  const num = (v: number | null | undefined, digits: number): string =>
+    typeof v === "number" && Number.isFinite(v) ? v.toFixed(digits) : unavail;
+
   // Localized grade + Piotroski band labels (the lib emits EN enums/prose;
   // unknown values fall through untranslated rather than breaking).
   const gradeLabel =
-    credit.grade === "investment_grade" ? t("dashV2.gradeInvestmentGrade")
+    credit.grade === null ? null
+    : credit.grade === "investment_grade" ? t("dashV2.gradeInvestmentGrade")
     : credit.grade === "boundary" ? t("dashV2.gradeBoundary")
     : credit.grade === "speculative" ? t("dashV2.gradeSpeculative")
     : credit.grade === "distress" ? t("dashV2.gradeDistress")
     : credit.grade.replace(/_/g, " ");
-  const piotroskiBandLabel = piotroski.band.startsWith("Strong")
-    ? t("dashV2.piotroskiStrong")
-    : piotroski.band.startsWith("Solid")
-      ? t("dashV2.piotroskiSolid")
-      : piotroski.band.startsWith("Weak")
-        ? t("dashV2.piotroskiWeak")
-        : piotroski.band.startsWith("Distressed")
-          ? t("dashV2.piotroskiDistressed")
-          : piotroski.band;
+  const piotroskiBandLabel =
+    piotroski === null
+      ? null
+      : piotroski.band.startsWith("Strong")
+        ? t("dashV2.piotroskiStrong")
+        : piotroski.band.startsWith("Solid")
+          ? t("dashV2.piotroskiSolid")
+          : piotroski.band.startsWith("Weak")
+            ? t("dashV2.piotroskiWeak")
+            : piotroski.band.startsWith("Distressed")
+              ? t("dashV2.piotroskiDistressed")
+              : piotroski.band;
 
   return (
     <>
@@ -5764,9 +5899,39 @@ function RisksPanel({
         <div className="rounded-md border border-rule bg-surface text-ink p-4 sm:p-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.12em] font-medium opacity-80">{t("dash.creditRating")}</div>
-            <div className="font-mono tabular-nums text-[clamp(30px,8vw,44px)] font-medium leading-none mt-1 text-ink">{credit.rating}</div>
-            <div className="text-[12px] mt-2 opacity-80">
-              {t("dash.compositeScoreLabel")}: {credit.score} / 100 · <span className="capitalize">{gradeLabel}</span>
+            <div
+              className="font-mono tabular-nums text-[clamp(30px,8vw,44px)] font-medium leading-none mt-1 text-ink"
+              data-testid="credit-rating"
+            >
+              {credit.rating ?? unavail}
+            </div>
+            <div className="text-[12px] mt-2 opacity-80" data-testid="credit-composite">
+              {credit.score === null ? (
+                t("dash.creditNotComputable", {
+                  defaultValue:
+                    "Not enough of the source book was recognised to compute a rating.",
+                })
+              ) : (
+                <>
+                  {t("dash.compositeScoreLabel")}: {credit.score} / 100
+                  {gradeLabel ? <> · <span className="capitalize">{gradeLabel}</span></> : null}
+                </>
+              )}
+            </div>
+            {/* ── THE LETTER NEVER APPEARS WITHOUT ITS MODEL ──────────
+                Two models can mint the letter above and they disagree:
+                on the real Scandia period the engine says CC / 24.4 and
+                the client fallback says CCC / 36. Which one ran used to
+                be invisible — and selected by whether a field happened
+                to arrive. It is rendered unconditionally, on the engine
+                path too, so a reader who ever sees the other one already
+                knows the distinction exists. */}
+            <div
+              className="text-[11px] mt-2 text-ink-mute leading-snug max-w-[420px]"
+              data-testid="credit-model"
+              data-model={credit.model}
+            >
+              {credit.modelLabel}
             </div>
           </div>
           <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
@@ -5788,11 +5953,13 @@ function RisksPanel({
                 <tr key={c.label} className="border-t border-rule">
                   <td className="py-2 px-4 text-ink">{c.label}</td>
                   <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">
-                    {Number.isFinite(c.value) ? c.value.toFixed(2) : "—"}
+                    {num(c.value, 2)}
                   </td>
-                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink-soft">{(c.weight * 100).toFixed(0)}%</td>
-                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{c.contribution.toFixed(1)}</td>
-                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read}</td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink-soft">
+                    {c.weight === null ? unavail : `${(c.weight * 100).toFixed(0)}%`}
+                  </td>
+                  <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{num(c.contribution, 1)}</td>
+                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read ?? unavail}</td>
                 </tr>
               ))}
             </tbody>
@@ -5801,7 +5968,25 @@ function RisksPanel({
         </div>
       </div>
 
-      {/* Piotroski F-Score */}
+      {/* Piotroski F-Score.
+          ABSENT IS A BLOCK THAT IS NOT RENDERED. When the engine scored
+          this period but sent no Piotroski envelope, `credit.piotroski`
+          is null and this section states that — it does NOT fall back to
+          the client model's nine checks, which would put a second
+          model's screen under the first model's letter. Before this
+          lane, that same absence flipped the WHOLE panel to the other
+          model and changed the letter from CC to CCC. */}
+      {piotroski === null ? (
+        <div data-testid="piotroski-unavailable">
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.piotroskiTitle")}</h2>
+          <div className="rounded-2xl border border-rule bg-surface p-5 text-[13px] text-ink-soft leading-relaxed">
+            {t("dash.piotroskiNotReported", {
+              defaultValue:
+                "The Piotroski screen was not reported for this period. It is not scored here, and the composite credit score above does not include it.",
+            })}
+          </div>
+        </div>
+      ) : (
       <div>
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.piotroskiTitle")}</h2>
         <div className="rounded-2xl border border-rule bg-surface p-5 flex items-center justify-between mb-3">
@@ -5856,6 +6041,7 @@ function RisksPanel({
           </div>
         </div>
       </div>
+      )}
 
       {/* Altman Z (variant-aware) */}
       <div>
@@ -5865,21 +6051,41 @@ function RisksPanel({
         <div className="rounded-2xl border border-rule bg-surface p-5">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
-              <div className="font-mono tabular-nums text-[clamp(24px,5vw,32px)] font-medium text-ink leading-none">{altman.score.toFixed(2)}</div>
+              <div
+                className="font-mono tabular-nums text-[clamp(24px,5vw,32px)] font-medium text-ink leading-none"
+                data-testid="altman-score"
+              >
+                {num(altman.score, 2)}
+              </div>
               <div className="text-[12px] text-ink-soft mt-1">
                 {t("dash.altmanThresholds", { safe: altman.thresholds.safe.toFixed(2), distress: altman.thresholds.distress.toFixed(2) })}
               </div>
             </div>
+            {/* A NULL ZONE IS NOT DISTRESS. This chain used to end in the
+                alert tint and the word "Distress" for anything that was
+                not "safe" or "grey" — so an envelope missing its BS
+                totals painted a red distress chip on a healthy company.
+                The absent case is its own, neutral, and says so. */}
             <span
+              data-testid="altman-zone"
+              data-zone={altman.zone ?? "unavailable"}
               className={`text-[11px] font-semibold uppercase tracking-[0.06em] px-3 py-1 rounded-full border ${
                 altman.zone === "safe"
                   ? "bg-success-tint text-success border-transparent"
                   : altman.zone === "grey"
                     ? "bg-caution-tint text-caution border-transparent"
-                    : "bg-alert-tint text-alert border-transparent"
+                    : altman.zone === "distress"
+                      ? "bg-alert-tint text-alert border-transparent"
+                      : "bg-bg-2/40 text-ink-mute border-rule"
               }`}
             >
-              {altman.zone === "safe" ? t("dash.safeZone") : altman.zone === "grey" ? t("dash.greyZone") : t("dash.distress")}
+              {altman.zone === "safe"
+                ? t("dash.safeZone")
+                : altman.zone === "grey"
+                  ? t("dash.greyZone")
+                  : altman.zone === "distress"
+                    ? t("dash.distress")
+                    : t("dash.zoneNotComputable", { defaultValue: "Not computable" })}
             </span>
           </div>
           <p className="text-[12.5px] text-ink-soft mt-3 leading-snug">{altman.methodologyNote}</p>
@@ -5899,8 +6105,8 @@ function RisksPanel({
                   <tr key={i} className="border-t border-rule">
                     <td className="py-2 px-3 text-ink">{c.label}</td>
                     <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
-                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{c.value.toFixed(4)}</td>
-                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{c.weighted.toFixed(3)}</td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.value, 4)}</td>
+                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.weighted, 3)}</td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-ink/30 bg-bg-2/50">
@@ -5913,10 +6119,12 @@ function RisksPanel({
                         ? "text-success"
                         : altman.zone === "grey"
                           ? "text-caution"
-                          : "text-alert"
+                          : altman.zone === "distress"
+                            ? "text-alert"
+                            : "text-ink-mute"
                     }`}
                   >
-                    {altman.score.toFixed(2)}
+                    {num(altman.score, 2)}
                   </td>
                 </tr>
               </tbody>

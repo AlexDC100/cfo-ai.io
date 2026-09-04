@@ -31,6 +31,12 @@ const bsCanonicalEn = {
   materialBody:
     "Assets do not equal Equity + Liabilities. The engine flagged the causes below; do not rely on the figures in this tab until this is resolved.",
   difference: "Difference",
+  // Shown wherever a difference would otherwise be printed but none can
+  // be stated: the envelope served no `difference` field AND not the
+  // totals to derive one. The reader learns the filing did not carry it
+  // — never a "0" or a blank they could read as a clean balance.
+  differenceUnavailable:
+    "Difference not stated — this filing carried neither a balance difference nor the totals to work one out.",
   diagnosis: "Engine diagnosis",
   // AUTO-RECONCILE (2026-08-19) — the engine closes sub-threshold drifts
   // server-side before serving; the UI only shows the calm verdict, a
@@ -111,6 +117,8 @@ const bsCanonicalRo = {
   materialBody:
     "Activele nu sunt egale cu Capitalurile + Datoriile. Motorul a marcat cauzele mai jos; nu te baza pe cifrele din acest tab până la rezolvare.",
   difference: "Diferență",
+  differenceUnavailable:
+    "Diferența nu poate fi indicată — această raportare nu a inclus nici o diferență de bilanț, nici totalurile din care să fie calculată.",
   diagnosis: "Diagnostic motor",
   reconcile: {
     autoAdjusted: "· ajustat automat {{amount}}",

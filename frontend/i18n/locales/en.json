@@ -555,7 +555,8 @@
       "totalAssets": "TOTAL ASSETS",
       "totalEquityLiab": "TOTAL EQUITY & LIABILITIES",
       "drift": "Balance sheet drift",
-      "note": "Note"
+      "note": "Note",
+      "noComparative": "Opening — not filed"
     },
     "cf": {
       "title": "CASH FLOW",
@@ -1152,7 +1153,7 @@
     "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
     "pickSampleOrUpload": "Pick a sample or upload",
     "exportHtmlTitle": "HTML financial analysis report",
-    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 25+ ratios with verdicts, bankruptcy assessment, and prioritized recommendations.",
+    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 25+ ratios with verdicts, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
     "exportXlsxTitle": "Excel workbook",
     "exportXlsxBody": "8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations.",
     "exportPptxTitle": "PowerPoint deck",
@@ -1427,7 +1428,10 @@
     "previewSheetCaption": "{{file}} · sheet \"{{sheet}}\" (example — fictional data)",
     "previewLoadFailed": "Couldn't load preview: {{msg}}.",
     "downloadInstead": "Download instead",
-    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch."
+    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch.",
+    "notAvailableShort": "—",
+    "zoneNotComputable": "Not computable",
+    "creditNotComputable": "Not enough of the source book was recognised to compute a rating."
   },
   "tabs": {
     "pl": "P&L",
@@ -2350,7 +2354,9 @@
     "gradeBoundary": "boundary",
     "gradeSpeculative": "speculative",
     "gradeDistress": "distress",
-    "tabOverview": "Overview"
+    "tabOverview": "Overview",
+    "ratioVerdictUnknown": "Not reported",
+    "ratioUnavailableAria": "Not reported for this period"
   },
   "metricsV2": {
     "title": "Metrics",
