@@ -264,6 +264,12 @@ _MONEY_FACTS = frozenset([
     # serving/facts._MARKET_METRICS: all five were undeclared. A listed
     # company's price and capitalisation are money like any other.
     "price", "market_cap", "enterprise_value",
+    # ── Firm cockpit (2026-09-03) ──────────────────────────────────────
+    # engine.firm cites served facts under the names above; the ONE money
+    # figure it cites that the gateway does not serve is a DECLARED
+    # covenant limit (packs/firm/attention.yaml COVENANT_RISK). Listed so
+    # the evidence resolves to money at render rather than to a refusal.
+    "covenant_limit",
 ])
 
 _RATIO_FACTS = frozenset([
