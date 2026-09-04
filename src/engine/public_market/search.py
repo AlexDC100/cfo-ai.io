@@ -49,6 +49,8 @@ Python 3.9: no ``match``, no ``X | Y`` unions.
 
 from __future__ import annotations
 
+from fastapi.responses import JSONResponse  # module scope: the handlers' return annotation must resolve for /openapi.json
+
 import logging
 import os
 import re

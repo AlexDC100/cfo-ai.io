@@ -1107,6 +1107,23 @@ def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
 # ─── Router factory ────────────────────────────────────────────────────────
 
 
+# MODULE scope on purpose: this model used to live inside build_router. Under
+# `from __future__ import annotations` the handler annotation is then the
+# string "ContactSalesRequest", unresolvable from module globals, and FastAPI
+# demanded the body as a QUERY param (422 on every real submission) and 500d
+# /openapi.json (CLAUDE.md §16 — the "runtime unaffected" note there was wrong).
+# Gate: tests/engine/test_route_bindings.py.
+class ContactSalesRequest(BaseModel):
+    name: str
+    email: str
+    company: Optional[str] = None
+    role: Optional[str] = None
+    num_companies: Optional[str] = None  # '1-3' | '4-10' | '11-25' | '26+'
+    use_case: Optional[str] = None
+    preferred_contact: Optional[str] = "email"
+    phone: Optional[str] = None
+
+
 def build_router() -> APIRouter:
     router = APIRouter(tags=["billing"])
 
@@ -1679,15 +1696,6 @@ def build_router() -> APIRouter:
 
     # ─── Contact-sales lead capture (Pro inquiries) ────────────────────────
 
-    class ContactSalesRequest(BaseModel):
-        name: str
-        email: str
-        company: Optional[str] = None
-        role: Optional[str] = None
-        num_companies: Optional[str] = None  # '1-3' | '4-10' | '11-25' | '26+'
-        use_case: Optional[str] = None
-        preferred_contact: Optional[str] = "email"
-        phone: Optional[str] = None
 
     @router.post("/api/contact-sales")
     def contact_sales(req: ContactSalesRequest) -> Any:
