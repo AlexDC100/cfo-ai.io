@@ -3227,3 +3227,43 @@ themselves, but make the next reads cold against upstream quotas — they
 need the public rate limiter (`public_ro/ratelimit`) or the operator bearer.
 The six `/api/cfo/*` demo routes compute from the request body and answer
 "Demo Company" on an empty one — public by design.
+
+---
+
+## 23. Posture until launch, and the sync-conflict root cause (2026-09-04)
+
+**Posture, set by the owner:** no new features. Drain the working tree,
+empty the critics' backlog, close FC1 (cross-tenant READS AND WRITES on
+every route, API and Capsule tool, red on a planted cross-firm write), then
+the Firm Cockpit lands. Ten serious production defects were found in one day
+by adversarial review; the backlog is not empty until the critics say so.
+
+**Public-company ratings — the rule:** a rating built on a placeholder is a
+fabrication, and worse on the public storefront, where an indexable page is
+read by a stranger with no context and a made-up letter beside a real
+company's name is a credibility and defamation risk. Absent inputs REFUSE —
+but check the MAPPING first. Apple reports retained earnings under the
+standard `us-gaap:RetainedEarningsAccumulatedDeficit`; the EDGAR adapter
+(`public_market/edgar_concepts.py`) never extracted it, so every US company
+"lacked" it by construction and the honest rule was answering a question the
+adapter asked wrongly. Fix the concept map, then refuse only what the filing
+truly does not carry, in exactly this register: *"Rating unavailable:
+retained earnings not reported in this filing"* — about the filing, never the
+company — and the page still shows every figure and ratio it can compute.
+
+**Sync-conflict duplicates.** 285 files carrying a `<name> 2.<ext>` suffix
+appeared in the tree, 73 of them committed in an earlier session (61
+screenshots, 6 docs, 5 probe JSON, and a stale copy of
+`scripts/check_no_plants.mjs`). The suffix is a sync service writing a
+conflict copy while the machine sleeps; the repo lives under
+`/Users/alex/Desktop/…` with iCloud Drive configured. Two test suites failed
+on stale copies the collector picked up as real modules. All 73 tracked
+copies were removed (`672f804`) and the 61 untracked ones moved to the session
+scratchpad; the owner is moving the repo out of the synced folder. If a
+` 2.` file ever reappears, that is the signal it is still synced.
+
+**Two conventions added to the Engine Book (TC-10, TC-11):** no cutoff or
+threshold is ever written as prose — it renders from the same data the
+verdict used; and for every gate, state what it fails on AFTER the defect is
+repaired, because three green gates in one day were found asserting the
+bug as their law.
