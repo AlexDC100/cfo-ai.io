@@ -247,6 +247,12 @@ def _engine_gates() -> List[Gate]:
         # ratios invariant across currencies. Named separately from
         # `pytest` because a fabricated figure fails silently, so its gate
         # must not. Plant log: design_review/capsule/GATES.md
+        # The six firm-* gates live in the working tree, NOT here: their test
+        # files (test_firm_gates / test_firm_attention / test_firm_tenancy)
+        # are part of the uncommitted Firm Cockpit backend, so a gate naming
+        # them would red a clean checkout of main. Their gates.md sections are
+        # already written; re-add the Gate lines in the same commit that lands
+        # the Cockpit tests. Removed 2026-09-04 after they reached main early.
         Gate("capsule-gates",
              [PY, "-m", "pytest", "tests/engine/test_capsule_gates.py", "-q"],
              work_junit=True, floor=15, units="tests",
@@ -264,35 +270,6 @@ def _engine_gates() -> List[Gate]:
         # `pytest` because a side channel around the pipeline and a model
         # in the ranking path both fail SILENTLY. Floor 15 = the measured
         # 22 tests, rounded down. Plant log: docs/engine_book/gates.md
-        Gate("firm-cockpit-gates",
-             [PY, "-m", "pytest", "tests/engine/test_firm_gates.py", "-q"],
-             work_junit=True, floor=15, units="tests",
-             canaries=("test_fc7_request_link_lands_through_the_normal_pipeline",
-                       "test_fc7_plant_wrong_entity_file_fires_the_entity_guard",
-                       "test_fc8_dead_model_renders_items_calendar_digest_and_brief_complete",
-                       "test_fc8_plant_model_call_in_ranking_path_reds_the_structural_assertion")),
-        Gate("firm-attention-fc2",
-             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc2"],
-             work_junit=True, floor=3, units="tests",
-             canaries=("test_fc2_same_data_same_items_same_order_same_severities",)),
-        Gate("firm-attention-fc4",
-             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc4"],
-             work_junit=True, floor=3, units="tests",
-             canaries=("test_fc4_end_to_end_one_covenant_two_real_clients_two_severities",)),
-        Gate("firm-attention-fc5",
-             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc5"],
-             work_junit=True, floor=2, units="tests",
-             canaries=("test_fc5_five_items_on_one_client_is_one_row_with_five_reasons",)),
-        Gate("firm-attention-fc9",
-             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc9"],
-             work_junit=True, floor=2, units="tests",
-             canaries=("test_fc9_two_hundred_clients_compute_incrementally_and_the_p50_is_measured",)),
-        Gate("firm-tenancy-fc1",
-             [PY, "-m", "pytest", "tests/engine/test_firm_tenancy.py", "-q"],
-             work_junit=True, floor=150, units="tests",
-             canaries=("test_fc1_plant_cross_firm_read_is_blocked_at_both_walls",
-                       "test_fc1_solo_workspace_is_untouched",
-                       "test_fc1_rls_shows_firm_a_rows_to_firm_a_roles_by_the_read_cell")),
         Gate("route-binding",
              [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
              work_junit=True, floor=3, units="tests",
