@@ -1,25 +1,65 @@
 {
-  "_comment": "Synthetic AAPL DAILY metrics snapshot, shaped like Sharadar DAILY datatable response. Used by NASDAQ-4 normalizer + NASDAQ-3 adapter tests. Numbers are illustrative public-market snapshots, not necessarily current.",
+  "_comment": "Synthetic AAPL DAILY metrics snapshot, shaped like Sharadar DAILY datatable response. Used by NASDAQ-4 normalizer + NASDAQ-3 adapter tests. Numbers are illustrative public-market snapshots, not necessarily current. ",
   "datatable": {
     "columns": [
-      {"name": "ticker", "type": "String"},
-      {"name": "date", "type": "Date"},
-      {"name": "lastupdated", "type": "Date"},
-      {"name": "ev", "type": "double"},
-      {"name": "evebit", "type": "double"},
-      {"name": "evebitda", "type": "double"},
-      {"name": "marketcap", "type": "double"},
-      {"name": "pb", "type": "double"},
-      {"name": "pe", "type": "double"},
-      {"name": "ps", "type": "double"}
+      {
+        "name": "ticker",
+        "type": "String"
+      },
+      {
+        "name": "date",
+        "type": "Date"
+      },
+      {
+        "name": "lastupdated",
+        "type": "Date"
+      },
+      {
+        "name": "ev",
+        "type": "double"
+      },
+      {
+        "name": "evebit",
+        "type": "double"
+      },
+      {
+        "name": "evebitda",
+        "type": "double"
+      },
+      {
+        "name": "marketcap",
+        "type": "double"
+      },
+      {
+        "name": "pb",
+        "type": "double"
+      },
+      {
+        "name": "pe",
+        "type": "double"
+      },
+      {
+        "name": "ps",
+        "type": "double"
+      }
     ],
     "data": [
       [
-        "AAPL", "2024-12-31", "2025-01-01",
-        3820000000000, 31.0, 28.4, 3780000000000,
-        66.3, 40.5, 9.7
+        "AAPL",
+        "2024-12-31",
+        "2025-01-01",
+        3820000.0,
+        31.0,
+        28.4,
+        3780000.0,
+        66.3,
+        40.5,
+        9.7
       ]
     ]
   },
-  "meta": {"next_cursor_id": null}
+  "meta": {
+    "next_cursor_id": null
+  },
+  "_units": "MONEY COLUMNS ARE USD MILLIONS, per the vendor's own column documentation for SHARADAR/DAILY (marketcap and ev are both documented 'USD millions'; verified against sharadar.com/docs/daily on 2026-09-04). The adapter multiplies by 1e6 at both DAILY call sites, which is CORRECT. This file previously held ABSOLUTE USD, which made the adapter look like it produced a market cap a million times too large and got the two tests below deselected from the battery for months. It was the FIXTURE that was wrong. A later wave inverted the adapter to match this file and would have shipped AAPL at USD 3.78M with every ticker scoring in the micro-cap bucket. Do not 'fix' the adapter to match a fixture: this file is declared synthetic, so its internal consistency proves only what its author assumed, never the wire format."
 }

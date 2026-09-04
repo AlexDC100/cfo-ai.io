@@ -146,13 +146,8 @@ jobs:
       - name: Cross-path shadow consistency (production vs classify pass)
         run: python3 scripts/shadow_report.py --all
       - name: Engine pytest suite
-        # The two deselected tests fail on the pre-existing SHARADAR
-        # market-cap scaling defect in the public-companies adapter
-        # (unrelated to the BS engine); re-enable when that is fixed.
         run: |
-          python -m pytest tests/engine -q \
-            --deselect tests/engine/public/test_adapter.py::test_get_daily_metrics_parses_aapl \
-            --deselect tests/engine/public/test_adapter.py::test_normalizer_emits_envelope_shape_from_aapl_fixture
+          python -m pytest tests/engine -q
       # ── Serving-gateway import boundary (canonical_bs v2) ──────────────
       # Static enforcement that raw envelope/canonical_bs totals are read
       # ONLY through the serving gateway (src/engine/serving/facts.py on the

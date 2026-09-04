@@ -89,16 +89,20 @@ from typing import Dict, List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parents[1]
 
-# The two deselects mirror .github/workflows/tier1-validation.yml — the
-# pre-existing SHARADAR market-cap scaling defect in the public-companies
-# adapter (unrelated to the BS engine); re-enable when that is fixed.
-PYTEST_DESELECTS = [
-    "--deselect",
-    "tests/engine/public/test_adapter.py::test_get_daily_metrics_parses_aapl",
-    "--deselect",
-    "tests/engine/public/test_adapter.py::"
-    "test_normalizer_emits_envelope_shape_from_aapl_fixture",
-]
+# EMPTY, and it should stay that way. It used to hold two deselects for "the
+# pre-existing SHARADAR market-cap scaling defect in the adapter". There was
+# no adapter defect: SHARADAR/DAILY documents marketcap and ev as USD
+# millions, the adapter's 1e6 multiplication at both DAILY call sites is
+# correct, and the committed FIXTURE held absolute USD — so the adapter
+# looked a million times wrong and two honest tests were switched off for
+# months instead. Fixed 2026-09-04 by correcting the fixture.
+#
+# The cost of the deselect was not the two tests. It was that the battery
+# reported green over a money-unit question nobody re-opened, and a later
+# wave "fixed" the adapter to match the wrong fixture, which would have
+# shipped Apple at USD 3.78M. A deselect is a gate you have agreed not to
+# look at; prefer an xfail with a reason, or fix it.
+PYTEST_DESELECTS = []
 
 PY = sys.executable
 
@@ -249,6 +253,77 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_c1_no_figure_ever_reaches_the_language_channel",
                        "test_c2_a_planted_write_tool_never_executes_through_the_dispatcher",
                        "test_c5_absent_period_answers_with_the_gap_and_no_number")),
+        # FC7 + FC8 — THE FIRM COCKPIT (backend). FC7: a file uploaded via
+        # a request link lands through the NORMAL pipeline (same row shape,
+        # same status + enqueue, the request's period as the confirmation
+        # hint) and the period-mismatch and entity guards FIRE on a
+        # wrong-period / wrong-entity file. FC8: model mocked DEAD ->
+        # items, calendar, digest, brief all complete with an honest
+        # notice and zero raw payload; a model call planted in the ranking
+        # path reds the structural assertion. Named separately from
+        # `pytest` because a side channel around the pipeline and a model
+        # in the ranking path both fail SILENTLY. Floor 15 = the measured
+        # 22 tests, rounded down. Plant log: docs/engine_book/gates.md
+        Gate("firm-cockpit-gates",
+             [PY, "-m", "pytest", "tests/engine/test_firm_gates.py", "-q"],
+             work_junit=True, floor=15, units="tests",
+             canaries=("test_fc7_request_link_lands_through_the_normal_pipeline",
+                       "test_fc7_plant_wrong_entity_file_fires_the_entity_guard",
+                       "test_fc8_dead_model_renders_items_calendar_digest_and_brief_complete",
+                       "test_fc8_plant_model_call_in_ranking_path_reds_the_structural_assertion")),
+        Gate("firm-attention-fc2",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc2"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_fc2_same_data_same_items_same_order_same_severities",)),
+        Gate("firm-attention-fc4",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc4"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_fc4_end_to_end_one_covenant_two_real_clients_two_severities",)),
+        Gate("firm-attention-fc5",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc5"],
+             work_junit=True, floor=2, units="tests",
+             canaries=("test_fc5_five_items_on_one_client_is_one_row_with_five_reasons",)),
+        Gate("firm-attention-fc9",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q", "-k", "fc9"],
+             work_junit=True, floor=2, units="tests",
+             canaries=("test_fc9_two_hundred_clients_compute_incrementally_and_the_p50_is_measured",)),
+        Gate("firm-tenancy-fc1",
+             [PY, "-m", "pytest", "tests/engine/test_firm_tenancy.py", "-q"],
+             work_junit=True, floor=150, units="tests",
+             canaries=("test_fc1_plant_cross_firm_read_is_blocked_at_both_walls",
+                       "test_fc1_solo_workspace_is_untouched",
+                       "test_fc1_rls_shows_firm_a_rows_to_firm_a_roles_by_the_read_cell")),
+        Gate("route-binding",
+             [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
+                       "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
+                       "test_the_full_openapi_schema_generates")),
+        Gate("cron-auth",
+             [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
+             work_junit=True, floor=8, units="tests",
+             canaries=("test_cron_without_a_configured_token_is_503_never_run",
+                       "test_cron_with_a_wrong_bearer_is_refused")),
+        Gate("public-refresh-shield",
+             [PY, "-m", "pytest", "tests/engine/test_public_refresh_shield.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_both_guarded_routes_still_exist_on_the_real_app",
+                       "test_anonymous_calls_are_limited_after_the_budget",
+                       "test_a_limited_call_mutates_no_cache",
+                       "test_a_valid_bearer_is_never_limited",
+                       "test_rotating_a_spoofed_leftmost_hop_cannot_mint_new_buckets",
+                       "test_the_shield_and_the_limiter_read_the_same_hop")),
+        Gate("public-post-surface",
+             [PY, "-m", "pytest", "tests/engine/test_public_post_surface.py", "-q"],
+             work_junit=True, floor=21, units="tests",
+             canaries=("test_every_public_post_on_the_real_app_is_classified",
+                       "test_the_walled_payloads_are_valid_so_a_401_means_the_wall",
+                       "test_a_walled_route_refuses_when_the_token_is_unset",
+                       "test_a_walled_route_refuses_a_wrong_bearer",
+                       "test_an_unauthenticated_manual_signal_creates_nothing",
+                       "test_an_unauthenticated_filings_refresh_never_calls_edgar",
+                       "test_sync_is_limited_after_the_budget",
+                       "test_ps8_compliance_routes_are_walled_and_never_rate_limited")),
         Gate("determinism", [PY, "scripts/verify_determinism.py"],
              # Floor 4 = the full declared roster in the script's own
              # fixture table (prod_scandia_frozen, agras,
