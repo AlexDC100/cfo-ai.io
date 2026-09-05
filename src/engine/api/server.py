@@ -35,6 +35,10 @@ from ._billing import build_router as create_billing_router
 from ._capsule_tools import build_router as create_capsule_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
+from ._firm import build_router as create_firm_router
+from ._firm_brief import build_router as create_firm_brief_router
+from ._firm_attention import build_router as create_firm_attention_router
+from ._firm_requests import build_router as create_firm_requests_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
@@ -87,6 +91,17 @@ class SessionTrackRequest(BaseModel):
 
 
 # ─────────── Factory: build app with injected dependencies ───────────
+
+
+def _firm_cockpit_enabled():  # type: () -> bool
+    """True only when FIRM_COCKPIT_ENABLED is an explicit truthy string.
+
+    Read at create_app() time, never cached at import, so a test can build
+    one app with the Cockpit and one without in the same process.
+    """
+    return os.environ.get("FIRM_COCKPIT_ENABLED", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
 
 
 def create_app(
@@ -254,6 +269,41 @@ def create_app(
     # registry is a frozen allowlist of eight READS; there is no route
     # here that mutates anything (see _capsule_tools.py's C2 contract).
     app.include_router(create_capsule_router())
+    # ─── THE FIRM COCKPIT — MOUNTED ONLY WHEN EXPLICITLY ENABLED ───
+    #
+    # The Cockpit backend ships COMPLETE and OFF. `FIRM_COCKPIT_ENABLED`
+    # is unset in production, so `create_app()` mounts no /api/firm route
+    # and every one of them is a 404 — the launch posture (the Cockpit is
+    # hidden until its post-launch pass lands). The code is committed, its
+    # gates run against a create_app() built with the flag set, and
+    # enabling the surface is one environment variable, not a deploy of
+    # new code. Absent the flag there is no surface to wall, which is the
+    # only wall no critic can get past.
+    if _firm_cockpit_enabled():
+        # THE FIRM MODEL — /api/firm/* (firms, roles-as-data, client
+        # assignments, invitations, CSV import). Every route: JWT → firm
+        # membership (403) → role-matrix cell (403) → client-of-this-firm
+        # (403) → the caller's own RLS-scoped read. See _firm.py (FC1 gate:
+        # tests/engine/test_firm_tenancy.py). Requires schema_phase_firm.sql.
+        app.include_router(create_firm_router())
+        # FIRM COCKPIT (backend) — the file-request flow (signed single-use
+        # upload links that land through the NORMAL pipeline), per-client
+        # cadence + stale verdicts, digest preferences + cron, and the
+        # firm email queue drain. Deterministic; no model anywhere in it.
+        # See _firm_requests.py (FC7 gate: tests/engine/test_firm_gates.py).
+        # Requires schema_phase_firm_requests.sql.
+        app.include_router(create_firm_requests_router())
+        # FIRM COCKPIT — "Brief me": the ONE AI role in the cockpit. Advisory
+        # only: the deterministic order is computed first and the model's
+        # prose is numeral-guarded; a dead model yields the deterministic
+        # brief with a notice (FC8 gate). Mount asserts structurally that no
+        # model is reachable from the ranking path (engine.firm.digest).
+        app.include_router(create_firm_brief_router())
+        # FIRM ATTENTION — /api/firm/attention* (deterministic attention items,
+        # suppression with reason). See _firm_attention.py (FC2/FC4/FC5/FC9
+        # gates: tests/engine/test_firm_attention.py). Requires
+        # schema_phase_firm_attention.sql.
+        app.include_router(create_firm_attention_router())
 
     # ─── Auth dependency ───
     auth_dep = _make_auth_dependency(auth_token_env)

@@ -1,0 +1,1100 @@
+{
+ "_meta": {
+  "captured_by": "tests/engine/fixtures/firm/capture.py",
+  "engine_path": "parse -> assemble -> stage_persist",
+  "note": "net assets -20% of capital",
+  "scrubbed": [
+   "envelope.provenance.written_at -> epoch"
+  ],
+  "source": "declared synthetic TB (capture.py:negative_equity_tb)",
+  "synthetic": true
+ },
+ "case_id": "synthetic_negative_equity",
+ "currency": "RON",
+ "envelope": {
+  "aggregates": {
+   "cash_and_equivalents": {
+    "leaves": [
+     "cash_operating"
+    ],
+    "net": 8000.0
+   },
+   "cogs": {
+    "leaves": [
+     "cogs_merchandise"
+    ],
+    "net": 120000.0
+   },
+   "contributed_capital": {
+    "leaves": [
+     "share_capital"
+    ],
+    "net": 100000.0
+   },
+   "retained_earnings": {
+    "leaves": [
+     "current_year_loss"
+    ],
+    "net": -120000.0
+   },
+   "trade_payables": {
+    "leaves": [
+     "ap_trade"
+    ],
+    "net": 28000.0
+   }
+  },
+  "canonical_bs": {
+   "diagnosis": [],
+   "difference": 0.0,
+   "excluded": [
+    {
+     "code": "121",
+     "reason": "profit_control_account_121"
+    }
+   ],
+   "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "anglo",
+    "parser_version": "tb_parser_v5",
+    "sheet": "TB",
+    "source_format": "saga_10_col"
+   },
+   "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+     "cls7_minus_cls6": -120000.0,
+     "ok": true,
+     "p121": -120000.0
+    },
+    "result_basis": "sf_closing_column",
+    "source_conservation": true
+   },
+   "mapping_version": "ro_omfp1802_v2",
+   "rows": [
+    {
+     "account_codes": [
+      "5121"
+     ],
+     "amount": 8000.0,
+     "id": "cash_operating",
+     "label": "Cash in operating currency",
+     "label_key": "bs.row.cash_operating",
+     "leaf_ids": [
+      "5121"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "1012"
+     ],
+     "amount": 100000.0,
+     "id": "share_capital",
+     "label": "Share capital",
+     "label_key": "bs.row.share_capital",
+     "leaf_ids": [
+      "1012"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "121"
+     ],
+     "amount": -120000.0,
+     "id": "current_year_loss",
+     "label": "Current year loss",
+     "label_key": "bs.row.current_year_loss",
+     "leaf_ids": [
+      "121"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "401"
+     ],
+     "amount": 28000.0,
+     "id": "ap_trade",
+     "label": "Trade payables",
+     "label_key": "bs.row.ap_trade",
+     "leaf_ids": [
+      "401"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    }
+   ],
+   "schema": "bs_v2",
+   "sections": [
+    {
+     "id": "non_current_assets",
+     "subtotal": 0.0
+    },
+    {
+     "id": "current_assets",
+     "subtotal": 8000.0
+    },
+    {
+     "id": "prepaid_expenses",
+     "subtotal": 0.0
+    },
+    {
+     "id": "equity",
+     "subtotal": -20000.0
+    },
+    {
+     "id": "provisions",
+     "subtotal": 0.0
+    },
+    {
+     "id": "non_current_liabilities",
+     "subtotal": 0.0
+    },
+    {
+     "id": "current_liabilities",
+     "subtotal": 28000.0
+    },
+    {
+     "id": "deferred_income",
+     "subtotal": 0.0
+    }
+   ],
+   "source_anchor": {
+    "anchor_status": "MATCHED",
+    "closing_result": {
+     "basis": "sf",
+     "codes": [
+      "121"
+     ],
+     "p121_cents": -12000000,
+     "pl_net_cents": 0
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [
+     "rl",
+     "rc"
+    ],
+    "pairs": {
+     "rc": {
+      "delta_credit": 0.0,
+      "delta_debit": 0.0,
+      "extracted_credit": 128000.0,
+      "extracted_debit": 248000.0,
+      "file_credit": 128000.0,
+      "file_debit": 248000.0
+     },
+     "rl": {
+      "delta_credit": 0.0,
+      "delta_debit": 0.0,
+      "extracted_credit": 128000.0,
+      "extracted_debit": 248000.0,
+      "file_credit": 128000.0,
+      "file_debit": 248000.0
+     },
+     "sf": {
+      "delta_credit": 0.0,
+      "delta_debit": 0.0,
+      "extracted_credit": 128000.0,
+      "extracted_debit": 128000.0,
+      "file_credit": 128000.0,
+      "file_debit": 128000.0
+     },
+     "si": {
+      "delta_credit": null,
+      "delta_debit": null,
+      "extracted_credit": 0.0,
+      "extracted_debit": 0.0,
+      "file_credit": null,
+      "file_debit": null
+     }
+    },
+    "source_balanced": false,
+    "totals_row_found": true,
+    "totals_row_index": 6
+   },
+   "status": "BALANCED",
+   "totals": {
+    "assets": 8000.0,
+    "current_assets": 8000.0,
+    "current_liabilities": 28000.0,
+    "equity": -20000.0,
+    "equity_plus_liabilities": 8000.0,
+    "liabilities": 28000.0
+   },
+   "unmapped": []
+  },
+  "leaves": {
+   "ap_trade": {
+    "magnitude": 28000.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 28000.0,
+    "sign_meaning": "liability_positive"
+   },
+   "cash_operating": {
+    "magnitude": 8000.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 8000.0,
+    "sign_meaning": "asset_positive"
+   },
+   "cogs_merchandise": {
+    "magnitude": 120000.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 120000.0,
+    "sign_meaning": "expense_positive"
+   },
+   "current_year_loss": {
+    "magnitude": 120000.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": -120000.0,
+    "sign_meaning": "equity_negative"
+   },
+   "share_capital": {
+    "magnitude": 100000.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 100000.0,
+    "sign_meaning": "equity_positive"
+   }
+  },
+  "methodology": {
+   "ebitda": {
+    "adjusted": -120000.0,
+    "cash": -120000.0,
+    "reported": -120000.0,
+    "strict": -120000.0
+   },
+   "errors": [
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.ebitda_margin_reported"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.ebitda_margin_cash"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.net_margin"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.gross_margin"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.interest_coverage"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.ebitda_to_interest"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.dscr_approx"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.inventory_turnover"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.days_sales_outstanding"
+    },
+    {
+     "error": "ZeroDivisionError: division by zero",
+     "scope": "ratios.capex_intensity"
+    }
+   ],
+   "industry_key_applied": "default",
+   "methodology_id": "ro_ras_2025_v1",
+   "methodology_version": "1.0.0",
+   "missing_buckets": [
+    "dap.net",
+    "deferred_income_lt.net",
+    "deferred_revenue_st.net",
+    "deferred_tax_assets.net",
+    "deferred_tax_liabilities.net",
+    "financial_expense.net",
+    "financial_income.net",
+    "financial_investments.net",
+    "financial_liabilities_lt.net",
+    "financial_liabilities_st.net",
+    "income_tax.net",
+    "intangibles_net.net",
+    "inventory_net.net",
+    "investment_property.net",
+    "opex_general.net",
+    "other_non_current_assets.net",
+    "other_non_current_liabilities.net",
+    "other_op_income.net",
+    "other_payables_st.net",
+    "other_receivables.net",
+    "pension_liabilities.net",
+    "personnel_payables.net",
+    "personnel_total.net",
+    "ppe_net.net",
+    "prepaid_expenses_and_other.net",
+    "provisions_lt.net",
+    "provisions_st.net",
+    "reserves.net",
+    "revenue_gross.net",
+    "right_of_use_assets.net",
+    "tax_payables.net",
+    "trade_receivables_net.net"
+   ],
+   "ratios": {
+    "asset_turnover": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    "capex_intensity": {
+     "band": null,
+     "direction": "neutral",
+     "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "cash_conversion_cycle": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "days",
+     "value": -85.166667
+    },
+    "cash_ratio": {
+     "band": [
+      0.1,
+      0.3
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.285714
+    },
+    "current_ratio": {
+     "band": [
+      1.2,
+      2.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.285714
+    },
+    "days_inventory_outstanding": {
+     "band": [
+      30,
+      70
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 0.0
+    },
+    "days_payable_outstanding": {
+     "band": [
+      30,
+      60
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 85.166667
+    },
+    "days_sales_outstanding": {
+     "band": [
+      30,
+      60
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "days",
+     "value": null
+    },
+    "debt_to_assets": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    "debt_to_equity": {
+     "band": [
+      0.0,
+      1.0
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": -0.0
+    },
+    "dscr_approx": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "ebitda_margin_cash": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "ebitda_margin_reported": {
+     "band": [
+      0.08,
+      0.15
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "ebitda_to_interest": {
+     "band": [
+      4.0,
+      10.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "equity_ratio": {
+     "band": [
+      0.3,
+      0.6
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": -2.5
+    },
+    "gross_margin": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "interest_coverage": {
+     "band": [
+      3.0,
+      8.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "inventory_turnover": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "lt_debt_to_equity": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": -0.0
+    },
+    "net_debt_to_ebitda": {
+     "band": [
+      0.0,
+      3.0
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.066667
+    },
+    "net_margin": {
+     "band": [
+      0.03,
+      0.08
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "reason": "formula_error",
+     "unit": "ratio",
+     "value": null
+    },
+    "quick_ratio": {
+     "band": [
+      0.7,
+      1.2
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.285714
+    },
+    "return_on_assets": {
+     "band": [
+      0.05,
+      0.1
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": -15.0
+    },
+    "return_on_equity": {
+     "band": [
+      0.1,
+      0.2
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 6.0
+    },
+    "working_capital": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "currency",
+     "value": -20000.0
+    }
+   },
+   "schema_version": "canonical_v1.0.0",
+   "totals": {
+    "current_assets": 8000.0,
+    "current_liabilities": 28000.0,
+    "gross_profit": -120000.0,
+    "net_debt": -8000.0,
+    "operating_profit_reported": -120000.0,
+    "revenue_net": 0.0,
+    "total_assets": 8000.0,
+    "total_debt": 0.0,
+    "total_equity": -20000.0,
+    "total_liabilities": 28000.0
+   }
+  },
+  "pack_provenance": {
+   "jurisdiction": "RO",
+   "mapping_version": "ro_omfp1802_v2",
+   "pack": "omfp1802@v1",
+   "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16"
+  },
+  "period_detection": {
+   "confidence": 1.0,
+   "detected": {
+    "candidates": [],
+    "confidence": 0.0,
+    "evidence_snippet": null,
+    "proposed_period_end": null,
+    "signal_used": "none"
+   },
+   "evidence_snippet": "user-confirmed period end: 2025-12-31",
+   "hint": "2025-12-31",
+   "mismatch": false,
+   "resolved_period_end": "2025-12-31",
+   "signal_used": "user_confirmed"
+  },
+  "provenance": {
+   "content_hash": "sha256-a4f6a9e5f91f29e687a79509437992eb656cf352081ee6dc7f46af0e24710d20",
+   "original_filename": "synthetic_negative_equity.xlsx",
+   "source_document_id": "doc-synthetic_negative_equity",
+   "written_at": "1970-01-01T00:00:00+00:00"
+  },
+  "round_trip_check": {
+   "basis": "methodology_totals",
+   "max_deviation_pct": 0.0,
+   "passed": true,
+   "tolerance_pct": 0.5,
+   "worst": ""
+  },
+  "schema_version": "canonical_v1.0.0",
+  "source_data_quality": {
+   "raw_imbalance_abs": 0.0,
+   "raw_imbalance_pct": 0.0,
+   "sum_closing_credit": 128000.0,
+   "sum_closing_debit": 128000.0,
+   "warn": false,
+   "warn_threshold_pct": 2.0
+  },
+  "unmapped": []
+ },
+ "line_items": [
+  {
+   "amount": 100000.0,
+   "bucket": "shareCapital",
+   "is_derived": false,
+   "ro_account_code": "1012",
+   "ro_account_name": "Capital subscris varsat",
+   "statement": "BS"
+  },
+  {
+   "amount": 8000.0,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5121",
+   "ro_account_name": "Conturi la banci in lei",
+   "statement": "BS"
+  },
+  {
+   "amount": 28000.0,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "401",
+   "ro_account_name": "Furnizori",
+   "statement": "BS"
+  },
+  {
+   "amount": 120000.0,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607",
+   "ro_account_name": "Cheltuieli privind marfurile",
+   "statement": "PL"
+  }
+ ],
+ "period_end": "2025-12-31",
+ "period_start": "2025-01-01",
+ "statements": {
+  "assembled_bands": {
+   "bands": {
+    "asset_turnover": {
+     "direction": "higher",
+     "healthy": 1.0,
+     "strong": 1.5,
+     "watch": 0.5
+    },
+    "cash_ratio": {
+     "direction": "higher",
+     "healthy": 0.2,
+     "strong": 0.5,
+     "watch": 0.1
+    },
+    "ccc": {
+     "direction": "lower",
+     "healthy": 60,
+     "strong": 30,
+     "watch": 90
+    },
+    "core_ebitda_margin": {
+     "direction": "higher",
+     "healthy": 0.15,
+     "strong": 0.25,
+     "watch": 0.08
+    },
+    "current_ratio": {
+     "direction": "higher",
+     "healthy": 1.5,
+     "strong": 2.0,
+     "watch": 1.0
+    },
+    "debt_to_assets": {
+     "direction": "lower",
+     "healthy": 0.5,
+     "strong": 0.3,
+     "watch": 0.65
+    },
+    "debt_to_ebitda": {
+     "direction": "lower",
+     "healthy": 3.0,
+     "strong": 2.0,
+     "watch": 4.5
+    },
+    "debt_to_equity": {
+     "direction": "lower",
+     "healthy": 1.0,
+     "strong": 0.5,
+     "watch": 2.0
+    },
+    "dio": {
+     "direction": "lower",
+     "healthy": 60,
+     "strong": 30,
+     "watch": 100
+    },
+    "dpo": {
+     "direction": "higher",
+     "healthy": 45,
+     "strong": 60,
+     "watch": 30
+    },
+    "dscr": {
+     "direction": "higher",
+     "healthy": 1.25,
+     "strong": 1.5,
+     "watch": 1.0
+    },
+    "dscr_with_lt_principal": {
+     "direction": "higher",
+     "healthy": 1.25,
+     "strong": 1.5,
+     "watch": 1.0
+    },
+    "dso": {
+     "direction": "lower",
+     "healthy": 45,
+     "strong": 30,
+     "watch": 75
+    },
+    "ebitda_margin": {
+     "direction": "higher",
+     "healthy": 0.15,
+     "strong": 0.25,
+     "watch": 0.08
+    },
+    "ebitda_to_interest": {
+     "direction": "higher",
+     "healthy": 4.0,
+     "strong": 8.0,
+     "watch": 2.0
+    },
+    "equity_ratio": {
+     "direction": "higher",
+     "healthy": 0.3,
+     "strong": 0.5,
+     "watch": 0.15
+    },
+    "gross_margin": {
+     "direction": "higher",
+     "healthy": 0.25,
+     "strong": 0.4,
+     "watch": 0.15
+    },
+    "interest_coverage": {
+     "direction": "higher",
+     "healthy": 3.0,
+     "strong": 6.0,
+     "watch": 1.5
+    },
+    "inventory_turnover": {
+     "direction": "higher",
+     "healthy": 6,
+     "strong": 12,
+     "watch": 3
+    },
+    "lt_debt_to_equity": {
+     "direction": "lower",
+     "healthy": 0.6,
+     "strong": 0.3,
+     "watch": 1.2
+    },
+    "net_debt_to_ebitda": {
+     "direction": "lower",
+     "healthy": 3.0,
+     "strong": 1.5,
+     "watch": 4.5
+    },
+    "net_margin": {
+     "direction": "higher",
+     "healthy": 0.08,
+     "strong": 0.15,
+     "watch": 0.03
+    },
+    "operating_margin": {
+     "direction": "higher",
+     "healthy": 0.1,
+     "strong": 0.2,
+     "watch": 0.04
+    },
+    "quick_ratio": {
+     "direction": "higher",
+     "healthy": 1.0,
+     "strong": 1.5,
+     "watch": 0.7
+    },
+    "roa": {
+     "direction": "higher",
+     "healthy": 0.05,
+     "strong": 0.1,
+     "watch": 0.02
+    },
+    "roe": {
+     "direction": "higher",
+     "healthy": 0.12,
+     "strong": 0.2,
+     "watch": 0.06
+    },
+    "roic": {
+     "direction": "higher",
+     "healthy": 0.1,
+     "strong": 0.15,
+     "watch": 0.05
+    }
+   },
+   "disclosure": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass.",
+   "industry_resolved": null,
+   "source": "general_sme_fallback"
+  },
+  "assembled_bs": {
+   "accounts_payable": 28000.0,
+   "accounts_receivable": 0.0,
+   "ap": 28000.0,
+   "ap_dividends": 0.0,
+   "ap_other": 0.0,
+   "ar_doubtful_gross": 0.0,
+   "ar_intercompany": 0.0,
+   "ar_net": 0.0,
+   "ar_other": 0.0,
+   "ar_provisions": 0.0,
+   "bs_balance_delta": 0.0,
+   "cash": 8000.0,
+   "cash_fx_component": 0.0,
+   "current_year_pnl": -120000.0,
+   "intangibles": 0.0,
+   "intangibles_net": 0.0,
+   "inventory": 0.0,
+   "investments": 0.0,
+   "long_term_debt": 0.0,
+   "lt_debt": 0.0,
+   "other_current_assets": 0.0,
+   "other_current_liabilities": 0.0,
+   "other_equity": 0.0,
+   "other_equity_non_revaluation": 0.0,
+   "other_non_current_assets": 0.0,
+   "other_non_current_liabilities": 0.0,
+   "ppe_advances": 0.0,
+   "ppe_investment_net": 0.0,
+   "ppe_net": 0.0,
+   "ppe_under_construction": 0.0,
+   "property_plant_equipment": 0.0,
+   "retained_earnings": 0.0,
+   "revaluation_reserves": 0.0,
+   "share_capital": 100000.0,
+   "short_term_debt": 0.0,
+   "st_debt": 0.0,
+   "total_assets": 8000.0,
+   "total_current_assets": 8000.0,
+   "total_current_liabilities": 28000.0,
+   "total_debt": 0.0,
+   "total_equity": -20000.0,
+   "total_liabilities": 28000.0,
+   "total_non_current_assets": 0.0,
+   "total_non_current_liabilities": 0.0
+  },
+  "assembled_cf": {
+   "affiliate_change": -0.0,
+   "approximation_notes": [
+    "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+    "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+   ],
+   "bank_loan_drawdowns": 0.0,
+   "bank_loan_repayments": 0.0,
+   "capex_other_approx": -0.0,
+   "capex_real": -0.0,
+   "capex_total": -0.0,
+   "capitalized_construction": -0.0,
+   "cash_from_financing": 60000.0,
+   "cash_from_investing": 0.0,
+   "cash_from_operating": -118600.0,
+   "cash_used_in_financing": 60000.0,
+   "cash_used_in_investing": 0.0,
+   "cf_before_wc": -120000.0,
+   "cip_change": -0.0,
+   "closing_cash_actual": 8000.0,
+   "delta_inventory": -0.0,
+   "delta_lt_debt": -0.0,
+   "delta_receivables": -0.0,
+   "delta_st_bank": 0.0,
+   "delta_tax_pay": 0.0,
+   "delta_trade_pay": 1400.0,
+   "depreciation": 0.0,
+   "dividends_declared_but_unpaid": false,
+   "dividends_paid": 60000.0,
+   "dividends_received": 0,
+   "free_cash_flow": -118600.0,
+   "interest_paid": 0,
+   "interest_received": 0,
+   "is_approximated": true,
+   "net_change_in_cash": -58600.0,
+   "net_profit": -120000.0,
+   "net_wc_change": 1400.0,
+   "provision_movement": 0,
+   "working_capital_change": 1400.0
+  },
+  "assembled_piotroski": {
+   "checks": [
+    {
+     "detail": "-120,000 RON",
+     "key": "ni_positive",
+     "label": "Net income positive",
+     "result": "fail"
+    },
+    {
+     "detail": "-1500.00% on 8,000 RON total assets",
+     "key": "roa_positive",
+     "label": "ROA positive",
+     "result": "fail"
+    },
+    {
+     "detail": "-118,600 RON",
+     "key": "cfo_positive",
+     "label": "Cash from operating positive",
+     "result": "fail"
+    },
+    {
+     "detail": "CFO -118,600 > NI -120,000",
+     "key": "cfo_gt_ni",
+     "label": "CFO greater than net income (earnings quality)",
+     "result": "pass"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "roa_improving",
+     "label": "ROA improving year-over-year",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "debt_declining",
+     "label": "Long-term debt declining",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "no_share_issuance",
+     "label": "No share issuance",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "margin_improving",
+     "label": "Operating margin improving",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "asset_turnover_improving",
+     "label": "Asset turnover improving",
+     "result": "uncertain"
+    }
+   ],
+   "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+   "has_prior_period": false,
+   "score": 1,
+   "score_max": 9
+  },
+  "assembled_pl": {
+   "adjusted_ebitda": -120000.0,
+   "capitalized_own_work_memo": 0.0,
+   "cogs": 120000.0,
+   "core_ebitda": -120000.0,
+   "cost_of_goods_sold": 120000.0,
+   "depreciation": 0.0,
+   "discounts_received": 0.0,
+   "ebit": -120000.0,
+   "ebitda": -120000.0,
+   "ebitda_adjusted": -120000.0,
+   "ebitda_cash": -120000.0,
+   "ebitda_operating_view": -120000.0,
+   "ebitda_operational": -120000.0,
+   "ebitda_statutory": -120000.0,
+   "ebitda_statutory_with_711": -120000.0,
+   "financial_expense": 0.0,
+   "financial_expense_total": 0.0,
+   "financial_income": 0.0,
+   "financial_income_other": 0.0,
+   "free_cash_flow_proxy": -120000.0,
+   "fx_gain": 0.0,
+   "fx_loss": 0.0,
+   "gross_profit": -120000.0,
+   "income_tax": 0.0,
+   "interest_expense": 0.0,
+   "interest_income": 0.0,
+   "inventory_variation_memo": 0.0,
+   "net_financial_result": 0.0,
+   "net_income_operational": -120000.0,
+   "net_income_statutory": -120000.0,
+   "operating_ebit": -120000.0,
+   "operating_ebitda": -120000.0,
+   "opex_excluding_cogs_and_da": 0.0,
+   "opex_third_party": 0.0,
+   "opex_total": 0.0,
+   "other_income_758": 0,
+   "other_income_781_reversals": 0,
+   "other_op_income_lump": 0,
+   "pretax": -120000.0,
+   "revenue": 0.0,
+   "tax": 0.0,
+   "total_operating_expense": 120000.0,
+   "total_operating_revenue": 0.0,
+   "total_operating_revenue_statutory": 0.0
+  },
+  "balanceSheet": {
+   "accountsPayable": 28000.0,
+   "accountsReceivable": 0.0,
+   "cash": 8000.0,
+   "intangibles": 0.0,
+   "inventory": 0.0,
+   "longTermDebt": 0.0,
+   "otherCurrentAssets": 0.0,
+   "otherCurrentLiabilities": 0.0,
+   "otherEquity": 0.0,
+   "otherNonCurrentAssets": 0.0,
+   "otherNonCurrentLiabilities": 0.0,
+   "propertyPlantEquipment": 0.0,
+   "retainedEarnings": -120000.0,
+   "shareCapital": 100000.0,
+   "shortTermDebt": 0.0
+  },
+  "companyName": "synthetic_negative_equity",
+  "currency": "RON",
+  "incomeStatement": {
+   "capitalizedOwnWork": 0.0,
+   "costOfGoodsSold": 120000.0,
+   "depreciationAmortization": 0.0,
+   "financialExpense": 0.0,
+   "financialIncome": 0.0,
+   "interestExpense": 0.0,
+   "inventoryVariationMemo": 0.0,
+   "operatingExpenses": 0.0,
+   "otherIncome": 0.0,
+   "revenue": 0.0,
+   "taxExpense": 0.0
+  },
+  "industry": null,
+  "periodLabel": "Imported period",
+  "subAggregates": {
+   "ap_dividends": 0.0,
+   "ar_doubtful": 0.0,
+   "ar_intercompany": 0.0,
+   "ar_provisions": 0.0,
+   "cash_fx": 0.0,
+   "current_year_pnl": -120000.0,
+   "equity_revaluation": 0.0,
+   "financial_income": 0.0,
+   "fx_gain": 0.0,
+   "fx_loss": 0.0,
+   "interest_expense": 0.0,
+   "interest_income": 0.0,
+   "opex_third_party": 0.0,
+   "ppe_advances": 0.0,
+   "ppe_investment": 0.0,
+   "ppe_under_construction": 0.0,
+   "retained_earnings": 0.0
+  },
+  "supplementary": {
+   "periodDays": 365
+  }
+ }
+}

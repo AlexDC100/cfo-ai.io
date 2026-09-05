@@ -91,9 +91,58 @@ from engine.ai import registry as _model_registry
 # mutate status/totals (R1/R2, tests/engine/test_ai_advisory.py).
 from engine.ai import advisory as _ai_advisory
 
-#: Registry-resolved model ids (roles per engine/ai/models.yaml).
-_EXTRACT_MODEL = _model_registry.model_for("extract")
-_NARRATIVE_MODEL = _model_registry.model_for("narrative")
+# ── Registry-resolved model ids — READ AT FIRST USE, never at import ────
+#
+# `_EXTRACT_MODEL` / `_NARRATIVE_MODEL` (roles per engine/ai/models.yaml)
+# were module-level registry reads. This module is in the import closure
+# of `from engine.api import create_app` (server.py imports it; `python
+# -m engine serve` -> __main__._cmd_serve -> create_app), so a registry
+# that could not resolve — a missing role, an unreadable file, a role
+# with no breaker caps — was a RegistryError at IMPORT: no app, no
+# process, the §14 restart-loop shape, and the deterministic firm board
+# (which reads no model) died with it (critic D6, 2026-09-05; gated by
+# tests/engine/test_firm_real_app.py on the REAL create_app in a fresh
+# process). The same shape as engine.api._reconcile: the two names stay
+# module attributes (PEP 562 `__getattr__` below — `pipeline._EXTRACT_
+# MODEL` reads as before, a monkeypatch still wins), the use sites call
+# the cached accessors `_extract_model()` / `_narrative_model()` (a bare
+# global read inside this module never consults `__getattr__`), and the
+# registry's failure stays LOUD at the first AI call that needs the id.
+_REGISTRY_MODEL_ROLES = {"_EXTRACT_MODEL": "extract", "_NARRATIVE_MODEL": "narrative"}
+
+
+def _resolve_registry_model(name: str) -> str:
+    """Read the role's model id from the registry and pin it into this
+    module's globals (later reads are plain attribute reads). Raises the
+    registry's own RegistryError when it cannot resolve — at the seam."""
+    value = str(_model_registry.model_for(_REGISTRY_MODEL_ROLES[name]))
+    globals().setdefault(name, value)
+    return globals()[name]
+
+
+def __getattr__(name: str) -> Any:
+    if name in _REGISTRY_MODEL_ROLES:
+        return _resolve_registry_model(name)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
+def _model_constant(name: str) -> str:
+    """The pinned (or monkeypatched) module global when one exists, else
+    the registry read that pins it."""
+    value = globals().get(name)
+    return str(value) if value is not None else _resolve_registry_model(name)
+
+
+def _extract_model() -> str:
+    """The model id for the `extract` role — the RO LLM fallback."""
+    return _model_constant("_EXTRACT_MODEL")
+
+
+def _narrative_model() -> str:
+    """The model id for the `narrative` role — the narrate family."""
+    return _model_constant("_NARRATIVE_MODEL")
+
+
 # F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
 # routing can exercise multi-pack logic. detect_from_content() returns 0.0
 # confidence so the RO pack always wins on RO uploads.
@@ -316,18 +365,70 @@ def _verify_user_owns_document(jwt: str, document_id: str) -> Dict[str, Any]:
 
 
 def _user_id_from_jwt(jwt: str) -> str:
-    """Resolve the calling user's id from the JWT (same pattern as _billing).
-    Raises 401 if the JWT is malformed."""
-    # PUBLIC_TEST_MODE bypass — return the shared test user_id.
-    from . import _test_mode
-    if _test_mode.is_bypass_token(jwt):
-        return _test_mode.test_user_id()
+    """The calling user's VERIFIED id (engine.api._jwt through
+    `_org.verified_user_id`; the PUBLIC_TEST_MODE seam included). 401 when
+    the bearer's signature does not verify, 503 when no signing key can be
+    obtained. Until 2026-09-05 (FC1x, critic D5) this read the id through
+    `per_user(jwt).get_user(jwt)` — an unverified payload decode in the
+    real client and in every double that stood in for it."""
+    return _org.verified_user_id(jwt)
+
+
+# ── THE WRITE WALL (FC1x, critic D4, 2026-09-05) ────────────────────────
+# Every mutating route below used to authorize on "is the row visible to
+# the caller under per_user?" and then write through the service role.
+# The firm READ policies (schema_phase_firm.sql: `can_read_client_org`)
+# make a client's rows visible to a firm viewer with a read cell and NO
+# membership — so that viewer hard-deleted a client's period, re-ran and
+# re-filed its documents through these routes (crit_pipeline_census.py:
+# DELETE /api/period/{id} 200 row gone, POST .../reextract 200,
+# POST /api/documents/{id}/move-period 200, POST /api/pipeline/run 202).
+# A write needs a `memberships` row in the org it targets; visibility is
+# the READ wall and never the write wall. `_org.require_org_member` is the
+# one helper; these wrap it in the shapes the handlers need. The census
+# and the viewer sweep live in tests/engine/test_identity_wall.py.
+
+
+def _verify_user_may_write_document(jwt: str, document_id: str) -> Dict[str, Any]:
+    """Visible to the caller under RLS (404 otherwise) AND the caller holds
+    a memberships row in the document's org (403 otherwise). Returns the
+    document row. Firm visibility never writes a client's books. The
+    identity is verified FIRST, before any table read: a forged bearer is
+    401 from the verifier, never a 404 from an anonymous read."""
+    _org.verified_user_id(jwt)
+    doc = _verify_user_owns_document(jwt, document_id)
+    _org.require_org_member(jwt, doc.get("org_id"))
+    return doc
+
+
+def _verify_user_may_write_period(jwt: str, period_id: str) -> Dict[str, Any]:
+    """The same wall for period-scoped mutations. Returns the period row."""
+    _org.verified_user_id(jwt)
     with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    return user_id
+        rows = client.select(
+            "financial_periods",
+            filters={"id": f"eq.{period_id}"},
+            single=True,
+        )
+    if not rows:
+        raise HTTPException(404, "Period not found or not visible to you.")
+    _org.require_org_member(jwt, rows[0].get("org_id"))
+    return rows[0]
+
+
+def _require_member(jwt: str, org_id: Optional[str]) -> str:
+    """`_org.require_org_member`, looked up at call time — for handlers
+    that bind a LOCAL name `_org` further down (review/reanalyze does) and
+    therefore cannot name the module directly."""
+    return _org.require_org_member(jwt, org_id)
+
+
+def _only_member_orgs(jwt: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """For the bulk routes whose scope is 'everything visible to me'
+    (clear-deleted, recover-stuck): keep only rows in orgs the caller is a
+    MEMBER of. A firm viewer's visible-but-not-mine rows are left alone."""
+    member_of = set(_org.member_org_ids(_user_id_from_jwt(jwt)))
+    return [r for r in rows if str(r.get("org_id")) in member_of]
 
 
 def _admin_set_status(doc_id: str, status: str, *, error: Optional[str] = None,
@@ -1362,7 +1463,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         resp = client.messages.create(
-            model=_EXTRACT_MODEL,
+            model=_extract_model(),
             # 2026-07-26 — was 8000, which truncated the JSON mid-string on
             # sales-analysis files (detected_type="sales_analysis" emits every
             # SKU row into `skus`), surfacing as "Claude returned invalid JSON:
@@ -3292,7 +3393,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
 
     try:
         resp = client.messages.create(
-            model=_NARRATIVE_MODEL,
+            model=_narrative_model(),
             max_tokens=4096,
             system=system,
             messages=[{"role": "user", "content": json.dumps(user_payload)}],
@@ -3402,7 +3503,7 @@ def stage_persist_narrative(
                 "org_id": org_id,
                 "body": narrate["briefing"],
                 "language": "en",
-                "model": _NARRATIVE_MODEL,
+                "model": _narrative_model(),
             },
             on_conflict="period_id",
             returning=False,
@@ -3791,7 +3892,7 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
                 "summary": parsed.get("summary") or {},
                 "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
-                "model": _NARRATIVE_MODEL,
+                "model": _narrative_model(),
             },
             on_conflict="document_id",
             returning=False,
@@ -5507,7 +5608,9 @@ def build_router() -> APIRouter:
     _period_move.register_routes(
         router,
         require_jwt=_require_jwt,
-        verify_owns=_verify_user_owns_document,
+        # The WRITE wall (FC1x, D4): move-period / make-active re-file and
+        # re-run a client's documents — membership, not firm visibility.
+        verify_owns=_verify_user_may_write_document,
         set_status=_admin_set_status,
         enqueue=_enqueue,
         admin_client=_supabase.admin,
@@ -5580,7 +5683,7 @@ def build_router() -> APIRouter:
     @router.post("/api/pipeline/run", response_model=RunResponse, status_code=202)
     def run_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
-        doc = _verify_user_owns_document(jwt, req.document_id)
+        doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
         # Pricing V3 (refined spec gaps C + D) — atomic reserve, success-only consume.
         #
         # Legacy `_usage_limits.check_quota` remains as a safety rail.
@@ -6120,6 +6223,7 @@ def build_router() -> APIRouter:
         patch = {k: v for k, v in payload.items() if k in allowed}
         if not patch:
             raise HTTPException(400, "No allowed fields provided. Allowed: display_name, is_active.")
+        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             client.update("documents", patch, filters={"id": f"eq.{document_id}"})
             rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
@@ -6221,6 +6325,10 @@ def build_router() -> APIRouter:
             if period_id:
                 filters["period_id"] = f"eq.{period_id}"
             visible = client.select("documents", filters=filters)
+        # The WRITE wall (FC1x, D4): a firm viewer sees a client's
+        # soft-deleted documents under can_read_client_org; only the
+        # caller's OWN workspaces' rows may be hard-deleted here.
+        visible = _only_member_orgs(jwt, visible)
 
         deleted_ids: List[str] = []
         with _supabase.admin() as admin:
@@ -6259,8 +6367,8 @@ def build_router() -> APIRouter:
         docs-panel fix.)
         """
         jwt = _require_jwt(authorization)
+        doc_rows = [_verify_user_may_write_document(jwt, document_id)]  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
-            doc_rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
             client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{document_id}"})
 
         # Cleanup orphan period using admin so RLS doesn't block the cascade.
@@ -6277,6 +6385,7 @@ def build_router() -> APIRouter:
     def restore_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
         """Restore a soft-deleted document."""
         jwt = _require_jwt(authorization)
+        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
             return {"document_id": document_id, "restored": True}
@@ -6313,9 +6422,12 @@ def build_router() -> APIRouter:
                     "Cannot permanently delete a document that has not been soft-deleted first.",
                 )
             storage_path = doc.get("storage_path")
+        # The WRITE wall (FC1x, D4): per_user visibility is NOT a
+        # membership check — firm viewers see a client's rows too.
+        _org.require_org_member(jwt, doc.get("org_id"))
 
         # Storage + cascade cleanup use the admin client (RLS doesn't gate
-        # us once we've passed the membership check above via per_user).
+        # us once we've passed the membership wall above).
         with _supabase.admin() as admin:
             # 1) Remove the underlying blob. Log + continue on failure — a
             # missing blob shouldn't block the DB cleanup.
@@ -6356,10 +6468,12 @@ def build_router() -> APIRouter:
         if not patch:
             raise HTTPException(400, "No allowed fields. Allowed: label, is_active.")
         with _supabase.per_user(jwt) as client:
-            client.update("sales_datasets", patch, filters={"id": f"eq.{dataset_id}"})
             rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not rows:
                 raise HTTPException(404, "Dataset not found.")
+            _org.require_org_member(jwt, rows[0].get("org_id"))  # the WRITE wall (FC1x, D4)
+            client.update("sales_datasets", patch, filters={"id": f"eq.{dataset_id}"})
+            rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             return rows[0]
 
     @router.delete("/api/sales-datasets/{dataset_id}")
@@ -6374,6 +6488,7 @@ def build_router() -> APIRouter:
             if not ds:
                 raise HTTPException(404, "Dataset not found.")
             doc_id = ds[0]["document_id"]
+            _org.require_org_member(jwt, ds[0].get("org_id"))  # the WRITE wall (FC1x, D4)
             client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{doc_id}"})
             return {"dataset_id": dataset_id, "document_id": doc_id, "deleted_at": _now_iso()}
 
@@ -6406,6 +6521,7 @@ def build_router() -> APIRouter:
             existing = client.select("sku_aggregates", filters={"id": f"eq.{sku_id}"}, single=True)
             if not existing:
                 raise HTTPException(404, "SKU not found.")
+            _org.require_org_member(jwt, existing[0].get("org_id"))  # the WRITE wall (FC1x, D4)
             client.update(
                 "sku_aggregates",
                 {"user_override": raw},
@@ -6444,6 +6560,7 @@ def build_router() -> APIRouter:
             if not ds:
                 raise HTTPException(404, "Dataset not found.")
             ds_row = ds[0]
+        _org.require_org_member(jwt, ds_row.get("org_id"))  # the WRITE wall (FC1x, D4)
 
         with _supabase.admin() as ac:
             aggs = ac.select("sku_aggregates", filters={"dataset_id": f"eq.{dataset_id}"})
@@ -6875,10 +6992,14 @@ def build_router() -> APIRouter:
             rows = client.select(
                 "documents",
                 filters={"status": "eq.queued"},
-                columns="id,original_filename,scope,created_at,pipeline_started_at",
+                columns="id,org_id,original_filename,scope,created_at,pipeline_started_at",
                 order="created_at.desc",
                 limit=20,
             )
+            # The WRITE wall (FC1x, D4): re-enqueue only the caller's OWN
+            # workspaces' stuck uploads, never a client's seen through
+            # firm visibility.
+            rows = _only_member_orgs(jwt, rows)
             if rows:
                 logger.info("[pipeline] recover-stuck: scanning %d queued doc(s) for caller", len(rows))
             now = datetime.now(timezone.utc)
@@ -6942,7 +7063,7 @@ def build_router() -> APIRouter:
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
     def retry_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
-        doc = _verify_user_owns_document(jwt, req.document_id)
+        doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
@@ -7523,19 +7644,15 @@ def build_router() -> APIRouter:
         manage their own row. POST/PUT both upsert by (user_id, period_id).
         """
         jwt = _require_jwt(authorization)
+        # The WRITE wall (FC1x, D4): the period must be visible AND the
+        # caller a member of its org — the recompute below re-persists the
+        # period's valuations row through the service role.
+        _verify_user_may_write_period(jwt, period_id)
         with _supabase.per_user(jwt) as client:
-            # Resolve the caller's auth.uid() via the auth endpoint so we can
-            # populate user_id without trusting the body.
+            # The caller's VERIFIED auth.uid() (engine.api._jwt) so user_id
+            # is never taken from the body.
             user = client.get_user(jwt)
             user_id = user["id"]
-            # Make sure the user can read the period (RLS check).
-            periods = client.select(
-                "financial_periods",
-                filters={"id": f"eq.{period_id}"},
-                single=True,
-            )
-            if not periods:
-                raise HTTPException(404, "Period not found.")
 
             payload = {
                 "user_id": user_id,
@@ -7598,6 +7715,7 @@ def build_router() -> APIRouter:
         """Reset to engine defaults: drop the user_valuation_assumptions row
         and re-compute the valuations row from raw statements."""
         jwt = _require_jwt(authorization)
+        _verify_user_may_write_period(jwt, period_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             user = client.get_user(jwt)
             user_id = user["id"]
@@ -7786,16 +7904,9 @@ def build_router() -> APIRouter:
         path via `stage_validate`).
         """
         jwt = _require_jwt(authorization)
-        # Ownership check via RLS.
-        with _supabase.per_user(jwt) as client:
-            periods = client.select(
-                "financial_periods",
-                filters={"id": f"eq.{period_id}"},
-                single=True,
-            )
-            if not periods:
-                raise HTTPException(404, "Period not found.")
-            period = periods[0]
+        # The WRITE wall (FC1x, D4): visible under RLS AND a member of the
+        # period's org — the briefing is upserted through the service role.
+        period = _verify_user_may_write_period(jwt, period_id)
 
         with _supabase.admin() as admin_client:
             org_rows = admin_client.select(
@@ -7904,7 +8015,7 @@ def build_router() -> APIRouter:
                         "org_id": period["org_id"],
                         "body": narrative.get("briefing", ""),
                         "language": "en",
-                        "model": _NARRATIVE_MODEL,
+                        "model": _narrative_model(),
                     },
                     on_conflict="period_id",
                     returning=False,
@@ -8034,6 +8145,11 @@ def build_router() -> APIRouter:
             if not periods:
                 raise HTTPException(404, "Period not found.")
             period = periods[0]
+        # The WRITE wall (FC1x, D4): the re-analysis re-persists the
+        # period's confidence report and may upsert calibration rules.
+        # (`_require_member`, not `_org.`: this handler binds a LOCAL
+        # `_org` further down, which would shadow the module here.)
+        _require_member(jwt, period.get("org_id"))
 
         overrides = _rm.ReviewOverrides(
             period_id=period_id,
@@ -8478,6 +8594,12 @@ def build_router() -> APIRouter:
             if not visible:
                 raise HTTPException(404, "Period not found or not visible to you.")
             org_id = visible[0]["org_id"]
+        # 1b. THE WRITE WALL (FC1x, critic D4): visibility is the READ wall.
+        # A firm viewer with a read cell and no membership hard-deleted a
+        # client's period through this route (crit_pipeline_census.py).
+        # A memberships row in the period's org, or 403 — never firm
+        # visibility.
+        _org.require_org_member(jwt, org_id)
 
         # 2. Soft-delete every document attached to the period — keeps the
         # underlying Storage blob recoverable from "Recently deleted" for 30

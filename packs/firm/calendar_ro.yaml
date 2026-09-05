@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────
+# FISCAL CALENDAR — Romania
+#
+# THIS FILE IS DATA. `engine.firm.calendar` resolves a jurisdiction to
+# `packs/firm/calendar_<jurisdiction>.yaml` by NAME and never branches on
+# the jurisdiction in code; a second jurisdiction is a second file with
+# the same shape, and a jurisdiction with no file yields NO deadline
+# items and a stated absence (never a borrowed calendar).
+#
+# Every rule produces concrete due dates from an `as_of` date the caller
+# supplies — nothing here reads a clock.
+#
+# RULE SHAPES
+#   monthly    due on `day` of the month FOLLOWING each period month
+#   quarterly  due on `day` of the month FOLLOWING each calendar quarter
+#   annual     due on `month`/`day` of the year FOLLOWING the fiscal
+#              year end (fiscal_year_end_month comes from the client)
+#
+# `role` names what the rule is for so other detectors can find it:
+#   trial_balance_close  the monthly close the firm needs the TB for
+#   filing               a return / statement due to the authorities
+# ─────────────────────────────────────────────────────────────────────────
+
+version: firm_calendar_ro_v1
+jurisdiction: RO
+
+rules:
+  - id: trial_balance_close
+    role: trial_balance_close
+    label_en: "monthly trial balance close"
+    label_ro: "închiderea balanței lunare"
+    shape: monthly
+    day: 25
+    basis: "Legea 82/1991 art. 22 — balanța de verificare se întocmește cel puțin lunar"
+
+  - id: d300_vat_return
+    role: filing
+    label_en: "VAT return (D300)"
+    label_ro: "decont TVA (D300)"
+    shape: monthly
+    day: 25
+    basis: "Codul fiscal art. 323 — decontul de TVA până la 25 inclusiv a lunii următoare"
+
+  - id: d112_payroll
+    role: filing
+    label_en: "payroll declaration (D112)"
+    label_ro: "declarația 112"
+    shape: monthly
+    day: 25
+    basis: "Codul fiscal art. 147 — declarația privind obligațiile de plată a contribuțiilor sociale"
+
+  - id: d100_profit_tax_quarterly
+    role: filing
+    label_en: "quarterly profit tax (D100)"
+    label_ro: "impozit pe profit trimestrial (D100)"
+    shape: quarterly
+    day: 25
+    basis: "Codul fiscal art. 41 — declararea și plata impozitului pe profit trimestrial"
+
+  - id: d101_annual_profit_tax
+    role: filing
+    label_en: "annual profit tax return (D101)"
+    label_ro: "declarația anuală de impozit pe profit (D101)"
+    shape: annual
+    month: 6
+    day: 25
+    basis: "Codul fiscal art. 42 — declarația anuală până la 25 iunie a anului următor"
+
+  - id: annual_financial_statements
+    role: filing
+    label_en: "annual financial statements"
+    label_ro: "situațiile financiare anuale"
+    shape: annual
+    month: 5
+    day: 30
+    basis: "Legea 82/1991 art. 36 — 150 de zile de la încheierea exercițiului financiar"

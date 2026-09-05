@@ -31,6 +31,13 @@ def client():
     os.environ.setdefault("VITE_SUPABASE_ANON_KEY", "test-anon")
     os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
     os.environ["CFO_AI_SKIP_BOOT_VERIFY"] = "1"
+    # The Cockpit mounts only behind FIRM_COCKPIT_ENABLED (server.py
+    # `_firm_cockpit_enabled`; unset in production, where /api/firm is a
+    # 404 by construction). This gate is about the properties of those
+    # routes, so it builds the app WITH the surface on — that the surface
+    # is absent without the flag is
+    # tests/engine/test_firm_real_app.py::test_the_cockpit_is_not_mounted_without_its_flag.
+    os.environ["FIRM_COCKPIT_ENABLED"] = "1"
     assert "test." in os.environ["VITE_SUPABASE_URL"], "refusing a non-manifest Supabase URL"
     from engine.api.server import create_app
     return TestClient(create_app())

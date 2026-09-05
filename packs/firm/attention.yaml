@@ -1,0 +1,245 @@
+# ─────────────────────────────────────────────────────────────────────────
+# FIRM COCKPIT — ATTENTION ITEM DETECTORS (the triage board's data)
+#
+# THIS FILE IS DATA. Every attention KIND, its base severity, its
+# escalation ladder, its thresholds and its per-profile overrides are
+# written here and nowhere else. `engine.firm` reads it through
+# `engine.firm.pack.load_attention_pack` and NEVER compares a kind, a
+# profile id or a jurisdiction to a string literal in code —
+# `tests/engine/test_firm_attention.py` token-scans the package for
+# exactly that (the N7 discipline) and fails the build if one appears.
+#
+# WHAT AN ATTENTION ITEM IS
+#   {client, kind, severity, reason, evidence, due_at?, action}
+#   computed by CODE from facts the engine already holds, read through
+#   the FactsGateway. Never by a model. AI is advisory-only and does not
+#   touch this file's outputs.
+#
+# SEVERITY = f(kind weight, MATERIALITY FOR THAT CLIENT, days to
+# deadline, persistence). Materiality is per client, from its OWN totals,
+# through `engine.api._finding_rank.assess_materiality` — which REFUSES
+# on an unknown denominator. A 50k RON issue is Critical for a small
+# client and Info for a large one; that gradient is the point.
+#
+# ABSENT != ZERO. A kind whose inputs are missing records a GAP on the
+# client, never a fabricated item, never a fabricated silence.
+# ─────────────────────────────────────────────────────────────────────────
+
+version: firm_attention_v1
+
+# ═════════════════════════════════════════════════════════════════════════
+# 1. THE SEVERITY LADDER, and how each factor moves an item along it
+#    Steps are integer moves along `ladder`; the result is clamped.
+# ═════════════════════════════════════════════════════════════════════════
+severity:
+  ladder: [info, low, medium, high, critical]
+
+  # Materiality tier -> step. `saturated` is a material item whose share
+  # of the basis reaches `saturation_multiple` x the floor (the same
+  # constant the findings ranker uses for its impact component).
+  materiality:
+    immaterial: -2
+    info: -1
+    material: 0
+    saturated: 1
+    saturation_multiple: 10
+    # When the basis is absent the policy REFUSES; the item keeps its
+    # base severity, is capped at `refused_cap`, and carries the refusal
+    # text so a reader can see the grade was never materiality-tested.
+    refused_cap: medium
+
+  # Days to deadline -> step. Bands are walked in order; the first whose
+  # `max_days` is >= the observed value applies; `null` is open-ended.
+  deadline_bands:
+    - {max_days: 0,    step: 2,  label: "overdue"}
+    - {max_days: 7,    step: 1,  label: "due this week"}
+    - {max_days: 30,   step: 0,  label: "due this month"}
+    - {max_days: null, step: -1, label: "not yet due"}
+
+  # Days past the cadence deadline -> step (STALE_PERIOD, MISSING_FILE
+  # once overdue). Same shape as the deadline bands.
+  age_bands:
+    - {max_days: 7,    step: 0,  label: "just overdue"}
+    - {max_days: 31,   step: 1,  label: "a period late"}
+    - {max_days: null, step: 2,  label: "more than a period late"}
+
+  # Persistence -> step: an item true for `min_consecutive` periods or
+  # more moves one step up (capped at one step, once).
+  persistence:
+    min_consecutive: 3
+    step: 1
+
+# ═════════════════════════════════════════════════════════════════════════
+# 2. CADENCE lives in packs/firm/cadence.yaml (engine.firm.cadence) —
+#    expected period ends, deadlines and the stale verdict come from
+#    there; this pack only says how an overdue file moves the ladder.
+# ═════════════════════════════════════════════════════════════════════════
+
+# The served-status vocabulary that means "the balance sheet closes".
+# Anything else on the served object is an open imbalance.
+closed_statuses: [BALANCED, RECONCILED]
+
+# Share of total assets above which the auto-reconcile stage refuses to
+# act (mirrors engine.api._reconcile's 0.1% gate). Above it the period is
+# "awaiting mapping" — a human has to place the difference.
+auto_reconcile_gate_share: 0.001
+
+# Fiscal-calendar items due inside this many days become DEADLINE items.
+deadline_window_days: 45
+
+# Served balance-sheet row ids that together make up the cash balance.
+# Summed through FactsGateway.statement_line; rows absent from a served
+# statement are skipped, and a statement with NONE of them present is a
+# refusal (no cash figure), never a zero.
+cash_row_ids: [cash_operating, cash_fx, cash_petty, cash_transit, cash_other]
+
+# ═════════════════════════════════════════════════════════════════════════
+# 3. KINDS — one entry per attention kind
+#    base_severity  the ladder rung before materiality/deadline/persistence
+#    materiality    basis id from _finding_rank's policy (null = the kind
+#                   carries no money amount and is never materiality-graded)
+#    escalates_on   "deadline" when days-to-due move the severity
+#    enabled        false = the kind is DECLARED but emits nothing; it
+#                   must carry `absent_reason`, which the payload surfaces
+#    reason_en / action_en are templates; tokens are filled by code from
+#    the item's own evidence and never contain a figure the reader could
+#    mistake for a computed number — figures travel as typed evidence.
+# ═════════════════════════════════════════════════════════════════════════
+kinds:
+
+  - kind: MISSING_FILE
+    order: 10
+    base_severity: medium
+    materiality: null
+    escalates_on: deadline
+    enabled: true
+    reason_en: "Period {period_label} has no trial balance attached"
+    action_en: "Request the trial balance for {period_label} from the client and attach it before the {deadline_label}"
+
+  - kind: STALE_PERIOD
+    order: 20
+    base_severity: low
+    materiality: null
+    escalates_on: age
+    enabled: true
+    reason_en: "Latest attached period {period_label} is {age_days} days old against a {cadence} cadence"
+    action_en: "Request the next {cadence} trial balance from the client"
+
+  - kind: PERIOD_MISMATCH
+    order: 30
+    base_severity: high
+    materiality: null
+    escalates_on: null
+    enabled: true
+    reason_en: "Document evidence says {detected_period_end} but the period is filed under {stored_period_end}"
+    action_en: "Confirm the period end from the document and move the file to the month it belongs to"
+
+  - kind: IMBALANCED
+    order: 40
+    base_severity: high
+    materiality: total_assets
+    escalates_on: null
+    enabled: true
+    reason_en: "Balance sheet does not close ({status}) and the difference is above the auto-reconcile gate, awaiting mapping"
+    action_en: "Map the unplaced difference to a balance-sheet or P&L line and re-serve the period"
+
+  - kind: CRITICAL_FINDING
+    order: 50
+    base_severity: critical
+    materiality: null
+    escalates_on: null
+    enabled: true
+    reason_en: "{headline}"
+    action_en: "{action}"
+
+  - kind: RADAR_FLAG
+    order: 60
+    base_severity: medium
+    materiality: total_assets
+    escalates_on: null
+    enabled: false
+    absent_reason: "Anomaly Radar is in flight; this kind is declared and emits nothing until the Radar ships"
+    reason_en: "{headline}"
+    action_en: "{action}"
+
+  - kind: COVENANT_RISK
+    order: 70
+    base_severity: high
+    materiality: total_assets
+    escalates_on: deadline
+    enabled: true
+    # The DECLARED covenant model. No covenant model existed in the
+    # product before this pack; the schema below is what a covenant
+    # record must carry (mirrored by supabase/schema_phase_firm_attention
+    # .sql's firm_covenants table). With no records declared for a client
+    # this kind emits nothing and the payload says so.
+    covenant_schema:
+      covenant_id: "stable id per client"
+      label: "human label, e.g. 'Net assets floor — BCR facility'"
+      metric: "one of the metric ids below"
+      comparator: "one of >=, >, <=, <"
+      limit: "the contractual limit, in the metric's unit"
+      unit: "money | ratio | percent"
+      headroom_warn_share: "warn when headroom / |limit| falls below this share (0..1)"
+      test_date: "ISO date of the next testing date, optional"
+      source: "the document the covenant comes from"
+    # Metric ids a covenant may name -> the FactsGateway accessor that
+    # serves it. Every money id here is declared in _ratio_units.
+    covenant_metrics:
+      equity: {accessor: equity, unit: money}
+      total_assets: {accessor: total_assets, unit: money}
+      net_result: {accessor: net_result, unit: money}
+      ebitda: {accessor: ebitda, unit: money}
+      revenue: {accessor: revenue, unit: money}
+      working_capital: {accessor: working_capital, unit: money}
+      current_liabilities: {accessor: current_liabilities, unit: money}
+    reason_en: "Covenant {label}: {metric} sits {headroom_pct} from the {comparator} {limit_label} limit"
+    action_en: "Draft the covenant certificate on this period's figures and take the position to the lender before the test date"
+
+  - kind: CASH_RUNWAY
+    order: 80
+    base_severity: high
+    materiality: total_assets
+    escalates_on: null
+    enabled: true
+    thresholds:
+      units: {runway_days_min: days}
+      labels: {runway_days_min: "minimum days of cash cover this profile is graded on"}
+      default: {runway_days_min: 60}
+      # Per structural profile (ids from country_packs/ro_romania/
+      # profiles.yaml — validated at load). A property vehicle collects
+      # rent monthly and carries little cost; an inventory operator
+      # funds stock and payroll ahead of sales.
+      by_profile:
+        property_rental: {runway_days_min: 30}
+        holding_vehicle: {runway_days_min: 30}
+        inventory_operator: {runway_days_min: 75}
+        receivables_operator: {runway_days_min: 75}
+    reason_en: "Cash covers {runway_days} days of expenses against a {runway_days_min}-day floor for a {profile_label}"
+    action_en: "Quantify the monthly cash burn and the date the cash balance reaches zero; obtain a committed facility sized to the gap"
+
+  - kind: NEGATIVE_EQUITY
+    order: 90
+    base_severity: critical
+    materiality: total_assets
+    escalates_on: null
+    enabled: true
+    # Statutory floor: net assets below HALF of the registered share
+    # capital triggers the duty in the article cited. Negative net
+    # assets is the same breach at its worst.
+    statute:
+      citation: "art. 153^24 of Legea 31/1990"
+      floor_share_of_capital: 0.5
+      duty: "convene the general meeting to decide on recapitalisation, reduction of the registered capital, or dissolution"
+      deadline: "at the latest when these annual accounts are approved"
+    reason_en: "Net assets are {equity_to_capital_ratio} of registered capital, below the statutory floor in {citation}"
+    action_en: "Convene the general meeting to {duty} — {deadline}"
+
+  - kind: DEADLINE
+    order: 100
+    base_severity: low
+    materiality: null
+    escalates_on: deadline
+    enabled: true
+    reason_en: "{label} is due on {due_at}"
+    action_en: "Prepare and file {label} before {due_at}"

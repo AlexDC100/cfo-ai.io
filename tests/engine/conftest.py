@@ -42,6 +42,24 @@ def load_module_from_path(name: str, path: Path):
     return module
 
 
+@pytest.fixture(autouse=True)
+def _bearers_verify_against_the_test_jwks(monkeypatch):
+    """IDENTITY (FC1x, critic D5). The backend verifies every bearer's ES256
+    signature against Supabase's JWKS (engine.api._jwt). In this suite the
+    verifier is pointed at the per-process TEST key from firm_postgrest_double
+    — so a token minted by ``mint_jwt`` verifies, a forged one does not, and
+    no test ever fetches a JWKS (with ``-p netblock`` a fetch would raise;
+    without it, it would be a network call from a test). The key cache is
+    emptied before every test so one test's keys never leak into the next."""
+    import firm_postgrest_double as _double
+
+    _double.install_test_jwks(monkeypatch)
+    yield
+    from engine.api import _jwt
+
+    _jwt.reset_cache()
+
+
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO

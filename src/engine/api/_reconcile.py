@@ -64,7 +64,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import Header, HTTPException
 
 from engine import serving as _serving
-from engine.ai import registry as _model_registry
 
 from . import _supabase
 
@@ -72,14 +71,53 @@ logger = logging.getLogger("engine.api.reconcile")
 
 # ── Constants ──────────────────────────────────────────────────────────
 
-#: Recorded on every llm_proposed receipt. REGISTRY-WIRED (engine.ai/
-#: models.yaml, role "reconcile_proposal") with value-identical cutover
-#: — stored receipts carry these exact strings; bump the base version
-#: in models.yaml on ANY prompt change. Locked by
-#: tests/engine/test_model_registry.py.
-PROMPT_VERSION = _model_registry.params_for("reconcile_proposal")["prompt_version"]
-#: The proposal model (registry role "reconcile_proposal").
-AI_MODEL = _model_registry.model_for("reconcile_proposal")
+#: ``PROMPT_VERSION`` / ``AI_MODEL`` — recorded on every llm_proposed
+#: receipt. REGISTRY-WIRED (engine.ai/models.yaml, role
+#: "reconcile_proposal") with value-identical cutover — stored receipts
+#: carry these exact strings; bump the base version in models.yaml on
+#: ANY prompt change. Locked by tests/engine/test_model_registry.py.
+#:
+#: RESOLVED ON FIRST TOUCH (PEP 562 ``__getattr__`` below), NOT at
+#: import. This module is the serve path: ``served_canonical_bs`` is what
+#: ``engine.serving.facts.FactsGateway.from_envelope`` runs for every
+#: served balance sheet — the deterministic firm board included — and a
+#: module-level registry read made every one of those reads DEPEND on
+#: models.yaml resolving: a missing role or an unreadable file was a
+#: RegistryError at import, a 500 on every client of the board, and
+#: engine.ai loaded on a path that calls no model (critic A1; gated by
+#: tests/engine/test_firm_attention.py ``-k c9``). The two names remain
+#: module attributes — ``_reconcile.AI_MODEL`` reads as before and a
+#: monkeypatch still wins — and the registry is read by the ONE seam
+#: that needs it, the proposal call. Its failure stays LOUD there.
+_REGISTRY_ROLE = "reconcile_proposal"
+_LAZY_CONSTANTS = ("PROMPT_VERSION", "AI_MODEL")
+
+
+def _resolve_registry_constants() -> Dict[str, str]:
+    """Read the role row once and pin both constants into this module's
+    globals (later reads are plain attribute reads). Lazy import on
+    purpose: engine.ai must not be on the serve path's import graph."""
+    from engine.ai import registry as _model_registry  # the AI seam's one registry read
+
+    params = _model_registry.params_for(_REGISTRY_ROLE)
+    values = {"PROMPT_VERSION": str(params["prompt_version"]),
+              "AI_MODEL": str(params["model_id"])}
+    for name, value in values.items():
+        globals().setdefault(name, value)
+    return values
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_CONSTANTS:
+        return _resolve_registry_constants()[name]
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
+def _ai_constant(name: str) -> str:
+    """The proposal call's ``AI_MODEL`` / ``PROMPT_VERSION``: the pinned
+    (or monkeypatched) module global when one exists, else the registry."""
+    value = globals().get(name)
+    return str(value) if value is not None else __getattr__(name)
 
 #: The reconcile gate: offer / accept only while
 #: |difference| / max(assets, equity_plus_liabilities) <= 0.1%.
@@ -748,7 +786,7 @@ def _ai_propose(cbs: Dict[str, Any]) -> Dict[str, Any]:
         "diagnosis": cbs.get("diagnosis") or [],
     }
     response = client.messages.create(
-        model=AI_MODEL,
+        model=_ai_constant("AI_MODEL"),
         max_tokens=1024,
         system=_AI_SYSTEM_PROMPT,
         messages=[
@@ -775,8 +813,8 @@ def _ai_propose(cbs: Dict[str, Any]) -> Dict[str, Any]:
         "target_account": str(data["target_account"]),
         "amount_cents": int(data["amount_cents"]),
         "rationale": str(data["rationale"]),
-        "model": AI_MODEL,
-        "prompt_version": PROMPT_VERSION,
+        "model": _ai_constant("AI_MODEL"),
+        "prompt_version": _ai_constant("PROMPT_VERSION"),
     }
 
 
@@ -1440,8 +1478,15 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
     through the CALLER's per-user client so RLS enforces membership."""
 
     def _resolve(period_id: str, authorization: Optional[str]) -> str:
-        """Auth + RLS visibility check; returns the caller's user id."""
+        """Auth + RLS visibility check + THE WRITE WALL (FC1x, critic D4);
+        returns the caller's VERIFIED user id. Both routes below write the
+        period's envelope through the service role, so visibility under
+        per_user (which the firm READ policies grant a viewer with no
+        membership) is not enough: a memberships row in the period's org,
+        or 403."""
+        from . import _org
         jwt = require_jwt(authorization)
+        _org.verified_user_id(jwt)  # the verifier first: a forged bearer is 401, never an anon 404
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "financial_periods",
@@ -1450,11 +1495,7 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
             )
             if not rows:
                 raise HTTPException(404, "Period not found.")
-            user = client.get_user(jwt) or {}
-        user_id = user.get("id")
-        if not user_id:
-            raise HTTPException(401, "Could not resolve user from JWT.")
-        return user_id
+        return _org.require_org_member(jwt, rows[0].get("org_id"))
 
     @router.post("/api/period/{period_id}/reconcile")
     def reconcile_period(

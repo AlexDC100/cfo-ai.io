@@ -79,8 +79,9 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
 
         # Lazy import — engine.api boots the FastAPI app; only route
         # registration (already inside engine.api) ever runs this.
-        from engine.api import _supabase
+        from engine.api import _org, _supabase
 
+        _org.verified_user_id(jwt)  # the verifier first: a forged bearer is 401, never an anon 404
         with _supabase.per_user(jwt) as client:
             visible = client.select(
                 "financial_periods",
@@ -89,6 +90,13 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
             )
             if not visible:
                 raise HTTPException(404, "Period not found.")
+        # THE WRITE WALL (FC1x, critic D4): visibility is the READ wall —
+        # the firm read policies show a client's period to a firm viewer
+        # with no membership, and that viewer re-ran the client's
+        # extraction through this route (crit_pipeline_census.py: 200).
+        # The writes below go through the service role, so a memberships
+        # row in the period's org is required, or 403.
+        _org.require_org_member(jwt, visible[0].get("org_id"))
 
         document_id: Optional[str] = None
         with _supabase.admin() as admin_client:

@@ -1276,7 +1276,12 @@ def build_router() -> APIRouter:
             )
 
         try:
-            user_id = _user_id_from_jwt(f"Bearer {auth_token}")
+            # The BARE token. This used to pass `f"Bearer {auth_token}"` —
+            # the unverified payload decode read segment [1] and never
+            # noticed the prefix; the verifier (engine.api._jwt, FC1x D5)
+            # correctly refuses "Bearer eyJ…" as malformed, so every authed
+            # GET checkout would have bounced to /signup.
+            user_id = _user_id_from_jwt(auth_token)
         except HTTPException:
             return RedirectResponse(
                 url=f"{app_url}/signup?plan={tier}&intent=checkout",

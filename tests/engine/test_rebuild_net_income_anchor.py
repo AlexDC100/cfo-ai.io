@@ -178,9 +178,11 @@ class _Book:
         return {k: v for k, v in self.period.items() if k in keep}
 
     def light_row_without_envelope(self) -> Dict[str, Any]:
-        """The REAL Radar projection (`_radar.LIGHT_PERIOD_COLUMNS`):
-        it selects `assembled_canonical_v1->>schema_version` as an alias
-        but never the envelope object itself."""
+        """The Radar projection BEFORE 2026-09-05 (`_radar.
+        LIGHT_PERIOD_COLUMNS` then selected `assembled_canonical_v1->>
+        schema_version` as an alias but never the envelope object nor
+        `p121`) — kept as the bare-row shape any caller could still hand
+        the seam."""
         keep = ("id", "org_id", "period_start", "period_end", "currency",
                 "source_document_id", "updated_at", "caen_code")
         row = {k: v for k, v in self.period.items() if k in keep}
@@ -336,9 +338,14 @@ def test_seam_without_envelope_or_121_line_item_says_absent(case_id, case_dir, p
     than serve a reconstruction under the statutory name, and must carry
     `net_income_reconstructed` so the number stays readable.
 
-    This is the REAL Radar projection, not a hypothetical: `_radar.
-    LIGHT_PERIOD_COLUMNS` selects `assembled_canonical_v1->>
-    schema_version`, never the envelope object."""
+    This WAS the Radar projection until 2026-09-05: `_radar.
+    LIGHT_PERIOD_COLUMNS` selected `assembled_canonical_v1->>
+    schema_version` and never the envelope object nor the `p121`
+    scalar. The route now selects `p121` on the light listing AND puts
+    the loaded envelope back on the row before this seam runs
+    (tests/engine/test_radar_route.py asserts it serves account 121);
+    this test keeps the seam honest for any caller that still hands it
+    a bare row."""
     bk = _book(case_id, case_dir)
     stripped = [li for li in bk.line_items
                 if not str(li.get("ro_account_code") or "").startswith("121")]
@@ -426,12 +433,13 @@ def test_anchor_comes_from_the_invariant_not_the_equity_row(case_id, case_dir, p
 @pytest.mark.parametrize("case_id,case_dir,p121", ANCHOR_CASES, ids=CASE_IDS)
 def test_a_light_projection_can_opt_back_in_with_one_scalar_column(
         case_id, case_dir, p121):
-    """The Radar surface serves `absent` today because
-    `_radar.LIGHT_PERIOD_COLUMNS` never selects the envelope. It can opt
-    back in without paying for the whole JSONB column by adding ONE
-    scalar alias — `p121:assembled_canonical_v1->canonical_bs->
-    invariants->p121_cross_check->>p121`. Pinned here so that handover
-    is a one-line change to the projection and nothing else."""
+    """A light projection anchors the seam with ONE scalar alias —
+    `p121:assembled_canonical_v1->canonical_bs->invariants->
+    p121_cross_check->>p121` — without paying for the whole JSONB
+    column. `_radar.LIGHT_PERIOD_COLUMNS` carries that alias since
+    2026-09-05 (the Radar surface served `absent` before it); the route
+    suite asserts Radar serves account 121 on every book, this test
+    pins the seam's side of the contract."""
     bk = _book(case_id, case_dir)
     row = bk.light_row_without_envelope()
     assert P._statutory_anchor_for(row, bk.line_items) == (None, None)
@@ -711,6 +719,17 @@ class _Postgrest:
         ]
 
 
+#: The member who drives the reanalyze route. Its bearer is a REAL ES256
+#: token under the per-process test key (conftest installs the JWKS): the
+#: route verifies the identity first (FC1x, D5), then the membership wall.
+REANALYZE_USER = "00000000-0000-4000-8000-00000000c0de"
+
+
+def _member_bearer() -> Dict[str, str]:
+    from firm_postgrest_double import mint_jwt
+    return {"Authorization": "Bearer %s" % mint_jwt(REANALYZE_USER, "member@example.test")}
+
+
 @contextlib.contextmanager
 def _routed(book: _Book, monkeypatch):
     """Mount the real pipeline router over a projection-faithful double
@@ -726,6 +745,9 @@ def _routed(book: _Book, monkeypatch):
         "alerts": [],
         "valuations": [],
         "org_coa_mappings_overrides": [],
+        # The WRITE wall (FC1x, D4): review/reanalyze re-persists the
+        # period, so the caller must hold a memberships row in its org.
+        "memberships": [{"user_id": REANALYZE_USER, "org_id": book.org["id"], "role": "owner"}],
     }
     db = _Postgrest(tables)
 
@@ -807,7 +829,7 @@ def test_reanalyze_route_serves_the_anchored_figure(case_id, case_dir, p121,
     with _routed(bk, monkeypatch) as (client, _db):
         resp = client.post(
             "/api/period/%s/review/reanalyze" % bk.period_id,
-            headers={"Authorization": "Bearer test"},
+            headers=_member_bearer(),
             json={"account_buckets": {}},
         )
     assert resp.status_code == 200, resp.text[:400]
