@@ -104,6 +104,23 @@ def _firm_cockpit_enabled():  # type: () -> bool
     )
 
 
+def _rightmost_forwarded_hop(request):  # type: (Any) -> Optional[str]
+    """The address our own proxy observed, never the one the caller wrote.
+
+    Delegates to `engine.public_ro.ratelimit._client_ip` — the same helper
+    the rate limiter, the funnel and the refresh shield read, so the four
+    cannot drift apart on what "the client" means (CLAUDE.md §21).
+    """
+    from engine.public_ro.ratelimit import _client_ip as _canonical_hop
+    return _canonical_hop(request) or None
+
+
+def _require_operator(request, *, route):  # type: (Any, str) -> None
+    """Fail-closed operator gate: 503 unconfigured, 401 missing/wrong."""
+    from engine.public.refresh_shield import require_operator
+    require_operator(request, route=route)
+
+
 def create_app(
     config_path: Path = Path("config.yaml"),
     db_url: Optional[str] = None,
@@ -345,25 +362,54 @@ def create_app(
             )
         return decisions
 
-    # ─── Session log (cross-user awareness) ─────────────────────────────
-    # Anyone using the platform appears in this list. Lets the team see who
-    # has logged in, from where, and when. No auth (the frontend calls these
-    # on every page load) — the data is intentionally low-sensitivity (name +
-    # IP last octet + last-seen timestamp).
+    # ─── Session log ────────────────────────────────────────────────────
+    #
+    # The comment that used to sit here read: "No auth (the frontend calls
+    # these on every page load) — the data is intentionally low-sensitivity
+    # (name + IP last octet + last-seen timestamp)." Two of those three
+    # claims were false. Measured on the live site 2026-09-05 with a bare
+    # curl and no bearer:
+    #
+    #   GET /api/sessions -> 200 {"count":1,"sessions":[{"name":"alex 3",
+    #     "ip":"82.76.35.223","user_agent":"Mozilla/5.0 (Macintosh; …)",
+    #     "first_seen":"2026-05-18T…","visit_count":33}]}
+    #
+    # The whole address, not an octet; the device string too. A name beside
+    # an IP address is personal data under GDPR Art. 4(1) (an IP address is
+    # so on its own — Breyer, C-582/14), published to anyone who asked.
+    #
+    # WHY THE OPERATOR BEARER AND NOT "the caller's own sessions".
+    # `session_log` is keyed by (name, ip) and carries NO user column, so
+    # "mine" cannot be told from "someone who typed the same name" — and a
+    # scoping rule that cannot be told truthfully is not a wall, it is a
+    # guess. The honest options were an operator wall today or a migration
+    # to add the linkage; the leak is live, so this takes the wall. The
+    # reader has no caller either way: `fetchSessions` in
+    # frontend/lib/identity.ts is dead code (zero call sites), so nothing
+    # regresses. If cross-user awareness is ever wanted back, it needs the
+    # user column first.
+    #
+    # /track stays anonymous on purpose — the frontend posts it on every
+    # page load, before any session exists — but it no longer trusts the
+    # caller for the address (see below).
 
     @app.post("/api/sessions/track")
     def track_session(payload: SessionTrackRequest, request: Request) -> Dict[str, Any]:
-        # Caddy forwards the original client IP via X-Forwarded-For.
-        # Fall back to the direct peer address otherwise.
-        xff = request.headers.get("x-forwarded-for", "")
-        ip = (xff.split(",")[0].strip() if xff else None) or (
-            request.client.host if request.client else None
-        )
+        # The RIGHTMOST forwarded hop. Caddy fronts this backend with a bare
+        # `reverse_proxy` and therefore APPENDS the real peer to whatever the
+        # caller already put in the header, so index 0 is attacker-written.
+        # Reading it meant a caller chose the address we stored — and, until
+        # the wall above, the address we then served to the public. This is
+        # the defect CLAUDE.md §21 repaired in `public_ro.ratelimit`,
+        # `public_ro.funnel` and `public.refresh_shield` on 2026-09-04; this
+        # module was not swept then. One helper, no fourth copy.
+        ip = _rightmost_forwarded_hop(request)
         ua = (request.headers.get("user-agent") or "")[:256]
         return adapter.upsert_session(name=payload.name, ip=ip, user_agent=ua)
 
     @app.get("/api/sessions")
-    def list_sessions(limit: int = 50) -> Dict[str, Any]:
+    def list_sessions(request: Request, limit: int = 50) -> Dict[str, Any]:
+        _require_operator(request, route="GET /api/sessions")
         rows = adapter.list_sessions(limit=max(1, min(limit, 200)))
         return {"count": len(rows), "sessions": rows}
 

@@ -51,6 +51,46 @@ def _error_response(err: NasdaqError) -> JSONResponse:
     )
 
 
+def _pipeline_health_payload(adapter, request):  # type: (Any, Any) -> Dict[str, Any]
+    """The health body. Credential and quota detail ONLY for an operator.
+
+    Measured on the live site 2026-09-05, anonymous, no bearer:
+
+        GET /api/public/health -> {"service":"public-company-pipeline",
+          "key_configured":true,"key_tag":"key=ttAK…",
+          "daily_budget_remaining":3997}
+
+    A credential prefix narrows a brute force and confirms which provider
+    account is in use; a remaining-budget counter tells an attacker exactly
+    how much of our paid quota is left to burn and when it resets. Neither
+    is needed by the only consumer: the frontend renders the search form on
+    `key_configured` alone (PublicCompanySearchPage). So the boolean stays
+    anonymous and the detail moves behind the operator bearer, which is a
+    narrowing of the payload, not of the route — the probe still answers 200
+    to anyone, because the frontend calls it on mount with no bearer.
+
+    A WRONG bearer is treated as anonymous here rather than refused: there
+    is no credential to leak by guessing and answering 401 would make this
+    an oracle for token probing (the same reasoning `refresh_shield.guard`
+    applies to its shielded routes).
+    """
+    body = {
+        "service": "public-company-pipeline",
+        "key_configured": adapter.available,
+    }
+    try:
+        from engine.public.refresh_shield import has_operator_bearer
+        privileged = bool(has_operator_bearer(request))
+    except Exception:
+        privileged = False
+    if privileged:
+        body["key_tag"] = adapter.key_tag
+        body["daily_budget_remaining"] = max(
+            0, adapter._daily_budget_cap - adapter._calls_today
+        )
+    return body
+
+
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/public", tags=["public-companies"])
 
@@ -62,14 +102,8 @@ def build_router() -> APIRouter:
     # — just checks the env var.
 
     @router.get("/health")
-    def health() -> Dict[str, Any]:
-        adapter = pipeline.get_adapter()
-        return {
-            "service": "public-company-pipeline",
-            "key_configured": adapter.available,
-            "key_tag": adapter.key_tag,
-            "daily_budget_remaining": max(0, adapter._daily_budget_cap - adapter._calls_today),
-        }
+    def health(request: Request) -> Dict[str, Any]:
+        return _pipeline_health_payload(pipeline.get_adapter(), request)
 
     # ── /api/public/search?q= ──────────────────────────────────────────
     #
@@ -223,17 +257,9 @@ def build_router() -> APIRouter:
     # peer view.
 
     @router.get("/status")
-    def status() -> Dict[str, Any]:
+    def status(request: Request) -> Dict[str, Any]:
         """Alias for /health using the spec-aligned name."""
-        adapter = pipeline.get_adapter()
-        return {
-            "service": "public-company-pipeline",
-            "key_configured": adapter.available,
-            "key_tag": adapter.key_tag,
-            "daily_budget_remaining": max(
-                0, adapter._daily_budget_cap - adapter._calls_today
-            ),
-        }
+        return _pipeline_health_payload(pipeline.get_adapter(), request)
 
     @router.get("/companies/{ticker}/price-history")
     def price_history(
