@@ -269,3 +269,50 @@ def test_the_cockpit_is_not_mounted_without_its_flag():
     on = real_app_under(None)
     assert on["firm_routes"], on
     assert on["board"]["status"] == 200, on["board"]
+
+
+def test_the_server_module_imports_no_firm_module_when_the_cockpit_is_off():
+    """With FIRM_COCKPIT_ENABLED unset, nothing under engine.api._firm* loads.
+
+    THE INCIDENT THIS EXISTS FOR (2026-09-05, 45 s of total outage).
+    `server.py` imported the four firm routers at MODULE scope, so
+    `import engine.api.server` required the whole firm package on disk even
+    with the Cockpit off. A deploy of an unrelated security fix shipped
+    server.py without those modules; every worker died at import with
+    `ModuleNotFoundError: No module named 'engine.api._firm'` and the site
+    answered 502 on every route until the file was rolled back. Neither the
+    firm code nor the mount had changed — the dependency was invisible
+    because nothing measured it.
+
+    A surface that is OFF must cost nothing to deploy. This reds if any
+    firm module returns to module scope, i.e. if `engine.api.server`
+    becomes undeployable without the Cockpit's files again. It does NOT red
+    on a Cockpit that is broken behind its flag — the rest of this file
+    measures that.
+    """
+    code = (
+        "import json, sys\n"
+        "import engine.api.server as srv\n"
+        "app = srv.create_app(config_path=%r)\n"
+        "firm = sorted(m for m in sys.modules\n"
+        "              if m.startswith('engine.api._firm') or m == 'engine.firm'\n"
+        "              or m.startswith('engine.firm.'))\n"
+        "paths = sorted(set(getattr(r, 'path', '') for r in app.routes\n"
+        "                   if str(getattr(r, 'path', '')).startswith('/api/firm')))\n"
+        "print(json.dumps({'firm_modules': firm, 'firm_routes': paths}))\n"
+        % str(REPO / "config.yaml")
+    )
+    env = dict((k, v) for k, v in os.environ.items() if k not in STRIPPED_ENV)
+    env.update(FAKE_ENV)
+    env["FIRM_COCKPIT_ENABLED"] = ""          # the production posture
+    env["PYTHONPATH"] = os.pathsep.join([str(REPO / "src"), str(REPO / "tests" / "engine")])
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                          text=True, env=env, timeout=300, cwd=str(REPO))
+    assert proc.returncode == 0, proc.stderr[-3000:]
+    measured = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert measured["firm_modules"] == [], (
+        "FIRM_COCKPIT_ENABLED is unset and importing engine.api.server still "
+        "loaded %d firm module(s): %s — server.py cannot be deployed without "
+        "the Cockpit's files, which is the 2026-09-05 outage."
+        % (len(measured["firm_modules"]), measured["firm_modules"]))
+    assert measured["firm_routes"] == [], measured["firm_routes"]

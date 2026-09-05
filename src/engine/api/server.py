@@ -35,10 +35,6 @@ from ._billing import build_router as create_billing_router
 from ._capsule_tools import build_router as create_capsule_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
-from ._firm import build_router as create_firm_router
-from ._firm_brief import build_router as create_firm_brief_router
-from ._firm_attention import build_router as create_firm_attention_router
-from ._firm_requests import build_router as create_firm_requests_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
@@ -297,6 +293,24 @@ def create_app(
     # new code. Absent the flag there is no surface to wall, which is the
     # only wall no critic can get past.
     if _firm_cockpit_enabled():
+        # IMPORTED HERE, NOT AT MODULE SCOPE — this took the site down.
+        # These four imports used to sit beside the others at the top of
+        # the file, so `import engine.api.server` REQUIRED the whole firm
+        # package on disk even with the Cockpit off. On 2026-09-05 a
+        # deploy shipped this file without those modules and every worker
+        # died at import with `ModuleNotFoundError: No module named
+        # 'engine.api._firm'` — 45 s of 502 on every route, the §14
+        # restart-loop shape, from a change that touched neither the firm
+        # code nor the mount. A surface that is off must cost nothing to
+        # deploy: with the flag unset, nothing under `engine.api._firm*`
+        # is read, so this module deploys on its own.
+        # Gated by test_firm_real_app.py::
+        # test_the_server_module_imports_no_firm_module_when_the_cockpit_is_off.
+        from ._firm import build_router as create_firm_router
+        from ._firm_brief import build_router as create_firm_brief_router
+        from ._firm_attention import build_router as create_firm_attention_router
+        from ._firm_requests import build_router as create_firm_requests_router
+
         # THE FIRM MODEL — /api/firm/* (firms, roles-as-data, client
         # assignments, invitations, CSV import). Every route: JWT → firm
         # membership (403) → role-matrix cell (403) → client-of-this-firm
