@@ -91,7 +91,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import breaker, registry
+from . import breaker, numerals, registry
 
 logger = logging.getLogger("engine.ai.finding_sharpen")
 
@@ -112,8 +112,14 @@ ROLE_REVIEW = "finding_specificity"
 #: Prompt versions. Bump on ANY change to the prompt text below — the
 #: journal records them, so a score distribution can be attributed to
 #: the prompt that produced it.
-DRAFT_PROMPT_VERSION = "finding_sharpen_draft_v1"
+DRAFT_PROMPT_VERSION = "finding_sharpen_draft_v2"
 REVIEW_PROMPT_VERSION = "finding_sharpen_review_v1"
+
+#: The version of the NUMERAL LAW (:func:`numeral_violations`). Bump on
+#: any change to what the guard refuses. The Radar explain cache keys on
+#: it, so a record that was cleared by an older, weaker law is a miss
+#: rather than a hit — the text in it was never judged by this law.
+NUMERAL_LAW_VERSION = "numeral_law_v2"
 
 
 # ── Knobs ────────────────────────────────────────────────────────────────
@@ -242,6 +248,16 @@ def _raw_apply(finding: Any, rationale: Optional[str] = None,
                                      action_steps=action_steps)
 
 
+def unguarded_seam() -> Any:
+    """The function ``_finding`` itself defines — the RAW seam, whether
+    or not the guarded twin has been installed over it. A test that
+    wants to show what the unguarded seam ships calls THIS rather than
+    reading ``_finding.apply_advisory_narrative``, which is whichever
+    function the most recent import happened to leave there."""
+    _F()
+    return _MODULES["__raw_apply__"]
+
+
 def install_guard(finding_module: Any = None) -> Any:
     """Install :func:`apply_advisory_narrative` as ``_finding``'s advisory
     seam, so EVERY caller gets the numeral guard rather than only this
@@ -277,13 +293,197 @@ def _RU() -> Any:
 # ══ 1. THE READ-ONLY VIEW ════════════════════════════════════════════════
 
 
-_PLACEHOLDER_RX = re.compile(r"\{\{money:(?P<name>[A-Za-z0-9_]+)(?P<opts>(?:\|[^}]*)?)\}\}")
+#: EXACTLY the shape `_ratio_units._PLACEHOLDER_RX` resolves — the STRICT
+#: side, and pinned to it by `test_the_placeholder_regex_is_the_resolvers`.
+#: Anything looser here and the guard strips a token the resolver then
+#: skips, so `{{money:x|Bare}}` ships as literal braces (measured: the
+#: numerals critic's D3 / D5 plants). Options are lower-case
+#: alphanumerics only, exactly as the resolver reads them.
+_PLACEHOLDER_RX = re.compile(
+    r"\{\{money:(?P<name>[A-Za-z0-9_]+)(?P<opts>(?:\|[a-z0-9]+)*)\}\}")
 #: The same numeral shape `_finding` lints prose with, so the guard and
 #: the runtime cannot drift apart.
 _NUMBER_RX = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?")
-#: Currency words that must never sit loose beside a figure (the 461
-#: class of defect: one claim, two currencies).
-_CURRENCY_WORDS = ("RON", "LEI", "EUR", "USD", "GBP", "HUF")
+
+#: Placeholder OPTIONS a model may write. MEASURED, not guessed: the
+#: deterministic prose of every finding on every fixture — title and body
+#: templates plus the templatized why-here and action steps, 76 findings
+#: over 19 statement sets (the five explain fixtures, the six serve
+#: fixtures and the regression baselines) — writes `{{money:FACT}}` and
+#: nothing else. So the whitelist is EMPTY. `abs` flips a sign, `dN`
+#: chooses a precision, `bare` / `suffix` move the label, `k` / `m`
+#: would rescale — every one of them is the MODEL deciding how an engine
+#: figure prints, and none is permitted.
+PLACEHOLDER_OPTIONS_ALLOWED = frozenset()  # type: frozenset
+
+#: Names for the option classes, so a refusal says what was attempted.
+_OPTION_CLASSES = (
+    ("abs", "sign"), ("neg", "sign"), ("bare", "label"), ("suffix", "label"),
+    ("k", "scale"), ("m", "scale"), ("bn", "scale"), ("mn", "scale"),
+    ("mln", "scale"), ("mil", "scale"),
+)
+
+#: Currency tokens. Built ON `engine.ai.numerals._CURRENCY_TOKEN_RE` —
+#: the firm-brief lane's ENFORCE-mode law (ISO codes, the symbols,
+#: `lei`, case-insensitive) — and extended with the spelled forms a
+#: model reaches for once the codes are banned: euro / EURO / euros /
+#: euri / leu / dolari / dollars. Bounded by letters, so `Lei` is a hit
+#: and `leisure` is not.
+_CURRENCY_TOKEN_RX = re.compile(
+    r"(?:%s)|(?:(?<![A-Za-z])(?:euro|euros|euri|leu|dolar|dolari|dollar|"
+    r"dollars)(?![A-Za-z]))" % numerals._CURRENCY_TOKEN_RE.pattern,
+    re.IGNORECASE)
+#: The glue a model puts between a currency word and a figure: spaces,
+#: dashes, colons, slashes, brackets, quotes — "EUR-", "in EUR:", "(lei)".
+_GLUE_CHARS = " \t\n\r-–—:;,./()[]'\"«»"
+_GLUE_MAX = 4
+
+# ── Number words ─────────────────────────────────────────────────────
+#: A quantity written in letters is still a quantity the engine never
+#: computed ("de trei ori", "forty-seven percent", "a third", "doubled").
+#: Judged on diacritic-stripped, lower-cased text so `două` and `doua`
+#: are one token. UNCONDITIONAL tokens are refused wherever they stand
+#: unless the ENGINE's own prose for the finding wrote them
+#: (:func:`allowed_number_words`); CONTEXTUAL tokens are words that are
+#: also something else in ordinary prose ("one of the", "the first
+#: drawdown", "o nouă linie" = a new line, Romanian "mie" = to me) and
+#: are refused only beside a unit, a scale word or a comparator.
+_EN_NUMBER_WORDS = frozenset([
+    "zero", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty",
+    "sixty", "seventy", "eighty", "ninety", "hundred", "hundreds", "thousand",
+    "thousands", "million", "millions", "billion", "billions", "trillion",
+    "trillions", "dozen", "dozens", "third", "thirds", "fourth", "fourths",
+    "fifth", "fifths", "sixth", "sixths", "seventh", "sevenths", "eighth",
+    "eighths", "ninth", "ninths", "tenth", "tenths", "twentieth", "hundredth",
+    "thousandth", "millionth", "half", "halves", "double", "doubled",
+    "doubles", "doubling", "triple", "tripled", "triples", "tripling",
+    "quadruple", "quadrupled", "twice", "thrice", "twofold", "threefold",
+    "fourfold", "fivefold", "tenfold", "hundredfold",
+])
+_RO_NUMBER_WORDS = frozenset([
+    "doi", "doua", "trei", "patru", "cinci", "sase", "sapte", "zece",
+    "unsprezece", "doisprezece", "douasprezece", "treisprezece", "paisprezece",
+    "cincisprezece", "saisprezece", "saptesprezece", "optsprezece",
+    "nouasprezece", "douazeci", "treizeci", "patruzeci", "cincizeci",
+    "saizeci", "saptezeci", "optzeci", "nouazeci", "suta", "sute", "mii",
+    "zeci", "milion", "milioane", "miliard", "miliarde", "jumatate",
+    "jumatati", "sfert", "sferturi", "treime", "treimi", "patrime", "cincime",
+    "doilea", "treilea", "treia", "patrulea", "patra", "cincilea", "cincea",
+    "zecelea", "zecea", "dublu", "dubla", "dublat", "dublata", "dubleaza",
+    "dublare", "triplu", "tripla", "triplat", "intreit", "indoit", "inzecit",
+    "insutit",
+])
+_CONTEXTUAL_NUMBER_WORDS = frozenset([
+    "one", "first", "second", "quarter", "quarters",
+    "unu", "una", "noua", "opt", "mie", "primul", "prima", "primii",
+    "primele", "intai", "intaiul", "trimestru", "trimestre",
+])
+_NUMBER_WORDS = _EN_NUMBER_WORDS | _RO_NUMBER_WORDS | _CONTEXTUAL_NUMBER_WORDS
+#: A following word that turns an unconditional token into ordinary
+#: prose: "third party", "double-check", "double entry".
+_NUMBER_WORD_ESCAPES = {
+    "third": ("party", "parties"),
+    "double": ("check", "checked", "checking", "entry", "count", "counting",
+               "counted"),
+}
+#: English engine prose -> the Romanian tokens a peer sentence would use,
+#: so a word the engine wrote ("inside twelve months") is allowed in both
+#: renderings.
+_EN_TO_RO_NUMBER_WORDS = {
+    "zero": ("zero",), "one": ("unu", "una"), "two": ("doi", "doua"),
+    "three": ("trei",), "four": ("patru",), "five": ("cinci",),
+    "six": ("sase",), "seven": ("sapte",), "eight": ("opt",),
+    "nine": ("noua",), "ten": ("zece",), "eleven": ("unsprezece",),
+    "twelve": ("doisprezece", "douasprezece"), "twenty": ("douazeci",),
+    "thirty": ("treizeci",), "forty": ("patruzeci",), "fifty": ("cincizeci",),
+    "hundred": ("suta", "sute"), "hundreds": ("sute",),
+    "thousand": ("mie", "mii"), "thousands": ("mii",),
+    "million": ("milion", "milioane"), "millions": ("milioane",),
+    "billion": ("miliard", "miliarde"), "billions": ("miliarde",),
+    "half": ("jumatate",), "third": ("treime",), "quarter": ("sfert", "trimestru"),
+    "quarters": ("sferturi", "trimestre"),
+    "first": ("primul", "prima", "primii", "primele", "intai"),
+    "second": ("doilea", "doua"), "double": ("dublu", "dubla"),
+    "doubled": ("dublat", "dublata"), "twice": ("dublu",),
+    "triple": ("triplu", "tripla"), "tripled": ("triplat",),
+}
+#: A unit or a scale word right after a token turns it into a quantity:
+#: "one month", "461 days", "noua zile", "ten percent". Both languages.
+_UNIT_WORDS = frozenset([
+    "percent", "pct", "x", "times", "fold", "days", "day", "weeks", "week",
+    "months", "month", "years", "year", "hours", "hour", "quarters",
+    "quarter", "points", "point", "bps", "bp", "pp", "hundred", "thousand",
+    "million", "billion", "dozen", "third", "half", "k", "bn", "mn", "mil",
+    "mln",
+    "procente", "procent", "zile", "zi", "saptamani", "saptamana", "luni",
+    "luna", "ani", "ore", "ora", "trimestre", "trimestru", "sute",
+    "mii", "zeci", "milioane", "miliarde", "ori", "puncte",
+])
+# Romanian "an" (year, singular) is deliberately absent: it is also the
+# English article, and "on 461 an amount…" is a sentence, not a count.
+_EN_TO_RO_UNIT_WORDS = {
+    "percent": ("procente", "procent"), "days": ("zile",), "day": ("zi",),
+    "weeks": ("saptamani",), "week": ("saptamana",), "months": ("luni",),
+    "month": ("luna",), "years": ("ani",), "year": ("an",),
+    "hours": ("ore",), "hour": ("ora",), "quarters": ("trimestre",),
+    "quarter": ("trimestru",), "times": ("ori",), "hundred": ("sute", "suta"),
+    "thousand": ("mii", "mie"), "million": ("milioane", "milion"),
+    "billion": ("miliarde", "miliard"), "points": ("puncte",),
+}
+#: A comparator right before a token turns it into a quantity: "than
+#: one", "since 455", "grown 461". Location prepositions ("under 461",
+#: "over 461, 451 and 452") are deliberately NOT here — they are how a
+#: sentence names a ledger account. Nor is Romanian "de" on its own:
+#: MEASURED LIVE (run 2) it refused "din contul 461, alături de 451, 452
+#: și 455" — "alături de" is "alongside", and "de" heads a dozen such
+#: compounds (față de, aproape de, legat de, în afară de). A Romanian
+#: count written with "de" carries its unit AFTER the token — "de 461
+#: ori", "de 461 de zile", "de trei ori" — and the unit check refuses it.
+_COMPARATOR_WORDS = frozenset([
+    "than", "since", "past", "grown", "grew", "rose", "fell", "exceeds",
+    "exceed", "exceeded", "exceeding", "about", "nearly", "almost", "roughly",
+    "around", "approximately", "circa", "cca", "only", "just",
+    "peste", "sub", "aproape", "aproximativ", "doar", "numai", "abia",
+    "cate", "crescut", "scazut", "marit", "depaseste",
+])
+#: The narrow INFLATION context refused even for a whitelisted token or
+#: code — a code followed by a percent sign is a quantity whatever list it
+#: is on: "461%", "461x", "grown ten percent", "de 461 ori".
+_INFLATE_UNITS = frozenset(["percent", "pct", "x", "times", "fold", "ori",
+                            "procente", "procent"])
+_INFLATE_COMPARATORS = frozenset(["grown", "grew", "rose", "fell", "since",
+                                  "past", "crescut", "scazut", "marit"])
+#: `461%`, `461 ×`, `461x`, `461k`, `461bn`, `461-fold` — a sign or a
+#: scale letter glued to the token (a space is allowed before a sign).
+_ATTACHED_UNIT_RX = re.compile(r"^(?:\s?(?:%|×|x\b)|(?:k|m|bn|mn)\b|-fold\b)",
+                               re.IGNORECASE)
+#: The word right after a token, optionally via "de" / "of" ("461 de
+#: zile", "treizeci de zile", "one of the") — at most two glue characters.
+_UNIT_AFTER_RX = re.compile(r"^[\s\-]{0,2}(?:(?:de|of)\s+)?([a-z]+)")
+_WORD_RX = re.compile(r"[a-z]+")
+
+#: Roman numerals as words: upper-case, valid, at least two letters and
+#: carrying an I, V or X — which keeps `CD`, `MD`, `DC`, `CCC`
+#: (abbreviations and grades a financial sentence may need) and every
+#: single letter out, and catches `II` through `XXXIX`, `XL`, `LIV`,
+#: `XC`, `MIX` and the rest.
+_ROMAN_CANDIDATE_RX = re.compile(r"\b[MDCLXVI]{2,}\b")
+_ROMAN_VALID_RX = re.compile(
+    r"^M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$")
+
+
+def _roman_numerals(text: str) -> List[Tuple[str, int]]:
+    """Every whole upper-case token that is a VALID Roman numeral carrying
+    an I, V or X. `IMM`, `CCC`, `MD` are not (an earlier single-regex
+    version matched the empty string in front of `IMM`)."""
+    out = []  # type: List[Tuple[str, int]]
+    for m in _ROMAN_CANDIDATE_RX.finditer(text):
+        token = m.group(0)
+        if any(ch in token for ch in "IVX") and _ROMAN_VALID_RX.match(token):
+            out.append((token, m.start()))
+    return out
 
 
 @dataclass(frozen=True)
@@ -304,6 +504,9 @@ class SharpenView:
     rule_id: str
     profile_id: str
     period_id: str
+    #: The number words the ENGINE's own prose for this finding wrote
+    #: (:func:`allowed_number_words`) — the only ones a rewrite may echo.
+    number_words: Tuple[str, ...] = ()
 
     def as_json(self) -> str:
         return json.dumps(self.payload, sort_keys=True, ensure_ascii=False,
@@ -473,6 +676,59 @@ def allowed_ledger_codes(finding: Any) -> Tuple[str, ...]:
     return tuple(codes)
 
 
+def _engine_prose(finding: Any) -> List[str]:
+    """The deterministic why-here and action steps — the words the engine
+    itself wrote for this finding."""
+    out = [str(getattr(getattr(finding, "why_here", None), "rationale", "") or "")]
+    for step in (getattr(getattr(finding, "action", None), "steps", ()) or ()):
+        for attr in ("imperative", "artefact", "provider", "horizon"):
+            out.append(str(getattr(step, attr, "") or ""))
+    return out
+
+
+def allowed_number_words(finding: Any) -> Tuple[str, ...]:
+    """The number words a model rewrite may write for THIS finding.
+
+    The same discipline as :func:`allowed_ledger_codes`, applied to
+    quantities spelled in letters. MEASURED on the corpus: the engine's
+    own action steps say "inside twelve months", "the next two
+    quarters", "one month of operating cost", "the ten largest supplier
+    accounts" — a rewrite that echoes them is not inventing a quantity,
+    and refusing it buys nothing but a wasted regeneration.
+
+    Two shapes come back, both in English AND their Romanian peers so a
+    Romanian rendering is judged by the same allowance:
+
+      · a single word — the token may stand anywhere outside a unit
+        context ("the ten largest");
+      · ``"word unit"`` — the exact bigram the engine wrote ("twelve
+        months"); a whitelisted word beside a DIFFERENT unit ("twelve
+        years") is a quantity the engine never wrote and is refused.
+
+    Nothing here ever whitelists the inflation context (a percent sign,
+    a multiple, "grown …"), which is refused whatever list it is on.
+    """
+    words = []  # type: List[str]
+
+    def _add(token: str) -> None:
+        if token and token not in words:
+            words.append(token)
+
+    for chunk in _engine_prose(finding):
+        tokens = _WORD_RX.findall(_strip_diacritics(chunk))
+        for n, tok in enumerate(tokens):
+            if tok not in _NUMBER_WORDS:
+                continue
+            for peer in (tok,) + _EN_TO_RO_NUMBER_WORDS.get(tok, ()):
+                _add(peer)
+            nxt = tokens[n + 1] if n + 1 < len(tokens) else ""
+            if nxt in _UNIT_WORDS:
+                for word_peer in (tok,) + _EN_TO_RO_NUMBER_WORDS.get(tok, ()):
+                    for unit_peer in (nxt,) + _EN_TO_RO_UNIT_WORDS.get(nxt, ()):
+                        _add("%s %s" % (word_peer, unit_peer))
+    return tuple(words)
+
+
 def _comparison_basis_ref(finding: Any) -> Optional[Dict[str, Any]]:
     """The comparison basis, with a MONEY basis value withheld.
 
@@ -547,6 +803,7 @@ def build_view(finding: Any,
     subject = getattr(finding, "subject", None)
     accounts = list(getattr(subject, "accounts", ()) or ())
     codes = allowed_ledger_codes(finding)
+    number_words = allowed_number_words(finding)
 
     try:
         rendered = finding.render()
@@ -641,6 +898,13 @@ def build_view(finding: Any,
             "money_fact_labels": dict(
                 (n, _figure_label(finding, n)) for n in money_facts),
             "account_codes": list(codes),
+            "number_words": list(number_words),
+            "number_words_note": (
+                "The ONLY quantities you may write in letters — the words "
+                "the deterministic text itself uses, with their Romanian "
+                "forms. Any other number word (three, twelve, a third, "
+                "half, doubled, trei, două, milioane) is a figure the "
+                "engine never computed."),
             "allowed_imperative_verbs_EN": sorted(F.IMPERATIVE_VERBS),
             "banned_lead_verbs_EN": sorted(F.WEAK_LEAD_VERBS),
             "allowed_imperative_verbs_RO": sorted(RO_IMPERATIVE_VERBS),
@@ -666,6 +930,7 @@ def build_view(finding: Any,
         profile_id=str(getattr(finding, "profile_id", "") or ""),
         period_id=str(getattr(getattr(getattr(finding, "evidence", None),
                                       "provenance", None), "period_id", "") or ""),
+        number_words=number_words,
     )
 
 
@@ -679,74 +944,324 @@ def _figure_label(finding: Any, fact: str) -> str:
 # ══ 2. THE NUMERAL GUARD ═════════════════════════════════════════════════
 
 
+#: The classes a violation can belong to. Every message
+#: :func:`numeral_violations` returns STARTS with one of these, so a
+#: refusal names its class and a gate can assert on the class rather
+#: than on the wording.
+CLASS_NUMERAL = "numeral"
+CLASS_NUMBER_WORD = "number word"
+CLASS_CURRENCY = "currency label"
+CLASS_UNICODE = "unicode numeral"
+CLASS_ROMAN = "roman numeral"
+CLASS_CODE_AS_QUANTITY = "ledger code as quantity"
+CLASS_OPTION = "placeholder option"
+CLASS_UNRESOLVED = "unresolved placeholder"
+CLASS_UNCITED = "uncited placeholder"
+CLASS_ADJACENCY = "bare number before a placeholder"
+VIOLATION_CLASSES = (
+    CLASS_NUMERAL, CLASS_NUMBER_WORD, CLASS_CURRENCY, CLASS_UNICODE,
+    CLASS_ROMAN, CLASS_CODE_AS_QUANTITY, CLASS_OPTION, CLASS_UNRESOLVED,
+    CLASS_UNCITED, CLASS_ADJACENCY,
+)
+
+
+def violation_class(violation: str) -> str:
+    """The class a violation message belongs to (its prefix)."""
+    text = str(violation or "")
+    for name in sorted(VIOLATION_CLASSES, key=len, reverse=True):
+        if text.startswith(name):
+            return name
+    return "unclassified"
+
+
+def violation_classes(violations: Sequence[str]) -> Tuple[str, ...]:
+    """The distinct classes, in first-seen order."""
+    out = []  # type: List[str]
+    for v in violations:
+        name = violation_class(v)
+        if name not in out:
+            out.append(name)
+    return tuple(out)
+
+
+def _is_unicode_numeral(ch: str) -> bool:
+    """Unicode category N (Nd, Nl, No) outside the ASCII digits: `²`,
+    `½`, `⑦`, `⁴⁷`, `٤٧`, `４７`, `Ⅻ`."""
+    if ch in "0123456789":
+        return False
+    return unicodedata.category(ch) in ("Nd", "Nl", "No")
+
+
+def _has_figure_edge(text: str, index: int, forward: bool) -> bool:
+    """Is there a figure-like thing — a placeholder, a digit, a Unicode
+    numeral — within :data:`_GLUE_MAX` glue characters of `index`, looking
+    forward from it or backward to it?"""
+    if forward:
+        rest = text[index:]
+        n = 0
+        while n < len(rest) and n < _GLUE_MAX and rest[n] in _GLUE_CHARS:
+            n += 1
+        tail = rest[n:]
+        if not tail:
+            return False
+        if tail.startswith("{{money:"):
+            return True
+        return tail[0].isdigit() or _is_unicode_numeral(tail[0])
+    head = text[:index]
+    n = len(head)
+    while n > 0 and (len(head) - n) < _GLUE_MAX and head[n - 1] in _GLUE_CHARS:
+        n -= 1
+    head = head[:n]
+    if not head:
+        return False
+    if head.endswith("}}"):
+        return True
+    return head[-1].isdigit() or _is_unicode_numeral(head[-1])
+
+
+def _word_after(tokens: Sequence[str], n: int) -> str:
+    """The next word, looking past a Romanian "de" / English "of" that
+    sits between a count and its unit ("treizeci de zile")."""
+    nxt = tokens[n + 1] if n + 1 < len(tokens) else ""
+    if nxt in ("de", "of") and n + 2 < len(tokens):
+        return tokens[n + 2]
+    return nxt
+
+
+def _word_before(tokens: Sequence[str], n: int) -> str:
+    return tokens[n - 1] if n > 0 else ""
+
+
 def numeral_violations(text: str,
                        allowed_codes: Sequence[str] = (),
-                       money_facts: Sequence[str] = ()) -> Tuple[str, ...]:
-    """Every numeral in `text` that is not a resolved placeholder and not
-    one of the subject's ledger account codes.
+                       money_facts: Sequence[str] = (),
+                       allowed_words: Sequence[str] = ()) -> Tuple[str, ...]:
+    """THE NUMERAL LAW. Every way a model can put a quantity in front of
+    a reader that the engine never computed, in either language, on
+    either path (a fresh draft and a cache record are judged by this one
+    function). Each message starts with its class (:data:`VIOLATION_CLASSES`).
 
-    Account codes are whitelisted DELIBERATELY and narrowly: "461" is an
-    identifier, not a quantity. It carries no unit, never converts, and
-    is the single token that makes a sentence about one book rather than
-    about companies in general. A YEAR, a PERCENTAGE, a DAY COUNT or a
-    MULTIPLE is a quantity, and if the engine did not compute it, it does
-    not ship.
+      numeral                 an ASCII figure that is neither a resolved
+                              placeholder nor a whitelisted ledger code
+      number word             a quantity spelled out — trei, treizeci,
+                              milioane, două, forty-seven, a third, half,
+                              doubled — unless the engine's own prose
+                              wrote that word (`allowed_words`)
+      currency label          a currency word or symbol, ANY case, on
+                              EITHER side of a placeholder or a figure:
+                              euro, EUR, €, lei, Lei, LEI, RON, "in EUR:",
+                              "EUR-" (built on engine.ai.numerals' law)
+      unicode numeral         any Unicode category-N character: ², ½, ⑦,
+                              ⁴⁷, Arabic-Indic and fullwidth digits, Ⅻ
+      roman numeral           XII, IV, XL … as words
+      ledger code as quantity a whitelisted code followed by %, x, ×,
+                              times, ori, days, zile, years, ani … or
+                              preceded by since / past / de / grown …
+      placeholder option      `{{money:x|abs}}`, `|d4`, `|bare`, `|suffix`,
+                              `|k` — the whitelist of options is what the
+                              deterministic prose uses (measured: nothing)
+      unresolved placeholder  `{{money:x|Bare}}`, `{{ money }}`, a stray
+                              brace — anything the resolver would leave as
+                              literal braces on a reader's screen
+      uncited placeholder     `{{money:x}}` naming a fact this finding
+                              does not cite
+      bare number before a placeholder
+                              the 461 collision — the label binds to the
+                              wrong figure
+
+    Account codes and number words are whitelisted DELIBERATELY and
+    narrowly, and only the ones the ENGINE ITSELF put in this finding:
+    "461" is an identifier, "twelve months" is the engine's own step. A
+    YEAR, a PERCENTAGE, a DAY COUNT, a MULTIPLE or a fraction is a
+    quantity, and if the engine did not compute it, it does not ship.
     """
     if not text:
         return ()
     violations = []  # type: List[str]
     known = set(str(m) for m in money_facts)
+    codes = sorted(set(str(c) for c in allowed_codes if str(c).strip()),
+                   key=len, reverse=True)
+    words_allowed = set()  # type: set
+    bigrams_allowed = set()  # type: set
+    for entry in allowed_words:
+        entry = _strip_diacritics(str(entry or "")).strip()
+        if " " in entry:
+            bigrams_allowed.add(tuple(entry.split(" ", 1)))
+        elif entry:
+            words_allowed.add(entry)
 
-    # 1. Placeholders must name a money fact this finding actually cites.
+    # 1. Placeholders: must name a cited money fact, must carry no option
+    #    the deterministic prose itself does not use, and must be exactly
+    #    the shape the resolver resolves — anything else survives
+    #    resolution as literal braces on a reader's screen.
     for m in _PLACEHOLDER_RX.finditer(text):
         if m.group("name") not in known:
             violations.append(
-                "placeholder {{money:%s}} names a fact this finding does not "
-                "cite" % m.group("name"))
+                "%s: {{money:%s}} names a fact this finding does not cite"
+                % (CLASS_UNCITED, m.group("name")))
+        for opt in [o for o in m.group("opts").split("|") if o]:
+            if opt in PLACEHOLDER_OPTIONS_ALLOWED:
+                continue
+            kind = dict(_OPTION_CLASSES).get(opt)
+            if kind is None and re.match(r"^d\d+$", opt):
+                kind = "precision"
+            violations.append(
+                "%s: {{money:%s|%s}} — the model chose how an engine figure "
+                "prints (%s option %r); a placeholder is the fact's name and "
+                "nothing else" % (CLASS_OPTION, m.group("name"), opt,
+                                  kind or "unknown", opt))
+    stripped = _PLACEHOLDER_RX.sub(" ", text)
+    for m in re.finditer(r"\{\{[^{}]*\}\}|\{\{|\}\}|[{}]", stripped):
+        violations.append(
+            "%s: %r at offset %d is not a placeholder the resolver resolves "
+            "and would reach a reader as literal braces"
+            % (CLASS_UNRESOLVED, m.group(0)[:40], m.start()))
+        break
 
     # 2. A bare number immediately before a placeholder is the 461
     #    collision: `templatize` binds the currency label to the wrong
     #    number and one claim ends up in two currencies.
     for m in re.finditer(r"\d\s*\{\{money:", text):
         violations.append(
-            "a bare number sits immediately before a money placeholder at "
-            "offset %d — the label would bind to the wrong figure" % m.start())
+            "%s: a bare number sits immediately before a money placeholder "
+            "at offset %d — the label would bind to the wrong figure"
+            % (CLASS_ADJACENCY, m.start()))
 
-    # 3. A currency WORD written by the model is never allowed: the
-    #    placeholder carries its own label and converts; a loose word
-    #    does not.
-    for word in _CURRENCY_WORDS:
-        for m in re.finditer(r"\b%s\b\s*(?=\{\{money:|-?\d)" % word, text):
+    # 3. A currency word or symbol, in ANY case, on EITHER side of a
+    #    placeholder or a figure — with the glue a model puts between
+    #    them ("EUR-", "in EUR:", "(lei)"). The placeholder carries its
+    #    own label and converts; a loose word does not. A currency word
+    #    away from any figure ("reporting in RON") is prose, and stays.
+    for m in _CURRENCY_TOKEN_RX.finditer(text):
+        if _has_figure_edge(text, m.end(), forward=True) or \
+                _has_figure_edge(text, m.start(), forward=False):
             violations.append(
-                "currency label %r written beside a figure at offset %d — the "
-                "placeholder carries its own label" % (word, m.start()))
-        for m in re.finditer(r"(?:\}\}|\d)\s*\b%s\b" % word, text):
-            violations.append(
-                "currency label %r written after a figure at offset %d"
-                % (word, m.start()))
+                "%s: %r at offset %d sits beside a figure — the placeholder "
+                "carries its own label" % (CLASS_CURRENCY, m.group(0), m.start()))
 
-    # 4. A placeholder that lost its currency label prints a bare figure
-    #    beside converted ones. `templatize` marks that case `|bare`; the
-    #    finding renderer refuses it, and so does this guard, earlier and
-    #    with a reason a person can read.
-    for m in re.finditer(r"\{\{money:[A-Za-z0-9_]+\|[^}]*\bbare\b", text):
-        violations.append(
-            "a money figure at offset %d carries no currency label — it "
-            "would print unconverted beside figures that convert" % m.start())
+    # 4. A whitelisted ledger code used as a QUANTITY: followed by a unit
+    #    or a multiple, or preceded by a comparator. "461%" is not an
+    #    account whatever list 461 is on.
+    flat = _strip_diacritics(stripped)
+    for code in codes:
+        for m in re.finditer(r"(?<![\d.,])%s(?!\d)(?![.,]\d)" % re.escape(code), flat):
+            after = flat[m.end():]
+            before = flat[:m.start()].rstrip()
+            unit = ""
+            attached = _ATTACHED_UNIT_RX.match(after)
+            if attached:
+                unit = attached.group(0).strip()
+            else:
+                # the word RIGHT after the code, optionally via "de" / "of"
+                # ("461 de zile", "461 days")
+                following = _UNIT_AFTER_RX.match(after)
+                if following and following.group(1) in _UNIT_WORDS:
+                    unit = following.group(1)
+            before_words = _WORD_RX.findall(before[-40:])
+            comparator = before_words[-1] if before_words and \
+                before.endswith(before_words[-1]) else ""
+            if unit or comparator in _COMPARATOR_WORDS:
+                violations.append(
+                    "%s: %s at offset %d is used as a quantity (%s), not as an "
+                    "account" % (CLASS_CODE_AS_QUANTITY, code, m.start(),
+                                 ("followed by %r" % unit) if unit
+                                 else ("preceded by %r" % comparator)))
 
-    # 5. Strip the sanctioned tokens, then anything numeric left over is
-    #    a number the engine never computed.
-    stripped = _PLACEHOLDER_RX.sub(" ", text)
-    for code in sorted(set(str(c) for c in allowed_codes if str(c).strip()),
-                       key=len, reverse=True):
+    # 5. Strip the sanctioned codes, then anything numeric left over is a
+    #    number the engine never computed — ASCII digits, then every
+    #    Unicode numeral, then Roman numerals written as words.
+    for code in codes:
         # Not a fragment of a longer number ("451" inside "1451" or
         # "451.25"), but a sentence-final "451." is still the code.
         stripped = re.sub(
             r"(?<![\d.,])%s(?!\d)(?![.,]\d)" % re.escape(code), " ", stripped)
     for m in _NUMBER_RX.finditer(stripped):
         violations.append(
-            "numeral %r at offset %d is neither a resolved placeholder nor a "
-            "subject account code" % (m.group(0), m.start()))
+            "%s: %r at offset %d is neither a resolved placeholder nor a "
+            "subject account code" % (CLASS_NUMERAL, m.group(0), m.start()))
+    for index, ch in enumerate(stripped):
+        if _is_unicode_numeral(ch):
+            try:
+                name = unicodedata.name(ch)
+            except ValueError:
+                name = "U+%04X" % ord(ch)
+            violations.append(
+                "%s: %r (%s) at offset %d — a figure in a script or form the "
+                "engine never prints" % (CLASS_UNICODE, ch, name, index))
+    for token, offset in _roman_numerals(stripped):
+        violations.append(
+            "%s: %r at offset %d is a number written as letters"
+            % (CLASS_ROMAN, token, offset))
+
+    # 6. Number words, both languages, on diacritic-stripped text.
+    flat = _strip_diacritics(stripped)
+    tokens = []  # type: List[Tuple[str, int]]
+    for m in _WORD_RX.finditer(flat):
+        tokens.append((m.group(0), m.start()))
+    names = [t[0] for t in tokens]
+    # A unit word that is itself a number word ("quarters", "third",
+    # "hundred") is judged as part of the bigram it completes, never on
+    # its own — the engine's "the next two quarters of input volume" is
+    # one allowed bigram, not an allowed count plus a fraction (measured
+    # live: attempt 1 of agras input_cost_exposure was refused on the
+    # engine's own phrase before this set existed).
+    consumed = set()  # type: set
+    for n, (tok, offset) in enumerate(tokens):
+        if tok not in _NUMBER_WORDS or n in consumed:
+            continue
+        nxt = _word_after(names, n)
+        prev = _word_before(names, n)
+        unit_index = n + 1
+        if n + 1 < len(names) and names[n + 1] in ("de", "of") and n + 2 < len(names):
+            unit_index = n + 2
+        escapes = _NUMBER_WORD_ESCAPES.get(tok, ())
+        if nxt in escapes:
+            continue
+        unit = nxt if nxt in _UNIT_WORDS else ""
+        tail = flat[offset + len(tok):]
+        if not unit and _ATTACHED_UNIT_RX.match(tail):
+            unit = _ATTACHED_UNIT_RX.match(tail).group(0)
+        inflated = (unit in _INFLATE_UNITS or unit in ("%", "×", "x", "-fold")
+                    or prev in _INFLATE_COMPARATORS)
+        # "a quarter of the book" / "un sfert din" is a fraction, whatever
+        # else the word means.
+        fraction = (tok in ("quarter", "quarters", "trimestru", "trimestre")
+                    and names[n + 1:n + 2] in (["of"], ["din"]))
+        if inflated:
+            violations.append(
+                "%s: %r at offset %d is a quantity the engine never computed "
+                "(%s)" % (CLASS_NUMBER_WORD, tok, offset,
+                          ("followed by %r" % unit) if unit
+                          else ("preceded by %r" % prev)))
+            continue
+        if tok in _CONTEXTUAL_NUMBER_WORDS:
+            if unit and (tok, unit) not in bigrams_allowed:
+                violations.append(
+                    "%s: %r at offset %d counts a unit the engine never "
+                    "wrote (%r)" % (CLASS_NUMBER_WORD, tok, offset, unit))
+            elif unit:
+                consumed.add(unit_index)
+            elif prev in _COMPARATOR_WORDS or fraction:
+                violations.append(
+                    "%s: %r at offset %d is a quantity the engine never "
+                    "computed (%s)" % (CLASS_NUMBER_WORD, tok, offset,
+                                       ("preceded by %r" % prev) if not fraction
+                                       else "a fraction"))
+            continue
+        if unit:
+            if (tok, unit) in bigrams_allowed:
+                consumed.add(unit_index)
+                continue
+            violations.append(
+                "%s: %r at offset %d counts a unit the engine never wrote "
+                "(%r)" % (CLASS_NUMBER_WORD, tok, offset, unit))
+            continue
+        if tok in words_allowed and prev not in _COMPARATOR_WORDS:
+            continue
+        violations.append(
+            "%s: %r at offset %d is a quantity the engine never computed"
+            % (CLASS_NUMBER_WORD, tok, offset))
+
     # Deduplicate while preserving order — one repeated numeral is one
     # defect, not five.
     seen = []  # type: List[str]
@@ -803,6 +1318,7 @@ def assert_no_new_numerals(finding: Any,
         _attributable(_narrative_text(rationale, action_steps), finding),
         allowed_codes=allowed_ledger_codes(finding),
         money_facts=_money_fact_names(getattr(finding, "facts_cited", {}) or {}),
+        allowed_words=allowed_number_words(finding),
     )
     if violations:
         raise AdvisoryNumeralError(violations)
@@ -833,6 +1349,7 @@ def apply_advisory_narrative(finding: Any,
         _attributable(_narrative_text(rationale, action_steps), finding),
         allowed_codes=allowed_ledger_codes(finding),
         money_facts=_money_fact_names(getattr(finding, "facts_cited", {}) or {}),
+        allowed_words=allowed_number_words(finding),
     )
     out = _raw_apply(finding, rationale=rationale,
                      action_steps=action_steps)
@@ -993,19 +1510,25 @@ _DRAFT_SYSTEM = (
     "suppress.\n"
     "\n"
     "HARD RULES.\n"
-    "1. NEVER write a numeral. Not a percentage, not a year, not a date, "
-    "not a day count, not a multiple, not a money amount, not a statute "
-    "or article number, and not a ledger account code that is not in the "
-    "list below. The ONLY numerals you may write are (a) the placeholder "
-    "tokens listed in vocabulary.money_placeholders, copied verbatim, "
-    "and (b) the ledger account codes listed in "
-    "vocabulary.account_codes (the codes the engine itself already named "
-    "in this finding). Any other digit causes your whole answer "
-    "to be discarded, so name other accounts and laws in WORDS ('the "
-    "trade payables account', 'the companies act') rather than by "
-    "number.\n"
-    "2. NEVER write a currency word (RON, EUR, LEI, USD). The "
-    "placeholder carries its own label.\n"
+    "1. NEVER write a quantity the engine did not compute — not as a "
+    "digit and not in words. Not a percentage, not a year, not a date, "
+    "not a day count, not a multiple, not a fraction, not a money "
+    "amount, not a statute or article number, not a ledger account code "
+    "that is not in the list below; not 'three', 'twelve', 'a third', "
+    "'half', 'doubled', 'trei', 'două', 'milioane', not a Roman numeral, "
+    "not a superscript or a vulgar fraction. The ONLY numerals you may "
+    "write are (a) the placeholder tokens listed in "
+    "vocabulary.money_placeholders, copied VERBATIM — never add an "
+    "option after the name such as |abs, |bare, |d2 or |k — (b) the "
+    "ledger account codes listed in vocabulary.account_codes, used ONLY "
+    "as account names (never '461%', '461 days', 'de 461 ori', 'since "
+    "455'), and (c) the number words listed in vocabulary.number_words. "
+    "Any other quantity causes your whole answer to be discarded, so "
+    "name other accounts and laws in WORDS ('the trade payables "
+    "account', 'the companies act') rather than by number.\n"
+    "2. NEVER write a currency word or symbol (RON, EUR, LEI, lei, euro, "
+    "€, USD) next to a placeholder or a figure, in any case or language. "
+    "The placeholder carries its own label.\n"
     "3. NEVER put a placeholder immediately after a bare number or an "
     "account code — put a word, a dash or a comma between them.\n"
     "4. The English rationale MUST contain, verbatim, at least one "
@@ -1247,7 +1770,8 @@ RO_BANNED_PHRASES = (
 )
 
 
-def _ro_gate(draft: Dict[str, Any], view: SharpenView) -> Tuple[str, ...]:
+def _ro_gate(draft: Dict[str, Any],
+             account_codes: Sequence[str]) -> Tuple[str, ...]:
     """Language-aware gate for the Romanian draft.
 
     The engine's own validator judges English: its imperative lexicon,
@@ -1259,19 +1783,22 @@ def _ro_gate(draft: Dict[str, Any], view: SharpenView) -> Tuple[str, ...]:
     rule.
     """
     problems = []  # type: List[str]
-    text = draft["rationale"]
+    text = str(draft.get("rationale") or "")
+    steps = list(draft.get("steps") or ())
     flat = _strip_diacritics(text + " " + " ".join(
         " ".join(str(s.get(k) or "") for k in _DRAFT_STEP_KEYS)
-        for s in draft["steps"]))
+        for s in steps))
     for phrase in RO_BANNED_PHRASES:
         if phrase in flat:
             problems.append("Romanian hedge %r" % phrase)
-    if not any(code in text for code in view.account_codes):
+    if not any(code in text for code in account_codes):
         problems.append(
             "the Romanian rationale names none of the subject accounts %r — "
             "it would read identically for another company"
-            % (view.account_codes,))
-    for step in draft["steps"]:
+            % (tuple(account_codes),))
+    if not steps:
+        problems.append("the Romanian draft has no action step")
+    for step in steps:
         head = _strip_diacritics(
             str(step.get("imperative") or "").strip().split(" ", 1)[0]).strip(",.;:")
         if not head:
@@ -1356,6 +1883,127 @@ def _ro_reasons_are_language_only(missing: Sequence[Any]) -> bool:
         if not any(marker in reason for marker in _RO_TOLERATED_REASON_MARKERS):
             return False
     return True
+
+
+# ── Re-verification of SERVED prose (the cache path runs the fresh checks) ──
+
+
+def _steps_from_dicts(steps: Sequence[Dict[str, Any]], lang: str) -> Tuple[Any, ...]:
+    """Already-resolved step dicts (a cache record, a served payload) as
+    the engine's own ``ActionStep`` objects — no placeholder resolution,
+    the text is judged as it would be shown."""
+    F = _F()
+    out = []  # type: List[Any]
+    for step in steps or ():
+        if not isinstance(step, dict):
+            continue
+        out.append(F.ActionStep(
+            imperative=str(step.get("imperative") or ""),
+            artefact=str(step.get("artefact") or ""),
+            provider=str(step.get("provider") or ""),
+            horizon=(str(step["horizon"]) if step.get("horizon") else None),
+            lang=str(step.get("lang") or lang),
+        ))
+    return tuple(out)
+
+
+def narrative_contract_problems(finding: Any,
+                                en: Optional[Dict[str, Any]],
+                                ro: Optional[Dict[str, Any]] = None
+                                ) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    """THE CONTRACT CHECKS the fresh path runs, re-run on ALREADY-RESOLVED
+    prose — what a cache record or a served payload carries.
+
+    Returns ``(en_problems, ro_problems)``. The English text is applied
+    through the ONE seam (so the numeric fingerprint is enforced) and
+    judged by the finding's own ``verdict()``: the anchor rule, the
+    banned hedges, the imperative lexicon, the account code in the
+    prose. The Romanian text is judged by :func:`_ro_gate` in its own
+    language and by the English validator for the language-free
+    elements, exactly as :func:`_apply_ro` judges a fresh draft.
+
+    This is deliberately NOT the numeral law — that is
+    :func:`assert_no_new_numerals`, which callers run first. Two checks,
+    two names, so a refusal says which law refused.
+    """
+    F = _F()
+    en_problems = []  # type: List[str]
+    ro_problems = []  # type: List[str]
+    if not isinstance(en, dict) or not str(en.get("rationale") or "").strip():
+        en_problems.append("no English rationale")
+    else:
+        try:
+            candidate = _raw_apply(
+                finding, rationale=str(en.get("rationale") or ""),
+                action_steps=_steps_from_dicts(en.get("steps") or (), "en"))
+        except F.NarrativeMutationError as exc:
+            en_problems.append("the rewrite moved a figure: %s" % str(exc)[:200])
+        else:
+            verdict = candidate.verdict()
+            if not verdict.surfaced:
+                en_problems.extend(str(r) for r in verdict.reasons())
+    if isinstance(ro, dict):
+        ro_problems.extend(_ro_gate(ro, allowed_ledger_codes(finding)))
+        if not ro_problems:
+            try:
+                ro_finding = _raw_apply(
+                    finding, rationale=str(ro.get("rationale") or ""),
+                    action_steps=_steps_from_dicts(ro.get("steps") or (), "ro"))
+            except F.NarrativeMutationError as exc:
+                ro_problems.append("the Romanian rewrite moved a figure: %s"
+                                   % str(exc)[:200])
+            else:
+                missing = ro_finding.validate()
+                if not _ro_reasons_are_language_only(missing):
+                    ro_problems.extend(
+                        m.render() for m in missing
+                        if not any(marker in (getattr(m, "reason", "") or "")
+                                   for marker in _RO_TOLERATED_REASON_MARKERS))
+    return tuple(en_problems), tuple(ro_problems)
+
+
+def review_accepts(row: Any, language: str, floor: float) -> bool:
+    """Does ONE self-review row clear the anti-generic net for
+    `language` at `floor`? The same predicate the fresh path applies:
+    a numeric specificity at or above the floor AND not judged to read
+    identically for another company, and the row must say so itself
+    (``accepted``)."""
+    if not isinstance(row, dict) or str(row.get("language") or "") != language:
+        return False
+    spec = row.get("specificity")
+    if isinstance(spec, bool) or not isinstance(spec, (int, float)):
+        return False
+    if float(spec) < float(floor):
+        return False
+    if bool(row.get("reads_identically")):
+        return False
+    return bool(row.get("accepted"))
+
+
+def review_problems(review: Any, en_specificity: Any, ro_specificity: Any,
+                    ro_present: bool, floor: Optional[float] = None
+                    ) -> Tuple[str, ...]:
+    """The SELF-REVIEW checks the fresh path enforces, on a record: an
+    accepted score row per served language, at or above TODAY's floor,
+    and a numeric specificity on the prose that agrees with it. A record
+    carrying ``review: []`` or ``specificity: null`` was never reviewed
+    by this lane — whatever its `source` field claims."""
+    floor_value = specificity_floor() if floor is None else float(floor)
+    problems = []  # type: List[str]
+    rows = list(review) if isinstance(review, (list, tuple)) else []
+    for language, spec, present in (("en", en_specificity, True),
+                                    ("ro", ro_specificity, ro_present)):
+        if not present:
+            continue
+        if isinstance(spec, bool) or not isinstance(spec, (int, float)):
+            problems.append("%s prose carries no specificity score" % language)
+        elif float(spec) < floor_value:
+            problems.append("%s specificity %.2f is below the %.2f floor"
+                            % (language, float(spec), floor_value))
+        if not any(review_accepts(row, language, floor_value) for row in rows):
+            problems.append("no accepted %s self-review row at or above the "
+                            "%.2f floor" % (language, floor_value))
+    return tuple(problems)
 
 
 # ══ 8. THE RESULT TYPES ══════════════════════════════════════════════════
@@ -1550,7 +2198,8 @@ def sharpen_finding(finding: Any,
 
         # ── the numeral guard, before anything is applied ──────────────
         en_violations = numeral_violations(
-            _draft_text(en_draft), view.account_codes, view.money_facts)
+            _draft_text(en_draft), view.account_codes, view.money_facts,
+            allowed_words=view.number_words)
         if en_violations:
             journal_record({
                 "event": "numeral_refusal", "rule_id": view.rule_id,
@@ -1559,9 +2208,14 @@ def sharpen_finding(finding: Any,
                 "rejected_draft": _draft_text(en_draft)[:2000],
             }, journal_dir)
             last_reason = _numeral_reason(en_violations)
-            critique = ("You wrote numerals the engine never computed: %s. "
-                        "Use only the listed {{money:...}} placeholders and "
-                        "the listed account codes." % last_reason)
+            critique = ("You wrote quantities the engine never computed "
+                        "(%s): %s. Use only the listed {{money:...}} "
+                        "placeholders exactly as listed (no |option), the "
+                        "listed account codes as account names only, and the "
+                        "listed number words; no other digit, number word, "
+                        "Roman numeral or currency word."
+                        % (", ".join(violation_classes(en_violations)),
+                           last_reason))
             continue
 
         # ── apply through the ONE seam ────────────────────────────────
@@ -1682,10 +2336,15 @@ def sharpen_finding(finding: Any,
 
 def _numeral_reason(violations: Sequence[str]) -> str:
     """A readable reason built from the VIOLATIONS, never from the model's
-    text — the reason is a sentence a person reads, not a payload dump."""
-    shown = list(violations)[:4]
-    return ("The advisory rewrite carried %d numeral(s) the engine never "
-            "computed (%s)." % (len(violations), "; ".join(shown)))
+    text — the reason is a sentence a person reads, not a payload dump.
+    It names the CLASSES first; the shown details carry no braces, so a
+    refused placeholder is described rather than quoted as a token (the
+    served-shape scrubber treats a brace as a payload)."""
+    shown = [v.replace("{", "").replace("}", "") for v in list(violations)[:4]]
+    return ("The advisory rewrite carried %d quantit%s the engine never "
+            "computed — %s (%s)."
+            % (len(violations), "y" if len(violations) == 1 else "ies",
+               ", ".join(violation_classes(violations)), "; ".join(shown)))
 
 
 def _draft_text(draft: Dict[str, Any]) -> str:
@@ -1714,7 +2373,8 @@ def _apply_ro(finding: Any, ro_draft: Optional[Dict[str, Any]],
         return None, None, None
     F = _F()
     violations = numeral_violations(_draft_text(ro_draft), view.account_codes,
-                                    view.money_facts)
+                                    view.money_facts,
+                                    allowed_words=view.number_words)
     if violations:
         journal_record({"event": "numeral_refusal", "language": "ro",
                         "rule_id": view.rule_id,
@@ -1722,7 +2382,7 @@ def _apply_ro(finding: Any, ro_draft: Optional[Dict[str, Any]],
                         "rejected_draft": _draft_text(ro_draft)[:2000]},
                        journal_dir)
         return None, None, None
-    problems = _ro_gate(ro_draft, view)
+    problems = _ro_gate(ro_draft, view.account_codes)
     if problems:
         journal_record({"event": "ro_gate_refusal", "language": "ro",
                         "rule_id": view.rule_id,
@@ -1891,14 +2551,20 @@ def sharpen_result(result: Any, **kwargs: Any) -> List[SharpenedFinding]:
 
 __all__ = [
     "ROLE_DRAFT", "ROLE_REVIEW", "DRAFT_PROMPT_VERSION", "REVIEW_PROMPT_VERSION",
+    "NUMERAL_LAW_VERSION", "PLACEHOLDER_OPTIONS_ALLOWED", "VIOLATION_CLASSES",
+    "CLASS_NUMERAL", "CLASS_NUMBER_WORD", "CLASS_CURRENCY", "CLASS_UNICODE",
+    "CLASS_ROMAN", "CLASS_CODE_AS_QUANTITY", "CLASS_OPTION", "CLASS_UNRESOLVED",
+    "CLASS_UNCITED", "CLASS_ADJACENCY",
     "LANGUAGES", "CALLABLE_WITHHELD", "MONEY_WITHHELD", "OBJECT_WITHHELD",
     "GATEWAY_ACCESSORS", "RO_ABSENT_REASON",
     "RO_IMPERATIVE_VERBS", "RO_WEAK_LEAD_VERBS", "RO_BANNED_PHRASES",
     "SharpenUnavailable", "AdvisoryNumeralError",
     "SharpenView", "Narrative", "SharpenedFinding",
     "build_view", "gateway_presence", "allowed_ledger_codes",
-    "numeral_violations", "assert_no_new_numerals", "apply_advisory_narrative",
-    "install_guard",
+    "allowed_number_words", "numeral_violations", "violation_class",
+    "violation_classes", "assert_no_new_numerals", "apply_advisory_narrative",
+    "install_guard", "unguarded_seam",
+    "narrative_contract_problems", "review_problems", "review_accepts",
     "sharpen_finding", "sharpen_result",
     "journal_record", "journal_entries", "journal_path", "score_distribution",
     "specificity_floor", "DEFAULT_SPECIFICITY_FLOOR",

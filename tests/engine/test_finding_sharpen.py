@@ -514,6 +514,317 @@ def test_s3_the_placeholder_is_resolved_to_the_engines_own_figure(finding,
     assert "{{money:intercompany_loans}}" in rendered.body_template
 
 
+# ══ S3 — THE NUMERAL LAW: ten classes, both languages ════════════════════
+#
+# Every plant below is a model-authored QUANTITY the numerals critic
+# showed shipping `status=fresh` through the real explain path on the
+# real agras 461 finding. Each is refused through the guard's own
+# message, which names the class.
+
+
+def _law(finding, text):
+    return FS.numeral_violations(
+        text, FS.allowed_ledger_codes(finding),
+        FS._money_fact_names(finding.facts_cited),
+        allowed_words=FS.allowed_number_words(finding))
+
+
+PH = "{{money:intercompany_loans}}"
+
+LAW_PLANTS = [
+    # (id, text, expected class)
+    ("ro-de-trei-ori", "soldul este de trei ori mai mare decât anul trecut.", FS.CLASS_NUMBER_WORD),
+    ("ro-treizeci-de-zile", "scadența depășește treizeci de zile.", FS.CLASS_NUMBER_WORD),
+    ("ro-doua-milioane", "aproape două milioane rămân nerecuperate.", FS.CLASS_NUMBER_WORD),
+    ("en-forty-seven-percent", "It has grown forty-seven percent since last year.", FS.CLASS_NUMBER_WORD),
+    ("en-doubled", "It doubled over the period.", FS.CLASS_NUMBER_WORD),
+    ("en-a-third", "now a third of the book is group money.", FS.CLASS_NUMBER_WORD),
+    ("en-half", "half of the book is group money.", FS.CLASS_NUMBER_WORD),
+    ("en-tripled", "the balance tripled.", FS.CLASS_NUMBER_WORD),
+    ("en-twelve-years", "settlement runs inside twelve years.", FS.CLASS_NUMBER_WORD),
+    ("en-one-year", "one year of settlement is outstanding.", FS.CLASS_NUMBER_WORD),
+    ("en-a-quarter-of", "a quarter of the book is group money.", FS.CLASS_NUMBER_WORD),
+    ("ro-de-zece-ori", "este de zece ori mai mare.", FS.CLASS_NUMBER_WORD),
+    ("cur-lei-after", "the balance of %s lei is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-euro-after", "the balance of %s euro is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-EURO-after", "the balance of %s EURO is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-symbol-after", "the balance of %s € is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-lei-before", "the balance of lei %s is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-EUR-dash-before", "the balance of EUR-%s is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-in-EUR-colon", "the balance in EUR: %s is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-Lei-cased", "the balance of %s Lei is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-ron-lower", "the balance of %s ron is group money." % PH, FS.CLASS_CURRENCY),
+    ("cur-RON-before", "the company owes RON %s to the group." % PH, FS.CLASS_CURRENCY),
+    ("cur-ro-lei", "soldul de %s lei este bani de grup." % PH, FS.CLASS_CURRENCY),
+    ("cur-ro-euro", "soldul de %s euro este bani de grup." % PH, FS.CLASS_CURRENCY),
+    ("opt-abs", "the haircut is {{money:intercompany_loans|abs}}.", FS.CLASS_OPTION),
+    ("opt-neg", "the haircut is {{money:intercompany_loans|neg}}.", FS.CLASS_OPTION),
+    ("opt-d4", "the haircut is {{money:intercompany_loans|d4}}.", FS.CLASS_OPTION),
+    ("opt-bare", "the haircut is {{money:intercompany_loans|bare}}.", FS.CLASS_OPTION),
+    ("opt-suffix-d2", "the haircut is {{money:intercompany_loans|suffix|d2}}.", FS.CLASS_OPTION),
+    ("opt-k", "the haircut is {{money:intercompany_loans|k}}.", FS.CLASS_OPTION),
+    ("opt-unknown", "the haircut is {{money:intercompany_loans|percent}}.", FS.CLASS_OPTION),
+    ("unresolved-Bare", "the haircut is {{money:intercompany_loans|Bare}}.", FS.CLASS_UNRESOLVED),
+    ("unresolved-BARE", "the haircut is {{money:intercompany_loans|BARE}}.", FS.CLASS_UNRESOLVED),
+    ("unresolved-trailing-space", "the haircut is {{money:intercompany_loans|bare }}.", FS.CLASS_UNRESOLVED),
+    ("unresolved-spaces", "the haircut is {{ money }}.", FS.CLASS_UNRESOLVED),
+    ("unresolved-stray-brace", "the haircut is } group money.", FS.CLASS_UNRESOLVED),
+    ("uncited", "the haircut is {{money:revenue}}.", FS.CLASS_UNCITED),
+    ("code-percent", "it has grown 461% since last year.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-x", "it is 461x the prior balance.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-times-sign", "it is 461 × the prior balance.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-days", "settlement runs past 461 days.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-ro-ori", "este de 461 ori mai mare.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-ro-zile", "scadența depășește 461 de zile.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-years", "for 461 years the group has funded it.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-ro-ani", "de 461 ani grupul o finanțează.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-since", "since 455 the group has funded it.", FS.CLASS_CODE_AS_QUANTITY),
+    ("code-grown", "the balance has grown 461 in a year.", FS.CLASS_CODE_AS_QUANTITY),
+    ("uni-superscript-2", "the exposure is ² the covenant headroom.", FS.CLASS_UNICODE),
+    ("uni-half", "roughly ½ of the book is group money.", FS.CLASS_UNICODE),
+    ("uni-circled-7", "about ⑦ of the book is group money.", FS.CLASS_UNICODE),
+    ("uni-superscript-47", "it has grown ⁴⁷ percent.", FS.CLASS_UNICODE),
+    ("uni-arabic-indic", "it has grown ٤٧ percent.", FS.CLASS_UNICODE),
+    ("uni-fullwidth", "it has grown ４７ percent.", FS.CLASS_UNICODE),
+    ("uni-roman-char", "Ⅻ months of settlement are outstanding.", FS.CLASS_UNICODE),
+    ("roman-XII", "XII months of settlement are outstanding.", FS.CLASS_ROMAN),
+    ("roman-IV", "the IV quarter is when it settles.", FS.CLASS_ROMAN),
+    ("roman-XL", "XL months of settlement are outstanding.", FS.CLASS_ROMAN),
+    ("ascii-percent", "This balance has grown 47% since the prior year.", FS.CLASS_NUMERAL),
+    ("ascii-year", "The 2024 comparative shows the same shape.", FS.CLASS_NUMERAL),
+    ("ascii-uncited-code", "unlike the trade receivables on 4111 this is group money.", FS.CLASS_NUMERAL),
+    ("adjacency-461", "The position on 461 %s is group capital." % PH, FS.CLASS_ADJACENCY),
+]
+
+
+@pytest.mark.parametrize("plant_id,text,expected", LAW_PLANTS,
+                         ids=[p[0] for p in LAW_PLANTS])
+def test_s3_the_numeral_law_refuses_every_class_by_name(finding, plant_id, text, expected):
+    violations = _law(finding, text)
+    assert violations, (plant_id, text)
+    classes = FS.violation_classes(violations)
+    assert expected in classes, (plant_id, classes, violations)
+    for v in violations:
+        assert FS.violation_class(v) != "unclassified", v
+
+
+LAW_ALLOWED = [
+    ("engine-code", "The balance on 461 is %s lent to 451." % PH),
+    ("third-party", "a third-party balance sits beside it on 461."),
+    ("double-check", "Double-check the 461 reconciliation against the sub-ledger."),
+    ("currency-away-from-figure", "a company reporting in RON carries the 461 position at the closing rate."),
+    ("account-name-lei", "the account Conturi la bănci în lei is the offset for 461."),
+    ("one-of", "one of the affiliates behind 461 is the offtaker."),
+    ("second-lien", "a second lien over the 461 balance would not survive."),
+    ("first-drawdown", "the first drawdown lands on 461."),
+    ("this-quarter", "within this quarter the 461 sub-ledger is pulled."),
+    ("under-461", "amounts booked under 461 are group money."),
+    ("over-461-451", "spread over 461, 451 and 452."),
+    ("ro-de-pe-461", "soldul de pe 461 este %s." % PH),
+    ("ro-contului-461-de-la", "Solicită fișa contului 461 de la controlorul financiar."),
+    # MEASURED LIVE (run 2): the Romanian half of the 461 finding was
+    # refused on "alături de 451" — "alongside 451". "de" alone is not a
+    # comparator; a Romanian count carries its unit after the token.
+    ("ro-alaturi-de-451", "soldul de %s din contul 461, alături de 451, 452 și 455, nu este o creanță." % PH),
+    ("ro-fata-de-461", "expunerea față de 461 este acoperită de grup."),
+    ("ro-imm", "un IMM cu sold pe 461."),
+    ("grade-ccc", "a CCC grade would follow from 461."),
+    ("abbrev-md-cd", "the MD and the CD both signed the 461 confirmation."),
+    ("sentence-final-code", "the group funds the balance on 461."),
+]
+
+
+@pytest.mark.parametrize("plant_id,text", LAW_ALLOWED, ids=[p[0] for p in LAW_ALLOWED])
+def test_s3_the_numeral_law_leaves_ordinary_prose_alone(finding, plant_id, text):
+    assert _law(finding, text) == (), (plant_id, _law(finding, text))
+
+
+def test_s3_number_words_the_engine_itself_wrote_are_allowed_and_only_those(
+        subject_result, decoy_result):
+    """MEASURED, not guessed: the engine's own action steps say "inside
+    twelve months", "the next two quarters", "one month of operating
+    cost", "the ten largest supplier accounts". A rewrite echoing them
+    is allowed — in English and in the Romanian peer form — and a word
+    the engine did not write for THAT finding is refused."""
+    seen = 0
+    for result in (subject_result, decoy_result):
+        for f in result.finding_set.surfaced:
+            allowed = FS.allowed_number_words(f)
+            prose = " ".join(FS._engine_prose(f))
+            words = set(FS._WORD_RX.findall(FS._strip_diacritics(prose)))
+            for entry in allowed:
+                head = entry.split(" ")[0]
+                # every whitelisted word is the engine's own, or the
+                # Romanian peer of one that is
+                peers = [en for en, ros in FS._EN_TO_RO_NUMBER_WORDS.items()
+                         if head in ros]
+                assert head in words or any(p in words for p in peers), \
+                    (f.rule_id, entry)
+            seen += 1
+            for entry in allowed:
+                if " " in entry:
+                    assert _law(f, "the engine wrote %s here on %s."
+                                % (entry, f.subject.codes()[0])) == (), (f.rule_id, entry)
+    assert seen >= 8
+    # the liquidity finding writes "one month" and "the ten largest"
+    liquidity = [f for f in subject_result.finding_set.surfaced
+                 if f.rule_id == "liquidity_cash_tight"]
+    assert liquidity, "the engine stopped producing the liquidity finding"
+    allowed = FS.allowed_number_words(liquidity[0])
+    assert "ten" in allowed and "zece" in allowed
+    assert "one month" in allowed and "una luna" in allowed
+    assert _law(liquidity[0], "the ten largest supplier accounts on 401.") == ()
+    assert _law(liquidity[0], "cele zece cele mai mari solduri de pe 401.") == ()
+    # Romanian "de" before an allowed word is a preposition, not a count
+    assert _law(liquidity[0], "o listă de zece conturi de furnizori pe 401.") == ()
+    assert _law(liquidity[0], "one month of operating cost on 401.") == ()
+    # ...and the same word beside a DIFFERENT unit is a quantity the
+    # engine never wrote
+    assert FS.violation_classes(_law(liquidity[0], "one year of cost on 401.")) == (
+        FS.CLASS_NUMBER_WORD,)
+    assert FS.violation_classes(_law(liquidity[0], "grown ten percent on 401.")) == (
+        FS.CLASS_NUMBER_WORD,)
+    # a finding whose engine prose never says "ten" refuses it
+    fx = [f for f in subject_result.finding_set.surfaced if f.rule_id == "fx_exposure"]
+    assert fx and "ten" not in FS.allowed_number_words(fx[0])
+    assert FS.CLASS_NUMBER_WORD in FS.violation_classes(
+        _law(fx[0], "the ten largest positions on 5124."))
+    # MEASURED LIVE (run 1, 2026-09-05): the input-cost finding's own step
+    # is "Hedge the next two quarters of input volume"; a rewrite echoing
+    # it was refused on "quarters … of" as a fraction, twice, and burned
+    # its regeneration. The unit word of an allowed bigram is judged as
+    # part of the bigram, never alone.
+    ic = [f for f in subject_result.finding_set.surfaced if f.rule_id == "input_cost_exposure"]
+    assert ic, "the engine stopped producing the input-cost finding"
+    assert "two quarters" in FS.allowed_number_words(ic[0])
+    assert _law(ic[0], "Hedge the next two quarters of input volume behind 601.") == ()
+    assert _law(ic[0], "Acoperă următoarele două trimestre de volum pe 601.") == ()
+    # ...while a DIFFERENT count, and a bare fraction, are still refused
+    assert FS.CLASS_NUMBER_WORD in FS.violation_classes(
+        _law(ic[0], "Hedge the next three quarters of input volume behind 601."))
+    assert FS.CLASS_NUMBER_WORD in FS.violation_classes(
+        _law(ic[0], "a quarter of input volume behind 601."))
+
+
+def test_s3_the_placeholder_regex_is_the_resolvers(finding):
+    """The guard accepts EXACTLY what `_ratio_units.render_native`
+    resolves — the strict side. The loose regex this replaced stripped
+    `{{money:x|Bare}}` as a placeholder while the resolver skipped it, so
+    the literal braces shipped."""
+    from engine.api import _ratio_units as RU
+
+    assert FS._PLACEHOLDER_RX.pattern == RU._PLACEHOLDER_RX.pattern
+    resolved = RU.render_native("x {{money:intercompany_loans|Bare}} y",
+                                dict(finding.facts_cited), finding.currency)
+    assert "{{money:intercompany_loans|Bare}}" in resolved, \
+        "the resolver started resolving a mixed-case option; re-measure the law"
+    assert FS.CLASS_UNRESOLVED in FS.violation_classes(_law(finding, resolved))
+
+
+def test_s3_the_option_whitelist_is_measured_on_the_deterministic_prose(
+        subject_result, decoy_result):
+    """The deterministic prose writes `{{money:FACT}}` and nothing else —
+    title template, body template, templatized why-here and steps, every
+    surfaced finding of both fixtures. So the whitelist is empty, and
+    stays empty until the engine itself starts writing an option."""
+    used = set()
+    checked = 0
+    for result in (subject_result, decoy_result):
+        for f in result.finding_set.surfaced:
+            rendered = f.render()
+            texts = [rendered.title_template, rendered.body_template]
+            texts += [FS._attributable(t, f) for t in FS._engine_prose(f)]
+            for text in texts:
+                for m in FS._PLACEHOLDER_RX.finditer(text):
+                    for opt in [o for o in m.group("opts").split("|") if o]:
+                        used.add(opt)
+                    checked += 1
+    assert checked >= 10, "no placeholder in the deterministic prose — measure again"
+    assert used == set(FS.PLACEHOLDER_OPTIONS_ALLOWED) == set(), used
+
+
+def test_s3_a_romanian_number_word_is_refused_and_named(finding, profile):
+    """The critic's B3-B5 plants, on the real path: the Romanian half
+    carrying `de trei ori` is not served, and the journal names the class."""
+    bad = dict(GOOD_RO)
+    bad["rationale"] = GOOD_RO["rationale"] + " Soldul este de trei ori mai mare."
+    result, _, _ = _sharpen(finding, profile, draft={"en": GOOD_EN, "ro": bad})
+    assert result.degraded is False
+    assert result.ro is None
+    events = [e for e in FS.journal_entries()
+              if e.get("event") == "numeral_refusal" and e.get("language") == "ro"]
+    assert events, "the Romanian refusal was never journalled"
+    assert any(FS.CLASS_NUMBER_WORD in v for v in events[-1]["violations"])
+
+
+def test_s3_the_refusal_reason_names_the_class_and_carries_no_brace(finding, profile):
+    bad_en = dict(GOOD_EN)
+    bad_en["rationale"] = GOOD_EN["rationale"].replace(
+        "{{money:intercompany_loans}}", "{{money:intercompany_loans|abs}}")
+    result, drafter, _ = _sharpen(finding, profile, draft={"en": bad_en, "ro": GOOD_RO})
+    assert result.degraded is True
+    assert FS.CLASS_OPTION in result.reason
+    assert "{" not in result.reason and "}" not in result.reason
+    assert "abs" in result.reason
+    # the critique the model got for its one regeneration names the class too
+    second = [c for c in drafter.calls if c["role"] == "draft"][1]["user_text"]
+    assert FS.CLASS_OPTION in second
+
+
+# ══ S9 — THE SERVED CHECKS, RE-RUNNABLE ON ALREADY-RESOLVED PROSE ════════
+
+
+def _resolved_dicts(finding):
+    en = {"rationale": FS._resolve(GOOD_EN["rationale"], finding),
+          "steps": [dict(s, lang="en") for s in GOOD_EN["steps"]]}
+    ro = {"rationale": FS._resolve(GOOD_RO["rationale"], finding),
+          "steps": [dict(s, lang="ro") for s in GOOD_RO["steps"]]}
+    return en, ro
+
+
+def test_s9_the_contract_recheck_passes_a_clean_narrative(finding):
+    en, ro = _resolved_dicts(finding)
+    assert FS.narrative_contract_problems(finding, en, ro) == ((), ())
+
+
+@pytest.mark.parametrize("mutate,label", [
+    (lambda en: dict(en, rationale=en["rationale"] + " The board should keep an eye on it."), "hedge"),
+    (lambda en: dict(en, rationale="The balance on 461 is group capital with no maturity."), "anchor"),
+    (lambda en: dict(en, steps=[dict(en["steps"][0], imperative="Monitor the 461 sub-ledger")]), "imperative"),
+    (lambda en: dict(en, rationale=""), "rationale"),
+], ids=["hedge", "anchor", "imperative", "empty"])
+def test_s9_the_contract_recheck_refuses_what_the_fresh_path_refuses(finding, mutate, label):
+    en, ro = _resolved_dicts(finding)
+    en_problems, ro_problems = FS.narrative_contract_problems(finding, mutate(en), ro)
+    assert en_problems, label
+    assert ro_problems == ()
+
+
+def test_s9_the_contract_recheck_judges_romanian_in_its_own_language(finding):
+    en, ro = _resolved_dicts(finding)
+    hedged = dict(ro, rationale=ro["rationale"] + " Soldul ar trebui monitorizat.")
+    assert FS.narrative_contract_problems(finding, en, hedged)[1]
+    weak = dict(ro, steps=[dict(ro["steps"][0], imperative="Monitorizează soldul de pe 461")])
+    assert FS.narrative_contract_problems(finding, en, weak)[1]
+    no_code = dict(ro, rationale="Soldurile cu părțile afiliate sunt capital imobilizat.")
+    assert FS.narrative_contract_problems(finding, en, no_code)[1]
+
+
+def test_s9_the_review_recheck_demands_an_accepted_row_at_todays_floor(monkeypatch):
+    good = [{"language": "en", "specificity": 0.86, "reads_identically": False,
+             "accepted": True}]
+    assert FS.review_problems(good, 0.86, None, ro_present=False) == ()
+    assert FS.review_problems([], 0.86, None, ro_present=False)
+    assert FS.review_problems(good, None, None, ro_present=False)
+    assert FS.review_problems(good, 0.86, None, ro_present=True)       # RO served, unreviewed
+    assert FS.review_problems([dict(good[0], accepted=False)], 0.86, None, ro_present=False)
+    assert FS.review_problems([dict(good[0], reads_identically=True)], 0.86, None, ro_present=False)
+    assert FS.review_problems([dict(good[0], specificity=0.5)], 0.5, None, ro_present=False)
+    # today's floor, not the floor the record was written under
+    monkeypatch.setenv(FS.SPECIFICITY_FLOOR_ENV, "0.90")
+    assert FS.review_problems(good, 0.86, None, ro_present=False)
+
+
 # ══ S4 — EVERY RESULT WENT THROUGH THE SEAM ══════════════════════════════
 
 
@@ -894,16 +1205,34 @@ def test_s8_assert_no_new_numerals_raises_on_the_f9_plant(finding):
 def test_s8_the_guarded_seam_demotes_the_f9_plant(finding):
     """The shape the findings gate lane expects: a bare model numeral does
     not surface. Same plant text as
-    `test_f9_no_model_numeral_survives_into_the_prose`."""
+    `test_f9_no_model_numeral_survives_into_the_prose`.
+
+    ORDER-INDEPENDENT: the unguarded seam is read through
+    `FS.unguarded_seam()` — the function `_finding` itself defines — and
+    the guard is installed EXPLICITLY for the assertion and restored
+    after. Reading `F.apply_advisory_narrative` for the "unguarded" half
+    would test whichever function the most recent import left there
+    (`engine.api._finding_advisory` installs the twin as a side effect),
+    which is what made this test red in the full run and green alone.
+    """
     invented = ("For a mid-size inventory-heavy operator this balance has "
                 "grown 47% since the prior year.")
-    assert F.apply_advisory_narrative(
-        finding, rationale=invented).verdict().surfaced, \
+    raw = FS.unguarded_seam()
+    assert raw is not FS.apply_advisory_narrative
+    assert raw(finding, rationale=invented).verdict().surfaced, \
         "the UNGUARDED seam still ships it — that is the hole F9 names"
-    planted = FS.apply_advisory_narrative(finding, rationale=invented)
+    before = F.apply_advisory_narrative
+    try:
+        FS.install_guard(F)
+        assert F.apply_advisory_narrative is FS.apply_advisory_narrative
+        planted = F.apply_advisory_narrative(finding, rationale=invented)
+    finally:
+        F.apply_advisory_narrative = before
     assert not planted.verdict().surfaced
     assert planted.narrative_source == "advisory"
     assert F._numeric_fingerprint(planted) == F._numeric_fingerprint(finding)
+    # ...and the twin itself, called directly, demotes the same plant.
+    assert not FS.apply_advisory_narrative(finding, rationale=invented).verdict().surfaced
 
 
 def test_s8_the_guarded_seam_passes_a_clean_rewrite_through(finding):
