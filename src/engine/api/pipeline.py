@@ -2115,14 +2115,57 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
     # which already separates the two; pulling from there keeps the
     # arithmetic in ONE place rather than re-deriving here.
     capitalized_own_work = float(pl.get("capitalizedOwnWork", 0) or 0)
-    net_income_statutory = net_income + capitalized_own_work
+    # 2026-09-06 — the paragraph above has said "the values come from the
+    # canonical pl assembly, which already separates the two; pulling from
+    # there keeps the arithmetic in ONE place rather than re-deriving
+    # here" since it was written. The code did not do that: it re-derived
+    # `net_income + 722` and never saw the account-121 anchor the
+    # canonical assembly applies (chart_of_accounts.py, rule F3.7d). So
+    # ONE served response carried two numbers under one name —
+    #
+    #   book        assembled_pl.net_income_statutory   metrics.net_income_statutory
+    #   agras                        7,533,676.02                    14,106,102.03
+    #   carniprod                    1,435,533.59                     5,843,449.04
+    #   realestate                    -801,604.14                   -30,391,418.38
+    #   retail                       3,205,212.62                     1,161,957.98
+    #
+    # — and net_margin, roa, roe, free_cash_flow and the profitability
+    # sub-score of the credit composite were all built on the right-hand
+    # column while the report's headline stated the left-hand one.
+    #
+    # The intent is now the code, on the F3.15 `core_ebitda` precedent
+    # below: the canonical assembly is the single source of truth and
+    # this function is a READER. The local arithmetic survives only as
+    # the fallback for an envelope that carries no canonical P&L (a
+    # non-RO pack, or a pre-F1.a cached re-assembly) — where there is no
+    # anchor to miss either.
+    pl_canonical = s.get("assembled_pl") or {}
+    if not isinstance(pl_canonical, dict):
+        pl_canonical = {}
+
+    def _canonical(name: str, fallback: float) -> float:
+        value = pl_canonical.get(name)
+        return fallback if value is None else float(value)
+
+    net_income_statutory = _canonical(
+        "net_income_statutory", net_income + capitalized_own_work
+    )
     # Companion statutory views — symmetric with net_income_statutory.
     # ebitda_statutory  = cash EBITDA + 722 (includes capitalized own-work);
-    # total_operating_revenue = revenue + 722 + 711 + other_income (operating
-    # view that the FE KPI tiles and benchmark engine consume against).
+    # total_operating_revenue is the OPERATING revenue line the report's
+    # build-up and the KPI tiles state (revenue + discounts received);
+    # the total-production view that re-adds 722 + 711 + other income is a
+    # DIFFERENT figure and now says so in its own name rather than
+    # answering to `total_operating_revenue` as well.
     # Surfacing as named metrics so regression checks can query by exact name.
     ebitda_statutory = ebitda + capitalized_own_work
-    total_operating_revenue = revenue + capitalized_own_work + inv_var_memo + other_inc
+    total_operating_revenue_statutory = _canonical(
+        "total_operating_revenue_statutory",
+        revenue + capitalized_own_work + inv_var_memo + other_inc,
+    )
+    total_operating_revenue = _canonical(
+        "total_operating_revenue", total_operating_revenue_statutory
+    )
 
     current_assets = bs["cash"] + bs["accountsReceivable"] + bs["inventory"] + bs["otherCurrentAssets"]
     non_current_assets = bs["propertyPlantEquipment"] + bs["intangibles"] + bs["otherNonCurrentAssets"]
@@ -2155,10 +2198,25 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
         {"name": "net_income_statutory",   "value": round(net_income_statutory, 2), "unit": "RON", "direction": "higher"},
         {"name": "ebitda_statutory",       "value": round(ebitda_statutory, 2),     "unit": "RON", "direction": "higher"},
         {"name": "total_operating_revenue","value": round(total_operating_revenue, 2),"unit": "RON","direction": "higher"},
+        # The total-production view (revenue + 722 + 711 + other income),
+        # under a name that means it. Until 2026-09-06 this number WAS
+        # `total_operating_revenue` here while `assembled_pl` served the
+        # operating line under the same name — agras 311,058,756.52 in one
+        # half of the response and 118,576,819.64 in the other.
+        {"name": "total_operating_revenue_statutory", "value": round(total_operating_revenue_statutory, 2), "unit": "RON", "direction": "higher"},
         {"name": "capitalized_own_work_memo", "value": round(capitalized_own_work, 2), "unit": "RON", "direction": "neutral"},
         {"name": "gross_margin",       "value": safe(gross_profit, revenue),"unit": "ratio","direction": "higher"},
         {"name": "ebitda_margin",      "value": safe(ebitda, revenue),     "unit": "ratio", "direction": "higher"},
-        {"name": "net_margin",         "value": safe(net_income, revenue), "unit": "ratio", "direction": "higher"},
+        # ── Every ratio with net income in it reads the ANCHOR ─────────
+        # net_margin / roa / roe / free_cash_flow below all take
+        # `net_income_statutory` — account 121, the figure the KPI tile,
+        # the dashboard headline, the chat context and the P&L build-up
+        # all state. A ratio on the reconstruction would put a second net
+        # income on the same page under a percent sign, which is exactly
+        # what section 5 did (agras ROE 59.0% beside the tile's 31.5%).
+        # `net_income` / `net_income_operational` above keep the
+        # reconstruction, under names that say so.
+        {"name": "net_margin",         "value": safe(net_income_statutory, revenue), "unit": "ratio", "direction": "higher"},
         {"name": "total_assets",       "value": round(total_assets, 2),    "unit": "RON",   "direction": "neutral"},
         {"name": "total_debt",         "value": round(total_debt, 2),      "unit": "RON",   "direction": "lower"},
         {"name": "total_equity",       "value": round(total_equity, 2),    "unit": "RON",   "direction": "higher"},
@@ -2166,11 +2224,11 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
         {"name": "debt_to_equity",     "value": safe(total_debt, total_equity),     "unit": "ratio", "direction": "lower"},
         {"name": "debt_to_ebitda",     "value": safe(total_debt, ebitda),           "unit": "ratio", "direction": "lower"},
         {"name": "interest_coverage",  "value": safe(ebitda, interest),             "unit": "ratio", "direction": "higher"},
-        {"name": "roa",                "value": safe(net_income, total_assets),     "unit": "ratio", "direction": "higher"},
-        {"name": "roe",                "value": safe(net_income, total_equity),     "unit": "ratio", "direction": "higher"},
+        {"name": "roa",                "value": safe(net_income_statutory, total_assets),  "unit": "ratio", "direction": "higher"},
+        {"name": "roe",                "value": safe(net_income_statutory, total_equity),  "unit": "ratio", "direction": "higher"},
         {"name": "roic",               "value": safe(operating_profit * (1 - 0.16), max(total_debt + total_equity, 1)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
-        {"name": "free_cash_flow",     "value": round(net_income + depreciation, 2),"unit": "RON",  "direction": "higher"},
+        {"name": "free_cash_flow",     "value": round(net_income_statutory + depreciation, 2),"unit": "RON",  "direction": "higher"},
     ]
 
     # F3.11 — F3.9 source-data quality telemetry. Persisted as numeric
@@ -2336,8 +2394,13 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
 
         # Profitability sub-score: blend ROE + net margin. ROE weighted 0.5×
         # to keep margin-led growth companies from looking weak.
-        roe_val = net_income / total_equity if total_equity > 0 else 0
-        net_margin_val = net_income / revenue if revenue > 0 else 0
+        # Both take the ANCHOR — the same figure the `roe` and `net_margin`
+        # metrics above now carry. A composite grade built on the
+        # reconstruction while the page shows the filed figure is a
+        # verdict on a number the reader is never given: agras scored 59.3
+        # on profitability from 14.1M, where the filed 7.5M scores 31.7.
+        roe_val = net_income_statutory / total_equity if total_equity > 0 else 0
+        net_margin_val = net_income_statutory / revenue if revenue > 0 else 0
         prof_subscore = min(100, max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5))
 
         # Leverage sub-score (lower Net Debt/EBITDA = higher score). The

@@ -582,10 +582,25 @@ function KpiGrid({
   // Money tiles share ONE magnitude via the surrounding AmountGroup; the
   // sub line carries the exact converted figure so nothing is lost to
   // compaction.
+  // A margin printed beside a figure is the same concept as the ratio row
+  // forty lines below it, so it goes through the SAME instrument. Until
+  // 2026-09-06 the tiles built their own string with `toFixed(1)` while
+  // §5 rendered <PercentLevel>, and the two rounding paths disagreed on
+  // screen: agras' net margin printed 6.3% here and 6.4% there off one
+  // identical ratio, and realestate printed "-493.7%" against "−493.7%".
+  const marginSub = (ratio: number | null | undefined, tail: string, absent: string) =>
+    ratio == null || !Number.isFinite(ratio) ? (
+      absent
+    ) : (
+      <>
+        <PercentLevel value={ratio * 100} /> {tail}
+      </>
+    );
+
   const tiles: Array<{
     label: string;
     value: React.ReactNode;
-    sub?: string;
+    sub?: React.ReactNode;
     headline?: boolean;
     conceptKey?: string;
     rawValue?: number;
@@ -600,14 +615,22 @@ function KpiGrid({
     {
       label: "EBITDA — reported",
       value: <MoneyAmount value={ebitda.reported} fromCurrency={src} />,
-      sub: ebitda.reported_margin_pct != null ? `${ebitda.reported_margin_pct.toFixed(1)}% margin · acct 121 view` : "Reported / statutory",
+      sub: marginSub(
+        ebitda.reported_margin_pct != null ? ebitda.reported_margin_pct / 100 : null,
+        "margin · acct 121 view",
+        "Reported / statutory",
+      ),
       conceptKey: "ebitda",
       rawValue: ebitda.reported,
     },
     {
       label: "EBITDA — core",
       value: <MoneyAmount value={ebitda.core} fromCurrency={src} />,
-      sub: ebitda.core_margin_pct != null ? `${ebitda.core_margin_pct.toFixed(1)}% margin · excl. 758, 781` : "Basis for valuation",
+      sub: marginSub(
+        ebitda.core_margin_pct != null ? ebitda.core_margin_pct / 100 : null,
+        "margin · excl. 758, 781",
+        "Basis for valuation",
+      ),
       headline: true,
       conceptKey: "ebitda",
       rawValue: ebitda.core,
@@ -620,14 +643,15 @@ function KpiGrid({
       // and the Ratios row on the same page. The "legally filed"
       // sub-label refers to the source-currency value (per ¶ in F1.e
       // protocol — sub-label scope, not margin denominator).
-      sub: (() => {
-        if (typeof netMarginCanonical === "number") {
-          return `${(netMarginCanonical * 100).toFixed(1)}% margin · legally filed`;
-        }
-        return totalOpRev > 0
-          ? `${((netProfit.statutory_account_121 / totalOpRev) * 100).toFixed(1)}% margin · legally filed`
-          : "Legally filed (acct 121)";
-      })(),
+      sub: marginSub(
+        typeof netMarginCanonical === "number"
+          ? netMarginCanonical
+          : totalOpRev > 0
+            ? netProfit.statutory_account_121 / totalOpRev
+            : null,
+        "margin · legally filed",
+        "Legally filed (acct 121)",
+      ),
       conceptKey: "net_profit",
       rawValue: netProfit.statutory_account_121,
     },
@@ -681,16 +705,40 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   const f = (path: string) => origin.field(`assembled_pl.${path}`);
   const neg = (path: string) => origin.field(`assembled_pl.${path}`, "presented negative");
 
-  // Operational net profit (engine field, despite the legacy name) and the
-  // 722 capitalized-own-work memo. Statutory ct-121 = operational + 722;
-  // this is the explicit reconciliation bridge the board reader needs,
-  // never a second competing headline. NO new computation — just summing
-  // two figures the engine already emits, exactly as the EEI report does.
-  // Either one absent → the bridge is absent (see `sumOf`).
-  const opNetProfit: number | undefined = pl.net_income_statutory;
+  // ── The build-up, as a column a reader can add up ─────────────────
+  //
+  // Every row below is either a STEP in one running total or a MEMO
+  // standing beside it, and the table says which. Until 2026-09-06 it
+  // was neither: "Depreciation & amortization" was subtracted two rows
+  // ABOVE the EBITDA it is added back into, "Other operating income"
+  // read `assembled_pl.other_operating_income` — a field the engine did
+  // not emit — and painted the gap glyph while EBITDA silently included
+  // it, and the last row printed the account-121 anchor under the label
+  // "Net profit — operational". On agras the column ran
+  // 15,577,652.03 − 1,471,550.00 and then printed 7,533,676.02: a
+  // 6,572,426.01 step with no line and no name.
+  //
+  // The chain now runs on the fields the canonical assembly itself used
+  // to form each subtotal — `revenue`, not `total_operating_revenue`
+  // (which carries discounts received, a credit the EBITDA the engine
+  // computes does not) — so each subtotal is the sum of the steps above
+  // it on every book, with no client arithmetic reconciling anything.
+  //
+  // The tail is the honest part. The class-6/7 reconstruction and the
+  // filed account-121 figure are two different numbers on three of the
+  // four firm books, by factors of 1.9× to 37.9×. The build-up ends on
+  // the FILED figure — it is what the company reported, what the KPI
+  // tile, the dashboard and every ratio on this page now state, and a
+  // memo that ended anywhere else would be stating a number nobody
+  // filed. The step to it is shown, split into what can be named (722)
+  // and what cannot, and the part that cannot is LABELLED unexplained
+  // with its amount rather than absorbed into a plug.
+  const reconstructed: number | undefined = pl.net_income_operational;
+  const filedNetProfit: number | undefined = pl.net_income_statutory;
   const capOwnWork: number | undefined = pl.capitalized_own_work_memo;
-  const statNetProfit = sumOf(opNetProfit, capOwnWork);
+  const unexplained: number | undefined = pl.net_income_unexplained_vs_121;
   const has722 = capOwnWork != null && Math.abs(capOwnWork) > 0.5;
+  const hasUnexplained = unexplained != null && Math.abs(unexplained) > 0.005;
 
   // Row schema  →  { label, value, style, sub?, indent? }
   type RowStyle =
@@ -698,51 +746,83 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     | "indent"
     | "subtotal"
     | "highlight"
-    | "headline"        // operational net-profit headline (primary emphasis)
-    | "reconciliation"  // the 722 bridge lines (lesser emphasis)
+    | "headline"        // the filed net-profit headline (primary emphasis)
+    | "reconciliation"  // the steps from the reconstruction to account 121
     | "memo";
-  type Row = { label: string; val: number | undefined; style: RowStyle; origin: AmountProvenance | null };
+  /** `step` rows accumulate into the running total; `memo` rows stand
+   *  beside it and are never added. */
+  type Row = {
+    label: string;
+    val: number | undefined;
+    style: RowStyle;
+    origin: AmountProvenance | null;
+    role: "step" | "subtotal" | "memo";
+  };
 
   const rows: Row[] = [
-    { label: "Net turnover",                              val: pl.revenue,                style: "subtotal", origin: f("revenue") },
-    { label: "Capitalized own work (722, non-cash memo)", val: pl.capitalized_own_work_memo, style: "memo", origin: f("capitalized_own_work_memo") },
-    { label: "Other operating income",                    val: pl.other_operating_income, style: "indent", origin: f("other_operating_income") },
-    { label: "Total operating revenue",                   val: pl.total_operating_revenue, style: "subtotal", origin: f("total_operating_revenue") },
-    { label: "Cost of goods sold",                        val: negated(pl.cogs),          style: "indent", origin: neg("cogs") },
-    { label: "Operating expenses",                        val: negated(pl.opex_total),    style: "indent", origin: neg("opex_total") },
-    { label: "Depreciation & amortization",               val: negated(pl.depreciation),  style: "indent", origin: neg("depreciation") },
-    {
-      label: "EBITDA (cash view)",
-      val: pl.ebitda_cash ?? pl.ebitda_operational,
-      style: "highlight",
-      origin: f(pl.ebitda_cash != null ? "ebitda_cash" : "ebitda_operational"),
-    },
-    { label: "EBITDA (statutory)",                        val: pl.ebitda_statutory,       style: "highlight", origin: f("ebitda_statutory") },
-    { label: "EBIT",                                      val: pl.ebit,                   style: "indent", origin: f("ebit") },
-    {
-      label: "Net financial result",
-      val: sumOf(pl.financial_income, negated(pl.financial_expense), negated(pl.interest_expense)),
-      style: "indent",
-      origin: origin.derived("assembled_pl.financial_income − financial_expense − interest_expense"),
-    },
-    { label: "Pre-tax profit",                            val: pl.pretax,                 style: "subtotal", origin: f("pretax") },
-    { label: "Income tax",                                val: negated(pl.tax),           style: "indent", origin: neg("tax") },
-    // ── Operational net profit — THE headline figure ──────────────────
-    { label: "Net profit — operational (excl. 722)",      val: opNetProfit,               style: "headline", origin: f("net_income_statutory") },
+    { label: "Net turnover", val: pl.revenue, style: "subtotal", origin: f("revenue"), role: "step" },
+    { label: "Other operating income", val: pl.other_operating_income, style: "indent", origin: f("other_operating_income"), role: "step" },
+    { label: "Cost of goods sold", val: negated(pl.cogs), style: "indent", origin: neg("cogs"), role: "step" },
+    { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
+    { label: "EBITDA", val: pl.ebitda_cash ?? pl.ebitda_operational, style: "highlight", origin: f(pl.ebitda_cash != null ? "ebitda_cash" : "ebitda_operational"), role: "subtotal" },
+    { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
+    { label: "EBIT", val: pl.ebit, style: "highlight", origin: f("ebit"), role: "subtotal" },
+    { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
+    { label: "Pre-tax profit", val: pl.pretax, style: "subtotal", origin: f("pretax"), role: "subtotal" },
+    { label: "Income tax", val: negated(pl.tax), style: "indent", origin: neg("tax"), role: "step" },
+    // ── the reconstruction, then the bridge to what was filed ─────────
+    { label: "Net profit — reconstructed (class 6/7 movements)", val: reconstructed, style: "subtotal", origin: f("net_income_operational"), role: "subtotal" },
   ];
 
-  // ── 722 reconciliation bridge — only when 722 is materially non-zero.
-  // Operational stays the visual headline; statutory is shown below as the
-  // reconciled total, NOT as a second headline. Same pattern the EEI
-  // report uses ("Operational → + 722 → Statutory ct 121").
   if (has722) {
-    rows.push(
-      { label: "+ Capitalized own work (722)",            val: capOwnWork,                style: "reconciliation", origin: f("capitalized_own_work_memo") },
+    rows.push({
+      label: "+ Capitalized own work (722)",
+      val: capOwnWork,
+      style: "reconciliation",
+      origin: f("capitalized_own_work_memo"),
+      role: "step",
+    });
+  }
+  if (hasUnexplained) {
+    rows.push({
+      label: "± Unexplained — reconstruction vs filed account 121",
+      val: unexplained,
+      style: "reconciliation",
+      origin: f("net_income_unexplained_vs_121"),
+      role: "step",
+    });
+  }
+  rows.push({
+    label: "= Net profit — statutory (account 121, as filed)",
+    val: filedNetProfit,
+    style: "headline",
+    origin: f("net_income_statutory"),
+    role: "subtotal",
+  });
+
+  // ── memos — figures the reader recognises that are NOT steps here ──
+  // `total_operating_revenue` carries discounts received (767), which
+  // the engine's EBITDA does not, so it cannot sit inside this column
+  // without breaking it. `ebitda_statutory` re-adds 722. Both are real
+  // served figures and both stay visible, beside the column rather than
+  // inside it.
+  rows.splice(1, 0, {
+    label: "Total operating revenue (memo — incl. discounts received)",
+    val: pl.total_operating_revenue,
+    style: "memo",
+    origin: f("total_operating_revenue"),
+    role: "memo",
+  });
+  if (has722) {
+    rows.splice(
+      rows.findIndex((r) => r.label === "EBITDA") + 1,
+      0,
       {
-        label: "= Net profit — statutory (ct 121)",
-        val: statNetProfit,
-        style: "reconciliation",
-        origin: origin.derived("assembled_pl.net_income_statutory + capitalized_own_work_memo"),
+        label: "EBITDA (statutory, incl. 722) — memo",
+        val: pl.ebitda_statutory,
+        style: "memo",
+        origin: f("ebitda_statutory"),
+        role: "memo",
       },
     );
   }
@@ -784,6 +864,8 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
               return (
                 <tr
                   key={r.label}
+                  data-pl-role={r.role}
+                  data-pl-exact={v == null ? undefined : String(v)}
                   className={`h-8 ${r.style === "headline" ? "border-t border-t-rule-strong" : r.style === "reconciliation" ? "border-t border-dashed border-rule-strong" : "border-t border-rule-soft"} first:border-t-0 ${rowCls[r.style]}`}
                 >
                   <td className={`px-4 py-1 ${labelCls[r.style]}`}>{r.label}</td>
@@ -800,20 +882,37 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
         </table>
       </Panel>
 
-      {/* Commentary callout — only when 722 is material. Mirrors the
-       *  analytical note: 722 is a non-cash credit offset to CIP (231);
-       *  the corresponding cost is in 628; net P&L effect on the
-       *  OPERATIONAL view is ~zero. */}
-      {has722 && (
+      {/* Commentary — what the bridge at the foot of the column IS.
+       *  Rendered whenever the build-up carries a bridge at all, because
+       *  a reader who sees a step must be able to read what caused it. */}
+      {(has722 || hasUnexplained) && (
         <Panel inset className="mt-4 border-l-[3px] border-l-brand px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed" role="note">
-          <span className="font-semibold text-brand-d dark:text-brand-l">722 reconciliation —</span>{" "}
-          Account 722 (capitalized own work) is a non-cash credit that capitalizes internally-incurred
-          costs into CIP (account 231 — the year&rsquo;s movement matches 722 to the cent). The
-          corresponding cost sits inside account 628 (third-party services). Net P&amp;L effect of the
-          722/628 wash is ~zero; the OPERATIONAL net profit ({fmt(opNetProfit)} {displayCurrency}) is therefore the
-          headline figure across this report. Statutory net profit ({fmt(statNetProfit)} {displayCurrency}, matches
-          account 121 closing balance) is shown above as the reconciled total — not as a competing
-          headline.
+          <span className="font-semibold text-brand-d dark:text-brand-l">
+            Reconstruction → filed accounts —
+          </span>{" "}
+          The column above rebuilds the P&amp;L from the trial balance&rsquo;s class 6 and class 7
+          movements. It ends on account 121&rsquo;s closing balance ({fmt(filedNetProfit)}{" "}
+          {displayCurrency}) — the figure the company filed, and the one every KPI tile and ratio on
+          this page states.
+          {has722 && (
+            <>
+              {" "}
+              Account 722 (capitalized own work, {fmt(capOwnWork)} {displayCurrency}) is a non-cash
+              credit that capitalizes internally-incurred costs into CIP (account 231); the
+              corresponding cost sits inside account 628, so the P&amp;L effect of the 722/628 wash is
+              ~zero and the reconstruction excludes it.
+            </>
+          )}
+          {hasUnexplained && (
+            <>
+              {" "}
+              The remaining {fmt(unexplained)} {displayCurrency} is <strong>not explained</strong> by
+              any line on this statement: the class-6/7 movements this trial balance carries do not
+              sum to what account 121 closed at. It is shown with its amount rather than folded into
+              a plug, because a build-up that foots on an invented component is worse than one that
+              names its gap. Reconciling the two needs the source ledger, not this extract.
+            </>
+          )}
         </Panel>
       )}
     </>
