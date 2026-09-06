@@ -264,8 +264,21 @@ export function AccountMenu({ onOpen }: { onOpen?: () => void } = {}) {
       <DropdownMenuContent
         align="end"
         sideOffset={8}
+        // BOUNDED, AND IT SCROLLS. This panel is taller than a laptop
+        // viewport once a plan card, the learning modes, view mode,
+        // currency, appearance and the account rows are all present — the
+        // owner opened it at 100% zoom on a 13" display and could not reach
+        // Sign out, which is the one row a user must always be able to
+        // press. `--radix-dropdown-menu-content-available-height` is the
+        // space Radix measured between the trigger and the viewport edge,
+        // so the panel ends where the screen ends and the overflow scrolls
+        // instead of falling off it. `overscroll-contain` keeps a scroll
+        // that reaches the end of the menu from continuing into the page
+        // behind it.
         className="
           w-[340px] p-0 rounded-[22px]
+          max-h-[min(calc(var(--radix-dropdown-menu-content-available-height)-16px),calc(100dvh-96px))]
+          overflow-y-auto overscroll-contain
           bg-surface/95 backdrop-blur-xl
           border border-rule-strong/80
           shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)]

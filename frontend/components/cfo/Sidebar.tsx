@@ -98,12 +98,21 @@ export interface ShellNavItem {
   icon: LucideIcon;
   testId: string;
   group: ShellNavGroup;
-  /** Registry gate — `hidden`/unknown drops the item, `coming_soon` too. */
+  /** Registry gate. NOT a filter: a feature the registry does not report
+   *  `active` stays IN the nav and is marked pending, because the launch
+   *  spec is "every unfinished but roadmap-real feature REACHABLE FROM NAV
+   *  gets a PendingState". Dropping the row instead made the app look
+   *  stripped — the owner opened it and asked where their features had
+   *  gone — and a vanished row teaches nothing, while a marked one says
+   *  the feature exists and is not in this release. */
   featureKey?: FeatureKey;
   /** NavLink exact match, for paths that prefix other paths. */
   end?: boolean;
   /** Keyboard shortcut hint, shown on hover ("⌘J"). Display only. */
   shortcutKey?: string;
+  /** Resolved at render: the registry does not report this feature active,
+   *  so the row is muted and its route renders PendingState. */
+  pending?: boolean;
 }
 
 // ANALYZE keeps the operator's order (2026-08-28): Scenarios leads,
@@ -133,20 +142,24 @@ export const SHELL_GROUP_LABEL_KEYS: Record<ShellNavGroup, string> = {
   ask: "shell.nav.ask",
 };
 
-function filterByRegistry(
+function markByRegistry(
   items: ShellNavItem[],
   status: (k: FeatureKey) => FeatureStatus | undefined,
 ): ShellNavItem[] {
-  return items.filter((item) => {
-    if (!DECISIONS_ALERTS_ENABLED && (item.to === "/decisions" || item.to === "/alerts")) {
-      return false;
-    }
-    if (item.featureKey) {
+  return items
+    .filter((item) =>
+      // A BUILD flag, not the registry: these two are compiled out of the
+      // product entirely, so there is no route to send anyone to and no
+      // honest "not in this release" to show.
+      DECISIONS_ALERTS_ENABLED || (item.to !== "/decisions" && item.to !== "/alerts"))
+    .map((item) => {
+      if (!item.featureKey) return item;
       const s = status(item.featureKey);
-      if (s !== "active") return false;
-    }
-    return true;
-  });
+      // `undefined` is the registry being unreachable, not a verdict —
+      // mark pending rather than claim the feature works, and rather than
+      // make the whole nav vanish on a failed fetch.
+      return s === "active" ? item : { ...item, pending: true };
+    });
 }
 
 export interface ShellNavGroupResolved {
@@ -160,7 +173,7 @@ export interface ShellNavGroupResolved {
 export function useShellNav(): ShellNavGroupResolved[] {
   const { t } = useTranslation();
   const { features } = useFeatures();
-  const visible = filterByRegistry(SHELL_NAV_ALL, (k) => features[k]?.status);
+  const visible = markByRegistry(SHELL_NAV_ALL, (k) => features[k]?.status);
   return SHELL_GROUP_ORDER.map((g) => ({
     key: g,
     label: t(SHELL_GROUP_LABEL_KEYS[g]),
@@ -298,7 +311,7 @@ export function Sidebar({
         </div>
         {groups.filter((g) => g.key !== "ask").map((g) => (
           <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
-            {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey }) => (
+            {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey, pending }) => (
               <SidebarLink
                 key={to}
                 to={to}
@@ -310,6 +323,7 @@ export function Sidebar({
                 end={end}
                 disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
                 shortcutKey={shortcutKey}
+                pending={pending}
                 trailing={
                   to === "/chat" && chatReplyPending ? (
                     <Loader2
@@ -430,6 +444,7 @@ function SidebarLink({
   trailing,
   disabled = false,
   shortcutKey,
+  pending = false,
 }: {
   to: string;
   testId: string;
@@ -443,6 +458,9 @@ function SidebarLink({
   /** Render greyed-out and non-navigating (no workspace loaded yet). */
   disabled?: boolean;
   /** Hover-revealed shortcut hint key ("J" renders as ⌘J / Ctrl+J). */
+  /** The registry does not report this feature active: the row stays,
+   *  muted, and its route renders PendingState. */
+  pending?: boolean;
   shortcutKey?: string;
 }) {
   const [params] = useSearchParams();
@@ -475,6 +493,7 @@ function SidebarLink({
     <NavLink
       to={href}
       data-testid={testId}
+      data-pending={pending ? "true" : undefined}
       onClick={(e) => {
         // Leaving a page with unapplied edits warns first (lib/unsavedGuard).
         if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
@@ -506,7 +525,11 @@ function SidebarLink({
               className="absolute inset-y-1 left-0 w-[2px] bg-brand"
             />
           )}
-          <Icon size={16} strokeWidth={1.75} className="shrink-0" />
+          <Icon
+            size={16}
+            strokeWidth={1.75}
+            className={`shrink-0 ${pending ? "opacity-40" : ""}`}
+          />
           {/* Label stays MOUNTED in both modes and crossfades — an instant
               unmount makes the collapse feel choppy; the aside's
               overflow-hidden clips it while the width animates. */}
@@ -515,8 +538,17 @@ function SidebarLink({
               collapsed ? "opacity-0" : "opacity-100"
             }`}
           >
-            {label}
+            <span className={pending ? "opacity-50" : undefined}>{label}</span>
           </span>
+          {!collapsed && pending && !trailing && (
+            // A quiet dot, not a word: the row says "there, not yet" without
+            // shouting it on every render. The destination itself explains.
+            <span
+              aria-hidden
+              title="Not in this release"
+              className="ml-auto shrink-0 h-1.5 w-1.5 rounded-full bg-ink-soft/40"
+            />
+          )}
           {!collapsed && (trailing ? (
             <span className="ml-auto shrink-0 inline-flex items-center">
               {trailing}
