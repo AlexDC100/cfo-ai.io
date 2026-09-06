@@ -36,7 +36,7 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (90 modules)"]
+    pkg_api["api (100 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_confidence["confidence (5 modules)"]
@@ -45,6 +45,7 @@ graph LR
     pkg_country_packs["country_packs (14 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
+    pkg_firm["firm (12 modules)"]
     pkg_frontends["frontends (11 modules)"]
     pkg_ingestion["ingestion (2 modules)"]
     pkg_intelligence["intelligence (4 modules)"]
@@ -55,9 +56,10 @@ graph LR
     pkg_obs["obs (5 modules)"]
     pkg_packs["packs (5 modules)"]
     pkg_passes["passes (5 modules)"]
-    pkg_public["public (44 modules)"]
+    pkg_public["public (46 modules)"]
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
+    pkg_radar["radar (4 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (7 modules)"]
@@ -74,19 +76,21 @@ graph LR
     pkg_ai_lane -->|2| pkg_country_packs
     pkg_ai_lane -->|3| pkg_packs
     pkg_api -->|6| pkg__root_
-    pkg_api -->|3| pkg_ai
-    pkg_api -->|1| pkg_ai_lane
+    pkg_api -->|5| pkg_ai
+    pkg_api -->|2| pkg_ai_lane
     pkg_api -->|1| pkg_consensus
-    pkg_api -->|2| pkg_core
-    pkg_api -->|2| pkg_country_packs
+    pkg_api -->|4| pkg_core
+    pkg_api -->|3| pkg_country_packs
     pkg_api -->|1| pkg_detection
+    pkg_api -->|3| pkg_firm
     pkg_api -->|1| pkg_interp
     pkg_api -->|3| pkg_journal
     pkg_api -->|1| pkg_obs
     pkg_api -->|1| pkg_passes
-    pkg_api -->|1| pkg_public
+    pkg_api -->|2| pkg_public
     pkg_api -->|1| pkg_public_market
-    pkg_api -->|1| pkg_public_ro
+    pkg_api -->|2| pkg_public_ro
+    pkg_api -->|1| pkg_radar
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
@@ -107,6 +111,8 @@ graph LR
     pkg_dst -->|1| pkg_country_packs
     pkg_dst -->|2| pkg_journal
     pkg_dst -->|1| pkg_serving
+    pkg_firm -->|2| pkg_api
+    pkg_firm -->|1| pkg_serving
     pkg_frontends -->|1| pkg_ai_lane
     pkg_frontends -->|2| pkg_core
     pkg_frontends -->|5| pkg_country_packs
@@ -128,10 +134,14 @@ graph LR
     pkg_passes -->|3| pkg_packs
     pkg_public -->|1| pkg_api
     pkg_public -->|1| pkg_canonical
+    pkg_public -->|1| pkg_public_ro
     pkg_public_market -->|1| pkg_serving
     pkg_public_ro -->|3| pkg_api
     pkg_public_ro -->|1| pkg_journal
     pkg_public_ro -->|1| pkg_obs
+    pkg_radar -->|1| pkg_ai
+    pkg_radar -->|2| pkg_api
+    pkg_radar -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
     pkg_serving -->|1| pkg_consensus
@@ -220,6 +230,7 @@ graph LR
     engine_ai_evals_run_baseline --> engine_ai_registry
     engine_ai_finding_sharpen --> engine_ai
     engine_ai_finding_sharpen --> engine_ai_breaker
+    engine_ai_finding_sharpen --> engine_ai_numerals
     engine_ai_finding_sharpen --> engine_ai_registry
     engine_api__reconcile --> engine_ai
     engine_api__reconcile --> engine_ai_registry
@@ -320,6 +331,7 @@ declaration is the supply-chain lock's job to reject).
 | `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
+| `firm` | yaml (pyyaml) |
 | `frontends` | pandas (pandas) |
 | `intelligence` | pandas (pandas) |
 | `interp` | openpyxl (openpyxl), pandas (pandas) |
@@ -328,4 +340,5 @@ declaration is the supply-chain lock's job to reject).
 | `public` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), pydantic (pydantic) |
 | `public_market` | anthropic (anthropic), fastapi (fastapi), yaml (pyyaml) |
 | `public_ro` | fastapi (fastapi), pydantic (pydantic) |
+| `radar` | yaml (pyyaml) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |
