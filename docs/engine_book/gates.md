@@ -1308,8 +1308,8 @@ No test path may be able to write to production.
 | | |
 |---|---|
 | command | `node scripts/check_test_env_isolation.mjs` |
-| work count | stdout `units=N` env vars examined, floor **1** |
-| canary | `TEST-ENV ISOLATION`, `sanctioned supabase` |
+| work count | stdout `GATE-WORK test-env-isolation units=N` surface x mode resolutions, floor **2** |
+| canary | `TEST-ENV ISOLATION (PER-WORKTREE)`, `sanctioned supabase`, `surfaces resolved`, `runtime dev servers` |
 
 **THE INCIDENT (2026-09-01).** `.env` pointed `VITE_SUPABASE_URL` at the
 production project; `.env.local` set `VITE_PUBLIC_TEST_MODE=1`. Vite
@@ -1355,6 +1355,47 @@ to `PASS — no test path resolves a non-sanctioned Supabase project.`
 **Vacuity probe:** `--probe-vacuity` empties the file list and the gate
 fails with `DISCOVERY BROKEN — examined 0 environment variables`, rather
 than reporting isolation for a machine it never looked at.
+
+**SECOND REWRITE (2026-09-06) — THE GATE WAS BLIND TO EIGHT ROOTS OF NINE.**
+The first version set `ROOT = process.cwd()` and read five fixed filenames
+under it, so it judged exactly the worktree the battery launched it from.
+Measured: `git worktree list` returns nine, each a complete Vite root with
+its own `.env*`; every one ships a `.claude/launch.json` whose Vite entry
+is `npm --prefix <repo>/scandi-desk-main run dev`, a gitignored directory
+**outside every worktree** whose `.env` holds the production project; and a
+`vite --mode launchgate2` server was live against `.env.launchgate2`, a
+name the five-name list could not express.
+
+The gate now enumerates SURFACES — git worktrees, launch.json targets, and
+the working directory of every listening process, with that process's
+**ambient environment** overlaid the way Vite overlays it — and resolves
+each surface at every mode its own filesystem implies. Work is counted in
+surface x mode resolutions, not variables: eight of nine worktrees hold no
+dotenv, so a variable count is dominated by the one root that has files and
+would not move if the census lost the other eight.
+
+It FAILS, never warns and never skips, on F1 dead worktree discovery, F2 a
+stale worktree registration, F3 an unreadable launch.json or an
+unresolvable dev-server target, F4 an env file present but unreadable, F5 a
+live listening server whose cwd/argv/ambient env cannot be read, F6 no
+runtime discoverer on the host, F7 a live server on a root with no env file
+at all. Listeners whose cwd is readable and outside every surface are
+counted and printed, never silently dropped.
+
+**RED, on first run of the rewrite (a real finding, not a plant):**
+
+```
+FAIL — 1 test path(s) resolve a non-sanctioned Supabase project:
+  /Users/alex/Desktop/folder claude Scandia copy @ mode=development
+    VITE_PUBLIC_TEST_MODE=1   ← .env.local
+    PUBLIC_TEST_MODE=1   ← ambient env of pid 7086 (Python) :8000
+    VITE_SUPABASE_URL=https://<production-ref>.supabase.co   ← ambient env of pid 7086
+```
+
+The `.env.local` file correctly pins the sanctioned URL; the **running
+engine** was started with an ambient environment that predates that pin.
+Files were never the whole story, which is why the ambient overlay exists.
+
 
 ## hermetic
 
@@ -2697,3 +2738,125 @@ real upstream amplifiers are anonymous GET routes — `price-history?refresh=tru
 Nasdaq on every call, unbounded, while the two shielded POST routes make zero
 outbound calls ever. That inversion is tracked separately; this gate must not
 be read as covering it.
+
+## org-purge-by-name
+
+A destructive path against `organizations` may not choose its victims by
+NAME.
+
+| | |
+|---|---|
+| command | `node scripts/check_org_purge_by_name.mjs` |
+| work count | stdout `GATE-WORK org-purge-by-name units=N` destructive statements adjudicated, floor **3** |
+| canary | `ORG PURGE BY NAME`, `prose lines blanked` |
+
+**THE INCIDENT (2026-09-06).** A cleanup removed the 8,498 junk
+organisations with `name = 'Test workspace'`. The filter cut both ways. It
+**destroyed the sentinel** `00000000-0000-4000-8000-000000000002` —
+hardcoded as `_DEFAULT_TEST_ORG_ID` in `src/engine/api/_test_mode.py` and
+`TEST_ORG_ID` in `frontend/lib/testMode.ts` — because the sentinel was
+itself named "Test workspace"; the cascade took its four
+`financial_periods` and every document with it (measured after: 0 rows for
+each). And it **spared twelve** junk orgs named "My workspace", because
+`ensureDefaultWorkspace()` names a workspace from the Supabase session's
+`user_metadata.company_name`, absent in some flows. A name is not an
+identity.
+
+**The rule is POSITIVE, not a denylist.** Every row mutation against
+`organizations` must select by a predicate the gate recognises as safe —
+id, membership/user scope, or a time column. An unrecognised predicate is
+a FAIL. A denylist of bad patterns fails open on anything novel, and a
+quoted identifier (`"name" = …`), a `.or("name.ilike.…")` or a dynamic
+column key defeats a pattern list on its own.
+
+**Two gates, because half of this can die silently.** `units` counts
+statements ADJUDICATED, not files scanned — a file count cannot fall when
+the window finder breaks. The self-test is registered separately so a
+detector that stops firing is loud rather than serene.
+
+**Scope, stated rather than implied.** It reads repo text. It cannot read
+the deployed database, and this project applies migrations by hand in the
+Supabase SQL editor, so a name-based purge can be live in Postgres with
+every file in git correct. The incident itself was a human pasting a
+DELETE at a console. The PASS line says only what was examined.
+
+**PLANT** — the incident's own shape, in the client this repo's cleanup
+script uses:
+
+```diff
+--- a/scripts/qa_cleanup.py
++++ b/scripts/qa_cleanup.py
++_PLANT = supabase.table("organizations").delete().eq("name", "Test workspace")
+```
+
+**RED**:
+
+```
+GATE-WORK org-purge-by-name units=14 floor=3 label=destructive-statements-adjudicated
+FAIL — 1 destructive statement(s) that do not select safely:
+  [NAME-SELECTED] scripts/qa_cleanup.py:202
+        > _PLANT = supabase.table("organizations").delete().eq("name", "Test workspace")
+```
+
+**AND THE FIRST DRAFT PRINTED PASS OVER THIS EXACT PLANT.** It anchored on
+`.from("organizations")` — the supabase-**js** form. `supabase-py` says
+`.table(`, so the certifying plant slipped straight through: `units` stayed
+13 and the gate reported clean. That is the whole reason a gate is planted
+before it is trusted. The `.table()` case is now the fourth entry in the
+self-test's planted set, so the regression cannot come back quietly.
+
+**REVERT** — `git checkout -- scripts/qa_cleanup.py`; md5 confirmed
+identical to the pre-plant copy, `units` back to 13, `check_no_plants.mjs`
+clean over 902 product source files.
+
+## org-purge-selftest
+
+The detector half of `org-purge-by-name`, gated separately.
+
+| | |
+|---|---|
+| command | `node scripts/check_org_purge_by_name.mjs --self-test` |
+| work count | stdout `GATE-WORK org-purge-selftest units=N` planted cases, floor **8** |
+| canary | `DETECTOR SELF-TEST` |
+
+**WHY IT IS ITS OWN GATE.** The scan half counts files and statements and
+will keep counting them while the detector half quietly stops matching —
+which is precisely what happened on the first draft, where the certifying
+plant produced `units=13` and `PASS`. A scan that adjudicates and a
+detector that fires are two claims, and only one of them was ever being
+measured.
+
+**AND THE FIRST SELF-TEST COULD NOT FAIL.** It asked one question — "does
+the gate fire?" — but a name-shaped plant fires EITHER because a NAME
+selector matched it OR because it carries no safe predicate, and the two
+mechanisms mask each other. Three plants were run against it and observed:
+blinding the JS filter pattern, then also the Python one, then also making
+the positive rule vacuous with `{ rx: /./ }`. **All three stayed 12/12
+green.** Two mechanisms behind one assertion is one mechanism unmeasured.
+Each is now asserted on its own: a name-shaped plant must be caught BY THE
+NAME DETECTORS, a predicate-less plant BY THE POSITIVE RULE.
+
+**PLANT** — blind both detectors that recognise the `.eq("name", …)` form,
+leaving the positive rule intact:
+
+```diff
+--- a/scripts/check_org_purge_by_name.mjs
++++ b/scripts/check_org_purge_by_name.mjs
+-  { id: "JS-filter", rx: /\.(?:eq|neq|ilike|like|in_?|match|filter|textSearch|contains)\(\s*["'`]name["'`]/i },
++  { id: "JS-filter", rx: /\.(?:neq|ilike|like)\(\s*["'`]name["'`]/i },
+-  { id: "py-filter", rx: /\.eq\(\s*["']name["']/i },
++  { id: "py-filter", rx: /\.eqZZZ\(\s*["']name["']/i },
+```
+
+**RED** (observed, exit 1):
+
+```
+GATE-WORK org-purge-selftest units=13 floor=8 label=planted-cases
+  ✗ NAME DETECTOR BLIND (only the positive rule caught it): await supabase.from('organizations').delete().eq('name', label)
+  ✗ NAME DETECTOR BLIND (only the positive rule caught it): supabase.table("organizations").delete().eq("name", "Test workspace")
+
+FAIL — 2 planted case(s) are not caught by the mechanism that must catch them.
+```
+
+**REVERT** — restore both patterns; `13/13` green, md5 identical to the
+pre-plant copy, `check_no_plants.mjs` clean over 902 product source files.

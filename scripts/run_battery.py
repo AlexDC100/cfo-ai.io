@@ -457,11 +457,65 @@ def _frontend_gates() -> List[Gate]:
         # VITE_PUBLIC_TEST_MODE=1; vite merges them, so the dev server ran
         # in test mode against production and every cold boot created a
         # real organisation. 8,880 junk rows, 99.6% of that table.
+        # AND THE GATE THAT CLOSED IT WAS BLIND TO EIGHT ROOTS OUT OF NINE.
+        # Its ROOT was `process.cwd()` and its file list five fixed names,
+        # so it judged exactly the worktree the battery launched it from.
+        # `git worktree list` returns nine here; every one ships a
+        # `.claude/launch.json` whose Vite entry is
+        # `npm --prefix .../scandi-desk-main run dev` — a gitignored
+        # directory outside every worktree whose `.env` holds the
+        # PRODUCTION project. One VITE_PUBLIC_TEST_MODE=1 line there
+        # reconstitutes 2026-09-01 with the battery green. A
+        # `vite --mode launchgate2` server was live on this machine against
+        # `.env.launchgate2`, a name the five-name list could not express.
+        # So the gate now enumerates SURFACES — git worktrees, launch.json
+        # targets, and the cwd of every listening process, with that
+        # process's ambient environment overlaid the way vite overlays it —
+        # and resolves each at every mode its own filesystem implies. It
+        # FAILS, never warns and never skips, when it cannot determine
+        # which env a running or launchable dev server would use.
+        # Work is SURFACE x MODE RESOLUTIONS, not variables: eight of nine
+        # worktrees hold no dotenv, so a variable count is dominated by the
+        # one root that has files and would not move if the census lost the
+        # other eight.
         Gate("test-env-isolation",
              ["node", "scripts/check_test_env_isolation.mjs"],
-             work_rx=r"units=(\d+)", floor=1,
-             units="env vars examined",
-             canaries=("TEST-ENV ISOLATION", "sanctioned supabase")),
+             work_rx=r"GATE-WORK test-env-isolation units=(\d+)", floor=2,
+             units="surface x mode env resolutions",
+             canaries=("TEST-ENV ISOLATION (PER-WORKTREE)",
+                       "sanctioned supabase",
+                       "surfaces resolved",
+                       "runtime dev servers")),
+
+        # A NAME IS NOT AN IDENTITY.
+        #
+        # The cleanup that removed the junk organisations above filtered
+        # `organizations` by NAME. It destroyed the sentinel org
+        # 00000000-0000-4000-8000-000000000002 — hardcoded as
+        # `_DEFAULT_TEST_ORG_ID` in _test_mode.py — because the sentinel was
+        # itself called "Test workspace", taking its four financial_periods
+        # and every document with it; and it SPARED twelve junk orgs called
+        # "My workspace", because ensureDefaultWorkspace() names a workspace
+        # from a session field that is absent in some flows.
+        #
+        # The gate asserts the SAFE shape rather than the absence of the bad
+        # one: every row mutation against `organizations` must select by id,
+        # membership or time. An unrecognised predicate FAILS — a denylist
+        # of bad patterns fails open on anything novel, and a quoted
+        # identifier alone defeats a pattern list.
+        #
+        # The self-test is a separate gate on purpose: the detector half can
+        # die silently while the scan half keeps counting files.
+        Gate("org-purge-selftest",
+             ["node", "scripts/check_org_purge_by_name.mjs", "--self-test"],
+             work_rx=r"GATE-WORK org-purge-selftest units=(\d+)", floor=8,
+             units="planted cases",
+             canaries=("DETECTOR SELF-TEST",)),
+        Gate("org-purge-by-name",
+             ["node", "scripts/check_org_purge_by_name.mjs"],
+             work_rx=r"GATE-WORK org-purge-by-name units=(\d+)", floor=3,
+             units="destructive statements adjudicated",
+             canaries=("ORG PURGE BY NAME", "prose lines blanked")),
         Gate("hermetic", ["node", "scripts/check_hermetic.mjs"],
              work_rx=r"GATE-WORK hermetic units=(\d+)", floor=14,
              units="recorded environment variables",
