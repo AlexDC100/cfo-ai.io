@@ -2888,5 +2888,34 @@
       "description": "Situații financiare depuse în anii anteriori, preluate din registrul public.",
       "requirement": "Un furnizor de date"
     }
+  },
+  "legalX": {
+    "consent_pre": "Prin crearea contului accept",
+    "consent_terms": "Termenii",
+    "consent_mid": "\u0219i",
+    "consent_privacy": "Politica de confiden\u021bialitate",
+    "consent_required": "V\u0103 rug\u0103m s\u0103 accepta\u021bi Termenii \u0219i Politica de confiden\u021bialitate pentru a crea un cont.",
+    "cookies_title": "Cookie-uri",
+    "cookies_hint": "Cookie-urile strict necesare \u0219i cele de preferin\u021be se \u00eencarc\u0103 \u00eentotdeauna. Cookie-urile de analiz\u0103 se \u00eencarc\u0103 numai dac\u0103 le permite\u021bi.",
+    "cookies_state_allowed": "Analiz\u0103 permis\u0103",
+    "cookies_state_declined": "Analiz\u0103 refuzat\u0103",
+    "cookies_state_undecided": "F\u0103r\u0103 r\u0103spuns \u00eenc\u0103",
+    "cookies_change": "Modific\u0103 alegerea",
+    "cookies_recorded": "\u00cenregistrat\u0103 la {{when}}, pentru versiunea {{version}}",
+    "cookies_recorded_legacy": "\u00cenregistrat\u0103 la {{when}}, \u00eenainte ca Politica de cookie-uri s\u0103 fie versionat\u0103",
+    "cookies_policy_link": "Politica de cookie-uri"
+  },
+  "cookieConsent": {
+    "title": "Cookie-uri",
+    "body": "Cookie-urile strict necesare \u0219i cele de preferin\u021be se \u00eencarc\u0103 implicit. Cookie-urile de analiz\u0103 se activeaz\u0103 numai dac\u0103 le permite\u021bi, iar refuzul nu schimb\u0103 cu nimic func\u021bionarea platformei.",
+    "policyLink": "Citi\u021bi Politica de cookie-uri",
+    "necessary": "Strict necesare \u2014 autentificare, securitate, echilibrarea \u00eenc\u0103rc\u0103rii. Mereu active.",
+    "preferences": "Preferin\u021be \u2014 limb\u0103, moned\u0103 de afi\u0219are, tem\u0103. Fac parte din serviciul solicitat.",
+    "analytics": "Analiz\u0103 \u2014 statistici de utilizare. Numai cu acordul dumneavoastr\u0103.",
+    "accept": "Permit analiza",
+    "reject": "Refuz analiza",
+    "currentChoice": "Alegerea curent\u0103: {{value}}. O pute\u021bi modifica oric\u00e2nd din Set\u0103ri.",
+    "stateAllowed": "analiz\u0103 permis\u0103",
+    "stateDeclined": "analiz\u0103 refuzat\u0103"
   }
 }

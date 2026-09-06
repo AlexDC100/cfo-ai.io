@@ -1,158 +1,181 @@
-// LegalPage — /privacy, /terms, /cookies.
+// LegalPage — /privacy, /terms, /cookies (and the /ro/* language-pinned twins).
 //
-// THIS PAGE DELIBERATELY CONTAINS NO LEGAL TEXT.
+// WHAT CHANGED ON 2026-09-06
+// ==========================
+// This page used to contain NO legal text at all: the documents were still
+// the owner's item, so it rendered a marked "TEXT REQUIRED" block rather than
+// invent prose with legal force. The owner has now supplied the reviewed
+// text (content/legal/*.md), so the page renders it — and still contains no
+// prose of its own. Everything below the heading comes from
+// `legalDocuments.generated.ts`, which is generated from that markdown; this
+// file owns only chrome.
 //
-// The three documents exist already, as sections of the marketing page
-// (`Landing.tsx`, `#legal-privacy` / `#legal-cookies` / `#legal-terms`),
-// and they carry `[bracketed]` placeholders that only the owner and a
-// lawyer can fill. Drafting or paraphrasing any of that here would
-// produce a SECOND, divergent version of a document with legal force —
-// the exact failure mode the one-config rule exists to prevent.
+// TWO RENDERINGS, ONE TEXT
+// ========================
+// The same document HTML is served two ways, and it is important to know
+// which is which:
+//   · COLD ARRIVAL (a crawler, a regulator, `curl https://cfo-ai.io/privacy`)
+//     gets a PRERENDERED static file written at build time by the Vite plugin
+//     in vite.config.ts. The text is in the served bytes; no JavaScript has
+//     to run for it to be readable.
+//   · IN-APP NAVIGATION (a signed-in user clicking the footer link) never
+//     touches the server: react-router mounts this component and it injects
+//     the identical `doc.html` string.
+// Both read the same generated module, so they cannot disagree — and the
+// gate (scripts/check_legal_published.mjs) scans the SERVED BYTES, which is
+// the surface a stranger actually reads.
 //
-// What this page does:
-//   · gives each document a real URL (there was none — `/privacy` fell
-//     through the SPA to the catch-all route);
-//   · renders the registered-entity block from `lib/legalConfig`;
-//   · while `legalBlockers()` is non-empty, renders a clearly marked
-//     TEXT REQUIRED block naming every missing item, so the state is
-//     visible rather than implied by a bracketed placeholder buried in
-//     paragraph 4;
-//   · links through to the drafted body on the marketing page, so the
-//     text that DOES exist is one click away and lives in one place.
-//
-// The launch gate treats a page whose `legalBlockers()` is non-empty as
-// BLOCKED, never as shipped copy.
+// `dangerouslySetInnerHTML` is correct here and not a shortcut: the HTML is
+// produced at build time by scripts/legal_markdown.mjs from repo-controlled
+// files, with unconditional escaping of `&<>"` and a closed tag set. There is
+// no user input anywhere in this path.
 
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { setLanguage } from "@/i18n";
+import { LegalFooter } from "@/components/cfo/LegalFooter";
 import {
-  LEGAL_ENTITY,
   LEGAL_DOC_IDS,
-  legalBlockers,
   legalDocPath,
+  legalDocUrl,
+  legalHreflangs,
   type LegalDocId,
+  type LegalLang,
 } from "@/lib/legalConfig";
+import { docLangOf, documentLabel, legalDocument } from "@/lib/legalDocs";
 
-const DOC_TITLE: Record<LegalDocId, string> = {
-  privacy: "Privacy Policy",
-  terms: "Terms of Service",
-  cookies: "Cookie Policy",
-};
+/** Replace (or create) a single <meta name=…> / <link rel=…> in <head>.
+ *  Tagged with `data-legal` so the page can clear exactly what it added and
+ *  never strip a tag index.html shipped. */
+function setHeadTag(
+  tag: "meta" | "link",
+  match: Record<string, string>,
+  attrs: Record<string, string>,
+): void {
+  const selector =
+    tag +
+    Object.entries(match)
+      .map(([k, v]) => `[${k}="${v}"]`)
+      .join("");
+  let el = document.head.querySelector<HTMLElement>(selector);
+  if (!el) {
+    el = document.createElement(tag);
+    Object.entries(match).forEach(([k, v]) => el!.setAttribute(k, v));
+    el.setAttribute("data-legal", "1");
+    document.head.appendChild(el);
+  }
+  Object.entries(attrs).forEach(([k, v]) => el!.setAttribute(k, v));
+}
 
-/** Human label for a blocker id. Kept next to the ids so a new required
- *  field cannot be added without a label. */
-const BLOCKER_LABEL: Record<string, string> = {
-  "entity.denumire": "Denumire — registered company name",
-  "entity.cui": "CUI / CIF — fiscal identification code",
-  "entity.regCom": "Nr. Reg. Com. — trade-register number",
-  "entity.sediu": "Sediu social — registered office address",
-  "entity.privacyEmail": "Data-protection contact address",
-  "entity.legalEmail": "Legal contact address",
-  legal_text_review: "Document bodies reviewed and approved by a lawyer",
-};
-
-export function LegalPage({ doc }: { doc: LegalDocId }) {
+export function LegalPage({ doc, lang: pinned }: { doc: LegalDocId; lang?: LegalLang }) {
   const navigate = useNavigate();
-  const blockers = legalBlockers();
+  const { i18n } = useTranslation();
+  // A `/ro/...` URL pins the language: that is the only thing an hreflang
+  // alternate is allowed to mean. Everywhere else the page follows the app's
+  // own language setting, which i18n already owns.
+  const lang: LegalLang = pinned ?? docLangOf(i18n.language);
+  const d = legalDocument(doc, lang);
+  const other: LegalLang = lang === "ro" ? "en" : "ro";
 
   useEffect(() => {
-    document.title = `${DOC_TITLE[doc]} · CFO AI`;
-  }, [doc]);
+    const prevTitle = document.title;
+    document.title = `${d.title} · CFO AI`;
+    setHeadTag("meta", { name: "description" }, { content: d.description });
+    setHeadTag("link", { rel: "canonical" }, { href: legalDocUrl(doc, pinned) });
+    for (const alt of legalHreflangs(doc)) {
+      setHeadTag("link", { rel: "alternate", hreflang: alt.hreflang }, { href: alt.href });
+    }
+    return () => {
+      document.title = prevTitle;
+      // Only the alternates are ours to remove — description and canonical
+      // exist in index.html and are restored by whichever page mounts next.
+      document.head
+        .querySelectorAll('link[data-legal="1"][rel="alternate"]')
+        .forEach((el) => el.remove());
+    };
+  }, [doc, pinned, d.title, d.description]);
 
   return (
-    <main
-      data-testid="legal-page"
-      data-legal-doc={doc}
-      data-legal-blockers={blockers.length}
-      className="mx-auto max-w-[840px] px-6 py-14 sm:px-8"
-    >
-      <button
-        type="button"
-        onClick={() => navigate("/")}
-        className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-mute hover:text-ink"
+    <div className="flex min-h-screen flex-col bg-bg text-ink">
+      <main
+        data-testid="legal-page"
+        data-legal-doc={doc}
+        data-legal-lang={lang}
+        data-legal-version={d.version}
+        className="mx-auto w-full max-w-[840px] flex-1 px-6 py-12 sm:px-8"
       >
-        CFO AI
-      </button>
-
-      <h1 className="mt-4 text-[26px] font-medium text-ink">{DOC_TITLE[doc]}</h1>
-
-      {/* ── Registered entity — the ONE config, rendered ────────────── */}
-      <section className="mt-8 rounded-md border border-rule bg-surface p-5" data-testid="legal-entity">
-        <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-mute">
-          Operator
-        </div>
-        <dl className="mt-3 grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[160px_1fr]">
-          {(
-            [
-              ["Denumire", LEGAL_ENTITY.denumire],
-              ["CUI / CIF", LEGAL_ENTITY.cui],
-              ["Nr. Reg. Com.", LEGAL_ENTITY.regCom],
-              ["Sediu social", LEGAL_ENTITY.sediu],
-              ["Capital social", LEGAL_ENTITY.capitalSocial],
-            ] as Array<[string, string | null]>
-          ).map(([label, value]) => (
-            <div key={label} className="contents">
-              <dt className="text-ink-soft">{label}</dt>
-              <dd className={value ? "text-ink" : "font-mono text-[12px] text-caution"}>
-                {value ?? "— not supplied —"}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      {/* ── TEXT REQUIRED — owner item ──────────────────────────────── */}
-      {blockers.length > 0 && (
-        <section
-          data-testid="legal-text-required"
-          className="mt-6 rounded-md border border-caution/50 bg-caution-tint p-5"
-        >
-          <div className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-caution">
-            TEXT REQUIRED — owner item
-          </div>
-          <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
-            This document is not published. The items below are outstanding and
-            must be supplied by the operator; nothing on this page is drafted
-            or approved legal text.
-          </p>
-          <ul className="mt-3 space-y-1.5 text-[13px] text-ink-2">
-            {blockers.map((b) => (
-              <li key={b} className="flex gap-2">
-                <span className="text-caution">·</span>
-                <span>{BLOCKER_LABEL[b] ?? b}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 text-[12.5px] leading-relaxed text-ink-soft">
-            A working draft of all three documents already exists on the
-            marketing page and carries bracketed placeholders for exactly the
-            fields listed above. It is one source, not a second copy — fill{" "}
-            <code className="font-mono text-[11.5px] text-ink-2">
-              frontend/lib/legalConfig.ts
-            </code>{" "}
-            and have the bodies reviewed.
-          </p>
-          <a
-            href="/#/legal"
-            data-testid="legal-draft-link"
-            className="mt-4 inline-flex h-9 items-center rounded-full border border-rule-strong px-4 text-[12.5px] text-ink hover:border-brand"
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-mute hover:text-ink"
           >
-            Read the current draft
-          </a>
-        </section>
-      )}
+            CFO AI
+          </button>
 
-      <nav className="mt-10 flex flex-wrap gap-3 border-t border-rule-soft pt-6 text-[13px]">
-        {LEGAL_DOC_IDS.filter((d) => d !== doc).map((d) => (
-          <Link key={d} to={legalDocPath(d)} className="text-ink-soft hover:text-ink">
-            {DOC_TITLE[d]}
+          {/* Language switch. On the un-pinned URL it goes through the app's
+              OWN setLanguage() — the same function the footer switcher and
+              Settings call — so reading the policy in Romanian and then
+              carrying on in the app keeps one language, rather than this
+              page inventing a second mechanism. From a pinned /ro/ URL there
+              is nothing to toggle in place, so it navigates to the other
+              document URL. */}
+          <button
+            type="button"
+            data-testid="legal-lang-switch"
+            onClick={() => {
+              if (pinned) navigate(legalDocPath(doc, other === "ro" ? "ro" : undefined));
+              else setLanguage(other);
+            }}
+            className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink"
+          >
+            {other === "ro" ? "Română" : "English"}
+          </button>
+        </div>
+
+        {/* Sans, not the serif display voice. Two reasons and they agree:
+            design-lint D10-SERIF reserves serif for marketing surfaces and
+            this route is reachable signed-in, and the prerendered static copy
+            of this same page has no webfont available at first paint — a
+            serif heading there would repaint when the font arrives, on the
+            one surface whose whole purpose is being readable immediately. */}
+        <h1 className="mt-5 text-[30px] font-medium leading-tight tracking-[-0.01em] text-ink sm:text-[34px]">
+          {d.title}
+        </h1>
+        <p data-testid="legal-updated" className="mt-2 text-[12.5px] text-ink-mute">
+          {d.updatedLabel}
+        </p>
+
+        {/* The reviewed text. Nothing on this page paraphrases it. */}
+        <article
+          data-testid="legal-body"
+          className="legal-doc mt-8"
+          dangerouslySetInnerHTML={{ __html: d.html }}
+        />
+
+        <nav className="mt-12 flex flex-wrap gap-4 border-t border-rule-soft pt-6 text-[13px]">
+          {LEGAL_DOC_IDS.filter((x) => x !== doc).map((x) => (
+            <Link key={x} to={legalDocPath(x)} className="text-ink-soft hover:text-ink">
+              {documentLabel(x, lang)}
+            </Link>
+          ))}
+          <Link to="/" className="text-ink-soft hover:text-ink">
+            {lang === "ro" ? "Acasă" : "Home"}
           </Link>
-        ))}
-        <Link to="/" className="text-ink-soft hover:text-ink">
-          Home
-        </Link>
-      </nav>
-    </main>
+        </nav>
+
+        {/* The exact version a reader is looking at. This is not decoration:
+            a consent record stores this identifier (see lib/legalConsent.ts),
+            so being able to see it on the page is what makes "the version you
+            accepted" checkable by the person who accepted it. */}
+        <p data-testid="legal-version" className="mt-6 font-mono text-[10.5px] text-ink-mute">
+          {d.version}
+        </p>
+      </main>
+
+      <LegalFooter />
+    </div>
   );
 }
 

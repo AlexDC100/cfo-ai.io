@@ -1,0 +1,10 @@
+{
+  "_note": "The operating entity, exactly as the owner supplied it in HANDOVER.md on 2026-09-06 and exactly as it appears inside the reviewed documents. ONE authority: scripts/generate_legal_documents.mjs embeds this into frontend/lib/legalDocuments.generated.ts (which the React app reads through lib/legalConfig.ts) AND scripts/prerender_legal.mjs reads it for the static pages, so the footer of the app and the footer of the prerendered HTML cannot disagree. capitalSocial is null because the handover does not state it and a guessed share capital on a published legal page is a false declaration.",
+  "denumire": "PARACHAIN CAPITAL S.R.L.",
+  "cui": "45298544",
+  "regCom": "J2021021081405",
+  "sediu": "Intrarea Bitolia nr. 32, Sector 1, București, România",
+  "capitalSocial": null,
+  "privacyEmail": "privacy@cfo-ai.io",
+  "legalEmail": "contact@cfo-ai.io"
+}

@@ -21,6 +21,7 @@ import { PopoverStackRenderer } from "@/components/learning/PopoverStackRenderer
 import { MetricGlossaryDrawer } from "@/components/learning/MetricGlossaryDrawer";
 import { LearningModeProvider } from "@/stores/learningMode";
 import { LanguageSwitchOverlay } from "@/components/LanguageSwitchOverlay";
+import { CookieBanner } from "@/components/cfo/CookieBanner";
 import { PeriodSwitchOverlay } from "@/components/cfo/PeriodSwitchOverlay";
 import "@/styles/learning.css";
 
@@ -259,6 +260,15 @@ function App() {
                   Navigation resets the boundary automatically because the
                   key changes on every pathname transition. */}
               <AppRoutes />
+              {/* Cookie consent — ONE banner for every route, marketing and
+                  signed-in alike. It used to be a modal inside Landing.tsx,
+                  so anyone who arrived straight at /pricing, /login or a
+                  shared /dashboard link was never asked at all. Inside
+                  BrowserRouter because it links to the Cookie Policy with
+                  react-router; the store behind it (lib/cookieConsent) owns
+                  the pre-existing `cfoai_consent` key rather than adding a
+                  competing one. */}
+              <CookieBanner />
               <PopoverStackRenderer />
               {/* F5.0 Step 3 — Glossary drawer is a global modal. Mounted
                   here so any page can dispatch the open event. */}
@@ -361,17 +371,32 @@ function AppRoutes() {
           />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
 
-          {/* Legal — /privacy, /terms, /cookies. Until this pass the three
-              documents existed ONLY as sections of the landing page reached
-              by a client-side hash (`/#/legal`), so there was no URL a
-              regulator, an app store, a payment processor or a crawler could
-              be pointed at. Each route now resolves on its own path; the
-              page renders the registered-entity block from lib/legalConfig
-              and, while that config is unfilled, a marked TEXT REQUIRED
-              block — never drafted legal text. */}
+          {/* Legal — /privacy, /terms, /cookies plus their /ro/ twins.
+              Until 2026-09-05 the three documents existed ONLY as sections
+              of the landing page reached by a client-side hash
+              (`/#/legal`), so there was no URL a regulator, an app store, a
+              payment processor or a crawler could be pointed at. Since
+              2026-09-06 each renders the owner's reviewed text from
+              content/legal/*.md.
+
+              THESE ROUTES ARE NOT WHAT A CRAWLER SEES. `vite build`
+              prerenders all six into dist/ as real HTML (see the
+              legalPages() plugin in vite.config.ts), so nginx serves the
+              text without any JavaScript running. These routes exist so
+              that an IN-APP click on the footer link stays client-side and
+              never tears down a signed-in session — both paths render the
+              identical `doc.html` string, so they cannot disagree.
+
+              The un-prefixed path follows the app's language setting; the
+              `/ro/` path is language-pinned, because that is the only thing
+              an hreflang alternate is allowed to mean. There is no
+              `/en/...`: it would serve bytes identical to `/privacy`. */}
           <Route path="/privacy" element={<LegalPage doc="privacy" />} />
           <Route path="/terms" element={<LegalPage doc="terms" />} />
           <Route path="/cookies" element={<LegalPage doc="cookies" />} />
+          <Route path="/ro/privacy" element={<LegalPage doc="privacy" lang="ro" />} />
+          <Route path="/ro/terms" element={<LegalPage doc="terms" lang="ro" />} />
+          <Route path="/ro/cookies" element={<LegalPage doc="cookies" lang="ro" />} />
 
           {/* /onboarding — THE DIAL's first-login role question (2026-08-29).
               From 2026-07-23 until now this was a hard redirect to /workspace

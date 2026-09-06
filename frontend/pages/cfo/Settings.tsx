@@ -9,6 +9,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import { legalDocPath } from "@/lib/legalConfig";
+import { readCookieConsent, onCookieConsentChange } from "@/lib/cookieConsent";
+import { openCookieSettings } from "@/components/cfo/CookieBanner";
+import { formatDateOnly } from "@/lib/locale";
 import { PageHeader } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
 import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
@@ -189,6 +194,17 @@ export default function Settings() {
               · Settings → Billing — current plan + price + email
             `PlanUsageCard` was removed in the 2026-07 dead-code
             cleanup (recoverable from git history). */}
+
+        {/* Cookies — the Cookie Policy promises, in both languages, that
+            "You can change your choice at any time under Settings". That
+            sentence is a commitment the product has to keep, so this row
+            exists to keep it. It shows the recorded choice, the Cookie
+            Policy version it was recorded against, and re-opens the same
+            <CookieBanner /> the first visit used — no second consent UI,
+            no second store. */}
+        <Section title={t("legalX.cookies_title")} divider>
+          <CookieSettingsRow />
+        </Section>
 
         {/* Billing — simplified per operator directive (May 2026): just
             Current plan + Billing email + Manage subscription. The
@@ -1822,6 +1838,73 @@ function Row({
         </div>
       </div>
       <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+
+/* ───────── Cookies — the "changeable under Settings" promise ─────────────
+ *
+ * The Cookie Policy states the choice can be changed here. Rendering the
+ * CURRENT state matters as much as the button: a consent UI that only offers
+ * "manage" without saying what is currently set leaves the user unable to
+ * check whether their earlier answer stuck.
+ *
+ * A record migrated from the pre-versioning shape carries no policy version.
+ * It says so, rather than printing today's version beside a choice that was
+ * made against different text. */
+function CookieSettingsRow() {
+  const { t } = useTranslation();
+  const [consent, setConsent] = useState(() => readCookieConsent());
+  useEffect(() => onCookieConsentChange(() => setConsent(readCookieConsent())), []);
+
+  const state = !consent
+    ? t("legalX.cookies_state_undecided")
+    : consent.analytics
+      ? t("legalX.cookies_state_allowed")
+      : t("legalX.cookies_state_declined");
+  // The date only — the exact minute a cookie choice was made is not
+  // information the reader needs, and `formatDateOnly` already pins UTC so
+  // a stored 2026-09-06T00:12Z does not render as 5 September in Bucharest.
+  const when = consent ? formatDateOnly(consent.decidedAt.slice(0, 10)) : "";
+
+  return (
+    <div
+      data-testid="settings-cookies"
+      data-cookie-analytics={consent ? String(consent.analytics) : "undecided"}
+      className="rounded-xl border border-rule bg-surface p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-[520px]">
+          <div className="text-[13.5px] font-medium text-ink" data-testid="settings-cookies-state">
+            {state}
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">
+            {t("legalX.cookies_hint")}
+          </p>
+          {consent && (
+            <p className="mt-2 font-mono text-[10.5px] text-ink-mute" data-testid="settings-cookies-recorded">
+              {consent.policyVersion
+                ? t("legalX.cookies_recorded", { when, version: consent.policyVersion })
+                : t("legalX.cookies_recorded_legacy", { when })}
+            </p>
+          )}
+          <Link
+            to={legalDocPath("cookies")}
+            className="mt-2 inline-block text-[12px] text-brand underline underline-offset-2"
+          >
+            {t("legalX.cookies_policy_link")}
+          </Link>
+        </div>
+        <button
+          type="button"
+          data-testid="settings-cookies-change"
+          onClick={() => openCookieSettings()}
+          className="h-9 shrink-0 rounded-full border border-rule-strong px-4 text-[12.5px] text-ink hover:border-brand"
+        >
+          {t("legalX.cookies_change")}
+        </button>
+      </div>
     </div>
   );
 }

@@ -2863,5 +2863,34 @@
       "description": "Filed accounts for prior years, pulled from the public registry.",
       "requirement": "A data provider"
     }
+  },
+  "legalX": {
+    "consent_pre": "By creating an account I accept the",
+    "consent_terms": "Terms",
+    "consent_mid": "and the",
+    "consent_privacy": "Privacy Policy",
+    "consent_required": "Please accept the Terms and the Privacy Policy to create an account.",
+    "cookies_title": "Cookies",
+    "cookies_hint": "Strictly necessary and preference cookies always load. Analytics cookies load only if you allow them.",
+    "cookies_state_allowed": "Analytics allowed",
+    "cookies_state_declined": "Analytics declined",
+    "cookies_state_undecided": "Not answered yet",
+    "cookies_change": "Change choice",
+    "cookies_recorded": "Recorded {{when}} against {{version}}",
+    "cookies_recorded_legacy": "Recorded {{when}}, before the Cookie Policy was versioned",
+    "cookies_policy_link": "Cookie Policy"
+  },
+  "cookieConsent": {
+    "title": "Cookies",
+    "body": "Strictly necessary and preference cookies load by default. Analytics cookies load only if you allow them, and declining changes nothing about how the platform works.",
+    "policyLink": "Read the Cookie Policy",
+    "necessary": "Strictly necessary \u2014 sign-in, security, load balancing. Always on.",
+    "preferences": "Preferences \u2014 language, display currency, theme. Part of the service you asked for.",
+    "analytics": "Analytics \u2014 usage statistics. Only with your consent.",
+    "accept": "Allow analytics",
+    "reject": "Decline analytics",
+    "currentChoice": "Current choice: {{value}}. You can change it at any time under Settings.",
+    "stateAllowed": "analytics allowed",
+    "stateDeclined": "analytics declined"
   }
 }

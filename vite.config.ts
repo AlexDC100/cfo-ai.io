@@ -2,6 +2,49 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { compression } from "vite-plugin-compression2";
 import path from "path";
+import { regenerate as regenerateLegalDocuments } from "./scripts/generate_legal_documents.mjs";
+import { prerenderLegal } from "./scripts/prerender_legal.mjs";
+
+// ──────────────────────────────────────────────────────────────────────
+// legalPages — the three legal documents as real, server-served HTML.
+//
+// `curl https://cfo-ai.io/privacy` has to return the reviewed text in the
+// bytes. This is a Vite SPA, so without this plugin it returns an empty
+// `<div id="root">` and only a browser that runs JavaScript ever sees the
+// policy — which is useless to a crawler, a payment processor's reviewer or
+// a data-protection authority, and those are the three readers the URL
+// exists for. The full reasoning, including why this is prerendering rather
+// than serving the pages from the Python engine (there IS precedent for that
+// in src/engine/public_ro/pages/, and it was read before choosing), is at the
+// top of scripts/prerender_legal.mjs.
+//
+// TWO HOOKS, TWO JOBS:
+//   · buildStart  — regenerate frontend/lib/legalDocuments.generated.ts from
+//     content/legal/*.md, so a build can NEVER ship a rendering that is
+//     stale relative to the reviewed markdown. It only writes when the bytes
+//     differ, so it does not churn mtimes on every dev-server restart.
+//   · closeBundle — write dist/{privacy,terms,cookies}/index.html and their
+//     /ro/ twins from the freshly built dist/index.html.
+//
+// Dev is deliberately unaffected beyond the regeneration: `vite dev` serves
+// the SPA route, which renders the same document from the same module.
+// ──────────────────────────────────────────────────────────────────────
+function legalPages() {
+  return {
+    name: "cfo-legal-pages",
+    apply: "build" as const,
+    buildStart() {
+      if (regenerateLegalDocuments()) {
+        console.log("[legal] regenerated frontend/lib/legalDocuments.generated.ts");
+      }
+    },
+    closeBundle() {
+      const outDir = path.resolve(__dirname, process.env.VITE_OUT_DIR || "dist");
+      const written = prerenderLegal(outDir);
+      console.log(`[legal] prerendered ${written.length} pages: ${written.join(", ")}`);
+    },
+  };
+}
 
 // ──────────────────────────────────────────────────────────────────────
 // Vite config — production build tuned 2026-05-26 (perf pass)
@@ -57,7 +100,10 @@ export default defineConfig(({ mode }) => ({
   // Pre-compress build output (.gz next to each asset ≥1 KB). nginx's
   // `gzip_static on` serves these directly — max compression at zero
   // request-time CPU, and no dependency on Caddy sitting in front.
-  plugins: [react(), compression({ threshold: 1024 })],
+  // ORDER MATTERS: legalPages() runs its closeBundle before compression's,
+  // so the six prerendered HTML files exist in time to be gzipped alongside
+  // everything else. (Vite runs same-hook plugin callbacks in array order.)
+  plugins: [react(), legalPages(), compression({ threshold: 1024 })],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./frontend"),
