@@ -1352,10 +1352,23 @@ the Pages copy never advertises a sitemap on its own origin.)
 - **The page cache key digests whole rows**, not picked columns — a
   denylist (`updated_at`, `provenance`), never an allowlist. A new column
   costs a cache miss; a forgotten one serves a wrong fact.
-- **`_client_ip` takes the RIGHTMOST `X-Forwarded-For` hop.** Caddy
+- **`_client_ip` must take the RIGHTMOST `X-Forwarded-For` hop.** Caddy
   appends, so index 0 is attacker-written. Correct for exactly one
   trusted hop, which is what runs today (`via: 1.1 Caddy`, DNS straight
-  at the VPS). A CDN in front would invert it.
+  at the VPS — re-verified 2026-09-04). A CDN in front would invert it.
+  **CORRECTION (2026-09-04):** this described `public_ro/funnel.py` only.
+  `public_ro/ratelimit.py` still read `hops[0]` — the caller-written hop —
+  so the shield over the 600k-page storefront was bypassable by rotating
+  one header, and a test (`test_xff_preferred_over_socket_peer`) had
+  pinned that behaviour as if intended. The D2 fix was never back-ported.
+  Repaired the same day: `ratelimit`, `funnel` and
+  `engine.public.refresh_shield` now read the same hop, pinned by
+  `test_the_limiter_and_the_funnel_read_the_same_hop` and
+  `test_rotating_the_spoofed_leftmost_hop_cannot_mint_new_buckets`.
+  **The lesson is the general one:** when a hardening fix lands in one
+  module, grep for every sibling that reads the same thing — and never let
+  a test pin a defect you have merely decided not to fix yet, because the
+  next engineer reads a red gate as a reason to revert the repair.
 - Container has no `curl` or `ps`; only `/app/data` is a mounted volume,
   so anything staged elsewhere is wiped by a rebuild.
 
@@ -3167,3 +3180,90 @@ if __name__ == "__main__":
 ---
 
 *End of CLAUDE.md. Read once per session. Internalize. Then proceed.*
+
+---
+
+## 22. Three production hotfixes found by sweeping the real app (2026-09-04)
+
+A Cockpit critic mentioned in passing that the firm-tenancy suite had
+**pinned** a Capsule defect it stumbled on. Verified live and fixed the
+same hour, then a sweep of every mutating route of the real `create_app()`
+found two more. All three shipped per §14 (single-file rsync to explicit
+destinations → `docker compose build backend && up -d` → container hash ==
+HEAD blob → live probe → F-A3.1 GREEN → `check_deploy_drift.py` IN SYNC).
+
+| commit | defect | live symptom |
+|---|---|---|
+| `b3104a3` | `ToolCall` (Capsule tools request model) was closure-local inside `build_router` under `from __future__ import annotations` | `POST /api/capsule/tools/{name}` answered **422 `loc: [query, body]` to every request** — every grounded Capsule tool call (`get_facts` / `get_account` / `list_findings`) from `capsuleToolsApi.ts` had been failing in production. Live: 422 → 401. |
+| `a078c31` | `ContactSalesRequest` closure-local in `_billing.py` (same shape); a `-> JSONResponse` return annotation in `public_market/search.py` whose import was closure-local | every contact-sales submission 422'd (`loc: [query, req]`); `/openapi.json` and `/docs` 500'd. Live: body now validated on `[body, name]`, `/openapi.json` 200 with 177 paths. |
+| `6f994fc` | `POST /api/billing/cron/renewal-reminders` skipped its bearer check when `ENGINE_API_TOKEN` was unset | **latent, not live** — the token turned out to be set in production (both crons answer 401), so nothing was exposed; now fails closed (503) like `purge-expired` and the firm crons. The commit message's "the token IS unset in production" was written before that was measured and is wrong. |
+
+**Corrections to §16 (Backend cleanup):** "runtime request handling is
+unaffected either way" was wrong — the nested `ContactSalesRequest` broke
+the route's body binding, not just the schema. "`ENGINE_API_TOKEN` is not
+yet in `.env`" is stale — it is set on the backend container.
+
+**Why none of this was caught: every Playwright spec intercepts
+`**/api/capsule/tools/**` (to keep the UI gates hermetic), so the real
+binding was exercised by nothing.** Rule, now enforced: **an intercepted
+route is a route with no gate.** Two battery gates carry it:
+
+- **`route-binding`** (`tests/engine/test_route_bindings.py`): sends a JSON
+  body to every POST/PUT/PATCH route of the real app (87) and reds on the
+  body-as-query shape; AST-scans every future-annotations module under
+  `src/engine/api` for a `BaseModel` nested inside a function; generates the
+  full OpenAPI schema (≥100 paths). Plant-proven in `docs/engine_book/gates.md`.
+- **`cron-auth`** (`tests/engine/test_cron_auth.py`): all four scheduler
+  routes are 503 with the token unset and 401/403 on a wrong/missing bearer.
+
+**Never define a Pydantic model inside a router factory in a module with
+`from __future__ import annotations`.** Module scope, always — the gate
+above makes the nested shape a red.
+
+**Also seen in the sweep, deliberately left for the markets wave:** the
+two unauthenticated public cache-bust POSTs (`/api/public/companies/{ticker}/refresh`,
+`/api/public/intelligence/refresh-signals`) expose nothing and fetch nothing
+themselves, but make the next reads cold against upstream quotas — they
+need the public rate limiter (`public_ro/ratelimit`) or the operator bearer.
+The six `/api/cfo/*` demo routes compute from the request body and answer
+"Demo Company" on an empty one — public by design.
+
+---
+
+## 23. Posture until launch, and the sync-conflict root cause (2026-09-04)
+
+**Posture, set by the owner:** no new features. Drain the working tree,
+empty the critics' backlog, close FC1 (cross-tenant READS AND WRITES on
+every route, API and Capsule tool, red on a planted cross-firm write), then
+the Firm Cockpit lands. Ten serious production defects were found in one day
+by adversarial review; the backlog is not empty until the critics say so.
+
+**Public-company ratings — the rule:** a rating built on a placeholder is a
+fabrication, and worse on the public storefront, where an indexable page is
+read by a stranger with no context and a made-up letter beside a real
+company's name is a credibility and defamation risk. Absent inputs REFUSE —
+but check the MAPPING first. Apple reports retained earnings under the
+standard `us-gaap:RetainedEarningsAccumulatedDeficit`; the EDGAR adapter
+(`public_market/edgar_concepts.py`) never extracted it, so every US company
+"lacked" it by construction and the honest rule was answering a question the
+adapter asked wrongly. Fix the concept map, then refuse only what the filing
+truly does not carry, in exactly this register: *"Rating unavailable:
+retained earnings not reported in this filing"* — about the filing, never the
+company — and the page still shows every figure and ratio it can compute.
+
+**Sync-conflict duplicates.** 285 files carrying a `<name> 2.<ext>` suffix
+appeared in the tree, 73 of them committed in an earlier session (61
+screenshots, 6 docs, 5 probe JSON, and a stale copy of
+`scripts/check_no_plants.mjs`). The suffix is a sync service writing a
+conflict copy while the machine sleeps; the repo lives under
+`/Users/alex/Desktop/…` with iCloud Drive configured. Two test suites failed
+on stale copies the collector picked up as real modules. All 73 tracked
+copies were removed (`672f804`) and the 61 untracked ones moved to the session
+scratchpad; the owner is moving the repo out of the synced folder. If a
+` 2.` file ever reappears, that is the signal it is still synced.
+
+**Two conventions added to the Engine Book (TC-10, TC-11):** no cutoff or
+threshold is ever written as prose — it renders from the same data the
+verdict used; and for every gate, state what it fails on AFTER the defect is
+repaired, because three green gates in one day were found asserting the
+bug as their law.

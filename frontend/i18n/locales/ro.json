@@ -555,7 +555,8 @@
       "totalAssets": "TOTAL ACTIVE",
       "totalEquityLiab": "TOTAL CAPITAL PROPRIU ȘI DATORII",
       "drift": "Discrepanță bilanț",
-      "note": "Notă"
+      "note": "Notă",
+      "noComparative": "Sold inițial — nedepus"
     },
     "cf": {
       "title": "FLUX DE NUMERAR",
@@ -1157,7 +1158,7 @@
     "nothingToExportBody": "Încărcați un exemplu sau o situație financiară pentru a activa exporturile HTML și Excel.",
     "pickSampleOrUpload": "Alegeți un exemplu sau încărcați",
     "exportHtmlTitle": "Raport de analiză financiară HTML",
-    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei peste 25 de indicatori cu verdicte, evaluarea riscului de faliment și recomandări prioritizate.",
+    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei peste 25 de indicatori cu verdicte, ratingul de credit și evaluarea riscului de faliment (cu modelul care le-a produs) și recomandări prioritizate.",
     "exportXlsxTitle": "Registru Excel",
     "exportXlsxBody": "Model xlsx cu 8 foi: copertă, cont de profit și pierdere, bilanț, indicatori, flux de numerar, evaluare (WACC + DCF + Graham), credit și risc, recomandări.",
     "exportPptxTitle": "Prezentare PowerPoint",
@@ -1435,7 +1436,10 @@
     "previewSheetCaption": "{{file}} · foaia „{{sheet}}” (exemplu — date fictive)",
     "previewLoadFailed": "Previzualizarea nu a putut fi încărcată: {{msg}}.",
     "downloadInstead": "Descărcați în schimb",
-    "narrativeUnavailable": "Briefingul AI este momentan indisponibil — cifrele analizei de mai jos nu sunt afectate. Se va regenera automat la următoarea scanare sau schimbare de monedă/limbă."
+    "narrativeUnavailable": "Briefingul AI este momentan indisponibil — cifrele analizei de mai jos nu sunt afectate. Se va regenera automat la următoarea scanare sau schimbare de monedă/limbă.",
+    "notAvailableShort": "—",
+    "zoneNotComputable": "Nu se poate calcula",
+    "creditNotComputable": "Nu s-a recunoscut suficient din balanța sursă pentru a calcula un rating."
   },
   "tabs": {
     "pl": "Cont de profit și pierdere",
@@ -2375,7 +2379,9 @@
     "gradeBoundary": "la limită",
     "gradeSpeculative": "speculativ",
     "gradeDistress": "dificultate",
-    "tabOverview": "Sinteză"
+    "tabOverview": "Sinteză",
+    "ratioVerdictUnknown": "Neraportat",
+    "ratioUnavailableAria": "Neraportat pentru această perioadă"
   },
   "metricsV2": {
     "title": "Indicatori",
@@ -2806,5 +2812,110 @@
       "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
       "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
     }
+  },
+  "pending": {
+    "eyebrow": "Nu în această versiune",
+    "needs": "Ce îi trebuie",
+    "notify": "Anunță-mă",
+    "notified": "Te anunțăm",
+    "scenarios": {
+      "title": "Planificare pe scenarii",
+      "description": "Miști pârghiile de preț, volum și cost și vezi cum se mișcă profitul, cashul și marja față de covenants.",
+      "requirement": "Se activează după lansare"
+    },
+    "variance": {
+      "title": "Buget vs realizat vs anul trecut",
+      "description": "Compară perioada curentă cu bugetul și cu aceeași perioadă din anul trecut, linie cu linie.",
+      "requirement": "Un buget încărcat și cel puțin 2 perioade comparabile"
+    },
+    "benchmarks": {
+      "title": "Benchmark de industrie",
+      "description": "Așază fiecare indicator în banda de percentile a sectorului tău CAEN.",
+      "requirement": "Se activează după lansare"
+    },
+    "products_legacy": {
+      "title": "Produse și analiză SKU",
+      "description": "Clasifică SKU-urile după marjă, viteză de rotație și capital de lucru blocat.",
+      "requirement": "Un fișier de vânzări sau de SKU-uri"
+    },
+    "public_companies": {
+      "title": "Companii listate",
+      "description": "Raportări, indicatori și comparații pentru companii listate, citite direct din depunerile oficiale.",
+      "requirement": "Se activează după lansare"
+    },
+    "comprehensive_report": {
+      "title": "Raport comprehensiv",
+      "description": "Analiza scrisă completă, în opt secțiuni, a unei perioade, ca un singur document.",
+      "requirement": "Se activează după lansare"
+    },
+    "peer_report": {
+      "title": "Raport comparativ",
+      "description": "Contul tău de profit și pierdere alături de un competitor numit și de mediana sectorului.",
+      "requirement": "Se activează după lansare"
+    },
+    "chat_page": {
+      "title": "Ask CFO AI",
+      "description": "O suprafață completă de conversație peste workspace, documente și perioade.",
+      "requirement": "Se activează după lansare"
+    },
+    "roadmap": {
+      "title": "Roadmap",
+      "description": "Ce urmează să apară și ce deblochează fiecare versiune.",
+      "requirement": "Se activează după lansare"
+    },
+    "inventory": {
+      "title": "Stocuri",
+      "description": "Niveluri de stoc, zile de stoc și detectarea produselor cu rotație lentă.",
+      "requirement": "Un fișier de stocuri"
+    },
+    "invoices": {
+      "title": "Facturi",
+      "description": "Vechimea creanțelor și datoriilor și detalierea conversiei în cash din spatele DSO și DPO.",
+      "requirement": "Un registru de facturi"
+    },
+    "decisions": {
+      "title": "Decizii",
+      "description": "Coada de acțiuni prioritizate, construită din constatări, cu responsabili și status.",
+      "requirement": "Se activează după lansare"
+    },
+    "alerts": {
+      "title": "Alerte",
+      "description": "Alerte pe praguri și anomalii pentru indicatorii pe care îi urmărești.",
+      "requirement": "Se activează după lansare"
+    },
+    "public_records": {
+      "title": "Istoric multianual",
+      "description": "Situații financiare depuse în anii anteriori, preluate din registrul public.",
+      "requirement": "Un furnizor de date"
+    }
+  },
+  "legalX": {
+    "consent_pre": "Prin crearea contului accept",
+    "consent_terms": "Termenii",
+    "consent_mid": "\u0219i",
+    "consent_privacy": "Politica de confiden\u021bialitate",
+    "consent_required": "V\u0103 rug\u0103m s\u0103 accepta\u021bi Termenii \u0219i Politica de confiden\u021bialitate pentru a crea un cont.",
+    "cookies_title": "Cookie-uri",
+    "cookies_hint": "Cookie-urile strict necesare \u0219i cele de preferin\u021be se \u00eencarc\u0103 \u00eentotdeauna. Cookie-urile de analiz\u0103 se \u00eencarc\u0103 numai dac\u0103 le permite\u021bi.",
+    "cookies_state_allowed": "Analiz\u0103 permis\u0103",
+    "cookies_state_declined": "Analiz\u0103 refuzat\u0103",
+    "cookies_state_undecided": "F\u0103r\u0103 r\u0103spuns \u00eenc\u0103",
+    "cookies_change": "Modific\u0103 alegerea",
+    "cookies_recorded": "\u00cenregistrat\u0103 la {{when}}, pentru versiunea {{version}}",
+    "cookies_recorded_legacy": "\u00cenregistrat\u0103 la {{when}}, \u00eenainte ca Politica de cookie-uri s\u0103 fie versionat\u0103",
+    "cookies_policy_link": "Politica de cookie-uri"
+  },
+  "cookieConsent": {
+    "title": "Cookie-uri",
+    "body": "Cookie-urile strict necesare \u0219i cele de preferin\u021be se \u00eencarc\u0103 implicit. Cookie-urile de analiz\u0103 se activeaz\u0103 numai dac\u0103 le permite\u021bi, iar refuzul nu schimb\u0103 cu nimic func\u021bionarea platformei.",
+    "policyLink": "Citi\u021bi Politica de cookie-uri",
+    "necessary": "Strict necesare \u2014 autentificare, securitate, echilibrarea \u00eenc\u0103rc\u0103rii. Mereu active.",
+    "preferences": "Preferin\u021be \u2014 limb\u0103, moned\u0103 de afi\u0219are, tem\u0103. Fac parte din serviciul solicitat.",
+    "analytics": "Analiz\u0103 \u2014 statistici de utilizare. Numai cu acordul dumneavoastr\u0103.",
+    "accept": "Permit analiza",
+    "reject": "Refuz analiza",
+    "currentChoice": "Alegerea curent\u0103: {{value}}. O pute\u021bi modifica oric\u00e2nd din Set\u0103ri.",
+    "stateAllowed": "analiz\u0103 permis\u0103",
+    "stateDeclined": "analiz\u0103 refuzat\u0103"
   }
 }

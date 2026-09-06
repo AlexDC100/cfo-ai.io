@@ -17,13 +17,17 @@ convention — never as `0`.
 """
 
 from __future__ import annotations
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 # ── Shape contract ──────────────────────────────────────────────────────
 # Matches PublicCompanyFinancialSnapshot in the FE (lib/publicCompanyUniverseTypes.ts).
 # When you add a field here, mirror it there.
 
+# The as-of date the demo table declares for itself. It is also the row's
+# ``lastUpdated``: the demo values are a static table, and the only date
+# that is TRUE of them is the one this module declares. Until 2026-09-04
+# ``lastUpdated`` was ``datetime.now()`` at import — the process clock at
+# engine boot — and every demo card read "computed <container start>".
 _LAST_UPDATED = "2025-12-31"  # As-of date stamped on every demo row.
 
 
@@ -148,7 +152,7 @@ def _row(
         "currentRatio": None,
         "latestPeriod": "FY2024",
         "latestPeriodEnd": _LAST_UPDATED,
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "lastUpdated": _LAST_UPDATED,
         "source": "demo",
         "confidence": 0.6,
         "missingFields": [],

@@ -65,6 +65,12 @@ test.skip(
 
 const SETTLE_MS = 8000;
 const ACTION_MS = 20_000;
+/** How long `warmUpFamily` waits for a family's rows to arrive. Bounded,
+ *  and its expiry is a REPORTED measurement (`UNMEASURED`), never a
+ *  throw — see the function. Measured need on this stack: 14-23 ms after
+ *  `boot()`'s reload, so this is three orders of headroom, sized for a
+ *  cold CI box rather than for the observed case. */
+const WARMUP_MS = 20_000;
 
 // ══════════════════════════════════════════════════════════════════════
 // ANCHORS — every selector this file depends on, declared once
@@ -291,11 +297,113 @@ function appHeader(page: Page): Locator {
   return page.locator("header").filter({ has: page.locator(ANCHORS.accountTrigger) }).first();
 }
 
+/**
+ * BOOT — AND WHY IT NAVIGATES TWICE.
+ *
+ * This used to be one `goto` and an 8s sleep, and that single navigation
+ * is why G4 pinned the `period` family at zero and wrote "the palette's
+ * period loop iterates nothing" underneath it. The loop iterates plenty.
+ * The HARNESS was reading a surface no returning user ever sees.
+ *
+ * MEASURED on the live stack (2026-09-01, evidence in
+ * design_review/capsule-craft/period-r0/census.json, tool
+ * design_review/capsule-craft/period-census.mjs):
+ *
+ *   · one navigation + 8s   → `q="202"` paints 0 period rows, `q="aug"` 0
+ *   · the SAME mount + 20s  → still 0. Waiting is not the fix.
+ *   · a second navigation   → `q="202"` paints 4, `q="aug"` 1,
+ *                             at 1440 AND 390, dark AND light.
+ *
+ * And it is NOT "the data has not arrived". Dumped out of
+ * `cfoai-query-cache-v1` at t=8s on the cold mount, the very entry
+ * `usePeriodStepper` reads is already there and already successful:
+ *
+ *   ["org-periods","00000000-0000-4000-8000-000000000002"] status=success n=4
+ *
+ * while the palette paints none of it. Read out of the React fiber with
+ * the surface open at t=8.6s, `AppShell`'s `useActiveOrg()` holds NO org
+ * list at all on the first navigation and `ORGS[1000]` on the second. So
+ * the first load of a fresh browser context resolves no active
+ * workspace, `usePeriodStepper`'s direct feed is `enabled: !!org?.id` =
+ * false, and the merged list is empty. Reading `lib/org.ts` says why it
+ * never recovers — the list is memoised in the module-global
+ * `cachedOrgListPromise` and `load()`'s deps are `[status, userId]`,
+ * both stable — and that half is INFERRED FROM SOURCE; what is measured
+ * is that 20 further seconds change nothing and a reload fixes it in
+ * under 25 ms.
+ *
+ * (Flagged to the owner as a possible product defect in its own right: a
+ * first-time visitor on a cold browser gets a workspace-less dashboard
+ * until they reload. This lane owns the gate, not the fix.)
+ *
+ * The second navigation is therefore the PRECONDITION, not the proof.
+ * Nothing here asserts the list is populated; `warmUpFamily` does that,
+ * by awaiting the rows themselves, and G4 reports the outcome.
+ */
 async function boot(page: Page, route = "/dashboard"): Promise<void> {
   await preseedLearningMode(page);
   await page.goto(route, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(SETTLE_MS);
   await dismissPublicTestBanner(page);
+
+  // The reload. Its readiness is AWAITED — the app-shell header carrying
+  // the Capsule trigger — rather than slept for: the lazy bundles are
+  // warm by now, so a flat second sleep would be dead time on every gate
+  // in this file and would still not say what it was waiting for.
+  await page.goto(route, { waitUntil: "domcontentloaded" });
+  await expect(
+    appHeader(page).locator(ANCHORS.trigger),
+    "the app shell never re-mounted after the reload boot() does to " +
+      "resolve the active workspace (see the block comment above)",
+  ).toBeVisible({ timeout: ACTION_MS });
+  await dismissPublicTestBanner(page);
+}
+
+/**
+ * AWAIT A FAMILY'S DATA, AND SAY WHETHER IT ARRIVED.
+ *
+ * `boot()`'s reload is what makes a populated period list POSSIBLE; this
+ * is what establishes it actually happened, by waiting for the rows
+ * rather than for a clock.
+ *
+ * WHAT IS AWAITED, precisely: a painted `[data-row-family="<family>"]`
+ * row inside the overlay, with the family's own recorded query typed.
+ * That is the closest observable there is to `usePeriodStepper().periods`
+ * being non-empty — `CommandPalette` is the hook's ONLY live consumer
+ * (`PeriodBreadcrumb`, the other surface that reads it, is imported by
+ * nothing, verified by grep), so no upstream DOM proxy for that hook
+ * exists to await instead.
+ *
+ * TWO PROPERTIES KEEP THIS FROM BECOMING THE GATE MEASURING ITS OWN WAIT:
+ *
+ *   · it does not throw. The outcome is RETURNED and printed in the
+ *     census. A family whose warm-up timed out is reported as
+ *     `UNMEASURED` with the wait named, never silently as a zero and
+ *     never as a Playwright timeout that hides the finding;
+ *   · it waits for ONE row and the recorded floor demands FOUR (period),
+ *     so clearing the wait cannot clear the floor. The BAN — no
+ *     right-aligned trailing label — is untouched by it entirely.
+ */
+async function warmUpFamily(
+  page: Page,
+  family: string,
+  query: string,
+): Promise<{ ok: boolean; ms: number }> {
+  const input = composer(page);
+  await input.click();
+  await input.fill("");
+  await input.fill(query);
+  const t0 = Date.now();
+  const ok = await page
+    .locator(`${ANCHORS.overlay} [data-row-family="${family}"]`)
+    .first()
+    .waitFor({ state: "visible", timeout: WARMUP_MS })
+    .then(() => true)
+    .catch(() => false);
+  const ms = Date.now() - t0;
+  await input.fill("");
+  await page.waitForTimeout(200);
+  return { ok, ms };
 }
 
 async function openSurface(page: Page): Promise<Locator> {
@@ -866,7 +974,22 @@ const INK_FLOOR: Record<string, Record<string, number>> = {
   // is also why density alone cannot police the "mostly empty" complaint
   // — the LEAD and INTERIOR GAP budgets below do that, and the 113px
   // lead gap at 1440 rest is a real open defect this floor cannot see.
-  "1440": { rest: 5.0, typing: 6.9, tier0: 4.6, answering: 10.5 },
+  //
+  // `answering` RE-DERIVED 2026-08-31: 10.5 -> 9.3.
+  //
+  // 10.5 came from a measurement of 11.87% taken AFTER the clipping fix
+  // but BEFORE the owner-ruled geometry change (constant bottom edge
+  // kept, content-sized rest dropped). That change moved the answering
+  // card's visible density to 10.31% — measured three consecutive times,
+  // identical to the hundredth, so it is the design's number and not a
+  // flicker. The card's dimensions did not move (680x358, at its
+  // ceiling) and it still carries 24 text runs; the layout redistributed.
+  //
+  // A floor derived from a superseded geometry fails a design that never
+  // regressed, which is noise rather than rigour — the same reasoning as
+  // the clipping recalibration above. The subject moved; the instrument
+  // did not.
+  "1440": { rest: 5.0, typing: 6.9, tier0: 4.6, answering: 9.3 },
   "390": { rest: 8.5, typing: 12.5, tier0: 6.8, answering: 15.5 },
 };
 
@@ -1614,12 +1737,43 @@ const ROW_SOURCES = [
  *     company     "trans"            6       4
  *     suggestion  ""  (rest)         1       1
  *     ask         "zzqqxx"           1       1
+ *     period      "202"              4       3   ← 2026-09-01, see below
  *
  * `suggestion` and `ask` are not palette-row families — they are the two
  * other row-painting components — but they are on the same axis and the
  * same failure applies, so they carry expectations too. The rest state
  * and the no-match state are exactly the two states an earlier version of
  * this gate did not cover.
+ *
+ * ── `period`: A PIN AT ZERO THAT WAS A HARNESS ARTIFACT ──────────────
+ *
+ * This family sat in the pinned table below with the justification "the
+ * palette's period loop iterates nothing", and that was FALSE. It
+ * iterated nothing because `boot()` navigated ONCE and read the palette
+ * on a mount where no active workspace had resolved — see `boot()`. Its
+ * zero was the harness's, not the product's, and the two-sided pin whose
+ * whole job is to make a zero honest was resting on it.
+ *
+ * MEASURED 2026-09-01 through the corrected boot, at 1440 AND 390, dark
+ * AND light — four configurations, identical censuses
+ * (design_review/capsule-craft/period-r0/census.json):
+ *
+ *     query    period rows
+ *     "202"    4   Sept 2026 · Aug 2026 · Jul 2026 · Dec 2025
+ *     "aug"    1   Aug 2026
+ *     "dec"    1   Dec 2025
+ *     "sep"    1   Sept 2026
+ *     "jul"    1   Jul 2026
+ *     "a"      1   Aug 2026 (the visible cap displaces one `category` row)
+ *
+ * `"202"` is the recorded query because it summons the WHOLE family at
+ * once: every month label this workspace can carry contains "202" until
+ * 2030, and nothing else on the surface matches it (the census for that
+ * state is `{"period":4}` and nothing else). The floor is 3, not 4: the
+ * count only grows as months roll — `useEnsureCurrentPeriod` adds the
+ * current month — so 3 is headroom against a rolled month, and it is
+ * still a real collapse detector, because the collapse this family can
+ * actually suffer is the list going empty, not shrinking by one.
  */
 const FAMILY_EXPECT: Record<string, { query: string; floor: number }> = {
   page: { query: "a", floor: 6 },
@@ -1631,42 +1785,74 @@ const FAMILY_EXPECT: Record<string, { query: string; floor: number }> = {
   company: { query: "trans", floor: 4 },
   suggestion: { query: "", floor: 1 },
   ask: { query: "zzqqxx", floor: 1 },
+  period: { query: "202", floor: 3 },
 };
 
+/** Families whose data arrives over the network and must therefore be
+ *  AWAITED before the sweep reads them, keyed to the query that summons
+ *  them. A family listed here and never populated is reported
+ *  `UNMEASURED`, which is a violation — not a zero. */
+const FAMILY_WARMUP: readonly string[] = ["period"];
+
 /**
- * FAMILIES THIS STACK CANNOT PAINT, AND THE PIN THAT KEEPS THAT HONEST.
+ * UNVERIFIED — A FIRST-CLASS STATE, NOT A GREEN AND NOT A COMMENT.
  *
- * A floor of zero is the vacuity this gate exists to refuse, so these
- * are not floored — they are PINNED AT EXACTLY ZERO. If one of them ever
- * paints a row, this gate FAILS and says so: the family has become
- * reachable and belongs in `FAMILY_EXPECT` with a measured floor and the
- * query that summons it. The expectation is two-sided, so it cannot
- * drift silently in either direction.
+ * A family here paints nothing on this stack, so the category-column ban
+ * IS TRUE OF NOTHING THERE. The previous version of this table called
+ * that "unreachable", pinned it at zero, and let the family sit inside a
+ * passing gate indistinguishable from a family that had actually been
+ * checked. That is the `tsc checked zero files` shape (TC-9): a clean
+ * result that cannot be told apart from "there was no subject".
  *
- * `period` — `usePeriodStepper().periods` is EMPTY on the test-mode
- *   stack: the demo period (`demo-meridian`) is a resolved sample id and
- *   is not a row in `financial_periods`, so the palette's period loop
- *   iterates nothing. Measured, not assumed: "aug", "dec", "202", "a",
- *   "e", "2" and "0" all match the label a period would carry
- *   ("Aug 2026") and none of them produced a Periods section, while "a"
- *   returned 18 rows — the palette's own visible cap — with the four
- *   slots after Pages/Actions/Learn filled by Products rather than by
- *   periods.
+ * So the state is named, and the census PRINTS it: `UNVERIFIED`, counted
+ * separately from `VERIFIED`, excluded from the evidence tally, with the
+ * reason on the same line. Same discipline the battery gives VACUOUS —
+ * the run still passes, and the record refuses to call it evidence.
+ *
+ * It stays TWO-SIDED. `expectRows` is 0, and a family here that paints a
+ * row is a PIN BROKEN violation, reported FIRST of all violations: it
+ * means the ground moved and every "checked everything" claim in this
+ * file needs re-reading. That direction is what caught `period`.
+ *
  * `jump-row` — `CapsuleJumpList` is mounted by nothing since the craft
  *   pass removed the resting jump zone. Its module is still exported
  *   (see `CommandPalette`'s cross-lane note), which is exactly why it is
- *   pinned here rather than forgotten.
+ *   declared here rather than forgotten. Its ban is UNVERIFIED: nobody
+ *   has checked that a jump row carries no category column, because no
+ *   surface paints one.
+ *
+ * `period` USED TO BE HERE and is not any more. It was the reason this
+ * table was rewritten: its stated cause ("the palette's period loop
+ * iterates nothing") was a HARNESS artifact, and a declaration in this
+ * table is only ever as good as the harness that failed to summon the
+ * family. Anything added here must name what was measured and how — a
+ * cause that cannot be re-measured is a story.
  */
-const FAMILY_UNREACHABLE: Record<string, string> = {
-  period:
-    "`usePeriodStepper().periods` is empty on the test-mode stack, so the " +
-    "palette's period loop iterates nothing. If a period row appears, this " +
-    "stack now has periods: move `period` into FAMILY_EXPECT with the query " +
-    "that summoned it and the count it produced.",
-  "jump-row":
-    "`CapsuleJumpList` is mounted by no surface since the resting jump zone " +
-    "was removed. If a jump row appears, some surface remounted it: give it " +
-    "a measured floor, because the category-column ban has to hold there too.",
+const FAMILY_UNVERIFIED: Record<string, { expectRows: 0; why: string }> = {
+  "jump-row": {
+    expectRows: 0,
+    why:
+      // CORRECTED 2026-08-31. The previous justification said this module " +
+      // is "imported by nothing that renders", and an adversarial audit
+      // showed that is false the same way the `period` justification it
+      // replaced was false. `CapsuleJumpList` IS imported
+      // (capsuleEmpty/CapsuleEmptyState.tsx:75) and IS rendered
+      // (:168, `items={jumps}`), on every resting palette.
+      //
+      // Getting this wrong twice in one file is the point: a pinned zero
+      // needs a cause that can be RE-MEASURED, and "nothing imports it"
+      // was never re-measured, only asserted. Worse, the old text told
+      // the next reader to look for a remount — sending them hunting for
+      // something that never happened.
+      "`CapsuleJumpList` is MOUNTED on every resting palette " +
+      "(CapsuleEmptyState.tsx:168) but paints nothing, because its host " +
+      "passes no items and the component defaults `jumps = []`. That is a " +
+      "DATA condition, one prop away — not a mounting condition, and an " +
+      "audit flipped it by adding a single `jumps` prop with no remount. " +
+      "So this zero is UNVERIFIED, not proven: the category-column ban has " +
+      "never been checked against a jump row. The day the host passes " +
+      "items, measure it and give it a real floor like every other family.",
+  },
 };
 
 /** Every query the sweep types. The union of the per-family queries and
@@ -1675,15 +1861,60 @@ const FAMILY_UNREACHABLE: Record<string, string> = {
 const SWEEP_QUERIES = [
   "dash", "sce", "work", "bench", "prod", "sett", "cash", "bal",
   "a", "range", "core", "trans", "glossary", "zzqqxx",
+  // `period`'s recorded query. The family the sweep had never summoned
+  // at any viewport in any theme, because its zero was the harness's.
+  "202",
 ];
 
-test.describe("G4 — navigation rows carry no category column", () => {
+// PER VIEWPORT, because TC-6 says per component and a CATEGORY COLUMN IS
+// A LAYOUT. This gate ran at 1440 only, while its own expectation table
+// carried the sentence "Both viewports produced identical censuses, so
+// one table serves both" — a claim about coverage the gate did not have.
+// The claim happened to be true (re-measured 2026-09-01 at 390, dark and
+// light: identical censuses, `period` 4 rows on "202" at both), but a
+// true claim that no gate checks is the shape every finding in this file
+// started as. G1 and G2 have been per-viewport since the 390 regression;
+// G4 is now too, and the offender predicate — `rb.right - last.right < 40`
+// against a glyph gutter — is exactly the measurement that can differ
+// when the row is 374px wide instead of 680px.
+for (const vp of VIEWPORTS) {
+test.describe(`G4 @${vp.label} — navigation rows carry no category column`, () => {
+  test.use({ viewport: { width: vp.width, height: vp.height } });
   test.setTimeout(240_000);
 
   test("no row's trailing text is parked against the right edge, in any family",
     async ({ page }) => {
     await boot(page);
     const overlay = await openSurface(page);
+
+    // ── WARM-UP, AWAITED AND REPORTED ─────────────────────────────────
+    //
+    // Not a sleep, and not silent. `warmUpFamily` waits for the family's
+    // own rows to paint and RETURNS whether they did; the census below
+    // prints `UNMEASURED` and raises a violation if they did not, so a
+    // family whose data never arrived can never be mistaken for a family
+    // that has nothing wrong with it. That distinction is the whole
+    // finding this round: `period` scored a clean zero for weeks.
+    const warmup: Record<string, { ok: boolean; ms: number }> = {};
+    /** A warm-up naming a family with no recorded expectation. Collected
+     *  rather than `continue`-d: a silent skip here would disarm the very
+     *  await this round exists to add, and it would do it quietly. */
+    const orphanWarmups: string[] = [];
+    for (const family of FAMILY_WARMUP) {
+      const exp = FAMILY_EXPECT[family];
+      if (!exp) {
+        orphanWarmups.push(
+          `${family}: listed in FAMILY_WARMUP but has no FAMILY_EXPECT entry, so ` +
+          `there is no recorded query to summon it with and nothing was awaited`);
+        continue;
+      }
+      warmup[family] = await warmUpFamily(page, family, exp.query);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[G4 @${vp.label} warm-up] ${family} via "${exp.query}": ` +
+          `${warmup[family].ok ? "populated" : "NEVER POPULATED"} after ${warmup[family].ms}ms`,
+      );
+    }
 
     const scan = async (label: string) => {
       const r = await overlay.evaluate((root: Element) => {
@@ -1762,7 +1993,7 @@ test.describe("G4 — navigation rows carry no category column", () => {
       });
       // eslint-disable-next-line no-console
       console.log(
-        `[G4 ${label}] rows=${r.rows} by=${JSON.stringify(r.bySource)} ` +
+        `[G4 @${vp.label} ${label}] rows=${r.rows} by=${JSON.stringify(r.bySource)} ` +
           `fam=${JSON.stringify(r.byFamily)} offenders=${r.offenders.length}`,
       );
       return { ...r, label };
@@ -1789,11 +2020,45 @@ test.describe("G4 — navigation rows carry no category column", () => {
     await input.fill("");
     await page.waitForTimeout(340);
 
-    // ── FLOORS, AFTER every scan — PER FAMILY, PER STATE, then totals ──
+    // ══════════════════════════════════════════════════════════════════
+    // VERDICTS — COMPUTED FIRST, PRINTED IN FULL, ASSERTED ONCE
+    // ══════════════════════════════════════════════════════════════════
     //
-    // A floor on the SUM is the TC-6 disease. It has now been demonstrated
-    // on this exact gate on two different axes, so all three are asserted
-    // and each names the collapse it can see that the others cannot.
+    // ── THE DEFECT THIS SHAPE EXISTS FOR ─────────────────────────────
+    //
+    // The previous version asserted its checks one after another with
+    // separate `expect`s, in this order: (1) starvation, (2) the
+    // pinned-at-zero pin, (3) unknown families, (4) per-state, (5)
+    // totals, (6) TC-7, (7) offenders. `expect` THROWS. So the moment
+    // any earlier check failed, every later one never ran — and the pin,
+    // the one assertion whose entire job is to announce that a family
+    // declared un-paintable has started painting, could not report
+    // itself. A critic observed exactly that: the census line printed
+    // `period: 1` while the thrown error named a different family.
+    //
+    // Re-ordering alone does not fix it. Putting the pin first only
+    // moves the blind spot onto starvation — under a broken pin, nobody
+    // would learn a family had collapsed. Any total order over throwing
+    // assertions has this hole; the fix is to stop ordering throws.
+    //
+    // So: every verdict is computed BEFORE any is asserted, the full
+    // census is printed unconditionally, and ONE assertion carries all
+    // of them. Nothing can mask anything. The sections are ordered by
+    // what a reader must know first — the instrument's condition before
+    // its reading — but that ordering is now presentational, not
+    // control flow.
+
+    /** What this run can say about one family. The states are the point:
+     *  a census that can only say "n rows" cannot distinguish "checked
+     *  and clean" from "there was nothing to check" (TC-9). */
+    type FamilyState =
+      | "VERIFIED"    // summoned to its recorded floor by its recorded query
+      | "STARVED"     // declared with a floor, came up short — violation
+      | "UNMEASURED"  // its data never arrived; the warm-up expired — violation
+      | "UNVERIFIED"  // declared unpaintable, painted nothing: NOT evidence
+      | "PIN BROKEN"  // declared unpaintable, painted rows — violation
+      | "NO STATE"    // its recorded query is not in the sweep — violation
+      | "UNDECLARED"; // painted rows this file knows nothing about — violation
 
     const familyTally: Record<string, number> = {};
     for (const s of scans) {
@@ -1801,168 +2066,289 @@ test.describe("G4 — navigation rows carry no category column", () => {
         familyTally[k] = (familyTally[k] ?? 0) + v;
       }
     }
-    // eslint-disable-next-line no-console
-    console.log(`[G4 family census] ${JSON.stringify(familyTally)}`);
-
-    // (1) EVERY DECLARED FAMILY WAS SUMMONED TO ITS FLOOR **BY THE QUERY
-    //     RECORDED FOR IT**, not by the sweep as a whole.
-    //
-    // The first draft of this checked the SUM across every state, and
-    // that is the TC-6 disease wearing the new axis's clothes: `sku` has
-    // a floor of 5 and is painted by both `range` (7) and `core` (3), so
-    // `range` could collapse to zero and the total would still clear the
-    // floor on `core` alone. The recorded query was then decoration —
-    // printed in the failure message, used by nothing, and wrong without
-    // consequence.
-    //
-    // So the count is per (STATE × FAMILY), read from the state the
-    // expectation names. A recorded query that is not in the sweep is
-    // itself a failure, because an expectation aimed at a state that is
-    // never visited is an expectation that can never fire.
     const perState = new Map(scans.map((s) => [s.label, s.byFamily]));
-    const missingQueries: string[] = [];
-    const starvedFamilies: string[] = [];
+
+    interface Verdict {
+      family: string;
+      state: FamilyState;
+      got: number;
+      floor: number;
+      label: string;
+      note: string;
+    }
+    const verdicts: Verdict[] = [];
+
+    // Declared, floored families — counted PER (STATE × FAMILY), from
+    // the state the expectation names.
+    //
+    // A floor on the SUM is the TC-6 disease, and it has been
+    // demonstrated on this exact gate twice: `sku` has a floor of 5 and
+    // is painted by both `range` (7) and `core` (3), so `range` could
+    // collapse to zero and the total would still clear the floor on
+    // `core` alone. The recorded query would then be decoration —
+    // printed in the message, used by nothing, wrong without
+    // consequence.
     for (const [family, exp] of Object.entries(FAMILY_EXPECT)) {
       const label = exp.query === "" ? "rest" : `typing:${exp.query}`;
       const byFamily = perState.get(label);
       if (!byFamily) {
-        missingQueries.push(
-          `${family}: recorded query "${exp.query || "(rest)"}" → state ` +
-          `"${label}", which the sweep never visited`);
+        verdicts.push({
+          family, state: "NO STATE", got: 0, floor: exp.floor, label,
+          note: `recorded query "${exp.query || "(rest)"}" is not in SWEEP_QUERIES`,
+        });
         continue;
       }
       const got = byFamily[family] ?? 0;
-      if (got < exp.floor) {
-        starvedFamilies.push(
-          `${family}: ${got} row(s) in state "${label}", floor ${exp.floor} ` +
-          `(total across the whole sweep: ${familyTally[family] ?? 0})`);
-      }
+      const warm = warmup[family];
+      const state: FamilyState =
+        got >= exp.floor ? "VERIFIED" : warm && !warm.ok ? "UNMEASURED" : "STARVED";
+      verdicts.push({
+        family, state, got, floor: exp.floor, label,
+        note:
+          state === "UNMEASURED"
+            ? `warm-up expired after ${warm.ms}ms without a single row — the ` +
+              `family's data never arrived on this run, so its ban was ` +
+              `checked against nothing`
+            : state === "STARVED"
+              ? `total across the whole sweep: ${familyTally[family] ?? 0}`
+              : warm
+                ? `awaited ${warm.ms}ms`
+                : "",
+      });
     }
 
-    expect(
-      missingQueries,
-      `G4 EXPECTATION AIMED AT NOTHING: a family's recorded query is not in ` +
-        `SWEEP_QUERIES, so the state it names was never measured.\n` +
-        missingQueries.map((s) => `  ${s}`).join("\n") +
-        `\nStates visited: ${[...perState.keys()].join(" ")}`,
-    ).toEqual([]);
+    // Declared-UNVERIFIED families — two-sided, and never green.
+    for (const [family, pin] of Object.entries(FAMILY_UNVERIFIED)) {
+      const got = familyTally[family] ?? 0;
+      verdicts.push({
+        family,
+        state: got > pin.expectRows ? "PIN BROKEN" : "UNVERIFIED",
+        got,
+        floor: pin.expectRows,
+        label: "(whole sweep)",
+        note: pin.why,
+      });
+    }
 
-    expect(
-      starvedFamilies,
-      `G4 PER-FAMILY VACUITY: a row family this surface can paint was not ` +
-        `summoned to its recorded floor BY THE QUERY RECORDED FOR IT, so ` +
-        `"no row of that family has a category column" is true of nothing ` +
-        `THERE.\n` +
-        starvedFamilies.map((s) => `  ${s}`).join("\n") +
-        `\nCensus: ${JSON.stringify(familyTally)}\n` +
-        `This is the exact green this gate printed over 20 offending Product ` +
-        `rows: nine queries, none of which summons a category or a SKU, and a ` +
-        `predicate that would have caught every one of them. Note the total ` +
-        `beside each count: a family can look healthy in the aggregate while ` +
-        `the state that actually renders it is empty.`,
-    ).toEqual([]);
+    // Families nobody declared at all.
+    for (const family of Object.keys(familyTally)) {
+      if (family in FAMILY_EXPECT || family in FAMILY_UNVERIFIED) continue;
+      verdicts.push({
+        family, state: "UNDECLARED", got: familyTally[family], floor: 0,
+        label: "(whole sweep)",
+        note:
+          `"UNSTAMPED" here means a row whose renderer declared no family — ` +
+          `the same defect as an unstamped \`data-row-source\`, one axis over. ` +
+          `Declare it in \`CAPSULE_ROW_FAMILIES\` and give it a floor.`,
+      });
+    }
 
-    // (2) FAMILIES PINNED AT ZERO ARE STILL AT ZERO.
-    const nowReachable = Object.keys(FAMILY_UNREACHABLE)
-      .filter((f) => (familyTally[f] ?? 0) > 0)
-      .map((f) => `${f}: ${familyTally[f]} row(s). ${FAMILY_UNREACHABLE[f]}`);
-    expect(
-      nowReachable,
-      `G4 PIN BROKEN: a family recorded as unreachable on this stack painted ` +
-        `rows.\n${nowReachable.map((s) => `  ${s}`).join("\n")}\n` +
-        `A zero that is merely observed is a vacuous pass; this pin is the ` +
-        `two-sided version, and it has just told you the ground moved.`,
-    ).toEqual([]);
+    // ── THE CENSUS, PRINTED WHATEVER HAPPENS ─────────────────────────
+    const ORDER: FamilyState[] = [
+      "PIN BROKEN", "UNDECLARED", "NO STATE", "UNMEASURED", "STARVED",
+      "VERIFIED", "UNVERIFIED",
+    ];
+    verdicts.sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
+    const line = (v: Verdict) =>
+      `  ${v.family.padEnd(11)} ${v.state.padEnd(10)} ` +
+      `${String(v.got).padStart(3)} row(s) in ${v.label.padEnd(14)} ` +
+      `${v.state === "UNVERIFIED" ? "pinned at 0" : `floor ${v.floor}`}` +
+      `${v.note ? `  — ${v.note.slice(0, 120)}` : ""}`;
+    const verified = verdicts.filter((v) => v.state === "VERIFIED");
+    const unverified = verdicts.filter((v) => v.state === "UNVERIFIED");
+    const declared = Object.keys(FAMILY_EXPECT).length + Object.keys(FAMILY_UNVERIFIED).length;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[G4 @${vp.label} family verdicts]\n${verdicts.map(line).join("\n")}\n` +
+        `[G4 @${vp.label} evidence] VERIFIED ${verified.length}/${declared} declared famil` +
+        `${declared === 1 ? "y" : "ies"} · UNVERIFIED ${unverified.length}` +
+        `${unverified.length ? ` (${unverified.map((v) => v.family).join(", ")}) — ` +
+          `pinned at zero and NOT counted as evidence` : ""}\n` +
+        `[G4 @${vp.label} family census] ${JSON.stringify(familyTally)}`,
+    );
 
-    // (3) NO FAMILY THIS FILE DOES NOT KNOW ABOUT.
-    const unknownFamilies = Object.keys(familyTally).filter(
-      (f) => !(f in FAMILY_EXPECT) && !(f in FAMILY_UNREACHABLE));
-    expect(
-      unknownFamilies,
-      `G4: rows were painted by ${JSON.stringify(unknownFamilies)}, which this ` +
-        `sweep declares neither an expectation nor a pin for. Census: ` +
-        `${JSON.stringify(familyTally)}.\n` +
-        `"UNSTAMPED" here means a row whose renderer declared no family — the ` +
-        `same defect as an unstamped \`data-row-source\`, one axis over. ` +
-        `Declare it in \`CAPSULE_ROW_FAMILIES\` and give it a floor.`,
-    ).toEqual([]);
-
-    // (4) PER-STATE, the count of PALETTE rows each typing state owes.
-    const typingScans = scans.filter((s) => s.label.startsWith("typing:"));
-    const starved = typingScans
+    // ── THE READING ITSELF ───────────────────────────────────────────
+    const perStatePaletteFloors = scans
+      .filter((s) => s.label.startsWith("typing:"))
       .map((s) => ({ s, want: FLOOR.rowsPerTypingState[s.label.slice(7)] ?? 1 }))
       .filter(({ s, want }) => (s.bySource["palette-row"] ?? 0) < want)
       .map(({ s, want }) =>
         `${s.label}: ${s.bySource["palette-row"] ?? 0} palette-rows, expected ${want}`);
-    expect(
-      starved,
-      `G4 PER-STATE VACUITY: a state painted fewer palette-rows than it is ` +
-        `supposed to. "No row has a category column" is then true of nothing ` +
-        `THERE, however healthy the total looks — an audit emptied \`cash\` ` +
-        `from 13 rows to 0 and this gate printed green on the shared total. ` +
-        `Census: ${typingScans.map((s) => `${s.label}=${s.bySource["palette-row"] ?? 0}`).join(" ")}`,
-    ).toEqual([]);
 
-    const totalRows = scans.reduce((n, s) => n + s.rows, 0);
-    expect(
-      totalRows,
-      `G4 VACUITY: ${totalRows} rows examined across ${scans.length} states ` +
-        `(floor ${FLOOR.navRows}). With no rows, "no row has a category column" ` +
-        `is true of nothing.`,
-    ).toBeGreaterThanOrEqual(FLOOR.navRows);
-
-    // ── TC-7: WHICH COMPONENT PAINTED THEM ────────────────────────────
     const tally: Record<string, number> = {};
     for (const s of scans) {
       for (const [k, v] of Object.entries(s.bySource)) tally[k] = (tally[k] ?? 0) + v;
     }
     // eslint-disable-next-line no-console
-    console.log(`[G4 TC-7 census] ${JSON.stringify(tally)}`);
+    console.log(`[G4 @${vp.label} TC-7 census] ${JSON.stringify(tally)}`);
+
+    const totalRows = scans.reduce((n, s) => n + s.rows, 0);
+    // Each offender carries the STATE it was found in, not just its
+    // family. "20 offenders in the `sku` family" tells the next reader
+    // which rows; "in state typing:range" tells them how to summon those
+    // rows again in one keystroke. A finding nobody can reproduce from
+    // its own failure message costs the next round a re-derivation.
+    const offenders = scans.flatMap((s) =>
+      s.offenders.map((o) => ({ ...o, state: s.label })));
+    const unknownSources = Object.keys(tally).filter(
+      (k) => !ROW_SOURCES.includes(k as never));
+
+    // ── ONE ASSERTION ────────────────────────────────────────────────
+    const sections: { head: string; body: string[] }[] = [];
+    const bad = (state: FamilyState) => verdicts.filter((v) => v.state === state);
+
+    if (bad("PIN BROKEN").length)
+      sections.push({
+        head:
+          `PIN BROKEN — a family declared UNVERIFIED on this stack painted rows. ` +
+          `Reported first because it means the ground moved: a family nobody has ` +
+          `ever checked the category-column ban against is now on screen. Move it ` +
+          `into FAMILY_EXPECT with the query that summoned it and the count it ` +
+          `produced. (This is the check that caught \`period\`, whose pin was a ` +
+          `HARNESS artifact — see \`boot()\`.)`,
+        body: bad("PIN BROKEN").map((v) => `${v.family}: ${v.got} row(s). ${v.note}`),
+      });
+
+    if (bad("UNDECLARED").length)
+      sections.push({
+        head:
+          `UNDECLARED FAMILY — rows were painted by a family this sweep declares ` +
+          `neither an expectation nor a pin for. Census: ${JSON.stringify(familyTally)}`,
+        body: bad("UNDECLARED").map((v) => `${v.family}: ${v.got} row(s). ${v.note}`),
+      });
+
+    if (bad("NO STATE").length)
+      sections.push({
+        head:
+          `EXPECTATION AIMED AT NOTHING — a family's recorded query is not in ` +
+          `SWEEP_QUERIES, so the state it names was never measured and the ` +
+          `expectation can never fire.\nStates visited: ${[...perState.keys()].join(" ")}`,
+        body: bad("NO STATE").map((v) => `${v.family}: ${v.note}`),
+      });
+
+    if (orphanWarmups.length)
+      sections.push({
+        head:
+          `WARM-UP AIMED AT NOTHING — a family in FAMILY_WARMUP has no recorded ` +
+          `expectation, so nothing was awaited for it and its rows were read ` +
+          `whenever they happened to be there. That is the pre-fix harness ` +
+          `wearing the fix's clothes.`,
+        body: orphanWarmups,
+      });
+
+    if (bad("UNMEASURED").length)
+      sections.push({
+        head:
+          `UNMEASURED — a family whose data is awaited (FAMILY_WARMUP) never ` +
+          `populated, so its ban was checked against nothing. This is a RED and ` +
+          `not a zero, and that is the entire lesson of this round: \`period\` ` +
+          `spent weeks reported as a clean zero produced by a harness that ` +
+          `never summoned it.`,
+        body: bad("UNMEASURED").map((v) => `${v.family}: ${v.note}`),
+      });
+
+    if (bad("STARVED").length)
+      sections.push({
+        head:
+          `PER-FAMILY VACUITY — a row family this surface can paint was not ` +
+          `summoned to its recorded floor BY THE QUERY RECORDED FOR IT, so "no ` +
+          `row of that family has a category column" is true of nothing THERE.\n` +
+          `This is the exact green this gate printed over 20 offending Product ` +
+          `rows: nine queries, none of which summons a category or a SKU, and a ` +
+          `predicate that would have caught every one of them. Note the total ` +
+          `beside each count — a family can look healthy in the aggregate while ` +
+          `the state that actually renders it is empty.`,
+        body: bad("STARVED").map(
+          (v) => `${v.family}: ${v.got} row(s) in state "${v.label}", floor ${v.floor} (${v.note})`),
+      });
+
+    if (perStatePaletteFloors.length)
+      sections.push({
+        head:
+          `PER-STATE VACUITY — a state painted fewer palette-rows than it is ` +
+          `supposed to. "No row has a category column" is then true of nothing ` +
+          `THERE, however healthy the total looks — an audit emptied \`cash\` ` +
+          `from 13 rows to 0 and this gate printed green on the shared total.\n` +
+          `Census: ${scans.filter((s) => s.label.startsWith("typing:"))
+            .map((s) => `${s.label}=${s.bySource["palette-row"] ?? 0}`).join(" ")}`,
+        body: perStatePaletteFloors,
+      });
+
+    if ((tally.UNSTAMPED ?? 0) > 0)
+      sections.push({
+        head:
+          `TC-7 UNSTAMPED — ${tally.UNSTAMPED} row(s) carry no \`data-row-source\`. ` +
+          `An unstamped row is a renderer this gate cannot name. The defect this ` +
+          `predicate exists for was a row-level fix applied to a component that ` +
+          `paints nothing in the state under test, while an unnamed one painted ` +
+          `thirteen rows with the defect intact.\nCensus: ${JSON.stringify(tally)}`,
+        body: [],
+      });
+
+    if (unknownSources.length)
+      sections.push({
+        head:
+          `TC-7 UNKNOWN SOURCE — a row was painted by a source this file does not ` +
+          `know about: ${JSON.stringify(unknownSources)}. Declare it in ROW_SOURCES ` +
+          `— or, if the rows moved, this gate is now measuring the old component.\n` +
+          `Census: ${JSON.stringify(tally)}`,
+        body: [],
+      });
+
+    if (totalRows < FLOOR.navRows)
+      sections.push({
+        head:
+          `TOTAL VACUITY — ${totalRows} rows examined across ${scans.length} states ` +
+          `(floor ${FLOOR.navRows}). With no rows, "no row has a category column" ` +
+          `is true of nothing.`,
+        body: [],
+      });
+
+    if ((tally["palette-row"] ?? 0) < FLOOR.navRows)
+      sections.push({
+        head:
+          `TC-7 FLOOR — \`palette-row\` painted ${tally["palette-row"] ?? 0} rows ` +
+          `across the sweep (floor ${FLOOR.navRows}). This is the component that ` +
+          `paints the typing state. A zero here means the sweep never reached it ` +
+          `— and a category-column ban that never reached the component with the ` +
+          `category column is the exact green this gate produced last round.\n` +
+          `Census: ${JSON.stringify(tally)}`,
+        body: [],
+      });
+
+    if (offenders.length)
+      sections.push({
+        head:
+          `THE BAN ITSELF — ${offenders.length} row(s) carry a right-aligned ` +
+          `trailing label, in famil${
+            new Set(offenders.map((o) => o.family)).size === 1 ? "y" : "ies"
+          } ${[...new Set(offenders.map((o) => o.family))].map((f) => `\`${f}\``).join(", ")}, ` +
+          `summoned by ${[...new Set(offenders.map((o) => o.state))]
+            .map((s) => `\`${s}\``).join(", ")}.\n` +
+          `Note the two gutters. The ELEMENT gutter is pinned ` +
+          `near 12px by the label's \`flex-1\` however short the label is, which ` +
+          `is why an earlier version of this gate fired 0 of 17 times. The GLYPH ` +
+          `gutter is what the reader sees. Note the FAMILY too: the last 20 ` +
+          `offenders were all one family, and the sweep that missed them was ` +
+          `checking eight others.`,
+        body: offenders.map(
+          (o) =>
+            `[${o.state} · ${o.source} · ${o.family}] "${o.row}" → "${o.trailing}"  ` +
+            `glyph gutter ${o.glyphGutter}px (element gutter ${o.elementGutter}px)`),
+      });
 
     expect(
-      tally.UNSTAMPED ?? 0,
-      `TC-7: ${tally.UNSTAMPED ?? 0} row(s) carry no \`data-row-source\`. Census: ` +
-        `${JSON.stringify(tally)}.\nAn unstamped row is a renderer this gate ` +
-        `cannot name. The defect this predicate exists for was a row-level fix ` +
-        `applied to a component that paints nothing in the state under test, ` +
-        `while an unnamed one painted thirteen rows with the defect intact.`,
-    ).toBe(0);
-
-    expect(
-      Object.keys(tally).filter((k) => !ROW_SOURCES.includes(k as never)),
-      `TC-7: a row was painted by a source this file does not know about. ` +
-        `Census: ${JSON.stringify(tally)}. Declare it in ROW_SOURCES — or, if ` +
-        `the rows moved, this gate is now measuring the old component.`,
-    ).toEqual([]);
-
-    expect(
-      tally["palette-row"] ?? 0,
-      `TC-7 FLOOR: \`palette-row\` painted ${tally["palette-row"] ?? 0} rows ` +
-        `across the sweep. Census: ${JSON.stringify(tally)}.\nThis is the ` +
-        `component that paints the typing state. A zero here means the sweep ` +
-        `never reached it — and a category-column ban that never reached the ` +
-        `component with the category column is the exact green this gate ` +
-        `produced last round.`,
-    ).toBeGreaterThanOrEqual(FLOOR.navRows);
-
-    const offenders = scans.flatMap((s) => s.offenders);
-    expect(
-      offenders,
-      `G4: ${offenders.length} row(s) carry a right-aligned trailing label:\n` +
-        offenders
-          .map((o) =>
-            `  [${o.source} · ${o.family}] "${o.row}" → "${o.trailing}"  ` +
-              `glyph gutter ${o.glyphGutter}px (element gutter ${o.elementGutter}px)`,
-          )
-          .join("\n") +
-        `\nNote the two gutters. The ELEMENT gutter is pinned near 12px by the ` +
-        `label's \`flex-1\` however short the label is, which is why an earlier ` +
-        `version of this gate fired 0 of 17 times. The GLYPH gutter is what the ` +
-        `reader sees. Note the FAMILY too: the last 20 offenders were all one ` +
-        `family, and the sweep that missed them was checking eight others.`,
+      sections.map((s) => s.head.split("\n")[0].split(" — ")[0]),
+      `G4 @${vp.label} FAILED — ${sections.length} finding(s). Every check ran; none was ` +
+        `masked by an earlier throw.\n\n` +
+        sections
+          .map((s, i) => `(${i + 1}) ${s.head}\n${s.body.map((b) => `      ${b}`).join("\n")}`)
+          .join("\n\n") +
+        `\n\nFAMILY VERDICTS\n${verdicts.map(line).join("\n")}`,
     ).toEqual([]);
   });
 });
+}
 // ══════════════════════════════════════════════════════════════════════
 // G5 — CLS 0
 // ══════════════════════════════════════════════════════════════════════

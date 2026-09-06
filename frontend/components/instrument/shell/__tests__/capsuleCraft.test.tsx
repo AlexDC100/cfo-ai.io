@@ -38,6 +38,7 @@
 
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -151,9 +152,18 @@ const reservationTaken = () => !checkCapsuleAsk(USER).allowed;
 
 function mount() {
   const onOpenChange = vi.fn();
+  // TooltipProvider mirrors App.tsx, which mounts one around the whole
+  // tree. It became REQUIRED here on 2026-09-02, and the reason is worth
+  // keeping: every Tier-0 question these tests ask ("total assets",
+  // "how much cash") resolves to a MONEY fact, and until that date a
+  // money fact in the Capsule carried NO provenance affordance at all
+  // while its percent sibling did. These 20 tests going red the moment
+  // money figures got one is the measurement that the gap was real.
   render(
     <MemoryRouter>
-      <CommandPalette open onOpenChange={onOpenChange} onOpenAi={() => {}} />
+      <TooltipProvider>
+        <CommandPalette open onOpenChange={onOpenChange} onOpenAi={() => {}} />
+      </TooltipProvider>
     </MemoryRouter>,
   );
   return { onOpenChange };

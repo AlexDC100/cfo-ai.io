@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────
+# FIRM COCKPIT — CLIENT CADENCE (DATA, not code)
+#
+# THIS FILE IS DATA. It is the only place a cadence id, a filing deadline
+# or a nudge schedule may be written down. `engine.firm.cadence` reads it
+# and NEVER compares a cadence id, a firm name, a client name or a
+# profile name to a string literal — the same rule the RO profiles pack
+# lives under (tests/engine/test_firm_gates.py token-scans the firm
+# modules for exactly that).
+#
+# There is deliberately NO pack.yaml in packs/firm/: this directory is
+# not a jurisdiction pack, so `scripts/pack_lint.py --root packs` and
+# `engine.packs.loader.discover_packs` (both keyed on pack.yaml) do not
+# pick it up.
+#
+# ABSENT != ZERO. A client with no stored cadence row takes
+# `default_cadence`; a client with no filed period at all is reported as
+# `never_filed`, never as "zero periods behind".
+# ─────────────────────────────────────────────────────────────────────────
+
+schema: firm_cadence_v1
+
+# The cadence a client takes until a firm sets one explicitly.
+default_cadence: monthly
+
+cadences:
+  monthly:
+    # One trial balance per calendar month.
+    period_months: 1
+    # Filing deadline for the period: N calendar days after the period
+    # end. 25 = the accountant's working convention for a monthly trial
+    # balance (the month's declarations are due on the 25th of the
+    # following month, and the balance must be closed before them). A
+    # firm may override this per client; the override is stored, not
+    # coded.
+    deadline_days_after_period_end: 25
+  quarterly:
+    # One trial balance per fiscal quarter. Quarter ends are the months
+    # that align with the client's fiscal-year-end month (FYE=12 →
+    # Mar/Jun/Sep/Dec; FYE=6 → Sep/Dec/Mar/Jun).
+    period_months: 3
+    deadline_days_after_period_end: 25
+
+# Auto-nudge schedule: a reminder is queued this many days BEFORE a
+# period's deadline when no file has landed for it. Listed largest
+# first; each entry is sent at most once per (client, period).
+nudge_days_before_deadline: [7, 2]
+
+# How long a signed file-request link stays valid after it is minted.
+request_link_ttl_days: 14
+
+# How many past periods a status report enumerates when listing what is
+# missing — the window a firm actually chases, not a client's whole
+# history.
+lookback_periods: 6

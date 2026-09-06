@@ -18,29 +18,51 @@ server call, or test mode — see _test_mode.py, which seeds exactly one org) we
 fall back to the user's oldest membership. That keeps every existing route
 working while the frontend rolls out. What we never do is accept an org the
 caller doesn't belong to.
+
+IDENTITY (2026-09-05, FC1x, critic D5). `resolve_user_id` returns a
+VERIFIED identity or raises — `_jwt.verified_identity` checks the ES256
+signature against Supabase's JWKS plus exp / iss / aud / sub. It used to
+read the payload without verifying it (`_supabase._decode_jwt_claims`, now
+gone), so a forged bearer carrying a victim's `sub` passed every Python wall
+in this package: `POST /api/documents/clear-mine` soft-deleted the victim's
+documents through the service role, `GET`/`PUT /api/dashboard/config` read
+and wrote the victim's layout, `POST /api/firm/email/drain` was gated only
+by the forgeable `sub` ∈ PRICING_ADMIN_USER_IDS. Nothing on those paths
+sent the JWT to PostgREST, so its signature check never ran — one wall, not
+two. The identity is deliberately NOT routed through `per_user(jwt)`: a
+signature check is a property of the verifier, never of a database client
+a test double can stand in for.
+
+THE WRITE WALL (critic D4). `require_org_member` is what every mutating
+route outside /api/firm goes through: a verified identity AND a
+`memberships` row in the org the write targets. Firm READ visibility
+(`can_read_client_org`, schema_phase_firm.sql) is a read grant on the
+client's books and never satisfies it — a firm VIEWER with a read cell and
+no membership hard-deleted a client's period through DELETE /api/period/{id}
+because that route asked only "is the period visible under per_user?"
+(crit_pipeline_census.py). A write needs a membership row; visibility is
+the READ wall.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Header, HTTPException
 
-from . import _supabase
+from . import _jwt, _supabase
 
 logger = logging.getLogger(__name__)
 
 
 def resolve_user_id(jwt: str) -> str:
-    """User id from a JWT, or 401."""
-    with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    return str(user_id)
+    """The VERIFIED user id. 401 (`_jwt.InvalidToken`) when the bearer's
+    signature does not verify or its exp / iss / aud / sub fail; 503
+    (`_jwt.IdentityUnavailable`) when no signing key can be obtained. Never
+    an unverified decode — there is no fallback."""
+    return str(_jwt.verified_identity(jwt)["id"])
 
 
 def user_is_member(user_id: str, org_id: str) -> bool:
@@ -52,6 +74,50 @@ def user_is_member(user_id: str, org_id: str) -> bool:
             limit=1,
         )
     return bool(rows)
+
+
+def member_org_ids(user_id: str) -> List[str]:
+    """Every org `user_id` holds a `memberships` row in — the scope a bulk
+    write ("everything visible to me") must be narrowed to. Firm visibility
+    is deliberately not part of it. Read as the service role: a per-user
+    read of `memberships` would answer the same rows (`auth.uid() =
+    user_id`), but this helper is called with an already-verified id and
+    must not depend on a client a test double can wave through."""
+    with _supabase.admin() as ac:
+        rows = ac.select(
+            "memberships",
+            filters={"user_id": f"eq.{user_id}"},
+            columns="org_id",
+        )
+    return [str(r["org_id"]) for r in rows or [] if r.get("org_id")]
+
+
+def verified_user_id(jwt: str) -> str:
+    """`resolve_user_id` with the PUBLIC_TEST_MODE seam every other identity
+    helper carries: under test mode the shared test user stands in (its
+    only membership is the test org); otherwise the VERIFIED id or 401 /
+    503. Call this BEFORE any per-user table read on a mutating route — a
+    forged bearer is then refused by the verifier (401) rather than by an
+    anonymous read that finds nothing (404), and never reaches PostgREST."""
+    from . import _test_mode
+    if _test_mode.is_bypass_token(jwt):
+        return _test_mode.test_user_id()
+    return resolve_user_id(jwt)
+
+
+def require_org_member(jwt: str, org_id: Optional[str]) -> str:
+    """THE WRITE WALL. A verified identity that holds a `memberships` row
+    in `org_id` → its user id. Otherwise 403 — never firm visibility, never
+    `can_read_client_org`, never a fallback to another org the caller does
+    belong to (that would re-target the write). An empty / unknown org is a
+    403 too: a write whose target org cannot be named has no wall to pass.
+    Under PUBLIC_TEST_MODE the shared test user stands in, exactly as every
+    other identity seam does (its only membership is the test org)."""
+    user_id = verified_user_id(jwt)
+    org = str(org_id or "").strip()
+    if not org or not user_is_member(user_id, org):
+        raise HTTPException(403, "Not a member of the workspace this write targets.")
+    return user_id
 
 
 def default_org_for_user(user_id: str) -> Optional[str]:
@@ -122,8 +188,8 @@ def create_workspaces_router() -> APIRouter:
         Auth is the engine bearer token (ENGINE_API_TOKEN), not a user JWT —
         this is scheduler-only.
 
-        Unlike the renewal-reminder cron in _billing.py, which runs open when
-        ENGINE_API_TOKEN is unset, this endpoint FAILS CLOSED: it erases
+        Like the renewal-reminder cron in _billing.py (fail-closed since
+        2026-09-04), this endpoint FAILS CLOSED: it erases
         customer data irreversibly, so an unconfigured deployment must not be
         able to trigger it anonymously.
         """

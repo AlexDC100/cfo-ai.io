@@ -81,6 +81,12 @@ SURFACE_DIRS = [
     ("finding-rank", "src/engine/api/_finding_rank.py"),
     ("serving", "src/engine/serving/facts.py"),
     ("benchmarks", "src/engine/api/_benchmark_engine.py"),
+    # The firm cockpit cites served money facts as attention-item
+    # evidence; its read list is a module-level registry in facts.py (see
+    # _firm_registry below), invisible to the call-shape scan. The file,
+    # not the package: the cadence/digest half of engine.firm names date
+    # and text keys under `fact=`, which are not metrics.
+    ("firm", "src/engine/firm/facts.py"),
 ]
 
 # A name the census MUST find, per surface, or discovery has silently
@@ -90,6 +96,7 @@ CANARIES = {
     "findings": ("total_assets",),
     "benchmarks": ("ebitda_margin",),
     "serving": ("market_cap",),
+    "firm": ("cash", "covenant_limit"),
 }
 
 #: Minimum metric names each surface must yield. THE GLOBAL COUNT CANNOT
@@ -105,6 +112,7 @@ SURFACE_FLOORS = {
     "findings": 20,
     "benchmarks": 15,
     "serving": 5,
+    "firm": 10,
 }
 
 
@@ -203,6 +211,27 @@ def _market_registry():
     for name in re.findall(r'"([a-z_][a-z0-9_]*)"', m.group(1)):
         out[name] = ("registry:serving.facts._MARKET_METRICS", 0)
     return out
+def _firm_registry():
+    """`engine.firm.facts.SERVED_MONEY_FACTS` (+ DECLARED_MONEY_FACTS) —
+    the firm cockpit's own read list, a module-level tuple. Read as
+    source for the same reason the market registry is: importing
+    engine.firm pulls the findings engine and the country packs."""
+    out = {}
+    path = os.path.join(ROOT, "src/engine/firm/facts.py")
+    if not os.path.exists(path):
+        return out
+    src = open(path, encoding="utf-8").read()
+    m = re.search(r"SERVED_MONEY_FACTS\s*=\s*\((.*?)\n\)", src, re.S)
+    if m:
+        for name in re.findall(r'\(\s*"([a-z_][a-z0-9_]*)"\s*,', m.group(1)):
+            out[name] = ("registry:engine.firm.facts.SERVED_MONEY_FACTS", 0)
+    m = re.search(r"DECLARED_MONEY_FACTS\s*=\s*\((.*?)\)", src, re.S)
+    if m:
+        for name in re.findall(r'"([a-z_][a-z0-9_]*)"', m.group(1)):
+            out[name] = ("registry:engine.firm.facts.DECLARED_MONEY_FACTS", 0)
+    return out
+
+
 def _py_files(rel):
     full = os.path.join(ROOT, rel)
     if os.path.isfile(full):
@@ -262,6 +291,8 @@ def main():
             names.update(_benchmark_registry())
         if surface == "serving":
             names.update(_market_registry())
+        if surface == "firm":
+            names.update(_firm_registry())
         missing_canary = [c for c in CANARIES.get(surface, ()) if c not in names]
         if missing_canary:
             print("DISCOVERY BROKEN for surface %r: canary %r not found. "

@@ -354,7 +354,13 @@ describe("render helpers", () => {
   it("builds provenance only when something is behind the figure", () => {
     const line = factFor(index, "bs.row.ar_intercompany")!;
     const provenance = amountProvenanceFor(line)!;
-    expect(provenance.source).toContain("461");
+    // Account codes moved OUT of `source` into their own `accounts`
+    // field (2026-09-02, provenance-affordance lane). The assertion is
+    // unchanged in strength — account 461 must still reach the payload
+    // — but it now names the field the affordance card labels
+    // "Accounts", so a sheet name and an account list can no longer be
+    // presented to the reader as the same kind of claim.
+    expect(provenance.accounts).toContain("461");
     expect(amountProvenanceFor({
       factKey: "x", label: "x", value: 1, unit: "count",
       periodId: "p", periodLabel: "L",

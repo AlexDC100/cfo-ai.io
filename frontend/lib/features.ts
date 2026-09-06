@@ -64,6 +64,7 @@ export type FeatureKey =
   | "two_factor_auth"
   | "manage_profile"
   | "manage_billing"
+  | "annual_billing"
   | "workspace_switcher"
   | "user_invites"
   | "dashboard"
@@ -75,7 +76,20 @@ export type FeatureKey =
   | "public_records"
   | "inventory"
   | "invoices"
-  | "products_legacy";
+  | "products_legacy"
+  // ── LAUNCH CUT (2026-09-05) — mirror of the block of the same name in
+  // `_features.py`. Every key below is `hidden` server-side today; the
+  // ROUTE (not only the nav item) consults it via <FeatureRoute>, so a
+  // deep link renders <PendingState> instead of a half-verified screen.
+  | "scenarios"
+  | "variance"
+  | "public_companies"
+  | "comprehensive_report"
+  | "peer_report"
+  | "chat_page"
+  | "roadmap"
+  | "firm_cockpit"
+  | "anomaly_radar";
 
 export interface FeatureDefinition {
   status: FeatureStatus;

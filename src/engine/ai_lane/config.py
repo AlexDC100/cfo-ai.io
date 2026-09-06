@@ -27,58 +27,107 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
-from engine.ai import registry as _model_registry
 from engine.packs.runtime import active_pack
 from engine.packs.schema import CompiledPack
 
 from .schemas import AiLaneError
 
+# ── Registry-backed constants — RESOLVED ON FIRST TOUCH (PEP 562) ──────
+#
 # The model this lane records on ai_audit + canonical_bs.extraction and
-# uses as its envelope-level cache-key half. REGISTRY-WIRED (engine.ai/
-# models.yaml, role "extract") with a VALUE-IDENTICAL cutover — the
-# corpus goldens and stored envelopes byte-freeze the string, so a model
+# uses as its envelope-level cache-key half (MODEL_ID), the per-stage
+# prompt versions and the per-stage output ceilings are REGISTRY reads
+# (engine/ai/models.yaml) with a VALUE-IDENTICAL cutover — the corpus
+# goldens and stored envelopes byte-freeze the strings, so a model
 # change is a deliberate registry edit + golden refreeze, never a code
 # edit here. Locked by tests/engine/test_model_registry.py.
-MODEL_ID = _model_registry.model_for("extract")
+#
+# They are read at FIRST TOUCH, not at import (critic D6, 2026-09-05).
+# This module sits in the import closure of `from engine.api import
+# create_app` (server -> pipeline -> engine.ai_lane -> here), and a
+# module-level registry read made the WHOLE APP depend on models.yaml
+# resolving at import: a missing role, an unreadable file or a role with
+# no breaker caps was a RegistryError before uvicorn had a process to
+# serve — the deterministic firm board included. Every name below is
+# still a module attribute (`config.MODEL_ID` reads as before, `from
+# .config import MODEL_ID` too, a monkeypatch still wins — it lands in
+# globals, which are consulted first), and the registry's failure stays
+# LOUD at the first AI call that touches one. Same shape as
+# engine.api._reconcile and engine.api.pipeline.
+#
+# `_CLASSIFY_PROMPT_VERSION_ALIASES` composes on CLASSIFY_PROMPT_VERSION
+# and is resolved the same way. Inside THIS module every read goes
+# through `_registry_constant` — a bare global read never consults
+# `__getattr__`.
+
+#: name -> (registry role, params key)
+_REGISTRY_CONSTANTS = {
+    "MODEL_ID": ("extract", "model_id"),
+    "FORMAT_DETECT_PROMPT_VERSION": ("format_detect", "prompt_version"),
+    "EXTRACT_PROMPT_VERSION": ("extract", "prompt_version"),
+    "CLASSIFY_PROMPT_VERSION": ("classify", "prompt_version"),
+    "FORMAT_DETECT_MAX_TOKENS": ("format_detect", "max_tokens"),
+    "EXTRACT_MAX_TOKENS": ("extract", "max_tokens"),
+    "CLASSIFY_MAX_TOKENS": ("classify", "max_tokens"),
+}
+
+#: The pack content hashes whose exact v1 contents alias to the FROZEN
+#: classify base version (see classify_prompt_version_for). Keyed by
+#: CONTENT HASH, not identity: only the byte-exact v1 pack data keeps the
+#: frozen name — ANY in-place edit (even keeping "version: v1") changes
+#: the hash, misses the alias, and derives a fresh version, which is
+#: exactly the cache-invalidation guarantee. The hashes are pinned to the
+#: generated packs by tests/engine/test_hu_pack.py; scripts/port_hu_pack.py
+#: --check pins the pack bytes themselves.
+_CLASSIFY_ALIAS_PACK_HASHES = (
+    # packs/hu/actc2000-v1
+    "d2367f22d245620139be2a6bf7dfe5898dec18548fd34b19b6a3f473dfb5095f",
+    # packs/intl/ifrs-captions-v1
+    "9f27cb46a010db189fe3d9ed60d4af0db6e9d4f996a72e03c8453f9e64751512",
+)
+
+_LAZY_NAMES = tuple(_REGISTRY_CONSTANTS) + ("_CLASSIFY_PROMPT_VERSION_ALIASES",)
+
+
+def _resolve(name: str) -> Any:
+    """Read one lazy constant from the registry and pin it into this
+    module's globals (later reads are plain attribute reads). Raises the
+    registry's own RegistryError when it cannot resolve — at the seam.
+    Lazy import on purpose: engine.ai.registry is touched here and
+    nowhere else in this module."""
+    from engine.ai import registry as _model_registry  # the ONE registry read of this module
+
+    if name in _REGISTRY_CONSTANTS:
+        role, key = _REGISTRY_CONSTANTS[name]
+        value = _model_registry.params_for(role)[key]
+    elif name == "_CLASSIFY_PROMPT_VERSION_ALIASES":
+        frozen = _registry_constant("CLASSIFY_PROMPT_VERSION")
+        value = dict((h, frozen) for h in _CLASSIFY_ALIAS_PACK_HASHES)
+    else:
+        raise AttributeError("module %r has no attribute %r" % (__name__, name))
+    globals().setdefault(name, value)
+    return globals()[name]
+
+
+def _registry_constant(name: str) -> Any:
+    """The pinned module global when one exists (a monkeypatch, or an
+    earlier resolution), else the registry read — which pins it."""
+    value = globals().get(name)
+    if value is not None:
+        return value
+    return _resolve(name)
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_NAMES:
+        return _resolve(name)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
 
 # Version stamp for the lane's own deterministic post-processing (row
 # shaping, self-check, envelope assembly) — the LLM analog of the RO
 # parser_version. Bump on any lane-logic change.
 AI_LANE_PARSER_VERSION = "ai_lane_v1"
-
-# Per-stage prompt versions — registry reads (bump them in models.yaml
-# on ANY change to the stage's prompt; values are golden-frozen).
-FORMAT_DETECT_PROMPT_VERSION = _model_registry.params_for("format_detect")["prompt_version"]
-EXTRACT_PROMPT_VERSION = _model_registry.params_for("extract")["prompt_version"]
-
-# The FROZEN classify base version — the alias value the exact v1 pack
-# contents map to (see classify_prompt_version_for). Registry-supplied
-# BASE version; the pack-hash derivation below composes ON TOP of it
-# exactly as before. Stored envelopes, the golden corpus and the cache
-# rows all carry this string.
-CLASSIFY_PROMPT_VERSION = _model_registry.params_for("classify")["prompt_version"]
-
-#: pack_hash -> frozen prompt-version alias. Keyed by CONTENT HASH, not
-#: identity: only the byte-exact v1 pack data keeps the frozen name —
-#: ANY in-place edit (even keeping "version: v1") changes the hash,
-#: misses the alias, and derives a fresh version, which is exactly the
-#: cache-invalidation guarantee. The hashes are pinned to the generated
-#: packs by tests/engine/test_hu_pack.py; scripts/port_hu_pack.py
-#: --check pins the pack bytes themselves.
-_CLASSIFY_PROMPT_VERSION_ALIASES: Dict[str, str] = {
-    # packs/hu/actc2000-v1
-    "d2367f22d245620139be2a6bf7dfe5898dec18548fd34b19b6a3f473dfb5095f":
-        CLASSIFY_PROMPT_VERSION,
-    # packs/intl/ifrs-captions-v1
-    "9f27cb46a010db189fe3d9ed60d4af0db6e9d4f996a72e03c8453f9e64751512":
-        CLASSIFY_PROMPT_VERSION,
-}
-
-# Output ceilings per stage (extract carries the account rows) —
-# registry reads, value-identical.
-FORMAT_DETECT_MAX_TOKENS = _model_registry.params_for("format_detect")["max_tokens"]
-EXTRACT_MAX_TOKENS = _model_registry.params_for("extract")["max_tokens"]
-CLASSIFY_MAX_TOKENS = _model_registry.params_for("classify")["max_tokens"]
 
 # Text payload ceiling (chars) fed to the model per stage.
 MAX_DOC_CHARS = 200_000
@@ -98,7 +147,7 @@ def classify_prompt_version_for(pack: CompiledPack) -> str:
     """The classify prompt version for a resolved pack: the frozen alias
     for the exact v1 contents, else 'classify_<jur>@<pack_hash[:12]>' —
     mechanically derived, collision-free with the frozen name."""
-    alias = _CLASSIFY_PROMPT_VERSION_ALIASES.get(pack.pack_hash)
+    alias = _registry_constant("_CLASSIFY_PROMPT_VERSION_ALIASES").get(pack.pack_hash)
     if alias is not None:
         return alias
     return "classify_%s@%s" % (
@@ -116,8 +165,8 @@ def prompt_versions(jurisdiction: str) -> Dict[str, str]:
     because the classify entry derives from that jurisdiction's pack."""
     return {
         "parser_version": AI_LANE_PARSER_VERSION,
-        "format_detect": FORMAT_DETECT_PROMPT_VERSION,
-        "extract": EXTRACT_PROMPT_VERSION,
+        "format_detect": _registry_constant("FORMAT_DETECT_PROMPT_VERSION"),
+        "extract": _registry_constant("EXTRACT_PROMPT_VERSION"),
         "classify": classify_prompt_version(jurisdiction),
     }
 

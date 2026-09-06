@@ -28,7 +28,9 @@ export interface DetectedCondition {
   ruleKey: string;
   severity: Severity;
   title: string;
-  factsCited: Record<string, number>;
+  /** A cited fact the envelope did not carry is `null`, never 0 — the
+   *  citation list is what a reader checks the card's claim against. */
+  factsCited: Record<string, number | null>;
   /** Static rationale — used when Opus narrative isn't available. */
   rationaleFallback: string;
   /** Static action list — used when Opus narrative isn't available. */
@@ -48,6 +50,38 @@ interface Rule {
 
 const RON = (n: number) => `RON ${Math.round(n).toLocaleString()}`;
 
+// ─── Absent-ratio discipline ────────────────────────────────────────────
+//
+// `RatioFacts` values are `number | null`. Two things must never happen
+// in a rule:
+//
+//   1. A THRESHOLD read off an absent ratio. JavaScript coerces `null`
+//      to 0 in relational comparisons, so `null <= 1.35` is true and
+//      `null < 0` is FALSE — the second shape is how a
+//      negative-equity rule (Law 31/1990 art. 153^24) silently stops
+//      firing. `has()` makes the presence test explicit so no rule
+//      depends on coercion for its behaviour.
+//   2. A CITATION of an absent ratio in prose. A rule can be correctly
+//      silent about a ratio and still quote it inside ANOTHER rule's
+//      sentence; that is exactly how "equity ratio 0.0% vs typical 30%
+//      floor" reached a CRITICAL card for a company at 14.7%.
+//
+/** True only for a real, finite measurement. */
+const has = (v: number | null | undefined): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+/** The word prose uses where an absent ratio would have gone. Stating
+ *  the absence keeps the sentence honest; printing "0.00" does not. */
+const UNMEASURED = "not reported";
+
+/** `x.toFixed(d)` for a possibly-absent ratio. */
+const fx = (v: number | null | undefined, digits: number): string =>
+  has(v) ? v.toFixed(digits) : UNMEASURED;
+
+/** A possibly-absent ratio rendered as a percentage. */
+const pctOf = (v: number | null | undefined, digits: number): string =>
+  has(v) ? `${(v * 100).toFixed(digits)}%` : UNMEASURED;
+
 const RULES: Rule[] = [
   // ══════════════════════════════════════════════════════════════════
   // ACTIONABLE OPPORTUNITIES — fire when conditions are favorable
@@ -61,6 +95,10 @@ const RULES: Rule[] = [
     detect: (f) => {
       const dscr = f.ratios.dscr;
       const dteAdj = f.ratios.debt_to_ebitda_adjusted;
+      // A "bankable" verdict needs BOTH ratios actually measured. Left
+      // to coercion, `null <= 1.35` happened to be true and the rule
+      // stayed silent by accident; the presence test says so on purpose.
+      if (!has(dscr) || !has(dteAdj)) return null;
       if (
         dscr <= 1.35 ||
         dteAdj <= 0 ||
@@ -74,7 +112,7 @@ const RULES: Rule[] = [
       return {
         ruleKey: "refinance_opportunity",
         severity: "info",
-        title: `Refinance window: DSCR ${dscr.toFixed(2)}× and adjusted Debt/EBITDA ${dteAdj.toFixed(2)}× are bankable`,
+        title: `Refinance window: DSCR ${fx(dscr, 2)}× and adjusted Debt/EBITDA ${fx(dteAdj, 2)}× are bankable`,
         factsCited: {
           dscr,
           debt_to_ebitda_adjusted: dteAdj,
@@ -84,7 +122,7 @@ const RULES: Rule[] = [
           potential_savings_per_50bps: savings50bps,
         },
         rationaleFallback:
-          `DSCR ${dscr.toFixed(2)}× and adjusted Debt/EBITDA ${dteAdj.toFixed(2)}× ` +
+          `DSCR ${fx(dscr, 2)}× and adjusted Debt/EBITDA ${fx(dteAdj, 2)}× ` +
           `(including ${RON(f.pl.dividend_income)} dividend income from participations) ` +
           `put the company in bankable territory. Current rate ~${(currentRate * 100).toFixed(2)}% ` +
           `(${RON(f.pl.interest_expense)} interest on ${RON(f.bs.bank_debt_total)} debt) ` +
@@ -181,7 +219,14 @@ const RULES: Rule[] = [
     key: "intercompany_receivable_recall",
     detect: (f) => {
       const ic = f.bs.intercompany_loans;
-      const pct = ic / Math.max(f.bs.total_assets, 1);
+      // `Math.max(null, 1)` is 1. With an ABSENT total-assets figure the
+      // share of assets came out as `ic / 1` — a percentage in the
+      // millions — and the rule fired as "critical" citing a
+      // `total_assets` it never had. A share of an unknown base is not a
+      // share; the rule has nothing to say.
+      const totalAssets = f.bs.total_assets;
+      if (totalAssets === null || totalAssets <= 0) return null;
+      const pct = ic / totalAssets;
       if (ic <= 500_000 || pct <= 0.05) return null;
       const currentRate = f.pl.interest_expense / Math.max(f.bs.bank_debt_total, 1);
       const interestSavings = ic * currentRate;
@@ -193,7 +238,7 @@ const RULES: Rule[] = [
         title: `Recall ${RON(ic)} intercompany receivable to prepay senior debt`,
         factsCited: {
           intercompany_loans: ic,
-          total_assets: f.bs.total_assets,
+          total_assets: totalAssets,
           pct_of_assets: pct,
           bank_debt_total: f.bs.bank_debt_total,
           current_rate: currentRate,
@@ -205,7 +250,7 @@ const RULES: Rule[] = [
           `${(pct * 100).toFixed(1)}% of total assets sitting unproductively while the company pays ` +
           `~${(currentRate * 100).toFixed(2)}% interest on senior bank debt. Recalling the receivable ` +
           `and using it to prepay would reduce annual interest by ${RON(interestSavings)} and drop ` +
-          `Debt/EBITDA from ${f.ratios.debt_to_ebitda.toFixed(2)}× to ${newDte.toFixed(2)}× (more bankable territory).`,
+          `Debt/EBITDA from ${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}× (more bankable territory).`,
         actionsFallback: [
           `Confirm with the related party that the ${RON(ic)} receivable is recoverable in cash within 90 days.`,
           "Structure the recall as a formal repayment (debt-vs-debt offset, not a fresh loan) to avoid tax / AGM complications.",
@@ -245,8 +290,13 @@ const RULES: Rule[] = [
         },
         rationaleFallback:
           `${(conc * 100).toFixed(0)}% of debt sits with one lender on terms not yet documented in this analysis. ` +
-          `Without the actual loan agreements, the covenant headroom estimates (DSCR ${f.ratios.dscr.toFixed(2)}× vs typical 1.25×, ` +
-          `equity ratio ${(f.ratios.equity_ratio * 100).toFixed(1)}% vs typical 30% floor) are estimates — ` +
+          // ⚠ F4 LIVED HERE. `(null * 100).toFixed(1)` is "0.0", so
+          // deleting `totals.equity` from the envelope printed
+          // "equity ratio 0.0% vs typical 30% floor" — a company far
+          // below its covenant floor — inside a CRITICAL card, off a
+          // book whose equity ratio was never read. Same for DSCR.
+          `Without the actual loan agreements, the covenant headroom estimates (DSCR ${fx(f.ratios.dscr, 2)}${has(f.ratios.dscr) ? "×" : ""} vs typical 1.25×, ` +
+          `equity ratio ${pctOf(f.ratios.equity_ratio, 1)} vs typical 30% floor) are estimates — ` +
           `the exact triggers depend on the contract package.`,
         actionsFallback: [
           "Within 1 week, obtain complete loan documentation: interest rate structure (fixed vs EURIBOR + margin), prepayment penalties and cure provisions, full covenant package (DSCR / LTV / Debt-EBITDA / equity-ratio thresholds + measurement frequency), cross-default provisions between contracts, MAC clauses.",
@@ -285,7 +335,7 @@ const RULES: Rule[] = [
         rationaleFallback:
           `Investment property carries ${RON(propBook)} at book; Romanian municipalities periodically revalue commercial property. ` +
           `A 50% reassessment spike on a property of this size would add roughly ${RON(downsideImpact)} of annual property tax — ` +
-          `survivable, but it would tighten DSCR from ${f.ratios.dscr.toFixed(2)}× toward the covenant floor unnecessarily.`,
+          `survivable, but it would tighten DSCR from ${fx(f.ratios.dscr, 2)}${has(f.ratios.dscr) ? "×" : ""} toward the covenant floor unnecessarily.`,
         actionsFallback: [
           "Pre-engage a property tax advisor to model the reassessment scenario and prepare a defense package (comparable transactions, building condition, lease terms).",
           `Build a ${RON(provisionTarget)} balance-sheet provision against the contingency.`,
@@ -313,8 +363,8 @@ const RULES: Rule[] = [
         },
         rationaleFallback:
           `Annual covenant testing leaves blind spots between reviews — a single bad quarter (vacancy, FX, unplanned capex) ` +
-          `can push DSCR below the floor without anyone noticing until the formal test. Current DSCR ${f.ratios.dscr.toFixed(2)}× and ` +
-          `Debt/EBITDA ${f.ratios.debt_to_ebitda.toFixed(2)}× have meaningful headroom — the time to install monitoring is now, not after the first warning.`,
+          `can push DSCR below the floor without anyone noticing until the formal test. Current DSCR ${fx(f.ratios.dscr, 2)}${has(f.ratios.dscr) ? "×" : ""} and ` +
+          `Debt/EBITDA ${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} have meaningful headroom — the time to install monitoring is now, not after the first warning.`,
         actionsFallback: [
           "Implement three-tier monthly tracking: GREEN (DSCR > 1.50× / D-EBITDA < 5.5×), AMBER (1.30-1.50× / 5.5-6.5×), RED (< 1.30× / > 6.5×).",
           "AMBER triggers management review; RED triggers proactive lender engagement before the formal covenant test.",
@@ -436,11 +486,13 @@ const RULES: Rule[] = [
     key: "true_debt_service_distress",
     detect: (f) => {
       const dscr = f.ratios.dscr;
+      // A CRITICAL distress card must never fire off an unmeasured DSCR.
+      if (!has(dscr)) return null;
       if (dscr <= 0 || dscr >= 1.0) return null;
       return {
         ruleKey: "true_debt_service_distress",
         severity: "critical",
-        title: `DSCR ${dscr.toFixed(2)}× below 1.0 — operating income does not cover debt service`,
+        title: `DSCR ${fx(dscr, 2)}× below 1.0 — operating income does not cover debt service`,
         factsCited: {
           dscr,
           ebitda_statutory: f.pl.ebitda,
@@ -473,15 +525,22 @@ const RULES: Rule[] = [
       // signature). The "true_distress_altman" rule then fires only on
       // genuine sign-correct distress, not on misapplied variants.
       const niLoss = f.pl.net_profit < 0;
-      const negativeEquity = f.bs.total_equity < 0;
+      // `null < 0` is false, so an ABSENT equity total silently disabled
+      // the whole Art. 153^24 distress rule — the one that tells a
+      // Romanian administrator they are legally obliged to convene the
+      // shareholders. Stating the guard makes that a decision instead of
+      // an accident: no equity figure, no distress claim either way.
+      const equity = f.bs.total_equity;
+      if (equity === null) return null;
+      const negativeEquity = equity < 0;
       if (!niLoss || !negativeEquity) return null;
       return {
         ruleKey: "true_distress_altman",
         severity: "critical",
-        title: `Negative equity ${RON(f.bs.total_equity)} with operating loss — Romanian Company Law action required`,
+        title: `Negative equity ${RON(equity)} with operating loss — Romanian Company Law action required`,
         factsCited: {
           net_profit: f.pl.net_profit,
-          total_equity: f.bs.total_equity,
+          total_equity: equity,
           cash: f.bs.cash,
         },
         rationaleFallback:

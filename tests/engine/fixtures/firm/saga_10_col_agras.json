@@ -1,0 +1,4637 @@
+{
+ "_meta": {
+  "captured_by": "tests/engine/fixtures/firm/capture.py",
+  "engine_path": "parse -> assemble -> stage_persist (corpus_replay seam)",
+  "scrubbed": [
+   "envelope.provenance.written_at -> epoch"
+  ],
+  "source": "corpus/saga_10_col_agras/input.xlsx",
+  "synthetic": false
+ },
+ "case_id": "saga_10_col_agras",
+ "currency": "RON",
+ "envelope": {
+  "aggregates": {
+   "cash_and_equivalents": {
+    "leaves": [
+     "cash_operating",
+     "cash_fx",
+     "short_term_investments"
+    ],
+    "net": 2074573.46
+   },
+   "cogs": {
+    "leaves": [
+     "cogs_raw_materials",
+     "cogs_auxiliary_consumables",
+     "cogs_merchandise",
+     "discounts_received_supplier"
+    ],
+    "net": 71586879.3
+   },
+   "contributed_capital": {
+    "leaves": [
+     "share_capital",
+     "share_premium"
+    ],
+    "net": 8795855.0
+   },
+   "dap": {
+    "leaves": [
+     "depreciation_ppe",
+     "impairment_receivables",
+     "provision_charges",
+     "provision_reversals"
+    ],
+    "net": 2959335.09
+   },
+   "deferred_income_lt": {
+    "leaves": [
+     "government_grants_deferred"
+    ],
+    "net": 941634.37
+   },
+   "deferred_revenue_st": {
+    "leaves": [
+     "customer_advances"
+    ],
+    "net": 79877.95
+   },
+   "financial_expense": {
+    "leaves": [
+     "interest_expense",
+     "fx_loss_realized"
+    ],
+    "net": 343877.0
+   },
+   "financial_income": {
+    "leaves": [
+     "interest_income",
+     "fx_gain_realized"
+    ],
+    "net": 456384.14
+   },
+   "financial_liabilities_lt": {
+    "leaves": [
+     "lt_debt_bank",
+     "lt_debt_other"
+    ],
+    "net": 1440419.23
+   },
+   "financial_liabilities_st": {
+    "leaves": [
+     "st_debt_bank"
+    ],
+    "net": 2199783.1
+   },
+   "income_tax": {
+    "leaves": [
+     "income_tax_current"
+    ],
+    "net": 1471550.0
+   },
+   "intangibles_net": {
+    "leaves": [
+     "intangibles_other",
+     "accumulated_amortization_intangibles"
+    ],
+    "net": 673090.13
+   },
+   "inventory_net": {
+    "leaves": [
+     "inventory_raw_materials",
+     "inventory_consumables",
+     "inventory_wip",
+     "inventory_finished_goods",
+     "inventory_merchandise_resale",
+     "inventory_packaging",
+     "inventory_provisions"
+    ],
+    "net": 8933332.42
+   },
+   "memo_pl": {
+    "leaves": [
+     "inventory_variation_memo"
+    ],
+    "net": 192091846.33
+   },
+   "opex_general": {
+    "leaves": [
+     "materials_non_inventory",
+     "energy_utilities",
+     "maintenance_repairs",
+     "rent_operating_lease",
+     "insurance",
+     "third_party_services",
+     "transport_logistics",
+     "travel_protocol",
+     "other_operating_taxes",
+     "other_operating_expenses"
+    ],
+    "net": 8316805.61
+   },
+   "other_non_current_assets": {
+    "leaves": [
+     "other_non_current_assets"
+    ],
+    "net": 67904.42
+   },
+   "other_op_income": {
+    "leaves": [
+     "other_operating_income_recurring"
+    ],
+    "net": 386101.85
+   },
+   "other_payables_st": {
+    "leaves": [
+     "ap_other",
+     "accrued_expenses"
+    ],
+    "net": 506577.49
+   },
+   "other_receivables": {
+    "leaves": [
+     "ar_intercompany",
+     "ar_tax_recoverable",
+     "ar_supplier_advances",
+     "ar_other"
+    ],
+    "net": 7803433.57
+   },
+   "personnel_payables": {
+    "leaves": [
+     "ap_personnel_salaries",
+     "ap_personnel_social",
+     "ap_personnel_other"
+    ],
+    "net": 2137910.99
+   },
+   "personnel_total": {
+    "leaves": [
+     "personnel_wages",
+     "personnel_social_security",
+     "personnel_benefits",
+     "personnel_other_contributions"
+    ],
+    "net": 20642734.0
+   },
+   "ppe_net": {
+    "leaves": [
+     "ppe_land",
+     "ppe_buildings",
+     "ppe_machinery_equipment",
+     "ppe_furniture_office",
+     "ppe_under_construction",
+     "accumulated_depreciation_ppe"
+    ],
+    "net": 11055449.54
+   },
+   "prepaid_expenses_and_other": {
+    "leaves": [
+     "prepaid_expenses_st"
+    ],
+    "net": 151332.53
+   },
+   "reserves": {
+    "leaves": [
+     "revaluation_reserves",
+     "other_reserves"
+    ],
+    "net": 7656181.1
+   },
+   "retained_earnings": {
+    "leaves": [
+     "accumulated_losses_prior_years",
+     "current_year_profit"
+    ],
+    "net": 7472047.62
+   },
+   "revenue_gross": {
+    "leaves": [
+     "revenue_products",
+     "revenue_services",
+     "revenue_rental_royalty",
+     "revenue_merchandise_resale",
+     "revenue_commercial_reductions"
+    ],
+    "net": 118576819.64
+   },
+   "tax_payables": {
+    "leaves": [
+     "ap_tax"
+    ],
+    "net": 902453.47
+   },
+   "trade_payables": {
+    "leaves": [
+     "ap_trade"
+    ],
+    "net": 7186373.77
+   },
+   "trade_receivables_net": {
+    "leaves": [
+     "ar_trade_gross",
+     "ar_provisions"
+    ],
+    "net": 8513384.96
+   }
+  },
+  "canonical_bs": {
+   "diagnosis": [
+    {
+     "code": "D9_UNMAPPED_INCLUDED",
+     "detail": "unmapped accounts included in statement totals as Unclassified rows: debit side 46,613.06 RON (413)",
+     "leaf_ids": [
+      "413"
+     ]
+    }
+   ],
+   "difference": 0.0,
+   "excluded": [
+    {
+     "code": "121",
+     "reason": "profit_control_account_121"
+    },
+    {
+     "code": "581",
+     "reason": "transit_account_581"
+    }
+   ],
+   "extraction": {
+    "header_row_index": 0,
+    "method": "deterministic",
+    "number_locale": "anglo",
+    "parser_version": "tb_parser_v5",
+    "sheet": "Anon_e29b305ae9",
+    "source_format": "saga_10_col"
+   },
+   "invariants": {
+    "assets_eq_row_sum": true,
+    "el_eq_row_sum": true,
+    "identity_holds": true,
+    "p121_cross_check": {
+     "cls7_minus_cls6": 206197948.36,
+     "ok": false,
+     "p121": 7533676.02
+    },
+    "result_basis": "sf_closing_column",
+    "source_conservation": true
+   },
+   "mapping_version": "ro_omfp1802_v2",
+   "rows": [
+    {
+     "account_codes": [
+      "211"
+     ],
+     "amount": 2573536.72,
+     "id": "ppe_land",
+     "label": "Land",
+     "label_key": "bs.row.ppe_land",
+     "leaf_ids": [
+      "2111.02",
+      "2111.04",
+      "2111.05",
+      "2111.06",
+      "2111.07",
+      "2111.08",
+      "2111.09",
+      "2112.01"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "212"
+     ],
+     "amount": 6651005.88,
+     "id": "ppe_buildings",
+     "label": "Buildings",
+     "label_key": "bs.row.ppe_buildings",
+     "leaf_ids": [
+      "2121.01",
+      "2121.02"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "2131",
+      "2132",
+      "2133"
+     ],
+     "amount": 27571713.7,
+     "id": "ppe_machinery_equipment",
+     "label": "Machinery & equipment",
+     "label_key": "bs.row.ppe_machinery_equipment",
+     "leaf_ids": [
+      "2131.01",
+      "2132.01",
+      "2133.01"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "214"
+     ],
+     "amount": 554867.72,
+     "id": "ppe_furniture_office",
+     "label": "Furniture & office equipment",
+     "label_key": "bs.row.ppe_furniture_office",
+     "leaf_ids": [
+      "214.001"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "231"
+     ],
+     "amount": 49773.0,
+     "id": "ppe_under_construction",
+     "label": "PPE under construction",
+     "label_key": "bs.row.ppe_under_construction",
+     "leaf_ids": [
+      "231.010"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "2811",
+      "2812",
+      "2813",
+      "2814"
+     ],
+     "amount": -26345447.48,
+     "id": "accumulated_depreciation_ppe",
+     "label": "Accumulated depreciation (PPE)",
+     "label_key": "bs.row.accumulated_depreciation_ppe",
+     "leaf_ids": [
+      "2811.01",
+      "2812.01",
+      "2813.01",
+      "2814.01"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "205",
+      "208"
+     ],
+     "amount": 5301071.25,
+     "id": "intangibles_other",
+     "label": "Other intangibles",
+     "label_key": "bs.row.intangibles_other",
+     "leaf_ids": [
+      "2050.01",
+      "2080.01"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "2805",
+      "2808"
+     ],
+     "amount": -4627981.12,
+     "id": "accumulated_amortization_intangibles",
+     "label": "Accumulated amortization (intangibles)",
+     "label_key": "bs.row.accumulated_amortization_intangibles",
+     "leaf_ids": [
+      "2805.01",
+      "2808.01"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "2678"
+     ],
+     "amount": 67904.42,
+     "id": "other_non_current_assets",
+     "label": "Other non-current assets",
+     "label_key": "bs.row.other_non_current_assets",
+     "leaf_ids": [
+      "2678.27",
+      "2678.31",
+      "2678.32",
+      "2678.33",
+      "2678.36",
+      "2678.37"
+     ],
+     "opening": null,
+     "section": "non_current_assets"
+    },
+    {
+     "account_codes": [
+      "5121",
+      "5125",
+      "5311",
+      "54"
+     ],
+     "amount": 1034644.15,
+     "id": "cash_operating",
+     "label": "Cash in operating currency",
+     "label_key": "bs.row.cash_operating",
+     "leaf_ids": [
+      "5121.01",
+      "5121.02",
+      "5121.03",
+      "5121.07",
+      "5125",
+      "5311.01",
+      "5311.02",
+      "5311.03",
+      "5311.04",
+      "5311.05",
+      "5311.06",
+      "5311.08",
+      "5311.09",
+      "5311.10",
+      "5311.11",
+      "5311.12",
+      "5311.13",
+      "5311.18",
+      "5311.32",
+      "5311.33",
+      "5311.34",
+      "5311.35",
+      "5311.38",
+      "5311.39",
+      "5311.41",
+      "5311.42",
+      "5311.43",
+      "5311.44",
+      "5311.51",
+      "5311.53",
+      "5311.54",
+      "5311.57",
+      "5311.58",
+      "5311.60",
+      "542"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "5124"
+     ],
+     "amount": 133402.89,
+     "id": "cash_fx",
+     "label": "Cash in foreign currency",
+     "label_key": "bs.row.cash_fx",
+     "leaf_ids": [
+      "5124.01"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "50"
+     ],
+     "amount": 906526.42,
+     "id": "short_term_investments",
+     "label": "Short-term investments",
+     "label_key": "bs.row.short_term_investments",
+     "leaf_ids": [
+      "5081.01"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "4111"
+     ],
+     "amount": 8573293.46,
+     "id": "ar_trade_gross",
+     "label": "Trade receivables (gross)",
+     "label_key": "bs.row.ar_trade_gross",
+     "leaf_ids": [
+      "4111.01",
+      "4111.02",
+      "4111.03",
+      "4111.10"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "491",
+      "496"
+     ],
+     "amount": -59908.5,
+     "id": "ar_provisions",
+     "label": "AR allowance",
+     "label_key": "bs.row.ar_provisions",
+     "leaf_ids": [
+      "491",
+      "496"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "451",
+      "461"
+     ],
+     "amount": 7692202.74,
+     "id": "ar_intercompany",
+     "label": "Intercompany receivables",
+     "label_key": "bs.row.ar_intercompany",
+     "leaf_ids": [
+      "4511.01",
+      "461.016",
+      "461.06",
+      "461.07"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "4428"
+     ],
+     "amount": 48733.72,
+     "id": "ar_tax_recoverable",
+     "label": "Tax recoverable",
+     "label_key": "bs.row.ar_tax_recoverable",
+     "leaf_ids": [
+      "4428.010",
+      "4428.26"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "4092"
+     ],
+     "amount": 19614.76,
+     "id": "ar_supplier_advances",
+     "label": "Supplier advances",
+     "label_key": "bs.row.ar_supplier_advances",
+     "leaf_ids": [
+      "4092.34"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "473",
+      "481"
+     ],
+     "amount": 42882.35,
+     "id": "ar_other",
+     "label": "Other receivables",
+     "label_key": "bs.row.ar_other",
+     "leaf_ids": [
+      "473.01",
+      "481"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "3",
+      "301"
+     ],
+     "amount": 4316023.15,
+     "id": "inventory_raw_materials",
+     "label": "Raw materials",
+     "label_key": "bs.row.inventory_raw_materials",
+     "leaf_ids": [
+      "301.201",
+      "301.202",
+      "301.203",
+      "348.102",
+      "378.078",
+      "378.080"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "302",
+      "303"
+     ],
+     "amount": 714545.14,
+     "id": "inventory_consumables",
+     "label": "Auxiliary consumables",
+     "label_key": "bs.row.inventory_consumables",
+     "leaf_ids": [
+      "3021.01",
+      "3023.21",
+      "3023.22",
+      "3024.01",
+      "3028.01",
+      "3028.02",
+      "3028.03",
+      "3028.04",
+      "3031.01"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "341"
+     ],
+     "amount": 995988.37,
+     "id": "inventory_wip",
+     "label": "Work in progress",
+     "label_key": "bs.row.inventory_wip",
+     "leaf_ids": [
+      "341.010"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "345"
+     ],
+     "amount": 795942.72,
+     "id": "inventory_finished_goods",
+     "label": "Finished goods",
+     "label_key": "bs.row.inventory_finished_goods",
+     "leaf_ids": [
+      "345.010"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "371"
+     ],
+     "amount": 2064259.85,
+     "id": "inventory_merchandise_resale",
+     "label": "Merchandise for resale",
+     "label_key": "bs.row.inventory_merchandise_resale",
+     "leaf_ids": [
+      "371.001",
+      "371.010",
+      "371.050",
+      "371.081",
+      "371.093",
+      "371.095"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "381"
+     ],
+     "amount": 52648.19,
+     "id": "inventory_packaging",
+     "label": "Packaging",
+     "label_key": "bs.row.inventory_packaging",
+     "leaf_ids": [
+      "381.001"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "398"
+     ],
+     "amount": -6075.0,
+     "id": "inventory_provisions",
+     "label": "Inventory allowance",
+     "label_key": "bs.row.inventory_provisions",
+     "leaf_ids": [
+      "398"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "413"
+     ],
+     "amount": 46613.06,
+     "id": "unclassified_debit",
+     "label": "Unclassified — debit side",
+     "label_key": "bs.row.unclassified_debit",
+     "leaf_ids": [
+      "413"
+     ],
+     "opening": null,
+     "section": "current_assets"
+    },
+    {
+     "account_codes": [
+      "471"
+     ],
+     "amount": 151332.53,
+     "id": "prepaid_expenses_st",
+     "label": "Prepaid expenses (ST)",
+     "label_key": "bs.row.prepaid_expenses_st",
+     "leaf_ids": [
+      "471.004",
+      "471.008",
+      "471.009"
+     ],
+     "opening": null,
+     "section": "prepaid_expenses"
+    },
+    {
+     "account_codes": [
+      "1012"
+     ],
+     "amount": 8795850.0,
+     "id": "share_capital",
+     "label": "Share capital",
+     "label_key": "bs.row.share_capital",
+     "leaf_ids": [
+      "1012.01"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "104"
+     ],
+     "amount": 5.0,
+     "id": "share_premium",
+     "label": "Share premium",
+     "label_key": "bs.row.share_premium",
+     "leaf_ids": [
+      "1042.01"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "105"
+     ],
+     "amount": 1888792.0,
+     "id": "revaluation_reserves",
+     "label": "Revaluation reserves",
+     "label_key": "bs.row.revaluation_reserves",
+     "leaf_ids": [
+      "1051.01"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "1068"
+     ],
+     "amount": 5767389.1,
+     "id": "other_reserves",
+     "label": "Other reserves",
+     "label_key": "bs.row.other_reserves",
+     "leaf_ids": [
+      "1068.01"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "1171"
+     ],
+     "amount": -61628.4,
+     "id": "accumulated_losses_prior_years",
+     "label": "Accumulated losses (prior years)",
+     "label_key": "bs.row.accumulated_losses_prior_years",
+     "leaf_ids": [
+      "1171.01"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "121"
+     ],
+     "amount": 7533676.02,
+     "id": "current_year_profit",
+     "label": "Current year profit",
+     "label_key": "bs.row.current_year_profit",
+     "leaf_ids": [
+      "121"
+     ],
+     "opening": null,
+     "section": "equity"
+    },
+    {
+     "account_codes": [
+      "1621"
+     ],
+     "amount": 552921.67,
+     "id": "lt_debt_bank",
+     "label": "Long-term bank debt",
+     "label_key": "bs.row.lt_debt_bank",
+     "leaf_ids": [
+      "1621.81"
+     ],
+     "opening": null,
+     "section": "non_current_liabilities"
+    },
+    {
+     "account_codes": [
+      "167"
+     ],
+     "amount": 887497.56,
+     "id": "lt_debt_other",
+     "label": "Long-term other debt",
+     "label_key": "bs.row.lt_debt_other",
+     "leaf_ids": [
+      "167.201",
+      "167.401"
+     ],
+     "opening": null,
+     "section": "non_current_liabilities"
+    },
+    {
+     "account_codes": [
+      "401",
+      "403",
+      "404"
+     ],
+     "amount": 7186373.77,
+     "id": "ap_trade",
+     "label": "Trade payables",
+     "label_key": "bs.row.ap_trade",
+     "leaf_ids": [
+      "401.003",
+      "401.01",
+      "401.110",
+      "403.001",
+      "404.001"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "4411",
+      "442",
+      "444",
+      "446"
+     ],
+     "amount": 902453.47,
+     "id": "ap_tax",
+     "label": "Tax payables",
+     "label_key": "bs.row.ap_tax",
+     "leaf_ids": [
+      "4411",
+      "4423",
+      "444",
+      "446.09"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "421"
+     ],
+     "amount": 791069.0,
+     "id": "ap_personnel_salaries",
+     "label": "Salaries payable",
+     "label_key": "bs.row.ap_personnel_salaries",
+     "leaf_ids": [
+      "421.001"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "431",
+      "4315",
+      "4316",
+      "436"
+     ],
+     "amount": 520453.0,
+     "id": "ap_personnel_social",
+     "label": "Social contributions payable",
+     "label_key": "bs.row.ap_personnel_social",
+     "leaf_ids": [
+      "4313.02",
+      "4315",
+      "4316",
+      "436"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "427",
+      "4281"
+     ],
+     "amount": 826388.99,
+     "id": "ap_personnel_other",
+     "label": "Other personnel payables",
+     "label_key": "bs.row.ap_personnel_other",
+     "leaf_ids": [
+      "427.01",
+      "4281.01",
+      "4281.02",
+      "4281.03"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "418"
+     ],
+     "amount": 138104.01,
+     "id": "ap_other",
+     "label": "Other current payables",
+     "label_key": "bs.row.ap_other",
+     "leaf_ids": [
+      "418"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "5191"
+     ],
+     "amount": 2199783.1,
+     "id": "st_debt_bank",
+     "label": "Short-term bank debt",
+     "label_key": "bs.row.st_debt_bank",
+     "leaf_ids": [
+      "5191.01"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "4091",
+      "419"
+     ],
+     "amount": 79877.95,
+     "id": "customer_advances",
+     "label": "Customer advances",
+     "label_key": "bs.row.customer_advances",
+     "leaf_ids": [
+      "4091.01",
+      "419.01"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "408"
+     ],
+     "amount": 368473.48,
+     "id": "accrued_expenses",
+     "label": "Accrued expenses",
+     "label_key": "bs.row.accrued_expenses",
+     "leaf_ids": [
+      "408.001"
+     ],
+     "opening": null,
+     "section": "current_liabilities"
+    },
+    {
+     "account_codes": [
+      "475"
+     ],
+     "amount": 941634.37,
+     "id": "government_grants_deferred",
+     "label": "Deferred government grants",
+     "label_key": "bs.row.government_grants_deferred",
+     "leaf_ids": [
+      "4752"
+     ],
+     "opening": null,
+     "section": "deferred_income"
+    }
+   ],
+   "schema": "bs_v2",
+   "sections": [
+    {
+     "id": "non_current_assets",
+     "subtotal": 11796444.09
+    },
+    {
+     "id": "current_assets",
+     "subtotal": 27371337.47
+    },
+    {
+     "id": "prepaid_expenses",
+     "subtotal": 151332.53
+    },
+    {
+     "id": "equity",
+     "subtotal": 23924083.72
+    },
+    {
+     "id": "provisions",
+     "subtotal": 0.0
+    },
+    {
+     "id": "non_current_liabilities",
+     "subtotal": 1440419.23
+    },
+    {
+     "id": "current_liabilities",
+     "subtotal": 13012976.77
+    },
+    {
+     "id": "deferred_income",
+     "subtotal": 941634.37
+    }
+   ],
+   "source_anchor": {
+    "anchor_status": "NO_ANCHOR",
+    "closing_result": {
+     "basis": "sf",
+     "codes": [
+      "121"
+     ],
+     "p121_cents": 753367602,
+     "pl_net_cents": 0
+    },
+    "file_totals_include_off_balance": false,
+    "imbalanced_pairs": [],
+    "pairs": {
+     "rc": {
+      "delta_credit": null,
+      "delta_debit": null,
+      "extracted_credit": 1685959563.05,
+      "extracted_debit": 1685959563.05,
+      "file_credit": null,
+      "file_debit": null
+     },
+     "rl": {
+      "delta_credit": null,
+      "delta_debit": null,
+      "extracted_credit": 138479373.48,
+      "extracted_debit": 138479373.48,
+      "file_credit": null,
+      "file_debit": null
+     },
+     "sf": {
+      "delta_credit": null,
+      "delta_debit": null,
+      "extracted_credit": 70215990.73,
+      "extracted_debit": 70215990.73,
+      "file_credit": null,
+      "file_debit": null
+     },
+     "si": {
+      "delta_credit": null,
+      "delta_debit": null,
+      "extracted_credit": 59292924.79,
+      "extracted_debit": 59292924.79,
+      "file_credit": null,
+      "file_debit": null
+     }
+    },
+    "source_balanced": null,
+    "totals_row_found": false,
+    "totals_row_index": null
+   },
+   "status": "BALANCED",
+   "totals": {
+    "assets": 39319114.09,
+    "current_assets": 27371337.47,
+    "current_liabilities": 13012976.77,
+    "equity": 23924083.72,
+    "equity_plus_liabilities": 39319114.09,
+    "liabilities": 15395030.37
+   },
+   "unmapped": [
+    {
+     "code": "413",
+     "name": "367 Fhyrly cy bfknkl cy gs rgkyqlk",
+     "reason": "no_rule",
+     "sf_c": 0.0,
+     "sf_d": 46613.06
+    }
+   ]
+  },
+  "leaves": {
+   "accrued_expenses": {
+    "magnitude": 368473.48,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 368473.48,
+    "sign_meaning": "liability_positive"
+   },
+   "accumulated_amortization_intangibles": {
+    "magnitude": 4627981.12,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": -4627981.12,
+    "sign_meaning": "asset_negative"
+   },
+   "accumulated_depreciation_ppe": {
+    "magnitude": 26345447.48,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": -26345447.48,
+    "sign_meaning": "asset_negative"
+   },
+   "accumulated_losses_prior_years": {
+    "magnitude": 61628.4,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": -61628.4,
+    "sign_meaning": "equity_negative"
+   },
+   "ap_other": {
+    "magnitude": 138104.01,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 138104.01,
+    "sign_meaning": "liability_positive"
+   },
+   "ap_personnel_other": {
+    "magnitude": 826388.99,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 826388.99,
+    "sign_meaning": "liability_positive"
+   },
+   "ap_personnel_salaries": {
+    "magnitude": 791069.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 791069.0,
+    "sign_meaning": "liability_positive"
+   },
+   "ap_personnel_social": {
+    "magnitude": 785213.0,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 520453.0,
+    "sign_meaning": "liability_positive"
+   },
+   "ap_tax": {
+    "magnitude": 902453.47,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 902453.47,
+    "sign_meaning": "liability_positive"
+   },
+   "ap_trade": {
+    "magnitude": 7186373.77,
+    "ras_line_items_count": 5,
+    "ras_line_items_sum_signed": 7186373.77,
+    "sign_meaning": "liability_positive"
+   },
+   "ar_intercompany": {
+    "magnitude": 7692202.74,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 7692202.74,
+    "sign_meaning": "asset_positive"
+   },
+   "ar_other": {
+    "magnitude": 46788.35,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 42882.35,
+    "sign_meaning": "asset_positive"
+   },
+   "ar_provisions": {
+    "magnitude": 59908.5,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": -59908.5,
+    "sign_meaning": "asset_negative"
+   },
+   "ar_supplier_advances": {
+    "magnitude": 19614.76,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 19614.76,
+    "sign_meaning": "asset_positive"
+   },
+   "ar_tax_recoverable": {
+    "magnitude": 48733.72,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 48733.72,
+    "sign_meaning": "asset_positive"
+   },
+   "ar_trade_gross": {
+    "magnitude": 8573293.46,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 8573293.46,
+    "sign_meaning": "asset_positive"
+   },
+   "cash_fx": {
+    "magnitude": 133402.89,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 133402.89,
+    "sign_meaning": "asset_positive"
+   },
+   "cash_operating": {
+    "magnitude": 1034644.15,
+    "ras_line_items_count": 35,
+    "ras_line_items_sum_signed": 1034644.15,
+    "sign_meaning": "asset_positive"
+   },
+   "cogs_auxiliary_consumables": {
+    "magnitude": 8089354.79,
+    "ras_line_items_count": 16,
+    "ras_line_items_sum_signed": 8089354.79,
+    "sign_meaning": "expense_positive"
+   },
+   "cogs_merchandise": {
+    "magnitude": 26488094.73,
+    "ras_line_items_count": 8,
+    "ras_line_items_sum_signed": 26488094.73,
+    "sign_meaning": "expense_positive"
+   },
+   "cogs_raw_materials": {
+    "magnitude": 36942231.05,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 36942231.05,
+    "sign_meaning": "expense_positive"
+   },
+   "current_year_profit": {
+    "magnitude": 7533676.02,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 7533676.02,
+    "sign_meaning": "equity_positive"
+   },
+   "customer_advances": {
+    "magnitude": 79877.95,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 79877.95,
+    "sign_meaning": "liability_positive"
+   },
+   "depreciation_ppe": {
+    "magnitude": 2819963.03,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 2819963.03,
+    "sign_meaning": "expense_positive"
+   },
+   "discounts_received_supplier": {
+    "magnitude": 67198.73,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 67198.73,
+    "sign_meaning": "expense_negative"
+   },
+   "energy_utilities": {
+    "magnitude": 2504584.77,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 2504584.77,
+    "sign_meaning": "expense_positive"
+   },
+   "fx_gain_realized": {
+    "magnitude": 157000.88,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 157000.88,
+    "sign_meaning": "revenue_positive"
+   },
+   "fx_loss_realized": {
+    "magnitude": 65946.65,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 65946.65,
+    "sign_meaning": "expense_positive"
+   },
+   "government_grants_deferred": {
+    "magnitude": 941634.37,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 941634.37,
+    "sign_meaning": "liability_positive"
+   },
+   "impairment_receivables": {
+    "magnitude": 69972.2,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 69972.2,
+    "sign_meaning": "expense_positive"
+   },
+   "income_tax_current": {
+    "magnitude": 1471550.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 1471550.0,
+    "sign_meaning": "expense_positive"
+   },
+   "insurance": {
+    "magnitude": 481335.92,
+    "ras_line_items_count": 6,
+    "ras_line_items_sum_signed": 481335.92,
+    "sign_meaning": "expense_positive"
+   },
+   "intangibles_other": {
+    "magnitude": 5301071.25,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 5301071.25,
+    "sign_meaning": "asset_positive"
+   },
+   "interest_expense": {
+    "magnitude": 277930.35,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 277930.35,
+    "sign_meaning": "expense_positive"
+   },
+   "interest_income": {
+    "magnitude": 299383.26,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 299383.26,
+    "sign_meaning": "revenue_positive"
+   },
+   "inventory_consumables": {
+    "magnitude": 714545.14,
+    "ras_line_items_count": 9,
+    "ras_line_items_sum_signed": 714545.14,
+    "sign_meaning": "asset_positive"
+   },
+   "inventory_finished_goods": {
+    "magnitude": 795942.72,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 795942.72,
+    "sign_meaning": "asset_positive"
+   },
+   "inventory_merchandise_resale": {
+    "magnitude": 2064282.89,
+    "ras_line_items_count": 6,
+    "ras_line_items_sum_signed": 2064259.85,
+    "sign_meaning": "asset_positive"
+   },
+   "inventory_packaging": {
+    "magnitude": 52648.19,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 52648.19,
+    "sign_meaning": "asset_positive"
+   },
+   "inventory_provisions": {
+    "magnitude": 6075.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": -6075.0,
+    "sign_meaning": "asset_negative"
+   },
+   "inventory_raw_materials": {
+    "magnitude": 4316023.15,
+    "ras_line_items_count": 6,
+    "ras_line_items_sum_signed": 4316023.15,
+    "sign_meaning": "asset_positive"
+   },
+   "inventory_variation_memo": {
+    "magnitude": 192091846.33,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 192091846.33,
+    "sign_meaning": "signed"
+   },
+   "inventory_wip": {
+    "magnitude": 995988.37,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 995988.37,
+    "sign_meaning": "asset_positive"
+   },
+   "lt_debt_bank": {
+    "magnitude": 552921.67,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 552921.67,
+    "sign_meaning": "liability_positive"
+   },
+   "lt_debt_other": {
+    "magnitude": 887497.56,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 887497.56,
+    "sign_meaning": "liability_positive"
+   },
+   "maintenance_repairs": {
+    "magnitude": 509983.31,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 509983.31,
+    "sign_meaning": "expense_positive"
+   },
+   "materials_non_inventory": {
+    "magnitude": 511384.39,
+    "ras_line_items_count": 8,
+    "ras_line_items_sum_signed": 511384.39,
+    "sign_meaning": "expense_positive"
+   },
+   "other_non_current_assets": {
+    "magnitude": 69302.9,
+    "ras_line_items_count": 6,
+    "ras_line_items_sum_signed": 67904.42,
+    "sign_meaning": "asset_positive"
+   },
+   "other_operating_expenses": {
+    "magnitude": 81377.09,
+    "ras_line_items_count": 5,
+    "ras_line_items_sum_signed": 81377.09,
+    "sign_meaning": "expense_positive"
+   },
+   "other_operating_income_recurring": {
+    "magnitude": 386101.85,
+    "ras_line_items_count": 7,
+    "ras_line_items_sum_signed": 386101.85,
+    "sign_meaning": "revenue_positive"
+   },
+   "other_operating_taxes": {
+    "magnitude": 436485.34,
+    "ras_line_items_count": 7,
+    "ras_line_items_sum_signed": 436485.34,
+    "sign_meaning": "expense_positive"
+   },
+   "other_reserves": {
+    "magnitude": 5767389.1,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 5767389.1,
+    "sign_meaning": "equity_positive"
+   },
+   "personnel_benefits": {
+    "magnitude": 1668020.0,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 1668020.0,
+    "sign_meaning": "expense_positive"
+   },
+   "personnel_other_contributions": {
+    "magnitude": 416492.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 416492.0,
+    "sign_meaning": "expense_positive"
+   },
+   "personnel_social_security": {
+    "magnitude": 105962.0,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 105962.0,
+    "sign_meaning": "expense_positive"
+   },
+   "personnel_wages": {
+    "magnitude": 18452260.0,
+    "ras_line_items_count": 7,
+    "ras_line_items_sum_signed": 18452260.0,
+    "sign_meaning": "expense_positive"
+   },
+   "ppe_buildings": {
+    "magnitude": 6651005.88,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 6651005.88,
+    "sign_meaning": "asset_positive"
+   },
+   "ppe_furniture_office": {
+    "magnitude": 554867.72,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 554867.72,
+    "sign_meaning": "asset_positive"
+   },
+   "ppe_land": {
+    "magnitude": 2573536.72,
+    "ras_line_items_count": 8,
+    "ras_line_items_sum_signed": 2573536.72,
+    "sign_meaning": "asset_positive"
+   },
+   "ppe_machinery_equipment": {
+    "magnitude": 27571713.7,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 27571713.7,
+    "sign_meaning": "asset_positive"
+   },
+   "ppe_under_construction": {
+    "magnitude": 49773.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 49773.0,
+    "sign_meaning": "asset_positive"
+   },
+   "prepaid_expenses_st": {
+    "magnitude": 151332.53,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 151332.53,
+    "sign_meaning": "asset_positive"
+   },
+   "provision_charges": {
+    "magnitude": 65411.16,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 65411.16,
+    "sign_meaning": "expense_positive"
+   },
+   "provision_reversals": {
+    "magnitude": 3988.7,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 3988.7,
+    "sign_meaning": "expense_negative"
+   },
+   "rent_operating_lease": {
+    "magnitude": 520305.37,
+    "ras_line_items_count": 4,
+    "ras_line_items_sum_signed": 520305.37,
+    "sign_meaning": "expense_positive"
+   },
+   "revaluation_reserves": {
+    "magnitude": 1888792.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 1888792.0,
+    "sign_meaning": "equity_positive"
+   },
+   "revenue_commercial_reductions": {
+    "magnitude": 3889255.25,
+    "ras_line_items_count": 3,
+    "ras_line_items_sum_signed": 3889255.25,
+    "sign_meaning": "revenue_negative"
+   },
+   "revenue_merchandise_resale": {
+    "magnitude": 35176699.41,
+    "ras_line_items_count": 7,
+    "ras_line_items_sum_signed": 35176699.41,
+    "sign_meaning": "revenue_positive"
+   },
+   "revenue_products": {
+    "magnitude": 79311635.03,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 79311635.03,
+    "sign_meaning": "revenue_positive"
+   },
+   "revenue_rental_royalty": {
+    "magnitude": 183977.61,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 183977.61,
+    "sign_meaning": "revenue_positive"
+   },
+   "revenue_services": {
+    "magnitude": 15252.34,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 15252.34,
+    "sign_meaning": "revenue_positive"
+   },
+   "share_capital": {
+    "magnitude": 8795850.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 8795850.0,
+    "sign_meaning": "equity_positive"
+   },
+   "share_premium": {
+    "magnitude": 5.0,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 5.0,
+    "sign_meaning": "equity_positive"
+   },
+   "short_term_investments": {
+    "magnitude": 906526.42,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 906526.42,
+    "sign_meaning": "asset_positive"
+   },
+   "st_debt_bank": {
+    "magnitude": 2199783.1,
+    "ras_line_items_count": 1,
+    "ras_line_items_sum_signed": 2199783.1,
+    "sign_meaning": "liability_positive"
+   },
+   "third_party_services": {
+    "magnitude": 1381794.84,
+    "ras_line_items_count": 20,
+    "ras_line_items_sum_signed": 1381794.84,
+    "sign_meaning": "expense_positive"
+   },
+   "transport_logistics": {
+    "magnitude": 867800.56,
+    "ras_line_items_count": 5,
+    "ras_line_items_sum_signed": 867800.36,
+    "sign_meaning": "expense_positive"
+   },
+   "travel_protocol": {
+    "magnitude": 1021754.22,
+    "ras_line_items_count": 10,
+    "ras_line_items_sum_signed": 1021754.22,
+    "sign_meaning": "expense_positive"
+   }
+  },
+  "methodology": {
+   "ebitda": {
+    "adjusted": 18030400.73,
+    "cash": 18420491.28,
+    "reported": 18420491.28,
+    "strict": 18030400.73
+   },
+   "errors": [],
+   "industry_key_applied": "default",
+   "methodology_id": "ro_ras_2025_v1",
+   "methodology_version": "1.0.0",
+   "missing_buckets": [
+    "deferred_tax_assets.net",
+    "deferred_tax_liabilities.net",
+    "financial_investments.net",
+    "investment_property.net",
+    "other_non_current_liabilities.net",
+    "pension_liabilities.net",
+    "provisions_lt.net",
+    "provisions_st.net",
+    "right_of_use_assets.net"
+   ],
+   "ratios": {
+    "asset_turnover": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 3.019335
+    },
+    "capex_intensity": {
+     "band": null,
+     "direction": "neutral",
+     "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
+     "unit": "ratio",
+     "value": 0.024957
+    },
+    "cash_conversion_cycle": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 35.112891
+    },
+    "cash_ratio": {
+     "band": [
+      0.1,
+      0.3
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.159423
+    },
+    "current_ratio": {
+     "band": [
+      1.2,
+      2.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 2.111435
+    },
+    "days_inventory_outstanding": {
+     "band": [
+      30,
+      70
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 45.548379
+    },
+    "days_payable_outstanding": {
+     "band": [
+      30,
+      60
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 36.641162
+    },
+    "days_sales_outstanding": {
+     "band": [
+      30,
+      60
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "days",
+     "value": 26.205674
+    },
+    "debt_to_assets": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.092691
+    },
+    "debt_to_equity": {
+     "band": [
+      0.0,
+      1.0
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.152156
+    },
+    "dscr_approx": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
+     "unit": "ratio",
+     "value": 35.158346
+    },
+    "ebitda_margin_cash": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.155346
+    },
+    "ebitda_margin_reported": {
+     "band": [
+      0.08,
+      0.15
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.155346
+    },
+    "ebitda_to_interest": {
+     "band": [
+      4.0,
+      10.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 53.567093
+    },
+    "equity_ratio": {
+     "band": [
+      0.3,
+      0.6
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.609182
+    },
+    "gross_margin": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.396283
+    },
+    "interest_coverage": {
+     "band": [
+      3.0,
+      8.0
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 44.961298
+    },
+    "inventory_turnover": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 8.013457
+    },
+    "lt_debt_to_equity": {
+     "band": null,
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.060208
+    },
+    "net_debt_to_ebitda": {
+     "band": [
+      0.0,
+      3.0
+     ],
+     "direction": "lower_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.084994
+    },
+    "net_margin": {
+     "band": [
+      0.03,
+      0.08
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.118928
+    },
+    "quick_ratio": {
+     "band": [
+      0.7,
+      1.2
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 1.424941
+    },
+    "return_on_assets": {
+     "band": [
+      0.05,
+      0.1
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.359084
+    },
+    "return_on_equity": {
+     "band": [
+      0.1,
+      0.2
+     ],
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "ratio",
+     "value": 0.589453
+    },
+    "working_capital": {
+     "band": null,
+     "direction": "higher_is_better",
+     "note": "",
+     "unit": "currency",
+     "value": 14463080.17
+    }
+   },
+   "schema_version": "canonical_v1.0.0",
+   "totals": {
+    "current_assets": 27476056.94,
+    "current_liabilities": 13012976.77,
+    "gross_profit": 46989940.34,
+    "net_debt": 1565628.87,
+    "operating_profit_reported": 15461156.19,
+    "revenue_net": 118576819.64,
+    "total_assets": 39272501.03,
+    "total_debt": 3640202.33,
+    "total_equity": 23924083.72,
+    "total_liabilities": 15395030.37
+   }
+  },
+  "pack_provenance": {
+   "jurisdiction": "RO",
+   "mapping_version": "ro_omfp1802_v2",
+   "pack": "omfp1802@v1",
+   "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16"
+  },
+  "period_detection": {
+   "confidence": 1.0,
+   "detected": {
+    "candidates": [],
+    "confidence": 0.0,
+    "evidence_snippet": null,
+    "proposed_period_end": null,
+    "signal_used": "none"
+   },
+   "evidence_snippet": "user-confirmed period end: 2025-12-31",
+   "hint": "2025-12-31",
+   "mismatch": false,
+   "resolved_period_end": "2025-12-31",
+   "signal_used": "user_confirmed"
+  },
+  "provenance": {
+   "content_hash": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d",
+   "original_filename": "input.xlsx",
+   "source_document_id": "doc-saga_10_col_agras",
+   "written_at": "1970-01-01T00:00:00+00:00"
+  },
+  "round_trip_check": {
+   "basis": "methodology_totals",
+   "max_deviation_pct": 0.0,
+   "passed": true,
+   "tolerance_pct": 0.5,
+   "worst": ""
+  },
+  "schema_version": "canonical_v1.0.0",
+  "source_data_quality": {
+   "raw_imbalance_abs": 0.0,
+   "raw_imbalance_pct": 0.0,
+   "sum_closing_credit": 70215990.73,
+   "sum_closing_debit": 70215990.73,
+   "warn": false,
+   "warn_threshold_pct": 2.0
+  },
+  "unmapped": []
+ },
+ "line_items": [
+  {
+   "amount": 8795850.0,
+   "bucket": "shareCapital",
+   "is_derived": false,
+   "ro_account_code": "1012.01",
+   "ro_account_name": "Nnsefni mkxmwzem dnzmnf 2420.42",
+   "statement": "BS"
+  },
+  {
+   "amount": 5.0,
+   "bucket": "otherEquity",
+   "is_derived": false,
+   "ro_account_code": "1042.01",
+   "ro_account_name": "Rmbhy vy kolbody / vbublxmy 9380.39",
+   "statement": "BS"
+  },
+  {
+   "amount": 1888792.0,
+   "bucket": "otherEquity",
+   "is_derived": false,
+   "ro_account_code": "1051.01",
+   "ro_account_name": "Fvlvguv iow gvvubsfbgv 4574.54",
+   "statement": "BS"
+  },
+  {
+   "amount": 5767389.1,
+   "bucket": "otherEquity",
+   "is_derived": false,
+   "ro_account_code": "1068.01",
+   "ro_account_name": "Qswkxa smxvbmyaxa 8967.98",
+   "statement": "BS"
+  },
+  {
+   "amount": -61628.4,
+   "bucket": "retainedEarnings",
+   "is_derived": false,
+   "ro_account_code": "1171.01",
+   "ro_account_name": "Slmrtdzdrt klgckdzd klgklmlidzib gkcjhdrt ilklgzkdhmzd qzr ghlkblklz ilzwcglkhdz 7767.97",
+   "statement": "BS"
+  },
+  {
+   "amount": 552921.67,
+   "bucket": "ltDebt",
+   "is_derived": false,
+   "ro_account_code": "1621.81",
+   "ro_account_name": "Aisaqp bxiswp ACA RWROE SYQCUV 1391.81",
+   "statement": "BS"
+  },
+  {
+   "amount": 275434.04,
+   "bucket": "ltDebt",
+   "is_derived": false,
+   "ro_account_code": "167.201",
+   "ro_account_name": "Quvsbmy vgaj igquma (xva.gqfva.36 egmb) 317.603 317.603",
+   "statement": "BS"
+  },
+  {
+   "amount": 612063.52,
+   "bucket": "ltDebt",
+   "is_derived": false,
+   "ro_account_code": "167.401",
+   "ro_account_name": "Phfdrct cmcexz-fozm 457.364 457.364",
+   "statement": "BS"
+  },
+  {
+   "amount": 5106502.31,
+   "bucket": "intangibles",
+   "is_derived": false,
+   "ro_account_code": "2050.01",
+   "ro_account_name": "Kvisolxmix, unoaowo, cxsoiwo, zknsx svzonsxkco, tnoewmnx lx kswxao lxzxckno 6010.08",
+   "statement": "BS"
+  },
+  {
+   "amount": 194568.94,
+   "bucket": "intangibles",
+   "is_derived": false,
+   "ro_account_code": "2080.01",
+   "ro_account_name": "Mlbv xsmhxlxadox rvjmoymodlv 8121.15",
+   "statement": "BS"
+  },
+  {
+   "amount": 983882.24,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.02",
+   "ro_account_name": "UW997149 EBMSAW.3542 TISBIZLKI 03 0999.70 0999.70",
+   "statement": "BS"
+  },
+  {
+   "amount": 17148.67,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.04",
+   "ro_account_name": "MZ84254 ESGJBZ.9569 ADJSDWRXD 25 2999.64 2999.64",
+   "statement": "BS"
+  },
+  {
+   "amount": 37484.85,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.05",
+   "ro_account_name": "ZV80491 LQWKOV.5416 YBKQBRCEB 49 4666.29 4666.29",
+   "statement": "BS"
+  },
+  {
+   "amount": 35565.48,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.06",
+   "ro_account_name": "BO8761 JTURPO.7227 ICRTCASXC 96 9222.04 9222.04",
+   "statement": "BS"
+  },
+  {
+   "amount": 205798.25,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.07",
+   "ro_account_name": "LS74642 BOMWIS.484 JYWOYTHFY 84I 2333.57 2333.57",
+   "statement": "BS"
+  },
+  {
+   "amount": 524083.0,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.08",
+   "ro_account_name": "PW76965_Kfzfk wktzdswndk_JdzadHhvhwxqhnhw0D_566ce 0222.97",
+   "statement": "BS"
+  },
+  {
+   "amount": 270680.0,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2111.09",
+   "ro_account_name": "YP83138_Hnwny xymwclxqcy_ScwpcUsbsxtzsqsx4L_843dv 4999.10",
+   "statement": "BS"
+  },
+  {
+   "amount": 498894.23,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2112.01",
+   "ro_account_name": "Xkjogdgen yj qjejomen 6336.83",
+   "statement": "BS"
+  },
+  {
+   "amount": 5604426.88,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2121.01",
+   "ro_account_name": "Btkhaosqayy 5656.06",
+   "statement": "BS"
+  },
+  {
+   "amount": 1046579.0,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2121.02",
+   "ro_account_name": "QU69495_Q7Qdtqaiuahqklxiatdt_ BtiqtLklkaerkdka2V_599mb  2727.42",
+   "statement": "BS"
+  },
+  {
+   "amount": 17528035.29,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2131.01",
+   "ro_account_name": "Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13",
+   "statement": "BS"
+  },
+  {
+   "amount": 701762.41,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2132.01",
+   "ro_account_name": "Rbjdjgn tw wytgjpjgww sn rjtcdjdn, eiygdip tw dnupjdn 0530.45",
+   "statement": "BS"
+  },
+  {
+   "amount": 9341916.0,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2133.01",
+   "ro_account_name": "Hmlsktwo eo bptvrukpb 6011.30",
+   "statement": "BS"
+  },
+  {
+   "amount": 554867.72,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "214.001",
+   "ro_account_name": "Rlvqgqrf, ikifisxfi vqflsqbi, rbmqkinresr hr kflsrbsqr i oiglfqglf xnier wq nisrfqigr wq igsr ibsqor blfklfigr 275.667",
+   "statement": "BS"
+  },
+  {
+   "amount": 49773.0,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "231.010",
+   "ro_account_name": "Spueca Kewigwe 564.848",
+   "statement": "BS"
+  },
+  {
+   "amount": 3293.58,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.27",
+   "ro_account_name": "UTRTVGIH JTRGIWIJTRH JHVIGHVWITRMD YHLT WV1952282 3526.32",
+   "statement": "BS"
+  },
+  {
+   "amount": -699.24,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.31",
+   "ro_account_name": "WLJLBPYA HLJPYEYHLJA HABYPLBEYLJSN LJLX 4916.32",
+   "statement": "BS"
+  },
+  {
+   "amount": 1300.0,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.32",
+   "ro_account_name": "HQOQFXZI CQOXZDZCQOI CIFZXIFDZQOMY QZMK DF8207473 9506.49",
+   "statement": "BS"
+  },
+  {
+   "amount": 60011.46,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.33",
+   "ro_account_name": "BGOGJRMF YFW PLBMHRMU UFJRFO HOP 8521.00",
+   "statement": "BS"
+  },
+  {
+   "amount": 2748.62,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.36",
+   "ro_account_name": "TQFQGSIK XQFSIOIXQFK XKGISKGOIQFUD SIAICMQFQ 0467.54",
+   "statement": "BS"
+  },
+  {
+   "amount": 1250.0,
+   "bucket": "otherNonCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "2678.37",
+   "ro_account_name": "QUGUHJCK MDCGCK MGCOUH WUTKGCU 8093.59",
+   "statement": "BS"
+  },
+  {
+   "amount": -4472847.31,
+   "bucket": "intangibles",
+   "is_derived": false,
+   "ro_account_code": "2805.01",
+   "ro_account_name": "Torkwxlvksv nrfnsixefxyrk, jkstswsyrk, yxnsfwsyrk, ovknxyrk nrosknxvys, bkscwekxyrk ix vnwxtsyrk ixoxyvks 9653.58",
+   "statement": "BS"
+  },
+  {
+   "amount": -155133.81,
+   "bucket": "intangibles",
+   "is_derived": false,
+   "ro_account_code": "2808.01",
+   "ro_account_name": "Xrmtvhkdtpd djvmt hrmzhjhkdth upnmtwmtdjp 0595.92",
+   "statement": "BS"
+  },
+  {
+   "amount": -434488.49,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2811.01",
+   "ro_account_name": "Omuhgoqehie emisevehowuh bi gihisjho 8399.79",
+   "statement": "BS"
+  },
+  {
+   "amount": -4094529.08,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2812.01",
+   "ro_account_name": "Dlrdqwuadba trijqdftqwwmrd 7987.08",
+   "statement": "BS"
+  },
+  {
+   "amount": -21362608.76,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2813.01",
+   "ro_account_name": "Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27",
+   "statement": "BS"
+  },
+  {
+   "amount": -453821.15,
+   "bucket": "ppe",
+   "is_derived": false,
+   "ro_account_code": "2814.01",
+   "ro_account_name": "Qrxeqpgleil lzqxe prxupzpglep axenxelzi 3491.69",
+   "statement": "BS"
+  },
+  {
+   "amount": 3019768.26,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "301.201",
+   "ro_account_name": "Uxsyann zanpy - fxaby 467.067",
+   "statement": "BS"
+  },
+  {
+   "amount": 1680.72,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "301.202",
+   "ro_account_name": "Pfhlkww jkwml jkbhlwil 906.707",
+   "statement": "BS"
+  },
+  {
+   "amount": 633356.8,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "301.203",
+   "ro_account_name": "Bxfvkmm lkmjv - nogsmjvgfv 281.582",
+   "statement": "BS"
+  },
+  {
+   "amount": 323980.56,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3021.01",
+   "ro_account_name": "Ocs.cgi.-ezetucpz 9518.58",
+   "statement": "BS"
+  },
+  {
+   "amount": 322018.08,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3023.21",
+   "ro_account_name": "Xkh.kxz.xtwtl.(jlidu,uapksk,th.xtxz,lkok jkshpn,dfnyi) 7297.91",
+   "statement": "BS"
+  },
+  {
+   "amount": 7288.23,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3023.22",
+   "ro_account_name": "Qse.sry.soeq(nvoiq,yswjs,aoiut,qe.usoqe-usoqeidsfq) 5295.99",
+   "statement": "BS"
+  },
+  {
+   "amount": 4342.46,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3024.01",
+   "ro_account_name": "Tbpkp kuibtv rlbcayp 0187.12 0187.12",
+   "statement": "BS"
+  },
+  {
+   "amount": 26583.74,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3028.01",
+   "ro_account_name": "Ils.zvew.nesapsnepap -msnyldp/zylgnan 4539.56",
+   "statement": "BS"
+  },
+  {
+   "amount": 1603.53,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3028.02",
+   "ro_account_name": "Uxk.oeit.odrxkuilu-lcluilqxru 8527.52",
+   "statement": "BS"
+  },
+  {
+   "amount": 11712.72,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3028.03",
+   "ro_account_name": "Eni.bqlvum.stzjwvj 4518.54",
+   "statement": "BS"
+  },
+  {
+   "amount": 6115.0,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3028.04",
+   "ro_account_name": "Yxc.lnbq.ovubdc.kdunv 7061.03",
+   "statement": "BS"
+  },
+  {
+   "amount": 10900.82,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "3031.01",
+   "ro_account_name": "Uhmfpnhgf rf whmyph aenfomfgap rf nwdfwmhp 8587.57",
+   "statement": "BS"
+  },
+  {
+   "amount": 995988.37,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "341.010",
+   "ro_account_name": "Fpdfgeylfmerp 891.515",
+   "statement": "BS"
+  },
+  {
+   "amount": 795942.72,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "345.010",
+   "ro_account_name": "Ialgijc qswsrc 103.787",
+   "statement": "BS"
+  },
+  {
+   "amount": 661216.57,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "348.102",
+   "ro_account_name": "Lmkwgwehw vw jgwh ur jgovpbw 510.739",
+   "statement": "BS"
+  },
+  {
+   "amount": 8386.78,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.001",
+   "ro_account_name": "Nyejueg seyzd 037.667 037.667",
+   "statement": "BS"
+  },
+  {
+   "amount": 1812639.13,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.010",
+   "ro_account_name": "Kxkupkr DNIKNRQZITZ - 564.94 564.949",
+   "statement": "BS"
+  },
+  {
+   "amount": 8161.96,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.050",
+   "ro_account_name": "Kisayse ONUDZEW BRLRANFWE 921.868",
+   "statement": "BS"
+  },
+  {
+   "amount": 80581.14,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.081",
+   "ro_account_name": "Tovyuvd GERSPLD CVBYE NJCJBEQDL 098.638",
+   "statement": "BS"
+  },
+  {
+   "amount": 154502.36,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.093",
+   "ro_account_name": "Zsmvcmw BVRCXDE YSWUV SQLS LMU 509.735",
+   "statement": "BS"
+  },
+  {
+   "amount": -11.52,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "371.095",
+   "ro_account_name": "Ffwohwp Ntfugpf Wvdywb Hyuazwlz",
+   "statement": "BS"
+  },
+  {
+   "amount": 0.63,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "378.078",
+   "ro_account_name": "Atqwuwoew vw guwe na mauqkut M Awglpte Snba 406.306",
+   "statement": "BS"
+  },
+  {
+   "amount": 0.17,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "378.080",
+   "ro_account_name": "Krhocoumo no wcom pz dzchgcr N Kowxkrm Qgtgcoqmr 234.646",
+   "statement": "BS"
+  },
+  {
+   "amount": 52648.19,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "381.001",
+   "ro_account_name": "SLCOQP 719.449",
+   "statement": "BS"
+  },
+  {
+   "amount": -6075.0,
+   "bucket": "inventory",
+   "is_derived": false,
+   "ro_account_code": "398",
+   "ro_account_name": "271 Qwumvkbc qedvbu geqbeocebek kankzkwezjb",
+   "statement": "BS"
+  },
+  {
+   "amount": 1843676.17,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "401.003",
+   "ro_account_name": "Ifxkcnyxc dljdxkc - 861.63 861.663",
+   "statement": "BS"
+  },
+  {
+   "amount": 2476804.2,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "401.01",
+   "ro_account_name": "Zchgynjhy ygbohgy - 940.40 940.40",
+   "statement": "BS"
+  },
+  {
+   "amount": 2363596.3,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "401.110",
+   "ro_account_name": "Ypurclfuc BVN 976.667",
+   "statement": "BS"
+  },
+  {
+   "amount": 439477.55,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "403.001",
+   "ro_account_name": "Wwjvfj oj tqxfef 084.887",
+   "statement": "BS"
+  },
+  {
+   "amount": 62819.55,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "404.001",
+   "ro_account_name": "Iktsdmntd vo dznudpdmftd - 313 313.118",
+   "statement": "BS"
+  },
+  {
+   "amount": 368473.48,
+   "bucket": "ap",
+   "is_derived": false,
+   "ro_account_code": "408.001",
+   "ro_account_name": "Roaienwae - vjpgoae ihywyegh 452.551 452.551",
+   "statement": "BS"
+  },
+  {
+   "amount": 29588.85,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4091.01",
+   "ro_account_name": "Shpsjzrpj qlwjmrpj chyi whshpj FBYAGCB 4231.21 4231.21",
+   "statement": "BS"
+  },
+  {
+   "amount": 19614.76,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "4092.34",
+   "ro_account_name": "HWHBU E.XB  9304.59",
+   "statement": "BS"
+  },
+  {
+   "amount": 4600644.59,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "4111.01",
+   "ro_account_name": "Kukipmk Tuoc - 5444.84 5444.84",
+   "statement": "BS"
+  },
+  {
+   "amount": 1270793.58,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "4111.02",
+   "ro_account_name": "Ptfpkjf Imbmlpgjf 5444.89",
+   "statement": "BS"
+  },
+  {
+   "amount": 511694.82,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "4111.03",
+   "ro_account_name": "Ryifrki fhkfjri 8333.07",
+   "statement": "BS"
+  },
+  {
+   "amount": 2190160.47,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "4111.10",
+   "ro_account_name": "Urqkjfq qjf.VUF 5444.43 5444.43",
+   "statement": "BS"
+  },
+  {
+   "amount": 138104.01,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "418",
+   "ro_account_name": "871 Iadynid - qlxigkd ty dniuxfdi",
+   "statement": "BS"
+  },
+  {
+   "amount": 50289.1,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "419.01",
+   "ro_account_name": "Imspnzs - qbpuszjbs- BXBYC IEYADBIA 826.32 826.32",
+   "statement": "BS"
+  },
+  {
+   "amount": 791069.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "421.001",
+   "ro_account_name": "Kxgyudnp - ynpngii hnjugnjx 762.112",
+   "statement": "BS"
+  },
+  {
+   "amount": 9043.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "427.01",
+   "ro_account_name": "FVFXCXC 679.81",
+   "statement": "BS"
+  },
+  {
+   "amount": 390653.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4281.01",
+   "ro_account_name": "Stfk sdfrnbb tkodfk sk qknurwdt 6842.72",
+   "statement": "BS"
+  },
+  {
+   "amount": 26325.99,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4281.02",
+   "ro_account_name": "Uhthelzz Jktdvehp 9237.82",
+   "statement": "BS"
+  },
+  {
+   "amount": 400367.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4281.03",
+   "ro_account_name": "Bhrtdodrv orvojldd vjjyjouwbuj 7098.64",
+   "statement": "BS"
+  },
+  {
+   "amount": -132380.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4313.02",
+   "ro_account_name": "LAFL 9.74 - 2565.91 2565.91",
+   "statement": "BS"
+  },
+  {
+   "amount": 430542.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4315",
+   "ro_account_name": "Zfnebsacesz snusjsuczgz ut zlsxcbzbs lfwszgt btesncez ut gz zlsxcbzes                    5421 5421",
+   "statement": "BS"
+  },
+  {
+   "amount": 183867.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4316",
+   "ro_account_name": "Iypjfkhujkd mepjfu daklufdfk ayzkdxe te adpdjdje fejkpujd te xd daklufdjk 0517 0517",
+   "statement": "BS"
+  },
+  {
+   "amount": 38424.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "436",
+   "ro_account_name": "Szufdnbyfnm psniydpfzdnm tmufdy hyurp 678 678",
+   "statement": "BS"
+  },
+  {
+   "amount": 519035.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4411",
+   "ro_account_name": "1188 Nptdnfmib tz tydcfm",
+   "statement": "BS"
+  },
+  {
+   "amount": 250756.47,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4423",
+   "ro_account_name": "3368 ZOU rq dgcjc",
+   "statement": "BS"
+  },
+  {
+   "amount": 38228.13,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "4428.010",
+   "ro_account_name": "JVK kbbuwdwlwyr NKCWKUEPCXP - 1164.959 1164.959",
+   "statement": "BS"
+  },
+  {
+   "amount": 10505.59,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "4428.26",
+   "ro_account_name": "4462.65 LGA yllqabawazu - LGA ayeutunl hgnyakdn",
+   "statement": "BS"
+  },
+  {
+   "amount": 122141.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "444",
+   "ro_account_name": "444 Zqworbgnx wf zfpbgnyb lf pvgnyv kvxvybbxoy",
+   "statement": "BS"
+  },
+  {
+   "amount": 10521.0,
+   "bucket": "otherCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "446.09",
+   "ro_account_name": "EC cotikfoy ZB 551 - 559.73 559.73",
+   "statement": "BS"
+  },
+  {
+   "amount": 7536754.9,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "4511.01",
+   "ro_account_name": "Ndqe te cnifmfy NLC 3299.59",
+   "statement": "BS"
+  },
+  {
+   "amount": 143709.49,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "461.016",
+   "ro_account_name": "Svwzgdnz czkvnozz qlzazqgz 092.829 092.829",
+   "statement": "BS"
+  },
+  {
+   "amount": 5637.91,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "461.06",
+   "ro_account_name": "Jhjvabrv ivthrzvv Zwjhwqk Wikwri 260.96",
+   "statement": "BS"
+  },
+  {
+   "amount": 6100.44,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "461.07",
+   "ro_account_name": "Aplhzbah thdpaghh YRWP YAJCYM DCZVY 045.81",
+   "statement": "BS"
+  },
+  {
+   "amount": 129399.72,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "471.004",
+   "ro_account_name": "Ge.uduoy iujg ulin&uyfw 547.885 547.885",
+   "statement": "BS"
+  },
+  {
+   "amount": 20442.81,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "471.008",
+   "ro_account_name": "Zf.adawm acxu 286.117 286.117",
+   "statement": "BS"
+  },
+  {
+   "amount": 1490.0,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "471.009",
+   "ro_account_name": "Tt. vf obofs zyfx xq tofxvioh 328.550",
+   "statement": "BS"
+  },
+  {
+   "amount": 44835.35,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "473.01",
+   "ro_account_name": "176.58 Ewsjgimbk akg jqwbmikk kg slbu aw sombkxksmbw",
+   "statement": "BS"
+  },
+  {
+   "amount": 941634.37,
+   "bucket": "otherNonCurrentLiab",
+   "is_derived": false,
+   "ro_account_code": "4752",
+   "ro_account_name": "9642 Ynjponofopc ybprnaophrackb zo zrprzfbp eb hoaxbyfcc jbyfpo cyxbhfcfcc",
+   "statement": "BS"
+  },
+  {
+   "amount": -1953.0,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "481",
+   "ro_account_name": "347 Wegodufcx xduce ndxufue yx ynpndxufux",
+   "statement": "BS"
+  },
+  {
+   "amount": -48170.15,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "491",
+   "ro_account_name": "509 Ujrdqnlm gubqlr ougluxmulun xlunbqukil - xkmubqm",
+   "statement": "BS"
+  },
+  {
+   "amount": -11738.35,
+   "bucket": "ar",
+   "is_derived": false,
+   "ro_account_code": "496",
+   "ro_account_name": "983 Fnxlhfoq rbjhox zbrobpqbobf pobfjhbemo - zbwqhmoq zqvbolq",
+   "statement": "BS"
+  },
+  {
+   "amount": 906526.42,
+   "bucket": "otherCurrentAssets",
+   "is_derived": false,
+   "ro_account_code": "5081.01",
+   "ro_account_name": "Cnezlbq vi qnjmng QPQ ZEUG 6498.48",
+   "statement": "BS"
+  },
+  {
+   "amount": 16818.29,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5121.01",
+   "ro_account_name": "Fymtdbe cz hzmwe em cve FXF 6212.32",
+   "statement": "BS"
+  },
+  {
+   "amount": 1096.0,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5121.02",
+   "ro_account_name": "Bmptnhw zg vgprw wp zow ugzghww 0131.83",
+   "statement": "BS"
+  },
+  {
+   "amount": 16954.4,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5121.03",
+   "ro_account_name": "Ygpofly th whpmy yp try syuh uohpnhln mhln hxrpoy 3656.08",
+   "statement": "BS"
+  },
+  {
+   "amount": 470668.87,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5121.07",
+   "ro_account_name": "Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52",
+   "statement": "BS"
+  },
+  {
+   "amount": 133402.89,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5124.01",
+   "ro_account_name": "UTYX UAU AJOT 8652.36",
+   "statement": "BS"
+  },
+  {
+   "amount": 1620.0,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5125",
+   "ro_account_name": "9459 Qjht qg vjdp ot otvfgasdt",
+   "statement": "BS"
+  },
+  {
+   "amount": 2199783.1,
+   "bucket": "stDebt",
+   "is_derived": false,
+   "ro_account_code": "5191.01",
+   "ro_account_name": "Txkxs zs bfszxi Tsx SUS 2070.30 2070.30",
+   "statement": "BS"
+  },
+  {
+   "amount": 139874.48,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.01",
+   "ro_account_name": "Tifi EHZE 1055.45",
+   "statement": "BS"
+  },
+  {
+   "amount": 461.6,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.02",
+   "ro_account_name": "Vlkl Telkwv0 2600.48",
+   "statement": "BS"
+  },
+  {
+   "amount": 8915.47,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.03",
+   "ro_account_name": "Csws Jzbvpjm 0766.17",
+   "statement": "BS"
+  },
+  {
+   "amount": 546.22,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.04",
+   "ro_account_name": "Bono Cgoe 4322.06",
+   "statement": "BS"
+  },
+  {
+   "amount": 1795.3,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.05",
+   "ro_account_name": "Xmhm Ttsthlmbm 0 9100.89",
+   "statement": "BS"
+  },
+  {
+   "amount": 6484.12,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.06",
+   "ro_account_name": "Ixix Pjlvi 9055.86",
+   "statement": "BS"
+  },
+  {
+   "amount": 10208.13,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.08",
+   "ro_account_name": "Otat Ofqw 6522.17",
+   "statement": "BS"
+  },
+  {
+   "amount": 157164.49,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.09",
+   "ro_account_name": "Cdod Ledxrxt Lfcgdp 6044.59",
+   "statement": "BS"
+  },
+  {
+   "amount": 1793.45,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.10",
+   "ro_account_name": "Pfbf Lncnbefpf7 9255.51",
+   "statement": "BS"
+  },
+  {
+   "amount": 5914.03,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.11",
+   "ro_account_name": "Pqaq Evpgh0 8100.00",
+   "statement": "BS"
+  },
+  {
+   "amount": 17183.29,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.12",
+   "ro_account_name": "Gono Ihpyj1 3788.81",
+   "statement": "BS"
+  },
+  {
+   "amount": 5179.27,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.13",
+   "ro_account_name": "Qkwk Rhubrk4 7699.96",
+   "statement": "BS"
+  },
+  {
+   "amount": 638.82,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.18",
+   "ro_account_name": "Ptdt Pstvmbt6 9266.67",
+   "statement": "BS"
+  },
+  {
+   "amount": 2900.53,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.32",
+   "ro_account_name": "Iete Gxetwd5 0644.65",
+   "statement": "BS"
+  },
+  {
+   "amount": 2667.21,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.33",
+   "ro_account_name": "Hcec Vzizq9 8911.99",
+   "statement": "BS"
+  },
+  {
+   "amount": 2299.03,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.34",
+   "ro_account_name": "Nxhx Uanat0 7288.23",
+   "statement": "BS"
+  },
+  {
+   "amount": 12048.24,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.35",
+   "ro_account_name": "Sueu Vuxqku0 6200.26",
+   "statement": "BS"
+  },
+  {
+   "amount": 3477.91,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.38",
+   "ro_account_name": "Komo Woxdbo9 2633.61",
+   "statement": "BS"
+  },
+  {
+   "amount": 1271.2,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.39",
+   "ro_account_name": "Etot Eetasxt2 4877.89",
+   "statement": "BS"
+  },
+  {
+   "amount": 3880.17,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.41",
+   "ro_account_name": "Tyky Nlpwry Iiolp 3011.51",
+   "statement": "BS"
+  },
+  {
+   "amount": 0.08,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.42",
+   "ro_account_name": "Xqjq Cfpfjlqeq 6 7644.51",
+   "statement": "BS"
+  },
+  {
+   "amount": 613.45,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.43",
+   "ro_account_name": "Arjr Aporjbr 4733.07",
+   "statement": "BS"
+  },
+  {
+   "amount": 2902.9,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.44",
+   "ro_account_name": "Wxax Cwjq-Awaupwux 0755.88",
+   "statement": "BS"
+  },
+  {
+   "amount": 4.84,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.51",
+   "ro_account_name": "Vawa Hqbqixwzp 9-1 7699.79",
+   "statement": "BS"
+  },
+  {
+   "amount": 1306.51,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.53",
+   "ro_account_name": "Dimi Hvsvfbmrp 7-0 7433.74",
+   "statement": "BS"
+  },
+  {
+   "amount": 684.35,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.54",
+   "ro_account_name": "Esgs Xpsivcs 9300.98",
+   "statement": "BS"
+  },
+  {
+   "amount": 926.89,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.57",
+   "ro_account_name": "Apxp Rpzfutgmp 5977.50",
+   "statement": "BS"
+  },
+  {
+   "amount": 134699.9,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.58",
+   "ro_account_name": "Teue Jkqte Kfqte 6344.68",
+   "statement": "BS"
+  },
+  {
+   "amount": 28.35,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "5311.60",
+   "ro_account_name": "Beje Uinei 2855.63",
+   "statement": "BS"
+  },
+  {
+   "amount": 1616.36,
+   "bucket": "cash",
+   "is_derived": false,
+   "ro_account_code": "542",
+   "ro_account_name": "403 Wafetvbh lo rbosibobho",
+   "statement": "BS"
+  },
+  {
+   "amount": 32069192.41,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "601.201",
+   "ro_account_name": "Xr.kvy.dxmka kaiag.zvxba 258.658",
+   "statement": "PL"
+  },
+  {
+   "amount": 54804.15,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "601.202",
+   "ro_account_name": "Fj.vxf.or.vmami.emumf (vxf.oryvx ordfmyhm) 295.696",
+   "statement": "PL"
+  },
+  {
+   "amount": 4818234.49,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "601.203",
+   "ro_account_name": "Ar.but.ho.bzjzg.ugtz (wcyavbzytz) 453.657",
+   "statement": "PL"
+  },
+  {
+   "amount": 2228148.31,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6021.01",
+   "ro_account_name": "Wq.sef.ehc.sndna.snswreun 0325.35",
+   "statement": "PL"
+  },
+  {
+   "amount": 850425.83,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6022.01",
+   "ro_account_name": "Xf.qwyioywnku wokxkoyujrs 2877.84",
+   "statement": "PL"
+  },
+  {
+   "amount": 91424.91,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6022.02",
+   "ro_account_name": "Cc.ymibfimukp lkpefpk 2155.15",
+   "statement": "PL"
+  },
+  {
+   "amount": 2068365.93,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6022.03",
+   "ro_account_name": "Xu.qczhkzcmyl wcjlml wczsc 2088.07",
+   "statement": "PL"
+  },
+  {
+   "amount": 18995.19,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6022.21",
+   "ro_account_name": "Qf.xakg rxsmbkfgvxak 0399.94",
+   "statement": "PL"
+  },
+  {
+   "amount": 59347.85,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6022.23",
+   "ro_account_name": "Bh.juoc ndzcfc ndxpd 7122.26",
+   "statement": "PL"
+  },
+  {
+   "amount": 1448354.37,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6023.21",
+   "ro_account_name": "Sn.brw.rbc. bstse.(heuvz,zqirpr,sw.bsbcprlr;erkr hrpwil,vflmu swh) 7625.29",
+   "statement": "PL"
+  },
+  {
+   "amount": 34534.09,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6023.22",
+   "ro_account_name": "Md.lyk.ylu.lzjzt.ytkz lyk(iftpz,uygwy,xtpnh,zk.nytzk-iyjy nytzkpjybz) 5842.44",
+   "statement": "PL"
+  },
+  {
+   "amount": 243737.48,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6024.01",
+   "ro_account_name": "Rv.xhgtg twvhpe kahoimg 2437.49",
+   "statement": "PL"
+  },
+  {
+   "amount": 524481.92,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6024.03",
+   "ro_account_name": "Ccxed.obxkx kscbyq XPI 4698.65",
+   "statement": "PL"
+  },
+  {
+   "amount": 194346.49,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6024.05",
+   "ro_account_name": "Gz.wmnhn hxzmts Xjul 4908.91",
+   "statement": "PL"
+  },
+  {
+   "amount": 89123.07,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6028.01",
+   "ro_account_name": "Tk.hed.nmuq.hed.ludpydlu.-adlteby/ntezlpy 9268.24",
+   "statement": "PL"
+  },
+  {
+   "amount": 102953.14,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6028.02",
+   "ro_account_name": "En.jmb.gqvy.jmb.gwrmbzvuz-uiuzvudmrz 4326.32",
+   "statement": "PL"
+  },
+  {
+   "amount": 76106.96,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6028.03",
+   "ro_account_name": "To.qen.faku.qen.lbypzup 2687.63",
+   "statement": "PL"
+  },
+  {
+   "amount": 15383.88,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6028.06",
+   "ro_account_name": "Eq.jxl.ctah. Wblt 4360.34",
+   "statement": "PL"
+  },
+  {
+   "amount": 43625.37,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "6028.07",
+   "ro_account_name": "Vm.kji.nohz. ZRI 7231.20",
+   "statement": "PL"
+  },
+  {
+   "amount": 45677.21,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "603.001",
+   "ro_account_name": "Nd.bs.ukiwkatl 287.883",
+   "statement": "PL"
+  },
+  {
+   "amount": 13236.6,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "603.002",
+   "ro_account_name": "Zr.id.xmuymkfp VB 350.552",
+   "statement": "PL"
+  },
+  {
+   "amount": 597.27,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.004",
+   "ro_account_name": "Gg.asq.eilq.lqvwxvqjsui 986.886",
+   "statement": "PL"
+  },
+  {
+   "amount": 249850.86,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.006",
+   "ro_account_name": "Gn.xsa.hiua.yhawiayhiwi 735.337",
+   "statement": "PL"
+  },
+  {
+   "amount": 6147.4,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.011",
+   "ro_account_name": "Xg.jlv.bhuv.AP 478.722",
+   "statement": "PL"
+  },
+  {
+   "amount": 52344.38,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.012",
+   "ro_account_name": "Lv.cbf.toef.whijfhsb 527.243",
+   "statement": "PL"
+  },
+  {
+   "amount": 143282.73,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.014",
+   "ro_account_name": "Dz.fpi.qmji,pviot. jkvrpam-oqri.cykimsmim 854.504",
+   "statement": "PL"
+  },
+  {
+   "amount": 247.94,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "604.015",
+   "ro_account_name": "Ja. osq. bdpq. umvdkpd 985.830 985.830",
+   "statement": "PL"
+  },
+  {
+   "amount": 1931723.37,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6051.01",
+   "ro_account_name": "Hi.kjhcpn Zhrmqvr rgrkwmvkl 0921.91",
+   "statement": "PL"
+  },
+  {
+   "amount": 304290.71,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6051.02",
+   "ro_account_name": "Rb.svfhru Wqwx fqorzqex 3297.25",
+   "statement": "PL"
+  },
+  {
+   "amount": 169170.62,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6052.01",
+   "ro_account_name": "Ev.cewhio Qrn 3410.42",
+   "statement": "PL"
+  },
+  {
+   "amount": 99400.07,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6052.02",
+   "ro_account_name": "Bv.zoiplr Eng-Bgigk 1865.85",
+   "statement": "PL"
+  },
+  {
+   "amount": 280882.83,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.001",
+   "ro_account_name": "Sbxpswhxph kchfhdm otcawchpx XMQNF 741.442",
+   "statement": "PL"
+  },
+  {
+   "amount": 7617879.99,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.010",
+   "ro_account_name": "Syzidokzik wrkjkfx vlrmorkiz SHCQHEUTCFT - 469.65. 469.656",
+   "statement": "PL"
+  },
+  {
+   "amount": 652356.44,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.050",
+   "ro_account_name": "Eguqipauqa loatavs hcokpoaqu HWJPBNU KGEGMWYUN 301.080",
+   "statement": "PL"
+  },
+  {
+   "amount": 5316057.6,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.078",
+   "ro_account_name": "Wmrtcnwrtw ajwiwvh zljgnjwtr I AOMTHBZ QKYQ 845.453",
+   "statement": "PL"
+  },
+  {
+   "amount": 604179.04,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.080",
+   "ro_account_name": "Mwytovzytz ujznzif xmjbvjzty P ANRJHYE SIMIQNKEY 287.808",
+   "statement": "PL"
+  },
+  {
+   "amount": 836637.03,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.081",
+   "ro_account_name": "Azwhorswhs pfstsiv clfnrfshw ZBRVKNT AUPSB OIAIPBJTN 752.586",
+   "statement": "PL"
+  },
+  {
+   "amount": 10223601.44,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.093",
+   "ro_account_name": "Rljgdvqjgq ktqmqna owtivtqgj ZJMDVLN RXYSJ XPKX KHS 463.691",
+   "statement": "PL"
+  },
+  {
+   "amount": 956500.36,
+   "bucket": "cogs",
+   "is_derived": false,
+   "ro_account_code": "607.095",
+   "ro_account_name": "Dyxbwedxbd qldndrt gvlzeldbx Yhvrtdv Usqklw Dkrjxlnx 730.359",
+   "statement": "PL"
+  },
+  {
+   "amount": 67198.73,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "609.402",
+   "ro_account_name": "Zrcgfrlr fmarlfuivi gvqrlumili Yijlufi 890.796",
+   "statement": "PL"
+  },
+  {
+   "amount": 159980.06,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "611.001",
+   "ro_account_name": "Jx.yiluzl&uzqau.vlyjawz 388.228",
+   "statement": "PL"
+  },
+  {
+   "amount": 86324.03,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "611.002",
+   "ro_account_name": "Ht.saeqbe&qbruq.uceynbtsf 477.221",
+   "statement": "PL"
+  },
+  {
+   "amount": 263679.22,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "611.003",
+   "ro_account_name": "Sn.yatput&pukfp.rfeyay rfpvf 022.337",
+   "statement": "PL"
+  },
+  {
+   "amount": 76183.17,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "612.001",
+   "ro_account_name": "Oy.pyhghh kizezighcsd 978.227",
+   "statement": "PL"
+  },
+  {
+   "amount": 415979.39,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "612.003",
+   "ro_account_name": "Wx.sxctcc mahlcc,lutujvtc 814.227",
+   "statement": "PL"
+  },
+  {
+   "amount": 8192.81,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "612.017",
+   "ro_account_name": "Qs wsuyuu/udwsuyuzyu -inmznz (pubj, qgmznuz, qimzyuz) 951.653 951.653",
+   "statement": "PL"
+  },
+  {
+   "amount": 19950.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "612.018",
+   "ro_account_name": "Uv. bvzpzl mrzfozrkqpl 305.806",
+   "statement": "PL"
+  },
+  {
+   "amount": 8059.8,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.001",
+   "ro_account_name": "Rh.spigjtsti resditi  320.112",
+   "statement": "PL"
+  },
+  {
+   "amount": 4425.51,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.002",
+   "ro_account_name": "De.aljownanj wdjfaks 938.662",
+   "statement": "PL"
+  },
+  {
+   "amount": 3682.68,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.003",
+   "ro_account_name": "Ad.ozjwnaoaj zvrsnaj 657.887",
+   "statement": "PL"
+  },
+  {
+   "amount": 131086.84,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.004",
+   "ro_account_name": "Ax.wbvgtqwqv wtecetqvbuz 089.556",
+   "statement": "PL"
+  },
+  {
+   "amount": 262538.8,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.005",
+   "ro_account_name": "Cw.lguxeflfu vlguhu vlfjl 719.880",
+   "statement": "PL"
+  },
+  {
+   "amount": 71542.29,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "613.007",
+   "ro_account_name": "Khhiaojd odkxaioif Zgvohf 268.440",
+   "statement": "PL"
+  },
+  {
+   "amount": 100.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "623.011",
+   "ro_account_name": "Jncdokjcdj vkldjzjoqoc vqwak maoahadoqjzc 279.688",
+   "statement": "PL"
+  },
+  {
+   "amount": 92103.27,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6231.01",
+   "ro_account_name": "Lxdrdydf - 527.84 5274.84",
+   "statement": "PL"
+  },
+  {
+   "amount": 740.15,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6231.02",
+   "ro_account_name": "Kn.hrjojmjq mjphzfsl (rltozvrzfo) 8417.64",
+   "statement": "PL"
+  },
+  {
+   "amount": 3899.22,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6231.04",
+   "ro_account_name": "Sj.ceowomov qtxtx. 3920.54",
+   "statement": "PL"
+  },
+  {
+   "amount": 31095.91,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6231.05",
+   "ro_account_name": "Ogtclq Jzgfgogj 4872.59",
+   "statement": "PL"
+  },
+  {
+   "amount": 96110.83,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6231.07",
+   "ro_account_name": "DNAPVAN 2739.15",
+   "statement": "PL"
+  },
+  {
+   "amount": 523613.02,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6232.05",
+   "ro_account_name": "Ievzoro Jordzfgk 0696.53",
+   "statement": "PL"
+  },
+  {
+   "amount": 118824.9,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6232.208",
+   "ro_account_name": "Lvfhkud jwvcdlgbs 2757.710",
+   "statement": "PL"
+  },
+  {
+   "amount": 658841.71,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "624.001",
+   "ro_account_name": "Aw.vagczk.kaut.eg remjcvm 425.779",
+   "statement": "PL"
+  },
+  {
+   "amount": 13114.7,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "624.002",
+   "ro_account_name": "Xi.othsrcpto cktrphsk (ekmkxholk) 791.449",
+   "statement": "PL"
+  },
+  {
+   "amount": 187204.56,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "624.004",
+   "ro_account_name": "Ov.tcrfog.gsco.rmtwdrc (rfbryrtz) 879.009",
+   "statement": "PL"
+  },
+  {
+   "amount": 8639.49,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "624.005",
+   "ro_account_name": "Sd.qieyjohiq euqxux 605.229 605.229",
+   "statement": "PL"
+  },
+  {
+   "amount": -0.1,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "624.01",
+   "ro_account_name": "GUGTHDSYSF 283.46",
+   "statement": "PL"
+  },
+  {
+   "amount": 6500.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "625.101",
+   "ro_account_name": "Xg.oxwehk onowivxpxdk 294.010",
+   "statement": "PL"
+  },
+  {
+   "amount": 148766.92,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "625.201",
+   "ro_account_name": "Nb.sngnip jplrnynif 782.894",
+   "statement": "PL"
+  },
+  {
+   "amount": 34948.12,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "626.002",
+   "ro_account_name": "Dm.wlrlazhvl izcvrt 939.553",
+   "statement": "PL"
+  },
+  {
+   "amount": 4096.38,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "626.003",
+   "ro_account_name": "Dd.bxsokwb.wkgrnkrg 787.441",
+   "statement": "PL"
+  },
+  {
+   "amount": 137.41,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "627.10",
+   "ro_account_name": "OUCDQDUK gxjwxy 149.87 149.87",
+   "statement": "PL"
+  },
+  {
+   "amount": 28785.52,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "627.161",
+   "ro_account_name": "Gmwjq tkxgkpy GYG 586.252",
+   "statement": "PL"
+  },
+  {
+   "amount": 193027.3,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.202",
+   "ro_account_name": "Zk.phfw.trzofjubtch 150.575",
+   "statement": "PL"
+  },
+  {
+   "amount": 81833.58,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.203",
+   "ro_account_name": "Ep.ochx.cnuj&dljzjnlzhc-zselw/nujosrwzjwz 169.653",
+   "statement": "PL"
+  },
+  {
+   "amount": 119411.16,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.204",
+   "ro_account_name": "Fc.tzns.qjnflfiz 960.653",
+   "statement": "PL"
+  },
+  {
+   "amount": 5774.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.205",
+   "ro_account_name": "Mj. Sozv. XSCT wbtb dbzsp 205.068",
+   "statement": "PL"
+  },
+  {
+   "amount": 28517.77,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.207",
+   "ro_account_name": "Fn.wjoq hqxk.pmuhzjowuow 935.341",
+   "statement": "PL"
+  },
+  {
+   "amount": 71255.9,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.209",
+   "ro_account_name": "Ifqpldvqpv cd rplq wqbzvcvv JRWOLVV 052.598",
+   "statement": "PL"
+  },
+  {
+   "amount": 14813.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.210",
+   "ro_account_name": "Ht.dswj. kyvmu ehuhjhxukmls 845.430",
+   "statement": "PL"
+  },
+  {
+   "amount": 88340.21,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.301",
+   "ro_account_name": "Dt.yqks.meciceklynq 601.574",
+   "statement": "PL"
+  },
+  {
+   "amount": 126079.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.302",
+   "ro_account_name": "Tl.rtum.svrdnd svuyv 702.610",
+   "statement": "PL"
+  },
+  {
+   "amount": 57903.34,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.401",
+   "ro_account_name": "Mi.egka.ernvprk agpgkvn. (rnryvzg,lkxmg) 796.452",
+   "statement": "PL"
+  },
+  {
+   "amount": 219078.62,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.404",
+   "ro_account_name": "Yehr tirehdcrec qarxhoac xranctcc 731.949 731.949",
+   "statement": "PL"
+  },
+  {
+   "amount": 131327.85,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.406",
+   "ro_account_name": "Xs.xzve.gtbzgfcvz nzxzlvw 148.071",
+   "statement": "PL"
+  },
+  {
+   "amount": 58500.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.407",
+   "ro_account_name": "Qmaiqfyaiy xf oaswyxyyia JRUMDWMVN 521.834",
+   "statement": "PL"
+  },
+  {
+   "amount": 15113.14,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.501",
+   "ro_account_name": "Lt.yguz.ugpuwncug 546.328",
+   "statement": "PL"
+  },
+  {
+   "amount": 68773.54,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.503",
+   "ro_account_name": "Lg.iutr.pucm azfds&ptcfj. 314.287",
+   "statement": "PL"
+  },
+  {
+   "amount": 34079.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "628.504",
+   "ro_account_name": "Bvugf ouxe.oujnxyf oy mut 563.472",
+   "statement": "PL"
+  },
+  {
+   "amount": 270794.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.02",
+   "ro_account_name": "Oxdlcfukuq- gd. ryhducyt 986.41 986.41",
+   "statement": "PL"
+  },
+  {
+   "amount": 86599.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.101",
+   "ro_account_name": "Gd.arfeiav tgcpama 405.737",
+   "statement": "PL"
+  },
+  {
+   "amount": 11433.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.102",
+   "ro_account_name": "Ak.yaefbys siliqdly 632.857",
+   "statement": "PL"
+  },
+  {
+   "amount": 39189.55,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.103",
+   "ro_account_name": "Zh.fpy&amsw meazaerfcpw 796.109",
+   "statement": "PL"
+  },
+  {
+   "amount": 19821.37,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.104",
+   "ro_account_name": "Ki.krh&aebn HCA 257.831",
+   "statement": "PL"
+  },
+  {
+   "amount": 261.62,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.202",
+   "ro_account_name": "Bd.Lrzq mqegy 831.090 831.090",
+   "statement": "PL"
+  },
+  {
+   "amount": 8386.8,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "635.203",
+   "ro_account_name": "Yv.rxdi osezwodi & drji 792.619 792.619",
+   "statement": "PL"
+  },
+  {
+   "amount": 14119936.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.001",
+   "ro_account_name": "Sa.hjpocjhktrr vjhzucke 654.004",
+   "statement": "PL"
+  },
+  {
+   "amount": 3123700.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.003",
+   "ro_account_name": "Io.eflvb dhtmftwnlpn 289.446",
+   "statement": "PL"
+  },
+  {
+   "amount": 548195.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.005",
+   "ro_account_name": "Jd.lvr cfqytsrzjkvr 956.884",
+   "statement": "PL"
+  },
+  {
+   "amount": 488312.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.007",
+   "ro_account_name": "Ho.lgfy.fyd sfpgkd; lgfy nddj 173.994",
+   "statement": "PL"
+  },
+  {
+   "amount": 129618.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.008",
+   "ro_account_name": "Xu.tqbqckk gomw.goygfdkk 601.554",
+   "statement": "PL"
+  },
+  {
+   "amount": 4580.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.111",
+   "ro_account_name": "Zunchxmm xh uxmsnv (wouf.cunc.nhha) 463.333",
+   "statement": "PL"
+  },
+  {
+   "amount": 37919.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "641.112",
+   "ro_account_name": "Xaqxj us bsznazdtqpt 758.884",
+   "statement": "PL"
+  },
+  {
+   "amount": 1586820.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6422.001",
+   "ro_account_name": "Wq.mrkqxmx hbpb exapgnbj 0655.332",
+   "statement": "PL"
+  },
+  {
+   "amount": 81200.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6422.002",
+   "ro_account_name": "Vg.ditgcdchc txwnf_tgc ant 1500.660",
+   "statement": "PL"
+  },
+  {
+   "amount": 101213.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6458.01",
+   "ro_account_name": "Nhje tmehjouehu faupusw bnugoabauhe nu faqjetjub nqtubhb 9568.32 9568.32",
+   "statement": "PL"
+  },
+  {
+   "amount": 4749.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6458.04",
+   "ro_account_name": "FOZJUQ OFXZIQCO QCTBXDCO 1520.45",
+   "statement": "PL"
+  },
+  {
+   "amount": 416492.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "646",
+   "ro_account_name": "Cnlhewsthww quwy rp ztliq 616",
+   "statement": "PL"
+  },
+  {
+   "amount": 7006.77,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6581.02",
+   "ro_account_name": "Mianots.hrase.hrfiehtnoi 2831.94",
+   "statement": "PL"
+  },
+  {
+   "amount": 7705.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6581.04",
+   "ro_account_name": "Apevcn 3461.90",
+   "statement": "PL"
+  },
+  {
+   "amount": 15000.0,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6582.02",
+   "ro_account_name": "wpaowaxslnxg 0439.89 0439.89",
+   "statement": "PL"
+  },
+  {
+   "amount": 51596.17,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6583",
+   "ro_account_name": "6204 Ratbjzytby xcykyin upjyktbt ptnujt vy ubjt wxtcujyy nt puxyjub",
+   "statement": "PL"
+  },
+  {
+   "amount": 69.15,
+   "bucket": "operatingExpenses",
+   "is_derived": false,
+   "ro_account_code": "6588.01",
+   "ro_account_name": "Whjn zgnhjfynhy xn nkdhcbjbon - 5122.76 5122.76",
+   "statement": "PL"
+  },
+  {
+   "amount": 65946.65,
+   "bucket": "financialExpense",
+   "is_derived": false,
+   "ro_account_code": "665",
+   "ro_account_name": "115 Azwecapwep jph jpkwswhcw jw dasl gteacts",
+   "statement": "PL"
+  },
+  {
+   "amount": 210406.98,
+   "bucket": "interestExpense",
+   "is_derived": false,
+   "ro_account_code": "666.01",
+   "ro_account_name": "Lsgcyfxgcx hlxdxqz zkbwqjxcg  333.71 333.71",
+   "statement": "PL"
+  },
+  {
+   "amount": 67523.37,
+   "bucket": "interestExpense",
+   "is_derived": false,
+   "ro_account_code": "666.111",
+   "ro_account_name": "Vaugb.nxe. olbx  guoytjc 222.888 222.888",
+   "statement": "PL"
+  },
+  {
+   "amount": 1914886.81,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6811.01",
+   "ro_account_name": "Cbytgmoyto wy yahtfsgscy hcokovw slfcgodscys olfzotodscotfc - wywmngozot 1588.48",
+   "statement": "PL"
+  },
+  {
+   "amount": 905076.22,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6811.03",
+   "ro_account_name": "Ej.ysolc.qui.dupn.zyrpgo. 8522.43",
+   "statement": "PL"
+  },
+  {
+   "amount": 65411.16,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6812.01",
+   "ro_account_name": "Srofl.oixf.xgzmkj.doqoqeblkvkf 3457.65 3457.65",
+   "statement": "PL"
+  },
+  {
+   "amount": 52158.85,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6814.01",
+   "ro_account_name": "Kz.bfto.ip.xbtu.iwv.weuw. 6029.32",
+   "statement": "PL"
+  },
+  {
+   "amount": 11738.35,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6814.02",
+   "ro_account_name": "OXZXZGWKYMYH -Wtzah.Xbwa.wdnu,rycmh.wh.ezwdzp.rphnu.pndpcarvhz 9742.80 9742.80",
+   "statement": "PL"
+  },
+  {
+   "amount": 6075.0,
+   "bucket": "depreciation",
+   "is_derived": false,
+   "ro_account_code": "6814.03",
+   "ro_account_name": "Mrecfpfey kbhkukwg 8041.67",
+   "statement": "PL"
+  },
+  {
+   "amount": 1471550.0,
+   "bucket": "taxExpense",
+   "is_derived": false,
+   "ro_account_code": "691",
+   "ro_account_name": "831 Tqojypnojn mp nzuwbnypj uo utwxny",
+   "statement": "PL"
+  },
+  {
+   "amount": 79311635.03,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "7015.01",
+   "ro_account_name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
+   "statement": "PL"
+  },
+  {
+   "amount": 15252.34,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "704",
+   "ro_account_name": "605 Weqwpvgw xwq uegrwfww kgeupype",
+   "statement": "PL"
+  },
+  {
+   "amount": 183977.61,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "706.001",
+   "ro_account_name": "Vuypdhap bpy ktpapp 873.772",
+   "statement": "PL"
+  },
+  {
+   "amount": 11109802.02,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.010",
+   "ro_account_name": "Mpgcjrzc xcg wfgnfzpf hfzurzcikz JLPRLKCQPGQ - 080.86 080.868",
+   "statement": "PL"
+  },
+  {
+   "amount": 740805.0,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.050",
+   "ro_account_name": "Adasyrcs jsa vlaglcdl wlcircseoc ODWVCPU SXKXHDBUP 989.838",
+   "statement": "PL"
+  },
+  {
+   "amount": 7251052.26,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.078",
+   "ro_account_name": "Ngoricur jro kvoyvugv tvuzcursdu U ZEYBQVC SXOS 474.746",
+   "statement": "PL"
+  },
+  {
+   "amount": 863014.61,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.080",
+   "ro_account_name": "Gptgemog sgt yntinopn anovmogkqo T IMZOKQP LJDJCMSPQ 383.818",
+   "statement": "PL"
+  },
+  {
+   "amount": 1036525.29,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.081",
+   "ro_account_name": "Vqwhcvah ehw itwotaqt dtarvahxfa FBRWNIT DZELB QYDYEBATI 606.012",
+   "statement": "PL"
+  },
+  {
+   "amount": 13022563.0,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.093",
+   "ro_account_name": "Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329",
+   "statement": "PL"
+  },
+  {
+   "amount": 1152937.23,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "707.095",
+   "ro_account_name": "Yortcpst utr jlrelsol dlsmpstfvs Ewlrutl Izivsc Ovraosjo 494.907",
+   "statement": "PL"
+  },
+  {
+   "amount": 2087418.08,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "709.304",
+   "ro_account_name": "Ccovyuhvivtutv kcgcilov 348.640 348.640",
+   "statement": "PL"
+  },
+  {
+   "amount": 1797564.61,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "709.401",
+   "ro_account_name": "Hgdioluv oss bhkhnlxg 517.019",
+   "statement": "PL"
+  },
+  {
+   "amount": 4272.56,
+   "bucket": "revenue",
+   "is_derived": false,
+   "ro_account_code": "709.904",
+   "ro_account_name": "Vzkmljlkn slfr IFF 718.819",
+   "statement": "PL"
+  },
+  {
+   "amount": 192091846.33,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "711",
+   "ro_account_name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
+   "statement": "PL"
+  },
+  {
+   "amount": 95681.37,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7581",
+   "ro_account_name": "5642 Rwvfqtlf mfv mwgapktuflf, piwvnf gf awvphfqpqf",
+   "statement": "PL"
+  },
+  {
+   "amount": 34481.39,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7583",
+   "ro_account_name": "2365 Zmjhoxbh thj eyjkybmy ylohemdsb gh ydom szmbyohh tm lyzhoyd",
+   "statement": "PL"
+  },
+  {
+   "amount": 85603.12,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7584.15",
+   "ro_account_name": "Iyacw.dgsryawcc Ffwfrfxwocpy 3254.82",
+   "statement": "PL"
+  },
+  {
+   "amount": 617.69,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7588.01",
+   "ro_account_name": "Jmfn cnihfdyh xhi nuwmbkfkyn. 9844.52 9844.52",
+   "statement": "PL"
+  },
+  {
+   "amount": 11166.56,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7588.02",
+   "ro_account_name": "Hxek vkdsewys psng. lwydshqys XV 4500.17",
+   "statement": "PL"
+  },
+  {
+   "amount": 23158.72,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7588.05",
+   "ro_account_name": "Bxdq hqb.qiyx.juhqpeq 7511.45",
+   "statement": "PL"
+  },
+  {
+   "amount": 135393.0,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7588.07",
+   "ro_account_name": "Eixh rhv.zyvt.ayictjmcxjx 3166.53",
+   "statement": "PL"
+  },
+  {
+   "amount": 157000.88,
+   "bucket": "financialIncome",
+   "is_derived": false,
+   "ro_account_code": "765",
+   "ro_account_name": "928 Sslzqytz czl czfstslqs cs gytr xonyqot",
+   "statement": "PL"
+  },
+  {
+   "amount": 299383.26,
+   "bucket": "financialIncome",
+   "is_derived": false,
+   "ro_account_code": "766",
+   "ro_account_name": "800 Ixmdahbd zdm zqjfmcd",
+   "statement": "PL"
+  },
+  {
+   "amount": 3988.7,
+   "bucket": "otherIncome",
+   "is_derived": false,
+   "ro_account_code": "7814.01",
+   "ro_account_name": "Qteyisdy tclq.au.ptld.abi.bydb. 7624.02",
+   "statement": "PL"
+  }
+ ],
+ "period_end": "2025-12-31",
+ "period_start": "2025-01-01",
+ "statements": {
+  "assembled_bands": {
+   "bands": {
+    "asset_turnover": {
+     "direction": "higher",
+     "healthy": 1.0,
+     "strong": 1.5,
+     "watch": 0.5
+    },
+    "cash_ratio": {
+     "direction": "higher",
+     "healthy": 0.2,
+     "strong": 0.5,
+     "watch": 0.1
+    },
+    "ccc": {
+     "direction": "lower",
+     "healthy": 60,
+     "strong": 30,
+     "watch": 90
+    },
+    "core_ebitda_margin": {
+     "direction": "higher",
+     "healthy": 0.15,
+     "strong": 0.25,
+     "watch": 0.08
+    },
+    "current_ratio": {
+     "direction": "higher",
+     "healthy": 1.5,
+     "strong": 2.0,
+     "watch": 1.0
+    },
+    "debt_to_assets": {
+     "direction": "lower",
+     "healthy": 0.5,
+     "strong": 0.3,
+     "watch": 0.65
+    },
+    "debt_to_ebitda": {
+     "direction": "lower",
+     "healthy": 3.0,
+     "strong": 2.0,
+     "watch": 4.5
+    },
+    "debt_to_equity": {
+     "direction": "lower",
+     "healthy": 1.0,
+     "strong": 0.5,
+     "watch": 2.0
+    },
+    "dio": {
+     "direction": "lower",
+     "healthy": 60,
+     "strong": 30,
+     "watch": 100
+    },
+    "dpo": {
+     "direction": "higher",
+     "healthy": 45,
+     "strong": 60,
+     "watch": 30
+    },
+    "dscr": {
+     "direction": "higher",
+     "healthy": 1.25,
+     "strong": 1.5,
+     "watch": 1.0
+    },
+    "dscr_with_lt_principal": {
+     "direction": "higher",
+     "healthy": 1.25,
+     "strong": 1.5,
+     "watch": 1.0
+    },
+    "dso": {
+     "direction": "lower",
+     "healthy": 45,
+     "strong": 30,
+     "watch": 75
+    },
+    "ebitda_margin": {
+     "direction": "higher",
+     "healthy": 0.15,
+     "strong": 0.25,
+     "watch": 0.08
+    },
+    "ebitda_to_interest": {
+     "direction": "higher",
+     "healthy": 4.0,
+     "strong": 8.0,
+     "watch": 2.0
+    },
+    "equity_ratio": {
+     "direction": "higher",
+     "healthy": 0.3,
+     "strong": 0.5,
+     "watch": 0.15
+    },
+    "gross_margin": {
+     "direction": "higher",
+     "healthy": 0.25,
+     "strong": 0.4,
+     "watch": 0.15
+    },
+    "interest_coverage": {
+     "direction": "higher",
+     "healthy": 3.0,
+     "strong": 6.0,
+     "watch": 1.5
+    },
+    "inventory_turnover": {
+     "direction": "higher",
+     "healthy": 6,
+     "strong": 12,
+     "watch": 3
+    },
+    "lt_debt_to_equity": {
+     "direction": "lower",
+     "healthy": 0.6,
+     "strong": 0.3,
+     "watch": 1.2
+    },
+    "net_debt_to_ebitda": {
+     "direction": "lower",
+     "healthy": 3.0,
+     "strong": 1.5,
+     "watch": 4.5
+    },
+    "net_margin": {
+     "direction": "higher",
+     "healthy": 0.08,
+     "strong": 0.15,
+     "watch": 0.03
+    },
+    "operating_margin": {
+     "direction": "higher",
+     "healthy": 0.1,
+     "strong": 0.2,
+     "watch": 0.04
+    },
+    "quick_ratio": {
+     "direction": "higher",
+     "healthy": 1.0,
+     "strong": 1.5,
+     "watch": 0.7
+    },
+    "roa": {
+     "direction": "higher",
+     "healthy": 0.05,
+     "strong": 0.1,
+     "watch": 0.02
+    },
+    "roe": {
+     "direction": "higher",
+     "healthy": 0.12,
+     "strong": 0.2,
+     "watch": 0.06
+    },
+    "roic": {
+     "direction": "higher",
+     "healthy": 0.1,
+     "strong": 0.15,
+     "watch": 0.05
+    }
+   },
+   "disclosure": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass.",
+   "industry_resolved": null,
+   "source": "general_sme_fallback"
+  },
+  "assembled_bs": {
+   "accounts_payable": 7554847.25,
+   "accounts_receivable": 8513384.96,
+   "ap": 7554847.25,
+   "ap_dividends": 0.0,
+   "ap_other": 3258346.42,
+   "ar_doubtful_gross": 0.0,
+   "ar_intercompany": 7692202.74,
+   "ar_net": 8513384.96,
+   "ar_other": 1169089.78,
+   "ar_provisions": 0.0,
+   "bs_balance_delta": -46613.06,
+   "cash": 1168047.04,
+   "cash_fx_component": 133402.89,
+   "current_year_pnl": 7533676.02,
+   "intangibles": 673090.13,
+   "intangibles_net": 673090.13,
+   "inventory": 8933332.42,
+   "investments": 67904.42,
+   "long_term_debt": 1440419.23,
+   "lt_debt": 1440419.23,
+   "other_current_assets": 8861292.52,
+   "other_current_liabilities": 3258346.42,
+   "other_equity": 7656186.1,
+   "other_equity_non_revaluation": 5767394.1,
+   "other_non_current_assets": 67904.42,
+   "other_non_current_liabilities": 941634.37,
+   "ppe_advances": 0.0,
+   "ppe_investment_net": 0.0,
+   "ppe_net": 11055449.54,
+   "ppe_under_construction": 49773.0,
+   "property_plant_equipment": 11055449.54,
+   "retained_earnings": -61628.4,
+   "revaluation_reserves": 1888792.0,
+   "share_capital": 8795850.0,
+   "short_term_debt": 2199783.1,
+   "st_debt": 2199783.1,
+   "total_assets": 39272501.03,
+   "total_current_assets": 27476056.94,
+   "total_current_liabilities": 13012976.77,
+   "total_debt": 3640202.33,
+   "total_equity": 23924083.72,
+   "total_liabilities": 15395030.37,
+   "total_non_current_assets": 11796444.09,
+   "total_non_current_liabilities": 2382053.6
+  },
+  "assembled_cf": {
+   "affiliate_change": -0.0,
+   "approximation_notes": [
+    "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+    "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+   ],
+   "bank_loan_drawdowns": 219978.31,
+   "bank_loan_repayments": -144041.92,
+   "capex_other_approx": -552772.48,
+   "capex_real": -0.0,
+   "capex_total": -552772.48,
+   "capitalized_construction": -0.0,
+   "cash_from_financing": -3968831.97,
+   "cash_from_investing": -278275.72,
+   "cash_from_operating": 10234999.93,
+   "cash_used_in_financing": -3968831.97,
+   "cash_used_in_investing": -278275.72,
+   "cf_before_wc": 10723076.74,
+   "cip_change": -24886.5,
+   "closing_cash_actual": 1168047.04,
+   "delta_inventory": -446666.62,
+   "delta_lt_debt": -144041.92,
+   "delta_receivables": -425669.25,
+   "delta_st_bank": 219978.31,
+   "delta_tax_pay": 6516.69,
+   "delta_trade_pay": 377742.36,
+   "depreciation": 2955346.39,
+   "dividends_declared_but_unpaid": false,
+   "dividends_paid": -3766838.01,
+   "dividends_received": 0,
+   "free_cash_flow": 10234999.93,
+   "interest_paid": -277930.35,
+   "interest_received": 299383.26,
+   "is_approximated": true,
+   "net_change_in_cash": 5987892.24,
+   "net_profit": 7533676.02,
+   "net_wc_change": -488076.81,
+   "provision_movement": 234054.33,
+   "working_capital_change": -488076.81
+  },
+  "assembled_piotroski": {
+   "checks": [
+    {
+     "detail": "7,533,676 RON",
+     "key": "ni_positive",
+     "label": "Net income positive",
+     "result": "pass"
+    },
+    {
+     "detail": "19.18% on 39,272,501 RON total assets",
+     "key": "roa_positive",
+     "label": "ROA positive",
+     "result": "pass"
+    },
+    {
+     "detail": "10,235,000 RON",
+     "key": "cfo_positive",
+     "label": "Cash from operating positive",
+     "result": "pass"
+    },
+    {
+     "detail": "CFO 10,235,000 > NI 7,533,676",
+     "key": "cfo_gt_ni",
+     "label": "CFO greater than net income (earnings quality)",
+     "result": "pass"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "roa_improving",
+     "label": "ROA improving year-over-year",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "debt_declining",
+     "label": "Long-term debt declining",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "no_share_issuance",
+     "label": "No share issuance",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "margin_improving",
+     "label": "Operating margin improving",
+     "result": "uncertain"
+    },
+    {
+     "detail": "Prior-period data unavailable for YoY comparison.",
+     "key": "asset_turnover_improving",
+     "label": "Asset turnover improving",
+     "result": "uncertain"
+    }
+   ],
+   "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+   "has_prior_period": false,
+   "score": 4,
+   "score_max": 9
+  },
+  "assembled_pl": {
+   "adjusted_ebitda": 18030400.73,
+   "capitalized_own_work_memo": 0.0,
+   "cogs": 70557114.68,
+   "core_ebitda": 18030400.73,
+   "cost_of_goods_sold": 70557114.68,
+   "depreciation": 2955346.39,
+   "discounts_received": 0.0,
+   "ebit": 15465144.89,
+   "ebitda": 18420491.28,
+   "ebitda_adjusted": 18420491.28,
+   "ebitda_cash": 18420491.28,
+   "ebitda_operating_view": 18420491.28,
+   "ebitda_operational": 18420491.28,
+   "ebitda_statutory": 18420491.28,
+   "ebitda_statutory_with_711": 210512337.61,
+   "financial_expense": 65946.65,
+   "financial_expense_total": 343877.0,
+   "financial_income": 456384.14,
+   "financial_income_other": 0.0,
+   "free_cash_flow_proxy": 10489022.41,
+   "fx_gain": 157000.88,
+   "fx_loss": 65946.65,
+   "gross_profit": 48019704.96,
+   "income_tax": 1471550.0,
+   "interest_expense": 277930.35,
+   "interest_income": 299383.26,
+   "inventory_variation_memo": 192091846.33,
+   "net_financial_result": 112507.14,
+   "net_income_operational": 14106102.03,
+   "net_income_reconciliation_to_121": -6572426.01,
+   "net_income_statutory": 7533676.02,
+   "net_income_unexplained_vs_121": -6572426.01,
+   "operating_ebit": 15465144.89,
+   "operating_ebitda": 18420491.28,
+   "opex_excluding_cogs_and_da": 29989304.23,
+   "opex_third_party": 1313827.41,
+   "opex_total": 29989304.23,
+   "other_income_758": 386101.85,
+   "other_income_781_reversals": 3988.7,
+   "other_op_income_lump": 386101.85,
+   "other_operating_income": 390090.55,
+   "pretax": 15577652.03,
+   "revenue": 118576819.64,
+   "tax": 1471550.0,
+   "total_operating_expense": 103501765.3,
+   "total_operating_revenue": 118576819.64,
+   "total_operating_revenue_statutory": 310668665.97
+  },
+  "balanceSheet": {
+   "accountsPayable": 7554847.25,
+   "accountsReceivable": 8513384.96,
+   "cash": 1168047.04,
+   "intangibles": 673090.13,
+   "inventory": 8933332.42,
+   "longTermDebt": 1440419.23,
+   "otherCurrentAssets": 8861292.52,
+   "otherCurrentLiabilities": 3258346.42,
+   "otherEquity": 7656186.1,
+   "otherNonCurrentAssets": 67904.42,
+   "otherNonCurrentLiabilities": 941634.37,
+   "propertyPlantEquipment": 11055449.54,
+   "retainedEarnings": 7472047.62,
+   "shareCapital": 8795850.0,
+   "shortTermDebt": 2199783.1
+  },
+  "companyName": "input",
+  "currency": "RON",
+  "incomeStatement": {
+   "capitalizedOwnWork": 0.0,
+   "costOfGoodsSold": 70557114.68,
+   "depreciationAmortization": 2955346.39,
+   "financialExpense": 65946.65,
+   "financialIncome": 456384.14,
+   "interestExpense": 277930.35,
+   "inventoryVariationMemo": 192091846.33,
+   "operatingExpenses": 29989304.23,
+   "otherIncome": 390090.55,
+   "revenue": 118576819.64,
+   "taxExpense": 1471550.0
+  },
+  "industry": null,
+  "periodLabel": "Imported period",
+  "subAggregates": {
+   "ap_dividends": 0.0,
+   "ar_doubtful": 0.0,
+   "ar_intercompany": 7692202.74,
+   "ar_provisions": 0.0,
+   "cash_fx": 133402.89,
+   "current_year_pnl": 7533676.02,
+   "equity_revaluation": 1888792.0,
+   "financial_income": 0.0,
+   "fx_gain": 157000.88,
+   "fx_loss": 65946.65,
+   "interest_expense": 277930.35,
+   "interest_income": 299383.26,
+   "opex_third_party": 1313827.41,
+   "ppe_advances": 0.0,
+   "ppe_investment": 0.0,
+   "ppe_under_construction": 49773.0,
+   "retained_earnings": -61628.4
+  },
+  "supplementary": {
+   "periodDays": 365
+  }
+ }
+}

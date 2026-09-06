@@ -13,6 +13,7 @@
 // pill sits bottom-right on every viewport.
 
 import { ReactNode, useCallback, useEffect, useState } from "react";
+import { LegalFooter } from "@/components/cfo/LegalFooter";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -437,6 +438,16 @@ export function AppShell({ children }: Props) {
             Inside <main> but fixed-positioned, so it covers the content
             region while the header and rail stay live and navigable. */}
         {contentLoading && <ContentLoader sidebarCollapsed={sidebarCollapsed} />}
+
+        {/* Company identification + the three legal links, at the bottom of
+            every signed-in page. Not a design flourish: a Romanian company's
+            name, registration number and registered office have to appear on
+            its published communications, and "the marketing site has it" is
+            not an answer for the surface a paying customer spends their day
+            in. It sits INSIDE <main> so the fixed sidebar and header are not
+            pushed by it, and after the content wrapper so it scrolls away
+            rather than occupying the viewport. */}
+        <LegalFooter className="mt-8" />
       </main>
 
       {/* Floating Ask CFO AI launcher removed per the operator's

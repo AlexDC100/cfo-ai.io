@@ -22,7 +22,13 @@ e2e/
 scandi-desk-main/
 src/
 supabase/
-scripts/
+# scripts/ was excluded because the frontend image had no use for it. It
+# does now: vite.config.ts imports the legal generator and prerenderer from
+# there, and the legal gate reads content/legal. Excluding the build's own
+# inputs made the first post-publication build fail on the VPS while it
+# passed locally — exclude the Python half, keep what the bundle needs.
+scripts/**/*.py
+scripts/**/*.sh
 deploy/
 files/
 data/

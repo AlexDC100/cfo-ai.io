@@ -1,9 +1,26 @@
-// THE CAPSULE — the resting state. TWO ZONES, and no third.
+// THE CAPSULE — the resting state. A LIVE BRIEF, in three zones.
 //
-//   1. CONTEXT STRIP  one line — which period, its verdict, what is
-//                     missing, and the missing thing is a button
-//   2. ASK            up to three question CHIPS computed from THIS
+//   1. PULSE          one line — which period, its verdict, and THE ONE
+//                     most consequential open thing, as a button
+//   2. WHAT IS TRUE   up to three FACT TILES: this period's headline
+//                     figures, resolved from the local fact index, at
+//                     zero model spend. Reading a number no longer
+//                     requires typing one
+//   3. WORTH ASKING   up to three question CHIPS computed from THIS
 //                     workspace. Zero is a legal answer
+//
+// ── Why zone 2 exists, and what it replaced ───────────────────────────
+//
+// The resting surface measured 9.3% ink on a 208px card at 1440 and said
+// one sentence. It had nothing to say because everything it COULD say
+// was behind a keystroke: the fact index was built the moment the panel
+// opened, held every headline figure of the open period with its
+// provenance, and was consulted only once the reader started typing.
+//
+// The cheapest and most-used answer in this product is a lookup. Zone 2
+// is that lookup, already done. It cannot spend a model call — the index
+// is a synchronous in-memory map and this lane imports no client — so it
+// is exactly as free at rest as it was behind the keystroke.
 //
 // ── The craft pass removed a zone ─────────────────────────────────────
 //
@@ -71,7 +88,10 @@ import {
   type CapsuleSuggestion,
   type CapsuleWorkspaceSnapshot,
 } from "@/lib/capsuleSuggestions";
+import type { FactRef } from "@/lib/capsuleFactIndex";
+import type { TraceableSource } from "@/lib/traceableSource";
 import { CapsuleContextStrip } from "./CapsuleContextStrip";
+import { CapsuleFactTiles, MAX_FACT_TILES } from "./CapsuleFactTiles";
 import { CapsuleJumpList, MAX_JUMPS, type CapsuleJumpItem } from "./CapsuleJumpList";
 import { CapsuleSuggestionList } from "./CapsuleSuggestionList";
 import { CapsuleAskUnavailable } from "./CapsuleAskUnavailable";
@@ -88,6 +108,13 @@ export interface CapsuleEmptyStateViewProps {
   context: CapsuleContextModel;
   trustLabel: string | null;
   suggestions: readonly CapsuleSuggestion[];
+  /** ZONE 2. Ranked by `restingFacts`; the view slices and renders, it
+   *  does not choose. Empty renders nothing — see zone rule below. */
+  facts?: readonly FactRef[];
+  /** Open the statement row a tile names. */
+  onJumpToFact?: (source: TraceableSource) => void;
+  /** Put a tile's own question in the composer. Never sends. */
+  onPickFact?: (fact: FactRef) => void;
   /** The former zone 3. The live host now passes NOTHING here — see the
    *  module header. Kept in the contract because the ranking, the cap
    *  and the row component are all still live behind the first
@@ -114,6 +141,9 @@ export function CapsuleEmptyStateView({
   context,
   trustLabel,
   suggestions,
+  facts = [],
+  onJumpToFact,
+  onPickFact,
   jumps = [],
   onPick,
   onJump,
@@ -132,7 +162,13 @@ export function CapsuleEmptyStateView({
   // It is the honest empty state, and it renders only when there IS a
   // period — a workspace with nothing loaded is explained by the strip
   // above, and saying it twice is a stutter.
-  const showEmptyLine = suggestions.length === 0 && !!context.periodLabel;
+  // `hasPeriod`, NOT `periodLabel`. The two disagree on a real period
+  // whose month cannot be resolved (the demo workspace is exactly that:
+  // loaded, analysed, and carrying no `period_end`), and gating the
+  // honest line on the LABEL meant the one state it exists for — a
+  // period that volunteered no question — rendered nothing at all there.
+  // A surface that cannot show its honest empty state has not got one.
+  const showEmptyLine = suggestions.length === 0 && context.hasPeriod;
 
   return (
     <div data-testid="capsule-empty-state">
@@ -143,6 +179,21 @@ export function CapsuleEmptyStateView({
         onUpload={onUpload}
         pulseKey={pulseKey}
       />
+      {/* ZONE 2 — renders nothing for an empty list, like every other
+          zone here, so a period with no resolvable figure costs no
+          height rather than showing three empty boxes. */}
+      <CapsuleFactTiles facts={facts} onJump={onJumpToFact} onPick={onPickFact} />
+      {/* THE ONE HAIRLINE. It separates FACTS from QUESTIONS — the
+          statement half of the brief from the prompt half — and only
+          when BOTH halves are actually present. A rule above nothing is
+          a rule that says the surface has more to offer than it does. */}
+      {facts.length > 0 && suggestions.length > 0 && (
+        <div
+          aria-hidden
+          data-testid="capsule-zone-rule"
+          className="mx-3.5 my-1.5 h-px bg-rule-soft"
+        />
+      )}
       <CapsuleSuggestionList
         suggestions={suggestions}
         onPick={(q) => onPick(q, "suggestion")}
@@ -178,6 +229,13 @@ export function CapsuleEmptyStateView({
 
 export interface CapsuleEmptyStateProps {
   onPick: (question: string, source: CapsulePickSource) => void;
+  /** ZONE 2, supplied by the HOST. It is the host that owns the fact
+   *  index (it built one for Tier 0 the moment the panel opened), so
+   *  building a second one here would be the same period read twice by
+   *  two structures that can disagree. */
+  facts?: readonly FactRef[];
+  onJumpToFact?: (source: TraceableSource) => void;
+  onPickFact?: (fact: FactRef) => void;
   jumps?: readonly CapsuleJumpItem[];
   onJump?: (item: CapsuleJumpItem) => void;
   onFixUnattached?: (periodId: string) => void;
@@ -192,6 +250,9 @@ export interface CapsuleEmptyStateProps {
 /** The mount point. See the module header for what the host renders. */
 export function CapsuleEmptyState({
   onPick,
+  facts,
+  onJumpToFact,
+  onPickFact,
   jumps,
   onJump,
   onFixUnattached,
@@ -217,6 +278,9 @@ export function CapsuleEmptyState({
       context={context}
       trustLabel={trustLabel}
       suggestions={suggestions}
+      facts={facts}
+      onJumpToFact={onJumpToFact}
+      onPickFact={onPickFact}
       jumps={jumps}
       onPick={onPick}
       onJump={onJump}
@@ -231,5 +295,5 @@ export function CapsuleEmptyState({
   );
 }
 
-export { MAX_JUMPS };
+export { MAX_JUMPS, MAX_FACT_TILES };
 export type { CapsuleJumpItem, CapsuleWorkspaceSnapshot };

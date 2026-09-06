@@ -1,0 +1,710 @@
+[
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 158,
+      "w": 680,
+      "h": 208,
+      "bottom": 366
+    },
+    "vhFraction": 23.1,
+    "pillGap": 114,
+    "leadGap": 24,
+    "leadGapPct": 11.5,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 29,
+    "gapAt": 196,
+    "inkDensity": 9.3,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "restZones": {
+      "pulse": 1,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 1,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": [
+      {
+        "kind": "unattached",
+        "text": "Sept 2026 is unattached — which document unlocks the stateme"
+      }
+    ]
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillGap": -36,
+    "leadGap": 27,
+    "leadGapPct": 7.5,
+    "firstInk": "No figure for cash in this p",
+    "tailGap": 0,
+    "maxGap": 27,
+    "gapAt": 8,
+    "inkDensity": 13.71,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 1,
+      "tier0": 1,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "account",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “461”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.52,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "empty",
+    "viewport": "1440",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 649,
+      "w": 374,
+      "h": 187,
+      "bottom": 836
+    },
+    "vhFraction": 22.2,
+    "pillGap": 605,
+    "leadGap": 24,
+    "leadGapPct": 12.8,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 29,
+    "gapAt": 687,
+    "inkDensity": 23.01,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "restZones": {
+      "pulse": 1,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 1,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": [
+      {
+        "kind": "unattached",
+        "text": "Sept 2026 is unattached — which document unlocks the stateme"
+      }
+    ]
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 246,
+      "w": 374,
+      "h": 590,
+      "bottom": 836
+    },
+    "vhFraction": 69.9,
+    "pillGap": 202,
+    "leadGap": 27,
+    "leadGapPct": 4.6,
+    "firstInk": "No figure for cash in this p",
+    "tailGap": 11,
+    "maxGap": 27,
+    "gapAt": 246,
+    "inkDensity": 14.16,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 1,
+      "tier0": 1,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "account",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “461”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 2.7,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "empty",
+    "viewport": "390",
+    "theme": "dark",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 3.3,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "rest",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 158,
+      "w": 680,
+      "h": 208,
+      "bottom": 366
+    },
+    "vhFraction": 23.1,
+    "pillGap": 114,
+    "leadGap": 24,
+    "leadGapPct": 11.5,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 29,
+    "gapAt": 196,
+    "inkDensity": 9.3,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "restZones": {
+      "pulse": 1,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 1,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": [
+      {
+        "kind": "unattached",
+        "text": "Sept 2026 is unattached — which document unlocks the stateme"
+      }
+    ]
+  },
+  {
+    "state": "typing",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 8,
+      "w": 680,
+      "h": 358,
+      "bottom": 366
+    },
+    "vhFraction": 39.8,
+    "pillGap": -36,
+    "leadGap": 27,
+    "leadGapPct": 7.5,
+    "firstInk": "No figure for cash in this p",
+    "tailGap": 0,
+    "maxGap": 27,
+    "gapAt": 8,
+    "inkDensity": 13.71,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 1,
+      "tier0": 1,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "account",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “461”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.52,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "empty",
+    "viewport": "1440",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 254,
+      "top": 228,
+      "w": 680,
+      "h": 138,
+      "bottom": 366
+    },
+    "vhFraction": 15.3,
+    "pillGap": 184,
+    "leadGap": 25,
+    "leadGapPct": 18.1,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 31,
+    "gapAt": 268,
+    "inkDensity": 3.79,
+    "composerTop": 323,
+    "composerBottom": 355,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "rest",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 649,
+      "w": 374,
+      "h": 187,
+      "bottom": 836
+    },
+    "vhFraction": 22.2,
+    "pillGap": 605,
+    "leadGap": 24,
+    "leadGapPct": 12.8,
+    "firstInk": "Period not dated",
+    "tailGap": 11,
+    "maxGap": 29,
+    "gapAt": 687,
+    "inkDensity": 23.01,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "suggestion": 1
+    },
+    "restZones": {
+      "pulse": 1,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 1,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": [
+      {
+        "kind": "unattached",
+        "text": "Sept 2026 is unattached — which document unlocks the stateme"
+      }
+    ]
+  },
+  {
+    "state": "typing",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 246,
+      "w": 374,
+      "h": 590,
+      "bottom": 836
+    },
+    "vhFraction": 69.9,
+    "pillGap": 202,
+    "leadGap": 27,
+    "leadGapPct": 4.6,
+    "firstInk": "No figure for cash in this p",
+    "tailGap": 11,
+    "maxGap": 27,
+    "gapAt": 246,
+    "inkDensity": 14.16,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 13,
+    "rowsBySource": {
+      "palette-row": 13
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 1,
+      "tier0": 1,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "account",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “461”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 2.7,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  },
+  {
+    "state": "empty",
+    "viewport": "390",
+    "theme": "light",
+    "present": true,
+    "card": {
+      "x": 8,
+      "top": 719,
+      "w": 374,
+      "h": 117,
+      "bottom": 836
+    },
+    "vhFraction": 13.9,
+    "pillGap": 675,
+    "leadGap": 25,
+    "leadGapPct": 21.4,
+    "firstInk": "Answer “zzqqxx”",
+    "tailGap": 11,
+    "maxGap": 34,
+    "gapAt": 759,
+    "inkDensity": 3.3,
+    "composerTop": 793,
+    "composerBottom": 825,
+    "visibleRows": 1,
+    "rowsBySource": {
+      "ask-fallback": 1
+    },
+    "restZones": {
+      "pulse": 0,
+      "pulseOpen": 0,
+      "tiles": 0,
+      "tileDots": 0,
+      "chips": 0,
+      "honest": 0,
+      "jumpRows": 0,
+      "sectionLabels": 0,
+      "tier0": 0,
+      "separators": 0
+    },
+    "duplicated": [],
+    "tiles": [],
+    "chips": []
+  }
+]

@@ -41,6 +41,13 @@ const DOC_PATHS = /(^|\/)(design_review|docs|__tests__|tests)(\/|$)|\.(md|json)$
 const MARKERS = [
   // Explicit markers this project's lanes actually use.
   [/\bG\d+\s+PLANT\b/, 'gate plant marker'],
+  // `PLANT 2`, `PLANT B`, `PLANT-C` — a stopped wave left
+  // `// PLANT 2 — approximate the denominator instead of refusing` in
+  // frontend/lib/capsuleFactIndex.ts, and this gate walked past it
+  // because the pattern above requires a leading gate id (`G8 PLANT`).
+  // The marker a lane actually writes is whatever its own plant log
+  // numbers, so match the bare word followed by an identifier too.
+  [/\bPLANT[\s-]+[0-9A-Z][0-9A-Za-z-]*\b/, 'numbered plant marker'],
   [/\bPLANT[- ]ADVERSARIAL\b/i, 'adversarial plant marker'],
   // NOT a bare /planted/i: this codebase's comments legitimately use the
   // word to DESCRIBE what a test does ("invokes the planted callable",
@@ -128,10 +135,58 @@ if (!STAGED && scanned < 400) {
   process.exit(1)
 }
 
-if (hits.length) {
+// ── THE MANIFEST — the other side of the protocol ────────────────────
+//
+// Textual markers are lane-authored, so matching them is a convention
+// only one side follows. A registered plant is a contract: the lane
+// declares file, line and the red it expects; this gate enforces both
+// directions.
+const MANIFEST_PATH = 'design_review/PLANT_MANIFEST.json'
+let registered = []
+try {
+  registered = JSON.parse(readFileSync(join(ROOT, MANIFEST_PATH), 'utf8')).plants || []
+} catch {
+  console.log(`FAIL — ${MANIFEST_PATH} is missing or unparseable. Without it`)
+  console.log('this gate has no record of what is deliberately planted, so it')
+  console.log('cannot tell a sanctioned plant from a shipped defect.')
+  process.exit(1)
+}
+
+const keyOf = (f, l) => `${f}:${l}`
+const regIndex = new Map(registered.map((r) => [keyOf(r.file, r.line), r]))
+
+// 1. Every registered plant must ACTUALLY BE THERE. A stale entry is an
+//    allowance nobody is using, and allowances outlive their reasons.
+const phantom = registered.filter((r) => !hits.some((h) => keyOf(h.rel, h.line) === keyOf(r.file, r.line)))
+
+// 2. Every suspicious shape must be registered.
+const unregistered = hits.filter((h) => !regIndex.has(keyOf(h.rel, h.line)))
+
+if (phantom.length) {
+  console.log('')
+  console.log('FAIL — registered plant(s) not found where the manifest says:')
+  for (const r of phantom) {
+    console.log(`  ${r.file}:${r.line}  expected red: ${r.expected_red || '(unstated)'}`)
+  }
+  console.log('')
+  console.log('Either the plant was reverted and the entry was not removed —')
+  console.log('a stale allowance — or it moved. Remove the entry, or correct')
+  console.log('it. An allowance for a plant that is not there is a hole.')
+  process.exit(1)
+}
+
+if (registered.length && !unregistered.length) {
+  console.log('')
+  console.log(`NOTE — ${registered.length} plant(s) registered and live. This is`)
+  console.log('a sanctioned mid-plant state, not a clean tree. Revert before')
+  console.log('committing; the pre-commit hook scans STAGED blobs.')
+}
+
+const hitsToReport = unregistered
+if (hitsToReport.length) {
   console.log('')
   console.log('FAIL — planted defect(s) in product source:')
-  for (const h of hits) {
+  for (const h of hitsToReport) {
     console.log(`  ${h.rel}:${h.line}  [${h.what}]`)
     console.log(`      ${h.text}`)
   }

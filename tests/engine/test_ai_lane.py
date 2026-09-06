@@ -672,8 +672,16 @@ def test_reextract_route_sets_force_flag_hint_and_triggers(monkeypatch):
     monkeypatch.setattr(sup, "admin", lambda: admin)
     monkeypatch.setattr(_pipeline, "_enqueue", lambda doc_id: enqueued.append(doc_id))
 
+    # FC1x (D5/D4): the route verifies the bearer FIRST (a real ES256 token
+    # under the test JWKS conftest installs) and then requires a membership
+    # in the period's org. The membership wall has its own gate
+    # (tests/engine/test_identity_wall.py); this test is about the force
+    # flag, so the wall is stood down here and the verifier stays live.
+    from engine.api import _org
+    from firm_postgrest_double import mint_jwt
+    monkeypatch.setattr(_org, "require_org_member", lambda jwt, org_id: "user-1")
     router = _FakeRouter()
-    lane_routes.register_routes(router, require_jwt=lambda auth: "jwt-ok")
+    lane_routes.register_routes(router, require_jwt=lambda auth: mint_jwt("user-1"))
     handler = router.posts["/api/period/{period_id}/reextract"]
 
     out = handler(period_id="p-1", authorization="Bearer x",
@@ -695,8 +703,16 @@ def test_reextract_route_rejects_unknown_jurisdiction(monkeypatch):
 
     from engine.ai_lane import routes as lane_routes
 
+    # FC1x (D5/D4): the route verifies the bearer FIRST (a real ES256 token
+    # under the test JWKS conftest installs) and then requires a membership
+    # in the period's org. The membership wall has its own gate
+    # (tests/engine/test_identity_wall.py); this test is about the force
+    # flag, so the wall is stood down here and the verifier stays live.
+    from engine.api import _org
+    from firm_postgrest_double import mint_jwt
+    monkeypatch.setattr(_org, "require_org_member", lambda jwt, org_id: "user-1")
     router = _FakeRouter()
-    lane_routes.register_routes(router, require_jwt=lambda auth: "jwt-ok")
+    lane_routes.register_routes(router, require_jwt=lambda auth: mint_jwt("user-1"))
     handler = router.posts["/api/period/{period_id}/reextract"]
     with pytest.raises(HTTPException) as exc:
         handler(period_id="p-1", authorization="Bearer x",
@@ -727,8 +743,16 @@ def test_reextract_route_survives_missing_hint_column(monkeypatch):
     monkeypatch.setattr(sup, "admin", lambda: admin)
     monkeypatch.setattr(_pipeline, "_enqueue", lambda doc_id: None)
 
+    # FC1x (D5/D4): the route verifies the bearer FIRST (a real ES256 token
+    # under the test JWKS conftest installs) and then requires a membership
+    # in the period's org. The membership wall has its own gate
+    # (tests/engine/test_identity_wall.py); this test is about the force
+    # flag, so the wall is stood down here and the verifier stays live.
+    from engine.api import _org
+    from firm_postgrest_double import mint_jwt
+    monkeypatch.setattr(_org, "require_org_member", lambda jwt, org_id: "user-1")
     router = _FakeRouter()
-    lane_routes.register_routes(router, require_jwt=lambda auth: "jwt-ok")
+    lane_routes.register_routes(router, require_jwt=lambda auth: mint_jwt("user-1"))
     handler = router.posts["/api/period/{period_id}/reextract"]
     out = handler(period_id="p-1", authorization="Bearer x",
                   payload={"jurisdiction": "HU"})

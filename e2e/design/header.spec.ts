@@ -91,9 +91,22 @@ const RADIX_SETTLE_MS = 2500;
 // Identity, not arithmetic. "4 controls" would stay green if the bell
 // replaced the brand mark; this will not.
 
+// OWNER AMENDMENT, 2026-08-31: the desktop budget is FIVE, not four.
+//
+// Prompt 16 set it to exactly four and moved Simple|Pro into avatar
+// quick-settings. The owner has since asked for the dial back in the
+// header. That is a deliberate reversal, so it is recorded HERE as an
+// identity set rather than absorbed as a raised count — the whole point
+// of an identity set is that a budget of "5" would stay green if the
+// bell were swapped for something else.
+//
+// The compact set is UNCHANGED at three: below lg the dial stays in the
+// avatar menu, since a dial is the least thumb-reachable of the
+// candidates and the narrow-bar law was not what the owner reversed.
 const SANCTIONED_DESKTOP = [
   "header-brand",
   "header-capsule",
+  "mode-switch",
   "notifications-button",
   "account-menu-trigger",
 ];
@@ -273,7 +286,21 @@ test.describe("H0 — gate self-audit (no double counting, no stale selectors)",
       "notifications-row",
     ]);
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("mode-switch")).toHaveCount(0);
+    // ONE dial survives the menu closing — the header's own, restored by
+    // owner instruction 2026-08-31. This asserted 0 while the bar held
+    // four controls and the avatar menu was the dial's only home.
+    //
+    // Two live at ≥lg with the menu OPEN, and that is deliberate rather
+    // than a duplicate destination: the header copy is `hidden
+    // lg:inline-flex`, so below lg the avatar-menu copy is the ONLY one.
+    // Deleting either leaves a breakpoint with no dial at all.
+    await expect(
+      page.getByTestId("mode-switch"),
+      "H0: the header's Simple|Pro dial should survive the avatar menu " +
+        "closing. Count 0 means it was removed from the bar — see the " +
+        "SANCTIONED_DESKTOP amendment and L4 in check_header_law.mjs, " +
+        "which must move in the same commit.",
+    ).toHaveCount(1);
     await page.waitForTimeout(RADIX_SETTLE_MS);
 
     // 3 · inside the palette.
@@ -357,17 +384,33 @@ test.describe("H1 — header budget: EXACTLY the sanctioned control set", () => 
     }
   });
 
-  test("the Simple|Pro dial is not in the bar at any width", async ({ page }) => {
+  // INVERTED by owner instruction, 2026-08-31. This asserted the dial was
+  // absent AT ANY WIDTH, encoding the Prompt-16 placement. The owner
+  // reversed it, so the assertion inverts rather than being deleted — a
+  // law with no assertion cannot notice the dial quietly disappearing
+  // again, and this header's whole history is controls migrating in and
+  // out without anyone noticing which way.
+  //
+  // The width split is the part that still matters: VISIBLE at >=lg,
+  // NOT VISIBLE below it, where the avatar menu remains its only home.
+  test("the Simple|Pro dial is in the bar at >=lg and only there", async ({ page }) => {
     await boot(page);
     const header = appHeader(page);
-    for (const width of [1440, 1023, 375]) {
+    const dial = header.locator('[data-testid="mode-switch"]');
+    for (const [width, shouldPaint] of [[1440, true], [1023, false], [375, false]] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(300);
+      const painted = await dial.isVisible().catch(() => false);
       expect(
-        await header.locator('[data-testid="mode-switch"]').count(),
-        `H1: the Simple|Pro dial is back in the header at ${width}px — its homes are the avatar menu, ` +
-          "Settings > Appearance and the ⌘K palette action (MODE_PALETTE_ACTION in ModeSwitch.tsx).",
-      ).toBe(0);
+        painted,
+        shouldPaint
+          ? `H1: the Simple|Pro dial is NOT painted in the header at ${width}px. It was restored ` +
+            "to the bar on 2026-08-31; its absence is the regression now. If it is being removed " +
+            "again, amend SANCTIONED_DESKTOP and L4 in the same commit."
+          : `H1: the dial is painted in the header at ${width}px. Below lg the bar is three ` +
+            "controls and the dial lives in the avatar menu — a dial is the least " +
+            "thumb-reachable of the candidates, and the narrow-bar law was not reversed.",
+      ).toBe(shouldPaint);
     }
   });
 });
@@ -507,7 +550,20 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
     await seedViewMode(page, null);
     await boot(page);
     await page.getByTestId("account-menu-trigger").click(); // 1
-    const pro = page.getByTestId("mode-switch-pro").first();
+    // SCOPE TO THE MENU. With the dial restored to the bar there are two
+    // `mode-switch-pro` nodes at >=lg, and `.first()` resolved to the
+    // HEADER's — outside the menu, so this test timed out clicking a
+    // control the menu never owned. H5 is about REACHABILITY FROM THE
+    // AVATAR, so it must assert against the avatar's own copy.
+    // Radix DropdownMenuContent renders into a portal OUTSIDE <header>,
+    // which is the property that separates the two copies cleanly: the
+    // header's dial is inside <header>, the menu's is not. Scoping by
+    // role failed because the portal's role attribute is applied to an
+    // inner node, so exclude the header instead — it is the distinction
+    // the test actually means.
+    const pro = page
+      .locator('[data-testid="mode-switch-pro"]:not(header [data-testid="mode-switch-pro"])')
+      .first();
     await expect(pro, "H5: the dial is not reachable from the avatar menu").toBeVisible();
     await pro.click(); // 2
     await expect(pro).toHaveAttribute("aria-checked", "true");
@@ -517,12 +573,18 @@ test.describe("H5 — every relocated control is ≤2 interactions from /dashboa
     await page.waitForTimeout(SETTLE_MS);
     await dismissPublicTestBanner(page);
     await page.getByTestId("account-menu-trigger").click();
+    // Same scoping as above: two dials exist at >=lg since the header's
+    // was restored, and `.first()` resolves to the header's — which is
+    // not what "reachable from the avatar" means, and not what the
+    // reload assertion is about.
+    const inMenu = (id: string) =>
+      page.locator(`[data-testid="${id}"]:not(header [data-testid="${id}"])`).first();
     await expect(
-      page.getByTestId("mode-switch-pro").first(),
+      inMenu("mode-switch-pro"),
       "H5 regression: mode did not persist across reload",
     ).toHaveAttribute("aria-checked", "true");
     // restore
-    await page.getByTestId("mode-switch-simple").first().click();
+    await inMenu("mode-switch-simple").click();
     await page.keyboard.press("Escape");
   });
 

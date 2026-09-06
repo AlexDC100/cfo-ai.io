@@ -62,7 +62,7 @@ test.describe("D1 axe — serious/critical a11y violations", () => {
       const results = await new AxeBuilder({ page })
         // The test-mode banner is not a product surface; if a remnant
         // survives dismissal it must not pollute the gate.
-        .exclude('[data-testid="test-mode-banner"]')
+        .exclude('[data-testid="public-test-mode-banner"]')
         .analyze();
 
       // BEFORE reading the verdict, establish that there was a surface

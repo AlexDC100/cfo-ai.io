@@ -47,23 +47,55 @@ def _bvb_seed_rows() -> List[Dict[str, Any]]:
     """Return the BVB seed rows in display order, enriched with live
     quotes. Each row is the canonical PublicCompanyFinancialSnapshot
     shape — shallow-copied so the caller can mutate freely without
-    aliasing the in-memory seed table."""
+    aliasing the in-memory seed table.
+
+    Timestamps are DATA timestamps, never the process clock:
+
+      · ``lastUpdated`` stays the seed's own retrieval date — the seeded
+        market cap and fundamentals are as of that day, and a quote sweep
+        does not make them fresher.
+      · ``quoteAsOf`` is set ONLY on a row that received a live quote,
+        to the moment the Yahoo sweep that produced it succeeded. That is
+        what the price and the day change are as of.
+    """
     rows = [dict(row) for row in _bvb_universe().values()]
     quotes = _bvb_live_quotes()
+    quoted_at = _bvb_quotes_as_of()
     for row in rows:
-        q = quotes.get(row["ticker"])
-        if q:
-            row["price"] = q.get("price", row.get("price"))
-            if q.get("priceChangePct") is not None:
-                row["priceChangePct"] = q["priceChangePct"]
+        q = quotes.get(row["ticker"]) or {}
+        # KEY ON THE PRICE, NOT ON TRUTHINESS. This used to be `if q:` and
+        # then stamp ``quoteAsOf`` unconditionally inside the branch. A
+        # provider entry that carries no ``price`` key — or carries
+        # ``price: None`` — is truthy as soon as it holds any other field,
+        # so the row kept the seed's price of None and gained a
+        # ``quoteAsOf`` saying when that absent price was observed. A
+        # timestamp on a figure that does not exist is a provenance claim
+        # with nothing behind it; the FE reads ``quoteAsOf`` as "this
+        # price is as of". Latent on today's provider, one field away from
+        # live.
+        price = q.get("price")
+        if price is not None:
+            row["price"] = price
+            row["quoteAsOf"] = quoted_at
+        if q.get("priceChangePct") is not None:
+            # A day change is its own observation; it rides the same sweep
+            # timestamp only when there is also a price it is a change in.
+            row["priceChangePct"] = q["priceChangePct"]
     return rows
 
 
 # BVB quote cache (2026-07-23) — one batched Yahoo spark sweep per TTL
 # window covers all 88 tickers in ~5 HTTP calls. Failure degrades to the
 # seed's price=None (never a fake number).
+#
+# ``at`` is the TTL clock — bumped on every attempt, success or failure,
+# so an outage is not retried on every request. ``quoted_at`` is the
+# DATA clock — set only when a sweep actually returned — because
+# last-known quotes kept through a failed sweep are still as of the sweep
+# that produced them, and stamping them with the failed attempt's time
+# would fabricate freshness.
 _BVB_QUOTES_TTL_S = 5 * 60
-_bvb_quotes_cache: Dict[str, Any] = {"at": 0.0, "quotes": {}}
+_bvb_quotes_cache: Dict[str, Any] = {"at": 0.0, "quoted_at": None, "quotes": {}}
 
 
 def _bvb_live_quotes() -> Dict[str, Dict[str, float]]:
@@ -73,12 +105,35 @@ def _bvb_live_quotes() -> Dict[str, Dict[str, float]]:
     try:
         from .providers.yahoo_bvb import fetch_bvb_spark_quotes
         quotes = fetch_bvb_spark_quotes(list(_bvb_universe().keys()))
+        _bvb_quotes_cache["quoted_at"] = now
     except Exception:  # noqa: BLE001 — quotes are strictly best-effort
         logger.exception("[universe] BVB quote sweep failed")
         quotes = _bvb_quotes_cache["quotes"]  # keep last-known on failure
     _bvb_quotes_cache["at"] = now
     _bvb_quotes_cache["quotes"] = quotes
     return quotes
+
+
+def _bvb_quotes_as_of() -> Optional[str]:
+    """ISO-8601 UTC time of the last SUCCESSFUL quote sweep, or None when
+    no sweep has ever returned. This is the only timestamp a BVB price
+    may carry."""
+    from datetime import datetime, timezone
+
+    at = _bvb_quotes_cache.get("quoted_at")
+    if not at:
+        return None
+    return datetime.fromtimestamp(float(at), tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def _newest_row_stamp(rows: List[Dict[str, Any]]) -> Optional[str]:
+    """The payload-level ``lastUpdated``: the newest DATA timestamp any
+    row carries (seed date, demo as-of, DAILY trading day), or None. Never
+    the time this function ran — a build time says nothing about the
+    data, and it was what every payload carried until 2026-09-04."""
+    stamps = [r.get("lastUpdated") for r in rows]
+    stamps = [x for x in stamps if isinstance(x, str) and x]
+    return max(stamps) if stamps else None
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +212,6 @@ def _build_demo_payload(*, reason: str) -> Dict[str, Any]:
     """All-demo universe payload — used as the default response when
     the API key isn't configured and as the safety net when the live
     batch call returned zero usable rows."""
-    from datetime import datetime, timezone
-
     rows = [
         demo_snapshot_for(ticker, name, sector)
         for ticker, name, sector in DEFAULT_UNIVERSE
@@ -185,7 +238,7 @@ def _build_demo_payload(*, reason: str) -> Dict[str, Any]:
         "mode": "demo",
         "source": "demo",
         "count": len(rows),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "lastUpdated": _newest_row_stamp(rows),
         "message": message,
         "companies": rows,
     }
@@ -209,8 +262,6 @@ def _hydrate_universe_batch(
     Never raises — a transport failure on either batch logs and falls
     back to all-demo (so the page never blanks).
     """
-    from datetime import datetime, timezone
-
     tickers = universe_tickers()
     meta = universe_meta()
 
@@ -302,7 +353,7 @@ def _hydrate_universe_batch(
         "mode": overall_mode,
         "source": source,
         "count": len(rows),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "lastUpdated": _newest_row_stamp(rows),
         "message": message,
         "companies": rows,
     }
@@ -321,8 +372,6 @@ def _live_row(
     Returns None when there's not enough data to render a meaningful
     row (caller falls back to demo).
     """
-    from datetime import datetime, timezone
-
     if fundamentals is None and daily is None:
         return None
 
@@ -379,6 +428,21 @@ def _live_row(
     fcf_yield = (fcf / market_cap * 100) if fcf and market_cap else None
     roe = (net_income / equity * 100) if net_income and equity not in (None, 0) else None
     debt_to_equity = (total_debt / equity) if total_debt is not None and equity not in (None, 0) else None
+
+    # Data timestamps, never the process clock. DAILY carries the trading
+    # day its market figures are as of — that is when the market cap, the
+    # multiples and the price derived from them were observed, so it is
+    # both the row's ``lastUpdated`` and, when a price exists, its
+    # ``quoteAsOf``. SF1 fundamentals carry a fiscal period (below) but
+    # the adapter keeps no fetch stamp for them, so no fiscal timestamp
+    # is claimed. Until 2026-09-04 this was ``datetime.now()``.
+    market_as_of: Optional[str] = None
+    if daily is not None:
+        _as_of = getattr(daily, "as_of", None)
+        if _as_of is not None:
+            market_as_of = (
+                _as_of.isoformat() if hasattr(_as_of, "isoformat") else str(_as_of)
+            )
 
     # Period info — from fundamentals when present, daily when not.
     period_end = None
@@ -445,11 +509,39 @@ def _live_row(
         "currentRatio": None,
         "latestPeriod": period_label,
         "latestPeriodEnd": period_end,
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "lastUpdated": market_as_of,
+        "quoteAsOf": market_as_of if price is not None else None,
         "source": "nasdaq",
         "confidence": 0.95,
         "missingFields": [],
     }
+
+
+def is_warm(*, dimension: str = "ARY", adapter: Optional[NasdaqAdapter] = None) -> bool:
+    """True when the next ``get_universe`` would reach NO provider.
+
+    Read by ``engine.public.refresh_shield.egress_guard`` so a warm read
+    spends neither an outbound call nor a token. Two ways to be warm:
+
+      · the live warm cache is inside ``LIVE_TTL_SECONDS``; or
+      · the adapter has no key, so ``get_universe`` takes the pre-computed
+        demo path — no HTTP at all. Charging a token there would throttle
+        a route that costs a provider nothing.
+
+    The DEMO path is not unconditionally free, and saying so would be the
+    easy lie here: ``_build_demo_payload`` still calls ``_bvb_seed_rows``,
+    which sweeps Yahoo for 88 BVB quotes (MEASURED: 5 outbound) whenever
+    ``_BVB_QUOTES_TTL_S`` has lapsed. So the demo path counts as warm only
+    while that quote cache is fresh. The live path needs no separate check
+    — the sweep happens INSIDE hydration, so a fresh live payload already
+    contains the quotes it was built from.
+    """
+    now = time.time()
+    nasdaq = adapter or NasdaqAdapter()
+    if not nasdaq.available:
+        return (now - float(_bvb_quotes_cache["at"])) < _BVB_QUOTES_TTL_S
+    cached = _warm_cache.get("universe::%s::live" % dimension)
+    return bool(cached) and (now - cached["_cached_at"]) < LIVE_TTL_SECONDS
 
 
 def clear_warm_cache() -> None:
@@ -528,5 +620,6 @@ __all__ = [
     "LIVE_TTL_SECONDS",
     "clear_warm_cache",
     "get_universe",
+    "is_warm",
     "search_universe",
 ]

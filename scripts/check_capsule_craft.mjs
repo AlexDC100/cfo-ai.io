@@ -446,12 +446,12 @@ function checkFamilyCoverage(specFiles) {
     if (!existsSync(abs)) continue;
     const spec = read(abs);
     const expectBody = declBody(spec, "FAMILY_EXPECT", "{", "}");
-    const pinnedBody = declBody(spec, "FAMILY_UNREACHABLE", "{", "}");
+    const pinnedBody = declBody(spec, "FAMILY_UNVERIFIED", "{", "}");
     const expect = expectBody ? objectKeys(expectBody) : null;
     const pinned = pinnedBody ? objectKeys(pinnedBody) : null;
     if (!expect || !pinned || expect.length === 0 || pinned.length === 0) {
       fail("F2b family-coverage",
-        `${relSpec} declares no FAMILY_EXPECT / FAMILY_UNREACHABLE table. G4's ` +
+        `${relSpec} declares no FAMILY_EXPECT / FAMILY_UNVERIFIED table. G4's ` +
           `sweep is then floored on states rather than on families, which is ` +
           `exactly the sample-blindness that let 20 offending rows through a ` +
           `green run.`);
@@ -469,7 +469,8 @@ function checkFamilyCoverage(specFiles) {
           `      A family with no recorded expectation scores zero and passes. ` +
           `Give it a query that summons it and the row count that query ` +
           `produced — or, if this stack genuinely cannot paint it, pin it at ` +
-          `zero in FAMILY_UNREACHABLE with the reason.`);
+          `zero in FAMILY_UNVERIFIED with the reason — which the census then ` +
+          `prints as UNVERIFIED rather than counting it green.`);
     }
 
     const known = new Set([...families, ...NON_PALETTE_FAMILIES]);

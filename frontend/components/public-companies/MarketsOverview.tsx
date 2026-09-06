@@ -49,6 +49,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sparkline } from "@/components/dashboard/Sparkline";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf } from "@/components/instrument/Provenance";
 import { Chip as StateChip } from "@/components/instrument/Panel";
 import { pickMagnitude } from "@/lib/amountFormat";
 import { CompanyLogo } from "./CompanyLogo";
@@ -689,14 +690,44 @@ function CompanyCard({
   const marketId = marketIdForSnapshot(r, markets ?? undefined);
   const pending = isPendingRow(r);
   const hasPrice = typeof r.price === "number" && Number.isFinite(r.price);
-  const hasChange =
-    typeof r.priceChangePct === "number" && Number.isFinite(r.priceChangePct);
-  const changeUp = (r.priceChangePct ?? 0) >= 0;
-  // The universe snapshot's own timestamp, date-only. Absent → no stamp.
-  const priceAsOf =
-    hasPrice && typeof r.lastUpdated === "string" && r.lastUpdated
-      ? r.lastUpdated.slice(0, 10)
+  // The day change as a RATIO, or null. Resolved once, here, so the
+  // figure below is never spelled `(r.priceChangePct ?? 0) / 100` beside
+  // a provenance — a shape the census reads as a zero wearing a source
+  // even where a guard keeps the zero off screen.
+  const dayChange =
+    typeof r.priceChangePct === "number" && Number.isFinite(r.priceChangePct)
+      ? r.priceChangePct / 100
       : null;
+  const hasChange = dayChange !== null;
+  const changeUp = dayChange !== null && dayChange >= 0;
+  // The QUOTE's own timestamp (the Yahoo sweep for a BVB row, the DAILY
+  // trading day for a live one), date-only. Absent → no stamp: a price
+  // whose age we do not know gets no "as of", and the row's `lastUpdated`
+  // is not a substitute — it dates the seeded figures, not the quote.
+  const quoteAsOf = typeof r.quoteAsOf === "string" && r.quoteAsOf ? r.quoteAsOf : null;
+  const priceAsOf = hasPrice && quoteAsOf ? quoteAsOf.slice(0, 10) : null;
+  // Where the footer figures come from — the snapshot's own `source`
+  // (the universe feed; "demo" is stated as plainly as "nasdaq"), plus a
+  // timestamp only where the payload carries the RIGHT one:
+  //   price / day change → `quoteAsOf`, when the quote was taken
+  //   market cap         → `lastUpdated`, when the seeded / DAILY market
+  //                        figures were observed
+  //   revenue            → `latestPeriod` as its period, and no timestamp:
+  //                        a fiscal figure belongs to a period, and the
+  //                        row's stamps describe market data
+  // Until 2026-09-04 all three read `lastUpdated`, which the engine
+  // stamped with the PROCESS CLOCK at universe build — 72 cards read
+  // "computed <engine boot>" (critic finding #3, ea6df1f). The engine now
+  // carries a real date or nothing, and this card claims nothing it was
+  // not given. The card's click target is a stretched sibling <button>
+  // painted above the in-flow footer, so the footer lifts (z-[1]) with
+  // pointer events off, and only the affordance spans take the pointer
+  // back.
+  const quoteOrigin = provenanceOf({ source: r.source, computedAt: quoteAsOf ?? undefined });
+  const marketOrigin = provenanceOf({ source: r.source, computedAt: r.lastUpdated ?? undefined });
+  const fiscalOrigin = provenanceOf({ source: r.source, period: r.latestPeriod ?? undefined });
+  const footerLift =
+    quoteOrigin || marketOrigin || fiscalOrigin ? "relative z-[1] pointer-events-none" : "";
 
   // 30-day sparkline from the existing price-history endpoint (1M range,
   // cached 30 min per ticker). Missing/failed history → no sparkline row.
@@ -874,7 +905,7 @@ function CompanyCard({
       )}
 
       {/* Footer — price + day change | market cap (or revenue). */}
-      <div className="mt-auto flex items-end justify-between gap-2 pt-1 border-t border-rule-soft text-[11px] min-w-0">
+      <div className={`mt-auto flex items-end justify-between gap-2 pt-1 border-t border-rule-soft text-[11px] min-w-0 ${footerLift}`}>
         <div className="min-w-0">
           {hasPrice ? (
             <>
@@ -882,14 +913,16 @@ function CompanyCard({
                 value={r.price}
                 currency={r.currency}
                 fractionDigits={2}
-                className="text-[11px] text-ink"
+                className="text-[11px] text-ink pointer-events-auto"
+                provenance={quoteOrigin}
               />
-              {hasChange && (
+              {dayChange !== null && (
                 <Amount
                   kind="percent"
-                  value={(r.priceChangePct ?? 0) / 100}
+                  value={dayChange}
                   fractionDigits={2}
-                  className={`ml-1.5 text-[11px] ${changeUp ? "text-success" : "text-alert"}`}
+                  className={`ml-1.5 text-[11px] pointer-events-auto ${changeUp ? "text-success" : "text-alert"}`}
+                  provenance={quoteOrigin}
                 />
               )}
               {/* As-of stamp — rendered ONLY when the payload carries
@@ -921,7 +954,8 @@ function CompanyCard({
               <Amount
                 value={r.marketCap}
                 magnitude={pickMagnitude([r.marketCap])}
-                className="text-[11px] text-ink"
+                className="text-[11px] text-ink pointer-events-auto"
+                provenance={marketOrigin}
               />
             </>
           ) : r.revenue != null && Number.isFinite(r.revenue) ? (
@@ -932,7 +966,8 @@ function CompanyCard({
               <Amount
                 value={r.revenue}
                 magnitude={pickMagnitude([r.revenue])}
-                className="text-[11px] text-ink"
+                className="text-[11px] text-ink pointer-events-auto"
+                provenance={fiscalOrigin}
               />
             </>
           ) : null}

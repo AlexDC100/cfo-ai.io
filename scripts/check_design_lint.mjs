@@ -99,7 +99,12 @@ const SHADOW_ALLOWED = new Set([
   "frontend/components/ui/sonner.tsx", // toast layer (sonner)
   "frontend/components/cfo/command/CommandCenter.tsx", // command palette (floats)
   "frontend/components/cfo/SearchDialog.tsx", // ⌘K search dialog (floats)
-  "frontend/components/instrument/Amount.tsx", // provenance tooltip is a floating layer
+  "frontend/components/instrument/Amount.tsx", // rounding tooltip is a floating layer
+  // The provenance affordance's card. Same case as Amount's, and it IS
+  // Amount's — the affordance moved out of that file on 2026-09-02 so
+  // statement rows and the Capsule's money path could share one card
+  // instead of growing a second. The allowlist entry moved with it.
+  "frontend/components/instrument/Provenance.tsx",
   "frontend/components/instrument/Term.tsx", // glossary TooltipContent — floating layer
   // Metric ⓘ tip: its only shadow class styles Radix Tooltip/Popover CONTENT,
   // which portals above the page — a floating layer, same case as Amount's

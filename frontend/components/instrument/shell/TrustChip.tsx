@@ -15,7 +15,7 @@
 // carries (difference, mapping version, extraction lane, reconciliation
 // receipt, diagnosis codes) — listed verbatim, row by row.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import "./shellI18n";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sheet";
 import { Chip, type ChipTone } from "@/components/instrument/Panel";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { factsFrom, type ServedFacts } from "@/lib/servedFacts";
 
@@ -40,10 +41,22 @@ const TONE_DOT: Record<ChipTone, string> = {
   info: "text-info",
 };
 
+/** The served field the difference is read from, when it is served. */
+const DIFFERENCE_FIELD = "canonical_bs.difference";
+
 export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {}) {
   const { t, i18n } = useTranslation();
   const period = useActivePeriod();
   const [open, setOpen] = useState(false);
+  // Where focus lands when the receipt opens. Radix moves it to the first
+  // tabbable element inside the sheet, and since the receipt's figures
+  // wear the provenance affordance that element is now the DIFFERENCE
+  // figure — whose card opens on focus. Measured: headerLaw H3b went red
+  // with the mapping pack found twice, once in the Mapping row and once
+  // in a card nobody asked for. Focus goes to the title instead, so the
+  // dialog still takes focus (a11y) and the first card opens only when a
+  // reader tabs to it.
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const facts: ServedFacts | null = useMemo(
     () => (period.statements ? factsFrom(period.statements) : null),
@@ -53,6 +66,16 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
   // No period, no envelope, or a legacy/public-summary lane → no chip.
   // Trust renders only where the engine actually issued a verdict.
   if (!facts || !facts.isCanonical) return null;
+  // …and only where that verdict is CHECKABLE. A canonical envelope that
+  // carried no `difference` and not the totals to derive one has nothing
+  // behind the word "Balanced": the chip's whole claim is "machine-
+  // computed, and here is the receipt", and there is no receipt. The
+  // file's own rule — "an unverified period must not wear a trust badge"
+  // — applied to the case where the envelope is present but empty.
+  // Measured: with `totals: {}` this used to render
+  // "Balanced · machine-computed" over a difference of 0 that nothing
+  // computed.
+  if (facts.differenceOrigin() === "unavailable") return null;
 
   const currency = period.statements?.currency ?? "RON";
   const presentation = facts.presentStatus(currency);
@@ -94,6 +117,79 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
 
   const rec = facts.reconciliation();
   const diagnosis = facts.diagnosis();
+
+  // ── where the receipt's three figures come from ────────────────────
+  // Each names the served field it was read from, the extraction method
+  // the rows behind it were read with, and the mapping pack that filed
+  // them — the same three the balance-sheet subtotals name, because a
+  // difference over served totals is an aggregate in no cell. The two
+  // reconciliation figures add what the receipt itself carries: its
+  // content hash as the snapshot, and (for the applied delta) the origin
+  // that proposed it, the model when one did, and when it was applied.
+  const method = extraction?.method;
+  const pack = facts.mappingVersion() ?? undefined;
+  // The difference row names where its FIGURE came from, and that is one
+  // of two places. When the engine served `canonical_bs.difference` the
+  // card names that field — a reader holding the /api/period JSON can
+  // open it. When the envelope carried no such field the gateway fell
+  // back to assets − (equity + liabilities) over the served totals, and
+  // the card says exactly that: client-derived, no served field named,
+  // no snapshot claimed. Until 2026-09-04 the label named the gateway
+  // ACCESSOR in both cases (critic finding #4, ea6df1f) — an accessor is
+  // where this component READ the number, not where it came from, and
+  // the comment beside it said the label was chosen to satisfy the
+  // import-boundary gate. Satisfying a gate is not a source. (The gate
+  // is satisfied anyway: F-DIFFERENCE refuses a raw property READ, and a
+  // field NAME inside a string literal is not one.)
+  //
+  // 2026-09-04, the second half of the same finding: the "client-derived"
+  // branch named a computation that had not happened. `canonicalStatusCore`
+  // read every total as `?? 0`, so on an envelope missing
+  // `totals.liabilities` the receipt showed "Status BALANCED · Difference
+  // 18,990,225 RON" — and 18,990,224.60 IS the liabilities total that went
+  // missing. The card underneath called it "assets − (equity +
+  // liabilities) over served totals", naming a term the subtraction never
+  // had. With `totals: {}` the same path produced a difference of 0: a
+  // fabricated perfect balance on the trust surface.
+  //
+  // The gateway now refuses instead, and the sentence is built from
+  // `differenceTerms()` — exactly the totals the subtraction consumed, so
+  // it cannot name one it lacked.
+  const terms = facts.differenceTerms();
+  // The subtracted side, spelled out of the terms the gateway actually
+  // consumed — `totals.equity_plus_liabilities` when the envelope served
+  // that one field, `(totals.equity + totals.liabilities)` when it served
+  // the pair. Never both spellings, and never a term that was absent.
+  const subtracted = terms
+    .filter((x) => x !== "assets")
+    .map((x) => `totals.${x}`);
+  const rhs = subtracted.length > 1 ? `(${subtracted.join(" + ")})` : subtracted[0];
+  const differenceOrigin: AmountProvenance | null =
+    facts.differenceOrigin() === "served"
+      ? provenanceOf({ source: DIFFERENCE_FIELD, method, pack })
+      : facts.differenceOrigin() === "client-derived"
+        ? provenanceOf({
+            method: `client-derived · totals.assets − ${rhs}`,
+            pack,
+          })
+        : null;
+  const originalDifferenceOrigin: AmountProvenance | null = rec
+    ? provenanceOf({
+        source: "canonical_bs.reconciliation.original_difference",
+        method,
+        pack,
+        snapshot: rec.content_hash,
+      })
+    : null;
+  const appliedDeltaOrigin: AmountProvenance | null = rec
+    ? provenanceOf({
+        source: "canonical_bs.reconciliation.applied_delta",
+        method: [rec.origin, rec.model, rec.prompt_version].filter(Boolean).join(" · ") || undefined,
+        pack,
+        snapshot: rec.content_hash,
+        computedAt: rec.applied_at ?? undefined,
+      })
+    : null;
 
   return (
     <>
@@ -160,9 +256,17 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
           side="right"
           data-testid="trust-receipt"
           className="w-[min(400px,calc(100vw-2rem))] border-l border-rule bg-surface p-0 text-ink"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            titleRef.current?.focus();
+          }}
         >
           <div className="border-b border-rule-soft px-5 pb-4 pt-5">
-            <SheetTitle className="text-[15px] font-semibold tracking-tight text-ink">
+            <SheetTitle
+              ref={titleRef}
+              tabIndex={-1}
+              className="text-[15px] font-semibold tracking-tight text-ink outline-none"
+            >
               {t("shell.trust.receiptTitle")}
             </SheetTitle>
             <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">
@@ -181,7 +285,25 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
                 </span>
               </ReceiptRow>
               <ReceiptRow label={t("shell.trust.difference")}>
-                <Amount value={facts.difference()} kind="money" currency={currency} className="text-[12.5px]" />
+                {facts.difference() === null ? (
+                  // No served field and not derivable — the receipt says
+                  // what is missing rather than showing a dash the reader
+                  // could take for a clean zero.
+                  <span
+                    className="text-[12px] leading-snug text-ink-soft"
+                    data-testid="trust-difference-unavailable"
+                  >
+                    {t("shell.trust.differenceUnavailable")}
+                  </span>
+                ) : (
+                  <Amount
+                    value={facts.difference()}
+                    kind="money"
+                    currency={currency}
+                    className="text-[12.5px]"
+                    provenance={differenceOrigin}
+                  />
+                )}
               </ReceiptRow>
               {facts.mappingVersion() && (
                 <ReceiptRow label={t("shell.trust.mapping")}>
@@ -208,12 +330,25 @@ export function TrustChip({ variant = "chip" }: { variant?: "chip" | "dot" } = {
                 <dl>
                   {typeof rec.original_difference === "number" && (
                     <ReceiptRow label={t("shell.trust.originalDifference")}>
-                      <Amount value={rec.original_difference} kind="money" currency={currency} className="text-[12.5px]" />
+                      <Amount
+                        value={rec.original_difference}
+                        kind="money"
+                        currency={currency}
+                        className="text-[12.5px]"
+                        provenance={originalDifferenceOrigin}
+                      />
                     </ReceiptRow>
                   )}
                   {typeof rec.applied_delta === "number" && (
                     <ReceiptRow label={t("shell.trust.appliedDelta")}>
-                      <Amount value={rec.applied_delta} kind="money" currency={currency} signed className="text-[12.5px]" />
+                      <Amount
+                        value={rec.applied_delta}
+                        kind="money"
+                        currency={currency}
+                        signed
+                        className="text-[12.5px]"
+                        provenance={appliedDeltaOrigin}
+                      />
                     </ReceiptRow>
                   )}
                   {rec.placement && (

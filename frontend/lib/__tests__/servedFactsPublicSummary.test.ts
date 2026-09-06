@@ -85,7 +85,13 @@ describe("public_summary lane (servedFacts)", () => {
 
   it("claims no drift — the summary layout has no balance identity", () => {
     const facts = factsFrom(summaryStatements());
-    expect(facts.difference()).toBe(0);
+    // 2026-09-04 (F3): this used to assert 0, which reads as "the drift
+    // was measured and came out zero". The lane has no balance identity
+    // at all — I10+I7 deliberately omits I8/I9 — so the honest value is
+    // NULL, and every surface then states the absence instead of a clean
+    // zero. See `differenceOrigin` in servedFacts.ts.
+    expect(facts.difference()).toBeNull();
+    expect(facts.differenceOrigin()).toBe("unavailable");
   });
 
   it("canonical and legacy lanes are untouched", () => {

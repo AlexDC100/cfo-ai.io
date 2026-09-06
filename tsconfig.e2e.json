@@ -1,0 +1,61 @@
+{
+  /* THE TEST SUITE IS SOURCE TOO.
+   *
+   * `e2e/` was in NO tsconfig project. tsconfig.app.json includes
+   * ["frontend"] and tsconfig.node.json includes ["vite.config.ts"], so
+   * `node scripts/check_tsc.mjs` — the gate written specifically because
+   * `npx tsc --noEmit` checked ZERO files — was itself saying NOTHING
+   * about any of the 37 spec/helper files in the Playwright suite. TC-9
+   * one directory over: the gate's "clean" output for e2e/ was
+   * byte-identical to its "no subject" output, because there was no
+   * subject.
+   *
+   * That matters more here than in ordinary app code. These files are the
+   * gates. A spec that does not compile is a spec that cannot fail
+   * correctly, and a broken assertion in a gate is the exact false-green
+   * this whole battery exists to prevent.
+   *
+   * Settings mirror tsconfig.app.json (same non-strict posture, so this
+   * project cannot be greener than the app it tests by being laxer) with
+   * three deltas that are properties of a test runner, not of leniency:
+   *   - "types": playwright + node + vitest globals. Specs call
+   *     `page.evaluate` (DOM lib) and `node:fs` (node types).
+   *   - "allowJs": e2e/design/header.spec.ts imports a real gate script,
+   *     `scripts/check_header_law.mjs`. Without allowJs that import is
+   *     an unresolvable module and the spec cannot be checked at all.
+   *   - playwright.config.ts / vitest.config.ts are included here rather
+   *     than orphaned: they are the runner contracts the specs execute
+   *     under, and they were unchecked for the same reason.
+   */
+  "compilerOptions": {
+    "types": ["node"],
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode — same as the app project. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Gate scripts are .mjs and are imported by specs. */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Linting posture identical to tsconfig.app.json. */
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "noFallthroughCasesInSwitch": false,
+
+    "paths": {
+      "@/*": ["./frontend/*"]
+    }
+  },
+  "include": ["e2e", "playwright.config.ts", "vitest.config.ts"]
+}

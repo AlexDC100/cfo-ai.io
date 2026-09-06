@@ -57,7 +57,6 @@ def test_active_features_present():
         "change_password",
         "manage_billing",
         "industry_classification",
-        "benchmarks",
         "dashboard",
         "generate_action_list",
         "generate_board_summary",
@@ -76,8 +75,6 @@ def test_coming_soon_features_present():
         "two_factor_auth",
         "simulate_cost_of_capital",
         "simulate_debt_reduction",
-        "inventory",
-        "invoices",
         "import_history",
     ):
         assert feats.get(k, {}).get("status") == "coming_soon", (
@@ -90,7 +87,33 @@ def test_hidden_features_present():
     works) but the frontend filters them out."""
     body = _client().get("/api/features/status").json()
     feats = body["features"]
-    for k in ("decisions", "alerts", "public_records"):
+    # LAUNCH CUT (2026-09-05). This list previously named only the three
+    # build-flag mirrors. It now also names every row the launch cut
+    # switched off — `benchmarks`, `products_legacy`, `reports`,
+    # `inventory`, `invoices` were `active`/`coming_soon` before the cut,
+    # and the two lists above were updated in the same pass so this file
+    # states the posture AFTER the cut rather than pinning the one before
+    # it. What this test reds on: a row silently promoted back to
+    # `active`/`coming_soon` without its screen being walked end-to-end.
+    for k in (
+        "decisions",
+        "alerts",
+        "public_records",
+        "benchmarks",
+        "products_legacy",
+        "reports",
+        "inventory",
+        "invoices",
+        "scenarios",
+        "variance",
+        "public_companies",
+        "comprehensive_report",
+        "peer_report",
+        "chat_page",
+        "roadmap",
+        "firm_cockpit",
+        "anomaly_radar",
+    ):
         assert feats.get(k, {}).get("status") == "hidden", (
             f"expected '{k}' to be hidden, got {feats.get(k, {}).get('status')!r}"
         )
@@ -123,3 +146,59 @@ def test_every_active_feature_advertises_endpoint_or_is_meta():
             f"active feature '{key}' must advertise an endpoint or be in "
             f"NO_ENDPOINT_REQUIRED; got: {defn!r}"
         )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# LR4 — the registry mirror gate (2026-09-05)
+# ──────────────────────────────────────────────────────────────────────
+
+def test_registry_keys_mirror_the_frontend_union():
+    """`_features.py`'s FEATURES dict and `frontend/lib/features.ts`'s
+    `FeatureKey` union are two hand-maintained halves of ONE contract.
+
+    Before this gate the only symptom of a drifted half was silent: an
+    unknown key reads `undefined` in `useFeatures()`, and every consumer
+    treats `undefined` exactly like `hidden` — so a key added backend-only
+    renders nothing, and a key added frontend-only gates a route shut
+    forever. Neither throws, neither logs.
+
+    What this test reds on: a key present in one half and absent in the
+    other, naming the side that is missing it.
+    """
+    import os
+    import re
+
+    root = os.path.join(os.path.dirname(__file__), "..")
+    ts_path = os.path.join(root, "frontend", "lib", "features.ts")
+    with open(ts_path, encoding="utf-8") as fh:
+        ts = fh.read()
+
+    # Strip `//` line comments FIRST. The union carries explanatory
+    # comments between its members, and a comment is free to contain a
+    # semicolon — which silently truncated an earlier version of this
+    # scan mid-union, so the gate compared half a list and passed.
+    uncommented = re.sub(r"//[^\n]*", "", ts)
+    # The union runs from `export type FeatureKey =` to the terminating `;`.
+    m = re.search(r"export type FeatureKey\s*=(.*?);", uncommented, re.S)
+    assert m, "FeatureKey union not found in frontend/lib/features.ts"
+    ts_keys = set(re.findall(r'"([a-z0-9_]+)"', m.group(1)))
+    assert len(ts_keys) >= 25, (
+        "the FeatureKey union scan found only "
+        f"{len(ts_keys)} keys — the scan itself is broken, not the mirror"
+    )
+
+    _ensure_env_stubs()
+    from engine.api._features import FEATURES  # noqa: WPS433
+
+    py_keys = set(FEATURES)
+
+    missing_in_ts = sorted(py_keys - ts_keys)
+    missing_in_py = sorted(ts_keys - py_keys)
+    assert not missing_in_ts, (
+        "keys in _features.py but NOT in the frontend FeatureKey union "
+        f"(the frontend can never read them): {missing_in_ts}"
+    )
+    assert not missing_in_py, (
+        "keys in the frontend FeatureKey union but NOT in _features.py "
+        f"(they resolve to undefined, i.e. permanently hidden): {missing_in_py}"
+    )

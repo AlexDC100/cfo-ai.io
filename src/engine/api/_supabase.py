@@ -159,23 +159,30 @@ class SupabaseClient:
         r = self._client.delete(f"{self.url}/rest/v1/{table}", params=params)
         r.raise_for_status()
 
-    # ── Auth (resolve user identity from a JWT) ──────────────────────────
+    # ── Auth (a VERIFIED identity from a JWT) ─────────────────────────────
     #
-    # We do NOT call /auth/v1/user — Supabase rotated to ES256-signed
-    # tokens + new-format publishable/secret API keys, and the legacy
-    # anon-JWT used as `apikey` no longer authenticates against the auth
-    # gateway (returns 403). The user id is in the JWT's `sub` claim
-    # anyway; we read it locally and rely on Postgres RLS for the actual
-    # authorization check on every subsequent query.
+    # We do NOT call /auth/v1/user (the legacy anon-JWT `apikey` no longer
+    # authenticates against the auth gateway after Supabase's key
+    # rotation). Until 2026-09-05 this decoded the payload LOCALLY WITHOUT
+    # VERIFYING THE SIGNATURE, on the theory that PostgREST verifies it on
+    # the next per-user read. Four routes never made that read (clear-mine,
+    # GET/PUT dashboard config, the firm e-mail drain) and wrote as the
+    # decoded `sub` through the service role — a forged, unsigned token
+    # carrying a victim's id soft-deleted the victim's documents (critic
+    # D5, crit_pipeline_widening.py).
     #
-    # Local decode is safe because we don't trust the result for security
-    # — every downstream SELECT uses the per_user client which sends the
-    # raw JWT to PostgREST, where Supabase verifies the signature before
-    # applying RLS. We're only using the decoded claims to populate
-    # convenience fields (id, email) that the caller wants to log or echo.
+    # The identity now comes from `_jwt.verified_identity`: ES256 against
+    # the JWKS Supabase publishes (HS256 only with SUPABASE_JWT_SECRET set),
+    # exp / iss / aud / sub checked. This method RAISES — 401 InvalidToken,
+    # 503 IdentityUnavailable when no signing key can be obtained — instead
+    # of returning {}: no caller reading `user["id"]` ever sees an
+    # unverified id, and there is no decode fallback. Every double that
+    # stands in for this client must verify the same way
+    # (tests/engine/firm_postgrest_double.verified_identity).
 
     def get_user(self, jwt: str) -> Dict[str, Any]:
-        return _decode_jwt_claims(jwt)
+        from . import _jwt
+        return _jwt.verified_identity(jwt)
 
     # ── Storage (signed URL minting) ──────────────────────────────────────
 
@@ -193,6 +200,33 @@ class SupabaseClient:
             signed = f"{self.url}/storage/v1{signed}"
         return signed
 
+    # ── Storage upload ────────────────────────────────────────────────────
+    # Server-side object write, used by the firm file-request flow: the
+    # uploader there is an external contact with no membership in the
+    # client workspace, so the browser cannot write the bucket under RLS
+    # the way lib/supabase.ts's uploadDocument does. Same bucket, same
+    # `{org_id}/uploads/{document_id}.{ext}` path convention, never
+    # upsert — a request token is single-use, so a second write to the
+    # same path is a bug, not a retry.
+    def upload_object(self, bucket: str, path: str, content: bytes, *,
+                      content_type: str = "application/octet-stream") -> None:
+        headers = dict(self._headers)
+        headers["Content-Type"] = content_type or "application/octet-stream"
+        headers["x-upsert"] = "false"
+        r = self._client.post(
+            f"{self.url}/storage/v1/object/{bucket}/{path}",
+            content=content,
+            headers=headers,
+        )
+        if r.status_code >= 400:
+            try:
+                detail = r.json()
+            except Exception:
+                detail = r.text[:300]
+            raise RuntimeError(
+                f"Storage upload to {bucket}/{path} failed (HTTP {r.status_code}): {detail}"
+            )
+
     # ── Storage delete ────────────────────────────────────────────────────
     # Hard-delete an object from a bucket. Used by the permanent-delete
     # endpoint after a document has been soft-deleted — removes the
@@ -206,34 +240,12 @@ class SupabaseClient:
             r.raise_for_status()
 
 
-def _decode_jwt_claims(jwt: str) -> Dict[str, Any]:
-    """Parse a JWT's payload claims without verifying the signature.
-
-    Signature verification happens server-side at Supabase/PostgREST on
-    every downstream request — we only need the claims to populate the
-    caller's user_id / email locally. Bypasses /auth/v1/user (which has
-    apikey/format compatibility issues after Supabase's key rotation).
-    """
-    import base64
-    import json as _json
-    try:
-        # JWTs are three base64url-encoded segments separated by dots.
-        # The middle segment is the payload (claims).
-        parts = jwt.split(".")
-        if len(parts) != 3:
-            return {}
-        # base64url needs padding for the standard decoder
-        payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
-        payload_bytes = base64.urlsafe_b64decode(payload_b64.encode("ascii"))
-        claims = _json.loads(payload_bytes.decode("utf-8"))
-        # Supabase puts the user id in `sub`. Also surface `email`.
-        return {
-            "id": claims.get("sub"),
-            "email": claims.get("email"),
-            "claims": claims,
-        }
-    except Exception:
-        return {}
+# `_decode_jwt_claims` (the unverified payload decode) was REMOVED
+# 2026-09-05 (FC1x, critic D5). Its one honest use — a log line about a
+# REFUSED bearer — lives in `_jwt.unverified_claims_for_logging`, named for
+# what it is; the census in tests/engine/test_identity_wall.py reds on any
+# other caller under src/engine/api. Authorization never reads an
+# unverified claim again.
 
 
 def admin() -> SupabaseClient:

@@ -1,0 +1,29 @@
+{
+ "active_period_id": "0f1e2d3c-4b5a-4c6d-8e7f-a0b1c2d3e4f5",
+ "periods": [
+  {
+   "currency": "RON",
+   "documents": [
+    {
+     "detected_type": "trial_balance",
+     "display_name": "input.xlsx",
+     "id": "doc-carniprod",
+     "is_active": true,
+     "mime_type": null,
+     "original_filename": "input.xlsx",
+     "size_bytes": 182318,
+     "status": "analyzed",
+     "storage_path": "corpus/saga_10_col_carniprod/input.xlsx",
+     "uploaded_at": "2026-01-01T00:00:00Z"
+    }
+   ],
+   "is_active": true,
+   "period_end": "2025-12-31",
+   "period_id": "0f1e2d3c-4b5a-4c6d-8e7f-a0b1c2d3e4f5",
+   "period_label": "2025-12-31",
+   "period_start": "2025-01-01"
+  }
+ ],
+ "public_records": [],
+ "recently_deleted": []
+}

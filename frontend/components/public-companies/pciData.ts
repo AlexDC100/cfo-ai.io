@@ -209,7 +209,9 @@ function universeRowToWatchlist(r: PublicCompanyFinancialSnapshot): WatchlistRow
     net_margin_pct: r.netMargin ?? NaN,
     debt_to_equity: r.debtToEquity ?? NaN,
     fiscal_label: r.latestPeriod ?? null,
-    last_updated_iso: r.lastUpdated,
+    // A row with no data timestamp has none to pass on; "" keeps the
+    // watchlist shape and `fiscalLabelFromIso("")` refuses ("—").
+    last_updated_iso: r.lastUpdated ?? "",
     status: r.mode === "live" ? "fresh" : "demo",
   };
 }

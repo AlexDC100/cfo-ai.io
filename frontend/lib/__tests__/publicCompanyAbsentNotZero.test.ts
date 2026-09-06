@@ -71,26 +71,57 @@ describe("publicCompanyAdapters — absent is not zero", () => {
   describe("§2 the balance sheet foots again", () => {
     it("recovers filed total liabilities exactly from A − E", () => {
       // Not an approximation — the identity is exact to the dollar.
-      const closing = bs.totalEquityLiab.closing - (current.headline.total_equity ?? 0);
+      // `closing` is ABSENT-CAPABLE now: an SF1 headline missing a grand
+      // total yields `null` rather than a cast. On this fixture it is
+      // present, and the assertion says so instead of assuming it.
+      expect(bs.totalEquityLiab.closing).not.toBeNull();
+      const closing =
+        (bs.totalEquityLiab.closing as number) - (current.headline.total_equity ?? 0);
       expect(closing).toBeCloseTo(FILED.fy2024.total_liabilities, 2);
     });
 
     it("balanceCheck is ~0 (it was off by the entire liability stack)", () => {
       // Pre-fix this equalled total_assets − total_equity ≈ $308bn.
-      expect(Math.abs(bs.balanceCheck)).toBeLessThan(1);
+      expect(bs.balanceCheck).not.toBeNull();
+      expect(Math.abs(bs.balanceCheck as number)).toBeLessThan(1);
     });
 
-    it("total non-current liabilities is not negative", () => {
-      // Pre-fix: 0 − short-term debt, i.e. a negative liability subtotal.
+    it("the maturity split is ABSENT, not negative and not fabricated", () => {
+      // Three states, in order of how honest they are:
+      //
+      //   · ORIGINAL     `0 − short-term debt` — a NEGATIVE liability
+      //                  subtotal, from reading a headline key the engine
+      //                  never emits.
+      //   · PREVIOUS     positive, because `bank_loans_lt` absent read as
+      //                  0, so `total_debt − 0` filed Apple's ENTIRE
+      //                  $106.6 bn of debt as short-term and the rest of
+      //                  the stack as non-current. Positive, and invented.
+      //   · NOW (F2)     the feed reports `total_debt` but NOT its
+      //                  maturity profile, so both split subtotals are
+      //                  absent and render as the gap glyph.
+      //
+      // The E&L side still foots (the two assertions above), because the
+      // TOTAL is reported even though the split is not.
       const nonCurrent = bs.equityLiabSections.find(
         (s) => s.header === "NON-CURRENT LIABILITIES",
       );
+      const current = bs.equityLiabSections.find(
+        (s) => s.header === "CURRENT LIABILITIES",
+      );
       expect(nonCurrent).toBeTruthy();
-      expect(nonCurrent!.subtotalClosing).toBeGreaterThan(0);
+      expect(current).toBeTruthy();
+      // The fixture carries no `bank_loans_lt` leaf — that is what makes
+      // the split unknowable, and the assertion vacuous if it changes.
+      expect(RAW.periods[0].leaves?.bank_loans_lt).toBeUndefined();
+      expect(nonCurrent!.subtotalClosing).toBeUndefined();
+      expect(current!.subtotalClosing).toBeUndefined();
+      // Never the original defect either.
+      expect(nonCurrent!.subtotalClosing ?? 0).not.toBeLessThan(0);
     });
 
     it("the prior period is derived too, so deltas are real", () => {
-      const openingLiab = bs.totalEquityLiab.opening
+      expect(bs.totalEquityLiab.opening).not.toBeUndefined();
+      const openingLiab = (bs.totalEquityLiab.opening as number)
         - (RAW.periods[1].headline.total_equity ?? 0);
       expect(openingLiab).toBeCloseTo(FILED.fy2023.total_liabilities, 2);
       expect(bs.totalEquityLiab.delta).not.toBe(0);

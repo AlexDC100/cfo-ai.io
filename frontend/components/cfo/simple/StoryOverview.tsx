@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 
 import { Amount, AmountGroup } from "@/components/instrument/Amount";
+import type { AmountProvenance } from "@/components/instrument/Provenance";
 import { Chip, Panel, PanelBody, PanelHeader, type ChipTone } from "@/components/instrument/Panel";
 import { annotateTerms } from "./annotateTerms";
 import { Term } from "@/components/instrument/Term";
@@ -90,6 +91,13 @@ export interface StoryOverviewProps {
   revenueTrend: { pct: number; prevLabel: string } | null;
   recommendations: Recommendation[];
   onJumpToTab?: (tab: string) => void;
+  /** Origin of each figure, built ONCE by the page (`lib/headlineProvenance`)
+   *  from the same inputs as the figures and shared with Pro's
+   *  KeyMetricsRow — mode parity covers the origin as well as the value.
+   *  A missing or null entry renders that figure plain. */
+  provenance?: Partial<
+    Record<"revenue" | "profit" | "cash" | "netDebt" | "totalDebt", AmountProvenance | null>
+  >;
 }
 
 export function StoryOverview({
@@ -104,6 +112,7 @@ export function StoryOverview({
   revenueTrend,
   recommendations,
   onJumpToTab,
+  provenance,
 }: StoryOverviewProps) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -135,7 +144,12 @@ export function StoryOverview({
   const topRec = sorted[0] ?? null;
   const nextRecs = sorted.slice(1, 5);
 
-  const figureRow = (label: ReactNode, value: number | null, testid: string) => (
+  const figureRow = (
+    label: ReactNode,
+    value: number | null,
+    testid: string,
+    origin: AmountProvenance | null | undefined,
+  ) => (
     <div className="flex items-baseline justify-between gap-3 py-1.5" data-testid={testid}>
       <span className="min-w-0 text-[13px] text-ink-2">{label}</span>
       {/* `${testid}-amount` — gate M1 compares this string against the Pro
@@ -144,7 +158,7 @@ export function StoryOverview({
         className="shrink-0 text-[19px] font-medium leading-none text-ink"
         data-testid={`${testid}-amount`}
       >
-        <Amount value={value} currency={symbol} />
+        <Amount value={value} currency={symbol} provenance={origin ?? null} />
       </span>
     </div>
   );
@@ -166,8 +180,8 @@ export function StoryOverview({
         />
         <PanelBody>
           <AmountGroup values={[cRevenue, cProfit, cCash, cNetDebt]}>
-            {figureRow(<Term id="revenue" />, cRevenue, "story-figure-revenue")}
-            {figureRow(<Term id="net_profit" />, cProfit, "story-figure-profit")}
+            {figureRow(<Term id="revenue" />, cRevenue, "story-figure-revenue", provenance?.revenue)}
+            {figureRow(<Term id="net_profit" />, cProfit, "story-figure-profit", provenance?.profit)}
           </AmountGroup>
           {(yoyLine || pLine) && (
             <div className="mt-2 space-y-0.5 border-t border-rule-soft pt-2">
@@ -183,7 +197,7 @@ export function StoryOverview({
         <PanelHeader as="h2" title={t("story.cash.title")} />
         <PanelBody>
           <AmountGroup values={[cRevenue, cProfit, cCash, cNetDebt]}>
-            {figureRow(t("story.cash.label"), cCash, "story-figure-cash")}
+            {figureRow(t("story.cash.label"), cCash, "story-figure-cash", provenance?.cash)}
           </AmountGroup>
           {runwayLine && (
             <div className="mt-2 border-t border-rule-soft pt-2">
@@ -200,8 +214,8 @@ export function StoryOverview({
         <PanelHeader as="h2" title={t("story.owe.title")} />
         <PanelBody>
           <AmountGroup values={[cRevenue, cProfit, cCash, cNetDebt]}>
-            {figureRow(t("story.owe.totalLoans"), cTotalDebt, "story-figure-total-debt")}
-            {figureRow(<Term id="net_debt" />, cNetDebt, "story-figure-net-debt")}
+            {figureRow(t("story.owe.totalLoans"), cTotalDebt, "story-figure-total-debt", provenance?.totalDebt)}
+            {figureRow(<Term id="net_debt" />, cNetDebt, "story-figure-net-debt", provenance?.netDebt)}
           </AmountGroup>
           <div className="mt-2 space-y-0.5 border-t border-rule-soft pt-2">
             <p className="text-[12.5px] leading-relaxed text-ink-soft">{ndLine}</p>

@@ -91,7 +91,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 // Radix primitive directly (not ui/dialog's DialogContent): the shared
 // wrapper hard-codes the heavy black/80 overlay, which turns the glass
 // panel into fog on Paper. The palette owns a lighter scrim instead.
@@ -124,7 +124,7 @@ import { openGlossary } from "@/components/learning/MetricGlossaryDrawer";
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
 import { CONCEPTS_BY_KEY, type Concept } from "@/lib/learning/concepts";
 import { foldQuery, routeQuery } from "@/lib/capsuleRouter";
-import { buildFactIndex } from "@/lib/capsuleFactIndex";
+import { buildFactIndex, restingFacts, type FactRef } from "@/lib/capsuleFactIndex";
 import { resolveTier0, type Tier0Answer } from "@/lib/capsuleTier0";
 import {
   LAT_CAPSULE_OPEN,
@@ -136,9 +136,13 @@ import {
 import { useActivePeriod } from "@/lib/activePeriod";
 import { factsFrom } from "@/lib/servedFacts";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
+import { getChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import type { TraceableSource } from "@/lib/traceableSource";
 
 import "./capsuleAnswer/capsuleAnswerI18n";
+// The ONE metric-name resolver on this surface. A tile, a figure row and
+// a Tier-0 card must not call one metric three names.
+import { metricLabel } from "./capsuleAnswer/capsuleAnswerI18n";
 import {
   CapsuleAnswerPanel,
   type HostCitation,
@@ -148,6 +152,7 @@ import { useCapsuleAnswer } from "./capsuleAnswer/useCapsuleAnswer";
 // The suggestions / degraded / limits lane's public barrel. Its own
 // header names this file as the host, so the mount points live here.
 import {
+  CapsuleAccountCard,
   CapsuleEmptyState,
   recordJump,
   releaseCapsuleAsk,
@@ -207,6 +212,46 @@ type Primary =
 // Snapshot of the concept catalog — the registry never mutates at runtime.
 const ALL_CONCEPTS: Concept[] = Object.values(CONCEPTS_BY_KEY);
 
+/**
+ * EIGHT ROWS. The number is a budget, not a preference.
+ *
+ * The panel's own height budget is 358px at 1440 and 590px at 390 above
+ * a composer pinned to a constant bottom edge. At 36px a row, eight rows
+ * plus the Tier-0 card plus the composer is what fits WITHOUT the list
+ * scrolling — and a result list the reader has to scroll while still
+ * typing into the box below it is a list that has stopped helping.
+ *
+ * Measured before: typing "cash" put THIRTEEN rows on screen under four
+ * category headings.
+ */
+const MAX_VISIBLE_ROWS = 8;
+
+/**
+ * THE RANK. Lower runs first.
+ *
+ * Not "which group is most important" — which reading of an ambiguous
+ * fragment is most likely at a CFO surface:
+ *
+ *   0  NAVIGATION (page, action). A fragment of a destination's name is
+ *      almost always a request for the destination, and it is the one
+ *      row here that is certainly not a question.
+ *   1  ENTITIES (period, company, category, sku). Named things in this
+ *      workspace.
+ *   2  VOCABULARY (glossary, concept). Least likely, and already
+ *      answered for free by Tier 0 in the card above the rows — a
+ *      definition does not need to win a row as well.
+ *
+ * An unknown family sorts LAST rather than first: a row kind added
+ * later should not silently outrank navigation because nobody updated
+ * this table.
+ */
+const FAMILY_RANK: Readonly<Record<string, number>> = Object.freeze({
+  page: 0, action: 0,
+  period: 1, company: 1, category: 1, sku: 1,
+  glossary: 2, concept: 2,
+});
+const FAMILY_RANK_DEFAULT = 3;
+
 /** Router `commandId` → the palette row that runs it.
  *
  *  A cross-lane map, and deliberately a small explicit one: the router
@@ -242,6 +287,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const { t, i18n } = useTranslation();
   const locale = useActiveLocale();
   const navigate = useNavigate();
+  const routeLocation = useLocation();
   const [params] = useSearchParams();
   const groups = useShellNav();
   const { periods, goToPeriod, selectedMonth } = usePeriodStepper();
@@ -363,6 +409,19 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (resolved) measure(LAT_TIER0_PAINT, LAT_TIER0_PAINT);
     return resolved;
   }, [query, factIndex]);
+
+  // ── ZONE 2: THE RESTING FACTS ───────────────────────────────────────
+  //
+  // The SAME index Tier 0 reads, ranked, before a key is pressed. It
+  // costs one pass over an in-memory array and cannot reach the network
+  // — `restingFacts` is pure and this memo calls nothing else — so the
+  // resting surface is exactly as free as the empty one it replaces.
+  //
+  // Derived from `factIndex`, NOT from `activePeriod` directly: the tile
+  // and the answer a reader gets by typing the tile's own label have to
+  // be the same number, and the only way to guarantee that is for both
+  // to come out of one structure.
+  const restFacts = useMemo(() => restingFacts(factIndex), [factIndex]);
 
   // The status dot pulses ONCE when a Tier-0 answer actually resolves —
   // a refusal is not a resolution and does not pulse.
@@ -536,6 +595,66 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     close();
   };
 
+  /**
+   * THE HANDOFF — and why it is not a second chat.
+   *
+   * This dropdown answers what it can instantly and routes the rest. It
+   * never grows a composer of its own, because one already exists: the
+   * owner's evidence for this whole pass was a screenshot of the
+   * dropdown floating OVER a live /chat surface, with that surface's
+   * composer, grounded chip and suggestion chips visible behind it.
+   *
+   * So the routing has two shapes, and the difference matters:
+   *
+   *   ALREADY ON /chat  →  fill the EXISTING composer and focus it.
+   *                        Nothing opens, no thread is created, and the
+   *                        conversation the reader already has stays the
+   *                        conversation they are in.
+   *   ANYWHERE ELSE     →  `openAskCfoAi(q)`, which navigates and
+   *                        delivers the prompt the way every other
+   *                        surface in the app does.
+   *
+   * WHY THE REF AND NOT THE EVENT, on /chat: AppShell's listener for
+   * `cfo-ai-open-ask` calls `handle.newChat()` before it delivers the
+   * prompt — every prompt-carrying entry starts a FRESH conversation, by
+   * a 2026-07-24 directive that is right for a page's suggestion chip
+   * arriving out of nowhere. It is wrong here. The reader opened a
+   * palette over a conversation they are having; handing their question
+   * to a brand-new thread is the duplicate this pass exists to delete.
+   * Reading the shell ref is how that is avoided WITHOUT editing
+   * AppShell, which is another lane's file — flagged as a cross-lane
+   * note rather than a silent divergence.
+   *
+   * Returns whether it handled the /chat case, so callers know whether
+   * they still need to navigate.
+   */
+  const handOffQuestion = useCallback(
+    (question: string): void => {
+      const q = question.trim();
+      // The ROUTER's location, not `window.location`: the two agree in a
+      // browser and disagree in a test, and a hand-off that behaves
+      // differently under test than in the app is a hand-off no test can
+      // hold.
+      if (routeLocation.pathname.startsWith("/chat")) {
+        const handle = getChatShellRef();
+        if (handle) {
+          close();
+          if (q) handle.setComposer(q);
+          handle.focusComposer();
+          return;
+        }
+      }
+      close();
+      openAskCfoAi(q || undefined);
+      navigate(withPeriod("/chat"));
+    },
+    // `close`/`withPeriod` are render-local closures over `params` and
+    // `onOpenChange`; listing them would defeat the callback without
+    // changing behaviour.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [navigate, params, routeLocation.pathname],
+  );
+
   /** A provenance dot leaves the overlay for the statement row it names;
    *  the thread survives on the ten-minute grace so the reader can come
    *  straight back to the follow-up. */
@@ -558,17 +677,24 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         periodId: activePeriod.id,
         periodLabel: activePeriod.label,
       });
-      // Degraded hand-off: seed the composer with the last question
-      // rather than leaving a dead button.
-      if (!moved) openAskCfoAi(turns[turns.length - 1]?.question ?? "");
       answer.collapse();
+      // Degraded hand-off: seed the composer with the last question
+      // rather than leaving a dead button. `handOffQuestion` owns BOTH
+      // halves — the /chat-in-place case and the navigate-and-deliver
+      // case — so the transplant failing does not fall back onto a path
+      // that opens a second thread over the one the reader is looking
+      // at.
+      if (!moved) {
+        handOffQuestion(turns[turns.length - 1]?.question ?? "");
+        return;
+      }
       onOpenChange(false);
       navigate(withPeriod("/chat"));
     })();
     // `withPeriod` is a render-local closure over `params`; listing it
     // would defeat the callback without changing behaviour.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answer, activePeriod.id, activePeriod.label, navigate, onOpenChange, params]);
+  }, [answer, activePeriod.id, activePeriod.label, navigate, onOpenChange, params, handOffQuestion]);
 
   const mod = modKeyLabel();
   const skus = useMemo(() => flattenSkus(run), [run]);
@@ -902,27 +1028,96 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // another VISIBLE row in the same group wears the same label. One
     // ambiguous pair is qualified; eleven unambiguous rows are not.
     //
-    // After the slice, deliberately: a collision with a row the reader
-    // cannot see is not a collision.
-    const visible = out.slice(0, 18);
+    // THE PASS MOVED. It used to run here, over `out.slice(0, 18)`,
+    // because 18 was what rendered. Since the rank cap, 8 is what
+    // renders \u2014 so the pass runs in the `ranked` memo instead, over
+    // exactly the rows the reader can see. Leaving it here would qualify
+    // a row because of a twin eight positions below the fold, which is
+    // the same "collision the reader cannot see" this note already
+    // warned about with a different number in it.
+    //
+    // 18 stays as the CANDIDATE POOL: `exactNav` resolves an exactly
+    // typed name against the full pool, and shrinking it here would
+    // silently change which queries Enter navigates on.
+    return out.slice(0, 18);
+    // Helpers referenced above (go/close/goToPeriod/onOpenAi/setTheme) are
+    // re-created per render but behaviorally constant — listing them would
+    // defeat the memo without changing results.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, groups, periods, categories, skus, companies, actionItems, resolvedTheme, locale, t, mod, orgKey]);
+
+  // ── rows: ONE RANKED LIST, NOT COMPETING SECTIONS ───────────────────
+  //
+  // This used to be grouped runs under 10px caps labels — PAGES, LEARN,
+  // RECENT PERIODS, COMPANIES — each heading spending 25px of a 358px
+  // card to name a category the reader did not ask for. Typing "cash" at
+  // 1440 produced 13 rows under headings, and the thirteenth was five
+  // scroll-lines below a composer the reader was still typing into.
+  //
+  // The replacement is a single ranked list capped at 8. The ranking is
+  // the whole content of the change:
+  //
+  //   1. NAVIGATION — pages and actions. Someone who typed a fragment of
+  //      a destination's name wants the destination, and a route is the
+  //      one row on this surface that is certainly not a question.
+  //   2. ENTITIES — periods, companies, product categories and SKUs.
+  //      Things in the workspace, named.
+  //   3. VOCABULARY — glossary and concept rows. A definition is the
+  //      least likely reading of a bare word typed at a CFO surface, and
+  //      it is the one Tier 0 already answers for free above the rows.
+  //
+  // The BEST ANSWER is not in this list at all, and that is deliberate:
+  // when the query resolves, the Tier-0 card (or the account card) sits
+  // ABOVE the rows, so "the answer first" is a fact about the layout
+  // rather than a sort key that could be outranked by a page.
+  //
+  // WITHIN a rank, source order is preserved — `items` is already built
+  // in a deliberate order and re-sorting inside a rank would scramble
+  // it. `Array.prototype.sort` is stable in every engine this app ships
+  // to, so a stable key is all that is needed.
+  const visibleItems = useMemo(() => {
+    const sorted = items
+      .map((item, order) => ({ item, order }))
+      // Rank first, SOURCE ORDER second. `Array.prototype.sort` is
+      // stable in every engine this app ships to, but the tiebreak is
+      // written out rather than relied on: a sort whose correctness
+      // depends on an unstated engine property is a sort that reorders
+      // itself the day someone swaps the comparator.
+      .sort(
+        (a, b) =>
+          (FAMILY_RANK[a.item.family] ?? FAMILY_RANK_DEFAULT) -
+            (FAMILY_RANK[b.item.family] ?? FAMILY_RANK_DEFAULT) || a.order - b.order,
+      )
+      .slice(0, MAX_VISIBLE_ROWS)
+      .map((r) => r.item);
+
+    // ── DISAMBIGUATION, OVER WHAT ACTUALLY RENDERS ──────────────────
+    //
+    // The concept catalog carries two "Cash Conversion Cycle", two
+    // "EBITDA", two "DSCR". A row gets its category as an INLINE
+    // qualifier only when another row THE READER CAN SEE wears the same
+    // label — which is why this runs here, after the cap, and not in
+    // the `items` memo where it used to run against a pool of 18.
+    //
+    // The group is still part of the collision key even though group
+    // HEADINGS no longer render: two rows with one label in two
+    // different families are told apart by their icon and their
+    // position, and qualifying them would print a category on rows that
+    // were never ambiguous.
     const byLabel = new Map<string, number>();
-    for (const item of visible) {
+    for (const item of sorted) {
       const key = `${item.group}\u0000${item.label.toLowerCase()}`;
       byLabel.set(key, (byLabel.get(key) ?? 0) + 1);
     }
-    for (const item of visible) {
+    for (const item of sorted) {
       if (item.qualifier) continue;
       const key = `${item.group}\u0000${item.label.toLowerCase()}`;
       if ((byLabel.get(key) ?? 0) < 2) continue;
       if (!item.searchText) continue;
       item.qualifier = item.searchText;
     }
-    return visible;
-    // Helpers referenced above (go/close/goToPeriod/onOpenAi/setTheme) are
-    // re-created per render but behaviorally constant — listing them would
-    // defeat the memo without changing results.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, groups, periods, categories, skus, companies, actionItems, resolvedTheme, locale, t, mod, orgKey]);
+    return sorted;
+  }, [items]);
 
   // ── THE RESTING JUMP ZONE IS GONE ──────────────────────────────────
   //
@@ -1020,19 +1215,26 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   }, [routed, actionItems, t, orgKey]);
 
   const primary: Primary = useMemo(() => {
-    if (activeIdx >= 0 && items[activeIdx]) {
-      return { kind: "row", item: items[activeIdx], index: activeIdx };
+    if (activeIdx >= 0 && visibleItems[activeIdx]) {
+      return { kind: "row", item: visibleItems[activeIdx], index: activeIdx };
     }
     const q = query.trim();
     if (!q) return { kind: "none" };
     const nav = exactNav ?? routerNav;
     if (nav && !askForced) return { kind: "nav", item: nav };
     return { kind: "ask", question: q };
-  }, [activeIdx, items, query, exactNav, routerNav, askForced]);
+  }, [activeIdx, visibleItems, query, exactNav, routerNav, askForced]);
 
   useEffect(() => {
-    if (activeIdx >= items.length) setActiveIdx(-1);
-  }, [items.length, activeIdx]);
+    // THE KEYBOARD OWNS WHAT RENDERS, NOT WHAT MATCHED.
+    //
+    // `items` is the candidate pool (18); `visibleItems` is the ranked
+    // 8 the reader can see. Bounding the selection on the POOL would let
+    // ArrowDown walk the highlight off the bottom of the list into rows
+    // that paint nowhere — a selected row the reader cannot see, and an
+    // Enter that opens something they never chose.
+    if (activeIdx >= visibleItems.length) setActiveIdx(-1);
+  }, [visibleItems.length, activeIdx]);
 
   // Keep the active row in view while arrowing.
   useEffect(() => {
@@ -1110,7 +1312,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setAskForced(false);
-      setActiveIdx((i) => Math.min(i + 1, items.length - 1));
+      setActiveIdx((i) => Math.min(i + 1, visibleItems.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       // ⌘K → ArrowUp on an empty box recalls the last question, the way
@@ -1134,10 +1336,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       setAskForced(true);
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      const q = query.trim();
-      close();
-      openAskCfoAi(q || undefined);
-      navigate(withPeriod("/chat"));
+      handOffQuestion(query);
     } else if (e.key === "Enter" && e.shiftKey) {
       // Newline — the field is a textarea precisely so a long question
       // can be composed here instead of in a different surface.
@@ -1147,17 +1346,6 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     }
   }
 
-  // ── rows ─────────────────────────────────────────────────────────────
-  //
-  // Grouped runs with 10px caps labels. The Ask row is gone, so there is
-  // no longer a wedged item splitting a group in two — the duplicate-key
-  // bug that shape used to cause went with it.
-  const grouped: { group: string; entries: { item: PaletteItem; idx: number }[] }[] = [];
-  items.forEach((item, idx) => {
-    const last = grouped[grouped.length - 1];
-    if (last && last.group === item.group) last.entries.push({ item, idx });
-    else grouped.push({ group: item.group, entries: [{ item, idx }] });
-  });
 
   /** ONE ROW, PAINTED BY `CapsulePaletteRow`.
    *
@@ -1322,7 +1510,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         testId={answerMode ? "capsule-followup" : "capsule-composer"}
         ariaLabel={t("capsuleEmpty.placeholder.aria")}
         activeDescendant={
-          activeIdx >= 0 && items[activeIdx] ? `palette-item-${activeIdx}` : undefined
+          activeIdx >= 0 && visibleItems[activeIdx]
+            ? `palette-item-${activeIdx}`
+            : undefined
         }
         focused={composerFocused}
         onFocusChange={setComposerFocused}
@@ -1567,14 +1757,34 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                   </>
                 ) : typing ? (
                   <>
-                    {/* Tier 0 — above the rows, before Enter. Local
-                        lookup only; nothing here reaches the network. */}
-                    <CapsuleTier0Preview
-                      answer={tier0}
-                      onOpen={() => enterAnswerMode(query.trim())}
-                    />
+                    {/* THE BEST ANSWER, FIRST — above the rows, before
+                        Enter, and local-only. Nothing in either branch
+                        reaches the network.
 
-                    {items.length === 0 ? (
+                        An ACCOUNT lookup gets its own card because it
+                        can say something a metric card has no equivalent
+                        of: the line's share of its own class. The two
+                        are mutually exclusive on `answer.shape`, stamped
+                        by the resolver rather than re-derived here from
+                        the query — one classification, one place. */}
+                    {tier0?.shape === "account" ? (
+                      <CapsuleAccountCard
+                        answer={tier0}
+                        onJump={jumpToSource}
+                        onOpen={
+                          tier0.refused
+                            ? undefined
+                            : () => enterAnswerMode(query.trim())
+                        }
+                      />
+                    ) : (
+                      <CapsuleTier0Preview
+                        answer={tier0}
+                        onOpen={() => enterAnswerMode(query.trim())}
+                      />
+                    )}
+
+                    {visibleItems.length === 0 ? (
                       /* NOT the old Ask row reborn. Prose was typed,
                          nothing in the app is called that, and the
                          answer is the ONLY thing on offer. It carries
@@ -1605,34 +1815,39 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                         </span>
                       </button>
                     ) : (
-                      grouped.map((g, gi) => (
-                        // The key carries the run index: one group label
-                        // can legitimately appear in two runs, and a bare
-                        // label key made React reconcile the list wrongly.
-                        <div key={`${g.group}-${gi}`}>
-                          <div
-                            data-testid="capsule-section-label"
-                            className={`px-4 pb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft ${
-                              gi === 0 ? "pt-1" : "pt-5"
-                            }`}
-                          >
-                            {g.group}
-                          </div>
-                          <ul>
-                            {g.entries.map(({ item, idx }) => (
-                              <li key={item.id}>{renderRow(item, idx)}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))
+                      /* ONE FLAT LIST. No group headings — see the
+                         `visibleItems` memo for why the four category
+                         labels went, and where the ordering they used to
+                         imply now lives. `data-idx` is the index in THIS
+                         list, which is also what the keyboard walks. */
+                      <ul data-testid="capsule-rows">
+                        {visibleItems.map((item, idx) => (
+                          <li key={item.id}>{renderRow(item, idx)}</li>
+                        ))}
+                      </ul>
                     )}
                   </>
                 ) : (
-                  /* THE RESTING STATE — context line, then up to three
-                     question chips. Nothing else. */
+                  /* THE RESTING BRIEF — pulse line, fact tiles, up to
+                     three question chips. Nothing else. */
                   <CapsuleEmptyState
                     onPick={(q) => {
                       setQuery(q);
+                      inputRef.current?.focus();
+                    }}
+                    facts={restFacts}
+                    onJumpToFact={jumpToSource}
+                    /* PICKING A TILE NEVER SENDS. It types the metric's
+                       own name into the composer, exactly as picking a
+                       question chip does — and because that name is a
+                       term the fact index already knows, Tier 0 resolves
+                       it on the next render and the reader gets the same
+                       figure with the interpretation offered beside it.
+                       The label is the LOCALISED one, so a Romanian
+                       reader gets a Romanian term, which the index
+                       indexes too. */
+                    onPickFact={(fact) => {
+                      setQuery(metricLabel(t, fact.factKey, fact.label));
                       inputRef.current?.focus();
                     }}
                     onFixUnattached={(periodId) => {

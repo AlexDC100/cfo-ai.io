@@ -35,6 +35,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Header, HTTPException
 
 from . import _supabase
+# IDENTITY (FC1x, critic D5, 2026-09-05). `_user_id_from_jwt` resolves the
+# caller through `SupabaseClient.get_user` → `engine.api._jwt.verified_identity`
+# (ES256 against Supabase's JWKS; 401 on a bad signature, 503 with no key).
+# Until then it was an unverified payload decode, and since BOTH routes
+# below read and write `dashboard_configs` through the SERVICE ROLE keyed
+# on that id — nothing here ever sends the bearer to PostgREST — a forged
+# `sub` read and overwrote any user's layout. The verifier IS the wall;
+# the rows stay keyed on the verified user_id only (self-scoped).
 from ._billing import _require_jwt, _user_id_from_jwt
 
 _TABLE = "dashboard_configs"

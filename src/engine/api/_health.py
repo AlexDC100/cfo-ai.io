@@ -18,6 +18,7 @@ actually load?" needs a docker exec. Now it's one curl.
 from __future__ import annotations
 
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -138,33 +139,127 @@ def _check_dio_persistence() -> Dict[str, Any]:
                 "warning": f"Could not read DIO persistence state: {type(exc).__name__}"}
 
 
+# ── The probe is memoised. It is ANONYMOUS. ─────────────────────────────
+#
+# Every hit ran a Supabase round-trip AND a Stripe Balance.retrieve AND
+# (through _check_fx_rates) a possible BNR fetch. MEASURED live on
+# https://cfo-ai.io 2026-09-05: 3.9 s per call. Anonymous, unlimited, and
+# amplifying — one curl loop was three upstreams' worth of load and, on
+# Stripe, requests against a rate limit that real checkouts share.
+#
+# 60 s is chosen against the consumer, not invented: the uptime monitor
+# this endpoint exists for polls at 60 s or slower, so a memo of one
+# window never hides a failure from it for longer than one missed poll,
+# while any burst above that rate costs nothing extra. A cached answer
+# says so (`"cached": true`) so an operator reading it by hand is never
+# misled about how fresh it is.
+_HEALTH_TTL_SECONDS = 60.0
+_HEALTH_CACHE: Dict[str, Any] = {"body": None, "status": 200, "at": 0.0}
+_HEALTH_LOCK = threading.Lock()
+
+
+def reset_health_cache() -> None:
+    """Drop the memo. Tests only; there is no route that calls this."""
+    with _HEALTH_LOCK:
+        _HEALTH_CACHE["body"] = None
+        _HEALTH_CACHE["status"] = 200
+        _HEALTH_CACHE["at"] = 0.0
+
+
+def _observability_state() -> Dict[str, Any]:
+    try:
+        from ._observability import state
+        return state()
+    except Exception as exc:  # noqa: BLE001
+        return {"configured": False, "active": False,
+                "reason": "unavailable: %s" % type(exc).__name__}
+
+
+def _country_packs() -> Dict[str, Any]:
+    """The startup gate's registry, surfaced. A container that came up
+    with no accounting pack registered cannot process a trial balance."""
+    try:
+        from engine.core.country_pack_registry import registered_country_codes
+        codes = sorted(registered_country_codes())
+        return {"ok": bool(codes), "codes": codes}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": type(exc).__name__}
+
+
+def _egress_ledgers() -> Dict[str, Any]:
+    """Per-provider outbound counters, when the public surface is mounted.
+    Absent (not zero) when it is walled — ABSENT ≠ ZERO."""
+    if not _public_markets_enabled():
+        return {"available": False, "reason": "public markets surface walled"}
+    try:
+        from engine.public import egress_ledger
+        snap = egress_ledger.snapshot()  # type: ignore[attr-defined]
+        return {"available": True, "ledgers": snap}
+    except Exception as exc:  # noqa: BLE001
+        return {"available": False, "reason": type(exc).__name__}
+
+
+def _public_markets_enabled() -> bool:
+    return os.environ.get("PUBLIC_MARKETS_ENABLED", "").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def _build_body() -> Dict[str, Any]:
+    # DB is the only check whose failure means "container should be
+    # restarted, traffic should be drained". Stripe/FX are warnings —
+    # billing returns 503 on its own, reports still render with stale
+    # FX. Keep the 503 trigger narrow.
+    checks = {
+        "db": _check_db(),
+        "stripe": _check_stripe(),
+        "fx_rates": _check_fx_rates(),
+        "dio_persistence": _check_dio_persistence(),
+    }
+    critical_ok = checks["db"]["ok"]
+    return {
+        "ok": critical_ok,
+        "mode": _detect_mode(),
+        "version": os.environ.get("GIT_SHA", "unknown"),
+        "checks": checks,
+        "country_packs": _country_packs(),
+        "public_markets": {
+            "enabled": _public_markets_enabled(),
+            "flag": "PUBLIC_MARKETS_ENABLED",
+        },
+        "egress": _egress_ledgers(),
+        "sentry": _observability_state(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def build_router() -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/health")
     def api_health() -> JSONResponse:
-        # DB is the only check whose failure means "container should be
-        # restarted, traffic should be drained". Stripe/FX are warnings —
-        # billing returns 503 on its own, reports still render with stale
-        # FX. Keep the 503 trigger narrow.
-        checks = {
-            "db": _check_db(),
-            "stripe": _check_stripe(),
-            "fx_rates": _check_fx_rates(),
-            "dio_persistence": _check_dio_persistence(),
-        }
-        # DB is the only hard-503 trigger — Stripe/FX/DIO are warnings.
+        import time as _time
+
+        now = _time.time()
+        with _HEALTH_LOCK:
+            cached = _HEALTH_CACHE.get("body")
+            at = _HEALTH_CACHE.get("at") or 0.0
+            if cached is not None and (now - at) < _HEALTH_TTL_SECONDS:
+                body = dict(cached)
+                body["cached"] = True
+                body["cache_age_s"] = round(now - at, 1)
+                return JSONResponse(body, status_code=_HEALTH_CACHE["status"])
+
+        body = _build_body()
         # `degraded` makes the rollup `ok=false` so monitoring can alert
         # without taking the container out of rotation.
-        critical_ok = checks["db"]["ok"]
-
-        body = {
-            "ok": critical_ok,
-            "mode": _detect_mode(),
-            "version": os.environ.get("GIT_SHA", "unknown"),
-            "checks": checks,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        return JSONResponse(body, status_code=200 if critical_ok else 503)
+        status_code = 200 if body["ok"] else 503
+        with _HEALTH_LOCK:
+            _HEALTH_CACHE["body"] = body
+            _HEALTH_CACHE["status"] = status_code
+            _HEALTH_CACHE["at"] = now
+        fresh = dict(body)
+        fresh["cached"] = False
+        fresh["cache_age_s"] = 0.0
+        return JSONResponse(fresh, status_code=status_code)
 
     return router

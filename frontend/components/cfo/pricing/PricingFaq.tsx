@@ -24,10 +24,16 @@ const FAQ: FaqItem[] = [
   {
     testId: "faq-what-counts",
     q: "What counts as a document?",
+    // 2026-09-06 — the earlier answer listed "public filing, invoice
+    // export, or inventory report" as things a document can be. In the
+    // registry `public_records` is hidden and `upload_invoice` /
+    // `upload_inventory` are coming_soon, so three of the five examples
+    // named ingest this release does not run. The list now names only
+    // what the pipeline accepts today, and says where the rest sits.
     a:
-      "A document is one uploaded file that CFO AI analyzes, such as a " +
-      "trial balance, balance sheet, public filing, invoice export, or " +
-      "inventory report.",
+      "A document is one uploaded file that CFO AI analyzes — a trial " +
+      "balance, a balance sheet, a P&L, or an annual report. Invoice and " +
+      "inventory ingest are on the roadmap and are not part of this release.",
   },
   {
     testId: "faq-quota-hit",
@@ -54,9 +60,15 @@ const FAQ: FaqItem[] = [
   {
     testId: "faq-chat-cap",
     q: "Are Ask CFO AI messages capped?",
+    // 2026-09-06 — the previous answer ("The app shows your daily and
+    // monthly usage") described a surface this release does not serve:
+    // the registry has `chat_page` hidden, so /chat renders "Not in this
+    // release". The answer now states the position instead of implying
+    // chat is live.
     a:
-      "Yes. Chat usage is capped to control AI cost and keep pricing fair. " +
-      "The app shows your daily and monthly usage.",
+      "Ask CFO AI is available after launch. When it opens, each plan " +
+      "carries a daily and a monthly message cap, shown in the app. Chat " +
+      "is capped rather than metered — it is never billed per message.",
   },
   {
     testId: "faq-billing-not-wired",

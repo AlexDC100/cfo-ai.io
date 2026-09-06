@@ -34,6 +34,8 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
+import { LEGAL_ENTITY, legalDocPath } from "@/lib/legalConfig";
+import { openCookieSettings } from "@/components/cfo/CookieBanner";
 import { MARQUEE } from "@/lib/markets";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
@@ -44,8 +46,6 @@ const VALID_PAGES: Page[] = ["home", "pricing", "contact", "legal"];
 // Legacy acts/hashes (privacy/cookies/terms) resolve to legal + a scroll.
 type LegalDoc = "privacy" | "cookies" | "terms";
 const LEGAL_DOCS: LegalDoc[] = ["privacy", "cookies", "terms"];
-
-const CONSENT_KEY = "cfoai_consent";
 
 // ── Scoped design system + hover rules ────────────────────────────────────
 const SITE_CSS = `
@@ -747,108 +747,19 @@ const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
   ${pricingGrid(L, cycle)}
 </main>`;
 
-function legalHeader(title: string, note?: string) {
-  return `
-  <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-soft)">Legal</div>
-  <h1 style="margin-top:12px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">${title}</h1>
-  <p style="margin-top:10px;font-size:13px;color:var(--ink-mute)">Last updated: 20 July 2026</p>
-  ${note ? `<div style="margin-top:14px;padding:16px 18px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;font-size:13px;color:var(--ink-mute)">${note}</div>` : ""}`;
-}
-const h2 = (t: string) => `<h2 style="font-family:var(--serif);font-weight:400;font-size:24px;margin:34px 0 10px;color:var(--ink)">${t}</h2>`;
-
-const PRIVACY = `
-<section id="legal-privacy" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
-  ${legalHeader("Privacy Policy", `This template is GDPR-oriented and reflects CFO AI's actual infrastructure. Replace every <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholder with your registered company details and have it reviewed by a qualified lawyer before publishing.`)}
-  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
-    ${h2("1. Who we are")}
-    <p>CFO AI ("we", "us", "our") operates the cfo-ai.io platform. The data controller is <strong style="color:var(--ink)">[Company Legal Name]</strong>, registered at <strong style="color:var(--ink)">[Registered Address, City, Country]</strong>, company registration number <strong style="color:var(--ink)">[Reg. No.]</strong>, VAT <strong style="color:var(--ink)">[VAT No.]</strong>. For any privacy question, contact <a href="mailto:privacy@cfo-ai.io">privacy@cfo-ai.io</a>.</p>
-    ${h2("2. What data we process")}
-    <p>We process the following categories of personal data:</p>
-    <ul style="padding-left:20px;color:var(--ink-soft)">
-      <li><strong style="color:var(--ink-2)">Account data</strong> — name, email address, company name, password (stored hashed), and subscription status.</li>
-      <li><strong style="color:var(--ink-2)">Financial documents you upload</strong> — trial balances, balance sheets, P&amp;L statements and related files, together with the figures extracted from them.</li>
-      <li><strong style="color:var(--ink-2)">Usage data</strong> — pages viewed, features used, uploads and AI messages, for security, billing and product improvement.</li>
-      <li><strong style="color:var(--ink-2)">Technical data</strong> — IP address, browser type, device information and cookie identifiers.</li>
-    </ul>
-    ${h2("3. How and why we use it (legal bases)")}
-    <ul style="padding-left:20px;color:var(--ink-soft)">
-      <li><strong style="color:var(--ink-2)">To provide the service</strong> (Art. 6(1)(b) GDPR — contract): analysing your documents, generating reports and running your account.</li>
-      <li><strong style="color:var(--ink-2)">To bill you</strong> (contract / legal obligation): managing subscriptions and issuing invoices.</li>
-      <li><strong style="color:var(--ink-2)">To secure and improve the service</strong> (Art. 6(1)(f) — legitimate interests): fraud prevention, debugging and analytics.</li>
-      <li><strong style="color:var(--ink-2)">Optional cookies &amp; communications</strong> (Art. 6(1)(a) — consent): analytics and marketing cookies, and product emails you can opt out of at any time.</li>
-    </ul>
-    <p>We do <strong style="color:var(--ink)">not</strong> sell your personal data, and we do not use your uploaded financial documents to train third-party AI models.</p>
-    ${h2("4. Sub-processors")}
-    <p>We rely on the following processors, each bound by a data-processing agreement:</p>
-    <div style="overflow-x:auto;margin-top:8px">
-      <table style="width:100%;border-collapse:collapse;font-size:13.5px">
-        <thead><tr style="text-align:left;color:var(--ink-mute)"><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Processor</th><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Purpose</th><th style="padding:8px 10px;border-bottom:1px solid var(--rule)">Region</th></tr></thead>
-        <tbody style="color:var(--ink-soft)">
-          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Supabase</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Database, authentication &amp; file storage</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU (Ireland)</td></tr>
-          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Anthropic</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">AI analysis &amp; narrative generation</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">USA (SCCs)</td></tr>
-          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Stripe</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Payment processing</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU / USA (SCCs)</td></tr>
-          <tr><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Resend</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">Transactional email</td><td style="padding:8px 10px;border-bottom:1px solid var(--rule-soft)">EU / USA (SCCs)</td></tr>
-          <tr><td style="padding:8px 10px">Hostinger</td><td style="padding:8px 10px">Application hosting</td><td style="padding:8px 10px">EU</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p style="margin-top:10px">Where data is transferred outside the EEA, we use the European Commission's Standard Contractual Clauses (SCCs) as the transfer mechanism.</p>
-    ${h2("5. How long we keep it")}
-    <p>Uploaded documents and derived analyses are retained for the history-retention window of your plan (12 to 60 months) and deleted or anonymised thereafter, unless a longer period is required by law (e.g. tax records). You can delete documents at any time from your workspace.</p>
-    ${h2("6. Your rights")}
-    <p>Under the GDPR you have the right to access, rectify, erase, restrict and port your data, to object to processing, and to withdraw consent at any time. To exercise any right, email <a href="mailto:privacy@cfo-ai.io">privacy@cfo-ai.io</a>. You also have the right to lodge a complaint with your supervisory authority — in Romania, the <strong style="color:var(--ink)">ANSPDCP</strong> (dataprotection.ro).</p>
-    ${h2("7. Cookies")}
-    <p>We use strictly necessary cookies plus optional analytics and marketing cookies subject to your consent. See our <button data-act="cookies" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie Policy</button>, and change your choices anytime via <button data-act="consent" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Cookie settings</button>.</p>
-    ${h2("8. Changes")}
-    <p>We may update this policy from time to time. Material changes will be notified by email or an in-app notice. The "last updated" date above always reflects the current version.</p>
-  </div>
-</section>`;
-
-const COOKIES = `
-<section id="legal-cookies" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
-  ${legalHeader("Cookie Policy")}
-  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
-    <p>Cookies and similar technologies (including browser <em>localStorage</em>) are small pieces of data stored on your device. We use them to keep you signed in, remember your preferences, and — only with your consent — to understand usage and measure marketing.</p>
-    ${h2("Categories we use")}
-    <div style="display:flex;flex-direction:column;gap:14px;margin-top:6px">
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Strictly necessary</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--brand);border:1px solid rgba(75,191,168,.4);padding:3px 9px;border-radius:999px">Always on</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Authentication session, security, load balancing and your cookie-consent choice. The site cannot function without these, so they do not require consent.</p></div>
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Analytics</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Help us understand which features are used so we can improve the product. Set only if you accept analytics cookies.</p></div>
-      <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><strong style="color:var(--ink)">Marketing</strong><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-mute);border:1px solid var(--rule-strong);padding:3px 9px;border-radius:999px">Optional</span></div><p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">Measure the effectiveness of our campaigns and show relevant messaging. Set only if you accept marketing cookies.</p></div>
-    </div>
-    ${h2("Managing your choices")}
-    <p>You gave (or declined) consent when you first visited. You can change your preferences at any time using the button below or via "Cookie settings" in the footer. You can also block or delete cookies in your browser settings.</p>
-    <button data-act="consent" class="btn-grad" style="margin-top:8px;display:inline-flex;align-items:center;height:44px;padding:0 22px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">Open cookie settings</button>
-  </div>
-</section>`;
-
-const TERMS = `
-<section id="legal-terms" style="max-width:960px;margin:0 auto;padding:48px 24px 8px;scroll-margin-top:88px">
-  ${legalHeader("Terms of Service", `Replace <strong style="color:var(--ink-soft)">[bracketed]</strong> placeholders with your legal entity and governing-law details, and have these terms reviewed by a lawyer before publishing.`)}
-  <div style="margin-top:30px;font-size:14.5px;color:var(--ink-2);line-height:1.7">
-    ${h2("1. Agreement")}
-    <p>These Terms govern your use of CFO AI, operated by <strong style="color:var(--ink)">[Company Legal Name]</strong>. By creating an account or using the service, you agree to these Terms and to our <button data-act="privacy" style="background:none;border:none;padding:0;color:var(--brand);cursor:pointer;font:inherit">Privacy Policy</button>.</p>
-    ${h2("2. The service")}
-    <p>CFO AI provides AI-assisted financial analysis, benchmarking and reporting from data you upload and from public-company sources. Features and limits depend on your subscription plan.</p>
-    ${h2("3. Accounts")}
-    <p>You are responsible for the accuracy of your account information, for keeping your credentials secure, and for all activity under your account. You must be at least 18 and authorised to accept these Terms on behalf of your organisation.</p>
-    ${h2("4. Subscriptions &amp; billing")}
-    <p>Paid plans are billed in advance on a monthly or annual basis. Trials convert to a paid subscription unless cancelled before they end. Fees are non-refundable except where required by law. Overage documents are charged per-document at the rate shown and confirmed before processing. We may change pricing with reasonable notice.</p>
-    ${h2("5. Acceptable use")}
-    <p>You may not misuse the service, including by attempting to breach security, reverse-engineering the platform, reselling access without authorisation, or uploading data you have no right to process. You retain ownership of the data you upload and grant us a limited licence to process it solely to provide the service.</p>
-    ${h2("6. Not professional advice")}
-    <p>CFO AI produces AI-assisted analysis and decision support. It is <strong style="color:var(--ink)">not</strong> financial, investment, legal, tax or accounting advice. Outputs may contain errors or approximations, which we flag where identified. Final decisions remain with you and your management team, and you should consult qualified professionals before acting.</p>
-    ${h2("7. Intellectual property")}
-    <p>The platform, its software and its branding are owned by <strong style="color:var(--ink)">[Company Legal Name]</strong>. These Terms grant you a limited, non-exclusive, non-transferable right to use the service during your subscription.</p>
-    ${h2("8. Disclaimers &amp; liability")}
-    <p>The service is provided "as is" to the fullest extent permitted by law. To the maximum extent permitted, our total liability arising out of the service is limited to the fees you paid in the 12 months preceding the claim. Nothing in these Terms excludes liability that cannot be excluded by law.</p>
-    ${h2("9. Termination")}
-    <p>You may cancel at any time from your account settings. We may suspend or terminate access for breach of these Terms. On termination, your data is handled as described in the Privacy Policy.</p>
-    ${h2("10. Governing law")}
-    <p>These Terms are governed by the laws of <strong style="color:var(--ink)">[Country/Jurisdiction]</strong>, and disputes are subject to the exclusive jurisdiction of the courts of <strong style="color:var(--ink)">[City, Country]</strong>, without prejudice to your mandatory consumer rights.</p>
-    ${h2("11. Contact")}
-    <p>Questions about these Terms? Email <a href="mailto:legal@cfo-ai.io">legal@cfo-ai.io</a>.</p>
-  </div>
-</section>`;
+// THE LEGAL TEXT USED TO LIVE HERE, AND IT NO LONGER DOES.
+//
+// Until 2026-09-06 this file carried its own hand-written HTML copies of the
+// Privacy Policy, the Cookie Policy and the Terms — roughly 150 lines of
+// prose with `[Company Legal Name]` / `[Registered Address, City, Country]`
+// placeholders still in them, published live at `/#/legal`. That was a
+// SECOND version of three documents with legal force, drifting silently from
+// `lib/legalTerms.ts`, which was itself a third.
+//
+// All of it is deleted. The owner's reviewed text (content/legal/*.md) is
+// rendered once, at /privacy, /terms and /cookies, and the marketing legal
+// page below is now an index that links to those URLs. One document, one
+// address, one rendering.
 
 // Contact page — real form POSTing to /api/contact-sales (persists to
 // contact_sales_leads + notifies). Rendered as a function so typed values
@@ -890,7 +801,7 @@ function contactMain(v: ContactValues, status: ContactStatus, L: LandingStrings)
     <a href="mailto:sales@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.sales.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">sales@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.sales.blurb}</p></a>
     <a href="mailto:support@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.support.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">support@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.support.blurb}</p></a>
     <a href="mailto:privacy@cfo-ai.io" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;color:inherit"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.privacy.kicker}</div><div style="margin-top:8px;font-size:16px;color:var(--brand)">privacy@cfo-ai.io</div><p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft)">${L.contact.privacy.blurb}</p></a>
-    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.office}</div><div style="margin-top:8px;font-size:14px;color:var(--ink-2)">[Company Legal Name]<br>[Registered Address]<br>[City, Country]</div></div>
+    <div style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px"><div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.contact.office}</div><div style="margin-top:8px;font-size:14px;color:var(--ink-2)">${esc(LEGAL_ENTITY.denumire ?? "")}<br>${esc(LEGAL_ENTITY.sediu ?? "")}<br>CUI ${esc(LEGAL_ENTITY.cui ?? "")} · ${esc(LEGAL_ENTITY.regCom ?? "")}</div></div>
   </div>
 </main>`;
 }
@@ -898,31 +809,54 @@ function contactMain(v: ContactValues, status: ContactStatus, L: LandingStrings)
 // Legal — ONE page holding all three documents (Privacy / Cookies / Terms)
 // as stacked sections, with a jump-nav at the top. The old standalone pages
 // were folded in here; legacy acts/hashes still land on the right section.
-const LEGAL_DIVIDER = `
-  <div style="max-width:820px;margin:32px auto 8px;padding:0 24px"><div style="height:1px;background:var(--rule)"></div></div>`;
-
 const legalMain = (L: LandingStrings) => `
-<main style="padding-bottom:40px">
+<main style="padding-bottom:64px">
   <div style="max-width:820px;margin:0 auto;padding:64px 24px 0;text-align:center">
     ${eyebrow(L.legal.eyebrow)}
     <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-.02em">${L.legal.title}</h1>
     <p style="margin-top:14px;font-size:16px;color:var(--ink-soft)">${L.legal.subtitle}</p>
-    <div style="margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      ${[
-        ["privacy", L.legal.privacy],
-        ["cookies", L.legal.cookies],
-        ["terms", L.legal.terms],
-      ].map(([act, label]) => `
-      <button data-act="${act}" class="hv-brand" style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:13.5px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${label}</button>`).join("")}
-    </div>
-    ${L.legal.englishNote ? `<p style="margin-top:16px;font-size:12.5px;color:var(--ink-mute)">${L.legal.englishNote}</p>` : ""}
   </div>
-  ${PRIVACY}
-  ${LEGAL_DIVIDER}
-  ${COOKIES}
-  ${LEGAL_DIVIDER}
-  ${TERMS}
+  <div style="max-width:820px;margin:36px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+    ${[
+      ["privacy", L.legal.privacy],
+      ["cookies", L.legal.cookies],
+      ["terms", L.legal.terms],
+    ].map(([act, label]) => `
+    <button data-act="${act}" class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:16px;padding:24px;display:block;text-align:left;color:inherit;cursor:pointer;font:inherit;width:100%">
+      <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">Document</div>
+      <div style="margin-top:8px;font-size:17px;color:var(--ink)">${label}</div>
+      <div style="margin-top:8px;font-size:12.5px;color:var(--brand)">cfo-ai.io/${act}</div>
+    </button>`).join("")}
+  </div>
+  <div style="max-width:820px;margin:28px auto 0;padding:0 24px;font-size:12.5px;color:var(--ink-mute);line-height:1.7">
+    ${esc(LEGAL_ENTITY.denumire ?? "")} · CUI ${esc(LEGAL_ENTITY.cui ?? "")} · ${esc(LEGAL_ENTITY.regCom ?? "")}<br>
+    ${esc(LEGAL_ENTITY.sediu ?? "")}
+  </div>
 </main>`;
+
+/**
+ * The company-identification block, on the marketing site.
+ *
+ * A Romanian company has to state its name, registration number and
+ * registered office on its published communications (Law 26/1990 art. 29).
+ * Until now this footer named no legal entity at all — only "CFO AI", which
+ * is a product name, not an operator. The values come from
+ * `lib/legalConfig`'s LEGAL_ENTITY, i.e. from content/legal/entity.json, the
+ * same file the app footer and the prerendered legal pages read; the block is
+ * rendered here as an HTML string only because this whole page is.
+ */
+function legalIdentityBlock() {
+  const e = LEGAL_ENTITY;
+  const identity = [e.denumire, e.cui ? `CUI ${e.cui}` : null, e.regCom]
+    .filter(Boolean)
+    .map((x) => esc(String(x)))
+    .join(" \u00b7 ");
+  return `
+    <div style="margin-top:14px;font-size:11.5px;line-height:1.7;color:var(--ink-mute)">
+      <div style="font-family:var(--mono)">${identity}</div>
+      <div>${esc(e.sediu ?? "")}</div>
+    </div>`;
+}
 
 function footer(year: number, L: LandingStrings, langCode: string) {
   const flink = (act: string, label: string) =>
@@ -976,37 +910,18 @@ function footer(year: number, L: LandingStrings, langCode: string) {
       ${langSwitcher}
       <span>${L.footer.madeIn}</span>
     </div>
+    ${legalIdentityBlock()}
   </div>
 </footer>`;
 }
 
-function consentModal(expanded: boolean, analytics: boolean, marketing: boolean, L: LandingStrings) {
-  const on = "var(--brand-d)", off = "var(--rule-strong)";
-  const track = (v: boolean) => (v ? on : off);
-  const knob = (v: boolean) => (v ? "21px" : "3px");
-  const toggleRow = (act: string, title: string, desc: string, v: boolean) => `
-      <button data-act="${act}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${title}</div><div style="font-size:12px;color:var(--ink-mute)">${desc}</div></div><span style="width:42px;height:24px;border-radius:999px;flex-shrink:0;position:relative;transition:background .15s;background:${track(v)}"><span style="position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:var(--ink);transition:left .15s;left:${knob(v)}"></span></span></button>`;
-  return `
-<div style="position:fixed;inset:0;z-index:90;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);padding:0 16px 16px">
-  <div style="width:100%;max-width:640px;border:1px solid var(--rule-strong);background:var(--surface);border-radius:18px;padding:24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)">
-    <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;background:var(--brand);display:inline-block"></span><strong style="font-size:16px;color:var(--ink)">${L.consent.title}</strong></div>
-    <p style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">${L.consent.body.replace("{cookiePolicy}", inlineLink("cookies", L.legal.cookies))}</p>
-    ${expanded ? `
-    <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--rule);background:var(--bg-2);border-radius:12px;padding:14px 16px"><div><div style="font-size:13.5px;font-weight:600;color:var(--ink)">${L.consent.necessary}</div><div style="font-size:12px;color:var(--ink-mute)">${L.consent.necessaryDesc}</div></div><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand)">${L.consent.alwaysOn}</span></div>
-      ${toggleRow("consent:analytics", L.consent.analytics, L.consent.analyticsDesc, analytics)}
-      ${toggleRow("consent:marketing", L.consent.marketing, L.consent.marketingDesc, marketing)}
-    </div>` : ""}
-    <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:10px">
-      <button data-act="consent:acceptAll" class="btn-grad" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px;border:none;cursor:pointer;font-family:inherit">${L.consent.acceptAll}</button>
-      <button data-act="consent:rejectAll" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.consent.rejectAll}</button>
-      ${expanded
-        ? `<button data-act="consent:save" class="hv-brand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:var(--surface-hi);border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s">${L.consent.save}</button>`
-        : `<button data-act="consent:expand" style="flex:1;min-width:130px;height:44px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-soft);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit">${L.consent.customise}</button>`}
-    </div>
-  </div>
-</div>`;
-}
+// THE COOKIE MODAL USED TO LIVE HERE. It was deleted on 2026-09-06 and
+// replaced by <CookieBanner /> (components/cfo/CookieBanner), mounted once in
+// App.tsx so EVERY route gets it — this one only ever covered the marketing
+// home page, so anyone landing straight on /pricing, /login or a shared
+// /dashboard link was never asked at all. It also offered a "Marketing"
+// toggle, a category the published Cookie Policy does not describe.
+// The footer's "Cookie settings" link now opens the shared banner.
 
 // Sign-out confirmation — mirrors the consent modal's shell.
 const signoutModal = (L: LandingStrings) => `
@@ -1072,30 +987,18 @@ export default function Landing() {
       initials: initials ?? "?",
     };
   }, [isAuthenticated, displayName, initials, user]);
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [consentExpanded, setConsentExpanded] = useState(false);
-  const [analytics, setAnalytics] = useState(false);
-  const [marketing, setMarketing] = useState(false);
-
-  // First-visit consent gate + hash deep-linking (#/pricing etc.).
+  // Cookie consent is no longer this page's business — <CookieBanner /> in
+  // App.tsx owns the prompt and lib/cookieConsent owns the `cfoai_consent`
+  // key it always wrote to. What remains here is hash deep-linking.
   useEffect(() => {
-    let hasConsent = false;
-    try {
-      const saved = localStorage.getItem(CONSENT_KEY);
-      if (saved) {
-        hasConsent = true;
-        const p = JSON.parse(saved);
-        setAnalytics(!!p.analytics);
-        setMarketing(!!p.marketing);
-      }
-    } catch { /* private mode */ }
-    if (!hasConsent) setConsentOpen(true);
-
     const applyHash = () => {
       const h = (location.hash || "").replace(/^#\/?/, "").trim();
       if ((LEGAL_DOCS as string[]).includes(h)) {
-        // Legacy deep links (#/privacy etc.) → the combined legal page.
-        setPage("legal");
+        // Legacy deep links (#/privacy etc.) now REDIRECT to the real URL.
+        // Anyone holding one of these — an old email, a bookmark, a link in
+        // someone's compliance folder — lands on the published document
+        // rather than on a page section that no longer exists.
+        navigate(legalDocPath(h as LegalDoc), { replace: true });
         return;
       }
       setPage(VALID_PAGES.includes(h as Page) ? (h as Page) : "home");
@@ -1110,11 +1013,6 @@ export default function Landing() {
     try { location.hash = p === "home" ? "" : `#/${p}`; } catch { /* noop */ }
     try { window.scrollTo(0, 0); } catch { /* noop */ }
   }, []);
-
-  const persist = (a: boolean, m: boolean) => {
-    try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ analytics: a, marketing: m, ts: Date.now() })); }
-    catch { /* private mode */ }
-  };
 
   const scrollTo = (id: string) => {
     setPage("home");
@@ -1204,27 +1102,20 @@ export default function Landing() {
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }
-    // Privacy / Cookies / Terms are sections of the combined legal page.
+    // Privacy / Cookies / Terms each have a REAL URL now (/privacy, /terms,
+    // /cookies — prerendered at build time, see vite.config.ts). They used to
+    // be anchors inside this page's own copy of the documents; that copy is
+    // gone. react-router navigation, not a full load, so the marketing site
+    // stays a single-page app.
     if ((LEGAL_DOCS as string[]).includes(act)) {
       e.preventDefault();
-      goPage("legal");
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          document.getElementById(`legal-${act}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-      });
+      navigate(legalDocPath(act as LegalDoc));
       return;
     }
     if (VALID_PAGES.includes(act as Page)) { e.preventDefault(); goPage(act as Page); return; }
     // Cookie-consent actions.
-    if (act === "consent") { e.preventDefault(); setConsentExpanded(true); setConsentOpen(true); return; }
-    if (act === "consent:expand") { e.preventDefault(); setConsentExpanded(true); return; }
-    if (act === "consent:analytics") { e.preventDefault(); setAnalytics((v) => !v); return; }
-    if (act === "consent:marketing") { e.preventDefault(); setMarketing((v) => !v); return; }
-    if (act === "consent:acceptAll") { e.preventDefault(); persist(true, true); setAnalytics(true); setMarketing(true); setConsentOpen(false); setConsentExpanded(false); return; }
-    if (act === "consent:rejectAll") { e.preventDefault(); persist(false, false); setAnalytics(false); setMarketing(false); setConsentOpen(false); setConsentExpanded(false); return; }
-    if (act === "consent:save") { e.preventDefault(); persist(analytics, marketing); setConsentOpen(false); setConsentExpanded(false); return; }
-  }, [navigate, goPage, analytics, marketing, mobileMenuOpen, user, signOut, submitContact]);
+    if (act === "consent") { e.preventDefault(); openCookieSettings(); return; }
+  }, [navigate, goPage, mobileMenuOpen, user, signOut, submitContact]);
 
   const langCode = (i18n.language || "en").slice(0, 2);
   const L = landingStringsFor(langCode);
@@ -1251,9 +1142,8 @@ export default function Landing() {
       : legalMain(L);
     return main
       + footer(year, L, langCode)
-      + (consentOpen ? consentModal(consentExpanded, analytics, marketing, L) : "")
       + (signOutOpen ? signoutModal(L) : "");
-  }, [account, page, L, langCode, contactStatus, signOutOpen, consentOpen, consentExpanded, analytics, marketing, billingCycle]);
+  }, [account, page, L, langCode, contactStatus, signOutOpen, billingCycle]);
 
   // The body innerHTML swap above replaces that subtree wholesale, so the
   // placeholder is a fresh node each time `bodyHtml` changes — re-find it
@@ -1360,7 +1250,7 @@ export function MarketingHeader({
     if (act === "burger") { setMobileMenuOpen((v) => !v); return; }
     if (act === "home") { navigate("/"); return; }
     if (VALID_PAGES.includes(act as Page)) { navigate(act === "home" ? "/" : `/#/${act}`); return; }
-    if ((LEGAL_DOCS as string[]).includes(act)) { navigate(`/#/${act}`); return; }
+    if ((LEGAL_DOCS as string[]).includes(act)) { navigate(legalDocPath(act as LegalDoc)); return; }
     if (act.startsWith("scroll:")) { navigate("/"); return; }
     if (act === "workspace") { navigate("/workspace"); return; }
     if (act === "signin") { navigate("/login?next=/"); return; }

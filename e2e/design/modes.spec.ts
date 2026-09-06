@@ -239,7 +239,7 @@ for (const theme of ["light", "dark"] as const) {
         await dismissPublicTestBanner(page);
 
         const results = await new AxeBuilder({ page })
-          .exclude('[data-testid="test-mode-banner"]')
+          .exclude('[data-testid="public-test-mode-banner"]')
           .analyze();
 
         // M6 inherited D1's shape, including its hole: a route that
@@ -326,7 +326,9 @@ test.describe("M6 — keyboard under Simple mode", () => {
 
   test("cmd+K opens the command palette (simple)", async ({ page }) => {
     await page.keyboard.press("Meta+k");
-    const palette = page.locator('[role="dialog"], [cmdk-root]');
+    const palette = page.locator('[role="dialog"]')  // The cmdk attribute half was dropped: that library is an UNUSED
+    // dependency (zero imports), so it matched nothing and quietly widened
+    // this locator to look tolerant.;
     const appeared = await palette
       .first()
       .waitFor({ state: "visible", timeout: 3000 })

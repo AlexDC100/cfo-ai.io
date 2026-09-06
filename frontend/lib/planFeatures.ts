@@ -12,130 +12,285 @@
 // marketing bullets around them. If a bullet ever needs to state a number,
 // read it from the config rather than hardcoding it here, so the two can't
 // disagree.
+//
+// ── 2026-09-06: EVERY BULLET NAMES ITS FEATURE ────────────────────────
+// A plan may only sell what the product serves. The registry
+// (`src/engine/api/_features.py` → GET /api/features/status →
+// `lib/features.ts`) is the one place that says whether a capability is
+// `active`, `coming_soon` or `hidden`; before this change the bullets were
+// bare strings, so three plans could go on selling "Benchmark
+// intelligence" and an "Ask CFO AI" message allowance after the registry
+// had switched `benchmarks` and `chat_page` to `hidden` — a paying
+// customer reached "Not in this release" for a billed line item.
+//
+// Each bullet now carries:
+//   · `featureKey` — the registry row the line names, or `null` when the
+//     line states a plan QUOTA or LIMIT rather than a gated capability
+//     (a document count, a workspace count). `null` is not an escape
+//     hatch: see the blind-spot note on the gate below.
+//   · `afterLaunch` — set ONLY when `featureKey` is not `active` today.
+//     The copy in BOTH languages must then carry the marker, so the line
+//     is never a bare present-tense claim.
+//   · `en` / `ro` — one object per line, so a Romanian bullet cannot
+//     exist without its English twin or without a key.
+//
+// Enforced by `frontend/lib/__tests__/pricingMatchesRegistry.test.tsx`,
+// which parses the real `_features.py` (not a hand-kept list) and reds
+// when a plan names a hidden, coming-soon or unknown feature, or when an
+// `afterLaunch` marker outlives the flip that made the feature active.
 
+import type { FeatureKey } from "@/lib/features";
 import type { PlanKey } from "@/lib/pricingConfig";
 
-interface PlanFeatureSet {
-  trial: string[];
-  intro: string[];
-  starter: string[];
-  solo: string[];
-  pro: string[];
-  multi: string[];
+/** Marker appended to a bullet whose feature is not `active` yet. The gate
+ *  asserts the rendered string contains it, so changing the wording here
+ *  and forgetting the gate is a red, not a silent drift. */
+export const AFTER_LAUNCH_MARKER_EN = "available after launch";
+export const AFTER_LAUNCH_MARKER_RO = "disponibil după lansare";
+
+export interface PlanFeatureBullet {
+  /** The registry row this line names. `null` = a plan quota/limit, not a
+   *  registry-gated capability. */
+  featureKey: FeatureKey | null;
+  /** Set when `featureKey` is not `active`; both `en` and `ro` must then
+   *  carry the marker above. */
+  afterLaunch?: true;
+  en: string;
+  ro: string;
 }
 
-const en: PlanFeatureSet = {
+type PlanFeatureTable = Record<PlanKey, PlanFeatureBullet[]>;
+
+// ─────────────────────────────────────────────────────────────────────
+// Why each key was chosen (measured 2026-09-06 against the tree, not
+// assumed):
+//   · document counts        → `upload_trial_balance` (active): the
+//     analysis a document buys is the feature; the count is the quota.
+//   · statement ingest       → `upload_financial_statement` (active).
+//     "invoices" and "public filings" were REMOVED from the ingest line:
+//     `upload_invoice` is `coming_soon` and `public_records` is `hidden`.
+//   · summary / ratios / risk→ `dashboard` (active) — these render on the
+//     dashboard's statement tabs.
+//   · benchmarks             → `benchmarks` (HIDDEN) → afterLaunch.
+//   · chat allowances        → `chat_page` (HIDDEN) → afterLaunch. The
+//     slide-over Ask CFO AI panel was deleted 2026-07-24, so every ask
+//     affordance in the app navigates to /chat, which <FeatureRoute
+//     featureKey="chat_page"> renders as PendingState. `ask_cfo_ai` is
+//     still `active` in the registry but has no reachable surface —
+//     backlogged, not silently used here to make the copy pass.
+//   · valuation / export / workspace counts → `null`: the Valuation and
+//     Export tabs (`lib/financialStatementTabs.ts`) and the /workspace
+//     route carry no registry gate at all, so there is no key to name.
+// ─────────────────────────────────────────────────────────────────────
+
+const PLAN_FEATURES: PlanFeatureTable = {
   // Retired from purchase (2026-08) — kept ONLY for legacy holders'
   // current-plan card. Never rendered on the pricing grid.
   starter: [
-    "5 financial documents / month",
-    "Romanian bilanț, balanță, invoices, public filings",
-    "CFO AI financial summary",
-    "Basic ratios and risk flags",
-    "PDF / HTML report export",
-    "Ask CFO AI: 10/day, 50/month",
+    {
+      featureKey: "upload_trial_balance",
+      en: "5 financial documents / month",
+      ro: "5 documente financiare / lună",
+    },
+    {
+      featureKey: "upload_financial_statement",
+      en: "Romanian bilanț, balanță de verificare, annual report",
+      ro: "Bilanț, balanță de verificare, raportare anuală",
+    },
+    {
+      featureKey: "dashboard",
+      en: "CFO AI financial summary",
+      ro: "Sinteză financiară CFO AI",
+    },
+    {
+      featureKey: "dashboard",
+      en: "Basic ratios and risk flags",
+      ro: "Indicatori de bază și semnale de risc",
+    },
+    {
+      featureKey: null,
+      en: "HTML and Excel report export",
+      ro: "Export raport HTML și Excel",
+    },
+    {
+      featureKey: "chat_page",
+      afterLaunch: true,
+      en: `Ask CFO AI: 10/day, 50/month — ${AFTER_LAUNCH_MARKER_EN}`,
+      ro: `Întreabă CFO AI: 10/zi, 50/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+    },
   ],
+
   // ── 2026-08 tier restructure. Numbers mirror THE TIER SPEC; when a
   //    bullet states a number it must match /api/pricing/config. ──────
   solo: [
-    "3 Romanian documents / month",
-    "Romanian bilanț, balanță, invoices, public filings",
-    "CFO AI financial summary",
-    "Full ratio and risk analysis",
-    "PDF / HTML report export",
-    "Ask CFO AI: 10/day, 50/month",
-    "1 workspace",
+    {
+      featureKey: "upload_trial_balance",
+      en: "3 Romanian documents / month",
+      ro: "3 documente românești / lună",
+    },
+    {
+      featureKey: "upload_financial_statement",
+      en: "Romanian bilanț, balanță de verificare, annual report",
+      ro: "Bilanț, balanță de verificare, raportare anuală",
+    },
+    {
+      featureKey: "dashboard",
+      en: "CFO AI financial summary",
+      ro: "Sinteză financiară CFO AI",
+    },
+    {
+      featureKey: "dashboard",
+      en: "Full ratio and risk analysis",
+      ro: "Analiză completă de indicatori și riscuri",
+    },
+    {
+      featureKey: null,
+      en: "HTML and Excel report export",
+      ro: "Export raport HTML și Excel",
+    },
+    {
+      featureKey: "chat_page",
+      afterLaunch: true,
+      en: `Ask CFO AI: 10/day, 50/month — ${AFTER_LAUNCH_MARKER_EN}`,
+      ro: `Întreabă CFO AI: 10/zi, 50/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+    },
+    { featureKey: null, en: "1 workspace", ro: "1 spațiu de lucru" },
   ],
+
   pro: [
-    "15 Romanian documents / month",
-    "Full CFO reports",
-    "Trial balance analysis",
-    "Scanned-PDF extraction",
-    "Benchmark intelligence",
-    "Valuation module",
-    "Ask CFO AI: 25/day, 150/month",
-    "Up to 5 workspaces",
+    {
+      featureKey: "upload_trial_balance",
+      en: "15 Romanian documents / month",
+      ro: "15 documente românești / lună",
+    },
+    {
+      featureKey: "upload_trial_balance",
+      en: "Trial balance analysis",
+      ro: "Analiza balanței de verificare",
+    },
+    {
+      featureKey: "upload_financial_statement",
+      en: "Scanned-PDF extraction",
+      ro: "Extragere din PDF-uri scanate",
+    },
+    {
+      featureKey: "benchmarks",
+      afterLaunch: true,
+      en: `Benchmark intelligence — ${AFTER_LAUNCH_MARKER_EN}`,
+      ro: `Comparații cu industria (benchmark) — ${AFTER_LAUNCH_MARKER_RO}`,
+    },
+    { featureKey: null, en: "Valuation module", ro: "Modul de evaluare" },
+    {
+      featureKey: "chat_page",
+      afterLaunch: true,
+      en: `Ask CFO AI: 25/day, 150/month — ${AFTER_LAUNCH_MARKER_EN}`,
+      ro: `Întreabă CFO AI: 25/zi, 150/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+    },
+    {
+      featureKey: null,
+      en: "Up to 5 workspaces",
+      ro: "Până la 5 spații de lucru",
+    },
   ],
+
   multi: [
-    "Everything in Pro",
-    "15 Romanian documents / month",
-    "8 non-RO documents / month included",
-    "Any accounting jurisdiction",
-    "Scanned-PDF extraction",
-    "Ask CFO AI: 40/day, 200/month",
-    "Up to 5 workspaces",
+    { featureKey: null, en: "Everything in Pro", ro: "Tot ce include Pro" },
+    {
+      featureKey: "upload_trial_balance",
+      en: "15 Romanian documents / month",
+      ro: "15 documente românești / lună",
+    },
+    {
+      featureKey: "upload_financial_statement",
+      en: "8 non-RO documents / month included",
+      ro: "8 documente non-RO / lună incluse",
+    },
+    {
+      featureKey: null,
+      en: "Any accounting jurisdiction",
+      ro: "Orice jurisdicție contabilă",
+    },
+    {
+      featureKey: "upload_financial_statement",
+      en: "Scanned-PDF extraction",
+      ro: "Extragere din PDF-uri scanate",
+    },
+    {
+      featureKey: "chat_page",
+      afterLaunch: true,
+      en: `Ask CFO AI: 40/day, 200/month — ${AFTER_LAUNCH_MARKER_EN}`,
+      ro: `Întreabă CFO AI: 40/zi, 200/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+    },
+    {
+      featureKey: null,
+      en: "Up to 5 workspaces",
+      ro: "Până la 5 spații de lucru",
+    },
   ],
+
   // Trial and intro have no card on /pricing — trial is a tail-link and
   // intro is a strip below the grid — so these two exist only for the
   // current-plan card, which has to be able to describe every tier a user
   // can actually be on.
   trial: [
-    "1 financial document",
-    "CFO AI financial summary",
-    "Basic ratios and risk flags",
-    "No card required",
+    {
+      featureKey: "upload_trial_balance",
+      en: "1 financial document",
+      ro: "1 document financiar",
+    },
+    {
+      featureKey: "dashboard",
+      en: "CFO AI financial summary",
+      ro: "Sinteză financiară CFO AI",
+    },
+    {
+      featureKey: "dashboard",
+      en: "Basic ratios and risk flags",
+      ro: "Indicatori de bază și semnale de risc",
+    },
+    { featureKey: null, en: "No card required", ro: "Fără card bancar" },
   ],
+
   intro: [
-    "7-day unlock, one-time payment",
-    "3 financial documents",
-    "CFO AI financial summary",
-    "Full ratio and risk analysis",
+    {
+      featureKey: null,
+      en: "7-day unlock, one-time payment",
+      ro: "Acces de 7 zile, plată unică",
+    },
+    {
+      featureKey: "upload_trial_balance",
+      en: "3 financial documents",
+      ro: "3 documente financiare",
+    },
+    {
+      featureKey: "dashboard",
+      en: "CFO AI financial summary",
+      ro: "Sinteză financiară CFO AI",
+    },
+    {
+      featureKey: "dashboard",
+      en: "Full ratio and risk analysis",
+      ro: "Analiză completă de indicatori și riscuri",
+    },
   ],
 };
 
-const ro: PlanFeatureSet = {
-  starter: [
-    "5 documente financiare / lună",
-    "Bilanț, balanță de verificare, facturi, raportări publice",
-    "Sinteză financiară CFO AI",
-    "Indicatori de bază și semnale de risc",
-    "Export rapoarte PDF / HTML",
-    "Întreabă CFO AI: 10/zi, 50/lună",
-  ],
-  solo: [
-    "3 documente românești / lună",
-    "Bilanț, balanță de verificare, facturi, raportări publice",
-    "Sinteză financiară CFO AI",
-    "Analiză completă de indicatori și riscuri",
-    "Export rapoarte PDF / HTML",
-    "Întreabă CFO AI: 10/zi, 50/lună",
-    "1 spațiu de lucru",
-  ],
-  pro: [
-    "15 documente românești / lună",
-    "Rapoarte CFO complete",
-    "Analiza balanței de verificare",
-    "Extragere din PDF-uri scanate",
-    "Comparații cu industria (benchmark)",
-    "Modul de evaluare",
-    "Întreabă CFO AI: 25/zi, 150/lună",
-    "Până la 5 spații de lucru",
-  ],
-  multi: [
-    "Tot ce include Pro",
-    "15 documente românești / lună",
-    "8 documente non-RO / lună incluse",
-    "Orice jurisdicție contabilă",
-    "Extragere din PDF-uri scanate",
-    "Întreabă CFO AI: 40/zi, 200/lună",
-    "Până la 5 spații de lucru",
-  ],
-  trial: [
-    "1 document financiar",
-    "Sinteză financiară CFO AI",
-    "Indicatori de bază și semnale de risc",
-    "Fără card bancar",
-  ],
-  intro: [
-    "Acces de 7 zile, plată unică",
-    "3 documente financiare",
-    "Sinteză financiară CFO AI",
-    "Analiză completă de indicatori și riscuri",
-  ],
-};
+/** Structured bullets for a plan — what the registry gate reads. */
+export function planFeatureBulletsFor(key: PlanKey): PlanFeatureBullet[] {
+  return PLAN_FEATURES[key] ?? [];
+}
+
+/** Every plan key that carries copy. */
+export function planKeysWithFeatures(): PlanKey[] {
+  return Object.keys(PLAN_FEATURES) as PlanKey[];
+}
+
+/** The copy of one bullet in the given UI language (falls back to en). */
+export function bulletText(b: PlanFeatureBullet, lang: string): string {
+  return lang?.startsWith("ro") ? b.ro : b.en;
+}
 
 /** Feature bullets for a plan in the given UI language (falls back to en). */
 export function planFeaturesFor(key: PlanKey, lang: string): string[] {
-  const set = lang?.startsWith("ro") ? ro : en;
-  return set[key] ?? [];
+  return planFeatureBulletsFor(key).map((b) => bulletText(b, lang));
 }

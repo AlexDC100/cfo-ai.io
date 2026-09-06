@@ -1143,3 +1143,73 @@
   .cards-stagger > * { animation: none; opacity: 1; }
   .card-2026 { transition: none; }
 }
+
+/* ── .legal-doc — the reviewed legal documents, rendered ────────────────
+   scripts/legal_markdown.mjs emits plain semantic tags with no styling of
+   their own, precisely so the SAME html string can be dropped into two very
+   different design languages: this app (HSL tokens, `hsl(var(--ink))`) and
+   the prerendered static page (which carries its own inline copy of these
+   rules, because it must be readable before any stylesheet loads).
+
+   Wide tables — the cookie-category tables and the sub-processor table —
+   scroll INSIDE `.legal-table`. Without that wrapper a 3-column table with
+   a long "Description" cell pushes the whole document sideways on a phone,
+   which is the one layout failure that makes a policy unreadable rather
+   than merely ugly. */
+.legal-doc {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: hsl(var(--ink-2));
+}
+.legal-doc h2 {
+  /* Sans, deliberately. The prerendered static copy of these documents has
+     no webfont at first paint (that is the point of prerendering), so a
+     serif heading would repaint when Instrument Serif arrives — and
+     design-lint D10-SERIF reserves the serif voice for marketing surfaces
+     anyway, which these routes are not once a user is signed in. */
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 34px 0 10px;
+  color: hsl(var(--ink));
+}
+.legal-doc h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 24px 0 8px;
+  color: hsl(var(--ink));
+}
+.legal-doc p { margin: 0 0 14px; }
+.legal-doc strong { color: hsl(var(--ink)); font-weight: 600; }
+.legal-doc a {
+  color: hsl(var(--brand));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal-doc ul { margin: 0 0 14px; padding-left: 20px; list-style: disc; }
+.legal-doc li { margin: 0 0 6px; }
+.legal-doc hr {
+  margin: 34px 0;
+  border: 0;
+  border-top: 1px solid hsl(var(--rule));
+}
+.legal-doc .legal-table { overflow-x: auto; margin: 0 0 18px; }
+.legal-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 420px;
+}
+.legal-doc th,
+.legal-doc td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--rule));
+  vertical-align: top;
+}
+.legal-doc th {
+  color: hsl(var(--ink));
+  font-weight: 600;
+  border-bottom-color: hsl(var(--rule-strong));
+  white-space: nowrap;
+}

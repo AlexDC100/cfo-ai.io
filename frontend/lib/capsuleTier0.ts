@@ -114,6 +114,17 @@ export type Tier0Answer = {
   /** True when this is an honest refusal rather than an answer (T3).
    *  `facts` is empty and `note` names the reason. */
   refused?: boolean;
+  /** WHICH SHAPE OF LOOKUP resolved this, when the surface renders one
+   *  of them specially. Additive and optional: `kind` stays the
+   *  three-valued published union, so another lane's exhaustive switch
+   *  never grows a case. Today the only value is "account" — a
+   *  statement-line lookup by code, which is the one resolution that can
+   *  also state a share of its own class. */
+  shape?: "account";
+  /** The account CODE that was looked up, on `shape: "account"`. A code
+   *  is an identifier, never an amount — `looksLikeFigure` passes a bare
+   *  integer for exactly this reason — so it is safe as a label param. */
+  account?: string;
 };
 
 /** null means NOT a Tier-0 question — hand it to the model (T1/T2). */
@@ -537,12 +548,25 @@ function resolveAccount(folded: string, index: FactIndex): Tier0Answer | null {
   if (hits.length === 0) {
     // The code is a well-formed question this period cannot answer. Say
     // so instantly instead of paying a model to discover the same thing.
-    return refusal(NOTE_ABSENT, { account: code, period: active.periodLabel });
+    return {
+      ...refusal(NOTE_ABSENT, { account: code, period: active.periodLabel }),
+      shape: "account",
+      account: code,
+    };
   }
   return {
     kind: "fact",
     facts: hits,
     factKeys: hits.map((f) => f.factKey),
+    // STAMPED, NOT INFERRED. The surface renders an account resolution
+    // differently from a metric one — it can state the line's share of
+    // its own class, which a metric has no equivalent of. Without this
+    // stamp the surface would have to re-run `ACCOUNT_RE` against the
+    // query to find out what it is looking at, which is the same
+    // classification decided twice in two places, and the second copy is
+    // the one that goes stale.
+    shape: "account",
+    account: code,
   };
 }
 

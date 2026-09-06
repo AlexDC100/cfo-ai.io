@@ -21,6 +21,7 @@ import { Activity, TrendingUp, TrendingDown, Sparkles } from "lucide-react";
 import type { PublicCompanyFinancialSnapshot } from "@/lib/publicCompanyUniverse";
 import { Sparkline } from "@/components/dashboard/Sparkline";
 import { Amount } from "@/components/instrument/Amount";
+import { provenanceOf } from "@/components/instrument/Provenance";
 import { fmtSignedPct, useCardSparkline } from "./pciData";
 import "./pciI18n";
 
@@ -95,11 +96,19 @@ export function MarketPulseStrip({ rows, onSelectTicker }: Props) {
       <span className="inline-flex items-center gap-2 min-w-0">
         <Activity size={13} strokeWidth={2} className="shrink-0 text-brand-dark dark:text-brand-light" />
         <span className="text-ink font-medium">{t("pci.pulse.marketLead")}</span>
+        {/* A median over the quoted rows is in no row: it names its
+            derivation and the sample size, and claims no source. The top
+            mover's own figure below sits inside the row's <button> and
+            stays plain — a focusable affordance inside a button would be
+            one interactive element nested in another. */}
         <Amount
           kind="percent"
           value={pulse.med / 100}
           fractionDigits={2}
           className="text-[12px] text-ink"
+          provenance={provenanceOf({
+            method: `derived · median day change over ${pulse.n} quoted rows`,
+          })}
         />
         <span className="font-mono text-[10.5px] tabular-nums text-ink-soft">
           {t("pci.pulse.n", { n: pulse.n })}

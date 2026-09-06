@@ -91,9 +91,58 @@ from engine.ai import registry as _model_registry
 # mutate status/totals (R1/R2, tests/engine/test_ai_advisory.py).
 from engine.ai import advisory as _ai_advisory
 
-#: Registry-resolved model ids (roles per engine/ai/models.yaml).
-_EXTRACT_MODEL = _model_registry.model_for("extract")
-_NARRATIVE_MODEL = _model_registry.model_for("narrative")
+# ── Registry-resolved model ids — READ AT FIRST USE, never at import ────
+#
+# `_EXTRACT_MODEL` / `_NARRATIVE_MODEL` (roles per engine/ai/models.yaml)
+# were module-level registry reads. This module is in the import closure
+# of `from engine.api import create_app` (server.py imports it; `python
+# -m engine serve` -> __main__._cmd_serve -> create_app), so a registry
+# that could not resolve — a missing role, an unreadable file, a role
+# with no breaker caps — was a RegistryError at IMPORT: no app, no
+# process, the §14 restart-loop shape, and the deterministic firm board
+# (which reads no model) died with it (critic D6, 2026-09-05; gated by
+# tests/engine/test_firm_real_app.py on the REAL create_app in a fresh
+# process). The same shape as engine.api._reconcile: the two names stay
+# module attributes (PEP 562 `__getattr__` below — `pipeline._EXTRACT_
+# MODEL` reads as before, a monkeypatch still wins), the use sites call
+# the cached accessors `_extract_model()` / `_narrative_model()` (a bare
+# global read inside this module never consults `__getattr__`), and the
+# registry's failure stays LOUD at the first AI call that needs the id.
+_REGISTRY_MODEL_ROLES = {"_EXTRACT_MODEL": "extract", "_NARRATIVE_MODEL": "narrative"}
+
+
+def _resolve_registry_model(name: str) -> str:
+    """Read the role's model id from the registry and pin it into this
+    module's globals (later reads are plain attribute reads). Raises the
+    registry's own RegistryError when it cannot resolve — at the seam."""
+    value = str(_model_registry.model_for(_REGISTRY_MODEL_ROLES[name]))
+    globals().setdefault(name, value)
+    return globals()[name]
+
+
+def __getattr__(name: str) -> Any:
+    if name in _REGISTRY_MODEL_ROLES:
+        return _resolve_registry_model(name)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
+def _model_constant(name: str) -> str:
+    """The pinned (or monkeypatched) module global when one exists, else
+    the registry read that pins it."""
+    value = globals().get(name)
+    return str(value) if value is not None else _resolve_registry_model(name)
+
+
+def _extract_model() -> str:
+    """The model id for the `extract` role — the RO LLM fallback."""
+    return _model_constant("_EXTRACT_MODEL")
+
+
+def _narrative_model() -> str:
+    """The model id for the `narrative` role — the narrate family."""
+    return _model_constant("_NARRATIVE_MODEL")
+
+
 # F4.5 — Hungary pack (SKELETON / UNCALIBRATED). Registered so F4.4 fan-out
 # routing can exercise multi-pack logic. detect_from_content() returns 0.0
 # confidence so the RO pack always wins on RO uploads.
@@ -316,18 +365,70 @@ def _verify_user_owns_document(jwt: str, document_id: str) -> Dict[str, Any]:
 
 
 def _user_id_from_jwt(jwt: str) -> str:
-    """Resolve the calling user's id from the JWT (same pattern as _billing).
-    Raises 401 if the JWT is malformed."""
-    # PUBLIC_TEST_MODE bypass — return the shared test user_id.
-    from . import _test_mode
-    if _test_mode.is_bypass_token(jwt):
-        return _test_mode.test_user_id()
+    """The calling user's VERIFIED id (engine.api._jwt through
+    `_org.verified_user_id`; the PUBLIC_TEST_MODE seam included). 401 when
+    the bearer's signature does not verify, 503 when no signing key can be
+    obtained. Until 2026-09-05 (FC1x, critic D5) this read the id through
+    `per_user(jwt).get_user(jwt)` — an unverified payload decode in the
+    real client and in every double that stood in for it."""
+    return _org.verified_user_id(jwt)
+
+
+# ── THE WRITE WALL (FC1x, critic D4, 2026-09-05) ────────────────────────
+# Every mutating route below used to authorize on "is the row visible to
+# the caller under per_user?" and then write through the service role.
+# The firm READ policies (schema_phase_firm.sql: `can_read_client_org`)
+# make a client's rows visible to a firm viewer with a read cell and NO
+# membership — so that viewer hard-deleted a client's period, re-ran and
+# re-filed its documents through these routes (crit_pipeline_census.py:
+# DELETE /api/period/{id} 200 row gone, POST .../reextract 200,
+# POST /api/documents/{id}/move-period 200, POST /api/pipeline/run 202).
+# A write needs a `memberships` row in the org it targets; visibility is
+# the READ wall and never the write wall. `_org.require_org_member` is the
+# one helper; these wrap it in the shapes the handlers need. The census
+# and the viewer sweep live in tests/engine/test_identity_wall.py.
+
+
+def _verify_user_may_write_document(jwt: str, document_id: str) -> Dict[str, Any]:
+    """Visible to the caller under RLS (404 otherwise) AND the caller holds
+    a memberships row in the document's org (403 otherwise). Returns the
+    document row. Firm visibility never writes a client's books. The
+    identity is verified FIRST, before any table read: a forged bearer is
+    401 from the verifier, never a 404 from an anonymous read."""
+    _org.verified_user_id(jwt)
+    doc = _verify_user_owns_document(jwt, document_id)
+    _org.require_org_member(jwt, doc.get("org_id"))
+    return doc
+
+
+def _verify_user_may_write_period(jwt: str, period_id: str) -> Dict[str, Any]:
+    """The same wall for period-scoped mutations. Returns the period row."""
+    _org.verified_user_id(jwt)
     with _supabase.per_user(jwt) as client:
-        user = client.get_user(jwt)
-    user_id = user.get("id") if user else None
-    if not user_id:
-        raise HTTPException(401, "Could not resolve user from JWT.")
-    return user_id
+        rows = client.select(
+            "financial_periods",
+            filters={"id": f"eq.{period_id}"},
+            single=True,
+        )
+    if not rows:
+        raise HTTPException(404, "Period not found or not visible to you.")
+    _org.require_org_member(jwt, rows[0].get("org_id"))
+    return rows[0]
+
+
+def _require_member(jwt: str, org_id: Optional[str]) -> str:
+    """`_org.require_org_member`, looked up at call time — for handlers
+    that bind a LOCAL name `_org` further down (review/reanalyze does) and
+    therefore cannot name the module directly."""
+    return _org.require_org_member(jwt, org_id)
+
+
+def _only_member_orgs(jwt: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """For the bulk routes whose scope is 'everything visible to me'
+    (clear-deleted, recover-stuck): keep only rows in orgs the caller is a
+    MEMBER of. A firm viewer's visible-but-not-mine rows are left alone."""
+    member_of = set(_org.member_org_ids(_user_id_from_jwt(jwt)))
+    return [r for r in rows if str(r.get("org_id")) in member_of]
 
 
 def _admin_set_status(doc_id: str, status: str, *, error: Optional[str] = None,
@@ -1362,7 +1463,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         resp = client.messages.create(
-            model=_EXTRACT_MODEL,
+            model=_extract_model(),
             # 2026-07-26 — was 8000, which truncated the JSON mid-string on
             # sales-analysis files (detected_type="sales_analysis" emits every
             # SKU row into `skus`), surfacing as "Claude returned invalid JSON:
@@ -1516,6 +1617,18 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
     # — completed into canonical_bs.excluded at this seam (same helper
     # the offline determinism/reprocessing scripts run).
     pack.merge_parser_exclusions(assembled, parsed.get("parser_excluded"))
+    # Anchor provenance on the WRITE path too. This call site already
+    # threads the anchor (the line above), so the labels here are almost
+    # always `anchored` — but they must be emitted on both paths, or a
+    # reader would have to know which seam produced a payload before it
+    # could trust `net_income_statutory`. See `_annotate_net_income_anchor`.
+    _statutory = parsed.get("statutory_net_profit_anchor")
+    _annotate_net_income_anchor(
+        assembled,
+        _statutory,
+        "parsed_tb_rows" if _statutory is not None else None,
+        applied=_statutory is not None,
+    )
     return assembled
 
 
@@ -2002,14 +2115,57 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
     # which already separates the two; pulling from there keeps the
     # arithmetic in ONE place rather than re-deriving here.
     capitalized_own_work = float(pl.get("capitalizedOwnWork", 0) or 0)
-    net_income_statutory = net_income + capitalized_own_work
+    # 2026-09-06 — the paragraph above has said "the values come from the
+    # canonical pl assembly, which already separates the two; pulling from
+    # there keeps the arithmetic in ONE place rather than re-deriving
+    # here" since it was written. The code did not do that: it re-derived
+    # `net_income + 722` and never saw the account-121 anchor the
+    # canonical assembly applies (chart_of_accounts.py, rule F3.7d). So
+    # ONE served response carried two numbers under one name —
+    #
+    #   book        assembled_pl.net_income_statutory   metrics.net_income_statutory
+    #   agras                        7,533,676.02                    14,106,102.03
+    #   carniprod                    1,435,533.59                     5,843,449.04
+    #   realestate                    -801,604.14                   -30,391,418.38
+    #   retail                       3,205,212.62                     1,161,957.98
+    #
+    # — and net_margin, roa, roe, free_cash_flow and the profitability
+    # sub-score of the credit composite were all built on the right-hand
+    # column while the report's headline stated the left-hand one.
+    #
+    # The intent is now the code, on the F3.15 `core_ebitda` precedent
+    # below: the canonical assembly is the single source of truth and
+    # this function is a READER. The local arithmetic survives only as
+    # the fallback for an envelope that carries no canonical P&L (a
+    # non-RO pack, or a pre-F1.a cached re-assembly) — where there is no
+    # anchor to miss either.
+    pl_canonical = s.get("assembled_pl") or {}
+    if not isinstance(pl_canonical, dict):
+        pl_canonical = {}
+
+    def _canonical(name: str, fallback: float) -> float:
+        value = pl_canonical.get(name)
+        return fallback if value is None else float(value)
+
+    net_income_statutory = _canonical(
+        "net_income_statutory", net_income + capitalized_own_work
+    )
     # Companion statutory views — symmetric with net_income_statutory.
     # ebitda_statutory  = cash EBITDA + 722 (includes capitalized own-work);
-    # total_operating_revenue = revenue + 722 + 711 + other_income (operating
-    # view that the FE KPI tiles and benchmark engine consume against).
+    # total_operating_revenue is the OPERATING revenue line the report's
+    # build-up and the KPI tiles state (revenue + discounts received);
+    # the total-production view that re-adds 722 + 711 + other income is a
+    # DIFFERENT figure and now says so in its own name rather than
+    # answering to `total_operating_revenue` as well.
     # Surfacing as named metrics so regression checks can query by exact name.
     ebitda_statutory = ebitda + capitalized_own_work
-    total_operating_revenue = revenue + capitalized_own_work + inv_var_memo + other_inc
+    total_operating_revenue_statutory = _canonical(
+        "total_operating_revenue_statutory",
+        revenue + capitalized_own_work + inv_var_memo + other_inc,
+    )
+    total_operating_revenue = _canonical(
+        "total_operating_revenue", total_operating_revenue_statutory
+    )
 
     current_assets = bs["cash"] + bs["accountsReceivable"] + bs["inventory"] + bs["otherCurrentAssets"]
     non_current_assets = bs["propertyPlantEquipment"] + bs["intangibles"] + bs["otherNonCurrentAssets"]
@@ -2042,10 +2198,25 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
         {"name": "net_income_statutory",   "value": round(net_income_statutory, 2), "unit": "RON", "direction": "higher"},
         {"name": "ebitda_statutory",       "value": round(ebitda_statutory, 2),     "unit": "RON", "direction": "higher"},
         {"name": "total_operating_revenue","value": round(total_operating_revenue, 2),"unit": "RON","direction": "higher"},
+        # The total-production view (revenue + 722 + 711 + other income),
+        # under a name that means it. Until 2026-09-06 this number WAS
+        # `total_operating_revenue` here while `assembled_pl` served the
+        # operating line under the same name — agras 311,058,756.52 in one
+        # half of the response and 118,576,819.64 in the other.
+        {"name": "total_operating_revenue_statutory", "value": round(total_operating_revenue_statutory, 2), "unit": "RON", "direction": "higher"},
         {"name": "capitalized_own_work_memo", "value": round(capitalized_own_work, 2), "unit": "RON", "direction": "neutral"},
         {"name": "gross_margin",       "value": safe(gross_profit, revenue),"unit": "ratio","direction": "higher"},
         {"name": "ebitda_margin",      "value": safe(ebitda, revenue),     "unit": "ratio", "direction": "higher"},
-        {"name": "net_margin",         "value": safe(net_income, revenue), "unit": "ratio", "direction": "higher"},
+        # ── Every ratio with net income in it reads the ANCHOR ─────────
+        # net_margin / roa / roe / free_cash_flow below all take
+        # `net_income_statutory` — account 121, the figure the KPI tile,
+        # the dashboard headline, the chat context and the P&L build-up
+        # all state. A ratio on the reconstruction would put a second net
+        # income on the same page under a percent sign, which is exactly
+        # what section 5 did (agras ROE 59.0% beside the tile's 31.5%).
+        # `net_income` / `net_income_operational` above keep the
+        # reconstruction, under names that say so.
+        {"name": "net_margin",         "value": safe(net_income_statutory, revenue), "unit": "ratio", "direction": "higher"},
         {"name": "total_assets",       "value": round(total_assets, 2),    "unit": "RON",   "direction": "neutral"},
         {"name": "total_debt",         "value": round(total_debt, 2),      "unit": "RON",   "direction": "lower"},
         {"name": "total_equity",       "value": round(total_equity, 2),    "unit": "RON",   "direction": "higher"},
@@ -2053,11 +2224,11 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
         {"name": "debt_to_equity",     "value": safe(total_debt, total_equity),     "unit": "ratio", "direction": "lower"},
         {"name": "debt_to_ebitda",     "value": safe(total_debt, ebitda),           "unit": "ratio", "direction": "lower"},
         {"name": "interest_coverage",  "value": safe(ebitda, interest),             "unit": "ratio", "direction": "higher"},
-        {"name": "roa",                "value": safe(net_income, total_assets),     "unit": "ratio", "direction": "higher"},
-        {"name": "roe",                "value": safe(net_income, total_equity),     "unit": "ratio", "direction": "higher"},
+        {"name": "roa",                "value": safe(net_income_statutory, total_assets),  "unit": "ratio", "direction": "higher"},
+        {"name": "roe",                "value": safe(net_income_statutory, total_equity),  "unit": "ratio", "direction": "higher"},
         {"name": "roic",               "value": safe(operating_profit * (1 - 0.16), max(total_debt + total_equity, 1)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
-        {"name": "free_cash_flow",     "value": round(net_income + depreciation, 2),"unit": "RON",  "direction": "higher"},
+        {"name": "free_cash_flow",     "value": round(net_income_statutory + depreciation, 2),"unit": "RON",  "direction": "higher"},
     ]
 
     # F3.11 — F3.9 source-data quality telemetry. Persisted as numeric
@@ -2223,8 +2394,13 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
 
         # Profitability sub-score: blend ROE + net margin. ROE weighted 0.5×
         # to keep margin-led growth companies from looking weak.
-        roe_val = net_income / total_equity if total_equity > 0 else 0
-        net_margin_val = net_income / revenue if revenue > 0 else 0
+        # Both take the ANCHOR — the same figure the `roe` and `net_margin`
+        # metrics above now carry. A composite grade built on the
+        # reconstruction while the page shows the filed figure is a
+        # verdict on a number the reader is never given: agras scored 59.3
+        # on profitability from 14.1M, where the filed 7.5M scores 31.7.
+        roe_val = net_income_statutory / total_equity if total_equity > 0 else 0
+        net_margin_val = net_income_statutory / revenue if revenue > 0 else 0
         prof_subscore = min(100, max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5))
 
         # Leverage sub-score (lower Net Debt/EBITDA = higher score). The
@@ -3280,7 +3456,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
 
     try:
         resp = client.messages.create(
-            model=_NARRATIVE_MODEL,
+            model=_narrative_model(),
             max_tokens=4096,
             system=system,
             messages=[{"role": "user", "content": json.dumps(user_payload)}],
@@ -3390,7 +3566,7 @@ def stage_persist_narrative(
                 "org_id": org_id,
                 "body": narrate["briefing"],
                 "language": "en",
-                "model": _NARRATIVE_MODEL,
+                "model": _narrative_model(),
             },
             on_conflict="period_id",
             returning=False,
@@ -3779,7 +3955,7 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
                 "summary": parsed.get("summary") or {},
                 "recommendations": narrative.get("recommendations") or [],
                 "language": "en",
-                "model": _NARRATIVE_MODEL,
+                "model": _narrative_model(),
             },
             on_conflict="document_id",
             returning=False,
@@ -4434,6 +4610,327 @@ def _run_pipeline_sync(document_id: str) -> None:
             logger.exception("[pipeline] release_document_reservation failed (non-fatal)")
 
 
+# ── Statutory net-income anchor (account 121) — ONE resolver ──────────
+#
+# CLAUDE.md Appendix A §3 / Step 11: the CLOSING BALANCE OF ACCOUNT 121
+# IS the statutory net profit. The class-6/7 reconstruction is the
+# validation check, never the authoritative number.
+#
+# `assemble_statements()` honours that rule — but it can only see the
+# anchor when a caller hands it `account_121_anchor_override`, because
+# `accounts_to_assemble_shape()` routes 121 to `ignore_control` and drops
+# the row before assembly (chart_of_accounts.py ~1085-1105).
+#
+# The persist path threads it (stage_map, `assemble_statements(...)`
+# below). Every REBUILD-FROM-LINE-ITEMS path did not, so the same books
+# served a raw reconstruction under the statutory name. Measured across
+# the golden corpus (docs: design_review/engine/NET_INCOME_ANCHOR.md):
+#
+#   book                    account 121      rebuild served     factor
+#   saga_10_col_realestate    -801,604.14    -30,391,418.38      37.9x
+#   saga_10_col_agras        7,533,676.02     14,106,102.03       1.9x
+#   saga_10_col_carniprod    1,435,533.59      5,843,449.04       4.1x
+#   saga_10_col_retail       3,205,212.62      1,161,957.98       0.36x
+#   saga_10_col                402,869.16        171,665.97       0.43x
+#   pdf_positional             650,887.06        615,350.00       0.95x
+#
+# and it is not one field: net_income_statutory drags
+# free_cash_flow_proxy, assembled_bs.current_year_pnl,
+# assembled_bs.total_equity (the NAV cascade's book-equity floor) and
+# bs_balance_delta with it — 30 disagreeing fields across 7 books, all
+# 30 resolved by threading the anchor.
+#
+# THE RULE: a rebuild path calls `_assemble_with_statutory_anchor()`,
+# never `assemble_statements()` directly. Threading the anchor at one
+# seam and forgetting it at the next IS the defect, so resolving it,
+# passing it and labelling the result are fused into one call that
+# cannot be half-done. Gated by
+# tests/engine/test_rebuild_net_income_anchor.py.
+
+#: `assembled_pl.net_income_anchor_status` vocabulary.
+NET_INCOME_ANCHOR_ANCHORED = "anchored"
+NET_INCOME_ANCHOR_WITHIN_TOLERANCE = "within_tolerance"
+NET_INCOME_ANCHOR_ABSENT = "absent"
+
+
+def _statutory_anchor_for(
+    period_row: Optional[Dict[str, Any]],
+    line_items: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[Optional[float], Optional[str]]:
+    """Resolve account 121's closing balance for a period being REBUILT
+    from its persisted line items. Returns `(anchor, source)`; both None
+    when no anchor is recoverable.
+
+    Sources, in order:
+
+    1. ``period.assembled_canonical_v1.canonical_bs.invariants
+       .p121_cross_check.p121`` — AUTHORITATIVE. It is literally the
+       value `pack.compute_statutory_net_profit_anchor(tb_rows)` returned
+       at write time, carried onto the envelope by the canonical adapter
+       (canonical_adapter.py ~1557) and rounded to the cent. Nothing
+       downstream mutates it.
+
+       NOT used: the equity result ROW (``rows[id=current_year_profit]``).
+       It looks like the same number and usually is, but it is
+       `p121_cents + pl_net_cents` under `result_basis ==
+       "sf_closing_column"` (canonical_adapter.py ~1615), so the P&L net
+       leaks into it — measured on corpus/saga_compact_6_col, where the
+       row reads 500.00 against an account 121 of 0.00. It also flips id
+       to `current_year_loss` on a negative result and is omitted
+       entirely when the result is zero. It is a presentation row, not
+       the anchor.
+
+    2. A persisted 121 line item. Today this never fires: 121 is
+       `ignore_control`, so `accounts_to_assemble_shape()` drops it and
+       `stage_persist` never writes it — measured 0 of 0 across all 7
+       corpus books that carry a p121. Kept because a non-deterministic
+       extraction lane may emit a 121 row, and because if the mapping
+       ever stops dropping it this path must be the one that wins, not a
+       silent reconstruction.
+
+    3. Nothing. The caller serves the reconstruction and SAYS SO (see
+       `_annotate_net_income_anchor`). This is today's outcome on the
+       Radar surface, whose `LIGHT_PERIOD_COLUMNS` projection
+       (_radar.py:64) selects `assembled_canonical_v1->>schema_version`
+       but never the envelope object itself.
+
+       A light projection can opt back in WITHOUT paying for the whole
+       envelope column by selecting the scalar under the alias `p121`:
+
+           p121:assembled_canonical_v1->canonical_bs->invariants
+                ->p121_cross_check->>p121
+
+       which source 1 below accepts alongside the nested object. That
+       one added column is all `_radar.LIGHT_PERIOD_COLUMNS` would need
+       to serve an anchored figure; the column is read here rather than
+       there so the projection stays the only thing that has to change.
+    """
+    flat = (period_row or {}).get("p121")
+    if flat is not None:
+        try:
+            return float(flat), "envelope_p121_cross_check"
+        except (TypeError, ValueError):
+            pass
+
+    env = (period_row or {}).get("assembled_canonical_v1")
+    if isinstance(env, dict):
+        # The persisted shape nests invariants under `canonical_bs`; the
+        # SERVED shape (`_reconcile.served_canonical_bs` output) IS the
+        # canonical_bs, so its invariants sit at the top. Accept both —
+        # a caller handing either object must resolve the same anchor.
+        for holder in (env.get("canonical_bs"), env):
+            if not isinstance(holder, dict):
+                continue
+            block = ((holder.get("invariants") or {}) or {}).get("p121_cross_check")
+            if isinstance(block, dict) and block.get("p121") is not None:
+                try:
+                    return float(block["p121"]), "envelope_p121_cross_check"
+                except (TypeError, ValueError):
+                    pass
+
+    total = 0.0
+    seen = False
+    for li in (line_items or []):
+        if str((li or {}).get("ro_account_code") or "").strip().startswith("121"):
+            try:
+                total += float(li.get("amount") or 0)
+                seen = True
+            except (TypeError, ValueError):
+                continue
+    if seen:
+        return round(total, 2), "line_items_121"
+    return None, None
+
+
+def _anchor_kwargs(assembler: Any, anchor: Optional[float]) -> Dict[str, Any]:
+    """`{"account_121_anchor_override": anchor}` when there is an anchor
+    AND `assembler` accepts that kwarg, else `{}`.
+
+    The capability probe is load-bearing, not defensive noise: the
+    review/reanalyze route assembles through
+    `get_pack(overrides.confirmed_country_code)`, and the Hungarian
+    pack's `assemble_statements` (hu_hungary/pack.py:127) has no such
+    parameter. Reanalysing an RO period — whose envelope DOES carry a
+    p121 — under a confirmed country of HU would raise TypeError and
+    500 the route.
+    """
+    if anchor is None:
+        return {}
+    try:
+        import inspect
+        params = inspect.signature(assembler).parameters
+    except (TypeError, ValueError):  # pragma: no cover — builtins/C funcs
+        return {}
+    if "account_121_anchor_override" not in params and not any(
+        p.kind is p.VAR_KEYWORD for p in params.values()
+    ):
+        return {}
+    return {"account_121_anchor_override": float(anchor)}
+
+
+def _assemble_with_statutory_anchor(
+    assembler: Any,
+    accounts: List[Dict[str, Any]],
+    *,
+    period_row: Optional[Dict[str, Any]],
+    line_items: Optional[List[Dict[str, Any]]],
+    **assemble_kwargs: Any,
+) -> Dict[str, Any]:
+    """THE ONLY WAY a rebuild path may call `assemble_statements()`.
+
+    Resolve → thread → label, as one indivisible step. The defect this
+    exists to prevent was not "someone wrote the wrong number"; it was
+    that resolving the anchor, passing it to the assembler, and telling
+    the reader what happened were three separate acts, so a seam could
+    do one and skip the others and still look finished. Fusing them
+    means a new rebuild seam either goes through here and is correct, or
+    does not and is visible to `test_every_rebuild_call_site_threads_
+    the_anchor`.
+    """
+    anchor, source = _statutory_anchor_for(period_row, line_items)
+    anchor_kwargs = _anchor_kwargs(assembler, anchor)
+    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs)
+    _annotate_net_income_anchor(
+        assembled, anchor, source,
+        applied=_anchor_reached_the_assembler(assembled, anchor, anchor_kwargs),
+    )
+    return assembled
+
+
+def _anchor_reached_the_assembler(
+    assembled: Optional[Dict[str, Any]],
+    anchor: Optional[float],
+    anchor_kwargs: Dict[str, Any],
+) -> bool:
+    """Did the assembler ACTUALLY receive the anchor? Read the answer off
+    its own output, never off the caller's intent.
+
+    `assemble_statements` copies the anchor it resolved into
+    `assembled_canonical_v1.canonical_bs.invariants.p121_cross_check
+    .p121` (chart_of_accounts.py:1714 → canonical_adapter.py:1556), so
+    that field is a witness: if it equals what we handed over, the value
+    was received.
+
+    Trusting `bool(anchor_kwargs)` instead would mean trusting that the
+    kwargs dict we built was also passed — which is precisely the class
+    of mistake this whole change exists to remove. A caller that
+    resolves an anchor and then drops it on the way to the assembler
+    must end up labelled `absent`, not `within_tolerance`.
+
+    Fallback: when the pack emits no p121 cross-check block at all
+    (a non-RO pack), there is no witness and the caller's intent is all
+    there is. When the block EXISTS but carries a null p121, that is a
+    real answer — the assembler had no anchor — and it is honoured, even
+    though a BS-only extract lands there with an anchor that simply had
+    no P&L to apply to. Calling that `absent` is conservative and never
+    misleading: there is no reconstruction being passed off as statutory.
+    """
+    if anchor is None:
+        return False
+    block = None
+    if isinstance(assembled, dict):
+        env = assembled.get("assembled_canonical_v1")
+        if isinstance(env, dict):
+            cbs = env.get("canonical_bs")
+            if isinstance(cbs, dict):
+                block = (cbs.get("invariants") or {}).get("p121_cross_check")
+    if not isinstance(block, dict):
+        return bool(anchor_kwargs)
+    witnessed = block.get("p121")
+    if witnessed is None:
+        return False
+    try:
+        return abs(float(witnessed) - float(anchor)) < 0.005
+    except (TypeError, ValueError):
+        return False
+
+
+def _annotate_net_income_anchor(
+    assembled: Optional[Dict[str, Any]],
+    anchor: Optional[float],
+    source: Optional[str],
+    *,
+    applied: bool,
+) -> None:
+    """Stamp the anchor provenance onto `assembled.statements
+    .assembled_pl`, in place. Called on EVERY path that produces an
+    `assembled_pl` — persist and rebuild alike — so the field set never
+    depends on which seam the reader came through.
+
+    Adds, always:
+      · ``net_income_reconstructed``   the class-6/7 build-up, i.e. the
+        number `net_income_statutory` would carry with no anchor.
+        Derived as `net_income_operational + capitalized_own_work_memo`
+        — that identity IS the assembler's pre-override expression
+        (chart_of_accounts.py:1069), so this costs nothing and needs no
+        second assembly.
+      · ``net_income_statutory_anchor``  account 121, or null.
+      · ``net_income_anchor_source``     where the anchor came from.
+      · ``net_income_anchor_status``     anchored | within_tolerance |
+        absent.
+
+    `net_income_statutory` itself is left ALONE — never nulled. The
+    frontend reads it through `?? 0` fallbacks
+    (frontend/lib/canonicalMetrics.ts), so a null would render as a
+    fabricated zero. A labelled number the reader can check beats a
+    blank they cannot.
+
+    STATUS IS OBSERVED, NOT RE-DERIVED:
+
+      absent            no anchor reached the assembler — either none was
+                        resolvable, or one was but the pack's
+                        `assemble_statements` has no override parameter
+                        (`applied=False`). Either way the served figure is
+                        a reconstruction and says so.
+      anchored          the served `net_income_statutory` equals account
+                        121 to the cent — true exactly when the
+                        assembler's 5%-of-max(|121|, 100k) override fired,
+                        or when the reconstruction already agreed.
+      within_tolerance  the anchor WAS given to the assembler and the
+                        assembler deliberately kept the reconstruction
+                        (inside its band).
+
+    Reading the decision off the assembler's OUTPUT, rather than
+    re-implementing its threshold here, is what stops this helper from
+    drifting away from the rule it reports on. `applied` is what makes
+    that reading safe: without it, a site that resolved the anchor and
+    forgot to pass it would produce a large gap and get labelled
+    `within_tolerance` — the exact defect, wearing a reassuring label.
+
+    `net_income_statutory_anchor` is emitted whenever an anchor was
+    RESOLVED, `applied` or not, so a reader can always see the account
+    121 figure and check the gap themselves.
+    """
+    if not isinstance(assembled, dict):
+        return
+    pl = ((assembled.get("statements") or {}) or {}).get("assembled_pl")
+    if not isinstance(pl, dict):
+        return
+
+    def _num(key: str) -> Optional[float]:
+        val = pl.get(key)
+        return float(val) if isinstance(val, (int, float)) else None
+
+    operational = _num("net_income_operational")
+    capitalized = _num("capitalized_own_work_memo")
+    statutory = _num("net_income_statutory")
+
+    pl["net_income_reconstructed"] = (
+        round(operational + (capitalized or 0.0), 2)
+        if operational is not None else None
+    )
+    pl["net_income_statutory_anchor"] = (
+        round(float(anchor), 2) if anchor is not None else None
+    )
+    pl["net_income_anchor_source"] = source if anchor is not None else None
+    if anchor is None or not applied:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ABSENT
+    elif statutory is not None and abs(statutory - float(anchor)) < 0.005:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ANCHORED
+    else:
+        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_WITHIN_TOLERANCE
+
+
 def _apply_envelope_truth_to_statements(
     statements: Dict[str, Any], period: Dict[str, Any]
 ) -> None:
@@ -4772,8 +5269,16 @@ def _rebuild_assembled_for_briefing(
             rule = _coa_mod.bucket_for(acct["code"])
             if rule and rule.sign == -1:
                 acct["amount"] = -acct["amount"]
-        assembled_full = _coa_mod.assemble_statements(
+        # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+        # Without it this seam serves a raw class-6/7 reconstruction
+        # under the statutory name, on every surface that reads it: the
+        # Capsule's statements context, Radar's `s_engine` facts, the
+        # firm attention lane, and the regenerated briefing.
+        assembled_full = _assemble_with_statutory_anchor(
+            _coa_mod.assemble_statements,
             recovered_accounts,
+            period_row=period,
+            line_items=line_items,
             company_name=statements["companyName"] or "Entity",
             currency=statements["currency"],
             period_label=str(statements["periodLabel"]) if statements["periodLabel"] else "Period",
@@ -5166,7 +5671,9 @@ def build_router() -> APIRouter:
     _period_move.register_routes(
         router,
         require_jwt=_require_jwt,
-        verify_owns=_verify_user_owns_document,
+        # The WRITE wall (FC1x, D4): move-period / make-active re-file and
+        # re-run a client's documents — membership, not firm visibility.
+        verify_owns=_verify_user_may_write_document,
         set_status=_admin_set_status,
         enqueue=_enqueue,
         admin_client=_supabase.admin,
@@ -5239,7 +5746,7 @@ def build_router() -> APIRouter:
     @router.post("/api/pipeline/run", response_model=RunResponse, status_code=202)
     def run_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
-        doc = _verify_user_owns_document(jwt, req.document_id)
+        doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
         # Pricing V3 (refined spec gaps C + D) — atomic reserve, success-only consume.
         #
         # Legacy `_usage_limits.check_quota` remains as a safety rail.
@@ -5779,6 +6286,7 @@ def build_router() -> APIRouter:
         patch = {k: v for k, v in payload.items() if k in allowed}
         if not patch:
             raise HTTPException(400, "No allowed fields provided. Allowed: display_name, is_active.")
+        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             client.update("documents", patch, filters={"id": f"eq.{document_id}"})
             rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
@@ -5880,6 +6388,10 @@ def build_router() -> APIRouter:
             if period_id:
                 filters["period_id"] = f"eq.{period_id}"
             visible = client.select("documents", filters=filters)
+        # The WRITE wall (FC1x, D4): a firm viewer sees a client's
+        # soft-deleted documents under can_read_client_org; only the
+        # caller's OWN workspaces' rows may be hard-deleted here.
+        visible = _only_member_orgs(jwt, visible)
 
         deleted_ids: List[str] = []
         with _supabase.admin() as admin:
@@ -5918,8 +6430,8 @@ def build_router() -> APIRouter:
         docs-panel fix.)
         """
         jwt = _require_jwt(authorization)
+        doc_rows = [_verify_user_may_write_document(jwt, document_id)]  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
-            doc_rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
             client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{document_id}"})
 
         # Cleanup orphan period using admin so RLS doesn't block the cascade.
@@ -5936,6 +6448,7 @@ def build_router() -> APIRouter:
     def restore_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
         """Restore a soft-deleted document."""
         jwt = _require_jwt(authorization)
+        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
             return {"document_id": document_id, "restored": True}
@@ -5972,9 +6485,12 @@ def build_router() -> APIRouter:
                     "Cannot permanently delete a document that has not been soft-deleted first.",
                 )
             storage_path = doc.get("storage_path")
+        # The WRITE wall (FC1x, D4): per_user visibility is NOT a
+        # membership check — firm viewers see a client's rows too.
+        _org.require_org_member(jwt, doc.get("org_id"))
 
         # Storage + cascade cleanup use the admin client (RLS doesn't gate
-        # us once we've passed the membership check above via per_user).
+        # us once we've passed the membership wall above).
         with _supabase.admin() as admin:
             # 1) Remove the underlying blob. Log + continue on failure — a
             # missing blob shouldn't block the DB cleanup.
@@ -6015,10 +6531,12 @@ def build_router() -> APIRouter:
         if not patch:
             raise HTTPException(400, "No allowed fields. Allowed: label, is_active.")
         with _supabase.per_user(jwt) as client:
-            client.update("sales_datasets", patch, filters={"id": f"eq.{dataset_id}"})
             rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not rows:
                 raise HTTPException(404, "Dataset not found.")
+            _org.require_org_member(jwt, rows[0].get("org_id"))  # the WRITE wall (FC1x, D4)
+            client.update("sales_datasets", patch, filters={"id": f"eq.{dataset_id}"})
+            rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             return rows[0]
 
     @router.delete("/api/sales-datasets/{dataset_id}")
@@ -6033,6 +6551,7 @@ def build_router() -> APIRouter:
             if not ds:
                 raise HTTPException(404, "Dataset not found.")
             doc_id = ds[0]["document_id"]
+            _org.require_org_member(jwt, ds[0].get("org_id"))  # the WRITE wall (FC1x, D4)
             client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{doc_id}"})
             return {"dataset_id": dataset_id, "document_id": doc_id, "deleted_at": _now_iso()}
 
@@ -6065,6 +6584,7 @@ def build_router() -> APIRouter:
             existing = client.select("sku_aggregates", filters={"id": f"eq.{sku_id}"}, single=True)
             if not existing:
                 raise HTTPException(404, "SKU not found.")
+            _org.require_org_member(jwt, existing[0].get("org_id"))  # the WRITE wall (FC1x, D4)
             client.update(
                 "sku_aggregates",
                 {"user_override": raw},
@@ -6103,6 +6623,7 @@ def build_router() -> APIRouter:
             if not ds:
                 raise HTTPException(404, "Dataset not found.")
             ds_row = ds[0]
+        _org.require_org_member(jwt, ds_row.get("org_id"))  # the WRITE wall (FC1x, D4)
 
         with _supabase.admin() as ac:
             aggs = ac.select("sku_aggregates", filters={"dataset_id": f"eq.{dataset_id}"})
@@ -6534,10 +7055,14 @@ def build_router() -> APIRouter:
             rows = client.select(
                 "documents",
                 filters={"status": "eq.queued"},
-                columns="id,original_filename,scope,created_at,pipeline_started_at",
+                columns="id,org_id,original_filename,scope,created_at,pipeline_started_at",
                 order="created_at.desc",
                 limit=20,
             )
+            # The WRITE wall (FC1x, D4): re-enqueue only the caller's OWN
+            # workspaces' stuck uploads, never a client's seen through
+            # firm visibility.
+            rows = _only_member_orgs(jwt, rows)
             if rows:
                 logger.info("[pipeline] recover-stuck: scanning %d queued doc(s) for caller", len(rows))
             now = datetime.now(timezone.utc)
@@ -6601,7 +7126,7 @@ def build_router() -> APIRouter:
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
     def retry_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
-        doc = _verify_user_owns_document(jwt, req.document_id)
+        doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
@@ -6819,8 +7344,18 @@ def build_router() -> APIRouter:
                 rule = _coa_mod.bucket_for(acct["code"])
                 if rule and rule.sign == -1:
                     acct["amount"] = -acct["amount"]
-            assembled_full = _coa_mod.assemble_statements(
+            # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+            # This is the Statements page P&L, the Valuation tab, the
+            # cash-flow statement and the NAV cascade's book-equity
+            # floor; it does NOT go through
+            # `_rebuild_assembled_for_briefing`, which is why the anchor
+            # has to be resolved through the shared helper at every site
+            # rather than fixed once at the seam.
+            assembled_full = _assemble_with_statutory_anchor(
+                _coa_mod.assemble_statements,
                 recovered_accounts,
+                period_row=period,
+                line_items=line_items,
                 company_name=statements["companyName"] or "Entity",
                 currency=statements["currency"],
                 period_label=str(statements["periodLabel"]) if statements["periodLabel"] else "Period",
@@ -7172,19 +7707,15 @@ def build_router() -> APIRouter:
         manage their own row. POST/PUT both upsert by (user_id, period_id).
         """
         jwt = _require_jwt(authorization)
+        # The WRITE wall (FC1x, D4): the period must be visible AND the
+        # caller a member of its org — the recompute below re-persists the
+        # period's valuations row through the service role.
+        _verify_user_may_write_period(jwt, period_id)
         with _supabase.per_user(jwt) as client:
-            # Resolve the caller's auth.uid() via the auth endpoint so we can
-            # populate user_id without trusting the body.
+            # The caller's VERIFIED auth.uid() (engine.api._jwt) so user_id
+            # is never taken from the body.
             user = client.get_user(jwt)
             user_id = user["id"]
-            # Make sure the user can read the period (RLS check).
-            periods = client.select(
-                "financial_periods",
-                filters={"id": f"eq.{period_id}"},
-                single=True,
-            )
-            if not periods:
-                raise HTTPException(404, "Period not found.")
 
             payload = {
                 "user_id": user_id,
@@ -7247,6 +7778,7 @@ def build_router() -> APIRouter:
         """Reset to engine defaults: drop the user_valuation_assumptions row
         and re-compute the valuations row from raw statements."""
         jwt = _require_jwt(authorization)
+        _verify_user_may_write_period(jwt, period_id)  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             user = client.get_user(jwt)
             user_id = user["id"]
@@ -7435,16 +7967,9 @@ def build_router() -> APIRouter:
         path via `stage_validate`).
         """
         jwt = _require_jwt(authorization)
-        # Ownership check via RLS.
-        with _supabase.per_user(jwt) as client:
-            periods = client.select(
-                "financial_periods",
-                filters={"id": f"eq.{period_id}"},
-                single=True,
-            )
-            if not periods:
-                raise HTTPException(404, "Period not found.")
-            period = periods[0]
+        # The WRITE wall (FC1x, D4): visible under RLS AND a member of the
+        # period's org — the briefing is upserted through the service role.
+        period = _verify_user_may_write_period(jwt, period_id)
 
         with _supabase.admin() as admin_client:
             org_rows = admin_client.select(
@@ -7553,7 +8078,7 @@ def build_router() -> APIRouter:
                         "org_id": period["org_id"],
                         "body": narrative.get("briefing", ""),
                         "language": "en",
-                        "model": _NARRATIVE_MODEL,
+                        "model": _narrative_model(),
                     },
                     on_conflict="period_id",
                     returning=False,
@@ -7683,6 +8208,11 @@ def build_router() -> APIRouter:
             if not periods:
                 raise HTTPException(404, "Period not found.")
             period = periods[0]
+        # The WRITE wall (FC1x, D4): the re-analysis re-persists the
+        # period's confidence report and may upsert calibration rules.
+        # (`_require_member`, not `_org.`: this handler binds a LOCAL
+        # `_org` further down, which would shadow the module here.)
+        _require_member(jwt, period.get("org_id"))
 
         overrides = _rm.ReviewOverrides(
             period_id=period_id,
@@ -7790,11 +8320,20 @@ def build_router() -> APIRouter:
                 if rule and rule.sign == -1:
                     acct["amount"] = -acct["amount"]
 
+            # Account 121 anchor — see `_assemble_with_statutory_anchor`.
+            # Review overrides re-bucket ACCOUNTS; they never re-open the
+            # statutory result, so the anchor still governs here. The
+            # kwarg is probed rather than passed blind because `pack` is
+            # `get_pack(confirmed_country_code)` and a non-RO pack has no
+            # such parameter (see `_anchor_kwargs`).
             original_bucket_for = pack.bucket_for
             pack.bucket_for = override_bucket_for  # type: ignore[assignment]
             try:
-                assembled_full = pack.assemble_statements(
+                assembled_full = _assemble_with_statutory_anchor(
+                    pack.assemble_statements,
                     recovered_accounts,
+                    period_row=period,
+                    line_items=line_items,
                     company_name=org.get("name") or "Entity",
                     currency=period.get("currency", "RON"),
                     period_label=str(period.get("period_end")) or "Period",
@@ -8118,6 +8657,12 @@ def build_router() -> APIRouter:
             if not visible:
                 raise HTTPException(404, "Period not found or not visible to you.")
             org_id = visible[0]["org_id"]
+        # 1b. THE WRITE WALL (FC1x, critic D4): visibility is the READ wall.
+        # A firm viewer with a read cell and no membership hard-deleted a
+        # client's period through this route (crit_pipeline_census.py).
+        # A memberships row in the period's org, or 403 — never firm
+        # visibility.
+        _org.require_org_member(jwt, org_id)
 
         # 2. Soft-delete every document attached to the period — keeps the
         # underlying Storage blob recoverable from "Recently deleted" for 30

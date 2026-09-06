@@ -22,16 +22,20 @@
 //     The downstream `<Money>` + `useAmountFormatter` chain handles the
 //     RON/EUR/USD display conversion automatically.
 
+import { bsDelta } from "@/lib/bsStructure";
 import type {
   BSLine, BSSection, BSStatement,
 } from "@/lib/bsStructure";
+// THE ONE GATE every comparative figure passes — shared with the private
+// path so the two cannot disagree about what an absent opening looks like.
+import { withoutComparative } from "@/lib/buildBsStatement";
 import type {
   PLLine, PLSection, PLStatement,
 } from "@/lib/plStructure";
 import type {
   CFInvestingLine, CashFlowStatement,
 } from "@/lib/cfStructure";
-import type { Statements } from "@/lib/financialReport";
+import type { StatementInput, Statements } from "@/lib/financialReport";
 import type { PublicCompanyEnvelope, PublicCompanyPeriod } from "@/lib/publicCompanyApi";
 
 type Headline = PublicCompanyPeriod["headline"];
@@ -222,12 +226,36 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
   const c = cur.headline;
   const p = prior?.headline ?? null;
   const asOf = formatDate(cur.fiscal_period_end);
+  // A single-period envelope has NO comparative. This used to repeat the
+  // closing date in the opening column header and fill the column with
+  // `p?.x ?? 0` — a wall of zeroes under a header claiming they were
+  // measured on the closing date. `withoutComparative` at the return
+  // strips the whole column when there is no prior period.
   const comparativeDate = prior ? formatDate(prior.fiscal_period_end) : asOf;
   // Derived by identity — see `totalLiabilities`. Previously read off a
   // headline key the engine never emits, which zeroed the whole
   // equity-and-liabilities side and broke `balanceCheck`.
   const totalLiabilitiesCur = totalLiabilities(c);
   const totalLiabilitiesPrior = totalLiabilities(p);
+
+  // EVERY SUBTOTAL BELOW IS ABSENCE-AWARE. It was `?? 0` throughout, so a
+  // headline field the feed did not carry became a subtotal of zero, its
+  // Δ became the whole other side, and the reader had no way to tell a
+  // reported zero from an unreported line. `sum`/`diff` propagate absence
+  // the way the arithmetic does: a total missing a term is not that total.
+  const sum = (...xs: (number | null | undefined)[]): number | undefined => {
+    let acc = 0;
+    for (const x of xs) {
+      if (typeof x !== "number" || !Number.isFinite(x)) return undefined;
+      acc += x;
+    }
+    return acc;
+  };
+  const diff = (a: number | null | undefined, b: number | null | undefined): number | undefined =>
+    sum(a, typeof b === "number" && Number.isFinite(b) ? -b : undefined);
+  /** A debt figure floored at zero — but only when there IS one. */
+  const atZero = (x: number | undefined): number | undefined =>
+    x === undefined ? undefined : Math.max(0, x);
 
   const currentAssets: BSSection = {
     header: "CURRENT ASSETS",
@@ -238,12 +266,17 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
       // beyond the headline, so we show the totals at the parent-line level.
     ],
     subtotalLabel: "Total current assets",
-    subtotalOpening: p?.cash ?? 0,
-    subtotalClosing: c.cash ?? 0,
-    subtotalDelta:   delta(c.cash, p?.cash),
+    // `cash` is `number | null` on the SF1 headline; `BSSection` spells
+    // absence as `undefined`. Normalise rather than cast — both mean "not
+    // carried", and `bsDelta` already refuses on either.
+    subtotalOpening: p?.cash ?? undefined,
+    subtotalClosing: c.cash ?? undefined,
+    subtotalDelta:   bsDelta(p?.cash, c.cash),
     subtotalBucket:  "totalCurrentAssets",
   };
 
+  const nonCurrentOpening = diff(p?.total_assets, p?.cash);
+  const nonCurrentClosing = diff(c.total_assets, c.cash);
   const nonCurrent: BSSection = {
     header: "NON-CURRENT ASSETS",
     lines: [
@@ -251,44 +284,49 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
       bsLine("Goodwill & intangibles", leaf(cur, "intangibles_goodwill"), leaf(prior, "intangibles_goodwill")),
     ],
     subtotalLabel: "Total non-current assets",
-    subtotalOpening: (p?.total_assets ?? 0) - (p?.cash ?? 0),
-    subtotalClosing: (c.total_assets ?? 0) - (c.cash ?? 0),
-    subtotalDelta:   delta((c.total_assets ?? 0) - (c.cash ?? 0), (p?.total_assets ?? 0) - (p?.cash ?? 0)),
+    subtotalOpening: nonCurrentOpening,
+    subtotalClosing: nonCurrentClosing,
+    subtotalDelta:   bsDelta(nonCurrentOpening, nonCurrentClosing),
   };
 
   const totalAssets = {
-    opening: p?.total_assets ?? 0,
-    closing: c.total_assets ?? 0,
-    delta: delta(c.total_assets, p?.total_assets),
+    opening: typeof p?.total_assets === "number" ? p.total_assets : undefined,
+    // `as number` was a lie the compiler could not see: SF1 headline
+    // `total_assets` is optional. `BSTotalPair.closing` is absent-capable
+    // now, so an unreported grand total stays unreported.
+    closing:
+      typeof c.total_assets === "number" && Number.isFinite(c.total_assets)
+        ? c.total_assets
+        : null,
+    delta: bsDelta(p?.total_assets, c.total_assets),
   };
 
-  const stDebt = (c.total_debt ?? 0) - (leaf(cur, "bank_loans_lt") ?? 0);
-  const stDebtPrior = (p?.total_debt ?? 0) - (leaf(prior, "bank_loans_lt") ?? 0);
+  const stDebt = atZero(diff(c.total_debt, leaf(cur, "bank_loans_lt")));
+  const stDebtPrior = atZero(diff(p?.total_debt, leaf(prior, "bank_loans_lt")));
 
   const currentLiab: BSSection = {
     header: "CURRENT LIABILITIES",
     lines: [
-      bsLine("Short-term debt", stDebt > 0 ? stDebt : 0, stDebtPrior > 0 ? stDebtPrior : 0),
+      bsLine("Short-term debt", stDebt, stDebtPrior),
     ],
     subtotalLabel: "Total current liabilities",
-    subtotalOpening: stDebtPrior > 0 ? stDebtPrior : 0,
-    subtotalClosing: stDebt > 0 ? stDebt : 0,
-    subtotalDelta:   delta(stDebt > 0 ? stDebt : 0, stDebtPrior > 0 ? stDebtPrior : 0),
+    subtotalOpening: stDebtPrior,
+    subtotalClosing: stDebt,
+    subtotalDelta:   bsDelta(stDebtPrior, stDebt),
     subtotalBucket:  "totalCurrentLiabilities",
   };
 
+  const ncLiabOpening = diff(totalLiabilitiesPrior, stDebtPrior);
+  const ncLiabClosing = diff(totalLiabilitiesCur, stDebt);
   const nonCurrentLiab: BSSection = {
     header: "NON-CURRENT LIABILITIES",
     lines: [
       bsLine("Long-term debt", leaf(cur, "bank_loans_lt"), leaf(prior, "bank_loans_lt")),
     ],
     subtotalLabel: "Total non-current liabilities",
-    subtotalOpening: (totalLiabilitiesPrior ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
-    subtotalClosing: (totalLiabilitiesCur ?? 0) - (stDebt > 0 ? stDebt : 0),
-    subtotalDelta:   delta(
-      (totalLiabilitiesCur ?? 0) - (stDebt > 0 ? stDebt : 0),
-      (totalLiabilitiesPrior ?? 0) - (stDebtPrior > 0 ? stDebtPrior : 0),
-    ),
+    subtotalOpening: ncLiabOpening,
+    subtotalClosing: ncLiabClosing,
+    subtotalDelta:   bsDelta(ncLiabOpening, ncLiabClosing),
   };
 
   const equity: BSSection = {
@@ -296,26 +334,28 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
     lines: [
       bsLine("Retained earnings", leaf(cur, "retained_earnings_accumulated"), leaf(prior, "retained_earnings_accumulated")),
       bsLine("Other equity (paid-in capital, OCI, treasury)",
-        (c.total_equity ?? 0) - (leaf(cur, "retained_earnings_accumulated") ?? 0),
-        (p?.total_equity ?? 0) - (leaf(prior, "retained_earnings_accumulated") ?? 0),
+        diff(c.total_equity, leaf(cur, "retained_earnings_accumulated")),
+        diff(p?.total_equity, leaf(prior, "retained_earnings_accumulated")),
       ),
     ],
     subtotalLabel: "Total equity",
-    subtotalOpening: p?.total_equity ?? 0,
-    subtotalClosing: c.total_equity ?? 0,
-    subtotalDelta:   delta(c.total_equity, p?.total_equity),
+    subtotalOpening: typeof p?.total_equity === "number" ? p.total_equity : undefined,
+    subtotalClosing: typeof c.total_equity === "number" ? c.total_equity : undefined,
+    subtotalDelta:   bsDelta(p?.total_equity, c.total_equity),
   };
 
+  const elOpening = sum(totalLiabilitiesPrior, p?.total_equity);
+  const elClosing = sum(totalLiabilitiesCur, c.total_equity);
   const totalEquityLiab = {
-    opening: (totalLiabilitiesPrior ?? 0) + (p?.total_equity ?? 0),
-    closing: (totalLiabilitiesCur ?? 0) + (c.total_equity ?? 0),
-    delta:   delta(
-      (totalLiabilitiesCur ?? 0) + (c.total_equity ?? 0),
-      (totalLiabilitiesPrior ?? 0) + (p?.total_equity ?? 0),
-    ),
+    opening: elOpening,
+    // Same `as number` cast: `sum()` returns `undefined` the moment ANY
+    // term is missing — that is the whole point of `sum`. Casting it to
+    // `number` handed the missing side straight to `balanceCheck`.
+    closing: elClosing === undefined ? null : elClosing,
+    delta: bsDelta(elOpening, elClosing),
   };
 
-  return {
+  const built: BSStatement = {
     entity,
     asOf,
     comparativeDate,
@@ -324,8 +364,19 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
     totalAssets,
     equityLiabSections: [equity, nonCurrentLiab, currentLiab],
     totalEquityLiab,
-    balanceCheck: totalAssets.closing - totalEquityLiab.closing,
+    // ── A BALANCE CHECK NEEDS BOTH SIDES ────────────────────────────
+    // `(a ?? 0) - (b ?? 0)` is the defect this whole effort exists to
+    // kill, in miniature: with the E&L side absent it returns TOTAL
+    // ASSETS as the "drift", and with the asset side absent it returns
+    // MINUS the whole equity-and-liabilities stack. Either way the number
+    // is a balance sheet total wearing a drift's label. Absent is a
+    // refusal to check, not a check that passed.
+    balanceCheck:
+      totalAssets.closing === null || totalEquityLiab.closing === null
+        ? null
+        : totalAssets.closing - totalEquityLiab.closing,
   };
+  return prior ? built : withoutComparative(built);
 }
 
 
@@ -333,12 +384,30 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
 
 function buildCF(entity: string, period: string, currency: string, p: PublicCompanyPeriod): CashFlowStatement {
   const h = p.headline;
-  const da = leaf(p, "depreciation_total") ?? Math.max(0, (h.ebitda ?? 0) - (h.ebit ?? 0));
+  // ── D&A: THE IDENTITY, OR NOTHING ───────────────────────────────────
+  //
+  // This read `leaf(p, "depreciation_total") ?? Math.max(0, (h.ebitda ?? 0)
+  // - (h.ebit ?? 0))`. EBITDA − EBIT IS D&A, so the identity itself is
+  // sound — but the `?? 0` on each term is not. With `ebit` absent the
+  // expression collapses to `ebitda`, and the statement then prints the
+  // company's ENTIRE operating cash earnings on the "Depreciation &
+  // amortization" line. With `ebitda` absent it prints `max(0, −ebit)`,
+  // i.e. 0 for any profitable company — a reported zero for a figure
+  // nothing measured. An identity is only an identity when both of its
+  // terms are there.
+  const daIdentity =
+    typeof h.ebitda === "number" && Number.isFinite(h.ebitda) &&
+    typeof h.ebit === "number" && Number.isFinite(h.ebit)
+      ? Math.max(0, h.ebitda - h.ebit)
+      : null;
+  const da = leaf(p, "depreciation_total") ?? daIdentity;
   const ocf = h.operating_cash_flow ?? 0;
   // Working-capital plug (ocf - net_profit - depreciation) — keeps the
   // section visually similar to the private path even though SF1 doesn't
-  // expose the per-account movements.
-  const wcPlug = ocf - (h.net_income ?? 0) - da;
+  // expose the per-account movements. ABSENT D&A makes the plug absent:
+  // `ocf − ni − null` is `ocf − ni`, which would book the whole D&A gap
+  // as a working-capital movement.
+  const wcPlug = da === null ? null : ocf - (h.net_income ?? 0) - da;
 
   // Investing / financing are absent from the envelope (see the accessors
   // at the top of this file). Absent is not zero: when they are missing we
@@ -382,10 +451,11 @@ function buildCF(entity: string, period: string, currency: string, p: PublicComp
     operating: {
       netProfit: h.net_income ?? 0,
       depreciation: da,
-      cfBeforeWcChanges: (h.net_income ?? 0) + da,
-      wcChanges: Math.abs(wcPlug) > 1
-        ? [{ label: "Working-capital changes (net)", accounts: "WC", delta: wcPlug }]
-        : [],
+      cfBeforeWcChanges: da === null ? null : (h.net_income ?? 0) + da,
+      wcChanges:
+        wcPlug !== null && Math.abs(wcPlug) > 1
+          ? [{ label: "Working-capital changes (net)", accounts: "WC", delta: wcPlug }]
+          : [],
       cashFromOperating: ocf,
     },
     investing: {
@@ -415,62 +485,178 @@ function buildCF(entity: string, period: string, currency: string, p: PublicComp
 
 
 // ── Statements (for computeRatios) ──────────────────────────────────────
+//
+// ── THE 84 `?? 0` SITES, CLASSIFIED ────────────────────────────────────
+//
+// This file's own header has said since the last wave that "ABSENT
+// rendered as ZERO … this codebase treats as a defect class in its own
+// right" — and then did it eighty-four more times. Every one of those
+// zeroes reached `computeRatios`, which divided by them. On the repo's
+// own real AAPL fixture the result was `interest_coverage 0.00x
+// critical`, `dscr_with_lt_principal 0.00x critical`, `dpo 0 d`,
+// `dio 232 d`, `current_ratio 0.23x` — and, less visibly but worse,
+// EBITDA rebuilt as `revenue − 0 − 0` = 391.0 B standing in for the
+// 134.7 B the same envelope reports, so every margin, coverage and
+// distress figure on the page was computed against revenue.
+//
+// A zero is only honest when the source MEASURED a zero. On a Sharadar
+// SF1 envelope the leaves are a bundle: what is not in `leaves` was not
+// in the feed, not reported as nil. So each field below is one of:
+//
+//   REPORTED   the envelope carries it (headline field or a leaf).
+//   IDENTITY   arithmetic over reported figures that is exact by
+//              construction — total liabilities = assets − equity;
+//              D&A = EBITDA − EBIT. Reported in all but name.
+//   ABSENT     the feed does not carry it. Listed in `absentInputs`, and
+//              the placeholder number is never read by a ratio.
+//
+// The statement RENDERERS still take numbers (an absent one formats as
+// the gap glyph below 0.005, which `formatAmountFrom` already does), so
+// the shape does not change — only what the ratio layer is allowed to
+// believe about it.
+
+/** Records what a source did not carry while keeping the numeric shape
+ *  the statement renderers need. Returns the placeholder; the name is
+ *  what actually travels, on `Statements.absentInputs`. */
+function absentTracker() {
+  const missing = new Set<StatementInput>();
+  return {
+    /** ABSENT unless the envelope really carried it. */
+    reported(name: StatementInput, v: number | null | undefined, placeholder = 0): number {
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      missing.add(name);
+      return placeholder;
+    },
+    /** Declared absent outright — the feed has no such concept. */
+    none(name: StatementInput, placeholder = 0): number {
+      missing.add(name);
+      return placeholder;
+    },
+    list(): StatementInput[] {
+      return Array.from(missing);
+    },
+  };
+}
 
 function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, prior: PublicCompanyPeriod | null): Statements {
   const c = cur.headline;
   const p = prior?.headline ?? null;
+  const a = absentTracker();
 
-  // Map public-company headline to the BalanceSheet line items the
-  // private DerivedTotals computation expects. Since SF1 bundles line
-  // items, we surface what we have and zero the rest.
-  const stDebt = Math.max(0, (c.total_debt ?? 0) - (leaf(cur, "bank_loans_lt") ?? 0));
-  const ltDebt = leaf(cur, "bank_loans_lt") ?? 0;
-  // Derived by identity — reading the (never-emitted) headline key made
-  // this 0, which understated current liabilities by the whole non-debt
-  // liability stack and so INFLATED every liquidity ratio computeRatios
-  // derives from it (current, quick, debt-to-assets).
-  const otherCurLiab = Math.max(0, (totalLiabilities(c) ?? 0) - stDebt - ltDebt);
+  const totalLiabCur = totalLiabilities(c);
+  const ltDebtLeaf = leaf(cur, "bank_loans_lt");
+  // The ST/LT SPLIT is not in the feed: `total_debt` is reported, the
+  // maturity profile is not. `shortTermDebt` used to be
+  // `total_debt − 0`, i.e. the whole debt stack filed as current — which
+  // is what put AAPL's current ratio at 0.23×.
+  const ltDebt = a.reported("longTermDebt", ltDebtLeaf);
+  const stDebt = a.reported(
+    "shortTermDebt",
+    ltDebtLeaf == null || c.total_debt == null
+      ? null
+      : Math.max(0, c.total_debt - ltDebtLeaf),
+    Math.max(0, (c.total_debt ?? 0) - (ltDebtLeaf ?? 0)),
+  );
+  // Everything in the liability stack that is not debt. With no
+  // current/non-current split reported, calling this CURRENT is a
+  // classification the feed never made.
+  const otherCurLiab = a.none(
+    "otherCurrentLiabilities",
+    Math.max(0, (totalLiabCur ?? 0) - stDebt - ltDebt),
+  );
+
+  const ppe = leaf(cur, "ppe_grossbook_buildings");
+  const intang = leaf(cur, "intangibles_goodwill");
+  const ar = leaf(cur, "ar_trade_gross");
+  const inv = leaf(cur, "inventory_merchandise_resale");
+  const retained = leaf(cur, "retained_earnings_accumulated");
 
   const bs = {
-    cash: c.cash ?? 0,
-    accountsReceivable: leaf(cur, "ar_trade_gross") ?? 0,
-    inventory: leaf(cur, "inventory_merchandise_resale") ?? 0,
-    otherCurrentAssets: 0,
-    propertyPlantEquipment: leaf(cur, "ppe_grossbook_buildings") ?? 0,
-    intangibles: leaf(cur, "intangibles_goodwill") ?? 0,
-    otherNonCurrentAssets: Math.max(0,
+    // REPORTED — headline fields and mapped leaves.
+    cash: a.reported("cash", c.cash),
+    accountsReceivable: a.reported("accountsReceivable", ar),
+    inventory: a.reported("inventory", inv),
+    // ABSENT — SF1 has other current assets; this envelope does not
+    // split them out, and the residual below absorbs them into the
+    // non-current bucket. Reading this as 0 made `current assets` =
+    // cash + AR + inventory, a partial presented as a total.
+    otherCurrentAssets: a.none("otherCurrentAssets"),
+    propertyPlantEquipment: a.reported("propertyPlantEquipment", ppe),
+    intangibles: a.reported("intangibles", intang),
+    // The residual closes to `total_assets` exactly, so the TOTAL is
+    // right — but with other-current, PP&E and intangibles unreported it
+    // is "everything else", not "other non-current assets".
+    otherNonCurrentAssets: a.none("otherNonCurrentAssets", Math.max(0,
       (c.total_assets ?? 0)
       - (c.cash ?? 0)
-      - (leaf(cur, "ar_trade_gross") ?? 0)
-      - (leaf(cur, "inventory_merchandise_resale") ?? 0)
-      - (leaf(cur, "ppe_grossbook_buildings") ?? 0)
-      - (leaf(cur, "intangibles_goodwill") ?? 0)
-    ),
-    accountsPayable: 0,
+      - (ar ?? 0)
+      - (inv ?? 0)
+      - (ppe ?? 0)
+      - (intang ?? 0)
+    )),
+    // ABSENT — no payables concept in the feed at all. This hard 0 is
+    // what produced `dpo 0 d · critical` on every public company.
+    accountsPayable: a.none("accountsPayable"),
     shortTermDebt: stDebt,
     otherCurrentLiabilities: otherCurLiab,
     longTermDebt: ltDebt,
-    otherNonCurrentLiabilities: 0,
-    shareCapital: Math.max(0, (c.total_equity ?? 0) - (leaf(cur, "retained_earnings_accumulated") ?? 0)),
-    retainedEarnings: leaf(cur, "retained_earnings_accumulated") ?? 0,
-    otherEquity: 0,
+    otherNonCurrentLiabilities: a.none("otherNonCurrentLiabilities"),
+    // The equity TOTAL is reported; its composition is not.
+    shareCapital: a.none("shareCapital", Math.max(0, (c.total_equity ?? 0) - (retained ?? 0))),
+    retainedEarnings: a.reported("retainedEarnings", retained),
+    otherEquity: a.none("otherEquity"),
   };
 
-  const da = leaf(cur, "depreciation_total") ?? Math.max(0, (c.ebitda ?? 0) - (c.ebit ?? 0));
+  // IDENTITY — D&A = EBITDA − EBIT, both reported on the headline. Exact
+  // by construction, so this is a reported figure in all but name.
+  const daLeaf = leaf(cur, "depreciation_total");
+  const daIdentity =
+    c.ebitda != null && c.ebit != null ? Math.max(0, c.ebitda - c.ebit) : null;
   const incomeStatement = {
-    revenue: c.revenue ?? 0,
-    costOfGoodsSold: leaf(cur, "cogs_materials") ?? 0,
-    operatingExpenses: (leaf(cur, "external_services_other") ?? 0) + (leaf(cur, "external_services_rnd") ?? 0),
-    depreciationAmortization: da,
-    interestExpense: leaf(cur, "interest_expense_bank") ?? 0,
-    otherIncome: 0,
-    taxExpense: leaf(cur, "income_tax_current") ?? 0,
+    revenue: a.reported("revenue", c.revenue),
+    costOfGoodsSold: a.reported("costOfGoodsSold", leaf(cur, "cogs_materials")),
+    operatingExpenses: a.reported(
+      "operatingExpenses",
+      leaf(cur, "external_services_other") == null && leaf(cur, "external_services_rnd") == null
+        ? null
+        : (leaf(cur, "external_services_other") ?? 0) + (leaf(cur, "external_services_rnd") ?? 0),
+    ),
+    depreciationAmortization: a.reported("depreciationAmortization", daLeaf ?? daIdentity),
+    interestExpense: a.reported("interestExpense", leaf(cur, "interest_expense_bank")),
+    // ABSENT — the feed carries no "other operating income" concept, and
+    // a 0 here would silently enter the EBITDA reconstruction.
+    otherIncome: a.none("otherIncome"),
+    taxExpense: a.reported("taxExpense", leaf(cur, "income_tax_current")),
   };
 
   const supplementary = {
     capex: leaf(cur, "cfi_capex") ?? undefined,
     sharesOutstanding: undefined,
   };
+
+  // ── WHAT THE FEED DOES REPORT, AT TOTAL LEVEL ───────────────────────
+  //
+  // These are the figures that make the page work at all. Without them
+  // `deriveTotals` reconstructs EBITDA from a cost breakdown that is not
+  // in the envelope and lands on revenue.
+  const reported: Statements["reportedTotals"] = {};
+  const put = (k: keyof NonNullable<Statements["reportedTotals"]>, v: number | null | undefined) => {
+    if (typeof v === "number" && Number.isFinite(v)) reported[k] = v;
+  };
+  put("totalAssets", c.total_assets);
+  put("totalEquity", c.total_equity);
+  put("totalLiabilities", totalLiabCur);   // identity: assets − equity
+  put("totalDebt", c.total_debt);
+  put("ebitda", c.ebitda);
+  put("ebit", c.ebit);
+  put("netIncome", c.net_income);
+  if (c.total_debt != null && c.cash != null) put("netDebt", c.total_debt - c.cash);
+  // Deliberately NOT reported, and each one is a ratio that now refuses:
+  //   · totalCurrentAssets / totalCurrentLiabilities — no maturity split
+  //     in the feed, so current ratio / quick / cash / working capital /
+  //     Altman X1 have no denominator.
+  //   · grossProfit — no cost of sales, so gross margin has no numerator.
+  //   · pbt — no interest or tax line to bridge EBIT to it.
 
   const result: Statements = {
     companyName: env.ticker_info.name || env.ticker,
@@ -480,6 +666,16 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
     balanceSheet: bs,
     incomeStatement,
     supplementary,
+    // The two fields that make the placeholders above unreadable by any
+    // ratio, and the reported totals that make the page correct.
+    absentInputs: a.list(),
+    reportedTotals: reported,
+    // PRIOR PERIOD — the same feed, so the same lines are absent. It
+    // feeds trend lines only (no ratio in `computeRatios` reads it), and
+    // the shape is unchanged; the absences are declared once, above,
+    // because `PriorPeriod` carries no manifest of its own. Flagged
+    // rather than silently mirrored: a future ratio that starts reading
+    // `s.prior` would need one.
     prior: prior && p
       ? {
           periodLabel: formatPeriodLabel(prior),
@@ -528,17 +724,17 @@ function leaf(p: PublicCompanyPeriod | null, name: string): number | undefined {
 }
 
 function bsLine(label: string, closing: number | undefined | null, opening: number | undefined | null): BSLine {
+  // An absent opening stays absent, and an absent side has no Δ — the
+  // same law `buildBsStatement` applies to the private path (F1). A `?? 0`
+  // here painted a comparative column of zeroes whose Δ was the whole
+  // closing balance.
   return {
     label,
-    opening: opening ?? 0,
-    closing: closing ?? 0,
-    delta: (closing ?? 0) - (opening ?? 0),
+    ...(typeof opening === "number" && Number.isFinite(opening) ? { opening } : {}),
+    ...(typeof closing === "number" && Number.isFinite(closing) ? { closing } : {}),
+    delta: bsDelta(opening, closing),
     style: "item",
   };
-}
-
-function delta(a: number | undefined | null, b: number | undefined | null): number {
-  return (a ?? 0) - (b ?? 0);
 }
 
 function pct(a: number, b: number): number {

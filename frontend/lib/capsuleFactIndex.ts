@@ -123,6 +123,27 @@ export type FactRef = {
    *  vocabulary (`_ratio_units._MONEY_FACTS`). A consumer that must not
    *  cite an undeclared name filters on this. */
   engineDeclared?: boolean;
+  /** The served canonical row's own SECTION (`current_assets`,
+   *  `equity`, …), carried verbatim on `source: "statement_line"` facts
+   *  and set on nothing else.
+   *
+   *  It exists for exactly one consumer — `classShareOf`, which answers
+   *  "how big is this line inside its own class". Without it that share
+   *  would have to be computed against a total the consumer picked,
+   *  which is a different claim: the engine decided which section a row
+   *  belongs to, and a second opinion assembled on the client would
+   *  disagree with the balance sheet the reader can open. */
+  section?: string;
+  /** The ENGINE's own subtotal for that section (`CanonicalBs.sections
+   *  [].subtotal`), carried verbatim beside it.
+   *
+   *  Deliberately NOT a client-side sum of the rows in the section: the
+   *  served subtotal is what the balance sheet prints, and re-adding the
+   *  rows here would produce a second number that disagrees with it the
+   *  first time the engine files a row somewhere the client did not
+   *  expect. Set only when the served subtotal is finite and non-zero —
+   *  a share against nothing is unanswerable, not 100%. */
+  sectionTotal?: number;
 };
 
 /** One period as the index knows it. */
@@ -283,6 +304,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "capitalized_own_work_memo",
   "cash",
   "cash_from_operating",
+  "covenant_limit",
   "cur_liab",
   "currency",
   "current_assets",
@@ -333,6 +355,37 @@ export const RESULT_ROW_IDS: readonly string[] = Object.freeze([
   "current_year_profit",
   "current_year_loss",
 ]);
+
+/**
+ * Sum a set of served rows and list ONLY the accounts that contributed.
+ *
+ * THE DEFECT THIS REPLACES. Three sites summed with `(r.amount ?? 0)` and
+ * then listed accounts with a separate `flatMap` over the SAME unfiltered
+ * rows. A row served with a null amount therefore contributed nothing to
+ * the total while its account code still appeared on the fact's card —
+ * the card naming an account that is not in the number. That is a
+ * provenance jump that lands on a real account holding a real balance the
+ * figure does not include, which is worse than landing nowhere.
+ *
+ * The filter runs ONCE and both outputs come off the same array, so the
+ * two can no longer be built from different sets. `total` is null when no
+ * row survived: a concept with no contributing row is absent, not zero.
+ */
+export function sumContributingRows(
+  rows: readonly CanonicalBsRow[],
+): { total: number | null; accounts: string[]; skipped: number } {
+  const contributing = rows.filter(
+    (r) => r && typeof r.amount === "number" && Number.isFinite(r.amount),
+  );
+  return {
+    total:
+      contributing.length > 0
+        ? contributing.reduce((sum, r) => sum + (r.amount as number), 0)
+        : null,
+    accounts: contributing.flatMap((r) => r.account_codes ?? []),
+    skipped: rows.length - contributing.length,
+  };
+}
 
 export const FACT_PERIOD_COUNT = "period_count";
 export const FACT_FINDING_COUNT = "finding_count";
@@ -518,6 +571,15 @@ function buildPeriodFactsInto(
 
   // ── Statement lines, verbatim ────────────────────────────────────────
   const rows: readonly CanonicalBsRow[] = canonical?.rows ?? [];
+  // The engine's own section subtotals, by section id. Absent sections
+  // simply do not appear — `sectionTotal` is then left unset and the
+  // share refuses (F1).
+  const sectionTotals = new Map<string, number>();
+  for (const section of canonical?.sections ?? []) {
+    if (!section || typeof section.subtotal !== "number") continue;
+    if (!Number.isFinite(section.subtotal) || section.subtotal === 0) continue;
+    sectionTotals.set(section.id, section.subtotal);
+  }
   for (const row of rows) {
     if (!row || typeof row.amount !== "number" || !Number.isFinite(row.amount)) continue;
     out.push({
@@ -536,6 +598,11 @@ function buildPeriodFactsInto(
       source: "statement_line",
       accountCodes: row.account_codes,
       engineDeclared: false,
+      // Carried, never derived. A row the engine did not file under a
+      // section gets no section here, and `classShareOf` then refuses
+      // rather than guessing one from the row id.
+      section: typeof row.section === "string" && row.section ? row.section : undefined,
+      sectionTotal: sectionTotals.get(row.section),
     });
   }
 
@@ -544,9 +611,12 @@ function buildPeriodFactsInto(
   // one native currency. Adding two native-currency operands is not a
   // conversion. Absent rows contribute nothing (F1).
   const cashRows = rows.filter((r) => r && (r.id === "cash_operating" || r.id === "cash_fx"));
-  if (cashRows.length > 0) {
-    const total = cashRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-    const accounts = cashRows.flatMap((r) => r.account_codes ?? []);
+  // Sum and accounts come off ONE filtered array (`sumContributingRows`),
+  // so the card can never name an account whose row contributed nothing.
+  const cash = sumContributingRows(cashRows);
+  if (cash.total !== null) {
+    const total = cash.total;
+    const accounts = cash.accounts;
     out.push({
       factKey: "cash",
       label: METRIC_LABELS.cash,
@@ -592,10 +662,10 @@ function buildPeriodFactsInto(
   // `FactsGateway._result_rows_cents` does it. Absent rows refuse (F1):
   // there is no "no result row therefore zero profit" branch.
   const resultRows = rows.filter((r) => r && RESULT_ROW_IDS.indexOf(r.id) >= 0);
-  if (resultRows.length > 0) {
-    const netResult = resultRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-    money(ctx, "net_result", netResult, "statement_line",
-          resultRows.flatMap((r) => r.account_codes ?? []));
+  const result = sumContributingRows(resultRows);
+  if (result.total !== null) {
+    const netResult = result.total;
+    money(ctx, "net_result", netResult, "statement_line", result.accounts);
     // `expenses` is revenue − net_result, the gateway's own definition.
     const revenue = ctx.values.get("revenue");
     if (revenue !== undefined) {
@@ -750,7 +820,13 @@ function quickRatio(
     (r) => r && typeof r.id === "string" && r.id.indexOf("inventory") === 0,
   );
   if (inventoryRows.length === 0) return;  // no inventory concept served → refuse
-  const inventory = inventoryRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  // A served inventory row with a null amount is an inventory concept the
+  // period did not quantify. Subtracting the survivors would make the
+  // quick ratio a share of a stock level nobody measured, so this refuses
+  // the whole ratio rather than netting off a partial inventory.
+  const inv = sumContributingRows(inventoryRows);
+  if (inv.total === null || inv.skipped > 0) return;
+  const inventory = inv.total;
   const currentAssets = ctx.values.get("current_assets");
   const currentLiabilities = ctx.values.get("current_liabilities");
   if (currentAssets === undefined || currentLiabilities === undefined) return;
@@ -924,6 +1000,120 @@ export function factFor(
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// THE RESTING BRIEF — what the surface can say before a word is typed
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * A statement line's SHARE OF ITS OWN CLASS, or null.
+ *
+ * "461 is 21,923 RON" is a number. "461 is 21,923 RON — 0.1% of current
+ * assets" is the same number with a sense of scale attached, and the
+ * scale is the part a reader cannot get from the balance sheet without
+ * doing the division themselves.
+ *
+ * THREE REFUSALS, all of them F1/F3 restated:
+ *   · not a statement line, or no section  → null. There is no "share of
+ *     everything" fallback; a metric that is not filed under a class has
+ *     no class to be a share of.
+ *   · no served section subtotal            → null. The engine's number
+ *     or nothing — see `FactRef.sectionTotal`.
+ *   · a non-money fact                      → null. A ratio's share of a
+ *     section is not a quantity.
+ *
+ * The division is NATIVE-UNIT (F3): both operands are the same period in
+ * the same source currency, so the result is dimensionless and does not
+ * move when the display-currency dial does. It is returned as a FRACTION,
+ * not a formatted percent — the surface owns the rendering, and a figure
+ * formatted here would bypass the money path.
+ */
+export function classShareOf(
+  fact: FactRef | null | undefined,
+): { share: number; section: string } | null {
+  if (!fact || fact.source !== "statement_line") return null;
+  if (fact.unit !== "money") return null;
+  const section = fact.section;
+  const total = fact.sectionTotal;
+  if (!section) return null;
+  // ABSENT IS NOT ZERO, and it is not "close enough" either. An absent
+  // or zero section subtotal has no share to compute, so this REFUSES.
+  //
+  // A stopped wave left a plant here that fell back to `fact.value * 100`
+  // — a fabricated denominator, which renders a plausible percentage for
+  // a figure whose real share is unknown. That is the failure mode this
+  // codebase exists to prevent, dressed as a convenience.
+  if (typeof total !== "number" || !Number.isFinite(total) || total === 0) {
+    return null;
+  }
+  const share = fact.value / total;
+  if (!Number.isFinite(share)) return null;
+  return { share, section };
+}
+
+/**
+ * THE ORDER THE RESTING TILES ARE PICKED IN.
+ *
+ * Money before ratios, and inside money the four figures an operator
+ * opens this product to read. It is a DECLARED preference list rather
+ * than a scoring function because the resting surface has to be the same
+ * every time it opens: a tile that reorders itself between two openings
+ * of the same workspace is a tile the reader has to re-read.
+ *
+ * The list is longer than the three slots on purpose — it is a fallback
+ * CHAIN, so a period that carries no revenue shows the next thing it
+ * does carry instead of showing two tiles and a hole.
+ */
+export const RESTING_FACT_ORDER: readonly string[] = Object.freeze([
+  "revenue", "ebitda", "cash", "net_debt", "net_result",
+  "total_assets", "equity", "working_capital",
+  "current_ratio", "equity_ratio", "net_debt_ebitda", "net_margin",
+]);
+
+/** The fact that outranks the whole list when the books do not balance.
+ *  A workspace whose balance sheet is out is not one where revenue is
+ *  the most consequential number on screen. */
+const IMBALANCE_FACT = "difference";
+
+/**
+ * Up to `limit` headline facts for the ACTIVE period, ranked.
+ *
+ * Everything here is derived from what the index actually carries:
+ *
+ *   · a fact the period does not have contributes nothing — the tile row
+ *     is short, never padded (F1). Zero tiles is a legal answer;
+ *   · `difference` is promoted to the FRONT when it is present and
+ *     non-zero, because an unbalanced period's most consequential figure
+ *     is the gap. A zero difference is not promoted and is never shown
+ *     as a tile: "the books balance" is the trust chip's sentence, and
+ *     printing a 0 beside three real figures reads as a fourth
+ *     measurement rather than as an absence of one;
+ *   · order is otherwise `RESTING_FACT_ORDER`, so the same workspace
+ *     opens the same way twice (F4).
+ *
+ * No clock, no storage, no fetch — the same index always yields the same
+ * tiles in the same order.
+ */
+export function restingFacts(index: FactIndex, limit = 3): FactRef[] {
+  if (!index || limit <= 0) return [];
+  const out: FactRef[] = [];
+  const seen = new Set<string>();
+
+  const take = (key: string): void => {
+    if (out.length >= limit || seen.has(key)) return;
+    const fact = factFor(index, key);
+    if (!fact) return;
+    if (!Number.isFinite(fact.value)) return;
+    seen.add(key);
+    out.push(fact);
+  };
+
+  const drift = factFor(index, IMBALANCE_FACT);
+  if (drift && Number.isFinite(drift.value) && drift.value !== 0) take(IMBALANCE_FACT);
+
+  for (const key of RESTING_FACT_ORDER) take(key);
+  return out;
+}
+
 /** The standing period context a Tier-1 prompt is cached against: the
  *  headline facts of the active period, resolved and provenance-bearing.
  *  Returned as FACTS, never as prose — the answer lane formats them, so
@@ -953,21 +1143,42 @@ export function amountKindFor(unit: string): "money" | "percent" | "multiple" | 
   }
 }
 
-/** `AmountProvenance` for a fact — the tooltip payload, built from what
- *  the fact actually carries. Returns null when there is nothing behind
- *  it, so the surface never renders a trust affordance over an empty
- *  card. */
-export function amountProvenanceFor(
-  fact: FactRef,
-): { source?: string; method?: string } | null {
+/** `AmountProvenance` for a fact — the affordance payload, built from
+ *  what the fact actually carries. Returns null when there is nothing
+ *  behind it, so the surface never renders a trust affordance over an
+ *  empty card.
+ *
+ *  ONE FIELD PER KIND OF CLAIM. Account codes used to be folded into
+ *  `source` as "accounts 461", and the period was not carried at all —
+ *  which is how a sibling surface came to put the PERIOD LABEL in the
+ *  source slot and render "Source  FY 2025" over a figure whose real
+ *  origin (sheet + accounts) it was discarding. A period is not a
+ *  source and an account is not a sheet; the card labels them
+ *  separately because they are separately checkable.
+ *
+ *  `period` alone never buys the affordance — every fact in the index
+ *  carries one (see `hasProvenance`). It rides along to say WHICH
+ *  period the cited cells belong to. */
+export function amountProvenanceFor(fact: FactRef): {
+  source?: string;
+  accounts?: string;
+  period?: string;
+  method?: string;
+} | null {
   const bits: string[] = [];
   if (fact.provenance?.cell) bits.push(fact.provenance.cell);
-  if (fact.provenance?.account) bits.push(`accounts ${fact.provenance.account}`);
   if (fact.provenance?.docId) bits.push(`doc ${fact.provenance.docId}`);
   const source = bits.join(" · ");
+  const accounts =
+    fact.provenance?.account || (fact.accountCodes ?? []).join(", ") || "";
   const method = fact.derivation
     ? `${fact.derivation.op} of ${fact.derivation.operands.join(" / ")}`
     : fact.source;
-  if (!source && !method) return null;
-  return { source: source || undefined, method };
+  if (!source && !accounts && !method) return null;
+  return {
+    source: source || undefined,
+    accounts: accounts || undefined,
+    period: fact.periodLabel || undefined,
+    method,
+  };
 }

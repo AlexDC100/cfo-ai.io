@@ -22,9 +22,11 @@
  *   L3  one ⌘K hint: shellStrings.json palette hints (en+ro) carry no
  *       shortcut text ("⌘", "{{mod}}", "ctrl", "cmd") — the <kbd> is the
  *       one hint — and TopHeader.tsx renders at most one <kbd>.
- *   L4  the dial is OUT of the bar: TopHeader.tsx renders no <ModeSwitch/>
- *       (Part E, 2026-08-30). Importing `useViewModeSync` is required and
- *       explicitly allowed — it is a hook with no UI.
+ *   L4  the dial is IN the bar, exactly once: TopHeader.tsx renders
+ *       <ModeSwitch/> (owner amendment 2026-08-31, reversing the
+ *       Prompt-16 placement of 2026-08-30). `useViewModeSync` must stay
+ *       seated here regardless — the avatar menu mounts lazily, so
+ *       remote view-mode adoption needs an always-mounted host.
  *   L5  CENSUS HYGIENE (the anti-double-count law). The selector list may
  *       not repeat an entry, and every COMPOSITE selector must also be an
  *       INTERACTIVE selector — never appended to the result as a second
@@ -272,13 +274,35 @@ function runLint() {
 
   // ── L4 · the dial is out of the bar ──────────────────────────────────
 
+  // OWNER AMENDMENT, 2026-08-31: the dial is BACK IN THE BAR.
+  //
+  // L4 was a named-regression rule for the Prompt-16 ruling that moved
+  // Simple|Pro out to hold the header at four controls. The owner has
+  // reversed that ruling, so the rule inverts rather than being deleted:
+  // the dial must now be rendered EXACTLY ONCE at >=lg, and its absence
+  // is the regression.
+  //
+  // Deleting L4 outright was the tempting move and the wrong one. A law
+  // with no assertion cannot notice the dial quietly disappearing again
+  // in six months, and the header's whole history is controls migrating
+  // in and out without anyone noticing which way.
   const dialRenders = (headerSrc.match(/<ModeSwitch\b/g) ?? []).length;
-  if (dialRenders > 0) {
+  if (dialRenders === 0) {
     fail(
       "L4",
-      `TopHeader.tsx renders <ModeSwitch/> ×${dialRenders} — the Simple|Pro dial's homes are the ` +
-        "avatar menu, Settings > Appearance and the ⌘K palette action (MODE_PALETTE_ACTION). " +
-        "It is the one header candidate that is not needed on every screen of every session.",
+      "TopHeader.tsx renders no <ModeSwitch/> — the Simple|Pro dial was " +
+        "restored to the bar by owner instruction on 2026-08-31, " +
+        "reversing the Prompt-16 placement. Its absence is now the " +
+        "regression. If it is being removed again, that is a placement " +
+        "decision: amend SANCTIONED_DESKTOP in e2e/design/header.spec.ts " +
+        "in the same commit so the budget and the bar cannot disagree.",
+    );
+  } else if (dialRenders > 1) {
+    fail(
+      "L4",
+      `TopHeader.tsx renders <ModeSwitch/> ×${dialRenders} — exactly one. ` +
+        "Two dials in one bar is the duplicate-destination class H2 exists " +
+        "for, and the census would count both.",
     );
   } else if (!/useViewModeSync\s*\(\s*\)/.test(headerSrc)) {
     fail(
@@ -288,7 +312,7 @@ function runLint() {
         "remote view-mode adoption.",
     );
   } else {
-    pass("L4", "no <ModeSwitch/> in the bar; useViewModeSync() still seated");
+    pass("L4", "<ModeSwitch/> in the bar exactly once; useViewModeSync() still seated");
   }
 
   // ── L5 · census hygiene (anti-double-count) ──────────────────────────

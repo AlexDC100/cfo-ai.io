@@ -458,8 +458,10 @@ function realSnapshot() {
       current_assets: f.currentAssets(),
       current_liabilities: cl,
       working_capital: f.workingCapital(),
-      current_ratio: cl ? f.currentAssets() / cl : null,
-      equity_ratio: ta ? f.totalEquity() / ta : null,
+      // A ratio over an ABSENT total is not a ratio — the gateway's
+      // accessors return `number | null` and `x / null` is Infinity.
+      current_ratio: cl && f.currentAssets() !== null ? (f.currentAssets() as number) / cl : null,
+      equity_ratio: ta && f.totalEquity() !== null ? (f.totalEquity() as number) / ta : null,
     } as Record<string, number | null>;
   };
   return {

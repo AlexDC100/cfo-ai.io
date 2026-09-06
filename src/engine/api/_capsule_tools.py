@@ -79,6 +79,8 @@ Python 3.9 — no ``match``, no ``X | Y`` unions.
 
 from __future__ import annotations
 
+from pydantic import BaseModel, Field
+
 import copy
 import logging
 import re
@@ -1639,6 +1641,26 @@ def dispatch(name: Any, args: Optional[Dict[str, Any]],
 # ══════════════════════════════════════════════════════════════════════
 
 
+
+class ToolCall(BaseModel):
+    """Request body of ``POST /api/capsule/tools/{tool_name}``.
+
+    MODULE scope on purpose. This class used to live inside
+    ``build_router``; with ``from __future__ import annotations`` the
+    handler's ``body: ToolCall`` annotation is then the STRING "ToolCall",
+    which FastAPI resolves against module globals, cannot find, and so
+    treats ``body`` as a required QUERY parameter — every real request
+    was answered 422 ``loc: ["query", "body"]``. The Playwright specs
+    intercept ``**/api/capsule/tools/**`` and never saw it. Gate:
+    tests/engine/test_capsule_tools_route.py. Same class of defect as the
+    ``/openapi.json`` forward-ref recorded in CLAUDE.md §16.
+    """
+
+    args: Dict[str, Any] = Field(default_factory=dict)
+    #: Optional hint so the context builder can load account detail
+    #: for the period the call is about instead of all of them.
+    period: Optional[str] = None
+
 def build_router():  # pragma: no cover — thin wiring, exercised by e2e
     """``/api/capsule/*`` — schemas and dispatch. GET/POST only; there is
     no route here that writes anything."""
@@ -1646,12 +1668,6 @@ def build_router():  # pragma: no cover — thin wiring, exercised by e2e
     from pydantic import BaseModel, Field
 
     from . import _org, _supabase
-
-    class ToolCall(BaseModel):
-        args: Dict[str, Any] = Field(default_factory=dict)
-        #: Optional hint so the context builder can load account detail
-        #: for the period the call is about instead of all of them.
-        period: Optional[str] = None
 
     router = APIRouter(prefix="/api/capsule", tags=["capsule"])
 

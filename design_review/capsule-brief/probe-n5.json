@@ -1,0 +1,139 @@
+{
+  "typing": [
+    {
+      "code": "5121",
+      "paintMs": 6.699999928474426,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “5121”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    },
+    {
+      "code": "411",
+      "paintMs": 9.799999952316284,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “411”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    },
+    {
+      "code": "401",
+      "paintMs": 11,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “401”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    },
+    {
+      "code": "121",
+      "paintMs": 5,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “121”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    },
+    {
+      "code": "9999",
+      "paintMs": 7.699999928474426,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “9999”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    },
+    {
+      "code": "8888",
+      "paintMs": 7.400000095367432,
+      "askFallback": true,
+      "rows": [
+        {
+          "t": "capsule-ask-fallback",
+          "s": "ask-fallback",
+          "text": "Answer “8888”"
+        },
+        {
+          "t": "capsule-send",
+          "s": null,
+          "text": ""
+        }
+      ],
+      "provenance": 0,
+      "factNodes": 0
+    }
+  ],
+  "enter": [
+    {
+      "code": "5121",
+      "spend": 1,
+      "answer": true,
+      "turn": 1,
+      "factCard": false,
+      "provenance": 0,
+      "text": "AnswerYou asked: 5121Reading account 5121unavailableWriting the interpretation…↑↓ move · Tab to ask · esc⌘↵full chat"
+    },
+    {
+      "code": "9999",
+      "spend": 1,
+      "answer": true,
+      "turn": 2,
+      "factCard": false,
+      "provenance": 0,
+      "text": "AnswerYou asked: 5121Reading account 5121unavailableYou asked: 9999Reading account 9999unavailableWriting the interpretation…↑↓ move · Tab to ask · esc⌘↵full chat"
+    }
+  ],
+  "factIndex": null
+}

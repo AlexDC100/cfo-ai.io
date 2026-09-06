@@ -555,7 +555,8 @@
       "totalAssets": "TOTAL ASSETS",
       "totalEquityLiab": "TOTAL EQUITY & LIABILITIES",
       "drift": "Balance sheet drift",
-      "note": "Note"
+      "note": "Note",
+      "noComparative": "Opening — not filed"
     },
     "cf": {
       "title": "CASH FLOW",
@@ -1152,7 +1153,7 @@
     "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
     "pickSampleOrUpload": "Pick a sample or upload",
     "exportHtmlTitle": "HTML financial analysis report",
-    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 25+ ratios with verdicts, bankruptcy assessment, and prioritized recommendations.",
+    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 25+ ratios with verdicts, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
     "exportXlsxTitle": "Excel workbook",
     "exportXlsxBody": "8-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations.",
     "exportPptxTitle": "PowerPoint deck",
@@ -1427,7 +1428,10 @@
     "previewSheetCaption": "{{file}} · sheet \"{{sheet}}\" (example — fictional data)",
     "previewLoadFailed": "Couldn't load preview: {{msg}}.",
     "downloadInstead": "Download instead",
-    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch."
+    "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch.",
+    "notAvailableShort": "—",
+    "zoneNotComputable": "Not computable",
+    "creditNotComputable": "Not enough of the source book was recognised to compute a rating."
   },
   "tabs": {
     "pl": "P&L",
@@ -2350,7 +2354,9 @@
     "gradeBoundary": "boundary",
     "gradeSpeculative": "speculative",
     "gradeDistress": "distress",
-    "tabOverview": "Overview"
+    "tabOverview": "Overview",
+    "ratioVerdictUnknown": "Not reported",
+    "ratioUnavailableAria": "Not reported for this period"
   },
   "metricsV2": {
     "title": "Metrics",
@@ -2781,5 +2787,110 @@
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
       "sources": "Sources: Bursa de Valori București reference data plus issuer disclosures and ANAF statutory filings for {{bvb}} BVB listings. Fundamentals are end-of-day; prices refresh every 5 minutes."
     }
+  },
+  "pending": {
+    "eyebrow": "Not in this release",
+    "needs": "What it needs",
+    "notify": "Notify me",
+    "notified": "We'll let you know",
+    "scenarios": {
+      "title": "Scenario planning",
+      "description": "Move price, volume and cost levers and see profit, cash and covenant headroom move with them.",
+      "requirement": "Enabled after launch"
+    },
+    "variance": {
+      "title": "Budget vs actual vs last year",
+      "description": "Compares the period you are looking at against your budget and the same period last year, line by line.",
+      "requirement": "A budget upload and 2+ comparable periods"
+    },
+    "benchmarks": {
+      "title": "Industry benchmark",
+      "description": "Places every ratio against the percentile band for your CAEN sector.",
+      "requirement": "Enabled after launch"
+    },
+    "products_legacy": {
+      "title": "Products & SKU analytics",
+      "description": "Ranks SKUs by margin, velocity and working-capital drag, and buckets them for action.",
+      "requirement": "A sales or SKU file"
+    },
+    "public_companies": {
+      "title": "Public companies",
+      "description": "Listed-company filings, ratios and peer comparison, read straight from the regulator's own filings.",
+      "requirement": "Enabled after launch"
+    },
+    "comprehensive_report": {
+      "title": "Comprehensive report",
+      "description": "The full eight-section written analysis of a period, as one document.",
+      "requirement": "Enabled after launch"
+    },
+    "peer_report": {
+      "title": "Peer comparison report",
+      "description": "Your P&L set side by side with a named peer and the sector median.",
+      "requirement": "Enabled after launch"
+    },
+    "chat_page": {
+      "title": "Ask CFO AI",
+      "description": "A full conversation surface over your workspace, documents and periods.",
+      "requirement": "Enabled after launch"
+    },
+    "roadmap": {
+      "title": "Roadmap",
+      "description": "What is shipping next, and what each release unlocks.",
+      "requirement": "Enabled after launch"
+    },
+    "inventory": {
+      "title": "Inventory",
+      "description": "Stock levels, days-inventory-outstanding and slow-mover detection.",
+      "requirement": "An inventory file"
+    },
+    "invoices": {
+      "title": "Invoices",
+      "description": "AR/AP ageing and the cash-conversion drilldown behind DSO and DPO.",
+      "requirement": "An invoice register"
+    },
+    "decisions": {
+      "title": "Decisions",
+      "description": "The prioritised action queue built from findings, with owners and status.",
+      "requirement": "Enabled after launch"
+    },
+    "alerts": {
+      "title": "Alerts",
+      "description": "Threshold and anomaly alerts on the metrics you choose to watch.",
+      "requirement": "Enabled after launch"
+    },
+    "public_records": {
+      "title": "Multi-year history",
+      "description": "Filed accounts for prior years, pulled from the public registry.",
+      "requirement": "A data provider"
+    }
+  },
+  "legalX": {
+    "consent_pre": "By creating an account I accept the",
+    "consent_terms": "Terms",
+    "consent_mid": "and the",
+    "consent_privacy": "Privacy Policy",
+    "consent_required": "Please accept the Terms and the Privacy Policy to create an account.",
+    "cookies_title": "Cookies",
+    "cookies_hint": "Strictly necessary and preference cookies always load. Analytics cookies load only if you allow them.",
+    "cookies_state_allowed": "Analytics allowed",
+    "cookies_state_declined": "Analytics declined",
+    "cookies_state_undecided": "Not answered yet",
+    "cookies_change": "Change choice",
+    "cookies_recorded": "Recorded {{when}} against {{version}}",
+    "cookies_recorded_legacy": "Recorded {{when}}, before the Cookie Policy was versioned",
+    "cookies_policy_link": "Cookie Policy"
+  },
+  "cookieConsent": {
+    "title": "Cookies",
+    "body": "Strictly necessary and preference cookies load by default. Analytics cookies load only if you allow them, and declining changes nothing about how the platform works.",
+    "policyLink": "Read the Cookie Policy",
+    "necessary": "Strictly necessary \u2014 sign-in, security, load balancing. Always on.",
+    "preferences": "Preferences \u2014 language, display currency, theme. Part of the service you asked for.",
+    "analytics": "Analytics \u2014 usage statistics. Only with your consent.",
+    "accept": "Allow analytics",
+    "reject": "Decline analytics",
+    "currentChoice": "Current choice: {{value}}. You can change it at any time under Settings.",
+    "stateAllowed": "analytics allowed",
+    "stateDeclined": "analytics declined"
   }
 }

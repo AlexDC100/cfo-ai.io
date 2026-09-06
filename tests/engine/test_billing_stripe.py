@@ -629,12 +629,13 @@ class FakeAdminClient:
 
 
 def make_jwt(sub: str, email: str = "d2-user@example.com") -> str:
-    def enc(d: Dict[str, Any]) -> str:
-        raw = base64.urlsafe_b64encode(json.dumps(d).encode("utf-8"))
-        return raw.rstrip(b"=").decode("ascii")
-
-    return "%s.%s.%s" % (enc({"alg": "none", "typ": "JWT"}),
-                         enc({"sub": sub, "email": email}), "sig")
+    """A REAL ES256 bearer for `sub`, signed with the per-process test key
+    whose JWKS the conftest autouse fixture serves to the verifier. Until
+    2026-09-05 (FC1x, critic D5) this minted an unsigned `alg: none` token
+    that the real client's `get_user` decoded without verifying — the
+    production hole, restated as a test convenience."""
+    from firm_postgrest_double import mint_jwt
+    return mint_jwt(sub, email)
 
 
 def auth_header(user_id: str) -> Dict[str, str]:
@@ -687,7 +688,8 @@ def _env_hygiene(monkeypatch):
                 "ENGINE_API_TOKEN", "USAGE_LIMITS_ENABLED"):
         monkeypatch.delenv(var, raising=False)
     # Dummy Supabase config so the REAL per_user() client constructs
-    # offline (get_user decodes the JWT locally; no network is issued).
+    # offline (get_user VERIFIES the bearer against the in-process test
+    # JWKS the conftest fixture installs; no network is issued).
     monkeypatch.setenv("VITE_SUPABASE_URL", "http://fake-supabase.local")
     monkeypatch.setenv("VITE_SUPABASE_ANON_KEY", "fake-anon-key")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "fake-service-key")

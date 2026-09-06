@@ -89,16 +89,20 @@ from typing import Dict, List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parents[1]
 
-# The two deselects mirror .github/workflows/tier1-validation.yml — the
-# pre-existing SHARADAR market-cap scaling defect in the public-companies
-# adapter (unrelated to the BS engine); re-enable when that is fixed.
-PYTEST_DESELECTS = [
-    "--deselect",
-    "tests/engine/public/test_adapter.py::test_get_daily_metrics_parses_aapl",
-    "--deselect",
-    "tests/engine/public/test_adapter.py::"
-    "test_normalizer_emits_envelope_shape_from_aapl_fixture",
-]
+# EMPTY, and it should stay that way. It used to hold two deselects for "the
+# pre-existing SHARADAR market-cap scaling defect in the adapter". There was
+# no adapter defect: SHARADAR/DAILY documents marketcap and ev as USD
+# millions, the adapter's 1e6 multiplication at both DAILY call sites is
+# correct, and the committed FIXTURE held absolute USD — so the adapter
+# looked a million times wrong and two honest tests were switched off for
+# months instead. Fixed 2026-09-04 by correcting the fixture.
+#
+# The cost of the deselect was not the two tests. It was that the battery
+# reported green over a money-unit question nobody re-opened, and a later
+# wave "fixed" the adapter to match the wrong fixture, which would have
+# shipped Apple at USD 3.78M. A deselect is a gate you have agreed not to
+# look at; prefer an xfail with a reason, or fix it.
+PYTEST_DESELECTS = []
 
 PY = sys.executable
 
@@ -243,12 +247,60 @@ def _engine_gates() -> List[Gate]:
         # ratios invariant across currencies. Named separately from
         # `pytest` because a fabricated figure fails silently, so its gate
         # must not. Plant log: design_review/capsule/GATES.md
+        # The six firm-* gates live in the working tree, NOT here: their test
+        # files (test_firm_gates / test_firm_attention / test_firm_tenancy)
+        # are part of the uncommitted Firm Cockpit backend, so a gate naming
+        # them would red a clean checkout of main. Their gates.md sections are
+        # already written; re-add the Gate lines in the same commit that lands
+        # the Cockpit tests. Removed 2026-09-04 after they reached main early.
         Gate("capsule-gates",
              [PY, "-m", "pytest", "tests/engine/test_capsule_gates.py", "-q"],
              work_junit=True, floor=15, units="tests",
              canaries=("test_c1_no_figure_ever_reaches_the_language_channel",
                        "test_c2_a_planted_write_tool_never_executes_through_the_dispatcher",
                        "test_c5_absent_period_answers_with_the_gap_and_no_number")),
+        # FC7 + FC8 — THE FIRM COCKPIT (backend). FC7: a file uploaded via
+        # a request link lands through the NORMAL pipeline (same row shape,
+        # same status + enqueue, the request's period as the confirmation
+        # hint) and the period-mismatch and entity guards FIRE on a
+        # wrong-period / wrong-entity file. FC8: model mocked DEAD ->
+        # items, calendar, digest, brief all complete with an honest
+        # notice and zero raw payload; a model call planted in the ranking
+        # path reds the structural assertion. Named separately from
+        # `pytest` because a side channel around the pipeline and a model
+        # in the ranking path both fail SILENTLY. Floor 15 = the measured
+        # 22 tests, rounded down. Plant log: docs/engine_book/gates.md
+        Gate("route-binding",
+             [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
+                       "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
+                       "test_the_full_openapi_schema_generates")),
+        Gate("cron-auth",
+             [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
+             work_junit=True, floor=8, units="tests",
+             canaries=("test_cron_without_a_configured_token_is_503_never_run",
+                       "test_cron_with_a_wrong_bearer_is_refused")),
+        Gate("public-refresh-shield",
+             [PY, "-m", "pytest", "tests/engine/test_public_refresh_shield.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_both_guarded_routes_still_exist_on_the_real_app",
+                       "test_anonymous_calls_are_limited_after_the_budget",
+                       "test_a_limited_call_mutates_no_cache",
+                       "test_a_valid_bearer_is_never_limited",
+                       "test_rotating_a_spoofed_leftmost_hop_cannot_mint_new_buckets",
+                       "test_the_shield_and_the_limiter_read_the_same_hop")),
+        Gate("public-post-surface",
+             [PY, "-m", "pytest", "tests/engine/test_public_post_surface.py", "-q"],
+             work_junit=True, floor=21, units="tests",
+             canaries=("test_every_public_post_on_the_real_app_is_classified",
+                       "test_the_walled_payloads_are_valid_so_a_401_means_the_wall",
+                       "test_a_walled_route_refuses_when_the_token_is_unset",
+                       "test_a_walled_route_refuses_a_wrong_bearer",
+                       "test_an_unauthenticated_manual_signal_creates_nothing",
+                       "test_an_unauthenticated_filings_refresh_never_calls_edgar",
+                       "test_sync_is_limited_after_the_budget",
+                       "test_ps8_compliance_routes_are_walled_and_never_rate_limited")),
         Gate("determinism", [PY, "scripts/verify_determinism.py"],
              # Floor 4 = the full declared roster in the script's own
              # fixture table (prod_scandia_frozen, agras,
@@ -397,6 +449,19 @@ def _frontend_gates() -> List[Gate]:
         # at production. Differential: every recorded variable must
         # resolve identically with the local dotenv files loaded and with
         # none. ~50s, which is why it sits near the end.
+        # NO TEST PATH MAY BE ABLE TO WRITE TO PRODUCTION. The sibling of
+        # `hermetic`, and the hole `hermetic` did not cover: that gate made
+        # VITEST hermetic, while Playwright drives the DEV SERVER, which
+        # reads dotenv directly and never consults the manifest. `.env`
+        # held the production Supabase URL and `.env.local` held
+        # VITE_PUBLIC_TEST_MODE=1; vite merges them, so the dev server ran
+        # in test mode against production and every cold boot created a
+        # real organisation. 8,880 junk rows, 99.6% of that table.
+        Gate("test-env-isolation",
+             ["node", "scripts/check_test_env_isolation.mjs"],
+             work_rx=r"units=(\d+)", floor=1,
+             units="env vars examined",
+             canaries=("TEST-ENV ISOLATION", "sanctioned supabase")),
         Gate("hermetic", ["node", "scripts/check_hermetic.mjs"],
              work_rx=r"GATE-WORK hermetic units=(\d+)", floor=14,
              units="recorded environment variables",
@@ -443,6 +508,39 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,
              units="narrative producers",
              canaries=("NARRATIVE-UNITS",)),
+        # PROVENANCE ON HOVER — the census and the contrast, in that order.
+        #
+        # The census is the two-sided registry: it discovers every figure
+        # render site, fails on any that carries no payload verdict, and
+        # fails on the FABRICATION SHAPE that shipped — a `source:` fed
+        # from a period label, which put "Source  FY 2025" over a figure
+        # whose real sheet and account codes were being discarded. In the
+        # battery because that defect was found by READING, and reading
+        # is not a control.
+        Gate("provenance-census", ["node", "scripts/check_provenance_census.mjs"],
+             work_rx=r"GATE-WORK provenance-sites units=(\d+)", floor=80,
+             units="figure render sites",
+             canaries=("PROVENANCE CENSUS", "GATE-WORK provenance-census")),
+        # The affordance's own contrast, computed from the token sheet in
+        # BOTH themes. Its subject is exactly the class that shipped: the
+        # card's labels used `--ink-mute`, which measures 3.53:1 on the
+        # popover in light — an AA failure that reads perfectly fine, and
+        # the dotted underline that announces provenance measured 1.78:1
+        # against a 3:1 non-text floor. Neither is visible to a screenshot
+        # diff or to a human eye; both are arithmetic.
+        Gate("provenance-contrast", ["node", "scripts/check_provenance_contrast.mjs"],
+             work_rx=r"GATE-WORK provenance-contrast units=(\d+)", floor=6,
+             units="colour nodes measured in both themes",
+             # Both canaries are lines only a REAL run can print: the
+             # first names the file the subjects are parsed out of (so a
+             # gate that lost its component is loud), the second is the
+             # underline row's own threshold label (so a gate that lost
+             # the non-text check is loud). The floor of 6 is 2 themes x
+             # (2 text classes + 1 underline) — it went from 20 to 6 when
+             # the gate stopped measuring a hand-written list and started
+             # measuring the component, which is fewer nodes and a real
+             # subject instead of more nodes and a copy.
+             canaries=("subjects parsed from", "non-text 3:1")),
         Gate("global-positioning", ["node", "scripts/check_global_positioning.mjs"],
              work_rx=r"GATE-WORK global-positioning units=(\d+)", floor=400,
              units="frontend files scanned",

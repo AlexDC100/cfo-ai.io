@@ -12,7 +12,17 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
 import { markNewsletterOptInPending } from "@/lib/newsletterOptIn";
-import { TermsDialog } from "./TermsDialog";
+// Signup consent is RECORDED, not just gated. `buildConsentRecord` stamps
+// the version + sha256 of the exact Terms and Privacy text published right
+// now; `markLegalConsentPending` parks it until a session exists, because
+// with email confirmation on there is no authenticated user at this point.
+// See lib/legalConsent.ts for why the write is late rather than inline.
+import {
+  buildConsentRecord,
+  markLegalConsentPending,
+  OAUTH_PENDING_EMAIL,
+} from "@/lib/legalConsent";
+import { legalDocPath } from "@/lib/legalConfig";
 import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 import {
   getPlan,
@@ -81,7 +91,7 @@ export function AuthCard({
   const { signIn, signUp, signInWithOAuth, status } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // useSubscription internally calls useLocalSubscription via
   // useSyncExternalStore. We previously called useLocalSubscription twice
@@ -112,7 +122,6 @@ export function AuthCard({
   // optional and acted on only after the account actually exists.
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [wantsNewsletter, setWantsNewsletter] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
 
   // Derived view-model — pure useMemo, deterministic.
   const displayName = useMemo(
@@ -227,6 +236,22 @@ export function AuthCard({
   // human-friendly message rather than the raw error string.
   async function handleOAuth(provider: "google" | "apple") {
     setError(null);
+    // GOOGLE SIGN-UP IS STILL A SIGN-UP. The consent line gates the email
+    // form; without this it did not gate the OAuth button, so every account
+    // created with Google was created with no acceptance shown and none
+    // recorded. Same checkbox, same sentence, same requirement.
+    if (mode === "sign_up" && !acceptedTerms) {
+      setError(t("legalX.consent_required"));
+      return;
+    }
+    if (mode === "sign_up") {
+      // The address is not known until the provider redirects back, so the
+      // record is parked under a wildcard the flush resolves against
+      // whatever session lands. That is weaker than the email-matched guard
+      // the password path gets — see lib/legalConsent.ts::OAUTH_PENDING_EMAIL
+      // for exactly how much weaker and why it is still the right trade.
+      markLegalConsentPending(OAUTH_PENDING_EMAIL, buildConsentRecord(i18n.language));
+    }
     setBusy(true);
     try {
       const { error } = await signInWithOAuth(provider);
@@ -266,7 +291,7 @@ export function AuthCard({
       return;
     }
     if (mode === "sign_up" && !acceptedTerms) {
-      setError(t("authX.err_accept_terms"));
+      setError(t("legalX.consent_required"));
       return;
     }
     setBusy(true);
@@ -291,6 +316,12 @@ export function AuthCard({
           // session exists (i.e. once the account-confirmation link has
           // been clicked and the address is proven). See lib/newsletterOptIn.ts.
           if (wantsNewsletter) markNewsletterOptInPending(email);
+          // The acceptance itself, with the document versions the user was
+          // shown. Parked in the same way and for the same reason as the
+          // newsletter intent above: no session exists yet when email
+          // confirmation is on, and `set_user_pref` resolves the user from
+          // auth.uid(). lib/auth.tsx flushes both on the first session.
+          markLegalConsentPending(email, buildConsentRecord(i18n.language));
           if (needsConfirmation) setConfirmEmail(email);
           else authedRedirect();
         }
@@ -590,9 +621,28 @@ export function AuthCard({
             {mode === "sign_up" && (
               <div className="flex flex-col gap-2.5 pt-1">
                 {/* Consent is REQUIRED and deliberately not pre-ticked — a
-                    pre-ticked box is not consent under GDPR. The Terms open
-                    in a modal rather than a link, because navigating away
-                    from a half-filled signup form loses everything typed. */}
+                    pre-ticked box is not consent under GDPR.
+
+                    THE SENTENCE IS THE OWNER'S, VERBATIM:
+                      "Prin crearea contului accept Termenii și Politica de
+                       confidențialitate"
+                      "By creating an account I accept the Terms and the
+                       Privacy Policy"
+                    It is assembled from four i18n keys so both document
+                    names can be links inside it; joined with single spaces
+                    the four pieces reproduce each sentence exactly, and a
+                    unit test asserts that rather than trusting the eye.
+
+                    LINKS, NOT A MODAL. This used to open TermsDialog, whose
+                    stated reason was that navigating away from a half-filled
+                    form loses everything typed — true, and still true. But a
+                    modal is not a link: it has no URL to copy, to bookmark
+                    or to hand to a lawyer, and the dialog rendered a SECOND,
+                    hand-typed copy of the Terms (lib/legalTerms.ts) that
+                    still carried `[Company Legal Name]` placeholders and the
+                    word "Draft". `target="_blank"` keeps the form intact AND
+                    gives a real address. Both files are deleted with this
+                    change. */}
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -601,22 +651,35 @@ export function AuthCard({
                     data-testid="signup-accept-terms"
                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
                   />
-                  <span className="text-[11.5px] leading-snug text-ink-soft">
-                    {t("authX.terms_agree_pre")}{" "}
-                    <button
-                      type="button"
+                  <span className="text-[11.5px] leading-snug text-ink-soft" data-testid="signup-consent-line">
+                    {t("legalX.consent_pre")}{" "}
+                    <a
+                      href={legalDocPath("terms")}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       // stopPropagation: without it the click bubbles to the
-                      // <label> and toggles the checkbox as a side effect of
-                      // opening the document the user hasn't read yet.
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTermsOpen(true); }}
+                      // <label> and ticks the box as a side effect of opening
+                      // the document the user has not read yet.
+                      onClick={(e) => e.stopPropagation()}
                       data-testid="signup-open-terms"
                       // `brand-light`, not `brand-l` — tailwind.config.ts
                       // names the scale DEFAULT/dark/light/tint, so
                       // `hover:text-brand-l` compiles to nothing at all.
                       className="text-brand font-medium underline underline-offset-2 hover:text-brand-light"
                     >
-                      {t("authX.terms_of_service")}
-                    </button>
+                      {t("legalX.consent_terms")}
+                    </a>{" "}
+                    {t("legalX.consent_mid")}{" "}
+                    <a
+                      href={legalDocPath("privacy")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid="signup-open-privacy"
+                      className="text-brand font-medium underline underline-offset-2 hover:text-brand-light"
+                    >
+                      {t("legalX.consent_privacy")}
+                    </a>
                     <span className="text-brand"> *</span>
                   </span>
                 </label>
@@ -676,7 +739,6 @@ export function AuthCard({
 
       {/* Mounted at the card root, outside the `confirmEmail` branch, so the
           document stays readable no matter which state the card is in. */}
-      <TermsDialog open={termsOpen} onOpenChange={setTermsOpen} />
     </div>
   );
 }

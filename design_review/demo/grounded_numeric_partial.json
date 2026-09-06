@@ -1,0 +1,51 @@
+{
+  "status": "PARTIAL \u2014 engine path only",
+  "company": "Carniprod",
+  "period": "FY2025 (12-25)",
+  "period_end": "2025-12-31",
+  "synthetic": "false",
+  "currency": "RON",
+  "total_assets_cents": 12588619251,
+  "total_assets_display": "125 886 192.51",
+  "asset_rows": 28,
+  "sum_of_rows_cents": 12588619251,
+  "difference_cents": 0,
+  "traced_figure": {
+    "label": "Machinery & equipment",
+    "amount_cents": 6628087131,
+    "row_id": "ppe_machinery_equipment",
+    "account_codes": [
+      "2131",
+      "2132",
+      "2133"
+    ],
+    "leaf_ids": [
+      "2131",
+      "2132",
+      "2133"
+    ],
+    "source_file": "corpus/saga_10_col_carniprod/input.xlsx"
+  },
+  "source_cells": [
+    {
+      "cell": "I15",
+      "account": "2131",
+      "closing_debit": 53150134.56
+    },
+    {
+      "cell": "I16",
+      "account": "2132",
+      "closing_debit": 2924107.08
+    },
+    {
+      "cell": "I17",
+      "account": "2133",
+      "closing_debit": 10206629.67
+    }
+  ],
+  "not_demonstrated": [
+    "browser surface: question -> fact tile -> provenance click -> source cell",
+    "any signed-in workspace path"
+  ],
+  "blocked_on": "a non-production Supabase project"
+}

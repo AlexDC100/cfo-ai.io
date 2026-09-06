@@ -24,8 +24,12 @@ import type { ValueFormat } from "@/lib/learning/concepts/_schema";
 interface Props {
   /** Concept registry key. */
   conceptKey: string;
-  /** Numeric value to seed the popover with (typically the closing balance). */
-  value: number;
+  /** Numeric value to seed the popover with (typically the closing
+   *  balance). ABSENT-CAPABLE: a learnable popover over a figure the
+   *  source never carried would explain a number nobody computed — the
+   *  same defect class as a provenance card on an absent cell. When this
+   *  is absent the label renders as plain text with no trigger. */
+  value: number | null | undefined;
   /** The visible label text + any inline children (e.g. RAS account code). */
   children: ReactNode;
   /** Optional className passthrough. */
@@ -45,17 +49,28 @@ export function LearnableRowLabel({
   "data-testid": testId,
 }: Props) {
   const { push } = usePopoverStack();
+  const absent = typeof value !== "number" || !Number.isFinite(value);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     push({
       conceptKey,
-      value,
+      value: value as number,
       triggerRect: rect,
       formatOverride: formatHint,
     });
   };
+
+  // No figure, no explainer. Keeps the label and its testid so callers
+  // and tests still find the row; drops only the affordance.
+  if (absent) {
+    return (
+      <span className={className} data-testid={testId}>
+        {children}
+      </span>
+    );
+  }
 
   return (
     <button

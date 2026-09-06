@@ -19,6 +19,7 @@ committed — the book cannot rot silently.
 | [adr_index.md](adr_index.md) | Index of `docs/decisions/` | generated |
 | [assertions.md](assertions.md) | A-### assert catalog with witness tests | assertions agent (hand-maintained) |
 | [testing_conventions.md](testing_conventions.md) | TC-### testing rules, each naming the incident that produced it — real-output fixtures, proven-RED gates, census canaries | hand-maintained |
+| [../parked/generative-canvas.md](../parked/generative-canvas.md) | PARKED mission: the generative artifact workspace — what exists on branch `parked/generative-canvas`, what was learned, and the conditions for resuming it | hand-maintained |
 | [gates.md](gates.md) | THE GATE REGISTER — every battery gate's work count, floor, canary and the plant that was observed RED | hand-maintained |
 | [mutation.md](mutation.md) | Mutation-testing results and policy | mutation agent (hand-maintained) |
 | [ai_payload_audit.md](ai_payload_audit.md) | What each AI call site sends off-box, with over-sharing flags | supply-chain agent (hand-maintained) |

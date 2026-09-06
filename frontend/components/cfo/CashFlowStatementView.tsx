@@ -97,9 +97,17 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
                     {t("statements.cf.operating.depreciation")}
                   </SimpleTermLabel>
                 </span>
-                <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
-                  {fmt(operating.depreciation)}
-                </LearnableNumber>
+                {/* ABSENT-CAPABLE: the public adapter derives D&A from the
+                    EBITDA − EBIT identity and refuses when either term is
+                    missing. `fmt` paints the gap; no learnable trigger over
+                    a figure nobody computed. */}
+                {typeof operating.depreciation === "number" ? (
+                  <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
+                    {fmt(operating.depreciation)}
+                  </LearnableNumber>
+                ) : (
+                  <span className="cf-amount">{fmt(operating.depreciation)}</span>
+                )}
               </div>
 
               <div className="cf-subtotal-rule" />
@@ -107,9 +115,13 @@ export function CashFlowStatementView({ statement, hideGuide = false }: Props) {
           )}
           <div className="cf-row cf-subtotal">
             <span className="cf-label">{t("statements.cf.operating.cfBeforeWc")}</span>
-            <LearnableNumber conceptKey="operating_cash_flow_before_wc" value={operating.cfBeforeWcChanges} className="cf-amount" block>
-              {fmt(operating.cfBeforeWcChanges)}
-            </LearnableNumber>
+            {typeof operating.cfBeforeWcChanges === "number" ? (
+              <LearnableNumber conceptKey="operating_cash_flow_before_wc" value={operating.cfBeforeWcChanges} className="cf-amount" block>
+                {fmt(operating.cfBeforeWcChanges)}
+              </LearnableNumber>
+            ) : (
+              <span className="cf-amount">{fmt(operating.cfBeforeWcChanges)}</span>
+            )}
           </div>
 
           {!keyOnly && operating.wcChanges.length > 0 && (

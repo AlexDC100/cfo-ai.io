@@ -15,7 +15,17 @@ Endpoints (matches design plan §25.7):
   GET  /api/public/intelligence/companies/{ticker}/signals
   GET  /api/public/intelligence/companies/{ticker}/ai-market-read
   POST /api/public/intelligence/signals/manual        — operator signal upload
+                                                        WALLED (fail closed)
+  POST /api/public/intelligence/refresh-filings-cache  — poll EDGAR, invalidate
+                                                        WALLED (fail closed)
   POST /api/public/intelligence/refresh-signals       — bust radar + signal cache
+                                                        SHIELDED (rate limit)
+
+The two WALLED routes require the ENGINE_API_TOKEN bearer and refuse with
+503 when it is unset; the SHIELDED one stays anonymously reachable behind a
+per-client budget. That split is deliberate and is pinned by
+tests/engine/test_public_post_surface.py — see refresh_shield's module
+docstring for the reasoning.
 """
 
 from __future__ import annotations
@@ -25,10 +35,15 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from .. import universe as universe_module
+# Cache-bust shield (rate limit + operator bearer). MODULE scope on purpose:
+# this file uses `from __future__ import annotations`, so anything FastAPI has
+# to resolve from an endpoint signature must be visible in module globals.
+from ..refresh_shield import guard as _refresh_guard
+from ..refresh_shield import require_operator as _require_operator
 from ..universe_service import get_universe
 from ..bvb_seed import bvb_universe as _bvb_universe
 from .category_scoring import CATEGORIES as RADAR_CATEGORIES
@@ -703,7 +718,24 @@ def build_router() -> APIRouter:
 
     # ─── Manual signal upload ───────────────────────────────────────────
     @router.post("/signals/manual")
-    def post_manual_signal(payload: ManualSignalIn) -> dict[str, Any]:
+    def post_manual_signal(payload: ManualSignalIn, request: Request) -> dict[str, Any]:
+        """Create a macro signal by hand. OPERATOR ONLY — WALLED, fail closed.
+
+        This route WRITES content the product then shows to users: the new
+        signal feeds risk-radar, macro-signals and every per-ticker risk
+        score (this handler busts those three caches itself, below). Until
+        2026-09-04 it had no authentication of any kind — an anonymous POST
+        with a valid payload answered 200 and the signal was live. That is
+        content injection, not a cache bust.
+
+        A rate limit would be the wrong control: it still admits one
+        injected signal per window, and one is enough. So this follows
+        tests/engine/test_cron_auth.py's fail-closed contract (503 with the
+        token unset, 401 on a missing/wrong bearer) rather than the
+        refresh_shield contract used by the cache-bust routes next door.
+        See refresh_shield.require_operator for the full justification.
+        """
+        _require_operator(request, route="/api/public/intelligence/signals/manual")
         svc = get_macro_signal_service()
         signal = svc.manual.create_signal(
             signal_type=payload.signal_type,
@@ -788,20 +820,53 @@ def build_router() -> APIRouter:
 
     # ─── Filings cache freshness (Phase D.2) ────────────────────────────
     @router.post("/refresh-filings-cache")
-    def refresh_filings_cache() -> dict[str, Any]:
+    def refresh_filings_cache(request: Request) -> dict[str, Any]:
         """Poll EDGAR's recent-10-K Atom feed → invalidate stale cache.
 
         Operator wires this to a 15-minute cron / k8s CronJob. EDGAR's
         `getcurrent` feed updates ~10 min cycle, so 15-min cadence catches
         new filings without saturating. Single-source orchestration —
         external cron prevents N-pod multiplication of EDGAR load.
+
+        OPERATOR ONLY — WALLED, fail closed. Unlike the cache-bust routes
+        next door, this one does not merely make the NEXT read cold: it
+        performs the EDGAR request itself, synchronously, inside the
+        handler (run_refresh → _fetch_recent_10k_filings → urlopen). Until
+        2026-09-04 it answered 200 unauthenticated, so an anonymous loop
+        here was a direct outbound amplifier against a host-wide published
+        ceiling of 10 req/s — and a block there takes the whole US market
+        down. Its own docstring already said the only intended caller is a
+        cron, and it has no caller in frontend/, e2e/, scripts/ or deploy/,
+        so the fail-closed contract of tests/engine/test_cron_auth.py is
+        the right one: running it unauthenticated is worse than not
+        running it. See refresh_shield.require_operator.
+
+        OPERATOR FOLLOW-UP: the cron line in
+        docs/public-intelligence-activation-runbook.md curls this route
+        with no Authorization header and will now 401. It must send
+        `-H "Authorization: Bearer $ENGINE_API_TOKEN"`.
         """
+        _require_operator(request, route="/api/public/intelligence/refresh-filings-cache")
         result = run_refresh()
         return result.to_dict()
 
     # ─── Cache refresh ──────────────────────────────────────────────────
     @router.post("/refresh-signals")
-    def refresh_signals() -> dict[str, Any]:
+    def refresh_signals(request: Request) -> dict[str, Any]:
+        """Bust the radar / macro / risk-score / exposure caches.
+
+        SHIELDED (engine.public.refresh_shield): a valid ENGINE_API_TOKEN
+        bearer is never limited; anonymous callers spend one token from a
+        per-client bucket and get 429 + Retry-After over the budget. The
+        guard runs BEFORE any cache is invalidated, so a 429 mutates
+        nothing. With the token unset the bearer path is simply unavailable
+        and the anonymous path still serves — deliberately NOT the
+        fail-closed contract of tests/engine/test_cron_auth.py; see the
+        shield's module docstring for why the asymmetry is intended.
+        """
+        limited = _refresh_guard(request, route="/api/public/intelligence/refresh-signals")
+        if limited is not None:
+            return limited  # type: ignore[return-value]
         cache = get_intelligence_cache()
         dropped = (
             cache.invalidate("risk-radar:")

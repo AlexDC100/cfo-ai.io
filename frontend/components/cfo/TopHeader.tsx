@@ -49,6 +49,7 @@ import { Logo } from "./Logo";
 import { AccountMenu } from "./AccountMenu";
 import { BackendStatusIndicator } from "./BackendStatusIndicator";
 import { NotificationsMenu } from "./NotificationsMenu";
+import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
 import { useViewModeSync } from "@/components/instrument/shell/ModeSwitch";
 import { TrustChip } from "@/components/instrument/shell/TrustChip";
 import { useCapsuleLabel } from "@/components/instrument/shell/ContextObject";
@@ -466,6 +467,22 @@ export function TopHeader({ onOpenSidebar, onOpenPalette, onOpenAccount }: Props
         {/* Engine-down indicator only. It is a <span>, not a control —
             it spends no budget. */}
         {backend === "disconnected" && <BackendStatusIndicator />}
+
+        {/* Simple | Pro — RESTORED TO THE HEADER, 2026-08-31, by owner
+            instruction. This reverses the Prompt-16 ruling that moved it
+            to avatar quick-settings to hold the header at exactly four
+            controls; the budget is now FIVE at ≥lg, recorded in
+            SANCTIONED_DESKTOP so the reversal is visible rather than
+            discovered.
+
+            ≥lg only. Below that it stays in the avatar menu, because the
+            compact bar's three-control law is unchanged and a dial is
+            the least reachable-for-a-thumb of the candidates. */}
+        {signedIn && (
+          <div className="hidden lg:inline-flex">
+            <ModeSwitch />
+          </div>
+        )}
 
         {/* Notifications bell — ≥lg only. Below that it folds into the
             avatar menu's Notifications row and the avatar's own badge

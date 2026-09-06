@@ -60,14 +60,37 @@ _PROCESS_SECRET = secrets.token_hex(16)
 
 
 def _client_ip(request: Any) -> str:
-    """Best-effort client IP: first X-Forwarded-For hop (Caddy fronts the
-    backend) else the socket peer. Duck-typed so tests can pass a stub."""
+    """The LAST X-Forwarded-For hop, else the socket peer.
+
+    Rightmost, not leftmost. Caddy fronts this backend with a bare
+    ``reverse_proxy`` (no ``trusted_proxies``), which APPENDS the real peer
+    to whatever the caller already put in the header — so index 0 is always
+    attacker-written and only the final entry was added by our proxy.
+    Reading from the left let one caller mint a fresh bucket per request by
+    rotating the header, i.e. the shield was bypassable by anyone who
+    noticed. ``funnel._client_ip`` was fixed this way (D2); this module was
+    never back-ported, and CLAUDE.md §21 described the fixed behaviour as
+    though it applied here. Gate: the hop tests in
+    tests/engine/test_public_compliance.py.
+
+    Correct for EXACTLY ONE trusted hop, which is what runs today: DNS
+    points straight at the VPS (cfo-ai.io -> 187.124.0.37) and responses
+    carry ``via: 1.1 Caddy`` and nothing else, verified 2026-09-04. A CDN in
+    front would INVERT this — the last hop would be the CDN edge, every
+    visitor would collapse into one bucket, and the limiter would throttle
+    the world instead of an abuser. If one is ever added, index from the
+    right by the number of trusted hops.
+
+    Duck-typed so tests can pass a stub.
+    """
     try:
         xff = request.headers.get("x-forwarded-for")
     except Exception:
         xff = None
     if xff:
-        return xff.split(",")[0].strip()
+        hops = [h.strip() for h in xff.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     client = getattr(request, "client", None)
     host = getattr(client, "host", None)
     return host or "unknown"

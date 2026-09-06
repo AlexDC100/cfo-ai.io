@@ -33,6 +33,14 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, within, cleanup } from "@testing-library/react";
+// TooltipProvider mirrors App.tsx, which mounts one around the whole
+// tree. REQUIRED since 2026-09-03: the trust receipt's three figures
+// (difference, original difference, applied delta) wear the provenance
+// affordance — a Radix tooltip naming the served field, extraction
+// method and mapping pack — and Radix throws without its provider. This
+// test going red the moment the receipt got them is the measurement that
+// it had none before.
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // ── jsdom polyfills Radix needs ────────────────────────────────────────
 if (typeof window !== "undefined") {
@@ -176,12 +184,14 @@ function renderHeader(overrides: Partial<Parameters<typeof TopHeader>[0]> = {}) 
   const onOpenPalette = vi.fn();
   const onOpenSidebar = vi.fn();
   const utils = render(
-    <TopHeader
-      onOpenAi={onOpenAi}
-      onOpenSidebar={onOpenSidebar}
-      onOpenPalette={onOpenPalette}
-      {...overrides}
-    />,
+    <TooltipProvider>
+      <TopHeader
+        onOpenAi={onOpenAi}
+        onOpenSidebar={onOpenSidebar}
+        onOpenPalette={onOpenPalette}
+        {...overrides}
+      />
+    </TooltipProvider>,
   );
   return { ...utils, onOpenAi, onOpenPalette, onOpenSidebar };
 }
@@ -284,6 +294,15 @@ function fakeFacts({
     reconciliation: () => rec,
     diagnosis: () => diagnosis,
     difference: () => 12.34,
+    // The gateway says WHERE the difference came from (2026-09-04): the
+    // receipt names `canonical_bs.difference` only when it was served,
+    // and "client-derived" otherwise. This double serves it.
+    differenceOrigin: () => "served" as const,
+    // …and WHICH served totals a derivation consumed (empty on the served
+    // branch — nothing was derived). This double must carry every member
+    // the component reads: it stands in for the real gateway, and a
+    // missing method here is a TypeError at render, not a soft default.
+    differenceTerms: () => [] as const,
     mappingVersion: () => mappingVersion,
   };
 }
@@ -292,7 +311,11 @@ function renderTrustChip(facts: ReturnType<typeof fakeFacts> | null) {
   renderRealTrustChip = true;
   mockFacts = facts;
   mockActivePeriod = { statements: { currency: "RON" }, isLoading: false };
-  return render(<TrustChip />);
+  return render(
+    <TooltipProvider>
+      <TrustChip />
+    </TooltipProvider>,
+  );
 }
 
 describe("H3a — the status→tone map is locked, band by band", () => {
@@ -465,10 +488,21 @@ describe("H1s — the Capsule collapses to ONE control even when it holds the tr
       census.items.map((i: { testid: string | null }) => i.testid),
       "H1s: the header's structural control set changed. Live-width filtering is the e2e gate's job; " +
         "this list is every control that exists at all.",
+    // OWNER AMENDMENT 2026-09-01: `mode-switch` is here. Simple|Pro was
+    // restored to the bar, reversing the Prompt-16 placement.
+    //
+    // This is the SIXTH assertion that had to move for one reversal —
+    // after SANCTIONED_DESKTOP, L4 in check_header_law.mjs, H1's live
+    // census, H0's self-audit and HEADER_BUDGET_TARGET in
+    // check_capsule_ask.mjs. Each was found by a gate rather than by
+    // reading, which is the argument for keeping every one of them: a
+    // duplicated expectation nobody updates is how a bar and its budget
+    // end up disagreeing silently.
     ).toEqual([
       "header-nav-toggle",
       "header-brand",
       "header-capsule",
+      "mode-switch",
       "notifications-button",
       "account-menu-trigger",
     ]);
@@ -487,14 +521,24 @@ describe("H1s — the Capsule collapses to ONE control even when it holds the tr
     ).toBeLessThanOrEqual(MAX_COMPOSITE_CHILDREN);
   });
 
-  it("no radiogroup survives in the bar (the dial is gone, not hidden)", () => {
+  // INVERTED, not deleted (owner amendment 2026-09-01). H7 asserted the
+  // dial was ABSENT from the bar; it is now required to be present
+  // EXACTLY ONCE. A law with no assertion cannot notice the dial quietly
+  // leaving again, and this header's whole history is controls migrating
+  // in and out without anyone noticing which way. Exactly-once also
+  // keeps the census honest: two radiogroups in one bar is the
+  // double-count shape that once reported 6 controls for a 5-control
+  // header.
+  it("the dial is in the bar exactly once (not absent, not duplicated)", () => {
     const { container } = renderHeader();
     const header = container.querySelector("header")!;
     expect(
       header.querySelectorAll('[role="radiogroup"], [data-testid="mode-switch"]').length,
-      "H7: the Simple|Pro dial is back in TopHeader's own markup. Its homes are the avatar menu, " +
-        "Settings > Appearance and the ⌘K palette action (MODE_PALETTE_ACTION in ModeSwitch.tsx).",
-    ).toBe(0);
+      "H7: the Light view|Pro view dial must be in TopHeader's own markup exactly once. " +
+        "0 means it was removed — amend SANCTIONED_DESKTOP, L4, H1, H0 and " +
+        "HEADER_BUDGET_TARGET in the same commit. More than 1 means the bar grew a " +
+        "duplicate, which the structural census would double-count.",
+    ).toBe(1);
   });
 });
 

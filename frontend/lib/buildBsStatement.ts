@@ -13,6 +13,7 @@
 // emitted by the canonical OMFP-1802 mapping in _ro_coa.py.
 
 import { ApiLineItem, sumByExact, sumByPrefix } from "./plStructure";
+import { bsDelta, numOrNull } from "./bsStructure";
 import type { BSLine, BSSection, BSStatement } from "./bsStructure";
 
 /** Give a BSLine array literal its element type before it is filtered.
@@ -33,7 +34,7 @@ function bsLines(lines: BSLine[]): BSLine[] {
 // picks are shared with every other consumer via `canonicalStatusCore`
 // (same cents, same fallbacks), so the strip meta and the facts modules
 // can never read the same object differently.
-import { canonicalStatusCore, toDisplay } from "./servedFacts";
+import { canonicalStatusCore, toDisplayOrNull } from "./servedFacts";
 import {
   canonicalBsSectionMeta,
   type CanonicalBs,
@@ -113,14 +114,19 @@ export type CanonicalBsExt = CanonicalBs & {
  *  with the diagnosis list, never as "all good". */
 export interface BSCanonicalMeta {
   status: CanonicalBsStatus;
-  /** assets − (equity + liabilities), signed — straight from the object. */
-  difference: number;
+  /** assets − (equity + liabilities), signed — straight from the object.
+   *  NULL when the envelope served neither `difference` nor the totals to
+   *  derive one: the strip then states the absence rather than printing a
+   *  drift assembled out of a missing term. */
+  difference: number | null;
   /** totals.assets — denominator for the strip's % readout (the one
-   *  derived display value the contract explicitly sanctions). */
-  totalAssets: number;
+   *  derived display value the contract explicitly sanctions). NULL when
+   *  the envelope did not serve it: a percentage over a fabricated zero
+   *  denominator is not a readout. */
+  totalAssets: number | null;
   /** totals.equity_plus_liabilities — kept for % readouts that mirror
    *  the engine's max(assets, e+l) denominator. */
-  equityPlusLiabilities?: number;
+  equityPlusLiabilities?: number | null;
   /** Deterministic D0–D8 entries; empty when status is BALANCED. */
   diagnosis: { code: string; detail: string }[];
   mappingVersion: string;
@@ -171,9 +177,9 @@ export function canonicalMetaFromBs(cbs: CanonicalBs): BSCanonicalMeta {
   const core = canonicalStatusCore(cbs);
   return {
     status: core.status,
-    difference: toDisplay(core.differenceCents),
-    totalAssets: toDisplay(core.totalAssetsCents),
-    equityPlusLiabilities: toDisplay(core.equityPlusLiabilitiesCents),
+    difference: toDisplayOrNull(core.differenceCents),
+    totalAssets: toDisplayOrNull(core.totalAssetsCents),
+    equityPlusLiabilities: toDisplayOrNull(core.equityPlusLiabilitiesCents),
     diagnosis: (cbs.diagnosis ?? []).map((d) => ({ code: d.code, detail: d.detail })),
     mappingVersion: cbs.mapping_version,
     needsReview: core.needsReview,
@@ -224,11 +230,25 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       // Label comes from the object (label_key i18n is optional per the
       // contract; `label` is the render-as-is fallback and what we use).
       label: row.label,
-      // bs_v2 carries closing truth; per-row `opening` is often null. A
-      // null opening mirrors closing (Δ 0) so both columns stay symmetric
-      // — never the legacy asymmetry of 0-vs-closing across sides.
-      opening: row.opening ?? row.amount,
+      // bs_v2 carries closing truth; per-row `opening` is usually null.
+      //
+      // IT USED TO MIRROR CLOSING INTO OPENING ("so both columns stay
+      // symmetric", Δ 0). On the real carniprod envelope every one of
+      // the 44 rows serves `opening: null`, so the whole comparative
+      // column was the closing column repainted: 50 opening figures the
+      // engine never served, 47 of them wearing a provenance card that
+      // named sheet Balanta, account 211, method deterministic and pack
+      // ro_omfp1802_v2 — for a figure that is in none of them.
+      //
+      // ABSENT IS NOT MIRRORED, and it is not zero either. An absent
+      // opening is simply omitted; `fmt` paints the gap glyph and
+      // `BsAmountCell` refuses the card because `isAbsentFigure` is true.
+      ...(typeof row.opening === "number" && Number.isFinite(row.opening)
+        ? { opening: row.opening }
+        : {}),
       closing: row.amount,
+      // Δ over an absent opening is not 0 — it is unmeasured.
+      delta: bsDelta(row.opening, row.amount),
       style: "item",
       // RECONCILIATION FLOW — the adjusting row carries a visible marker
       // + tooltip (rationale · origin · timestamp). Pass-through only:
@@ -254,11 +274,12 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       header: meta.header,
       lines,
       subtotalLabel: meta.subtotalLabel,
-      // Engine subtotal verbatim. bs_v2 has no opening subtotals, so the
-      // opening column mirrors closing (Δ 0) — same convention as rows.
-      subtotalOpening: sec.subtotal,
+      // Engine subtotal verbatim. bs_v2 carries NO opening subtotals, so
+      // there is no opening subtotal to show — same rule as the rows
+      // above. Mirroring closing here produced a subtotal figure the
+      // engine never computed, sitting under a column header that named
+      // a comparative date.
       subtotalClosing: sec.subtotal,
-      subtotalDelta: 0,
       subtotalBucket: meta.subtotalBucket,
     };
     if (meta.side === "assets") assetSections.push(section);
@@ -268,19 +289,33 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
   // Grand totals + THE drift through the shared gateway core — the same
   // cents every other surface serves (adjusted on RECONCILED periods).
   const core = canonicalStatusCore(cbs);
-  const totalAssets = toDisplay(core.totalAssetsCents);
-  const totalEL = toDisplay(core.equityPlusLiabilitiesCents);
+  // ABSENT-CAPABLE. `toDisplay` on a nullable cents field is the
+  // `null / 100 === 0` trap — an unserved grand total rendered as a zero
+  // balance sheet, and (through `balanceCheck` below) as a perfect
+  // balance. `toDisplayOrNull` keeps the absence all the way to the view.
+  const totalAssets = toDisplayOrNull(core.totalAssetsCents);
+  const totalEL = toDisplayOrNull(core.equityPlusLiabilitiesCents);
+  // Does ANY row carry a comparative? On a bs_v2 envelope the answer is
+  // normally no, and then the whole opening column is absent — including
+  // its HEADER. A column headed "01.01.2025" over nothing is still a
+  // claim that something was measured on 01.01.2025.
+  const anyOpening = cbs.rows.some(
+    (r) => typeof r.opening === "number" && Number.isFinite(r.opening),
+  );
   return {
     entity: args.entity,
     asOf: args.asOf,
-    comparativeDate: args.comparativeDate,
+    ...(anyOpening ? { comparativeDate: args.comparativeDate } : {}),
     currency: args.currency ?? "RON",
     assetSections,
-    totalAssets: { opening: totalAssets, closing: totalAssets, delta: 0 },
+    // bs_v2 totals are closing-only. No opening total, therefore no Δ.
+    totalAssets: { closing: totalAssets },
     equityLiabSections,
-    totalEquityLiab: { opening: totalEL, closing: totalEL, delta: 0 },
-    // THE drift — assets − (equity + liabilities), straight from the object.
-    balanceCheck: toDisplay(core.differenceCents),
+    totalEquityLiab: { closing: totalEL },
+    // THE drift — assets − (equity + liabilities), straight from the
+    // object. NULL when the envelope carried neither the field nor the
+    // terms: `toDisplay(null)` was 0, i.e. a fabricated perfect balance.
+    balanceCheck: toDisplayOrNull(core.differenceCents),
     canonical: canonicalMetaFromBs(cbs),
   };
 }
@@ -404,6 +439,49 @@ function bsSumByPrefix(items: ApiLineItem[], ...prefixes: string[]): number {
   return total;
 }
 
+// ─── The one gate every comparative figure passes ────────────────────────
+
+/**
+ * Strip the comparative column from a built statement.
+ *
+ * WHY THIS EXISTS AS A SEPARATE PASS. The legacy builder below sums the
+ * opening column out of `priorLineItems`, and when there is no prior
+ * period that array is empty — so `bsSumByExact([], code)` returns 0 for
+ * every account and the whole opening column comes out as a wall of
+ * zeroes, each Δ equal to the full closing balance, each row wearing the
+ * account-code provenance card. NO CALLER IN THIS REPO EVER PASSES
+ * `priorLineItems` (grep: two hits, both in this file), so that is what
+ * production has been rendering on every legacy period.
+ *
+ * Rewriting 600 lines of legacy arithmetic to thread `undefined` would be
+ * the risky way to fix it and would leave the next added subtotal free to
+ * reintroduce a zero. One pass over the finished object cannot: whatever
+ * the arithmetic produced, nothing survives it. `opening`, `delta`,
+ * `subtotalOpening`, `subtotalDelta` and the column HEADER all go, and
+ * `BSStatementView` then paints the gap glyph and refuses every card,
+ * because `isAbsentFigure` is true for each of them.
+ */
+export function withoutComparative(stmt: BSStatementWithCanonical): BSStatementWithCanonical {
+  const stripSection = (s: BSSection): BSSection => {
+    const { subtotalOpening: _o, subtotalDelta: _d, ...rest } = s;
+    return {
+      ...rest,
+      lines: s.lines.map((l) => {
+        const { opening: _lo, delta: _ld, ...line } = l;
+        return line;
+      }),
+    };
+  };
+  const { comparativeDate: _c, ...rest } = stmt;
+  return {
+    ...rest,
+    assetSections: stmt.assetSections.map(stripSection),
+    equityLiabSections: stmt.equityLiabSections.map(stripSection),
+    totalAssets: { closing: stmt.totalAssets.closing },
+    totalEquityLiab: { closing: stmt.totalEquityLiab.closing },
+  };
+}
+
 // ─── Builder ─────────────────────────────────────────────────────────────
 
 export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
@@ -414,6 +492,11 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
 
   const items = args.lineItems;
   const prior = args.priorLineItems ?? [];
+  // No prior period was supplied, so there is no comparative to show.
+  // Everything the legacy arithmetic below computes for the opening
+  // column is `bsSumByExact([], …)` — zero, not a measurement. The
+  // built statement goes through `withoutComparative` at the return.
+  const hasComparative = prior.length > 0;
   const currency = args.currency ?? "RON";
 
   // Closing values + opening values for every code we render
@@ -1083,18 +1166,47 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
   // engine emits the truth as `assembled_bs.total_assets`,
   // `assembled_bs.total_equity`, `assembled_bs.total_liabilities`, and
   // `assembled_bs.bs_balance_delta`. We consume those directly.
+  // FOUND BY THE COMPLETENESS-LAW GATE. This read
+  // `ab.total_assets ?? totalAssetsClosing`, and `totalAssetsClosing` is
+  // the FE line-item sum — which is `0` when the period carries no line
+  // items, the normal shape for an envelope-only (cached) period. So
+  // deleting `assembled_bs.total_assets` published TOTAL ASSETS OF ZERO
+  // for a 52.7 M book. A sum over nothing is not a measurement of zero:
+  // the FE fallback is only admissible when the FE actually summed rows.
+  const feSummedRows = (args.lineItems?.length ?? 0) > 0;
   const totalAssetsClosingFinal = useEngineTotals
-    ? (ab.total_assets ?? totalAssetsClosing)
+    ? (numOrNull(ab?.total_assets) ?? (feSummedRows ? totalAssetsClosing : null))
     : totalAssetsClosing;
   const totalAssetsOpeningFinal = totalAssetsOpening; // no prior assembled_bs
+  // ── F6 — THE LEGACY PATH, AND WHY IT OUTLIVED THE CANONICAL FIX ────
+  // This branch runs whenever `canonical_bs` is absent — every cached
+  // and pre-canonical period. It read
+  //
+  //     (ab.total_equity ?? 0) + (ab.total_liabilities ?? 0)
+  //
+  // so an envelope missing ONE side published the OTHER side as the
+  // whole equity-and-liabilities total, and `ab.bs_balance_delta ?? 0`
+  // then declared that book PERFECTLY BALANCED. The plug below
+  // ("Other (uncategorized — engine bucket carve-outs)") closed the
+  // visible gap, so the statement rendered internally consistent around
+  // a total that was never served. An absent side refuses the total.
+  const engineEquity = numOrNull(ab?.total_equity);
+  const engineLiabilities = numOrNull(ab?.total_liabilities);
+  const engineEL =
+    engineEquity === null || engineLiabilities === null
+      ? null
+      : engineEquity + engineLiabilities;
   const totalELClosingFinal = useEngineTotals
-    ? ((ab.total_equity ?? 0) + (ab.total_liabilities ?? 0))
+    ? engineEL
     : (totalEquityClosing + ltDebt.closing + totalCurrentLiabClosing);
   const totalELOpeningFinal = useEngineTotals
     ? totalELClosingFinal  // we don't have prior canonical; opening matches closing
     : (totalEquityOpening + ltDebt.opening + totalCurrentLiabOpening);
+  // A drift the envelope could not state is NOT a zero drift. `?? 0`
+  // here is the same shape as the `null / 100` on the canonical path
+  // that this file's own header already calls out.
   const balanceCheck = useEngineTotals
-    ? (ab.bs_balance_delta ?? 0)
+    ? numOrNull(ab?.bs_balance_delta)
     : (totalAssetsClosing - (totalEquityClosing + ltDebt.closing + totalCurrentLiabClosing));
 
   // F2.1 — Section-to-grand-total reconciliation. The engine's
@@ -1113,7 +1225,12 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
     const assetSectionsSum =
       (nonCurrentAssets.subtotalClosing ?? 0) +
       (currentAssets.subtotalClosing ?? 0);
-    const assetReconcile = totalAssetsClosingFinal - assetSectionsSum;
+    // Same refusal as the E&L plug below: an absent grand total has no
+    // gap, so no synthetic row is appended to close one.
+    const assetReconcile =
+      totalAssetsClosingFinal === null || !Number.isFinite(totalAssetsClosingFinal)
+        ? 0
+        : totalAssetsClosingFinal - assetSectionsSum;
     if (Math.abs(assetReconcile) >= TOLERANCE) {
       const reconLine: BSLine = {
         accountCode: "other",
@@ -1133,7 +1250,12 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
       (equity.subtotalClosing ?? 0) +
       (nonCurrentLiab.subtotalClosing ?? 0) +
       (currentLiab.subtotalClosing ?? 0);
-    const elReconcile = totalELClosingFinal - elSectionsSum;
+    // No grand total → no gap to close. Subtracting a section sum from
+    // `null` is `-sum`, which used to append an "Other (uncategorized)"
+    // row equal to the NEGATIVE of everything shown — the plug that made
+    // an unserved total look internally consistent.
+    const elReconcile =
+      totalELClosingFinal === null ? 0 : totalELClosingFinal - elSectionsSum;
     if (Math.abs(elReconcile) >= TOLERANCE) {
       const reconLine: BSLine = {
         accountCode: "other",
@@ -1156,7 +1278,7 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
       ? `Note: Dividends of ${div457.closing.toLocaleString("en-US", { maximumFractionDigits: 0 })} RON were DECLARED (debit to 1171, credit to 457 payable) but NOT paid in cash during the period — they sit on the balance sheet as a current liability awaiting distribution.`
       : undefined;
 
-  return {
+  const built: BSStatementWithCanonical = {
     entity: args.entity,
     asOf: args.asOf,
     comparativeDate: args.comparativeDate,
@@ -1165,17 +1287,28 @@ export function buildBSStatement(args: BuildArgs): BSStatementWithCanonical {
     totalAssets: {
       opening: totalAssetsOpeningFinal,
       closing: totalAssetsClosingFinal,
-      delta: totalAssetsClosingFinal - totalAssetsOpeningFinal,
+      // Same refusal as the E&L side: no closing total, no delta.
+      delta: bsDelta(totalAssetsOpeningFinal, totalAssetsClosingFinal),
     },
     equityLiabSections: [equity, nonCurrentLiab, currentLiab],
     totalEquityLiab: {
-      opening: totalELOpeningFinal,
+      opening: totalELOpeningFinal ?? undefined,
       closing: totalELClosingFinal,
-      delta: totalELClosingFinal - totalELOpeningFinal,
+      // `bsDelta` refuses when either side is absent — the same rule the
+      // row and subtotal deltas already follow. A grand-total delta of 0
+      // off an unserved total is the "Δ 0 = it did not move" claim this
+      // file exists to prevent.
+      delta: bsDelta(totalELOpeningFinal, totalELClosingFinal),
     },
     balanceCheck,
     note,
   };
+  // THE GATE. Without a prior period every figure in the opening column
+  // above is `sum([]) === 0` — including `totalELOpeningFinal`, which the
+  // engine-totals branch sets to the CLOSING total outright ("we don't
+  // have prior canonical; opening matches closing"). None of it was
+  // measured, so none of it renders.
+  return hasComparative ? built : withoutComparative(built);
 }
 
 // Re-export label lookup so tests + the renderer can share the table.

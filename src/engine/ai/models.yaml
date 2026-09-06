@@ -186,3 +186,66 @@ roles:
     breaker:
       max_calls_per_day: 100
       max_tokens_per_day: 1000000
+
+  firm_brief:
+    # FIRM COCKPIT — "Brief me" (engine.api._firm_brief). Writes the
+    # morning brief FROM the computed attention items: grouping prose,
+    # priority rationale, a suggested reading order. It never ranks,
+    # never sets a severity and never suppresses an item — the
+    # deterministic order in engine.firm.digest is computed BEFORE the
+    # call and is the only order the payload trusts; the model's order
+    # ships labeled advisory. Every figure in its prose is a placeholder
+    # resolved from a typed fact (engine.ai.numerals, enforce mode); a
+    # raw digit is rejected at parse and the deterministic brief ships
+    # instead. New role — no golden pins it, so it ships on the current
+    # flagship (the ai_validator precedent). VERIFY the model-id string
+    # against the live models endpoint at deploy.
+    model_id: claude-fable-5
+    prompt_version: firm_brief_v1
+    max_tokens: 2048
+    temperature: 0
+    # DELIBERATE caps, not inherited defaults. One brief per (firm, day,
+    # item-set) is cached, so a firm costs a handful of calls a day even
+    # when its items churn; 100/day covers a multi-firm host with
+    # headroom. A trip degrades to the deterministic brief — the reader
+    # still gets every item, in the same order, with a notice — and
+    # nothing else in the cockpit is affected.
+    breaker:
+      max_calls_per_day: 100
+      max_tokens_per_day: 500000
+
+  radar_explain:
+    # RADAR — AI explanation, in its lane (engine.radar.explain). For
+    # each SURFACED, already-ranked, already-capped finding it attaches
+    # the why-here paragraph and the action list (EN + RO) through the
+    # findings contract's ONE advisory seam, drafted by the `narrative`
+    # role and gated by the `finding_specificity` reviewer — this row
+    # never drafts on its own. It never ranks, never sets a severity,
+    # never caps and never dismisses: it receives a read-only projection
+    # of the finished rows and returns prose fields only. Numerals in
+    # its prose are resolved placeholders only; a raw digit is rejected
+    # at parse, regenerated once, then the deterministic template ships
+    # — and the SERVED text (cache included) is guarded again. The
+    # prompt_version is half of the cache key (org, period, snapshot
+    # hash, finding id, prompt version); bump it to invalidate every
+    # cached explanation. model_id is INFORMATIONAL — it mirrors
+    # `narrative`, the role that actually drafts, and a test holds the
+    # two in step so this row cannot drift into claiming a model it does
+    # not use. VERIFY the string against the live models endpoint at
+    # deploy, as for every other role.
+    model_id: claude-opus-4-7
+    prompt_version: radar_explain_v1
+    max_tokens: 4096
+    temperature: 0
+    # DELIBERATE caps, not inherited defaults. One lane call is counted
+    # per explained finding (the drafting and reviewing roles count
+    # their own calls on top), only an EARNED explanation is cached, and
+    # the route never awaits this lane before its rows go out. 150/day
+    # covers every surfaced finding of every period on a single-tenant
+    # VPS being re-explained once with headroom. A trip means "no more
+    # explanations today": every row still ships, with its deterministic
+    # why-here and action list and an honest `explanation: absent`
+    # marker, and nothing else in Radar is affected.
+    breaker:
+      max_calls_per_day: 150
+      max_tokens_per_day: 1500000

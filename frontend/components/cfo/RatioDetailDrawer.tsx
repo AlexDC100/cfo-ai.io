@@ -41,6 +41,8 @@ import {
   type RatioVerdict,
   type Statements,
 } from "@/lib/financialReport";
+import { useTranslation } from "react-i18next";
+import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { getRatioKnowledge, type RatioKnowledge, type FormulaPart } from "@/lib/ratioKnowledge";
 import { resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { TraceableNumber } from "./TraceableNumber";
@@ -62,9 +64,14 @@ interface Props {
   /** Called when the user clicks a related-ratio chip — parent swaps
    *  the active ratio so the drawer re-renders for the new one. */
   onPickRelated: (next: Ratio) => void;
+  /** Rows that are NOT part of `RatioBundle` — today exactly one, the
+   *  Altman Z″ row, which belongs to the credit reader rather than to
+   *  `computeRatios`. It used to arrive as `bundle.bankruptcy`, a second
+   *  arithmetic for a measure the credit reader already owns. */
+  extraRatios?: Ratio[];
 }
 
-export function RatioDetailDrawer({ ratio, bundle, statements, onClose, onPickRelated }: Props) {
+export function RatioDetailDrawer({ ratio, bundle, statements, onClose, onPickRelated, extraRatios }: Props) {
   const open = ratio !== null;
   const knowledge = useMemo(() => (ratio ? getRatioKnowledge(ratio) : null), [ratio]);
 
@@ -73,12 +80,12 @@ export function RatioDetailDrawer({ ratio, bundle, statements, onClose, onPickRe
     if (!bundle) return m;
     for (const arr of [
       bundle.liquidity, bundle.profitability, bundle.leverage,
-      bundle.coverage, bundle.efficiency, bundle.bankruptcy,
+      bundle.coverage, bundle.efficiency, extraRatios ?? [],
     ]) {
       for (const r of arr) m.set(r.key, r);
     }
     return m;
-  }, [bundle]);
+  }, [bundle, extraRatios]);
 
   const pickRelated = useCallback((key: string) => {
     const r = ratioByKey.get(key);
@@ -131,6 +138,7 @@ function DrawerBody({
   onPickRelated: (key: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const focusLine = focusForVerdict(ratio.verdict, ratio.label);
   // Default to SHOWING the explanation (2026-07-25) — the detail deep-dive
   // opens expanded; the toggle collapses it.
@@ -171,19 +179,37 @@ function DrawerBody({
               <div className="text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
                 This company
               </div>
-              <div className="mt-0.5 text-[34px] sm:text-[38px] leading-none font-semibold tabular-nums text-ink">
-                <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
-                  {formatRatio(ratio)}
-                </LearnableNumber>
-              </div>
+              {/* A ratio the period could not produce has no headline
+                  figure and nothing to explain: `<LearnableNumber>`'s
+                  popover would open on a value nobody computed. The
+                  reason is stated at reading size instead. */}
+              {ratio.value === null ? (
+                <div
+                  className="mt-0.5 text-[15px] leading-snug text-ink-soft max-w-[34ch]"
+                  data-testid="ratio-detail-unavailable"
+                >
+                  {/* Translated — `ratio.commentary` is hard-coded English
+                      (`describeAbsence`) and the verdict chip beside it is
+                      not. See components/cfo/ratioAbsenceI18n. */}
+                  {ratio.unavailable ? absenceSentence(t, ratio.unavailable) : ratio.commentary}
+                </div>
+              ) : (
+                <div className="mt-0.5 text-[34px] sm:text-[38px] leading-none font-semibold tabular-nums text-ink">
+                  <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
+                    {formatRatio(ratio)}
+                  </LearnableNumber>
+                </div>
+              )}
             </div>
             <span
-              className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-ink text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict ${
-                ratio.verdict === "critical"
-                  ? "anim-fill-red border-red-500/40"
-                  : ratio.verdict === "watch"
-                    ? "anim-fill-amber border-amber-500/40"
-                    : "anim-fill-green border-brand/40"
+              className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict ${
+                ratio.verdict === "unknown"
+                  ? "border-rule text-ink-mute"
+                  : ratio.verdict === "critical"
+                    ? "text-ink anim-fill-red border-red-500/40"
+                    : ratio.verdict === "watch"
+                      ? "text-ink anim-fill-amber border-amber-500/40"
+                      : "text-ink anim-fill-green border-brand/40"
               }`}
             >
               {verdictLabel(ratio.verdict)}
@@ -481,6 +507,12 @@ function CategoryChip({ category }: { category: RatioKnowledge["category"] }) {
 
 function focusForVerdict(verdict: RatioVerdict, label: string): string {
   switch (verdict) {
+    case "unknown":
+      // No reading, so no focus advice. Saying anything about direction
+      // or drivers here would be advice about a number that does not
+      // exist — which is how "critical" got attached to a refused ratio
+      // in the first place.
+      return `${label} could not be computed for this period, so there is no reading to act on. The commentary above names what the filing is missing.`;
     case "strong":
       return `${label} is in a strong position. Keep monitoring trend lines; a single strong reading can mask a deteriorating trajectory if not re-checked next period.`;
     case "healthy":

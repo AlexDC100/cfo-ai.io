@@ -44,6 +44,7 @@ import {
 import { pickMagnitude } from "@/lib/amountFormat";
 import { useDashboard } from "@/stores/dashboard";
 import { resolveConceptValue } from "@/lib/dashboard/resolveConceptValue";
+import { useFigureProvenance } from "@/lib/figureProvenanceContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -163,6 +164,23 @@ export function MetricCard({
   });
 
   const resolved = resolveConceptValue(card.conceptKey, metrics, overrides);
+
+  // PROVENANCE — by concept, from the page, verified to the cent. The
+  // resolver's output carries none; the page that routed the headline
+  // figures here provides their origins by context (lib/
+  // figureProvenanceContext), and the hook attaches one ONLY when the
+  // value about to be painted is the value it was built for. A derived
+  // margin the resolver computed itself matches no entry and renders
+  // plain, as does every trend badge (a delta over a series).
+  const provenance = useFigureProvenance(card.conceptKey, resolved.value);
+  // The stretched learn-trigger <button> paints ABOVE the in-flow value
+  // (it is positioned at z-0; the value is not positioned), so a hover
+  // on the figure would land on the button and the card would never
+  // open. Lift the value only when it has something to say, and let
+  // pointer events through everywhere except the affordance itself, so
+  // the rest of the tile still opens the concept.
+  const valueLift = provenance ? "relative z-[1] pointer-events-none" : "";
+  const affordanceClass = provenance ? "pointer-events-auto" : "";
 
   // F6.1 — Trend view: the multi-year series for THIS concept (oldest →
   // newest). Only when the user toggled Trend AND the period has ≥2 years.
@@ -425,11 +443,21 @@ export function MetricCard({
       {/* Value — every figure through <Amount> (mono, tabular, locale-aware).
           Money obeys the ONE MoneyAmountGroup the parent grid mounts, so all
           currency tiles share a single magnitude. Same resolver as before. */}
-      <div className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em] [overflow-wrap:anywhere]">
+      <div
+        className={cn(
+          "mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em] [overflow-wrap:anywhere]",
+          valueLift,
+        )}
+      >
         {resolved.value === null ? (
           <span className="font-mono tabular-nums text-ink-soft">—</span>
         ) : resolved.format === "currency" ? (
-          <MoneyAmount value={resolved.value} fromCurrency={currency as Currency} />
+          <MoneyAmount
+            value={resolved.value}
+            fromCurrency={currency as Currency}
+            provenance={provenance}
+            className={affordanceClass}
+          />
         ) : resolved.format === "percentage" ? (
           // Resolver stores percentages as DECIMALS (0.132) — PercentLevel
           // takes percent units, and renders an unsigned LEVEL ("13,2%"),
@@ -439,14 +467,30 @@ export function MetricCard({
           <CappedMultiple value={resolved.value} />
         ) : resolved.format === "days" ? (
           <span className="font-mono tabular-nums">
-            <Amount kind="count" value={Math.round(resolved.value)} />
+            <Amount
+              kind="count"
+              value={Math.round(resolved.value)}
+              provenance={provenance}
+              className={affordanceClass}
+            />
             {NNBSP}d
           </span>
         ) : resolved.format === "count" ? (
-          <Amount kind="count" value={Math.round(resolved.value)} />
+          <Amount
+            kind="count"
+            value={Math.round(resolved.value)}
+            provenance={provenance}
+            className={affordanceClass}
+          />
         ) : (
           // score — raw figure, two decimals (Altman Z″ etc.)
-          <Amount kind="count" value={resolved.value} fractionDigits={2} />
+          <Amount
+            kind="count"
+            value={resolved.value}
+            fractionDigits={2}
+            provenance={provenance}
+            className={affordanceClass}
+          />
         )}
       </div>
 

@@ -310,9 +310,21 @@ def main() -> int:
             f"recommendation rule `true_negative_ebitda` would correctly fire"
         )
 
+    # MIRROR of frontend/lib/periodFacts.ts `debtServiceOwn`. It used to
+    # carry the literal 773894.83 — EEI's OWN account-1621 YTD principal
+    # repayment — which was correct only for this fixture and wrong for
+    # every other company the FE ran the same formula on. The FE now
+    # proxies the principal leg from the SUBJECT's own bank debt (10%),
+    # floored by its own D&A; this mirror does the same so the gate keeps
+    # measuring the formula the product actually ships.
+    principal_proxy = (bs.get("total_debt") or 0) * 0.1
     statutory_dscr = (
         statutory_ebitda
-        / max(pl.get("interest_expense", 0) + max(773894.83, pl.get("depreciation", 0)), 1)
+        / max(
+            pl.get("interest_expense", 0)
+            + max(principal_proxy, pl.get("depreciation", 0)),
+            1,
+        )
     )
     if statutory_dscr < 1.0:
         issues.append(

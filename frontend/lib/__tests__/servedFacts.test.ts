@@ -50,14 +50,19 @@ describe("factsFrom — canonical lane", () => {
 
   it("keeps integer minor units internally; toDisplay is the one edge", () => {
     const sf = factsFrom(balanced());
-    expect(sf.cents.totalAssetsCents).toBe(3919417846);
-    expect(Number.isInteger(sf.cents.totalAssetsCents)).toBe(true);
+    // The cents fields are ABSENT-CAPABLE now; on a complete served
+    // fixture every one of them must be a real integer, and the assertion
+    // says so rather than letting a `null` slide through arithmetic.
+    const ta = sf.cents.totalAssetsCents;
+    const ca = sf.cents.currentAssetsCents;
+    const nca = sf.cents.nonCurrentAssetsCents;
+    expect(ta).toBe(3919417846);
+    expect(Number.isInteger(ta)).toBe(true);
     expect(Number.isInteger(sf.cents.currentLiabilitiesCents)).toBe(true);
-    expect(toDisplay(sf.cents.totalAssetsCents)).toBe(sf.totalAssets());
+    expect(toDisplay(ta as number)).toBe(sf.totalAssets());
     // Cents math is exact where float subtraction would drift.
-    expect(sf.cents.nonCurrentAssetsCents).toBe(
-      sf.cents.totalAssetsCents - sf.cents.currentAssetsCents,
-    );
+    expect(ca).not.toBeNull();
+    expect(nca).toBe((ta as number) - (ca as number));
   });
 
   it("RECONCILED serves the ADJUSTED totals and a 0 difference", () => {

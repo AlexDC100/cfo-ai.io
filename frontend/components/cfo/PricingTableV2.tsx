@@ -36,7 +36,7 @@
 //   · Free trial is messaged as a smaller link, not an extra card.
 
 import { useState } from "react";
-import { Check, Sparkles, Zap } from "lucide-react";
+import { Check, Clock, Sparkles, Zap } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -51,7 +51,11 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
-import { planFeaturesFor } from "@/lib/planFeatures";
+import {
+  bulletText,
+  planFeatureBulletsFor,
+  type PlanFeatureBullet,
+} from "@/lib/planFeatures";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -200,7 +204,8 @@ export function PricingTableV2({
             badge={badgeFor(p.key)}
             highlight={p.key === "pro"}
             current={currentPlanKey === p.key}
-            features={planFeaturesFor(p.key, i18n.language)}
+            features={planFeatureBulletsFor(p.key)}
+            lang={i18n.language}
             ctaLabel={t("pricing.startPlan", { name: p.display_name })}
             extraDocCopy={t("pricing.extraDoc", { price: formatEur(p.extra_doc_eur ?? 0) })}
             extraNonRoCopy={
@@ -264,6 +269,7 @@ function PlanCard({
   highlight,
   current,
   features,
+  lang,
   ctaLabel,
   extraDocCopy,
   extraNonRoCopy = null,
@@ -274,7 +280,10 @@ function PlanCard({
   badge: string;
   highlight: boolean;
   current: boolean;
-  features: string[];
+  /** Structured bullets — each carries the registry key it names, so the
+   *  rendered `<li>` can publish it for the pricing-vs-registry gate. */
+  features: PlanFeatureBullet[];
+  lang: string;
   ctaLabel: string;
   extraDocCopy: string;
   /** Multi-Country only: the non-RO overage line. */
@@ -347,17 +356,42 @@ function PlanCard({
           {t("pricing.trialThen", { price: formatEur(plan.price_eur) })}
         </p>
 
-        <ul className="mt-5 space-y-2 text-[13px] text-ink leading-snug">
-          {features.map((f) => (
-            <li key={f} className="flex items-start gap-2.5">
-              <Check
-                size={13}
-                strokeWidth={2}
-                className={`mt-0.5 shrink-0 ${highlight ? "text-brand" : "text-brand-d"}`}
-              />
-              <span>{f}</span>
-            </li>
-          ))}
+        <ul
+          data-testid={`pricing-plan-${plan.key}-features`}
+          className="mt-5 space-y-2 text-[13px] text-ink leading-snug"
+        >
+          {features.map((f, i) => {
+            const text = bulletText(f, lang);
+            const pending = f.afterLaunch === true;
+            return (
+              <li
+                key={`${f.featureKey ?? "quota"}-${i}`}
+                // Published for the pricing-vs-registry gate: the gate reads
+                // the DOM, not this module, so a bullet cannot reach a
+                // customer without declaring what it names.
+                data-feature-key={f.featureKey ?? ""}
+                data-after-launch={pending ? "true" : "false"}
+                className={`flex items-start gap-2.5 ${pending ? "text-ink-soft" : ""}`}
+              >
+                {pending ? (
+                  // A clock, not a tick: the tick is a claim that the line
+                  // is included today, which for these lines it is not.
+                  <Clock
+                    size={13}
+                    strokeWidth={2}
+                    className="mt-0.5 shrink-0 text-ink-mute"
+                  />
+                ) : (
+                  <Check
+                    size={13}
+                    strokeWidth={2}
+                    className={`mt-0.5 shrink-0 ${highlight ? "text-brand" : "text-brand-d"}`}
+                  />
+                )}
+                <span>{text}</span>
+              </li>
+            );
+          })}
         </ul>
 
         <div

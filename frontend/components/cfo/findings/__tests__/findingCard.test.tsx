@@ -9,8 +9,9 @@
 // than in someone's board pack.
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // In-memory localStorage (this jsdom build ships a broken one) — the
 // same shim `simple/__tests__/statementDisclosure.test.tsx` installs.
@@ -49,6 +50,18 @@ import { FindingCard } from "../FindingCard";
 import { FindingsPanel } from "../FindingsPanel";
 
 import { ENGINE_REPORT, ENGINE_SILENCE } from "./engineFixture";
+
+// TooltipProvider mirrors App.tsx, which mounts one around the whole tree.
+// It became REQUIRED here on 2026-09-02: a finding's CITED FIGURES now
+// carry the provenance affordance (source, line_refs, snapshot, period),
+// and the affordance is a Radix tooltip. These tests going red the moment
+// findings figures got one is the measurement that they had none before —
+// the card painted provenance DOTS and a provenance LINE for the finding
+// as a whole, and nothing at all on the individual number a reader is
+// actually looking at.
+const render = (ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(<TooltipProvider>{ui}</TooltipProvider>);
+
 
 const MODE_KEY = "cfo-view-mode-v1";
 

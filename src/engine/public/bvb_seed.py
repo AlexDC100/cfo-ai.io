@@ -31,11 +31,27 @@ the "Demo" badge.
 """
 
 from __future__ import annotations
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 
 _LAST_UPDATED = "2024-12-31"  # FY2024 statutory year-end
+
+# When each table was TAKEN — the row's ``lastUpdated``. Until 2026-09-04
+# it was ``datetime.now()`` evaluated at import: the PROCESS CLOCK at
+# engine boot, so 72 company cards read "computed <container start>" for
+# figures that were months old, and the stamp moved on every restart. A
+# seed's data timestamp is the day the seed was taken; it does not move.
+#   · BET-20 seed: composition, weights and market caps retrieved
+#     2026-05-29 (module docstring; the table header below).
+#   · Regulated-market listing rows: retrieved 2026-07-23 (their table
+#     header) — listing-only, no market cap, so the date stamps the
+#     identity fields alone.
+# The ANAF overlay at the bottom fills P&L / balance fields from a cache
+# that carries its own per-ticker ``fetched_at``; it never touches the
+# seeded market cap, which is the figure the FE dates by this stamp, and
+# the FE dates a revenue by its fiscal PERIOD, not by any timestamp.
+_SEED_RETRIEVED_AT = "2026-05-29"
+_LISTING_RETRIEVED_AT = "2026-07-23"
 
 
 def _row(
@@ -67,6 +83,7 @@ def _row(
     latest_period: str = "FY2024",
     confidence: float = 0.85,
     country: str = "RO",
+    retrieved_at: str = _SEED_RETRIEVED_AT,
 ) -> Dict[str, Any]:
     """Build a single BVB seed row.
 
@@ -180,7 +197,7 @@ def _row(
         "currentRatio": None,
         "latestPeriod": latest_period,
         "latestPeriodEnd": _LAST_UPDATED,
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "lastUpdated": retrieved_at,
         "source": "seed_bvb",
         "confidence": confidence,
         "missingFields": [],
@@ -451,7 +468,7 @@ _BVB_TABLE: Dict[str, Dict[str, Any]] = {
 
 def _listing(ticker: str, name: str, sector: str, industry: str, country: str = "RO") -> Dict[str, Any]:
     return _row(ticker=ticker, name=name, sector=sector, industry=industry,
-                confidence=0.5, country=country)
+                confidence=0.5, country=country, retrieved_at=_LISTING_RETRIEVED_AT)
 
 
 _BVB_REGS_TABLE: Dict[str, Dict[str, Any]] = {

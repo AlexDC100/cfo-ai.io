@@ -6,8 +6,11 @@
 // ── What the host mounts ──────────────────────────────────────────────
 //
 //   <CapsuleEmptyState … />                   with the input empty —
-//                                             the THREE zones (context
-//                                             strip / ask / jump)
+//                                             the THREE zones (pulse /
+//                                             fact tiles / ask chips)
+//   <CapsuleAccountCard answer={…} />         in the TYPING state, when
+//                                             the Tier-0 answer carries
+//                                             `shape: "account"`
 //   <CapsuleAskRowNotice block={…} />         inside the Ask ROW, in place
 //                                             of its own label, when
 //                                             `block` is non-null
@@ -40,6 +43,17 @@ export {
   CapsuleContextStrip,
   type CapsuleContextStripProps,
 } from "./CapsuleContextStrip";
+export {
+  CapsuleFactTiles,
+  FactTileValue,
+  MAX_FACT_TILES,
+  sourceForFactKey,
+  type CapsuleFactTilesProps,
+} from "./CapsuleFactTiles";
+export {
+  CapsuleAccountCard,
+  type CapsuleAccountCardProps,
+} from "./CapsuleAccountCard";
 export {
   CapsuleSuggestionList,
   type CapsuleSuggestionListProps,

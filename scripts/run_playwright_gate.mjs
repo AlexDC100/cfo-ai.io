@@ -15,8 +15,8 @@
  * So this file's first job is not to be clever. It is to EXECUTE the
  * suite and refuse to report anything green that it did not earn.
  *
- * THE SIX REFUSALS
- * ----------------
+ * THE EIGHT REFUSALS
+ * ------------------
  *  1. ZERO TESTS RAN is a FAILURE, never a pass. This is the tsc lesson
  *     stated as code: `--noEmit` exited 0 in 0.2s having read nothing,
  *     and the 0 was believed for months. A run that executes nothing has
@@ -51,6 +51,19 @@
  *     clear 150. FILE_FLOORS records an expectation PER FILE, and a
  *     file that runs with no recorded expectation fails rather than
  *     silently checking nothing.
+ *  7. A RESULT FROM A TREE THAT MOVED IS NOT REPORTED AT ALL. The tree
+ *     is content-hashed before and after every run; if the digests
+ *     differ the gate prints what moved and exits without a verdict.
+ *     Every stability claim previously made about this suite was made
+ *     while other lanes edited product source underneath it. See
+ *     REFUSAL 7 below for what is hashed and what it cannot see.
+ *  8. A RUN THAT DID NOT HAVE THE STACK TO ITSELF IS NOT REPORTED. The
+ *     tree hash cannot see the OTHER shared thing: one vite, one engine,
+ *     and one PUBLIC_TEST_MODE identity backed by ONE user_prefs row —
+ *     the row this file's own history blames for the phantom flakiness.
+ *     A second Playwright run writes it too. Measured while this was
+ *     being written: another lane held a runner open on this stack for
+ *     3m38s. Foreign runner in flight at either end => BLOCKED.
  *
  * THE RATCHET
  * -----------
@@ -158,12 +171,58 @@
  * a run whose tree hashes identically before and after says anything
  * about stability. Fingerprint the tree, or do not make the claim.
  *
+ * THE FROZEN-TREE RE-RUN (2026-09-01) — THE CLAIM IS NOW CERTIFIED,
+ * AND IT IS RED
+ * -----------------------------------------------------------------
+ * The warning above is now enforced code (Refusals 7 and 8), and the
+ * three-consecutive-agreement requirement was re-run under it. Six
+ * attempts, each preceded by a wait for a quiet tree:
+ *
+ *   1  BLOCKED_CONCURRENT   another lane's runner was up (cost: 1s)
+ *   2  BLOCKED_TREE_MOVED   11m run discarded — e2e/design/_axeVacuity.ts
+ *                           and design_review/capsule-craft/GATES-period.md
+ *                           moved mid-run. NO verdict was printed.
+ *   3  CERTIFIED  tree 1e7bc803  250 executed  81 failing  new 0 healed 0
+ *   4  CERTIFIED  tree 1e7bc803  250 executed  82 failing  new 1 healed 0
+ *   5  CERTIFIED  tree 1e7bc803  250 executed  82 failing  new 1 healed 0
+ *   6  CERTIFIED  tree 1e7bc803  250 executed  82 failing  new 1 healed 0
+ *
+ * Runs 4, 5 and 6 are three CONSECUTIVE tree-certified runs whose
+ * failing-key SETS are byte-identical (82 keys each) — not merely three
+ * matching counts, which is a sum and would hide a swap. All six
+ * per-run manifests (before and after, x3) hash to 27302fd4, so the
+ * tree was provably frozen across the whole window.
+ *
+ * THE AGREEMENT IS RED, AND IT STAYS RED. The one key separating run 3
+ * from runs 4-6 is
+ *     e2e/design/capsule-craft.spec.ts::G1 @1440 ... ink density, air,
+ *     and the 70vh ceiling, in every state
+ * It PASSED in run 3 and FAILED in 4, 5 and 6 with the tree byte-
+ * identical, so it moves with no edit. In isolation it is 5/5 FAIL:
+ *     "G1 @1440: the answering card is 10.31% ink against a 10.5%
+ *      floor. 680x358 carrying 24 text runs."
+ * 0.19pp under its floor — a marginal miss, which is exactly the shape
+ * that flips. It is NOT added to the baseline: it was green in run 3,
+ * and baselining a test that is sometimes green is quarantining it,
+ * which is the one thing this ratchet exists to prevent. It belongs to
+ * the capsule-craft lane (that file and that ink floor are theirs).
+ *
+ * NOTHING HEALED, so the baseline was NOT tightened. It stays at 81
+ * entries — `healed 0` in all three certified runs, which is the only
+ * evidence that would justify shrinking it.
+ *
  * Run:
  *   node scripts/run_playwright_gate.mjs                 # gate
  *   node scripts/run_playwright_gate.mjs --write-baseline
  *   node scripts/run_playwright_gate.mjs --no-serve      # never spawn
  *   node scripts/run_playwright_gate.mjs --grep <re>     # scoped run;
  *                                                        # NEVER gates
+ *   node scripts/run_playwright_gate.mjs --fingerprint   # tree digest,
+ *                                                        # no stack needed
+ *   node scripts/run_playwright_gate.mjs --fp-out DIR    # keep per-file
+ *                                                        # manifests, so a
+ *                                                        # cross-RUN diff can
+ *                                                        # name what moved
  */
 import { execFileSync, spawn } from 'node:child_process'
 import {
@@ -172,6 +231,7 @@ import {
 } from 'node:fs'
 import { join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 
 const ROOT = process.cwd()
 const BASELINE = 'design_review/E2E_BASELINE.txt'
@@ -308,6 +368,294 @@ const GREP = argVal('--grep')
 // still run serially (fullyParallel:false), so only whole files overlap.
 // E2E_WORKERS=1 reproduces the config exactly when a result is disputed.
 const WORKERS = process.env.E2E_WORKERS || '4'
+const FP_OUT = argVal('--fp-out')
+const FP_ONLY = has('--fingerprint')
+const KEYS_OUT = argVal('--keys-out')
+
+// ──────────────────────────────────────────────────────────────────────
+// REFUSAL 7: NO FINGERPRINT, NO CLAIM
+// ──────────────────────────────────────────────────────────────────────
+// Every stability claim ever made about this suite has been made on a
+// tree that was moving. Four runs were compared and disagreed; the
+// disagreement was read as flakiness; it was five concurrent lanes
+// editing product source. The header of this file already says so —
+// "Only a run whose tree hashes identically before and after says
+// anything about stability" — but saying it in a comment is not a
+// control. This is the control.
+//
+// The tree is content-hashed BEFORE the run and AFTER it. If the two
+// digests differ, the gate prints WHAT MOVED and exits non-zero WITHOUT
+// reporting new/healed at all. Not a warning appended to a verdict — a
+// refusal to render a verdict, because a verdict computed across an
+// edit is not a measurement of anything.
+//
+// WHAT IS HASHED, AND WHY IT IS A DENYLIST. Everything git tracks, plus
+// everything untracked-but-not-ignored (that is where another lane's
+// work-in-progress lives, and it is exactly what corrupted the earlier
+// runs), plus `.env` — gitignored, never printed, and load-bearing: it
+// is the difference between an authed suite and a logged-out one.
+// Subtracted from that: only the paths THIS RUN ITSELF writes. A
+// denylist, never an allowlist — the same reasoning as the public-page
+// cache key in CLAUDE.md §21. A new source directory costs a spurious
+// mismatch, which is loud and safe; a forgotten one silently certifies
+// a moving tree, which is quiet and fatal.
+//
+// WHAT IT CANNOT SEE, STATED PLAINLY. `node_modules/` is gitignored and
+// not hashed — 100k files per run is not affordable. `package-lock.json`
+// IS hashed, so a declared dependency change is caught; an `npm i`
+// against an unchanged lock, or a hand-edit inside node_modules, is not.
+// Nor does it see the running vite/engine processes, the browser build,
+// or the Supabase rows behind the test-mode identity. It certifies the
+// SOURCE TREE, which is the thing that moved last time, and it claims
+// nothing more.
+//
+// design_review/ IS IN THE HASH, AND THAT WAS CHECKED RATHER THAN
+// ASSUMED. It is 2209 of the 4077 files and it looks like pure review
+// output — screenshots, censuses, analysis notes — so the obvious move
+// is to denylist it and stop the churn other lanes generate there. It
+// is NOT pure output: `e2e/design/capsule.spec.ts:871` does
+// `readFileSync(REPO_ROOT + "design_review/capsule/LATENCY.md")` and
+// asserts against it, so that file is a RUN INPUT and a latency budget
+// edited mid-run would change the verdict invisibly. Measured, not
+// reasoned about. The churn is also not actually coming from there —
+// over a sampled 12-minute window design_review moved 2 files while
+// e2e/design moved 4 — so the denylist would have bought nothing and
+// sold a real hole.
+const TREE_FP_DENYLIST = [
+  'e2e/artifacts/',    // i18n-mobile-sweep writes PNGs here every run
+  'test-results/',     // playwright's outputDir
+  'playwright-report/',
+]
+// Gitignored files that are nonetheless run INPUTS, so their content is
+// part of the tree's identity even though git does not track them.
+// GITIGNORED FILES THAT DECIDE WHAT THE RUN MEASURES.
+//
+// This was `['.env']` alone, and an adversarial audit proved the hole
+// rather than arguing it: appending `VITE_TEST_ORG_ID=…BEEF` to
+// `.env.local` changed THE ORGANISATION THE ENTIRE AUTHED SUITE RUNS
+// AGAINST — vite restarted and served the new value — and the digest
+// before and after was IDENTICAL. Refusal 7 would have printed
+// "IDENTICAL — this run is tree-certified" over a suite pointed at a
+// different tenant.
+//
+// `git ls-files --others --exclude-standard` cannot see these: that is
+// the definition of gitignored. So they are named explicitly, and the
+// argument the file already made for hashing `.env` applies to each —
+// `.env.local` carries `VITE_PUBLIC_TEST_MODE`, the flag that makes the
+// frontend mount the test session at all.
+const TREE_FP_EXTRA = [
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.development.local',
+  'docker-compose.override.yml',
+]
+
+// ── Refusal 7 applied to itself (TC-9) ────────────────────────────────
+// "Would a clean result be distinguishable from there being no subject?"
+// For a before/after digest comparison the answer was NO: hash the empty
+// set twice and it matches itself perfectly, certifying a tree it never
+// looked at. That is the `tsc --noEmit` shape one more time — this whole
+// file exists because of it — so the fingerprint carries the same two
+// controls the rest of the gate does, and for the same reason.
+//
+//   · a FLOOR, which names a NUMBER — measured 4077 files, floored at
+//     3000. It catches the manifest collapsing (wrong cwd, a git that
+//     answers with an empty list, a denylist that swallowed the tree).
+//   · CANARIES, which name FILES — because a floor on a total cannot
+//     see one region vanish. 2209 of those 4077 files are screenshots
+//     under design_review/; they alone clear a floor of 3000 while
+//     frontend/ and e2e/ are entirely absent, and the digest would
+//     still match itself run over run. So one canary per region that
+//     must be inside the hash for the certificate to mean anything.
+const TREE_FP_FLOOR = 3000
+const TREE_FP_CANARIES = [
+  'frontend/main.tsx',              // product source — what other lanes edit
+  'e2e/design/header.spec.ts',      // the suite itself
+  'scripts/run_playwright_gate.mjs',// this gate
+  'playwright.config.ts',           // how the suite is collected
+  'package-lock.json',              // the dependency declaration
+]
+
+// ──────────────────────────────────────────────────────────────────────
+// REFUSAL 8: EXCLUSIVE USE OF THE SHARED STACK
+// ──────────────────────────────────────────────────────────────────────
+// Refusal 7 certifies the SOURCE TREE. It cannot see the other half of
+// the problem, and the other half is worse.
+//
+// Every context in this suite authenticates as ONE fixed PUBLIC_TEST_MODE
+// identity, owning ONE `user_prefs.prefs` row and ONE `org_prefs.prefs`
+// row. This file's own header spends two screens on that fact, because
+// it is what made `view_mode=pro` revert to `simple` 500 ms after a spec
+// seeded it. A SECOND Playwright run against the same vite and the same
+// engine writes that same row, from another lane, at times nobody
+// controls. Its theme flips land in my browser's prefs; my currency
+// lands in theirs.
+//
+// MEASURED, not reasoned: while this refusal was being written, another
+// lane held `pid 7667 playwright test axe.spec.ts axe-dark.spec.ts
+// modes.spec.ts` open against this exact stack for 3m38s, with a plant
+// active in three of the spec files this gate collects. A tree hash sees
+// the plant. Nothing saw the concurrent run.
+//
+// So: no foreign Playwright runner may be in flight at the start of the
+// run or at the end of it. Detection is by process table, and "foreign"
+// means "not descended from this gate process" — the gate's own `npx
+// playwright` subtree is expected and excluded by walking PPIDs, never
+// by pattern-matching the command line, which would exclude the very
+// thing being looked for.
+const PW_RUNNER_RX = /(node_modules\/\.bin\/playwright|playwright\/cli\.js|npm exec playwright)\s|playwright(\/lib\/cli)?\s+test/
+
+function processTable() {
+  try {
+    const raw = execFileSync('ps', ['-Ao', 'pid=,ppid=,command='], {
+      encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+    })
+    return raw.split('\n').map((l) => {
+      const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(l)
+      return m ? { pid: +m[1], ppid: +m[2], cmd: m[3] } : null
+    }).filter(Boolean)
+  } catch {
+    return null
+  }
+}
+
+/** Playwright test runners not descended from this process. */
+function foreignRunners() {
+  const table = processTable()
+  if (table === null) {
+    blocked([
+      'could not read the process table (`ps` failed), so this gate cannot',
+      'tell whether another lane is driving the same stack. A shared',
+      'test-mode identity makes that a silent result-corrupter. Refusing.',
+    ])
+  }
+  const byPid = new Map(table.map((p) => [p.pid, p]))
+  const mine = (pid) => {
+    // Walk up to init. Depth-capped so a cycle cannot hang the gate.
+    for (let cur = pid, i = 0; cur > 1 && i < 64; i++) {
+      if (cur === process.pid) return true
+      cur = byPid.get(cur)?.ppid ?? 0
+    }
+    return pid === process.pid
+  }
+  return table.filter((p) =>
+    PW_RUNNER_RX.test(p.cmd)
+    && !p.cmd.includes('run_playwright_gate.mjs')  // a peer gate is caught by its own runner
+    && !mine(p.pid))
+}
+
+function requireExclusiveStack(when) {
+  const foreign = foreignRunners()
+  if (foreign.length === 0) {
+    console.log(`  stack exclusive ${when.padEnd(6)} no foreign Playwright runner`)
+    return
+  }
+  blocked([
+    `ANOTHER PLAYWRIGHT RUN IS IN FLIGHT (${when} this run).`,
+    ...foreign.slice(0, 6).map((p) => `  pid ${p.pid}: ${p.cmd.slice(0, 140)}`),
+    'This suite authenticates as ONE test-mode identity backed by ONE',
+    'user_prefs row and ONE org_prefs row. Two concurrent runs write that',
+    'row from two lanes, and the result is a stability measurement of',
+    'nothing. Wait for the other run to finish, then re-run.',
+  ])
+}
+
+function gitList(extraArgs) {
+  try {
+    return execFileSync('git', ['ls-files', '-z', ...extraArgs], {
+      cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    }).split('\0').filter(Boolean)
+  } catch {
+    return null
+  }
+}
+
+/** path -> sha256(content), for every file whose content can change what
+ *  the suite does. Returns null if git is unavailable — and a null
+ *  fingerprint must BLOCK, never silently pass. */
+function treeManifest() {
+  const tracked = gitList([])
+  const untracked = gitList(['--others', '--exclude-standard'])
+  if (tracked === null || untracked === null) return null
+  const paths = new Set([...tracked, ...untracked])
+  for (const e of TREE_FP_EXTRA) if (existsSync(join(ROOT, e))) paths.add(e)
+
+  const man = new Map()
+  let bytes = 0
+  for (const p of [...paths].sort()) {
+    if (TREE_FP_DENYLIST.some((d) => p.startsWith(d))) continue
+    let buf
+    try {
+      buf = readFileSync(join(ROOT, p))
+    } catch {
+      // A tracked path that cannot be read right now (deleted mid-walk)
+      // is itself tree movement. Record it as such rather than skipping
+      // it — a skip here would be the census-that-finds-nothing bug.
+      man.set(p, 'UNREADABLE')
+      continue
+    }
+    bytes += buf.length
+    man.set(p, createHash('sha256').update(buf).digest('hex'))
+  }
+  return { man, bytes }
+}
+
+function digestOf(man) {
+  const h = createHash('sha256')
+  for (const k of [...man.keys()].sort()) h.update(`${k}\0${man.get(k)}\0`)
+  return h.digest('hex')
+}
+
+function diffManifests(a, b) {
+  const added = [], removed = [], changed = []
+  for (const [k, v] of b) {
+    if (!a.has(k)) added.push(k)
+    else if (a.get(k) !== v) changed.push([k, a.get(k), v])
+  }
+  for (const k of a.keys()) if (!b.has(k)) removed.push(k)
+  return { added: added.sort(), removed: removed.sort(), changed: changed.sort() }
+}
+
+function writeManifest(man, label) {
+  if (!FP_OUT) return null
+  mkdirSync(FP_OUT, { recursive: true })
+  const p = join(FP_OUT, `${label}.tsv`)
+  writeFileSync(p, [...man.keys()].sort()
+    .map((k) => `${man.get(k)}\t${k}`).join('\n') + '\n')
+  return p
+}
+
+function fingerprint(label) {
+  const t0 = Date.now()
+  const r = treeManifest()
+  if (r === null) {
+    blocked([
+      'could not fingerprint the tree (`git ls-files` failed).',
+      'No fingerprint, no claim: a result from an uncertified tree says',
+      'nothing about stability and this gate will not print one.',
+    ])
+  }
+  const missing = TREE_FP_CANARIES.filter((c) => !r.man.has(c))
+  if (missing.length || r.man.size < TREE_FP_FLOOR) {
+    blocked([
+      'THE FINGERPRINT ITSELF IS VACUOUS — it certified nothing.',
+      `hashed ${r.man.size} file(s), floor ${TREE_FP_FLOOR}`,
+      ...missing.map((c) => `canary NOT hashed: ${c}`),
+      'A digest over a collapsed file set matches itself perfectly and',
+      'proves nothing. Refusing to issue a tree certificate.',
+    ])
+  }
+  const dg = digestOf(r.man)
+  const secs = ((Date.now() - t0) / 1000).toFixed(1)
+  console.log(`  tree ${label.padEnd(6)} ${dg}`)
+  console.log(`       ${r.man.size} files (floor ${TREE_FP_FLOOR}), `
+    + `${TREE_FP_CANARIES.length}/${TREE_FP_CANARIES.length} canaries hashed, `
+    + `${(r.bytes / 1048576).toFixed(1)} MB, ${secs}s`)
+  const out = writeManifest(r.man, label)
+  if (out) console.log(`       manifest ${out}`)
+  return { man: r.man, digest: dg }
+}
 
 // ──────────────────────────────────────────────────────────────────────
 // PRECONDITIONS
@@ -576,6 +924,14 @@ function collect(report) {
 // ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  console.log('TREE FINGERPRINT')
+  console.log('-'.repeat(62))
+  const fpBefore = fingerprint('before')
+  console.log('')
+  if (FP_ONLY) { console.log(fpBefore.digest); process.exit(0) }
+  requireExclusiveStack('before')
+  console.log('')
+
   await preflight()
 
   const tmp = join(tmpdir(), `e2e-gate-${process.pid}`)
@@ -589,6 +945,46 @@ async function main() {
   const report = runSuite(jsonPath)
   const secs = Math.round((Date.now() - t0) / 1000)
   rmSync(tmp, { recursive: true, force: true })
+
+  // ── Refusal 7, the after half ───────────────────────────────────────
+  // Before ANY count is interpreted. A verdict computed across another
+  // lane's edit is not a measurement, and printing it — even with a
+  // caveat — is how "four runs disagreed" became "the suite is flaky"
+  // when the real answer was "the tree moved".
+  console.log('')
+  console.log('TREE FINGERPRINT')
+  console.log('-'.repeat(62))
+  requireExclusiveStack('after')
+  console.log(`  tree before ${fpBefore.digest}`)
+  const fpAfter = fingerprint('after')
+  if (fpAfter.digest !== fpBefore.digest) {
+    const d = diffManifests(fpBefore.man, fpAfter.man)
+    // --write-baseline is the one edit this gate makes on purpose.
+    const onlyBaseline = WRITE
+      && d.added.length === 0 && d.removed.length === 0
+      && d.changed.length === 1 && d.changed[0][0] === BASELINE
+    if (!onlyBaseline) {
+      console.log('')
+      console.log('BLOCKED — THE TREE MOVED DURING THE RUN.')
+      console.log('  No result is reported. A new/healed count computed across an')
+      console.log('  edit measures the edit, not the suite. This is the exact')
+      console.log('  confusion that made four disagreeing runs look like flakiness.')
+      for (const [k, a, b] of d.changed) {
+        console.log(`  CHANGED ${k}`)
+        console.log(`          ${a.slice(0, 16)} -> ${b.slice(0, 16)}`)
+      }
+      for (const k of d.added) console.log(`  ADDED   ${k}`)
+      for (const k of d.removed) console.log(`  REMOVED ${k}`)
+      console.log('')
+      console.log('  Wait for the other lane to land, then re-run.')
+      shutdown()
+      process.exit(1)
+    }
+    console.log('  (only the baseline this run was asked to write — expected)')
+  } else {
+    console.log('  IDENTICAL — this run is tree-certified.')
+  }
+  console.log('')
 
   const rows = collect(report)
   const executed = rows.filter((r) => r.status !== 'skipped')
@@ -758,6 +1154,17 @@ async function main() {
 
   // ── The ratchet ──────────────────────────────────────────────────────
   const keys = failed.map((r) => r.key).sort()
+
+  // Report-only. Two runs that both say "83 failing" have not been shown
+  // to agree — a count is a sum, and this file already knows what a sum
+  // hides. Agreement between runs is a SET comparison, so the set has to
+  // leave the process. Written before the ratchet verdict, so a run that
+  // exits non-zero still yields its evidence.
+  if (KEYS_OUT) {
+    mkdirSync(join(KEYS_OUT, '..'), { recursive: true })
+    writeFileSync(KEYS_OUT, keys.join('\n') + '\n')
+    console.log(`  failing-key set written to ${KEYS_OUT}`)
+  }
 
   if (WRITE) {
     writeFileSync(join(ROOT, BASELINE), keys.join('\n') + '\n')

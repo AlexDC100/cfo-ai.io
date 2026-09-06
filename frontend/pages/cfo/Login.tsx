@@ -6,6 +6,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AuthCard } from "@/components/cfo/AuthCard";
+import { LegalFooter } from "@/components/cfo/LegalFooter";
 import { MarketingHeader } from "./Landing";
 
 export default function Login() {
@@ -40,6 +41,10 @@ export default function Login() {
           />
         </div>
       </main>
+
+      {/* Company identification + the three legal links — the same block the
+          app shell and the marketing site carry, from the same config. */}
+      <LegalFooter />
     </div>
   );
 }

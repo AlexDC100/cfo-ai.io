@@ -1107,6 +1107,23 @@ def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
 # ─── Router factory ────────────────────────────────────────────────────────
 
 
+# MODULE scope on purpose: this model used to live inside build_router. Under
+# `from __future__ import annotations` the handler annotation is then the
+# string "ContactSalesRequest", unresolvable from module globals, and FastAPI
+# demanded the body as a QUERY param (422 on every real submission) and 500d
+# /openapi.json (CLAUDE.md §16 — the "runtime unaffected" note there was wrong).
+# Gate: tests/engine/test_route_bindings.py.
+class ContactSalesRequest(BaseModel):
+    name: str
+    email: str
+    company: Optional[str] = None
+    role: Optional[str] = None
+    num_companies: Optional[str] = None  # '1-3' | '4-10' | '11-25' | '26+'
+    use_case: Optional[str] = None
+    preferred_contact: Optional[str] = "email"
+    phone: Optional[str] = None
+
+
 def build_router() -> APIRouter:
     router = APIRouter(tags=["billing"])
 
@@ -1259,7 +1276,12 @@ def build_router() -> APIRouter:
             )
 
         try:
-            user_id = _user_id_from_jwt(f"Bearer {auth_token}")
+            # The BARE token. This used to pass `f"Bearer {auth_token}"` —
+            # the unverified payload decode read segment [1] and never
+            # noticed the prefix; the verifier (engine.api._jwt, FC1x D5)
+            # correctly refuses "Bearer eyJ…" as malformed, so every authed
+            # GET checkout would have bounced to /signup.
+            user_id = _user_id_from_jwt(auth_token)
         except HTTPException:
             return RedirectResponse(
                 url=f"{app_url}/signup?plan={tier}&intent=checkout",
@@ -1656,10 +1678,20 @@ def build_router() -> APIRouter:
         Auth is the engine bearer token (ENGINE_API_TOKEN) — not a user JWT —
         so this is restricted to scheduler infrastructure."""
         token = os.environ.get("ENGINE_API_TOKEN")
-        if token:
-            jwt = _require_jwt(authorization)
-            if jwt != token:
-                raise HTTPException(401, "Invalid scheduler token.")
+        if not token:
+            # FAIL CLOSED (2026-09-04). This used to run OPEN when the token
+            # was unset — and it is unset in production — so an anonymous
+            # POST could mass-send renewal e-mails to real customers. Same
+            # rule as /api/workspaces/cron/purge-expired now. Gate:
+            # tests/engine/test_cron_auth.py.
+            raise HTTPException(
+                503,
+                "ENGINE_API_TOKEN is not configured; refusing to run the "
+                "renewal-reminder cron unauthenticated.",
+            )
+        jwt = _require_jwt(authorization)
+        if jwt != token:
+            raise HTTPException(401, "Invalid scheduler token.")
         t14 = send_founder_renewal_reminders(days_ahead=14)
         t3 = send_founder_renewal_reminders(days_ahead=3)
         return {"t14": t14, "t3": t3}
@@ -1679,15 +1711,6 @@ def build_router() -> APIRouter:
 
     # ─── Contact-sales lead capture (Pro inquiries) ────────────────────────
 
-    class ContactSalesRequest(BaseModel):
-        name: str
-        email: str
-        company: Optional[str] = None
-        role: Optional[str] = None
-        num_companies: Optional[str] = None  # '1-3' | '4-10' | '11-25' | '26+'
-        use_case: Optional[str] = None
-        preferred_contact: Optional[str] = "email"
-        phone: Optional[str] = None
 
     @router.post("/api/contact-sales")
     def contact_sales(req: ContactSalesRequest) -> Any:

@@ -228,6 +228,11 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         label="Manage profile",
         description="Profile name, display name, language preference.",
     ),
+    "annual_billing": _feature(
+        "coming_soon",
+        label="Annual billing",
+        description="Yearly billing cycle at a discount. The /pricing toggle's Annual segment is disabled and labelled from THIS row — LR3 asserts the copy against this status, so promoting it here without wiring the cycle reds the gate.",
+    ),
     "manage_billing": _feature(
         "active",
         label="Manage billing",
@@ -253,7 +258,7 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         endpoint="/api/period/{period_id}",
     ),
     "benchmarks": _feature(
-        "active",
+        "hidden",
         label="Benchmarks",
         description="Industry percentile comparison + peer panel.",
         endpoint="/api/benchmarks/report/{period_id}",
@@ -265,7 +270,7 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         endpoint="/api/industry/profiles",
     ),
     "reports": _feature(
-        "active",
+        "hidden",
         label="Reports",
         description="Comprehensive analysis report (8 sections + industry tab).",
     ),
@@ -294,20 +299,74 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # Products / SKU Explorer remains REACHABLE via the legacy route but
     # is no longer a primary nav item; it appears under Inventory.
     "inventory": _feature(
-        "coming_soon",
+        "hidden",
         label="Inventory",
         description="SKU explorer + stock + DIO analytics. Folds the legacy /products page.",
     ),
     "invoices": _feature(
-        "coming_soon",
+        "hidden",
         label="Invoices",
         description="AR/AP invoice analytics + cash-conversion drilldown.",
     ),
     "products_legacy": _feature(
-        "active",
+        "hidden",
         label="Products (legacy)",
         description="Existing SKU page — reachable via /products redirect, folded under Inventory in nav.",
         endpoint="/api/cfo/products",
+    ),
+
+    # ── LAUNCH CUT (2026-09-05) — built, verified NOT end-to-end, off ──
+    # These rows are `hidden`, not `coming_soon`: the feature EXISTS and
+    # the code ships; it is simply outside the eight surfaces the launch
+    # supports, so both its nav item and its ROUTE are switched off (the
+    # route renders <PendingState>, never the half-verified page).
+    # Promote a row to `active` only after its screen has been walked
+    # end-to-end at 1440 and 390 in both languages with zero console
+    # errors. Flipping the status here is the whole re-enable.
+    "scenarios": _feature(
+        "hidden",
+        label="Scenario planning",
+        description="Price / volume / cost levers with profit, cash and covenant headroom.",
+    ),
+    "variance": _feature(
+        "hidden",
+        label="Budget vs actual vs last year",
+        description="Line-by-line variance against an uploaded budget and the prior year.",
+    ),
+    "public_companies": _feature(
+        "hidden",
+        label="Public companies",
+        description="Listed-company filings, ratios and peer comparison. Hides the in-app surfaces only — the server-rendered /companii storefront keeps serving.",
+    ),
+    "comprehensive_report": _feature(
+        "hidden",
+        label="Comprehensive report",
+        description="The full eight-section written analysis of a period as one document.",
+    ),
+    "peer_report": _feature(
+        "hidden",
+        label="Peer comparison report",
+        description="P&L side by side with a named peer and the sector median.",
+    ),
+    "chat_page": _feature(
+        "hidden",
+        label="Ask CFO AI (full chat page)",
+        description="The standalone /chat conversation surface. Distinct from `ask_cfo_ai`, which gates the in-context Capsule ask.",
+    ),
+    "roadmap": _feature(
+        "hidden",
+        label="Roadmap page",
+        description="Public release roadmap at /roadmap.",
+    ),
+    "firm_cockpit": _feature(
+        "hidden",
+        label="Firm Cockpit",
+        description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
+    ),
+    "anomaly_radar": _feature(
+        "hidden",
+        label="Anomaly Radar",
+        description="Cross-period anomaly detection over the ledger.",
     ),
 }
 

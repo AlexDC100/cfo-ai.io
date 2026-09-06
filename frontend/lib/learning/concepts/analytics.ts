@@ -8,6 +8,11 @@
 // Mirrors the methodology in CLAUDE.md Appendix A §5–§7.
 
 import type { Concept } from "./_schema";
+// THE zone mapping — the same function `zoneFor` backs, and therefore the
+// same one behind the Risks-tab chip, the credit component sentence, the
+// workbook and the printed report. See `altman_z_score` below for what
+// this file used to do instead.
+import { altmanZoneOf } from "@/lib/financialValuation";
 
 // ─── Profitability ratios ─────────────────────────────────────────────────
 
@@ -1087,14 +1092,35 @@ const altman_z_score: Concept = {
   inlineFormula: "6.56·X₁ + 3.26·X₂ + 6.72·X₃ + 1.05·X₄",
   benchmark: { p25: 1.5, median: 2.6, p75: 3.5 },
   related: ["composite_credit_score", "credit_grade", "piotroski_f_score"],
+  // ── THIS WAS A LADDER, AND IT DISAGREED AT BOTH BOUNDARIES ────────
+  //
+  // It read `v >= 2.6 ? safe : v >= 1.1 ? grey : distress`, while
+  // `zoneFor` in lib/financialValuation.ts — the mapping behind every
+  // other zone in the product — uses `>`, per Appendix A (`Z" > 2.60 →
+  // SAFE`, `1.10 ≤ Z" ≤ 2.60 → GREY`). This popover opens by TAPPING THE
+  // NUMBER ITSELF, so the two words sat one click apart. Measured:
+  //
+  //     Z" = 2.60 exactly   chip "Grey"      this popover "Safe zone —
+  //                                           low bankruptcy risk."
+  //     Z" = 1.10 exactly   chip "Distress"  this popover "Grey zone —
+  //                                           caution…"
+  //
+  // A boundary is where the word matters most, and this was the surface a
+  // reader taps precisely because they want the word explained. It now
+  // delegates; there is no ladder in this file.
   interpretation: {
-    getSentiment: (v) => (v >= 2.6 ? "positive" : v >= 1.1 ? "neutral" : "negative"),
-    getNarrative: (v) =>
-      v >= 2.6
+    getSentiment: (v) => {
+      const z = altmanZoneOf(v);
+      return z === "safe" ? "positive" : z === "grey" ? "neutral" : "negative";
+    },
+    getNarrative: (v) => {
+      const z = altmanZoneOf(v);
+      return z === "safe"
         ? "Safe zone — low bankruptcy risk."
-        : v >= 1.1
+        : z === "grey"
           ? "Grey zone — caution; some distress indicators are firing."
-          : "Distress zone — historical bankruptcy probability is elevated.",
+          : "Distress zone — historical bankruptcy probability is elevated.";
+    },
   },
 };
 
@@ -1135,14 +1161,31 @@ const composite_credit_score: Concept = {
   },
   benchmark: { p25: 55, median: 70, p75: 85 },
   related: ["altman_z_score", "credit_grade", "piotroski_f_score"],
+  // ── AND THIS WAS A REPLICA GRADE LADDER, IN PROSE ─────────────────
+  //
+  // "Investment-grade equivalent" / "Speculative-grade strong" /
+  // "Speculative-grade weak", banded at 75 / 55 by a table written here.
+  // Those are LETTER-GRADE CLAIMS, and the letter is minted by the
+  // engine's own `letter_grade_bands`, which ship on every period and
+  // whose cut-points are 90/80/70/60/50/40/25 — not 75/55. The engine
+  // calls composite 70 "A" (investment grade); this popover called the
+  // same number "Speculative-grade strong". An engine re-band moved the
+  // letter on all four surfaces and left this sentence exactly where it
+  // was, which is the same defect `CreditScoreCard.compositeToGrade()`
+  // was deleted for, surviving as prose in the learning layer.
+  //
+  // The narrative now describes the SCORE — which is what this concept
+  // is — and says nothing about which grade band it lands in. The grade
+  // is the `credit_grade` concept's subject, and that concept states no
+  // verdict of its own precisely because the ladder is the engine's.
   interpretation: {
     getSentiment: (v) => (v >= 75 ? "positive" : v >= 55 ? "neutral" : "negative"),
     getNarrative: (v) =>
       v >= 75
-        ? "Investment-grade equivalent — strong credit profile."
+        ? "Strong composite — the weighted blend sits in the top quartile of the 0–100 scale."
         : v >= 55
-          ? "Speculative-grade strong — credit risk is manageable."
-          : "Speculative-grade weak — high credit risk; lender attention required.",
+          ? "Mid-range composite — the weighted blend is neither strong nor stressed."
+          : "Weak composite — the weighted blend is in the bottom of the 0–100 scale; lender attention required.",
   },
 };
 

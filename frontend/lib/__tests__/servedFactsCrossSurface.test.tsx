@@ -34,10 +34,14 @@ vi.mock("@/stores/currency", () => ({
 
 import { factsFrom } from "@/lib/servedFacts";
 import { buildPeriodFacts } from "@/lib/periodFacts";
-import { buildExcelWorkbook } from "@/lib/financialExports";
+// `buildReportHtml` is the composition point for the printed
+// deliverable — it builds the credit reader and the ratios from ONE
+// envelopes object. `renderReportHtml` is its renderer half and now
+// requires that reader, so these gateway assertions go through the
+// same door the Export tab does.
+import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
 import {
   computeRatios,
-  renderReportHtml,
   type Statements,
 } from "@/lib/financialReport";
 import { buildBSStatement, canonicalMetaFromBs } from "@/lib/buildBsStatement";
@@ -55,7 +59,19 @@ const FIXTURES = [
   ["served_reconciled_pnl.json", "PNL-placed reconciled"],
 ] as const;
 
-const cents = (v: number): number => Math.round(v * 100);
+/** Display float → cents. ABSENT-CAPABLE, so a surface that has started
+ *  refusing shows up as a `null ≠ <number>` mismatch rather than as a
+ *  `NaN`/0 that quietly matches nothing. */
+const cents = (v: number | null | undefined): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) : null;
+
+/** A gateway total this suite REQUIRES to be present — every fixture here
+ *  is a complete served envelope, so an absence is a defect in the
+ *  gateway, not a legitimate refusal, and must fail loudly at the read. */
+const present = (v: number | null, what: string): number => {
+  expect(v, `${what} came back ABSENT on a complete served fixture`).not.toBeNull();
+  return v as number;
+};
 
 /** Read one aoa sheet back out of the workbook. */
 function sheetRows(wb: XLSX.WorkBook, name: string): unknown[][] {
@@ -133,12 +149,12 @@ describe.each(FIXTURES.map(([f, label]) => [label, f] as const))(
       const r = computeRatios(s);
       const equityRatio = r.leverage.find((x) => x.key === "equity_ratio");
       expect(equityRatio?.value).toBeCloseTo(
-        (sf.totalEquity() / sf.totalAssets()) * 100,
+        (present(sf.totalEquity(), "totalEquity") / present(sf.totalAssets(), "totalAssets")) * 100,
         6,
       );
       const currentRatio = r.liquidity.find((x) => x.key === "current_ratio");
       expect(currentRatio?.value).toBeCloseTo(
-        sf.currentAssets() / sf.currentLiabilities(),
+        present(sf.currentAssets(), "currentAssets") / present(sf.currentLiabilities(), "currentLiabilities"),
         6,
       );
     });
@@ -146,13 +162,13 @@ describe.each(FIXTURES.map(([f, label]) => [label, f] as const))(
     it("valuation reads the ADJUSTED equity (the documented change)", () => {
       const altman = altmanZScore(s);
       expect(altman.components.x4_equity_to_liabilities).toBeCloseTo(
-        sf.totalEquity() / sf.totalLiabilities(),
+        present(sf.totalEquity(), "totalEquity") / present(sf.totalLiabilities(), "totalLiabilities"),
         6,
       );
       const wacc = computeCostOfCapital(s);
       const debt = s.assembled_bs?.total_debt ?? 0;
       expect(wacc.weightOfEquity).toBeCloseTo(
-        sf.totalEquity() / (debt + sf.totalEquity()),
+        present(sf.totalEquity(), "totalEquity") / (debt + present(sf.totalEquity(), "totalEquity")),
         10,
       );
       const facts = buildPeriodFacts({
@@ -167,11 +183,11 @@ describe.each(FIXTURES.map(([f, label]) => [label, f] as const))(
     });
 
     it("HTML report serializes the gateway totals", () => {
-      const html = renderReportHtml(s);
+      const html = buildReportHtml(s, {});
       const fmt = (n: number) =>
         `RON ${Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-      expect(html).toContain(fmt(sf.totalAssets()));
-      expect(html).toContain(fmt(sf.equityPlusLiabilities()));
+      expect(html).toContain(fmt(present(sf.totalAssets(), "totalAssets")));
+      expect(html).toContain(fmt(present(sf.equityPlusLiabilities(), "equityPlusLiabilities")));
     });
   },
 );
@@ -182,7 +198,7 @@ describe("I1 — the raw pre-adjustment equity appears on NO analytical surface"
     const sf = factsFrom(s);
     expect(sf.totalEquity()).toBe(5000000);
 
-    const html = renderReportHtml(s);
+    const html = buildReportHtml(s, {});
     expect(html).not.toContain("5,000,052");
 
     const wb = buildExcelWorkbook(s);
@@ -234,7 +250,7 @@ describe.each([
   });
 
   it("HTML export words RECONCILED, not the pristine balanced verdict", () => {
-    const html = renderReportHtml(s);
+    const html = buildReportHtml(s, {});
     expect(html).toContain("RECONCILED");
     expect(html).toContain("reconciled is not balanced");
     // The pristine BALANCED headline must not appear anywhere.

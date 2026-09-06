@@ -1,0 +1,911 @@
+{
+  "label": "period-r0",
+  "at": "2026-09-01T10:33:40.727Z",
+  "cold": {
+    "202": {
+      "rows": 1,
+      "byFamily": {
+        "ask": 1
+      },
+      "periodRows": []
+    },
+    "(rest)": {
+      "rows": 1,
+      "byFamily": {
+        "suggestion": 1
+      },
+      "periodRows": []
+    },
+    "aug": {
+      "rows": 1,
+      "byFamily": {
+        "ask": 1
+      },
+      "periodRows": []
+    },
+    "a": {
+      "rows": 18,
+      "byFamily": {
+        "page": 8,
+        "action": 5,
+        "glossary": 1,
+        "category": 4
+      },
+      "periodRows": []
+    }
+  },
+  "populated": {
+    "1440/dark": {
+      "boot": {
+        "populated": true,
+        "waitedMs": 14
+      },
+      "states": {
+        "202": {
+          "rows": 4,
+          "byFamily": {
+            "period": 4
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 577
+            },
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            },
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 588
+            },
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "(rest)": {
+          "rows": 1,
+          "byFamily": {
+            "suggestion": 1
+          },
+          "periodRows": []
+        },
+        "aug": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "dec": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "sep": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 577
+            }
+          ]
+        },
+        "jul": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 588
+            }
+          ]
+        },
+        "dash": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "sce": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "work": {
+          "rows": 3,
+          "byFamily": {
+            "page": 1,
+            "concept": 2
+          },
+          "periodRows": []
+        },
+        "bench": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "concept": 1
+          },
+          "periodRows": []
+        },
+        "prod": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "company": 1
+          },
+          "periodRows": []
+        },
+        "sett": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "cash": {
+          "rows": 13,
+          "byFamily": {
+            "concept": 13
+          },
+          "periodRows": []
+        },
+        "bal": {
+          "rows": 1,
+          "byFamily": {
+            "action": 1
+          },
+          "periodRows": []
+        },
+        "a": {
+          "rows": 18,
+          "byFamily": {
+            "page": 8,
+            "action": 5,
+            "glossary": 1,
+            "period": 1,
+            "category": 3
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "range": {
+          "rows": 9,
+          "byFamily": {
+            "category": 2,
+            "sku": 7
+          },
+          "periodRows": []
+        },
+        "core": {
+          "rows": 10,
+          "byFamily": {
+            "category": 1,
+            "sku": 3,
+            "concept": 6
+          },
+          "periodRows": []
+        },
+        "trans": {
+          "rows": 6,
+          "byFamily": {
+            "company": 6
+          },
+          "periodRows": []
+        },
+        "glossary": {
+          "rows": 1,
+          "byFamily": {
+            "glossary": 1
+          },
+          "periodRows": []
+        },
+        "zzqqxx": {
+          "rows": 1,
+          "byFamily": {
+            "ask": 1
+          },
+          "periodRows": []
+        }
+      }
+    },
+    "1440/light": {
+      "boot": {
+        "populated": true,
+        "waitedMs": 17
+      },
+      "states": {
+        "202": {
+          "rows": 4,
+          "byFamily": {
+            "period": 4
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 577
+            },
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            },
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 588
+            },
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "(rest)": {
+          "rows": 1,
+          "byFamily": {
+            "suggestion": 1
+          },
+          "periodRows": []
+        },
+        "aug": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "dec": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "sep": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 577
+            }
+          ]
+        },
+        "jul": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 588
+            }
+          ]
+        },
+        "dash": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "sce": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "work": {
+          "rows": 3,
+          "byFamily": {
+            "page": 1,
+            "concept": 2
+          },
+          "periodRows": []
+        },
+        "bench": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "concept": 1
+          },
+          "periodRows": []
+        },
+        "prod": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "company": 1
+          },
+          "periodRows": []
+        },
+        "sett": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "cash": {
+          "rows": 13,
+          "byFamily": {
+            "concept": 13
+          },
+          "periodRows": []
+        },
+        "bal": {
+          "rows": 1,
+          "byFamily": {
+            "action": 1
+          },
+          "periodRows": []
+        },
+        "a": {
+          "rows": 18,
+          "byFamily": {
+            "page": 8,
+            "action": 5,
+            "glossary": 1,
+            "period": 1,
+            "category": 3
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 580
+            }
+          ]
+        },
+        "range": {
+          "rows": 9,
+          "byFamily": {
+            "category": 2,
+            "sku": 7
+          },
+          "periodRows": []
+        },
+        "core": {
+          "rows": 10,
+          "byFamily": {
+            "category": 1,
+            "sku": 3,
+            "concept": 6
+          },
+          "periodRows": []
+        },
+        "trans": {
+          "rows": 6,
+          "byFamily": {
+            "company": 6
+          },
+          "periodRows": []
+        },
+        "glossary": {
+          "rows": 1,
+          "byFamily": {
+            "glossary": 1
+          },
+          "periodRows": []
+        },
+        "zzqqxx": {
+          "rows": 1,
+          "byFamily": {
+            "ask": 1
+          },
+          "periodRows": []
+        }
+      }
+    },
+    "390/dark": {
+      "boot": {
+        "populated": true,
+        "waitedMs": 20
+      },
+      "states": {
+        "202": {
+          "rows": 4,
+          "byFamily": {
+            "period": 4
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 271
+            },
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            },
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 282
+            },
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "(rest)": {
+          "rows": 1,
+          "byFamily": {
+            "suggestion": 1
+          },
+          "periodRows": []
+        },
+        "aug": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "dec": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "sep": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 271
+            }
+          ]
+        },
+        "jul": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 282
+            }
+          ]
+        },
+        "dash": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "sce": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "work": {
+          "rows": 3,
+          "byFamily": {
+            "page": 1,
+            "concept": 2
+          },
+          "periodRows": []
+        },
+        "bench": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "concept": 1
+          },
+          "periodRows": []
+        },
+        "prod": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "company": 1
+          },
+          "periodRows": []
+        },
+        "sett": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "cash": {
+          "rows": 13,
+          "byFamily": {
+            "concept": 13
+          },
+          "periodRows": []
+        },
+        "bal": {
+          "rows": 1,
+          "byFamily": {
+            "action": 1
+          },
+          "periodRows": []
+        },
+        "a": {
+          "rows": 18,
+          "byFamily": {
+            "page": 8,
+            "action": 5,
+            "glossary": 1,
+            "period": 1,
+            "category": 3
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "range": {
+          "rows": 9,
+          "byFamily": {
+            "category": 2,
+            "sku": 7
+          },
+          "periodRows": []
+        },
+        "core": {
+          "rows": 10,
+          "byFamily": {
+            "category": 1,
+            "sku": 3,
+            "concept": 6
+          },
+          "periodRows": []
+        },
+        "trans": {
+          "rows": 6,
+          "byFamily": {
+            "company": 6
+          },
+          "periodRows": []
+        },
+        "glossary": {
+          "rows": 1,
+          "byFamily": {
+            "glossary": 1
+          },
+          "periodRows": []
+        },
+        "zzqqxx": {
+          "rows": 1,
+          "byFamily": {
+            "ask": 1
+          },
+          "periodRows": []
+        }
+      }
+    },
+    "390/light": {
+      "boot": {
+        "populated": true,
+        "waitedMs": 23
+      },
+      "states": {
+        "202": {
+          "rows": 4,
+          "byFamily": {
+            "period": 4
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 271
+            },
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            },
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 282
+            },
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "(rest)": {
+          "rows": 1,
+          "byFamily": {
+            "suggestion": 1
+          },
+          "periodRows": []
+        },
+        "aug": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "dec": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Dec 2025",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "sep": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Sept 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 271
+            }
+          ]
+        },
+        "jul": {
+          "rows": 1,
+          "byFamily": {
+            "period": 1
+          },
+          "periodRows": [
+            {
+              "text": "Jul 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 282
+            }
+          ]
+        },
+        "dash": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "sce": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "work": {
+          "rows": 3,
+          "byFamily": {
+            "page": 1,
+            "concept": 2
+          },
+          "periodRows": []
+        },
+        "bench": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "concept": 1
+          },
+          "periodRows": []
+        },
+        "prod": {
+          "rows": 2,
+          "byFamily": {
+            "page": 1,
+            "company": 1
+          },
+          "periodRows": []
+        },
+        "sett": {
+          "rows": 1,
+          "byFamily": {
+            "page": 1
+          },
+          "periodRows": []
+        },
+        "cash": {
+          "rows": 13,
+          "byFamily": {
+            "concept": 13
+          },
+          "periodRows": []
+        },
+        "bal": {
+          "rows": 1,
+          "byFamily": {
+            "action": 1
+          },
+          "periodRows": []
+        },
+        "a": {
+          "rows": 18,
+          "byFamily": {
+            "page": 8,
+            "action": 5,
+            "glossary": 1,
+            "period": 1,
+            "category": 3
+          },
+          "periodRows": [
+            {
+              "text": "Aug 2026",
+              "runs": 1,
+              "glyphGutter": null,
+              "rightSlack": 274
+            }
+          ]
+        },
+        "range": {
+          "rows": 9,
+          "byFamily": {
+            "category": 2,
+            "sku": 7
+          },
+          "periodRows": []
+        },
+        "core": {
+          "rows": 10,
+          "byFamily": {
+            "category": 1,
+            "sku": 3,
+            "concept": 6
+          },
+          "periodRows": []
+        },
+        "trans": {
+          "rows": 6,
+          "byFamily": {
+            "company": 6
+          },
+          "periodRows": []
+        },
+        "glossary": {
+          "rows": 1,
+          "byFamily": {
+            "glossary": 1
+          },
+          "periodRows": []
+        },
+        "zzqqxx": {
+          "rows": 1,
+          "byFamily": {
+            "ask": 1
+          },
+          "periodRows": []
+        }
+      }
+    }
+  }
+}

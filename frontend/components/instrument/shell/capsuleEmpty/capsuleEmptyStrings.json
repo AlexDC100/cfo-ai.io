@@ -137,6 +137,26 @@
         "keys": "↑↓ move · Tab to ask · Esc to close",
         "askFallback": "Answer “{{query}}”",
         "askFallbackHint": "From this period's figures"
+      },
+      "tile": {
+        "provenanceJump": "Open the statement row behind {{metric}}",
+        "ask": "Ask about {{metric}}"
+      },
+      "account": {
+        "eyebrow": "Account {{account}}",
+        "open": "Open",
+        "absent": "No line in {{period}} carries account {{account}}.",
+        "absentNoPeriod": "No line in this period carries account {{account}}.",
+        "sectionGeneric": "of its class",
+        "section": {
+          "current_assets": "of current assets",
+          "non_current_assets": "of non-current assets",
+          "current_liabilities": "of current liabilities",
+          "non_current_liabilities": "of non-current liabilities",
+          "equity": "of equity",
+          "prepaid_expenses": "of prepaid expenses",
+          "deferred_income": "of deferred income"
+        }
       }
     }
   },
@@ -280,6 +300,26 @@
         "keys": "↑↓ navighezi · Tab întrebi · Esc închizi",
         "askFallback": "Răspunde la „{{query}}”",
         "askFallbackHint": "Din cifrele acestei perioade"
+      },
+      "tile": {
+        "provenanceJump": "Deschide rândul din situații din spatele valorii {{metric}}",
+        "ask": "Întreabă despre {{metric}}"
+      },
+      "account": {
+        "eyebrow": "Contul {{account}}",
+        "open": "Deschide",
+        "absent": "Niciun rând din {{period}} nu ține contul {{account}}.",
+        "absentNoPeriod": "Niciun rând din perioada aceasta nu ține contul {{account}}.",
+        "sectionGeneric": "din clasa lui",
+        "section": {
+          "current_assets": "din activele circulante",
+          "non_current_assets": "din activele imobilizate",
+          "current_liabilities": "din datoriile curente",
+          "non_current_liabilities": "din datoriile pe termen lung",
+          "equity": "din capitalurile proprii",
+          "prepaid_expenses": "din cheltuielile în avans",
+          "deferred_income": "din veniturile în avans"
+        }
       }
     }
   }

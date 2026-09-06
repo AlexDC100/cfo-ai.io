@@ -106,7 +106,14 @@ export class RouteErrorBoundary extends Component<Props, State> {
         );
 
       return (
-        <div className="min-h-[calc(100dvh-8rem)] flex flex-col items-center justify-center px-6 py-12">
+        // data-testid is load-bearing: the LR1 launch gate asserts that NO
+        // route renders an error boundary. Without a stable hook on this
+        // root the gate's error-boundary check matches nothing and passes
+        // vacuously — a green gate asserting its own blindness.
+        <div
+          data-testid="route-error"
+          className="min-h-[calc(100dvh-8rem)] flex flex-col items-center justify-center px-6 py-12"
+        >
           <div className="w-full text-center">
             <div className="mx-auto h-11 w-11 rounded-full bg-alert/10 text-alert flex items-center justify-center mb-3">
               <AlertTriangle size={20} strokeWidth={1.75} />

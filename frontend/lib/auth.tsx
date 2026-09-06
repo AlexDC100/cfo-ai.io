@@ -21,6 +21,7 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { clearDataPresence } from "@/lib/dataPresence";
 import { flushNewsletterOptIn } from "@/lib/newsletterOptIn";
+import { flushLegalConsent } from "@/lib/legalConsent";
 import {
   NATIVE_OAUTH_REDIRECT,
   installNativeAuthCallback,
@@ -210,6 +211,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // clicked the account-confirmation link. No-op when nothing is
       // pending, so the periodic TOKEN_REFRESHED ticks cost nothing.
       if (s?.user) void flushNewsletterOptIn(s.user.email);
+
+      // The legal acceptance ticked at signup is parked and consumed the
+      // same way and for the same reason: `set_user_pref` resolves the user
+      // from auth.uid(), so there is nothing to write to until a session
+      // exists. Recording it here — rather than at submit — is what makes
+      // "which version did this user accept" answerable later. No-op when
+      // nothing is pending.
+      if (s?.user) void flushLegalConsent(s.user.email);
 
       // Native shell (mobile/): announce real auth transitions so the shell
       // reloads its other WebView tabs into the new session. INITIAL_SESSION

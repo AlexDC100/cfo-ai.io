@@ -18,6 +18,12 @@
 // Keys mirror the ones emitted in `src/lib/financialReport.ts:computeRatios()`.
 
 import type { Ratio } from "./financialReport";
+// THE THRESHOLDS, NOT A COPY OF THEM. This file spelled "2.60" and "1.10"
+// as literals in two sentences; the drawer opens one click from the row
+// that bands with the real object, so a moved threshold froze the
+// explanation exactly where the F1 model label froze. `creditModel.ts` is
+// a leaf and imports nothing, so there is no cycle.
+import { ALTMAN_ZPP_THRESHOLDS_SHARED as ZPP } from "./creditModel";
 import type { TraceableSource } from "./traceableSource";
 
 /** Resolver keys — each value identifies a numeric field the drawer
@@ -447,21 +453,42 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   },
 
   // ── Distress ────────────────────────────────────────────────────
+  // ── THE DRAWER DESCRIBED A DIFFERENT MODEL THAN THE ROW ────────────
+  //
+  // ⚠ THE NAME IS THE CONTRACT, AND THIS ENTRY BROKE IT. The row it
+  // explains is labelled "Altman Z″-Score" and is banded at 2.60 / 1.10
+  // by `ALTMAN_ZPP_THRESHOLDS`. This entry printed the Z(1968) FORMULA
+  // (1.2 / 1.4 / 3.3 / 0.6 / 1.0, with a Sales/TA term Z″ does not have)
+  // and the Z(1968) LADDER — "< 1.8 is structurally distressed" — under
+  // that same name. Measured consequence: at Z″ = 1.50 the row says
+  // Watch / "Grey zone — elevated bankruptcy risk" and one click later
+  // this drawer says "structurally distressed", about the same number on
+  // the same screen. Two ladders and two formulas sharing one name is the
+  // defect; they are not two measures, so they get one description.
+  //
+  // The coefficients and thresholds below are Z″ (1995 EM) — the same
+  // ones `ALTMAN_ZPP_THRESHOLDS` and `altmanReaderOf` apply. If the
+  // variant ever changes, this entry changes with it or the drawer starts
+  // explaining a model the product no longer runs.
   altman_z: {
     category: "distress",
     definition:
-      "Altman Z-Score — a multi-factor distress predictor combining working-capital strength, retained earnings, profitability, equity coverage, and asset turnover.",
+      "Altman Z″-Score (1995, emerging-markets variant) — a four-factor distress predictor combining working-capital strength, cumulative retained profits, EBIT productivity and equity coverage. It drops the sales/total-assets term of the 1968 Z, which systematically penalizes asset-heavy businesses.",
     formula:
-      "1.2·(WC/TA) + 1.4·(RE/TA) + 3.3·(EBIT/TA) + 0.6·(Eq/TL) + 1.0·(Sales/TA)",
+      "6.56·(WC/TA) + 3.26·((RE + current NP)/TA) + 6.72·(EBIT/TA) + 1.05·(Eq/TL)",
     whyItMatters:
-      "One of the longest-validated bankruptcy predictors. ≥ 2.6 is the safe zone; the grey zone (1.8–2.6) flags caution; < 1.8 is structurally distressed.",
-    goodRange: "≥ 2.60 safe · 1.80–2.60 grey · < 1.80 distress",
+      "One of the longest-validated bankruptcy predictors. Above " +
+      `${ZPP.safe.toFixed(2)} is the safe zone; ${ZPP.distress.toFixed(2)}–` +
+      `${ZPP.safe.toFixed(2)} is the grey zone; below ${ZPP.distress.toFixed(2)} ` +
+      "is the distress zone.",
+    goodRange:
+      `> ${ZPP.safe.toFixed(2)} safe · ${ZPP.distress.toFixed(2)}–${ZPP.safe.toFixed(2)} ` +
+      `grey · < ${ZPP.distress.toFixed(2)} distress (Z″ 1995 EM)`,
     drivers: [
       "Working-capital intensity",
       "Retained-earnings stock (history of profitability)",
       "EBIT productivity",
       "Equity vs liabilities balance",
-      "Asset productivity (Sales/TA)",
     ],
     related: ["debt_to_ebitda", "interest_coverage", "equity_ratio", "roa"],
   },

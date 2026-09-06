@@ -18,6 +18,7 @@
 
 import { MessageSquare, ScrollText, UploadCloud } from "lucide-react";
 
+import { useFeatureStatus } from "@/lib/features";
 import { planUsagePct, usePlanState, type PlanState } from "@/lib/planState";
 
 export function UsageThisMonth({ compact = false }: {
@@ -105,6 +106,14 @@ function ChatCard({ state }: { state: PlanState }) {
   const monthly = state.chat_monthly_cap;
   const daily = state.chat_daily_cap;
   const monthlyPct = planUsagePct(state.chat_used_this_period, monthly);
+  // The counter is real, but with `chat_page` hidden there is no surface
+  // that can move it — every ask affordance routes to /chat, which renders
+  // PendingState. Say so rather than showing a paying customer a live-
+  // looking allowance that can only ever read zero. Anything other than an
+  // explicit `active` (including an unreachable registry) keeps the note:
+  // the honest side of the failure.
+  const chatStatus = useFeatureStatus("chat_page");
+  const chatLive = chatStatus === "active";
   return (
     <UsageCard
       icon={MessageSquare}
@@ -121,7 +130,7 @@ function ChatCard({ state }: { state: PlanState }) {
           : null
       }
       pct={monthlyPct}
-      footnote={null}
+      footnote={chatLive ? null : "Available after launch"}
     />
   );
 }

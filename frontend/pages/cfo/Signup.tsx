@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { Logo } from "@/components/cfo/Logo";
+import { LegalFooter } from "@/components/cfo/LegalFooter";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -38,6 +39,12 @@ export default function Signup() {
       <footer className="px-6 sm:px-10 py-6 text-[11px] text-ink-soft/70 text-center">
         {t("authX.disclaimer")}
       </footer>
+
+      {/* Company identification + the three legal links. This page is where
+          the consent line is ticked, so it is the one page where a reader
+          most needs the documents one click away and the operator's identity
+          on screen. */}
+      <LegalFooter />
     </div>
   );
 }
