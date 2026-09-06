@@ -11,16 +11,23 @@
 //   extras_charge       = extras × plan.extra_doc_eur
 //   estimated_total     = base + extras_charge
 //
-// Chat slider does NOT affect cost (chat is unmetered in EUR — it's
-// capped). It's surfaced because users want to know how their typical
-// usage sits relative to the plan caps; we render a per-plan "fits
-// your plan / over cap" verdict next to the price.
+// 2026-09-06 — THE CHAT DIMENSION IS GONE. The card used to carry a
+// second slider ("Ask CFO AI messages per month", 0–500) and a per-plan
+// "Fits cap / Over cap" verdict. It never affected the estimated bill —
+// chat is capped, not metered in EUR — so it sized an allowance rather
+// than a price. The registry has `chat_page` = hidden for this release
+// (every ask affordance routes to /chat, which renders PendingState), so
+// the slider invited a visitor to dimension their plan on a surface the
+// product does not serve. Dropping the dimension is the smaller, honest
+// change: no caveat to read, nothing to mis-size. The chat ALLOWANCE
+// itself still appears on the plan cards, explicitly marked as available
+// after launch (see lib/planFeatures.ts).
 //
 // Spec §8: "Do not charge inside estimator. It is informational only."
 // → No CTA on this card. Users go up to the plan cards to actually pick.
 
 import { useMemo, useState } from "react";
-import { MessageSquare, UploadCloud } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 
 import {
   type PlanConfig,
@@ -35,7 +42,6 @@ interface Props {
 
 export function MonthlyBillEstimator({ config }: Props) {
   const [docs, setDocs] = useState(7);
-  const [chat, setChat] = useState(40);
 
   // Purchasable recurring plans only — trial/intro never appear (they're
   // acquisition-only, no "estimated monthly bill" concept), and retired
@@ -79,22 +85,12 @@ export function MonthlyBillEstimator({ config }: Props) {
             onChange={setDocs}
             valueLabel={`${docs} ${docs === 1 ? "document" : "documents"}`}
           />
-          <Slider
-            icon={MessageSquare}
-            testId="estimator-chat-slider"
-            label="Ask CFO AI messages per month"
-            value={chat}
-            min={0}
-            max={500}
-            onChange={setChat}
-            valueLabel={`${chat} ${chat === 1 ? "message" : "messages"}`}
-          />
         </div>
 
         {/* ── Plan estimates ──────────────────────────────────────── */}
         <div data-testid="estimator-results" className="space-y-3">
           {recurring.map((plan) => (
-            <PlanEstimate key={plan.key} plan={plan} docs={docs} chat={chat} />
+            <PlanEstimate key={plan.key} plan={plan} docs={docs} />
           ))}
         </div>
       </div>
@@ -171,19 +167,14 @@ function Slider({
 function PlanEstimate({
   plan,
   docs,
-  chat,
 }: {
   plan: PlanConfig;
   docs: number;
-  chat: number;
 }) {
   const extras = Math.max(0, docs - plan.included_docs);
   const extraEur = plan.extra_doc_eur ?? 0;
   const extrasCharge = extras * extraEur;
   const total = plan.price_eur + extrasCharge;
-
-  const chatCap = plan.chat_monthly_cap ?? Infinity;
-  const chatOver = chat > chatCap;
 
   return (
     <article
@@ -214,17 +205,6 @@ function PlanEstimate({
               : "0 extra documents"}
           </span>
           <span className="tabular-nums">{formatEur(extrasCharge)}</span>
-        </li>
-        <li
-          data-testid={`estimator-${plan.key}-chat-verdict`}
-          className={`flex justify-between pt-1 ${chatOver ? "text-caution" : ""}`}
-        >
-          <span>
-            Ask CFO AI: {chat} / {plan.chat_monthly_cap ?? "—"} per month
-          </span>
-          <span className="text-[11px]">
-            {chatOver ? "Over cap — chat would be paused" : "Fits cap"}
-          </span>
         </li>
       </ul>
     </article>

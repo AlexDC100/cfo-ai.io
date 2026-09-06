@@ -163,6 +163,250 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, _send)
 
 
+# ─────────── A STATED WORST CASE FOR AN ANONYMOUS REQUEST ───────────
+#
+# MEASURED 2026-09-06, locally, against the real create_app(), anonymous,
+# no bearer, no rate limit anywhere in front of it:
+#
+#   POST /api/skus    18.5 MB of INVALID rows -> 422, 42,009,599 bytes out
+#                     (2.13x) in 3.46 s
+#   POST /api/skus    18.5 MB of VALID   rows -> 200, 56,989,094 bytes out
+#                     (2.82x) in 3.45 s
+#   POST /api/drill   18.5 MB of INVALID rows -> 422, 42,009,599 bytes out
+#   POST /api/cfo/today 18.5 MB invalid       -> 422, 39,984,904 bytes out
+#
+# Two separate defects, and both are closed here:
+#
+#   * NO SIZE LIMIT ANYWHERE. There is no `client_max_body_size` in
+#     nginx.conf (which serves the SPA only) and none in the app, so the
+#     ceiling was whatever the front proxy happened to allow. A caller
+#     chose how much work the box did.
+#   * THE VALIDATOR ECHOES THE ATTACK BACK. FastAPI's default
+#     RequestValidationError handler returns `exc.errors()` verbatim,
+#     and every entry carries the offending `input`. One invalid row
+#     produced three echoed values; 75,481 rows produced 42 MB of them.
+#     No schema knowledge required — the failure path was the amplifier.
+#
+# HOW THE NUMBERS BELOW WERE CHOSEN. The largest legitimate body the
+# product can produce was measured, not guessed:
+#
+#   * the largest real SKU dataset in this repo
+#     (files/Trading_analysis_YTDOct'25_LV.xlsx, 9,604 rows) serialized in
+#     the exact shape `frontend/lib/api.ts::rawRowsToBackend` posts is
+#     1,925,012 bytes — 1.84 MB, at 200.4 bytes per row. GENERAL_BODY_
+#     LIMIT_BYTES is 8 MiB: 4.4x that, i.e. room for a portfolio four
+#     times larger than anything the owner has ever analyzed.
+#   * the financial pipeline does NOT post documents here at all — the
+#     browser uploads straight to Supabase Storage and the engine
+#     downloads by signed URL (engine/api/pipeline.py:1219). The only
+#     paths that legitimately carry a whole document in the request are
+#     `POST /api/financial-statements/parse` (`pdf_b64`, whose own
+#     ceiling is a 25 MB decoded PDF -> 33.4 MB of base64) and the firm
+#     cockpit's `POST /api/firm/requests/{token}/upload` (a 25 MB
+#     multipart file). DOCUMENT_BODY_LIMIT_BYTES is 36 MiB, which clears
+#     33.4 MB of base64 plus its JSON envelope and 25 MB plus multipart
+#     framing, and nothing more.
+#
+# WHY TWO ENFORCEMENT POINTS. `nginx.conf` gets a `client_max_body_size`
+# for the hop it actually owns, and this middleware holds the same line
+# inside the app so the limit survives a direct hit on :8000, a different
+# front, or a future ingress. The VPS's Caddy needs its own line; it is
+# not in this repo (see the operator delta in the Stream 3 report).
+GENERAL_BODY_LIMIT_BYTES = 8 * 1024 * 1024          # 8 MiB
+DOCUMENT_BODY_LIMIT_BYTES = 36 * 1024 * 1024        # 36 MiB
+
+
+def _is_document_body_path(path):  # type: (str) -> bool
+    """The two paths that legitimately carry a whole document in the body."""
+    if path == "/api/financial-statements/parse":
+        return True
+    return path.startswith("/api/firm/requests/") and path.endswith("/upload")
+
+
+def body_limit_for(path):  # type: (str) -> int
+    """The stated ceiling, in bytes, for a request to `path`."""
+    return (DOCUMENT_BODY_LIMIT_BYTES if _is_document_body_path(path)
+            else GENERAL_BODY_LIMIT_BYTES)
+
+
+def _too_large_body(limit, observed):  # type: (int, Optional[int]) -> Dict[str, Any]
+    """The designed 413 payload. Under 400 bytes, in the same
+    ``{"error": {...}}`` envelope the surface walls answer in, so a caller
+    that switches on ``.error.code`` needs no new branch."""
+    details = {"limit_bytes": limit, "limit_mib": limit // (1024 * 1024)}
+    if observed is not None:
+        details["observed_bytes"] = observed
+    return {
+        "error": {
+            "code": "request_too_large",
+            "message": ("Request body is larger than this endpoint accepts. "
+                        "Send fewer rows, or upload the file to storage first."),
+            "details": details,
+        }
+    }
+
+
+class BodyLimitMiddleware:
+    """Reject an over-size body with 413 BEFORE the route or the validator.
+
+    Pure ASGI on purpose: BaseHTTPMiddleware would buffer the very body
+    this exists to refuse.
+
+    TWO CASES, because HTTP frames a body in two ways:
+
+      * ``content-length`` declared — the ordinary case; every JSON client
+        sends it. Over the cap answers 413 and THE BODY IS NEVER READ, so
+        the amplifier costs one header parse. A *lying* content-length
+        cannot smuggle more past this: with length framing, h11/uvicorn
+        deliver exactly the declared number of bytes and no more, so the
+        declaration is the ceiling the transport itself enforces.
+      * no ``content-length`` (chunked transfer) — the body is drained
+        here, bounded at ``limit + 1`` bytes, before the app is called.
+        Over the cap answers 413; under it, the buffered bytes are
+        replayed to the app through a substitute ``receive``, so the route
+        sees exactly the request it would have seen.
+
+    The 413 carries SECURITY_HEADERS itself for the same reason the
+    surface wall does — it must not depend on which middleware happens to
+    wrap it today.
+    """
+
+    def __init__(self, app, general=None, document=None):
+        # type: (Any, Optional[int], Optional[int]) -> None
+        self.app = app
+        self.general = GENERAL_BODY_LIMIT_BYTES if general is None else general
+        self.document = DOCUMENT_BODY_LIMIT_BYTES if document is None else document
+
+    def _limit_for(self, path):  # type: (str) -> int
+        return self.document if _is_document_body_path(path) else self.general
+
+    async def _refuse(self, scope, receive, send, limit, observed):
+        # type: (Any, Any, Any, int, Optional[int]) -> None
+        response = JSONResponse(_too_large_body(limit, observed),
+                                status_code=413,
+                                headers=dict(SECURITY_HEADERS))
+        await response(scope, receive, send)
+
+    async def __call__(self, scope, receive, send):  # type: (Any, Any, Any) -> None
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        limit = self._limit_for(scope.get("path") or "")
+
+        declared = None  # type: Optional[int]
+        for raw_key, raw_value in scope.get("headers") or ():
+            if raw_key == b"content-length":
+                try:
+                    declared = int(raw_value)
+                except (TypeError, ValueError):
+                    declared = None
+                break
+
+        if declared is not None:
+            if declared > limit:
+                await self._refuse(scope, receive, send, limit, declared)
+                return
+            await self.app(scope, receive, send)
+            return
+
+        # Chunked (or no body at all): drain, bounded, before the app runs.
+        # Never more than `limit + 1` bytes are held here — that bound is
+        # per request, so N concurrent chunked requests still cost N times
+        # it (a limiter's problem, not a cap's; backlog LB-RL-1).
+        chunks = []  # type: List[bytes]
+        total = 0
+        disconnected = None  # type: Optional[Dict[str, Any]]
+        while True:
+            message = await receive()
+            if message.get("type") != "http.request":
+                # A disconnect mid-body. Replay it AS A DISCONNECT rather
+                # than as an empty body, so the app sees the request that
+                # actually happened.
+                disconnected = message
+                break
+            body = message.get("body") or b""
+            total += len(body)
+            if total > limit:
+                await self._refuse(scope, receive, send, limit, None)
+                return
+            chunks.append(body)
+            if not message.get("more_body"):
+                break
+
+        pending = []  # type: List[Dict[str, Any]]
+        if chunks:
+            pending.append({"type": "http.request",
+                            "body": b"".join(chunks),
+                            "more_body": False})
+        if disconnected is not None:
+            pending.append(disconnected)
+
+        async def _replay():  # type: () -> Dict[str, Any]
+            if pending:
+                return pending.pop(0)
+            return await receive()
+
+        await self.app(scope, _replay, send)
+
+
+# ─────────── The bounded 422 ───────────
+#
+# The ceiling this handler guarantees, and the gate asserts as a NUMBER:
+# a validation failure answers in under VALIDATION_RESPONSE_CEILING_BYTES,
+# no matter how many rows failed. 20 errors x (loc <=550 + msg <=200 +
+# input <=120 + type <=40 + JSON framing) + envelope < 20 KiB.
+MAX_VALIDATION_ERRORS = 20
+MAX_VALIDATION_INPUT_CHARS = 120
+MAX_VALIDATION_MSG_CHARS = 200
+MAX_VALIDATION_LOC_ELEMENTS = 8
+MAX_VALIDATION_LOC_CHARS = 64
+VALIDATION_RESPONSE_CEILING_BYTES = 20 * 1024        # 20 KiB
+
+
+def _clip(text, cap):  # type: (str, int) -> str
+    return text if len(text) <= cap else (text[:cap] + "…")
+
+
+def bounded_validation_detail(errors):  # type: (Any) -> Dict[str, Any]
+    """FastAPI's 422 body, with the echo bounded and still USEFUL.
+
+    What survives, per error: ``loc`` (which field of which row), ``msg``
+    (why), ``type``, and a TRUNCATED ``input`` so the developer can see
+    what they actually sent. What does not: the unbounded verbatim
+    ``input`` for every failing row — the amplifier — and pydantic's
+    ``ctx``/``url``, which repeat the value and the docs link.
+
+    ``detail`` stays a list under the same key, because
+    ``frontend/lib/api.ts::call`` and ``tests/engine/test_route_bindings``
+    both read ``detail[].loc`` / ``detail[].type``.
+    """
+    errors = list(errors or [])
+    shown = []
+    for err in errors[:MAX_VALIDATION_ERRORS]:
+        loc = list(err.get("loc") or [])[:MAX_VALIDATION_LOC_ELEMENTS]
+        loc = [_clip(item, MAX_VALIDATION_LOC_CHARS) if isinstance(item, str)
+               else item for item in loc]
+        entry = {
+            "type": _clip(str(err.get("type") or "invalid"), 40),
+            "loc": loc,
+            "msg": _clip(str(err.get("msg") or ""), MAX_VALIDATION_MSG_CHARS),
+        }
+        if "input" in err:
+            entry["input"] = _clip(repr(err.get("input")),
+                                   MAX_VALIDATION_INPUT_CHARS)
+        shown.append(entry)
+    body = {"detail": shown, "error_count": len(errors)}
+    if len(errors) > len(shown):
+        body["truncated"] = True
+        body["message"] = (
+            "%d validation errors; the first %d are shown. Every failing row "
+            "has the same shape — fix these and re-send."
+            % (len(errors), len(shown))
+        )
+    return body
+
+
 def _flag_on(name):  # type: (str) -> bool
     """True only for an explicit truthy string. Read at create_app() time,
     never cached at import, so one process can build both postures."""
@@ -391,6 +635,18 @@ def create_app(
     # response buffering here is safe.
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+    # THE BODY CAP. Added here — after GZip, BEFORE CORS — deliberately:
+    # Starlette runs later-added middleware first, so this ends up INSIDE
+    # CORSMiddleware and its 413 therefore carries the CORS headers a
+    # browser needs to read the refusal, while still running before
+    # routing and before the validator. Measured before this line existed:
+    # an anonymous 18.5 MB POST /api/skus answered 200 with 56,989,094
+    # bytes (2.82x) in 3.45 s, and the same body of INVALID rows answered
+    # 422 with 42,009,599 bytes (2.13x). See the module-level note above
+    # for the two limits and how each number was chosen.
+    # Gate: tests/engine/test_request_limits.py.
+    app.add_middleware(BodyLimitMiddleware)
+
     # CORS — the React dev server runs on a different port. Tighten in prod.
     app.add_middleware(
         CORSMiddleware,
@@ -429,9 +685,27 @@ def create_app(
     from ._observability import init_error_tracking
     init_error_tracking()
 
+    # THE BOUNDED 422. FastAPI's default RequestValidationError handler
+    # returns `exc.errors()` verbatim, and every entry carries the
+    # offending `input` — so the FAILURE path was the amplifier, and it
+    # needed no schema knowledge to drive: 18.5 MB of invalid rows came
+    # back as 42,009,599 bytes. This replaces the default with the same
+    # contract (status 422, `detail` a list of {type, loc, msg, input}),
+    # bounded to MAX_VALIDATION_ERRORS entries with `input` clipped, and
+    # `error_count` added so a developer still learns how many rows
+    # failed. Gate: tests/engine/test_request_limits.py.
+    from fastapi.exceptions import RequestValidationError
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_failed(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        return JSONResponse(bounded_validation_detail(exc.errors()),
+                            status_code=422)
+
     # NO RAW ERRORS — one handler for everything that escapes a route.
-    # FastAPI's own HTTPException / RequestValidationError handlers are
-    # untouched, so 4xx contracts (422 in particular) are unchanged.
+    # FastAPI's own HTTPException handler is untouched, so those 4xx
+    # contracts are unchanged.
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
         error_id = uuid.uuid4().hex[:12]

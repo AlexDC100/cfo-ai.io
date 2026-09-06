@@ -108,15 +108,18 @@ describe("MonthlyBillEstimator", () => {
     expect(total).toContain("19.89");
   });
 
-  it("flags chat-over-cap when the chat slider exceeds monthly cap", () => {
+  // 2026-09-06 — replaces "flags chat-over-cap when the chat slider exceeds
+  // monthly cap". The chat dimension was removed: it never affected the
+  // bill (chat is capped, not metered) and it invited a visitor to size a
+  // plan around /chat, which the registry hides for this release. Reds if
+  // a chat slider or a per-plan chat verdict comes back to the estimator.
+  it("does not offer a chat dimension — no slider, no per-plan chat verdict", () => {
     render(<MonthlyBillEstimator config={makeConfig()} />);
-    const chat = screen.getByTestId("estimator-chat-slider") as HTMLInputElement;
-    fireEvent.change(chat, { target: { value: "75" } });
-    // Solo monthly cap = 50; 75 > 50 → flagged
-    const soloVerdict = screen.getByTestId("estimator-solo-chat-verdict");
-    expect(soloVerdict.textContent?.toLowerCase()).toContain("over cap");
-    // Pro monthly cap = 150; 75 < 150 → fits
-    const proVerdict = screen.getByTestId("estimator-pro-chat-verdict");
-    expect(proVerdict.textContent?.toLowerCase()).toContain("fits cap");
+    expect(screen.queryByTestId("estimator-chat-slider")).toBeNull();
+    expect(screen.queryByTestId("estimator-solo-chat-verdict")).toBeNull();
+    expect(screen.queryByTestId("estimator-pro-chat-verdict")).toBeNull();
+    const card = screen.getByTestId("monthly-bill-estimator");
+    expect(card.textContent?.toLowerCase()).not.toContain("ask cfo ai");
+    expect(card.textContent?.toLowerCase()).not.toContain("fits cap");
   });
 });
