@@ -87,30 +87,20 @@ def test_hidden_features_present():
     works) but the frontend filters them out."""
     body = _client().get("/api/features/status").json()
     feats = body["features"]
-    # LAUNCH CUT (2026-09-05). This list previously named only the three
-    # build-flag mirrors. It now also names every row the launch cut
-    # switched off — `benchmarks`, `products_legacy`, `reports`,
-    # `inventory`, `invoices` were `active`/`coming_soon` before the cut,
-    # and the two lists above were updated in the same pass so this file
-    # states the posture AFTER the cut rather than pinning the one before
-    # it. What this test reds on: a row silently promoted back to
-    # `active`/`coming_soon` without its screen being walked end-to-end.
+    # THE CUT WAS REVERSED (2026-09-06), at the owner's instruction, and
+    # this list came back with it. It named every row the cut switched
+    # off, so it went red the moment the product was restored — a test
+    # that fails when the product is correct protects the old behaviour,
+    # which is exactly the shape TC-11 forbids. It now names only what is
+    # genuinely off: the two build-flag mirrors, the two Cockpit/Radar
+    # packages that ship committed-but-unmounted, and `public_records`,
+    # whose own description says it is gated by PUBLIC_RECORDS_ENABLED.
+    # What it reds on: one of those five promoted to active without its
+    # screen being walked end-to-end.
     for k in (
         "decisions",
         "alerts",
         "public_records",
-        "benchmarks",
-        "products_legacy",
-        "reports",
-        "inventory",
-        "invoices",
-        "scenarios",
-        "variance",
-        "public_companies",
-        "comprehensive_report",
-        "peer_report",
-        "chat_page",
-        "roadmap",
         "firm_cockpit",
         "anomaly_radar",
     ):
@@ -134,6 +124,21 @@ def test_every_active_feature_advertises_endpoint_or_is_meta():
         "change_password",
         "manage_profile",
         "reports",
+        # Computed in the browser from the period the app has already
+        # loaded — there is no route of their own to advertise. They are
+        # container surfaces, like `reports` above, not missing wiring.
+        #
+        # `chat_page` is the one that needs saying out loud: chat generation
+        # moved off this engine entirely to a Supabase Edge Function
+        # (CLAUDE.md §16, Milestone D), so there IS no engine endpoint to
+        # advertise and Ask CFO AI keeps working with the Python engine
+        # stopped. An endpoint here would be a fiction.
+        "chat_page",
+        "scenarios",
+        "variance",
+        "comprehensive_report",
+        "peer_report",
+        "roadmap",
         # products_legacy has a backend endpoint via /api/cfo/products,
         # so it should advertise one. (Verified by the loop, not exempt.)
     }

@@ -114,9 +114,8 @@ const PLAN_FEATURES: PlanFeatureTable = {
     },
     {
       featureKey: "chat_page",
-      afterLaunch: true,
-      en: `Ask CFO AI: 10/day, 50/month — ${AFTER_LAUNCH_MARKER_EN}`,
-      ro: `Întreabă CFO AI: 10/zi, 50/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+      en: "Ask CFO AI: 10/day, 50/month",
+      ro: "Întreabă CFO AI: 10/zi, 50/lună",
     },
   ],
 
@@ -150,9 +149,8 @@ const PLAN_FEATURES: PlanFeatureTable = {
     },
     {
       featureKey: "chat_page",
-      afterLaunch: true,
-      en: `Ask CFO AI: 10/day, 50/month — ${AFTER_LAUNCH_MARKER_EN}`,
-      ro: `Întreabă CFO AI: 10/zi, 50/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+      en: "Ask CFO AI: 10/day, 50/month",
+      ro: "Întreabă CFO AI: 10/zi, 50/lună",
     },
     { featureKey: null, en: "1 workspace", ro: "1 spațiu de lucru" },
   ],
@@ -175,16 +173,14 @@ const PLAN_FEATURES: PlanFeatureTable = {
     },
     {
       featureKey: "benchmarks",
-      afterLaunch: true,
-      en: `Benchmark intelligence — ${AFTER_LAUNCH_MARKER_EN}`,
-      ro: `Comparații cu industria (benchmark) — ${AFTER_LAUNCH_MARKER_RO}`,
+      en: "Benchmark intelligence",
+      ro: "Comparații cu industria (benchmark)",
     },
     { featureKey: null, en: "Valuation module", ro: "Modul de evaluare" },
     {
       featureKey: "chat_page",
-      afterLaunch: true,
-      en: `Ask CFO AI: 25/day, 150/month — ${AFTER_LAUNCH_MARKER_EN}`,
-      ro: `Întreabă CFO AI: 25/zi, 150/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+      en: "Ask CFO AI: 25/day, 150/month",
+      ro: "Întreabă CFO AI: 25/zi, 150/lună",
     },
     {
       featureKey: null,
@@ -217,9 +213,8 @@ const PLAN_FEATURES: PlanFeatureTable = {
     },
     {
       featureKey: "chat_page",
-      afterLaunch: true,
-      en: `Ask CFO AI: 40/day, 200/month — ${AFTER_LAUNCH_MARKER_EN}`,
-      ro: `Întreabă CFO AI: 40/zi, 200/lună — ${AFTER_LAUNCH_MARKER_RO}`,
+      en: "Ask CFO AI: 40/day, 200/month",
+      ro: "Întreabă CFO AI: 40/zi, 200/lună",
     },
     {
       featureKey: null,

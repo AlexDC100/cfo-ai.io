@@ -258,7 +258,7 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         endpoint="/api/period/{period_id}",
     ),
     "benchmarks": _feature(
-        "hidden",
+        "active",
         label="Benchmarks",
         description="Industry percentile comparison + peer panel.",
         endpoint="/api/benchmarks/report/{period_id}",
@@ -270,7 +270,7 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         endpoint="/api/industry/profiles",
     ),
     "reports": _feature(
-        "hidden",
+        "active",
         label="Reports",
         description="Comprehensive analysis report (8 sections + industry tab).",
     ),
@@ -299,17 +299,17 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # Products / SKU Explorer remains REACHABLE via the legacy route but
     # is no longer a primary nav item; it appears under Inventory.
     "inventory": _feature(
-        "hidden",
+        "coming_soon",
         label="Inventory",
         description="SKU explorer + stock + DIO analytics. Folds the legacy /products page.",
     ),
     "invoices": _feature(
-        "hidden",
+        "coming_soon",
         label="Invoices",
         description="AR/AP invoice analytics + cash-conversion drilldown.",
     ),
     "products_legacy": _feature(
-        "hidden",
+        "active",
         label="Products (legacy)",
         description="Existing SKU page — reachable via /products redirect, folded under Inventory in nav.",
         endpoint="/api/cfo/products",
@@ -324,37 +324,38 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # end-to-end at 1440 and 390 in both languages with zero console
     # errors. Flipping the status here is the whole re-enable.
     "scenarios": _feature(
-        "hidden",
+        "active",
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
     ),
     "variance": _feature(
-        "hidden",
+        "active",
         label="Budget vs actual vs last year",
         description="Line-by-line variance against an uploaded budget and the prior year.",
     ),
     "public_companies": _feature(
-        "hidden",
+        "active",
         label="Public companies",
-        description="Listed-company filings, ratios and peer comparison. Hides the in-app surfaces only — the server-rendered /companii storefront keeps serving.",
+        description="Listed-company filings, ratios and peer comparison. The in-app surface; the server-rendered /companii storefront serves independently of this flag.",
+        endpoint="/api/public/markets",
     ),
     "comprehensive_report": _feature(
-        "hidden",
+        "active",
         label="Comprehensive report",
         description="The full eight-section written analysis of a period as one document.",
     ),
     "peer_report": _feature(
-        "hidden",
+        "active",
         label="Peer comparison report",
         description="P&L side by side with a named peer and the sector median.",
     ),
     "chat_page": _feature(
-        "hidden",
+        "active",
         label="Ask CFO AI (full chat page)",
         description="The standalone /chat conversation surface. Distinct from `ask_cfo_ai`, which gates the in-context Capsule ask.",
     ),
     "roadmap": _feature(
-        "hidden",
+        "active",
         label="Roadmap page",
         description="Public release roadmap at /roadmap.",
     ),
