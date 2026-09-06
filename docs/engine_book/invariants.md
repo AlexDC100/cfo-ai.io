@@ -46,16 +46,17 @@ it (bare single-letter markers are file-level attributions).
 
 | invariant | meaning | defined in | enforced by |
 |---|---|---|---|
-| `P0` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_findings_multi_period.py` |
+| `P0` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_launch_anonymous_egress.py`, `tests/engine/test_launch_survival.py` |
 | `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
 | `P2` | Adjustments are strictly additive. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
-| `P3` | Conservation, including unclassified value (AI-lane half under P8). | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
+| `P3` | Conservation, including unclassified value (AI-lane half under P8). | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_route.py`, `tests/engine/test_properties.py` |
 | `P4` | Auto-reconcile triggers iff 0 < ratio <= 0.001. | — | `tests/engine/test_properties.py` |
 | `P5` | RECONCILED is never serialized as BALANCED, on any surface. | — | `tests/engine/test_properties.py` |
 | `P6` | Idempotence: pipeline(pipeline(x)) == pipeline(x). | — | `tests/engine/test_properties.py` |
 | `P7` | Permutation invariance of source rows. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_metamorphic.py`, `tests/engine/test_properties.py` |
 | `P8` | AI-lane labels + needs_review array survive the serve path. | — | `tests/engine/test_properties.py` |
-| `P9` | Model quarantine: deterministic diagnoses never construct an AI client. | — | `tests/engine/test_properties.py` |
+| `P9` | Model quarantine: deterministic diagnoses never construct an AI client. | — | `tests/engine/test_firm_route.py`, `tests/engine/test_properties.py` |
+| `P10` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_firm_route.py` |
 
 ## N-family — Architecture invariants (IR, packs, boundaries, N7 gate)
 
