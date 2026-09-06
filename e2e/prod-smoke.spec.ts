@@ -25,6 +25,23 @@ import { test, expect } from "@playwright/test";
 
 const TILE = '[data-testid^="company-grid-tile-"]';
 
+// LAUNCH POSTURE (2026-09-06). Public Companies ships HIDDEN: the registry
+// reports `public_records: hidden` and the route renders PendingState. The
+// three market-grid walks below asserted the grid — i.e. they asserted that
+// a feature we deliberately switched off is still on, and they went red the
+// moment the cut landed. A test that fails when the product is correct is a
+// test that protects the old behaviour, so each is now driven by the SAME
+// registry the app reads: grid when the feature is active, PendingState when
+// it is not. Neither branch is a skip — both assert something, so this file
+// cannot pass by measuring nothing.
+async function publicCompaniesIsActive(request: any, baseURL: string) {
+  const res = await request.get(`${baseURL}/api/features/status`);
+  if (!res.ok()) return false;
+  const body = await res.json();
+  return (body?.features?.public_records?.status ?? "hidden") === "active";
+}
+
+
 test.describe("public surface smoke", () => {
   test("landing renders", async ({ page }) => {
     await page.goto("/");
@@ -32,9 +49,14 @@ test.describe("public surface smoke", () => {
     await expect(page.locator("body")).toBeVisible();
   });
 
-  test("/public-companies — the market grid hydrates", async ({ page }) => {
+  test("/public-companies — the market grid hydrates, or says it is not in this release", async ({ page, request, baseURL }) => {
     await page.goto("/public-companies", { waitUntil: "domcontentloaded" });
 
+    if (!(await publicCompaniesIsActive(request, baseURL!))) {
+      await expect(page.getByTestId("pending-state")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("markets-company-grid")).toHaveCount(0);
+      return;
+    }
     await expect(page.getByTestId("public-company-intelligence"))
       .toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("markets-company-grid"))
@@ -46,7 +68,12 @@ test.describe("public surface smoke", () => {
       .toBeGreaterThan(0);
   });
 
-  test("/public-companies — a sector pill narrows the grid", async ({ page }) => {
+  test("/public-companies — a sector pill narrows the grid", async ({ page, request, baseURL }) => {
+    if (!(await publicCompaniesIsActive(request, baseURL!))) {
+      await page.goto("/public-companies", { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("pending-state")).toBeVisible({ timeout: 15_000 });
+      return;
+    }
     await page.goto("/public-companies", { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("markets-company-grid"))
       .toBeVisible({ timeout: 15_000 });
@@ -67,7 +94,12 @@ test.describe("public surface smoke", () => {
     expect(after, "a sector pill must narrow the grid").toBeLessThanOrEqual(before);
   });
 
-  test("first grid tile opens the stock drawer with Ask CFO AI", async ({ page }) => {
+  test("first grid tile opens the stock drawer with Ask CFO AI", async ({ page, request, baseURL }) => {
+    if (!(await publicCompaniesIsActive(request, baseURL!))) {
+      await page.goto("/public-companies", { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("pending-state")).toBeVisible({ timeout: 15_000 });
+      return;
+    }
     await page.goto("/public-companies", { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("markets-company-grid"))
       .toBeVisible({ timeout: 15_000 });
