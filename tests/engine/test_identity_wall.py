@@ -240,6 +240,9 @@ def _manifest_env(setenv: Any) -> None:
     # without the flag is test_firm_real_app.py::
     # test_the_cockpit_is_not_mounted_without_its_flag.
     setenv("FIRM_COCKPIT_ENABLED", "1")
+    # Same reason as the line above: this gate CLASSIFIES the public-markets
+    # mutating routes, so it must build the app with that surface on.
+    setenv("PUBLIC_MARKETS_ENABLED", "1")
     setenv(T._firm_requests.SIGNING_KEY_ENV, "identity-wall-signing-key-0123456789")
 
 

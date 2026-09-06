@@ -14,16 +14,32 @@ it as a credential and sends `Authorization: Bearer <token>`.
 
 from __future__ import annotations
 
+import logging
 import os
+import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
+
+# MODULE SCOPE, and load-bearing. Two mounts below are wrapped in
+# ``except Exception: logger.exception(...)`` and documented as "never
+# fatal" — a partially-provisioned deployment (no public_ro.db yet) must
+# lose the storefront, not the API. Until 2026-09-05 there was no
+# module-level ``logger`` here: the only logging name bound anywhere in
+# this file was a LOCAL ``_logging`` inside create_app(). So on the one
+# day the guard mattered, the handler raised ``NameError: name 'logger'
+# is not defined`` out of itself and create_app() died — the whole API,
+# for the surface the comment promised was optional. Gate:
+# tests/engine/test_launch_survival.py::
+# test_a_failing_storefront_mount_does_not_take_the_whole_api_down.
+logger = logging.getLogger(__name__)
 
 from ..actions import build_output
 from ..config import Config, load_config
@@ -87,6 +103,209 @@ class SessionTrackRequest(BaseModel):
 
 
 # ─────────── Factory: build app with injected dependencies ───────────
+
+
+# ─────────── Security headers ───────────
+#
+# MEASURED on https://cfo-ai.io on 2026-09-05: no strict-transport-security,
+# no content-security-policy, no x-frame-options, no x-content-type-options.
+# The SPA half is nginx's (see nginx.conf); this is the API half.
+SECURITY_HEADERS = {
+    # One year, subdomains included. No `preload` — that is a submission
+    # to a browser-vendor list and an irreversible decision the owner
+    # makes, not a deploy.
+    "strict-transport-security": "max-age=31536000; includeSubDomains",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": (
+        "accelerometer=(), autoplay=(), camera=(), display-capture=(), "
+        "encrypted-media=(), fullscreen=(self), geolocation=(), "
+        "gyroscope=(), magnetometer=(), microphone=(), midi=(), "
+        "payment=(), usb=(), xr-spatial-tracking=()"
+    ),
+    # REPORT-ONLY. The API answers JSON and the RO storefront's own HTML;
+    # neither should ever be framed or load a plugin. Enforcement across
+    # the whole origin is a separate, tested change.
+    "content-security-policy-report-only": (
+        "default-src 'self'; frame-ancestors 'none'; object-src 'none'; "
+        "base-uri 'self'"
+    ),
+}
+
+
+class SecurityHeadersMiddleware:
+    """Pure-ASGI, so it cannot inherit BaseHTTPMiddleware's buffering.
+
+    ``setdefault`` on purpose: a route that deliberately sets its own
+    value (the RO storefront's per-page ``x-robots-tag``, a future
+    per-response CSP) keeps it.
+    """
+
+    def __init__(self, app):  # type: (Any) -> None
+        self.app = app
+
+    async def __call__(self, scope, receive, send):  # type: (Any, Any, Any) -> None
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message):  # type: (Any) -> None
+            if message.get("type") == "http.response.start":
+                from starlette.datastructures import MutableHeaders
+
+                headers = MutableHeaders(scope=message)
+                for key, value in SECURITY_HEADERS.items():
+                    if key not in headers:
+                        headers[key] = value
+            await send(message)
+
+        await self.app(scope, receive, _send)
+
+
+def _flag_on(name):  # type: (str) -> bool
+    """True only for an explicit truthy string. Read at create_app() time,
+    never cached at import, so one process can build both postures."""
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _public_markets_enabled():  # type: () -> bool
+    """THE PUBLIC-MARKETS WALL — default OFF.
+
+    Public Companies (Nasdaq/EDGAR envelopes, the AI intelligence layer,
+    the global market registry) ships HIDDEN at launch. Hidden in the
+    navigation is not hidden on the wire: every one of those routes is an
+    anonymous GET or POST that reaches a paid provider or a model, so with
+    the surface unreachable in the product they are pure cost per
+    anonymous hit and nothing else. One flag decides whether the surface
+    exists at all — absent the flag there is no route to wall, which is
+    the only wall that cannot be got past.
+
+    What this flag does NOT cover: the RO storefront (``/api/public/ro/*``
+    and its clean paths ``/companii`` … ``/sitemap.xml``). That surface is
+    deterministic, reads only its own store, reaches no provider on any
+    serve path, and carries its own rate limiter — it keeps serving, and
+    600k indexed URLs stay live.
+    """
+    return _flag_on("PUBLIC_MARKETS_ENABLED")
+
+
+# ─────────── Surfaces that ship hidden, walled at the wire ───────────
+#
+# "Hidden in the navigation" is not hidden. A route that no screen calls
+# is still an anonymous HTTP endpoint, and two of the hidden surfaces
+# reach something that costs money on every hit. Each entry below is one
+# surface: the paths it owns, the single environment flag that brings it
+# back, and the reason it is off. A walled path answers a stable JSON 404
+# in the §24 envelope shape the public routers already use, so a caller
+# that switches on ``.error.code`` needs no new branch.
+
+
+def _is_public_markets(path):  # type: (str) -> bool
+    # The RO storefront is EXEMPT: it is deterministic, reads only its own
+    # SQLite store, reaches no provider on any serve path, and carries its
+    # own rate limiter — it keeps serving, and 600k indexed URLs stay live.
+    # `/api/public-records/` does not match this prefix; the trailing slash
+    # is load-bearing.
+    return (path.startswith("/api/public/")
+            and not path.startswith("/api/public/ro/"))
+
+
+def _is_legacy_sku_ai(path):  # type: (str) -> bool
+    return path in ("/api/analyze", "/api/upload-excel")
+
+
+WALLED_SURFACES = (
+    {
+        "name": "public_markets",
+        "flag": "PUBLIC_MARKETS_ENABLED",
+        "match": _is_public_markets,
+        "message": "The public markets surface is not enabled on this deployment.",
+    },
+    {
+        "name": "legacy_sku_ai",
+        "flag": "LEGACY_SKU_AI_ENABLED",
+        "match": _is_legacy_sku_ai,
+        # MEASURED 2026-09-05 against the real app with every transport
+        # spied: an anonymous POST /api/analyze with a ~200-byte body
+        # answered 200 in 0.01 s having spent ONE api.anthropic.com
+        # completion. No bearer, no rate limit, no usage gate — and in
+        # production ANTHROPIC_API_KEY is set while USAGE_LIMITS_ENABLED
+        # is false. A loop was a bill. /api/upload-excel reaches the same
+        # `_build_analysis` and the same model. Both belong to the legacy
+        # SKU / Products surface, which ships hidden: the live upload path
+        # is the dashboard dropzone into the financial pipeline, and
+        # UploadDialog (the only caller of /api/upload-excel) is mounted
+        # nowhere. The four SIBLING routes — /api/classify-rows, /api/skus,
+        # /api/alerts, /api/drill — are deliberately NOT walled: they
+        # compute deterministically from the body and reach no model
+        # (measured 0.17-0.58 s on a 2.2 MB body). Their body-size cap and
+        # rate limit is a backlog ticket, not a launch change.
+        "message": "The legacy SKU analysis surface is not enabled on this deployment.",
+    },
+)
+
+
+def _wall_body(surface):  # type: (Dict[str, Any]) -> Dict[str, Any]
+    return {
+        "error": {
+            "code": "surface_not_enabled",
+            "message": surface["message"],
+            "details": {"surface": surface["name"], "flag": surface["flag"]},
+        }
+    }
+
+
+# Kept as a module-level name because tests and callers read it.
+PUBLIC_MARKETS_WALL_BODY = _wall_body(WALLED_SURFACES[0])
+
+
+class SurfaceWallMiddleware:
+    """A stable JSON 404 for every path a hidden surface owns.
+
+    A MIDDLEWARE, not a catch-all route, for three reasons:
+
+      * it adds no row to the app's route table, so the route censuses
+        (test_identity_wall's write-wall classification,
+        test_route_bindings) keep enumerating exactly the surface the
+        product has, and a ``{walled_path:path}`` placeholder never has to
+        be classified as a mutating route it is not;
+      * it runs BEFORE routing, so it is not sensitive to which router was
+        included first — an exemption is a prefix test here, not an
+        ordering accident that a later edit could quietly reverse;
+      * it walls any route a surface grows LATER without that route having
+        to remember the flag.
+
+    The flags are read ONCE, at create_app() time, and the resulting rule
+    list is captured — the same contract as the mounts, so one process can
+    build both postures and no test can flip a wall out from under a
+    request mid-run.
+    """
+
+    def __init__(self, app, surfaces=()):  # type: (Any, Any) -> None
+        self.app = app
+        self.surfaces = tuple(surfaces)
+
+    def _match(self, path):  # type: (str) -> Optional[Dict[str, Any]]
+        for surface in self.surfaces:
+            if surface["match"](path):
+                return surface
+        return None
+
+    async def __call__(self, scope, receive, send):  # type: (Any, Any, Any) -> None
+        surface = (self._match(scope.get("path") or "")
+                   if scope.get("type") == "http" else None)
+        if surface is None:
+            await self.app(scope, receive, send)
+            return
+        response = JSONResponse(_wall_body(surface), status_code=404,
+                                headers=dict(SECURITY_HEADERS))
+        await response(scope, receive, send)
+
+
+def _active_walls():  # type: () -> List[Dict[str, Any]]
+    """The surfaces that are OFF right now — i.e. the ones to wall."""
+    return [s for s in WALLED_SURFACES if not _flag_on(s["flag"])]
 
 
 def _firm_cockpit_enabled():  # type: () -> bool
@@ -184,6 +403,57 @@ def create_app(
         allow_headers=["*"],
     )
 
+    # SECURITY HEADERS — added LAST so it is the outermost user middleware
+    # and every API response carries them, including the ones CORS and
+    # GZip produce. Measured on https://cfo-ai.io 2026-09-05: not one of
+    # these was present. The CSP is REPORT-ONLY on purpose — a hard CSP
+    # shipped onto a Vite SPA without being tested against it is a P0
+    # waiting to happen; enforcing it is a backlog ticket, not a launch
+    # change. The 500 handler below sets the same headers itself, because
+    # Starlette's ServerErrorMiddleware sits OUTSIDE every user middleware
+    # and its response never passes back through this one.
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # THE HIDDEN-SURFACE WALLS. Added after the header middleware so it is
+    # OUTSIDE it — the wall sets the same headers on its own 404 — and
+    # before routing, so a walled path never reaches a router at all.
+    walls = _active_walls()
+    app.add_middleware(SurfaceWallMiddleware, surfaces=walls)
+    if walls:
+        logger.info("[server] walled surfaces: %s",
+                    ", ".join("%s (set %s to enable)" % (s["name"], s["flag"])
+                              for s in walls))
+
+    # ERROR TRACKING — inert unless SENTRY_DSN is set. Never raises, never
+    # adds a hard dependency (see _observability.py).
+    from ._observability import init_error_tracking
+    init_error_tracking()
+
+    # NO RAW ERRORS — one handler for everything that escapes a route.
+    # FastAPI's own HTTPException / RequestValidationError handlers are
+    # untouched, so 4xx contracts (422 in particular) are unchanged.
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        error_id = uuid.uuid4().hex[:12]
+        logger.exception(
+            "[server] unhandled error %s on %s %s",
+            error_id, request.method, request.url.path,
+        )
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "internal_error",
+                    "id": error_id,
+                    "message": (
+                        "Something went wrong on our side. Quote this "
+                        "reference if you contact support."
+                    ),
+                }
+            },
+            status_code=500,
+            headers=dict(SECURITY_HEADERS),
+        )
+
     # Frontend-facing endpoints (no auth in dev; add it before exposing publicly)
     app.include_router(create_frontend_router(cfg, canonical_excel))
     # CFO AI endpoints (Today / Cash / Profit / Decisions / Products)
@@ -221,14 +491,19 @@ def create_app(
     # drain. All app-originated mail goes through Resend (see _email.py).
     # Auth emails (reset/confirm) are delivered by Supabase via Resend SMTP.
     app.include_router(create_newsletter_router())
+    # ─── PUBLIC MARKETS — MOUNTED ONLY WHEN EXPLICITLY ENABLED ───
+    #
     # NASDAQ-6 — public-company routes (/api/public/search,
     # /api/public/companies/:ticker, /api/public/companies/:ticker/sync,
-    # /api/public/health). Requires NASDAQ_API_KEY in env for full
-    # functionality; the /health route stays callable without the key.
-    app.include_router(create_public_company_router())
-    # AI Intelligence layer — risk radar, exposure, scoring, signals,
-    # market-read narrative. /api/public/intelligence/*.
-    app.include_router(create_intelligence_router())
+    # /api/public/health) and the AI Intelligence layer (risk radar,
+    # exposure, scoring, signals, market-read narrative,
+    # /api/public/intelligence/*). Both reach paid providers and, on the
+    # market-read path, a model. Public Companies is hidden at launch, so
+    # the surface is not mounted at all; `_build_public_markets_wall_router`
+    # below answers every one of those paths with a stable JSON 404.
+    if _public_markets_enabled():
+        app.include_router(create_public_company_router())
+        app.include_router(create_intelligence_router())
     # PUBLIC RO STOREFRONT — server-rendered company pages built from the
     # Ministry of Finance open datasets (public_summary class: summary
     # level, never a trial-balance analysis, no AI on the default path).
@@ -250,11 +525,15 @@ def create_app(
     # the same reason as the RO storefront above: a partially-provisioned
     # deployment (no public_market.db yet, a half-landed sibling lane)
     # must never take the whole API down.
-    try:
-        from engine.public_market.router import build_router as _public_market_router
-        app.include_router(_public_market_router())
-    except Exception:  # noqa: BLE001 — additive surface, never fatal
-        logger.exception("[server] public market surface not mounted")
+    #
+    # Behind the SAME flag as the rest of the markets surface: it is the
+    # other half of the hidden Public Companies product.
+    if _public_markets_enabled():
+        try:
+            from engine.public_market.router import build_router as _public_market_router
+            app.include_router(_public_market_router())
+        except Exception:  # noqa: BLE001 — additive surface, never fatal
+            logger.exception("[server] public market surface not mounted")
     # WS4 — deep diagnostic endpoint. /health stays as the simple
     # liveness probe (Caddy / docker healthcheck); /api/health pings DB
     # + Stripe + FX, returns 503 if DB is down so deploy.sh fails the

@@ -45,11 +45,36 @@ _BNR_URL = "https://www.bnr.ro/nbrfxrates.xml"
 _TTL_SECONDS = 24 * 3600   # daily refresh
 _TIMEOUT_SECONDS = 8       # don't block the request handler on BNR
 
+# A FAILURE IS CACHED TOO. `GET /api/fx-rates` is anonymous and so is
+# `/api/health` (which reads this module). Before 2026-09-05 only the
+# SUCCESS path was memoised: with bnr.ro unreachable, every anonymous hit
+# opened a fresh connection and blocked a worker for the full
+# `_TIMEOUT_SECONDS`, so N anonymous requests were N outbound fetches and
+# 8N worker-seconds — a self-inflicted amplifier that fires exactly when
+# the upstream is already unwell.
+#
+# 300 s, not the 24 h success TTL: a success is good for a day because
+# BNR publishes once a day, but a failure is a transient we want to leave
+# behind quickly. Five minutes bounds the retry rate at 12/hour no matter
+# how much traffic arrives, and delays recovery by at most one window.
+# `force_refresh=True` (the operator's `?refresh=true`) ignores it, so
+# the cooldown can never make the manual retry a no-op.
+_FAILURE_COOLDOWN_SECONDS = 300
+
 _CACHE_LOCK = threading.Lock()
 _CACHE: Dict[str, Any] = {
     "payload": None,
     "fetched_at": 0.0,
+    "failed_at": 0.0,
 }
+
+
+def reset_fx_cache() -> None:
+    """Drop both memos — the payload and the failure cooldown. Tests only."""
+    with _CACHE_LOCK:
+        _CACHE["payload"] = None
+        _CACHE["fetched_at"] = 0.0
+        _CACHE["failed_at"] = 0.0
 
 
 def _parse_bnr_xml(xml_bytes: bytes) -> Dict[str, Any]:
@@ -164,15 +189,26 @@ def get_fx_rates(force_refresh: bool = False) -> Dict[str, Any]:
         ):
             return {**cached, "fetched_at": _iso_from_epoch(cached_at), "stale": False}
 
-    # Either cache miss or TTL elapsed; try BNR.
-    try:
-        fresh = _fetch_bnr_rates()
-        with _CACHE_LOCK:
-            _CACHE["payload"] = fresh
-            _CACHE["fetched_at"] = now
-        return {**fresh, "fetched_at": _iso_from_epoch(now), "stale": False}
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[fx_rates] BNR fetch failed (%s); falling back", e)
+    # Either cache miss or TTL elapsed; try BNR — unless a recent attempt
+    # already failed and we are inside the cooldown, in which case the
+    # answer is the same one it would produce and costs nothing.
+    with _CACHE_LOCK:
+        failed_at = _CACHE.get("failed_at") or 0.0
+    in_cooldown = (not force_refresh) and (now - failed_at) < _FAILURE_COOLDOWN_SECONDS
+
+    if not in_cooldown:
+        try:
+            fresh = _fetch_bnr_rates()
+            with _CACHE_LOCK:
+                _CACHE["payload"] = fresh
+                _CACHE["fetched_at"] = now
+                _CACHE["failed_at"] = 0.0
+            return {**fresh, "fetched_at": _iso_from_epoch(now), "stale": False}
+        except Exception as e:  # noqa: BLE001
+            with _CACHE_LOCK:
+                _CACHE["failed_at"] = now
+            logger.warning("[fx_rates] BNR fetch failed (%s); falling back "
+                           "and not retrying for %ss", e, _FAILURE_COOLDOWN_SECONDS)
 
     # BNR failed. Return last-known cache if we have one (marked stale).
     with _CACHE_LOCK:

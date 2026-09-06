@@ -7,7 +7,14 @@ const NotFound = () => {
   const { t } = useTranslation();
 
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
+    // WARN, not ERROR. A visitor reaching a path we do not serve is a
+    // normal event — a stale bookmark, a mistyped URL, a link from an old
+    // email. Logging it at error level put a console.error on a designed,
+    // working page: it reds the launch's "zero console errors" gate (LR2),
+    // and once error tracking is wired it would page someone every time a
+    // crawler probes /wp-admin. The signal is still here, at the level the
+    // event actually has.
+    console.warn("404: no route for", location.pathname);
   }, [location.pathname]);
 
   return (

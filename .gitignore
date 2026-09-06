@@ -15,6 +15,10 @@ docker-compose.override.yml
 .env
 .env.local
 .env.production
+# Hermetic gate stacks (e2e/launch-route-cut.spec.ts). Both pin Supabase at
+# the unresolvable test host so neither can reach production — but neither
+# belongs in the repo either.
+.env.launchgate*
 
 # Frontend build artifacts
 node_modules/

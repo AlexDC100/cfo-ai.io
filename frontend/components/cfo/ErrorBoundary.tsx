@@ -45,7 +45,12 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       const isDev = import.meta.env.DEV;
       return (
-        <div className="min-h-screen bg-bg text-ink flex items-center justify-center px-6 py-12">
+        // See RouteErrorBoundary: the LR1 gate needs a stable hook here or
+        // its "never an error boundary" assertion matches nothing.
+        <div
+          data-testid="error-boundary"
+          className="min-h-screen bg-bg text-ink flex items-center justify-center px-6 py-12"
+        >
           <div className="max-w-[560px] w-full rounded-2xl border border-rule bg-surface p-7 text-center">
             <div className="mx-auto h-12 w-12 rounded-full bg-alert/10 text-alert flex items-center justify-center mb-4">
               <AlertTriangle size={22} strokeWidth={1.75} />

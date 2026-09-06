@@ -2787,5 +2787,81 @@
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
       "sources": "Sources: Bursa de Valori București reference data plus issuer disclosures and ANAF statutory filings for {{bvb}} BVB listings. Fundamentals are end-of-day; prices refresh every 5 minutes."
     }
+  },
+  "pending": {
+    "eyebrow": "Not in this release",
+    "needs": "What it needs",
+    "notify": "Notify me",
+    "notified": "We'll let you know",
+    "scenarios": {
+      "title": "Scenario planning",
+      "description": "Move price, volume and cost levers and see profit, cash and covenant headroom move with them.",
+      "requirement": "Enabled after launch"
+    },
+    "variance": {
+      "title": "Budget vs actual vs last year",
+      "description": "Compares the period you are looking at against your budget and the same period last year, line by line.",
+      "requirement": "A budget upload and 2+ comparable periods"
+    },
+    "benchmarks": {
+      "title": "Industry benchmark",
+      "description": "Places every ratio against the percentile band for your CAEN sector.",
+      "requirement": "Enabled after launch"
+    },
+    "products_legacy": {
+      "title": "Products & SKU analytics",
+      "description": "Ranks SKUs by margin, velocity and working-capital drag, and buckets them for action.",
+      "requirement": "A sales or SKU file"
+    },
+    "public_companies": {
+      "title": "Public companies",
+      "description": "Listed-company filings, ratios and peer comparison, read straight from the regulator's own filings.",
+      "requirement": "Enabled after launch"
+    },
+    "comprehensive_report": {
+      "title": "Comprehensive report",
+      "description": "The full eight-section written analysis of a period, as one document.",
+      "requirement": "Enabled after launch"
+    },
+    "peer_report": {
+      "title": "Peer comparison report",
+      "description": "Your P&L set side by side with a named peer and the sector median.",
+      "requirement": "Enabled after launch"
+    },
+    "chat_page": {
+      "title": "Ask CFO AI",
+      "description": "A full conversation surface over your workspace, documents and periods.",
+      "requirement": "Enabled after launch"
+    },
+    "roadmap": {
+      "title": "Roadmap",
+      "description": "What is shipping next, and what each release unlocks.",
+      "requirement": "Enabled after launch"
+    },
+    "inventory": {
+      "title": "Inventory",
+      "description": "Stock levels, days-inventory-outstanding and slow-mover detection.",
+      "requirement": "An inventory file"
+    },
+    "invoices": {
+      "title": "Invoices",
+      "description": "AR/AP ageing and the cash-conversion drilldown behind DSO and DPO.",
+      "requirement": "An invoice register"
+    },
+    "decisions": {
+      "title": "Decisions",
+      "description": "The prioritised action queue built from findings, with owners and status.",
+      "requirement": "Enabled after launch"
+    },
+    "alerts": {
+      "title": "Alerts",
+      "description": "Threshold and anomaly alerts on the metrics you choose to watch.",
+      "requirement": "Enabled after launch"
+    },
+    "public_records": {
+      "title": "Multi-year history",
+      "description": "Filed accounts for prior years, pulled from the public registry.",
+      "requirement": "A data provider"
+    }
   }
 }

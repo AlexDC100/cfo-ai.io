@@ -148,6 +148,12 @@ def app_and_client():
     os.environ.setdefault("VITE_SUPABASE_ANON_KEY", "test-anon")
     os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
     os.environ["CFO_AI_SKIP_BOOT_VERIFY"] = "1"
+    # This suite builds the REAL app and measures the public-markets
+    # surface, so it must mount it. Production leaves it UNMOUNTED
+    # (PUBLIC_MARKETS_ENABLED unset — the launch posture: Public
+    # Companies ships hidden); that absence is asserted by
+    # tests/engine/test_launch_survival.py.
+    os.environ["PUBLIC_MARKETS_ENABLED"] = "1"
     assert "test." in os.environ["VITE_SUPABASE_URL"], "refusing a non-manifest Supabase URL"
     from engine.api.server import create_app
 

@@ -2812,5 +2812,81 @@
       "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
       "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
     }
+  },
+  "pending": {
+    "eyebrow": "Nu în această versiune",
+    "needs": "Ce îi trebuie",
+    "notify": "Anunță-mă",
+    "notified": "Te anunțăm",
+    "scenarios": {
+      "title": "Planificare pe scenarii",
+      "description": "Miști pârghiile de preț, volum și cost și vezi cum se mișcă profitul, cashul și marja față de covenants.",
+      "requirement": "Se activează după lansare"
+    },
+    "variance": {
+      "title": "Buget vs realizat vs anul trecut",
+      "description": "Compară perioada curentă cu bugetul și cu aceeași perioadă din anul trecut, linie cu linie.",
+      "requirement": "Un buget încărcat și cel puțin 2 perioade comparabile"
+    },
+    "benchmarks": {
+      "title": "Benchmark de industrie",
+      "description": "Așază fiecare indicator în banda de percentile a sectorului tău CAEN.",
+      "requirement": "Se activează după lansare"
+    },
+    "products_legacy": {
+      "title": "Produse și analiză SKU",
+      "description": "Clasifică SKU-urile după marjă, viteză de rotație și capital de lucru blocat.",
+      "requirement": "Un fișier de vânzări sau de SKU-uri"
+    },
+    "public_companies": {
+      "title": "Companii listate",
+      "description": "Raportări, indicatori și comparații pentru companii listate, citite direct din depunerile oficiale.",
+      "requirement": "Se activează după lansare"
+    },
+    "comprehensive_report": {
+      "title": "Raport comprehensiv",
+      "description": "Analiza scrisă completă, în opt secțiuni, a unei perioade, ca un singur document.",
+      "requirement": "Se activează după lansare"
+    },
+    "peer_report": {
+      "title": "Raport comparativ",
+      "description": "Contul tău de profit și pierdere alături de un competitor numit și de mediana sectorului.",
+      "requirement": "Se activează după lansare"
+    },
+    "chat_page": {
+      "title": "Ask CFO AI",
+      "description": "O suprafață completă de conversație peste workspace, documente și perioade.",
+      "requirement": "Se activează după lansare"
+    },
+    "roadmap": {
+      "title": "Roadmap",
+      "description": "Ce urmează să apară și ce deblochează fiecare versiune.",
+      "requirement": "Se activează după lansare"
+    },
+    "inventory": {
+      "title": "Stocuri",
+      "description": "Niveluri de stoc, zile de stoc și detectarea produselor cu rotație lentă.",
+      "requirement": "Un fișier de stocuri"
+    },
+    "invoices": {
+      "title": "Facturi",
+      "description": "Vechimea creanțelor și datoriilor și detalierea conversiei în cash din spatele DSO și DPO.",
+      "requirement": "Un registru de facturi"
+    },
+    "decisions": {
+      "title": "Decizii",
+      "description": "Coada de acțiuni prioritizate, construită din constatări, cu responsabili și status.",
+      "requirement": "Se activează după lansare"
+    },
+    "alerts": {
+      "title": "Alerte",
+      "description": "Alerte pe praguri și anomalii pentru indicatorii pe care îi urmărești.",
+      "requirement": "Se activează după lansare"
+    },
+    "public_records": {
+      "title": "Istoric multianual",
+      "description": "Situații financiare depuse în anii anteriori, preluate din registrul public.",
+      "requirement": "Un furnizor de date"
+    }
   }
 }

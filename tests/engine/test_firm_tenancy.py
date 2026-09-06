@@ -1845,7 +1845,15 @@ SWEPT_PREFIXES = ("/api/firm", "/api/capsule")
 #: the front). An `@app.middleware("http")` answering a firm path is a
 #: BaseHTTPMiddleware that never appears in any route table: it is red
 #: here, by class name and dispatch function, until declared (D2).
-DECLARED_MIDDLEWARE = ("CORSMiddleware", "GZipMiddleware")
+#: SurfaceWallMiddleware answers ONLY /api/public/* (except the RO
+#: storefront) and the two literal legacy-SKU-AI paths, with a stable
+#: JSON 404; it can match no /api/firm or /api/capsule path.
+#: SecurityHeadersMiddleware never answers — it only sets response
+#: headers. Both are added in create_app() after CORS.
+DECLARED_MIDDLEWARE = (
+    "SurfaceWallMiddleware", "SecurityHeadersMiddleware",
+    "CORSMiddleware", "GZipMiddleware",
+)
 
 #: The modules that may name a firm-model table (every `create table` of
 #: the three firm migrations). A module in the REAL app's import closure

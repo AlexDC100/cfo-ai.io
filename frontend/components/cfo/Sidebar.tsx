@@ -112,16 +112,16 @@ export interface ShellNavItem {
 export const SHELL_NAV_ALL: ShellNavItem[] = [
   { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "overview", end: true },
   { to: "/workspace",  labelKey: "sidebar.workspaces", icon: Building2,       testId: "sidebar-workspaces", group: "overview" },
-  { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analyze" },
-  { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analyze" },
-  { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analyze" },
-  { to: "/dashboard/variance", labelKey: "sidebar.variance", icon: Scale, testId: "sidebar-variance", group: "analyze" },
+  { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analyze", featureKey: "scenarios" },
+  { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analyze", featureKey: "benchmarks" },
+  { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analyze", featureKey: "products_legacy" },
+  { to: "/dashboard/variance", labelKey: "sidebar.variance", icon: Scale, testId: "sidebar-variance", group: "analyze", featureKey: "variance" },
   { to: "/inventory",  labelKey: "sidebar.inventory",  icon: Boxes,           testId: "sidebar-inventory",  group: "analyze", featureKey: "inventory" },
   { to: "/invoices",   labelKey: "sidebar.invoices",   icon: Receipt,         testId: "sidebar-invoices",   group: "analyze", featureKey: "invoices" },
-  { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analyze" },
-  { to: "/alerts",     labelKey: "sidebar.alerts",     icon: Bell,            testId: "sidebar-alerts",     group: "analyze" },
-  { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "explore" },
-  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "ask", shortcutKey: "J" },
+  { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analyze", featureKey: "decisions" },
+  { to: "/alerts",     labelKey: "sidebar.alerts",     icon: Bell,            testId: "sidebar-alerts",     group: "analyze", featureKey: "alerts" },
+  { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "explore", featureKey: "public_companies" },
+  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "ask", shortcutKey: "J", featureKey: "chat_page" },
 ];
 
 export const SHELL_GROUP_ORDER: ShellNavGroup[] = ["overview", "analyze", "explore", "ask"];

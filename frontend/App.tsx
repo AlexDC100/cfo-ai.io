@@ -67,6 +67,10 @@ import Pricing from "./pages/cfo/Pricing";
 import RoadmapPage from "./pages/cfo/RoadmapPage";
 import ContactSalesPage from "./pages/cfo/ContactSalesPage";
 import NotFound from "./pages/NotFound";
+// Legal pages are SYNC on purpose: a payment processor, an app store
+// reviewer or a data-protection authority lands on /privacy cold, from
+// outside the app, and a lazy chunk would show them a blank frame first.
+import LegalPage from "./pages/cfo/LegalPage";
 
 // Lazy (auth-gated) — the heavy authenticated app. Each is its own chunk.
 // Dashboard is the unified financial-analysis surface (was /dashboard).
@@ -118,6 +122,12 @@ import { isPublicTestMode } from "@/lib/testMode";
 // the AppShell silhouette so the transition feels instant rather than
 // a jarring flash of nothing.
 import { RouteFallback } from "@/components/cfo/RouteFallback";
+// LAUNCH CUT (2026-09-05) — <FeatureRoute> gates a ROUTE on the same
+// registry the sidebar reads. Hiding a nav item never hid a feature: the
+// URL, an old bookmark and browser history all still mounted the page.
+// Every route outside the eight launch surfaces is wrapped below and
+// renders <PendingState> until its registry row flips to `active`.
+import { FeatureRoute } from "@/components/cfo/FeatureRoute";
 
 // The QueryClient lives in src/lib/queryClient.ts so non-component modules
 // (auth context, navigation helpers) can call `.clear()` directly without
@@ -345,8 +355,23 @@ function AppRoutes() {
             path="/pricing"
             element={isPublicTestMode ? <Navigate to="/dashboard" replace /> : <Pricing />}
           />
-          <Route path="/roadmap" element={<RoadmapPage />} />
+          <Route
+            path="/roadmap"
+            element={<FeatureRoute featureKey="roadmap"><RoadmapPage /></FeatureRoute>}
+          />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
+
+          {/* Legal — /privacy, /terms, /cookies. Until this pass the three
+              documents existed ONLY as sections of the landing page reached
+              by a client-side hash (`/#/legal`), so there was no URL a
+              regulator, an app store, a payment processor or a crawler could
+              be pointed at. Each route now resolves on its own path; the
+              page renders the registered-entity block from lib/legalConfig
+              and, while that config is unfilled, a marked TEXT REQUIRED
+              block — never drafted legal text. */}
+          <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+          <Route path="/terms" element={<LegalPage doc="terms" />} />
+          <Route path="/cookies" element={<LegalPage doc="cookies" />} />
 
           {/* /onboarding — THE DIAL's first-login role question (2026-08-29).
               From 2026-07-23 until now this was a hard redirect to /workspace
@@ -368,7 +393,14 @@ function AppRoutes() {
               visitors get it as a child of AppLayout below, so it shares the one
               persistent AppShell (no refresh when navigating in-app). */}
           {!isAuthenticated && (
-            <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
+            <Route
+              path="/public-companies"
+              element={
+                <FeatureRoute featureKey="public_companies">
+                  <PublicCompanyIntelligence />
+                </FeatureRoute>
+              }
+            />
           )}
 
           {/* ── Authenticated app — ONE persistent shell ──────────────────
@@ -380,15 +412,69 @@ function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route path="/workspace" element={<Workspace />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/scenarios" element={<Scenarios />} />
-            <Route path="/dashboard/variance" element={<Variance />} />
+            {/* ── LAUNCH CUT — outside the eight launch surfaces. Each is
+                a built page whose screen has NOT been walked end-to-end,
+                so the route renders <PendingState>. Flip the matching row
+                in `_features.py` to `active` to restore it; no code
+                change here. ─────────────────────────────────────────── */}
+            <Route
+              path="/dashboard/scenarios"
+              element={<FeatureRoute featureKey="scenarios"><Scenarios /></FeatureRoute>}
+            />
+            <Route
+              path="/dashboard/variance"
+              element={<FeatureRoute featureKey="variance"><Variance /></FeatureRoute>}
+            />
             <Route path="/dashboard/public/search" element={<Navigate to="/public-companies" replace />} />
-            <Route path="/dashboard/public/:ticker" element={<PublicCompanyDashboard />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/benchmark" element={<BenchmarkReport />} />
-            <Route path="/report" element={<ComprehensiveReport />} />
-            <Route path="/peer-report" element={<PeerComparisonReport />} />
+            <Route
+              path="/dashboard/public/:ticker"
+              element={
+                <FeatureRoute featureKey="public_companies">
+                  <PublicCompanyDashboard />
+                </FeatureRoute>
+              }
+            />
+            <Route
+              path="/products"
+              element={<FeatureRoute featureKey="products_legacy"><Products /></FeatureRoute>}
+            />
+            <Route
+              path="/chat"
+              element={<FeatureRoute featureKey="chat_page"><Chat /></FeatureRoute>}
+            />
+            <Route
+              path="/benchmark"
+              element={<FeatureRoute featureKey="benchmarks"><BenchmarkReport /></FeatureRoute>}
+            />
+            <Route
+              path="/report"
+              element={
+                <FeatureRoute featureKey="comprehensive_report">
+                  <ComprehensiveReport />
+                </FeatureRoute>
+              }
+            />
+            <Route
+              path="/peer-report"
+              element={
+                <FeatureRoute featureKey="peer_report">
+                  <PeerComparisonReport />
+                </FeatureRoute>
+              }
+            />
+            {/* /inventory had NO route at all — the nav model listed it, so
+                any deep link fell through to NotFound. /invoices redirected
+                to a dashboard tab that no longer exists in TAB_SPECS and
+                silently landed on Overview. Both now resolve to their own
+                PendingState. */}
+            <Route
+              path="/inventory"
+              element={<FeatureRoute featureKey="inventory"><Products /></FeatureRoute>}
+            />
+            <Route
+              path="/invoices"
+              element={<FeatureRoute featureKey="invoices"><Dashboard /></FeatureRoute>}
+            />
             <Route path="/settings" element={<Settings />} />
             <Route path="/ops" element={<Ops />} />
             {/* Flag-gated: render the page when enabled, else redirect. */}
@@ -406,7 +492,14 @@ function AppRoutes() {
             />
             {/* Signed-in: share the persistent shell (see anonymous route above). */}
             {isAuthenticated && (
-              <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
+              <Route
+                path="/public-companies"
+                element={
+                  <FeatureRoute featureKey="public_companies">
+                    <PublicCompanyIntelligence />
+                  </FeatureRoute>
+                }
+              />
             )}
           </Route>
 
@@ -419,7 +512,11 @@ function AppRoutes() {
           <Route path="/app"                  element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/briefing"             element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/reports"   element={<RedirectPreservingQuery to="/dashboard" tab="export" />} />
-          <Route path="/invoices"  element={<RedirectPreservingQuery to="/dashboard" tab="invoices" />} />
+          {/* /invoices was a legacy redirect to `?tab=invoices` — a tab that
+              no longer exists in TAB_SPECS, so it silently landed on
+              Overview. It is now a real route above, gated on the
+              `invoices` registry row. Two <Route> entries for one path is
+              ambiguous in the matcher, so the redirect is gone. */}
           <Route path="/configuration" element={<Navigate to="/settings" replace />} />
           <Route path="/skus" element={<Navigate to="/products" replace />} />
           <Route path="/category/:slug" element={<Navigate to="/products" replace />} />
