@@ -1105,10 +1105,42 @@ def assemble_statements(
     if account_121_anchor_override is not None:
         account_121_anchor = float(account_121_anchor_override)
 
+    anchor_override_applied = False
     if account_121_anchor is not None:
         threshold = max(abs(account_121_anchor), 100_000) * 0.05
         if abs(net_income_statutory - account_121_anchor) > threshold:
             net_income_statutory = account_121_anchor
+            anchor_override_applied = True
+
+    # ── The bridge from the reconstruction to the filed figure ──────────
+    # After the override above, `net_income_statutory` and
+    # `net_income_operational` are two DIFFERENT numbers for what a reader
+    # calls "net profit" — the filed one and the reconstructed one. A P&L
+    # build-up that runs down the class-6/7 chain and then prints the
+    # filed figure on its last line does not foot, and the reader is left
+    # to discover the step themselves. So the step is emitted, once, here,
+    # where both halves are in scope:
+    #
+    #   net_income_reconciliation_to_121 = statutory − operational
+    #
+    # and it splits into a NAMEABLE part and, when the override fired, a
+    # remainder that this data cannot attribute:
+    #
+    #   · capitalized own work (722) — the whole of it when the override
+    #     did NOT fire, because then statutory ≡ operational + 722 by
+    #     construction and the bridge has exactly one component;
+    #   · everything else — the difference between what class 6/7 sums to
+    #     and what the company actually filed in account 121. It is real
+    #     (121's closing balance is the legal figure) and it is NOT
+    #     explained by any bucket on this statement. It is surfaced with
+    #     its amount and named as unexplained. Inventing a component to
+    #     absorb it would make the build-up foot on a fiction, which is
+    #     worse than an honest gap: see the `p121_cross_check` block
+    #     below, whose `ok=false` is the same fact stated for diagnosis.
+    net_income_reconciliation_to_121 = net_income_statutory - net_income_operational
+    net_income_unexplained_vs_121 = (
+        net_income_reconciliation_to_121 - capitalized if anchor_override_applied else 0.0
+    )
 
     # ── 121 cross-check emission (canonical_bs v2 invariant) ─────────────
     # Statutorily account 121 closes to Σ(class 7) − Σ(class 6). From the
@@ -1309,6 +1341,25 @@ def assemble_statements(
         "net_financial_result": round(net_financial_result, 2),
         "financial_expense_total": round(financial_expense_total, 2),
         "free_cash_flow_proxy": round(free_cash_flow_proxy, 2),
+
+        # ── The other-operating-income line the build-up needs ──────────
+        # `other_inc` is the addend this assembly ACTUALLY used to form
+        # EBITDA (758 + 781 reversals + anything the semantic fallback
+        # routed to other operating income). It was never emitted, so the
+        # report's "Other operating income" row read a field that did not
+        # exist and painted the gap glyph — while EBITDA two rows below
+        # silently included it, which is why the column did not add up.
+        # Emitted under the name the reader's row already carries.
+        "other_operating_income": round(other_inc, 2),
+
+        # ── Reconstruction → filed (account 121) ────────────────────────
+        # See the derivation above. `..._reconciliation_to_121` is the
+        # whole step; `..._unexplained_vs_121` is the part of it that no
+        # bucket on this statement accounts for (0.00 whenever the 5%
+        # anchor override did not fire, because then the step IS the 722
+        # memo and nothing is unexplained).
+        "net_income_reconciliation_to_121": round(net_income_reconciliation_to_121, 2),
+        "net_income_unexplained_vs_121": round(net_income_unexplained_vs_121, 2),
     }
 
     # ── Close current-year P&L into equity so the BS balances ────────────

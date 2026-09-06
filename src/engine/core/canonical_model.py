@@ -245,6 +245,15 @@ class AssembledIncomeStatementOptional(TypedDict, total=False):
     financial_expense_total: float
     free_cash_flow_proxy: float
     total_operating_revenue_statutory: float
+    # The addend the assembly used to form EBITDA (758 + 781 reversals +
+    # whatever else routed to other operating income) — emitted so a P&L
+    # build-up can show the line it is actually adding.
+    other_operating_income: float
+    # `net_income_statutory − net_income_operational`: the step from the
+    # class-6/7 reconstruction to the filed account-121 figure, and the
+    # part of that step this statement cannot attribute to any bucket.
+    net_income_reconciliation_to_121: float
+    net_income_unexplained_vs_121: float
 
 
 # ─────────────────────────────────────────────────────────────────────
