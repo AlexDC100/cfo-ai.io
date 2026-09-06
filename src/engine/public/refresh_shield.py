@@ -104,6 +104,91 @@ the BUST rate, not that amplification — 5 busts/min still implies a large
 cold fan-out. Bounding the fan-out belongs at the provider read path, not
 at this route, and is flagged rather than silently claimed as fixed.
 
+THE SECOND CONTROL: ``egress_guard`` — the method was the blind spot
+====================================================================
+Everything above classifies POST/PUT/PATCH/DELETE. That filter is itself
+the defect: the control landed on the routes that reach upstream ZERO
+times per call, while anonymous GETs reached it on EVERY call. Measured
+2026-09-04 against the real ``create_app()``, in-process, with every
+outbound socket blocked and recorded, with a Nasdaq key configured (the
+production shape — keyless the adapter refuses before the wire):
+
+    GET  /api/public/companies/{ticker}          1 data.nasdaq.com   EVERY call
+    GET  /api/public/search?q=                   1 data.nasdaq.com   EVERY call
+    GET  /api/public/universe (cold)             2 nasdaq + 5 yahoo
+    GET  /api/public/universe?refresh=true        "  "   on EVERY call
+    GET  .../{t}/price-history (cold)            1                   then 0
+    GET  .../{t}/price-history?refresh=true      1                   EVERY call
+    GET  .../intelligence/companies/{t}/ai-market-read
+                                                 1 LLM completion    EVERY call
+
+So the two routes shielded first (``/refresh``, ``/refresh-signals``)
+are the two that reach upstream zero times, and four GETs that reach it
+on every call had no control at all.
+
+``egress_guard`` puts the control where the egress is. It takes a ``warm``
+flag from the module that owns the cache and:
+
+  · ``warm=True``  -> None, and NO token is spent. A repeat inside the
+    cache window must cost zero outbound AND zero budget, or a warm page
+    would throttle on its own re-render.
+  · operator bearer -> None, exactly like ``guard``.
+  · otherwise      -> one token from a SEPARATE bucket, 429 over budget.
+
+WHY A SECOND BUCKET AND NOT THE BUST BUDGET
+--------------------------------------------
+Not per-route — per-LEVERAGE. A bust is worth many future outbound calls
+(one ``/refresh`` makes the next universe read cost 7 and the next 88
+price-history reads cost 1 each); a cold read is worth exactly one. Five
+per minute is the right ceiling for the first and would break the second:
+MEASURED, the markets overview page a real visitor loads costs 31
+outbound on a cold server —
+
+    GET /api/public/universe                            7
+    GET .../{t}/price-history?range=1M   x24 tiles      24
+    (risk-radar + the drawer's risk-score/exposure ride the same
+     universe cache and add 0)
+
+— and 0 on a warm one (the same 27 requests, replayed: 0 outbound). A
+5/min budget would 429 that page at request 6 of 27. The whole 88-ticker
+BVB universe browsed cold across all four grid pages costs 95. The egress
+budget is therefore 120/min, burst 120: it clears the measured cold page
+load ~4x over and the whole-universe cold browse once inside one window,
+while a warm visitor spends nothing at all. Where there was NO ceiling
+there is now one per client.
+
+CORRECTION (2026-09-05, measured AT THE TRANSPORT rather than at a spy on
+``_fetch_datatable``): a cold universe is 11 outbound, not 7 — the 203
+tickers go to Nasdaq in three chunks of 100 for each of SF1 and DAILY, so
+6 Nasdaq calls plus the 5 Yahoo spark calls — and the cold markets page is
+therefore 35, not 31. The budget stands (120 >= 35, ~3.4x); the numbers
+above are kept as the record of what the earlier method could see.
+tests/engine/test_public_egress.py pins 11 and 35.
+
+RESIDUAL, measured and stated rather than claimed closed: 120/min is a
+per-client ceiling, so N clients still multiply it, and the in-process
+bucket table is per-worker (the ``ratelimit`` module's horizontal-scale
+caveat applies here identically). This bounds one abusive client; it does
+not bound a botnet. A global cold-read ceiling would, and belongs at the
+provider read path.
+
+FORCED COLD READS — ``?refresh=true`` on a GET
+------------------------------------------------
+``allow_forced_refresh`` answers "may this caller force a cold read right
+now?" and spends from the BUST bucket, not the egress one: a caller who
+appends ``?refresh=true`` is doing exactly what ``POST /refresh`` does,
+and the two paths must cost the same or the cheaper one is the bypass.
+MEASURED: no frontend call site passes it — ``fetchUniverse`` and
+``fetchPriceHistory`` both accept an ``opts.refresh`` that no caller in
+``frontend/`` ever sets — so bounding it breaks no page.
+
+Over budget the request is NOT refused. The parameter is IGNORED, the
+CACHED payload is served, and the response says so in
+``refresh_honored: false`` plus a message. A 429 would deny the caller
+DATA in order to protect a provider, when the cache can answer honestly;
+refusing there would be worse than the problem. The caller still learns
+that nothing was fetched, which is the whole requirement.
+
 ABSENT != ZERO for the token, and the asymmetry is DELIBERATE
 --------------------------------------------------------------
 ``tests/engine/test_cron_auth.py`` requires the four scheduler routes to
@@ -156,10 +241,22 @@ _ENV_BURST = "PUBLIC_REFRESH_RATE_BURST"
 # module docstring for the full TTL table this is derived from.
 DEFAULT_REFRESH_PER_MIN = 5
 
+# Env knobs for the COLD-READ budget. Separate bucket, separate number —
+# see "WHY A SECOND BUCKET AND NOT THE BUST BUDGET" in the module docstring.
+_ENV_EGRESS_PER_MIN = "PUBLIC_EGRESS_RATE_PER_MIN"
+_ENV_EGRESS_BURST = "PUBLIC_EGRESS_RATE_BURST"
+
+# 120/min ≈ 4x the MEASURED 31-outbound cold markets-overview page load,
+# and one window covers the 95 of a whole-universe cold browse. A warm
+# visitor spends nothing (egress_guard takes no token when warm=True).
+DEFAULT_EGRESS_PER_MIN = 120
+
 _ENV_TOKEN = "ENGINE_API_TOKEN"
 
 _limiter: Optional[TokenBucketLimiter] = None
 _limiter_lock = threading.Lock()
+_egress_limiter: Optional[TokenBucketLimiter] = None
+_egress_lock = threading.Lock()
 
 
 def _client_ip_rightmost(request: Any) -> str:
@@ -175,12 +272,19 @@ def _client_ip_rightmost(request: Any) -> str:
     """
     return ratelimit_client_ip(request)
 
-def _build_limiter() -> TokenBucketLimiter:
+def _build(env_per_min: str, env_burst: str, default_per_min: int) -> TokenBucketLimiter:
+    """Build one bucket from a (rate env, burst env, default) triple.
+
+    Parametrised so the cold-read budget gets the SAME clamping as the
+    bust budget without a second copy of it. Every clamp below was a live
+    500 once; re-deriving them for a second bucket is exactly the
+    mirror-drift CLAUDE.md §14 warns about.
+    """
     try:
-        per_min = float(os.environ.get(_ENV_PER_MIN, DEFAULT_REFRESH_PER_MIN))
+        per_min = float(os.environ.get(env_per_min, default_per_min))
     except (TypeError, ValueError):
-        per_min = float(DEFAULT_REFRESH_PER_MIN)
-    burst_env = os.environ.get(_ENV_BURST)
+        per_min = float(default_per_min)
+    burst_env = os.environ.get(env_burst)
     burst = None
     if burst_env:
         try:
@@ -188,7 +292,7 @@ def _build_limiter() -> TokenBucketLimiter:
         except (TypeError, ValueError):
             burst = None
     if per_min <= 0:
-        per_min = float(DEFAULT_REFRESH_PER_MIN)
+        per_min = float(default_per_min)
     # TokenBucketLimiter raises on burst < 1, and it raises at REQUEST time
     # inside get_limiter() — so a burst of 0 or 0.5 turned every shielded
     # route into a hard 500 while a non-numeric value was caught. Clamp
@@ -197,7 +301,7 @@ def _build_limiter() -> TokenBucketLimiter:
     if burst is not None and burst < 1:
         logger.warning(
             "[refresh-shield] %s=%r is below 1; using the default burst",
-            _ENV_BURST, burst_env)
+            env_burst, burst_env)
         burst = None
     # ...and the DERIVED burst. TokenBucketLimiter defaults burst to the rate
     # and then raises on burst < 1, at REQUEST time, so a per-minute rate
@@ -209,9 +313,17 @@ def _build_limiter() -> TokenBucketLimiter:
     if burst is None and per_min < 1:
         logger.warning(
             "[refresh-shield] %s=%r is below 1; the derived burst is clamped "
-            "to 1 so the route throttles rather than failing", _ENV_PER_MIN, per_min)
+            "to 1 so the route throttles rather than failing", env_per_min, per_min)
         burst = 1.0
     return TokenBucketLimiter(per_min, burst)
+
+
+def _build_limiter() -> TokenBucketLimiter:
+    return _build(_ENV_PER_MIN, _ENV_BURST, DEFAULT_REFRESH_PER_MIN)
+
+
+def _build_egress_limiter() -> TokenBucketLimiter:
+    return _build(_ENV_EGRESS_PER_MIN, _ENV_EGRESS_BURST, DEFAULT_EGRESS_PER_MIN)
 
 
 def get_limiter() -> TokenBucketLimiter:
@@ -228,11 +340,34 @@ def get_limiter() -> TokenBucketLimiter:
         return _limiter
 
 
+def get_egress_limiter() -> TokenBucketLimiter:
+    """Process-wide limiter for COLD upstream reads (lazy; env read once).
+
+    A THIRD bucket table, separate from both the bust budget above and the
+    RO storefront's browsing budget. See the module docstring: a bust is
+    worth many future outbound calls, a cold read is worth exactly one, and
+    a single number cannot be right for both without either breaking the
+    measured 31-outbound page load or handing a loop 24x the bust ceiling.
+    """
+    global _egress_limiter
+    with _egress_lock:
+        if _egress_limiter is None:
+            _egress_limiter = _build_egress_limiter()
+        return _egress_limiter
+
+
 def reset_limiter() -> None:
-    """Drop the limiter (tests / env re-read)."""
-    global _limiter
+    """Drop BOTH limiters (tests / env re-read).
+
+    Both, deliberately: a test that reset only the bust bucket would carry
+    a spent egress bucket into the next test and red on a route it never
+    called. The name is kept because two sibling gates already call it.
+    """
+    global _limiter, _egress_limiter
     with _limiter_lock:
         _limiter = None
+    with _egress_lock:
+        _egress_limiter = None
 
 
 def _bearer_of(request: Any) -> str:
@@ -356,8 +491,89 @@ def guard(request: Any, *, route: str) -> Optional[JSONResponse]:
     )
 
 
+def egress_guard(
+    request: Any, *, route: str, warm: bool,
+) -> Optional[JSONResponse]:
+    """None when a read may proceed; a 429 JSONResponse otherwise.
+
+    ``warm`` is supplied by the module that owns the cache and answers one
+    question: would this request be served WITHOUT touching a provider?
+
+      warm=True  -> None, and NO token is spent. Both halves matter. Zero
+                    outbound is the point of the cache; zero budget is what
+                    makes a real page work, because the measured markets
+                    overview replays 27 requests on a warm server and every
+                    one of them must be free.
+      operator   -> None, exactly like ``guard``: an operator is never
+                    limited, and a WRONG bearer is treated as anonymous
+                    rather than answered 401 (no token-probing oracle).
+      otherwise  -> one token from the cold-read bucket.
+
+    The caller MUST invoke this BEFORE the read, so a 429 spends nothing
+    upstream — that is asserted per route in tests/engine/test_public_egress.py.
+    """
+    if warm:
+        return None
+    if has_operator_bearer(request):
+        return None
+    key = hash_ip(_client_ip_rightmost(request))
+    allowed, retry_after = get_egress_limiter().allow(key)
+    if allowed:
+        return None
+    seconds = max(1, int(math.ceil(retry_after)))
+    logger.info("[refresh-shield] egress 429 on %s (retry_after=%ss)", route, seconds)
+    return JSONResponse(
+        status_code=429,
+        headers={"Retry-After": str(seconds)},
+        content={
+            "error": {
+                "code": "public_egress_rate_limited",
+                "message": (
+                    "NOT fetched — too many cold upstream reads from this "
+                    "client. This call requested nothing from any data "
+                    "provider and changed no cached value. A cached read "
+                    "would have been served for free; this one was not "
+                    "cached. Retry in %s second(s)." % seconds
+                ),
+                "details": {
+                    "route": route,
+                    "retry_after_seconds": seconds,
+                    "limit_per_min": get_egress_limiter().rate_per_sec * 60.0,
+                    "fetched": [],
+                },
+            }
+        },
+    )
+
+
+def allow_forced_refresh(request: Any, *, route: str) -> bool:
+    """May this caller force a COLD read right now? (``?refresh=true``)
+
+    Spends from the BUST bucket, not the cold-read one: appending
+    ``?refresh=true`` to a GET does what ``POST .../refresh`` does, and if
+    the two cost different budgets the cheaper one is simply the bypass.
+    A valid operator bearer is always allowed and spends nothing.
+
+    Returns a BOOL rather than a response on purpose. A caller who is
+    refused here is not refused their DATA — the route serves the cached
+    payload and states ``refresh_honored: false``. See the module
+    docstring; a 429 there would be worse than the problem it prevents.
+    """
+    if has_operator_bearer(request):
+        return True
+    key = hash_ip(_client_ip_rightmost(request))
+    allowed, _retry_after = get_limiter().allow(key)
+    if not allowed:
+        logger.info("[refresh-shield] forced refresh DOWNGRADED on %s", route)
+    return allowed
+
+
 __all__ = [
+    "DEFAULT_EGRESS_PER_MIN",
     "DEFAULT_REFRESH_PER_MIN",
+    "allow_forced_refresh",
+    "egress_guard",
+    "get_egress_limiter",
     "get_limiter",
     "guard",
     "has_operator_bearer",

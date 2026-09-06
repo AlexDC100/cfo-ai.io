@@ -38,6 +38,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional, Protocol
 
+from ..egress_ledger import DailyCeilingReached, reserve_completion
 from .models import (
     AIMarketRead,
     CompanyExposureProfile,
@@ -97,6 +98,10 @@ class ClaudeMarketReadClient:
         self._max_tokens = max_tokens
 
     def complete(self, system: str, user: str) -> str:
+        # The PAID boundary. One unit from the process-wide completion
+        # ledger, reserved before the request — raises DailyCeilingReached
+        # and sends nothing at the ceiling. See engine.public.egress_ledger.
+        reserve_completion("ai-market-read")
         # Adaptive thinking — per claude-api skill default. Claude decides
         # how much to think; we don't preset a budget. xhigh effort because
         # the read is a synthesis task across many signals — not a deep
@@ -284,6 +289,16 @@ def compose_ai_market_read(
     )
     try:
         raw = client.complete(_SYSTEM_PROMPT, user)
+    except DailyCeilingReached as e:
+        # Not a failure — a decision. The wallet's daily ceiling was reached
+        # and the deterministic narrative is served with the reason in
+        # model_id, so the FE and an operator can both see why.
+        logger.info("AI Market Read for %s: %s", ticker, e)
+        return _deterministic_fallback(
+            ticker=ticker, risk=risk, opportunity=opportunity,
+            exposure=exposure, signals=signals, feed_status=feed_status,
+            reason="completion ceiling reached (%d/day)" % e.limit,
+        )
     except Exception as e:
         logger.warning("AI Market Read LLM call failed for %s: %s", ticker, e)
         return _deterministic_fallback(

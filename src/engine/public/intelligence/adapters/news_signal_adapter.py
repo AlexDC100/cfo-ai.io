@@ -31,8 +31,9 @@ from typing import Optional
 from uuid import uuid5, NAMESPACE_URL
 
 from ...universe import DEFAULT_UNIVERSE
+from ...egress_ledger import DailyCeilingReached, open_with_ceiling
 from ..models import IntelligenceSignal
-from .base import AdapterHealth, SignalAdapter
+from .base import AdapterHealth, SignalAdapter, is_before
 from .rss_signal_adapter import _classify_keyword
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,13 @@ class NewsSignalAdapter:
         self._last_fetch_at: Optional[datetime] = None
         self._last_fetch_count = 0
         self._last_error: Optional[str] = None
+        # Served when the provider's DAILY ceiling is reached (see
+        # engine.public.egress_ledger): newsapi.org is a 100/day free tier
+        # and the feed cache is 60 s, so without this the day's quota is
+        # gone in 100 cold minutes and the news column is EMPTY for the
+        # rest of the day. Last-known is what the product already showed;
+        # /health carries the reason in last_error.
+        self._last_signals: list[IntelligenceSignal] = []
         # Ticker tagging — same dictionaries as RSS adapter; reused here so
         # FE renders a uniform tag set regardless of provider.
         self._ticker_to_sector: dict[str, str] = {t: s for t, _, s in DEFAULT_UNIVERSE}
@@ -75,6 +83,9 @@ class NewsSignalAdapter:
             return []
         try:
             articles = self._fetch_articles(since)
+        except DailyCeilingReached as e:
+            self._last_error = str(e)
+            return list(self._last_signals)
         except Exception as e:
             self._last_error = f"{e.__class__.__name__}: {e}"
             logger.warning("news_adapter: fetch failed: %s", self._last_error)
@@ -83,12 +94,25 @@ class NewsSignalAdapter:
         signals: list[IntelligenceSignal] = []
         for article in articles:
             sig = self._article_to_signal(article)
-            if sig and (sig.published_at is None or sig.published_at >= since):
+            # `is_before`, not `>=`. Reported 200 by an earlier map only
+            # because a generic canned body produced no article this loop
+            # could convert; with a real `publishedAt` it raised exactly
+            # like FRED/EIA. The None branch is unchanged — an undated
+            # NewsAPI article is still INCLUDED here, and still EXCLUDED by
+            # the manual adapter. See base.as_utc on why that split stays.
+            if sig and (sig.published_at is None
+                        or not is_before(sig.published_at, since)):
                 signals.append(sig)
 
-        self._last_fetch_at = datetime.utcnow()
+        # tz-AWARE like every other clock on this feed. Not the
+        # defect — nothing orders this value — but /health merges it
+        # with GDELT's already-aware `_utcnow()` into one payload, and
+        # a feed that mixes naive and aware stamps is how the ordering
+        # bug in base.py got in.
+        self._last_fetch_at = datetime.now(timezone.utc)
         self._last_fetch_count = len(signals)
         self._last_error = None
+        self._last_signals = list(signals)
         return signals
 
     def health(self) -> AdapterHealth:
@@ -139,7 +163,7 @@ class NewsSignalAdapter:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             payload = json.loads(resp.read())
         if payload.get("status") != "ok":
             raise RuntimeError(f"NewsAPI returned {payload.get('status')}: {payload.get('message')}")

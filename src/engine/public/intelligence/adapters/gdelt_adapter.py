@@ -56,8 +56,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid5, NAMESPACE_URL
 
+from ...egress_ledger import open_with_ceiling
 from ..models import IntelligenceSignal
-from .base import AdapterHealth, SignalAdapter
+from .base import AdapterHealth, SignalAdapter, is_before
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +305,10 @@ class GdeltSignalAdapter:
             headers={"User-Agent": "CFO-AI-Intelligence/1.0 (+https://cfo-ai.io)"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+            # Behind the per-host DAILY ceiling (engine.public.egress_ledger).
+            # At the ceiling this raises before the wire, which the caller's
+            # stale-while-revalidate path already treats as a live failure.
+            with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
                 status = getattr(resp, "status", 200)
                 raw = resp.read()
         except urllib.error.HTTPError as e:
@@ -351,7 +355,12 @@ class GdeltSignalAdapter:
                 continue
             if tone >= _TONE_MEDIUM_THRESHOLD:
                 continue
-            if seen_at < since:
+            # `is_before`, not `<`. `seen_at` is stamped tz-aware in
+            # `_normalize_article`; the cutoff used to arrive naive. Also
+            # reported 200 by an earlier map, for the same reason as
+            # NewsAPI: the `tone is None or seen_at is None` guard above
+            # short-circuits on a generic canned body. See base.is_before.
+            if is_before(seen_at, since):
                 continue
             theme = _tag_article(art)
             if theme is None:

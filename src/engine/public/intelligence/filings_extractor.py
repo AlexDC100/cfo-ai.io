@@ -49,6 +49,12 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from ..egress_ledger import (
+    DailyCeilingReached,
+    completions_remaining,
+    open_with_ceiling,
+    reserve_completion,
+)
 from .models import (
     CompanyExposureProfile,
     OpportunityRef,
@@ -79,6 +85,46 @@ _MAX_RISK_FACTORS_CHARS = 60_000
 # Filings-derived confidence ceiling. Phase C: 0.85 vs Phase A sector_model's
 # 0.55. Allows ai_inferred (Phase C+) to land between at 0.70.
 FILINGS_CONFIDENCE = 0.85
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Activation — ONE reading of the two variables, shared with the routes
+# ─────────────────────────────────────────────────────────────────────────
+
+def is_enabled() -> bool:
+    """True iff this module can reach EDGAR + Claude at all.
+
+    Read by ``routes._filings_warm`` so the egress guard knows whether the
+    exposure path CAN spend anything: with either variable unset every
+    call below returns None before the wire, and charging a token for
+    that would throttle a route that costs nothing.
+    """
+    if os.environ.get("SEC_EDGAR_ENABLED", "").lower() not in {"1", "true", "yes"}:
+        return False
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# The completion memo — (ticker, accession) -> profile, per process
+# ─────────────────────────────────────────────────────────────────────────
+#
+# ``filings_cache`` is DB-primary with a 5-minute in-memory layer, and its
+# DB half is best-effort: locally, or with Supabase unreachable, ``_db_put``
+# returns False and the in-memory layer is deliberately NOT populated
+# ("prevents in-memory hits for entries that aren't actually persisted").
+# MEASURED 2026-09-04 at the transport with that shape: every call for a
+# ticker whose profile could not be persisted re-ran the whole EDGAR chain
+# AND paid for a fresh completion — the same 10-K, extracted again, on
+# every request. The memo below is keyed on what actually identifies the
+# work — the FILING, by accession number — so one accession is extracted
+# at most once per process regardless of what the DB did with the result.
+# A new 10-K is a new accession and is extracted once, exactly as before.
+_EXTRACTED_BY_ACCESSION: dict[tuple[str, str], CompanyExposureProfile] = {}
+
+
+def _reset_extraction_memo() -> None:
+    """Test helper — drop the per-process (ticker, accession) memo."""
+    _EXTRACTED_BY_ACCESSION.clear()
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -115,6 +161,7 @@ def try_filings_derived_profile(
     if not os.environ.get("ANTHROPIC_API_KEY"):
         logger.info("filings_extractor: SEC_EDGAR_ENABLED but no ANTHROPIC_API_KEY")
         return None
+    ticker = (ticker or "").strip().upper()
 
     # Phase D cache lookup — DB-primary, in-memory read-through.
     # On hit we avoid the entire EDGAR + Claude chain. On miss we drop
@@ -125,6 +172,16 @@ def try_filings_derived_profile(
     if cached is not None:
         return cached
 
+    # The paid-completion ceiling (engine.public.egress_ledger) is checked
+    # BEFORE the first EDGAR request, not only at the Claude call: past the
+    # ceiling no extraction can complete, so the three EDGAR fetches that
+    # would precede the refused completion would be spent for nothing.
+    # The reservation itself happens at ClaudeFilingsClient.complete — the
+    # transport is the authority, this is the cheap pre-check.
+    if client is None and completions_remaining() <= 0:
+        logger.info("filings_extractor: completion ceiling reached; sector model for %s", ticker)
+        return None
+
     try:
         cik = _ticker_to_cik(ticker)
         if cik is None:
@@ -132,6 +189,16 @@ def try_filings_derived_profile(
         accession, filing_date = _latest_10k_accession(cik)
         if accession is None:
             return None
+        memo = _EXTRACTED_BY_ACCESSION.get((ticker, accession))
+        if memo is not None:
+            # Same filing, already extracted in this process: no document
+            # fetch and no completion. Re-offer it to the cache in case the
+            # earlier write failed and the DB has since come back.
+            try:
+                set_cached(memo)
+            except Exception:  # noqa: BLE001
+                pass
+            return memo
         risk_factors = _fetch_risk_factors_text(cik, accession)
         if not risk_factors:
             return None
@@ -159,6 +226,7 @@ def try_filings_derived_profile(
             extracted=extracted,
             filing_date=filing_date,
         )
+        _EXTRACTED_BY_ACCESSION[(ticker, accession)] = profile
         # Phase D — persist to the DB-primary cache so subsequent
         # requests skip the entire EDGAR + Claude chain. set_cached()
         # writes through to both layers (DB then in-memory).
@@ -202,7 +270,7 @@ def _load_cik_map() -> dict[str, str]:
         req = urllib.request.Request(
             url, headers={"User-Agent": _EDGAR_USER_AGENT}
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             payload = json.loads(resp.read())
     except Exception as e:
         logger.warning("filings_extractor: CIK map fetch failed: %s", e)
@@ -224,7 +292,7 @@ def _latest_10k_accession(cik: str) -> tuple[Optional[str], Optional[str]]:
         req = urllib.request.Request(
             url, headers={"User-Agent": _EDGAR_USER_AGENT}
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             payload = json.loads(resp.read())
     except Exception as e:
         logger.warning("filings_extractor: submissions fetch failed for CIK %s: %s", cik, e)
@@ -267,7 +335,7 @@ def _fetch_risk_factors_text(cik: str, accession_no_dashes: str) -> Optional[str
         req = urllib.request.Request(
             url, headers={"User-Agent": _EDGAR_USER_AGENT}
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             index = json.loads(resp.read())
     except Exception as e:
         logger.warning("filings_extractor: index fetch failed: %s", e)
@@ -292,7 +360,7 @@ def _fetch_risk_factors_text(cik: str, accession_no_dashes: str) -> Optional[str
         req = urllib.request.Request(
             primary_url, headers={"User-Agent": _EDGAR_USER_AGENT}
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             raw_html = resp.read().decode("utf-8", errors="replace")
     except Exception as e:
         logger.warning("filings_extractor: primary doc fetch failed: %s", e)
@@ -360,6 +428,10 @@ class ClaudeFilingsClient:
         self._max_tokens = max_tokens
 
     def complete(self, system: str, user: str) -> str:
+        # The PAID boundary. One unit from the process-wide completion
+        # ledger, reserved before the request — raises DailyCeilingReached
+        # and sends nothing at the ceiling. See engine.public.egress_ledger.
+        reserve_completion("filings-extraction")
         resp = self._client.messages.create(
             model=self.model_id,
             max_tokens=self._max_tokens,
@@ -436,6 +508,9 @@ def _extract_via_claude(
     )
     try:
         raw = llm.complete(_FILINGS_SYSTEM_PROMPT, user)
+    except DailyCeilingReached as e:
+        logger.warning("filings_extractor: %s — sector model for %s", e, ticker)
+        return None
     except Exception as e:
         logger.warning("filings_extractor LLM call failed for %s: %s", ticker, e)
         return None
@@ -571,3 +646,4 @@ def _reset_cik_cache() -> None:
     """Drop the in-process CIK map — used by tests to inject fixtures."""
     global _TICKER_TO_CIK_CACHE
     _TICKER_TO_CIK_CACHE = None
+    _reset_extraction_memo()

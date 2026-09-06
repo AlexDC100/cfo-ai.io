@@ -12,7 +12,7 @@ live source.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ from ..models import (
     SignalType,
     TimeHorizon,
 )
-from .base import AdapterHealth, SignalAdapter
+from .base import AdapterHealth, SignalAdapter, as_utc, is_before
 
 
 class ManualSignalAdapter:
@@ -51,14 +51,37 @@ class ManualSignalAdapter:
     # ─── Reads ──────────────────────────────────────────────────────────
 
     def fetch_recent_signals(self, since: datetime) -> list[IntelligenceSignal]:
-        """Return signals with published_at >= since."""
+        """Return signals with published_at >= since.
+
+        THIS ADAPTER IS WHY THE CLOCK FIX IS NOT A ONE-LINER. Making
+        ``MacroSignalService``'s cutoff tz-aware without touching here
+        would have made every comparison below raise — and the broad
+        ``except`` on this method would have turned that into an EMPTY
+        LIST rather than a 500. MEASURED before the fix: one operator
+        signal, an aware cutoff, result ``[]`` and
+        ``_last_error='can't compare offset-naive and offset-aware
+        datetimes'``. Every operator-uploaded signal would have silently
+        vanished from the radar, from macro-signals and from every
+        per-ticker score, and the 500 that used to advertise the bug
+        would have stopped advertising it. Trading a loud failure for a
+        silent wrong answer is strictly worse.
+
+        The ``datetime.min`` sentinel is aware for the same reason: it is
+        one side of this comparison. An UNDATED manual signal is still
+        EXCLUDED, exactly as before — the news adapter deliberately
+        includes its undated items and this one deliberately does not.
+        """
         try:
             if self._db is None:
                 # In-memory fallback used by tests + when DB isn't wired.
-                result = [s for s in self._memory if (s.published_at or datetime.min) >= since]
+                _UNDATED = datetime.min.replace(tzinfo=timezone.utc)
+                result = [
+                    s for s in self._memory
+                    if not is_before(s.published_at or _UNDATED, since)
+                ]
             else:
                 result = self._fetch_from_db(since)
-            self._last_fetch_at = datetime.utcnow()
+            self._last_fetch_at = datetime.now(timezone.utc)
             self._last_fetch_count = len(result)
             self._last_error = None
             return result
@@ -108,7 +131,11 @@ class ManualSignalAdapter:
             severity=severity,
             time_horizon=time_horizon,
             confidence=max(0.0, min(1.0, confidence)),
-            published_at=published_at or datetime.utcnow(),
+            # tz-AWARE, and a caller-supplied naive stamp is coerced. Every
+            # other adapter on this feed already emits aware timestamps;
+            # this one emitted naive, so an operator signal was the odd
+            # value out in the one list they are all merged into.
+            published_at=as_utc(published_at) or datetime.now(timezone.utc),
             affected_sectors=list(affected_sectors),
             affected_industries=list(affected_industries or []),
             affected_companies=list(affected_companies or []),

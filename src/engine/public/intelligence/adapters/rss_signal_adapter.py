@@ -41,8 +41,9 @@ from urllib.parse import urlparse
 from uuid import uuid5, NAMESPACE_URL
 
 from ...universe import DEFAULT_UNIVERSE
+from ...egress_ledger import DailyCeilingReached, open_with_ceiling
 from ..models import IntelligenceSignal
-from .base import AdapterHealth, SignalAdapter
+from .base import AdapterHealth, SignalAdapter, is_before
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,9 @@ class RssSignalAdapter:
             except Exception:
                 continue
         self._configured = bool(self._feeds)
+        # Served when a feed host's DAILY ceiling is reached — see
+        # engine.public.egress_ledger and the news adapter for the reason.
+        self._last_signals: list[IntelligenceSignal] = []
         self._last_fetch_at: Optional[datetime] = None
         self._last_fetch_count = 0
         self._last_error: Optional[str] = None
@@ -110,12 +114,23 @@ class RssSignalAdapter:
         for url in self._feeds:
             try:
                 entries = self._fetch_one_feed(url)
+            except DailyCeilingReached as e:
+                # The feed host's DAILY ceiling (engine.public.egress_ledger):
+                # serve what the last successful poll produced and say so.
+                self._last_error = str(e)
+                return list(self._last_signals)
             except Exception as e:
                 errors.append(f"{url}: {e.__class__.__name__}")
                 logger.warning("rss_adapter: failed to fetch %s: %s", url, e)
                 continue
             for entry in entries:
-                if entry["published_at"] and entry["published_at"] < since:
+                # `is_before`, not `<`. This adapter is the one that proves
+                # BOTH directions are real: `_parse_date_safe` stamps UTC on
+                # an RFC-2822 date but returns the bare `fromisoformat`
+                # result for an ISO one, so a single feed can hand this loop
+                # aware and naive stamps in the same batch. See base.is_before.
+                # The falsy guard is unchanged: an undated entry is KEPT.
+                if entry["published_at"] and is_before(entry["published_at"], since):
                     continue
                 signal = self._entry_to_signal(url, entry)
                 if signal:
@@ -125,9 +140,15 @@ class RssSignalAdapter:
             if len(collected) >= _MAX_TOTAL_ENTRIES:
                 break
 
-        self._last_fetch_at = datetime.utcnow()
+        # tz-AWARE like every other clock on this feed. Not the
+        # defect — nothing orders this value — but /health merges it
+        # with GDELT's already-aware `_utcnow()` into one payload, and
+        # a feed that mixes naive and aware stamps is how the ordering
+        # bug in base.py got in.
+        self._last_fetch_at = datetime.now(timezone.utc)
         self._last_fetch_count = len(collected)
         self._last_error = "; ".join(errors) if errors else None
+        self._last_signals = list(collected)
         return collected
 
     # ─── Health ─────────────────────────────────────────────────────────
@@ -161,7 +182,7 @@ class RssSignalAdapter:
                 "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9",
             },
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             raw = resp.read()
         return self._parse_xml(raw)
 
@@ -372,7 +393,29 @@ def _nfkd_fold(text: str) -> str:
 
 
 def _parse_date_safe(raw: Optional[str]) -> Optional[datetime]:
-    """Tolerant RFC2822 / RFC3339 datetime parse. Returns None on failure."""
+    """Tolerant RFC2822 / RFC3339 datetime parse. Returns None on failure.
+
+    BOTH BRANCHES STAMP UTC ON A NAIVE RESULT. They did not: the RFC-2822
+    branch coerced and the ISO branch returned the bare ``fromisoformat``,
+    so this one function emitted AWARE for ``Tue, 01 Sep 2026 10:00:00
+    +0000`` and NAIVE for ``2026-09-01T10:00:00`` or ``2026-09-01`` — and
+    a real feed carries both forms, in the same channel, on adjacent
+    items. The asymmetry was documented in this package as evidence that
+    readers must coerce; it was never fixed at the producer, and the naive
+    value travelled past every coercing reader into the merged feed, where
+    ``routes.macro_signals`` ordered it against the aware stamps and
+    answered 500 for the whole feed TTL.
+
+    MEASURED against the real ``create_app()`` with a canned SUCCESSFUL
+    RSS body, anonymous, ``RSS_FEED_URLS`` set alone: ``<pubDate>Tue, 01
+    Sep 2026 10:00:00 +0000</pubDate>`` → 200 with 47 signals;
+    ``<pubDate>2026-09-01T10:00:00</pubDate>`` → 500.
+
+    A bare date with no clock ("2026-09-01") reads as UTC MIDNIGHT, the
+    same reading ``models.as_utc`` gives every other naive stamp on this
+    feed. Returning ``None`` for it instead would be worse: a date the
+    provider DID publish would be filed as ABSENT.
+    """
     if not raw:
         return None
     try:
@@ -388,9 +431,10 @@ def _parse_date_safe(raw: Optional[str]) -> Optional[datetime]:
     try:
         if raw.endswith("Z"):
             raw = raw[:-1] + "+00:00"
-        return datetime.fromisoformat(raw)
+        dt = datetime.fromisoformat(raw)
     except ValueError:
         return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 # Keyword heuristics — coarse classification of signal_type / severity /

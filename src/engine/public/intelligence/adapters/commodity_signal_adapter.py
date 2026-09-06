@@ -33,8 +33,9 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid5, NAMESPACE_URL
 
+from ...egress_ledger import DailyCeilingReached, open_with_ceiling
 from ..models import IntelligenceSignal
-from .base import AdapterHealth, SignalAdapter
+from .base import AdapterHealth, SignalAdapter, is_before
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,9 @@ class CommoditySignalAdapter:
         self._last_fetch_at: Optional[datetime] = None
         self._last_fetch_count = 0
         self._last_error: Optional[str] = None
+        # Served when api.eia.gov's daily ceiling is reached — see
+        # engine.public.egress_ledger and the news adapter for the reason.
+        self._last_signals: list[IntelligenceSignal] = []
 
     @property
     def configured(self) -> bool:
@@ -111,6 +115,9 @@ class CommoditySignalAdapter:
         for series_id, label, sig_type, threshold, sectors, channels in SERIES_CONFIG:
             try:
                 latest, prior = self._fetch_latest_two(series_id)
+            except DailyCeilingReached as e:
+                self._last_error = str(e)
+                return list(self._last_signals)
             except Exception as e:
                 errors.append(f"{series_id}: {e.__class__.__name__}")
                 continue
@@ -119,7 +126,9 @@ class CommoditySignalAdapter:
             delta = latest["value"] - prior["value"]
             if abs(delta) < threshold:
                 continue
-            if latest["date"] < since:
+            # `is_before`, not `<` — same unguarded aware-vs-naive site as
+            # the FRED adapter. See base.is_before.
+            if is_before(latest["date"], since):
                 continue
 
             severity = _severity_from_delta(abs(delta), threshold)
@@ -154,9 +163,15 @@ class CommoditySignalAdapter:
                 risk_categories=[],
             ))
 
-        self._last_fetch_at = datetime.utcnow()
+        # tz-AWARE like every other clock on this feed. Not the
+        # defect — nothing orders this value — but /health merges it
+        # with GDELT's already-aware `_utcnow()` into one payload, and
+        # a feed that mixes naive and aware stamps is how the ordering
+        # bug in base.py got in.
+        self._last_fetch_at = datetime.now(timezone.utc)
         self._last_fetch_count = len(signals)
         self._last_error = "; ".join(errors) if errors else None
+        self._last_signals = list(signals)
         return signals
 
     def health(self) -> AdapterHealth:
@@ -198,7 +213,7 @@ class CommoditySignalAdapter:
             url,
             headers={"User-Agent": "CFO-AI-Intelligence/1.0 (+https://cfo-ai.io)"},
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with open_with_ceiling(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
             payload = json.loads(resp.read())
 
         # EIA v2 envelope: {"response": {"data": [{"period": "2026-05-27", "value": 4.50}, ...]}}

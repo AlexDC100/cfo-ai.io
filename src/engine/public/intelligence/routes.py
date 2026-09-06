@@ -26,11 +26,62 @@ The two WALLED routes require the ENGINE_API_TOKEN bearer and refuse with
 per-client budget. That split is deliberate and is pinned by
 tests/engine/test_public_post_surface.py — see refresh_shield's module
 docstring for the reasoning.
+
+EGRESS (2026-09-04) — the GETs here reach upstream too
+-------------------------------------------------------
+That POST classification covered no GET, and five of the reads above are
+upstream amplifiers. MEASURED in-process against the real ``create_app()``
+with every outbound socket blocked and recorded:
+
+  · risk-score / exposure / risk-scores / supply-chain?ticker= /
+    ai-market-read all hydrate through ``_fetch_universe_snapshots`` ->
+    ``universe_service.get_universe``: 7 outbound on a cold universe
+    (2 data.nasdaq.com + 5 query1.finance.yahoo.com), 0 warm. Each now
+    passes ``refresh_shield.egress_guard`` with the universe's own warmth,
+    so a warm read still costs nothing and a cold one is bounded.
+
+  · ai-market-read had NO CACHE AT ALL and called the LLM on EVERY
+    request. MEASURED with a spy client: four identical anonymous GETs
+    produced four completions. With ANTHROPIC_API_KEY set on the backend
+    that is one paid Claude request per anonymous call, unbounded — a
+    strictly worse amplifier than the cache-busts that were shielded
+    first, because the spend is money rather than a rate. It is now
+    cached for AI_READ_TTL_SEC through the same IntelligenceCache its
+    siblings use, and ``refresh-signals`` busts it with them.
+
+THE GUARD IS KEYED ON WHAT THE ROUTE SPENDS (2026-09-05)
+---------------------------------------------------------
+The guards above were written against the universe's warmth, and a
+critic instrumenting the TRANSPORT with successful canned responses
+showed the flag was reading a neighbour's cache: with the universe warm,
+150 distinct tickers on ``/risk-score`` from one client cost 1,950
+outbound and zero tokens, and with ``SEC_EDGAR_ENABLED`` +
+``ANTHROPIC_API_KEY`` set, 9 distinct tickers on ``/supply-chain`` cost
+9 paid completions against a budget of 3 a minute — because
+``build_company_exposure_profile(try_filings=True)`` reaches SEC EDGAR and
+Claude, and no flag on this router knew it.
+
+Three rules now hold, each pinned by tests/engine/test_public_egress.py:
+
+  1. ``warm`` is true ONLY when THIS route's own compute would make zero
+     outbound calls and zero paid completions. ``_profile_warm`` /
+     ``_filings_warm`` / ``_feed_warm`` / ``_universe_warm`` are the
+     resources, and each route's flag is the conjunction of the ones its
+     compute touches — or its own rendered cache.
+  2. The ticker is VALIDATED against the served registry (203 NASDAQ +
+     88 BVB, the same set ``_fetch_universe_snapshots`` can answer for)
+     before the guard runs. A nonsense ticker is a 404 that cost nothing
+     upstream and spent no token; it used to cost the full fan-out.
+  3. The filings-derived profile is computed ONCE per ticker and shared by
+     exposure / supply-chain / risk-score / ai-market-read through the
+     ``exposure:`` cache, and both paid paths sit behind the per-process
+     daily completion ceiling in ``engine.public.egress_ledger``.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -38,13 +89,16 @@ from typing import Any, Optional
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from .. import egress_ledger as _ledger
 from .. import universe as universe_module
 # Cache-bust shield (rate limit + operator bearer). MODULE scope on purpose:
 # this file uses `from __future__ import annotations`, so anything FastAPI has
 # to resolve from an endpoint signature must be visible in module globals.
+from ..refresh_shield import egress_guard as _egress_guard
 from ..refresh_shield import guard as _refresh_guard
 from ..refresh_shield import require_operator as _require_operator
 from ..universe_service import get_universe
+from ..universe_service import is_warm as _universe_warm
 from ..bvb_seed import bvb_universe as _bvb_universe
 from .category_scoring import CATEGORIES as RADAR_CATEGORIES
 from .company_exposure_service import (
@@ -69,10 +123,12 @@ from .models import (
     Severity,
     SignalType,
     TimeHorizon,
+    as_utc,
 )
 from .ai_market_read import compose_ai_market_read
 # Phase D — filings cache observability + refresh hook
 from . import filings_cache
+from .filings_extractor import is_enabled as _filings_enabled
 from .filings_refresh import run_refresh
 from .opportunity_scoring_engine import compute_opportunity_score
 from .risk_scoring_engine import compute_risk_score
@@ -80,6 +136,78 @@ from .sector_risk_library import SECTOR_RISK_LIBRARY, all_sectors
 from .signal_orchestrator import synthesize_sector_signals
 
 logger = logging.getLogger(__name__)
+
+# ── AI Market Read cache TTL ─────────────────────────────────────────────
+#
+# 600 s, matching EXPOSURE_TTL_SEC — the read is a narrative ABOUT the
+# exposure profile and the risk/opportunity scores, so it cannot say
+# anything new until one of those changes, and exposure is the slowest of
+# them. Held here rather than in intelligence_cache.py so this wave adds
+# no constant to a module it does not own; `refresh-signals` invalidates
+# the "ai-market-read:" prefix alongside the four it already busts.
+AI_READ_TTL_SEC = 600
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Ordering the merged feed — TOTAL, and with no naive sentinel
+# ─────────────────────────────────────────────────────────────────────────
+#
+# ``macro_signals`` is the only place in this package that ORDERS
+# datetimes, and it orders the one list six adapters are merged into. The
+# key it used could not order that list:
+#
+#     key=lambda s: (RANK[s.severity], s.published_at or datetime.min)
+#
+# ``datetime.min`` is NAIVE. Against the aware stamps every other producer
+# on this feed emits, the first undated signal raised ``TypeError: can't
+# compare offset-naive and offset-aware datetimes`` and the route answered
+# 500 — for the whole feed TTL, because the list it chokes on is the
+# CACHED one. MEASURED anonymous against the real ``create_app()`` with
+# canned SUCCESSFUL provider bodies: 500 with ``NEWS_API_KEY`` set alone
+# and one article whose ``publishedAt`` was malformed, 500 with
+# ``RSS_FEED_URLS`` set alone and a bare-ISO ``pubDate``.
+#
+# ``models.as_utc`` in ``IntelligenceSignal.__post_init__`` closes the
+# second of those at the boundary — a signal now carries an aware stamp or
+# carries none. The FIRST is this key's own doing and is fixed here, by
+# not needing a sentinel at all: presence is its own component of the
+# tuple, so an undated signal is never compared against a dated one.
+#
+# ORDER IS UNCHANGED from the sentinel version, deliberately — this lane
+# owns the crash, not the feed's editorial order. ``datetime.min`` sorted
+# undated FIRST within a severity band; ``False < True`` keeps it there,
+# and the dated ones stay ascending behind it. ``_UNDATED`` is only ever
+# compared against itself (both sides reach it only when both flags are
+# False) and is aware regardless, so no naive value exists on this path
+# even as filler.
+_SEVERITY_RANK: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+_UNDATED = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _signal_sort_key(s: IntelligenceSignal) -> tuple:
+    """Total order over a merged signal list. Cannot raise on a mixture.
+
+    ``as_utc`` runs HERE TOO, not only at
+    ``IntelligenceSignal.__post_init__``. Dropping it because the model
+    already coerces was measured to be wrong: with the model boundary
+    planted out, two dated signals at the SAME severity — one aware, one
+    naive — reach this tuple's third component and are compared raw, and
+    the route answers 500 again. Presence-as-a-component alone is not
+    totality; it only separates dated from undated. This is the same
+    belt-and-braces the package already applies at ``base.is_before``, and
+    for the same reason: the model defends the value, this defends the
+    ordering, and they fail independently.
+
+    ``[s.severity]`` is indexed, not ``.get``-ed with a fallback: every
+    producer in this package emits one of the four ``models.Severity``
+    literals (the manual route validates the field through Pydantic, the
+    adapters emit constants), so a miss is a broken contract that should
+    be loud rather than silently sorted last. The gate asserts this dict
+    covers ``Severity`` exactly, so ADDING a fifth severity reds a test
+    instead of 500ing a route.
+    """
+    at = as_utc(s.published_at)
+    return (_SEVERITY_RANK[s.severity], at is not None, at or _UNDATED)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -108,6 +236,78 @@ def _serialize(obj: Any) -> Any:
     return obj
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# The ticker registry — what the SERVER knows, checked before any spend
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Every per-ticker route on this router answers 404 for a ticker that is
+# not in the universe payload. That payload is built from exactly two
+# static tables — ``universe.DEFAULT_UNIVERSE`` (203 NASDAQ) and
+# ``bvb_seed.bvb_universe()`` (88 BVB) — so membership is decidable
+# without hydrating anything. It used to be decided AFTER the hydration
+# and the signal fan-out: MEASURED, ``ZZZZNOTAREALTICKER`` cost the same
+# 13 outbound as ``AAPL`` on ``/signals`` and the same 11 on ``/exposure``.
+# Now the 404 is the first thing the handler does, before the guard, so a
+# nonsense identifier spends neither an outbound call nor a token — and
+# never becomes a cache key, because it never reaches a cache write.
+_KNOWN_TICKERS: Optional[frozenset] = None
+
+
+def _known_tickers() -> frozenset:
+    global _KNOWN_TICKERS
+    if _KNOWN_TICKERS is None:
+        _KNOWN_TICKERS = frozenset(
+            [t.upper() for t in universe_module.universe_tickers()]
+            + [t.upper() for t in _bvb_universe().keys()]
+        )
+    return _KNOWN_TICKERS
+
+
+def _validated_ticker(raw: str) -> str:
+    """Uppercase registry member, or 404. Runs BEFORE the egress guard."""
+    tu = (raw or "").strip().upper()
+    if len(tu) > 16 or tu not in _known_tickers():
+        raise HTTPException(
+            404,
+            "Ticker %r not in universe. Nothing was requested from any "
+            "provider." % (raw or "")[:40],
+        )
+    return tu
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Warmth, per RESOURCE — a guard is only as true as the warmth it reads
+# ─────────────────────────────────────────────────────────────────────────
+
+def _llm_configured() -> bool:
+    """Would ``compose_ai_market_read`` build a real client?"""
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _filings_warm(tu: str) -> bool:
+    """Would ``build_company_exposure_profile(try_filings=True)`` reach nothing?
+
+    True when the filings layer is switched off (either variable unset —
+    the extractor returns before the wire) or when the in-memory filings
+    cache holds this ticker. A DB hit is one request to our own Supabase
+    and a miss is EDGAR + a paid completion, so neither is warm.
+    """
+    if not _filings_enabled():
+        return True
+    return filings_cache.has_in_memory(tu)
+
+
+def _exposure_key(tu: str) -> str:
+    return "exposure:%s" % tu
+
+
+def _profile_warm(tu: str) -> bool:
+    """Would ``_exposure_profile(tu)`` reach nothing?"""
+    if get_intelligence_cache().get(_exposure_key(tu)) is not None:
+        return True
+    return _universe_warm() and _filings_warm(tu)
+
+
 def _fetch_universe_snapshots() -> dict[str, dict[str, Any]]:
     """Pull the live universe payload + index by uppercase ticker.
 
@@ -125,6 +325,39 @@ def _fetch_universe_snapshots() -> dict[str, dict[str, Any]]:
         if ticker:
             out[ticker] = snap
     return out
+
+
+def _exposure_profile(tu: str):
+    """ONE per-ticker profile, cached under ``exposure:{ticker}``, shared.
+
+    exposure / supply-chain / risk-score / ai-market-read all need the
+    same ``CompanyExposureProfile``, and each used to build its own —
+    which, with the filings layer on, was the EDGAR + Claude chain per
+    route per ticker (MEASURED: 4 outbound + 1 completion, on a route
+    that carried a guard reading the universe's warmth). Building it here
+    once means the paid work happens at most once per ticker per
+    EXPOSURE_TTL_SEC across the four, and ``_profile_warm`` can answer for
+    all of them. The DATACLASS is cached, not its serialisation, because
+    the scoring engines take the object; every route serialises on the
+    way out and the bytes are the same as before.
+
+    ``tu`` must already be validated — the 404 below is the defensive
+    path for a registry/payload disagreement, not the caller's.
+    """
+    def _build():
+        snaps = _fetch_universe_snapshots()
+        snap = snaps.get(tu)
+        if snap is None:
+            raise HTTPException(404, f"Ticker {tu} not in universe")
+        return build_company_exposure_profile(
+            ticker=tu,
+            company_name=snap.get("company_name") or snap.get("companyName") or tu,
+            sector=snap.get("sector") or "Unknown",
+            industry=_industry_lookup().get(tu),
+        )
+
+    return get_intelligence_cache().get_or_compute(
+        _exposure_key(tu), EXPOSURE_TTL_SEC, _build)
 
 
 def _financials_from_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
@@ -181,21 +414,173 @@ class ManualSignalIn(BaseModel):
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/public/intelligence", tags=["public-companies-intelligence"])
 
+    # ─── THE SIGNAL FEED: one fan-out, one server-derived key ───────────
+    #
+    # ``MacroSignalService.fetch_all()`` walks all six adapters and is the
+    # ONLY outbound path on this router that is not the universe or the
+    # LLM. MEASURED 2026-09-04 in-process against the real ``create_app()``
+    # with every socket blocked and every ``urlopen`` recorded, with the
+    # five signal activation vars set (the production shape whenever an
+    # operator has configured any feed):
+    #
+    #     1x newsapi.org/v2/top-headlines          (NEWS_API_KEY)
+    #     1x the configured RSS feed               (RSS_FEED_URLS)
+    #     5x api.stlouisfed.org/fred/...           (FRED_API_KEY, 5 series)
+    #     5x api.eia.gov/v2/seriesid/...           (EIA_API_KEY, 5 series)
+    #     1x api.gdeltproject.org/api/v2/doc/doc   (GDELT_ENABLED)
+    #     ── 13 outbound calls, per fan-out.
+    #
+    # Three routes reached that fan-out with no cache between them and the
+    # wire, and the egress map called all of them NO_EGRESS because the map
+    # enumerates with all five vars ABSENT — and with them absent every
+    # adapter refuses at ``health()`` before the wire, so the map measured
+    # a keyless deployment and generalised it to a configured one. The
+    # lane's own earlier insight ("a keyless run hides an amplifier"),
+    # under-applied: it was carried to NASDAQ_API_KEY and ANTHROPIC_API_KEY
+    # and not to these five.
+    #
+    #   · GET /companies/{ticker}/signals   13 per call, EVERY call, no
+    #     cache. 3 identical calls = 39. A nonsense ticker costs the same
+    #     13 (the ticker is filtered AFTER the fan-out, so it cannot
+    #     shorten it).
+    #   · GET /macro-signals                cached, but on a key built from
+    #     caller-supplied sector/ticker/limit — 5 calls differing only in
+    #     ``?limit=`` cost 65.
+    #   · GET /companies/{ticker}/risk-score  classified GUARDED and
+    #     carrying egress_guard, but the guard reads the UNIVERSE's warmth
+    #     while ``_compute`` calls ``fetch_for_ticker`` — so on a WARM
+    #     universe with a cold score cache the route took NO token and
+    #     still fanned out 13. MEASURED at 13. Not named by any critic;
+    #     found by driving the siblings.
+    #
+    # Caching the FAN-OUT rather than each route's rendered view fixes all
+    # three at one place: every view above becomes a filter over one cached
+    # list, so a caller's parameters select from server-held data instead
+    # of steering a fetch. That is the difference between a cache key and
+    # a cache-miss lever.
+    #
+    # THE KEY IS SERVER-DERIVED AND CARRIES NO CALLER TEXT. It is a
+    # constant. A caller cannot vary it, cannot grow the cache dict with
+    # it, and cannot miss on it. It sits under the ``macro-signals:``
+    # prefix that POST /refresh-signals already invalidates, so an operator
+    # bust still drops it and no new invalidate line changes that route's
+    # reported count.
+    _FEED_KEY = "macro-signals:__feed__"
+
+    def _signal_feed() -> list:
+        """The full adapter fan-out, cached for SIGNALS_TTL_SEC.
+
+        Returns the raw ``IntelligenceSignal`` list, not a serialised
+        view: the callers filter on ``.affected_tickers`` /
+        ``.affected_sectors`` / ``.severity``, and re-serialising per view
+        keeps one authority for the fetch and none for the shape.
+        """
+        return get_intelligence_cache().get_or_compute(
+            _FEED_KEY, SIGNALS_TTL_SEC,
+            lambda: get_macro_signal_service().fetch_all(),
+        )
+
+    def _feed_warm() -> bool:
+        """Would ``_signal_feed()`` answer WITHOUT touching a provider?
+
+        This is the warmth the signal routes must guard on — NOT
+        ``_universe_warm()``. Guarding a signal fan-out on the universe's
+        warmth is exactly the risk-score defect above: the flag says warm,
+        the guard takes no token, and 13 calls go out anyway. An empty
+        feed is a legitimate cached value (every adapter can return no
+        signals), so warmth is `is not None`, never truthiness — an
+        ABSENT feed and an EMPTY one are different facts.
+        """
+        return get_intelligence_cache().get(_FEED_KEY) is not None
+
     # ─── Health ─────────────────────────────────────────────────────────
+    #
+    # Server-derived, constant. Carries NO caller text, exactly like
+    # ``_FEED_KEY`` — a caller cannot vary it, cannot grow the cache dict
+    # with it, and cannot miss on it. Its own prefix, because the block it
+    # holds describes the FILINGS cache and is therefore invalidated by
+    # ``refresh-filings-cache`` (the operator route that changes it), not
+    # by ``refresh-signals``.
+    _FILINGS_OBS_KEY = "filings-observability:__db__"
+
+    # The two DB reads below describe a cache whose entries live
+    # ``filings_cache.CACHE_TTL_DAYS`` (7 days). Reusing SIGNALS_TTL_SEC —
+    # the SHORTEST TTL in the module that owns them — rather than deriving
+    # a sixth constant: on a 7-day-scale counter, 60 s of staleness changes
+    # no operator decision, and picking the shortest existing number means
+    # this block can never be staler than the feed rendered beside it.
+    def _filings_observability() -> dict[str, Any]:
+        """The DB-backed half of /health, cached. Two full-table selects.
+
+        MEASURED 2026-09-04 at the transport layer, anonymous, against the
+        real ``create_app()``: ``GET /api/public/intelligence/health`` cost
+        2 outbound Supabase reads on EVERY call — cold and warm alike, no
+        cache, no guard — and 200 sequential anonymous calls answered 200
+        each, for 400 reads. Both are unbounded selects over
+        ``company_exposure_profiles`` (``total_cached_entries`` and
+        ``oldest_entry_age_seconds`` each pull every filings row), so the
+        cost grows with the table.
+
+        This was the last route on /api/public with NO control of any
+        kind. The earlier maps could not see it: their spy RAISED on the
+        first provider call, and this route's siblings reach a provider
+        long before it does.
+
+        ``get_metrics_snapshot()`` is deliberately NOT cached — it is a
+        lock-guarded read of in-process counters, reaches nothing, and its
+        own docstring says it is computed lazily "so /health stays cheap".
+        Caching it would freeze live counters to buy nothing.
+        """
+        return get_intelligence_cache().get_or_compute(
+            _FILINGS_OBS_KEY, SIGNALS_TTL_SEC,
+            lambda: {
+                "total_entries": filings_cache.total_cached_entries(),
+                "oldest_entry_age_seconds": filings_cache.oldest_entry_age_seconds(),
+            },
+        )
+
+    def _filings_observability_warm() -> bool:
+        """Would /health answer WITHOUT touching the database?
+
+        ``is not None``, never truthiness: an empty filings table is a
+        legitimate cached answer (``total_entries: 0``), and an ABSENT
+        cache entry is a different fact from an EMPTY result. Reading it
+        as falsy would take a token on every warm poll and re-run both
+        selects — the exact defect this closes.
+        """
+        return get_intelligence_cache().get(_FILINGS_OBS_KEY) is not None
+
     @router.get("/health")
-    def health() -> dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
         """Per-adapter health + feed status.
 
         Used by the FE Macro Signals tab to decide whether to show the
         "Live signal feed not connected" empty-state vs a live feed.
+
+        EGRESS-GUARDED on the DB block's warmth — see
+        ``_filings_observability``. A SHIELD and not a WALL, because this
+        is a live public surface the FE polls: walling it would blank the
+        Macro Signals tab to protect a database. With the cache in front,
+        an FE poll inside the window is warm, so it costs zero outbound
+        AND zero budget; only the once-per-TTL cold miss spends a token.
+
+        The guard runs BEFORE the read, so a 429 costs the database
+        nothing.
         """
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/health",
+            warm=_filings_observability_warm(),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
+
         svc = get_macro_signal_service()
         # Phase D — surface filings cache observability so operators can
         # see hit rate, eviction frequency, and total entries WITHOUT
         # SSHing into the DB. Counters are container-local per the
         # `metrics_scope` field in the payload.
         cache_metrics = filings_cache.get_metrics_snapshot()
-        cache_oldest = filings_cache.oldest_entry_age_seconds()
         return {
             "feed_status": svc.feed_status(),
             "adapters": {
@@ -205,10 +590,14 @@ def build_router() -> APIRouter:
             "universe_sector_count": len(all_sectors()),
             "filings_cache": {
                 **cache_metrics,
-                "total_entries": filings_cache.total_cached_entries(),
-                "oldest_entry_age_seconds": cache_oldest,
+                **_filings_observability(),
                 "ttl_days": filings_cache.CACHE_TTL_DAYS,
             },
+            # The daily ceilings (engine.public.egress_ledger): paid
+            # completions used today against the limit, and per provider
+            # host the calls used against its ceiling. In-process counters,
+            # labelled as such — reaches nothing.
+            "egress_ledgers": _ledger.snapshot(),
         }
 
     # ─── Risk Radar ─────────────────────────────────────────────────────
@@ -538,43 +927,57 @@ def build_router() -> APIRouter:
     # ─── Macro Signals feed ─────────────────────────────────────────────
     @router.get("/macro-signals")
     def macro_signals(
+        request: Request,
         sector: Optional[str] = Query(None),
         ticker: Optional[str] = Query(None),
         limit: int = Query(50, ge=1, le=200),
     ) -> dict[str, Any]:
-        cache = get_intelligence_cache()
-        key = f"macro-signals:s={sector or ''}:t={ticker or ''}:l={limit}"
+        """EGRESS-GUARDED on the SIGNAL FEED's warmth.
 
-        def _compute():
-            svc = get_macro_signal_service()
-            live_signals = svc.fetch_all()
-            sector_signals = synthesize_sector_signals(
-                sector_filter=[sector] if sector else None,
-            )
-            all_signals = live_signals + sector_signals
+        This route used to cache on a key built from the caller's own
+        ``sector`` / ``ticker`` / ``limit`` — so the cache was real but the
+        caller held the miss lever. MEASURED before the fix: 3 identical
+        calls cost 13 outbound, and 5 calls differing only in ``?limit=``
+        cost 65. The filters are now applied to the shared server-keyed
+        feed, so they select from cached data and cost nothing; only the
+        feed's own TTL decides when a provider is touched again.
+        """
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/macro-signals",
+            warm=_feed_warm(),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
 
-            if ticker:
-                tu = ticker.upper()
-                all_signals = [s for s in all_signals if tu in s.affected_tickers]
-            elif sector:
-                all_signals = [s for s in all_signals if sector in s.affected_sectors]
+        svc = get_macro_signal_service()
+        live_signals = _signal_feed()
+        sector_signals = synthesize_sector_signals(
+            sector_filter=[sector] if sector else None,
+        )
+        all_signals = list(live_signals) + sector_signals
 
-            all_signals.sort(
-                key=lambda s: ({"critical":0,"high":1,"medium":2,"low":3}[s.severity],
-                               s.published_at or datetime.min),
-            )
+        if ticker:
+            tu = ticker.upper()
+            all_signals = [s for s in all_signals if tu in s.affected_tickers]
+        elif sector:
+            all_signals = [s for s in all_signals if sector in s.affected_sectors]
 
-            return {
-                "signals": _serialize(all_signals[:limit]),
-                "feed_status": svc.feed_status(),
-                "total": len(all_signals),
-            }
+        # TOTAL over a naive/aware mixture and over undated items — see
+        # ``_signal_sort_key``. This line is where the merged feed's
+        # ordering used to raise ``TypeError`` and answer 500.
+        all_signals.sort(key=_signal_sort_key)
 
-        return cache.get_or_compute(key, SIGNALS_TTL_SEC, _compute)
+        return {
+            "signals": _serialize(all_signals[:limit]),
+            "feed_status": svc.feed_status(),
+            "total": len(all_signals),
+        }
 
     # ─── Supply Chain ───────────────────────────────────────────────────
     @router.get("/supply-chain")
     def supply_chain(
+        request: Request,
         ticker: Optional[str] = Query(None),
         sector: Optional[str] = Query(None),
     ) -> dict[str, Any]:
@@ -582,20 +985,30 @@ def build_router() -> APIRouter:
 
         ticker → single-company exposure bars + source label
         sector → sector default exposure + affected tickers
+
+        Only the TICKER branch can reach a provider, so only that branch
+        is egress-guarded. The sector branch is a library lookup and reaches
+        nothing (MEASURED: 0 outbound over four calls) — guarding it would
+        charge a token for a request that cannot fetch anything.
+
+        The ticker branch guarded on the UNIVERSE's warmth while its
+        compute built the profile with ``try_filings=True`` — SEC EDGAR
+        plus a paid completion per ticker, uncached on this route. MEASURED
+        2026-09-04 with ``SEC_EDGAR_ENABLED`` + ``ANTHROPIC_API_KEY`` set and
+        the universe warm: 9 distinct tickers, 9 completions, 0 x 429 on a
+        budget of 3/min. It now validates the ticker first, reads the
+        shared ``exposure:`` cache, and is warm only when that profile is.
         """
         if ticker:
-            tu = ticker.upper()
-            snaps = _fetch_universe_snapshots()
-            snap = snaps.get(tu)
-            if snap is None:
-                raise HTTPException(404, f"Ticker {tu} not in universe")
-            profile = build_company_exposure_profile(
-                ticker=tu,
-                company_name=snap.get("company_name") or snap.get("companyName") or tu,
-                sector=snap.get("sector") or "Unknown",
-                industry=_industry_lookup().get(tu),
+            tu = _validated_ticker(ticker)
+            limited = _egress_guard(
+                request,
+                route="/api/public/intelligence/supply-chain",
+                warm=_profile_warm(tu),
             )
-            return {"ticker": tu, "exposure": _serialize(profile)}
+            if limited is not None:
+                return limited  # type: ignore[return-value]
+            return {"ticker": tu, "exposure": _serialize(_exposure_profile(tu))}
 
         if sector:
             profile = SECTOR_RISK_LIBRARY.get(sector)
@@ -615,55 +1028,90 @@ def build_router() -> APIRouter:
 
     # ─── Per-ticker risk score ──────────────────────────────────────────
     @router.get("/companies/{ticker}/risk-score")
-    def ticker_risk_score(ticker: str) -> dict[str, Any]:
-        tu = ticker.upper()
+    def ticker_risk_score(ticker: str, request: Request) -> dict[str, Any]:
+        """EGRESS-GUARDED on EVERYTHING its compute touches.
+
+        Three resources: the universe (11 outbound cold, 0 warm), the
+        signal feed (13 cold, 0 warm) and the per-ticker exposure profile
+        (SEC EDGAR + a paid completion cold when the filings layer is on,
+        0 warm). The guard used to read the universe's warmth alone —
+        MEASURED 2026-09-04: warm universe + cold score cache = 13 outbound
+        with NO token — then the universe's and the feed's, which still
+        left the filings chain unread. Warm is now the score cache itself,
+        or the conjunction of all three.
+        """
+        tu = _validated_ticker(ticker)
         cache = get_intelligence_cache()
+        score_key = f"risk-score:{tu}"
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/companies/{ticker}/risk-score",
+            warm=(cache.get(score_key) is not None
+                  or (_universe_warm() and _feed_warm() and _profile_warm(tu))),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
 
         def _compute():
             snaps = _fetch_universe_snapshots()
             snap = snaps.get(tu)
             if snap is None:
                 raise HTTPException(404, f"Ticker {tu} not in universe")
-            profile = build_company_exposure_profile(
-                ticker=tu,
-                company_name=snap.get("company_name") or snap.get("companyName") or tu,
-                sector=snap.get("sector") or "Unknown",
-                industry=_industry_lookup().get(tu),
-            )
+            profile = _exposure_profile(tu)
             financials = _financials_from_snapshot(snap)
-            signals = get_macro_signal_service().fetch_for_ticker(tu)
+            # Shared feed, not fetch_for_ticker: the latter calls
+            # fetch_all() and would fan out 13 per ticker per score-cache
+            # miss. Filtering the cached feed is the same answer for zero
+            # outbound.
+            signals = [s for s in _signal_feed() if tu in s.affected_tickers]
             score = compute_risk_score(profile, financials, signals)
             return _serialize(score)
 
-        return cache.get_or_compute(f"risk-score:{tu}", SCORE_TTL_SEC, _compute)
+        return cache.get_or_compute(score_key, SCORE_TTL_SEC, _compute)
 
     # ─── Per-ticker exposure ────────────────────────────────────────────
     @router.get("/companies/{ticker}/exposure")
-    def ticker_exposure(ticker: str) -> dict[str, Any]:
-        tu = ticker.upper()
-        cache = get_intelligence_cache()
+    def ticker_exposure(ticker: str, request: Request) -> dict[str, Any]:
+        """EGRESS-GUARDED on the PROFILE's warmth — see ``_profile_warm``.
 
-        def _compute():
-            snaps = _fetch_universe_snapshots()
-            snap = snaps.get(tu)
-            if snap is None:
-                raise HTTPException(404, f"Ticker {tu} not in universe")
-            profile = build_company_exposure_profile(
-                ticker=tu,
-                company_name=snap.get("company_name") or snap.get("companyName") or tu,
-                sector=snap.get("sector") or "Unknown",
-                industry=_industry_lookup().get(tu),
-            )
-            return _serialize(profile)
-
-        return cache.get_or_compute(f"exposure:{tu}", EXPOSURE_TTL_SEC, _compute)
+        This route is the drill-down the activation runbook's cold-fill
+        smoke test drives, and the one the critic measured at 30 distinct
+        tickers = unmetered EDGAR + Claude on a warm universe. Warm is the
+        cached profile, or a warm universe AND a warm filings layer.
+        """
+        tu = _validated_ticker(ticker)
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/companies/{ticker}/exposure",
+            warm=_profile_warm(tu),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
+        return _serialize(_exposure_profile(tu))
 
     # ─── Per-ticker signals ─────────────────────────────────────────────
     @router.get("/companies/{ticker}/signals")
-    def ticker_signals(ticker: str) -> dict[str, Any]:
-        tu = ticker.upper()
+    def ticker_signals(ticker: str, request: Request) -> dict[str, Any]:
+        """EGRESS-GUARDED on the SIGNAL FEED's warmth.
+
+        This route had NO cache and NO guard while every sibling in this
+        router had both, and the egress map classified it NO_EGRESS.
+        MEASURED with the five signal vars set: 13 outbound on EVERY call
+        (3 identical calls = 39), and a nonsense ticker cost the same 13
+        because ``fetch_for_ticker`` filters AFTER the fan-out rather than
+        narrowing it. It now reads the shared feed, so a repeat inside the
+        window costs zero outbound and zero budget.
+        """
+        tu = _validated_ticker(ticker)
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/companies/{ticker}/signals",
+            warm=_feed_warm(),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
         svc = get_macro_signal_service()
-        live = svc.fetch_for_ticker(tu)
+        live = [s for s in _signal_feed() if tu in s.affected_tickers]
         sector_for_ticker = next(
             (s for t, _, s in universe_module.DEFAULT_UNIVERSE if t == tu), None,
         )
@@ -678,27 +1126,53 @@ def build_router() -> APIRouter:
 
     # ─── Per-ticker AI Market Read (Phase B — real Claude Opus) ─────────
     @router.get("/companies/{ticker}/ai-market-read")
-    def ai_market_read(ticker: str) -> dict[str, Any]:
+    def ai_market_read(ticker: str, request: Request) -> dict[str, Any]:
         """Per-ticker AI Market Read narrative.
 
         Phase B: calls Claude Opus via `compose_ai_market_read()` when
         ANTHROPIC_API_KEY is set. Falls back to the deterministic template
         on any LLM failure (missing key, network, malformed JSON). The
         response shape is identical in both cases — only model_id differs.
+
+        CACHED + EGRESS-GUARDED (2026-09-04). This route had NO cache while
+        every sibling in this router had one, and MEASURED with a spy
+        client four identical anonymous GETs produced four completions. On
+        a deployment with ANTHROPIC_API_KEY set that is one paid Claude
+        request per anonymous call, with no ceiling — the only amplifier on
+        this surface whose cost is money rather than a rate, which is why
+        it gets a cache rather than only a budget.
+
+        ``warm`` is the cached read itself — a hit returns before any
+        compute — or, on a miss, the conjunction of every resource the
+        compute touches: the universe, the signal feed, the per-ticker
+        profile (EDGAR + Claude when the filings layer is on) AND no LLM
+        key, because with a key set a miss is a paid completion every
+        time. It used to be ``cached and _universe_warm()``, which charged
+        a token for a cached read whenever the universe had lapsed, and
+        knew nothing of the filings chain the compute reaches.
         """
-        tu = ticker.upper()
+        tu = _validated_ticker(ticker)
+        cache = get_intelligence_cache()
+        cache_key = "ai-market-read:%s" % tu
+        cached = cache.get(cache_key)
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/companies/{ticker}/ai-market-read",
+            warm=(cached is not None
+                  or (_universe_warm() and _feed_warm() and _profile_warm(tu)
+                      and not _llm_configured())),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
+        if cached is not None:
+            return cached
         snaps = _fetch_universe_snapshots()
         snap = snaps.get(tu)
         if snap is None:
             raise HTTPException(404, f"Ticker {tu} not in universe")
-        profile = build_company_exposure_profile(
-            ticker=tu,
-            company_name=snap.get("company_name") or snap.get("companyName") or tu,
-            sector=snap.get("sector") or "Unknown",
-            industry=_industry_lookup().get(tu),
-        )
+        profile = _exposure_profile(tu)
         financials = _financials_from_snapshot(snap)
-        signals = get_macro_signal_service().fetch_for_ticker(tu)
+        signals = [s for s in _signal_feed() if tu in s.affected_tickers]
         risk = compute_risk_score(profile, financials, signals)
         opportunity = compute_opportunity_score(profile, financials, signals)
         feed_status = get_macro_signal_service().feed_status()
@@ -714,7 +1188,9 @@ def build_router() -> APIRouter:
             signals=signals,
             feed_status=feed_status,
         )
-        return _serialize(read)
+        payload = _serialize(read)
+        cache.put(cache_key, payload, AI_READ_TTL_SEC)
+        return payload
 
     # ─── Manual signal upload ───────────────────────────────────────────
     @router.post("/signals/manual")
@@ -759,11 +1235,14 @@ def build_router() -> APIRouter:
         cache.invalidate("risk-radar:")
         cache.invalidate("macro-signals:")
         cache.invalidate("risk-score:")
+        # 2026-09-04 — same reason as in refresh-signals: the AI Market
+        # Read narrates these signals, so a new one makes it stale too.
+        cache.invalidate("ai-market-read:")
         return {"signal": _serialize(signal), "ok": True}
 
     # ─── Universe-wide risk-score batch ─────────────────────────────────
     @router.get("/risk-scores")
-    def risk_scores_batch() -> dict[str, Any]:
+    def risk_scores_batch(request: Request) -> dict[str, Any]:
         """One call → risk-score summary for every ticker in the universe.
 
         The universe-wide table needs an AI Risk column per row. Calling
@@ -773,7 +1252,17 @@ def build_router() -> APIRouter:
 
         Cached for SCORE_TTL_SEC (3 min) so frequent FE re-renders during
         sort/filter operations don't re-compute every time.
+
+        EGRESS-GUARDED on the universe's warmth — the compute hydrates it
+        (7 outbound cold, 0 warm).
         """
+        limited = _egress_guard(
+            request,
+            route="/api/public/intelligence/risk-scores",
+            warm=_universe_warm(),
+        )
+        if limited is not None:
+            return limited  # type: ignore[return-value]
         cache = get_intelligence_cache()
 
         def _compute():
@@ -848,6 +1337,13 @@ def build_router() -> APIRouter:
         """
         _require_operator(request, route="/api/public/intelligence/refresh-filings-cache")
         result = run_refresh()
+        # This route is what CHANGES the filings rows /health reports on, so
+        # it is the route that must drop the cached observability block —
+        # not refresh-signals, which busts the signal-derived views. Without
+        # this an operator would refresh the cache and read a stale count
+        # back from /health for up to SIGNALS_TTL_SEC and conclude the
+        # refresh did nothing.
+        get_intelligence_cache().invalidate(_FILINGS_OBS_KEY)
         return result.to_dict()
 
     # ─── Cache refresh ──────────────────────────────────────────────────
@@ -873,6 +1369,11 @@ def build_router() -> APIRouter:
             + cache.invalidate("macro-signals:")
             + cache.invalidate("risk-score:")
             + cache.invalidate("exposure:")
+            # 2026-09-04 — the AI Market Read is a narrative ABOUT the
+            # signals and the risk score, so a signal change makes it stale
+            # exactly like the four above. Listed last so the count grows
+            # rather than any existing key changing meaning.
+            + cache.invalidate("ai-market-read:")
         )
         return {"cache_keys_invalidated": dropped, "ok": True}
 

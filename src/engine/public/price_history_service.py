@@ -47,12 +47,50 @@ _DEFAULT_TTL = 24 * 60 * 60
 
 _warm_cache: Dict[str, Dict[str, Any]] = {}
 
+# The cache key is (ticker, range) and the TICKER IS CALLER-SUPPLIED and
+# unvalidated — the route accepts any string. Unbounded, one client
+# rotating tickers grows this table without limit, and the cold-read
+# budget added on 2026-09-04 makes that growth STEADY (120 new entries per
+# minute per client) rather than merely possible. Same shape and the same
+# stalest-half eviction as `ratelimit.TokenBucketLimiter._maybe_evict`.
+_MAX_CACHE_KEYS = 20_000
+
 
 VALID_RANGES = {"1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"}
 
 
 def _ttl_for(range_: str) -> int:
     return _CACHE_TTL_SECONDS.get(range_.upper(), _DEFAULT_TTL)
+
+
+def _cache_key(ticker: str, range_: str) -> str:
+    return "price-history::%s::%s" % (ticker, range_)
+
+
+def _evict_if_needed() -> None:
+    if len(_warm_cache) <= _MAX_CACHE_KEYS:
+        return
+    by_age = sorted(_warm_cache.items(), key=lambda kv: kv[1].get("_cached_at", 0.0))
+    for key, _ in by_age[: len(by_age) // 2]:
+        _warm_cache.pop(key, None)
+
+
+def is_warm(ticker: str, *, range: str = "1Y") -> bool:
+    """True when the next ``get_price_history`` would reach NO provider.
+
+    Read by ``engine.public.refresh_shield.egress_guard``. An empty ticker
+    is warm because the service short-circuits to ``_empty_payload``
+    without touching a provider — charging a token for a request that
+    cannot fetch anything would be a refusal with no subject.
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        return True
+    r = range.upper()
+    if r not in VALID_RANGES:
+        r = "1Y"
+    cached = _warm_cache.get(_cache_key(t, r))
+    return bool(cached) and (time.time() - cached["_cached_at"]) < _ttl_for(r)
 
 
 def _range_days(range_: str) -> Optional[int]:
@@ -104,7 +142,7 @@ def get_price_history(
     if r not in VALID_RANGES:
         r = "1Y"
 
-    cache_key = f"price-history::{t}::{r}"
+    cache_key = _cache_key(t, r)
     now = time.time()
 
     if not force_refresh:
@@ -135,6 +173,7 @@ def get_price_history(
             )
             payload["currency"] = "RON"
         _warm_cache[cache_key] = {"_cached_at": now, "payload": payload}
+        _evict_if_needed()
         return payload
 
     nasdaq = adapter or NasdaqAdapter()
@@ -179,6 +218,7 @@ def get_price_history(
         )
 
     _warm_cache[cache_key] = {"_cached_at": now, "payload": payload}
+    _evict_if_needed()
     return payload
 
 
@@ -318,4 +358,5 @@ __all__ = [
     "VALID_RANGES",
     "get_price_history",
     "clear_warm_cache",
+    "is_warm",
 ]

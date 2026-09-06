@@ -13,8 +13,79 @@ these dataclasses 1:1 via dataclasses.asdict().
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# THE TIMEZONE BOUNDARY — it lives here, on the model, not on the readers
+# ─────────────────────────────────────────────────────────────────────────
+#
+# ``IntelligenceSignal.published_at`` is merged into ONE list from six
+# adapters and then ordered. That ordering is total only if every stamp in
+# the list is comparable to every other, and Python refuses to order a
+# naive datetime against an aware one. So the invariant is asserted where
+# the value ENTERS the domain — the dataclass every producer must build —
+# and not at each place it is later read:
+#
+#     A SIGNAL CARRYING A TIMESTAMP CARRIES AN AWARE ONE, OR CARRIES NONE.
+#
+# Two producers were still handing naive stamps into that list after the
+# cutoff itself was made aware, and each was invisible from the other's
+# side of the code:
+#
+#   · ``rss_signal_adapter._parse_date_safe`` returns a bare
+#     ``datetime.fromisoformat`` for an ISO ``pubDate`` with no offset
+#     ("2026-09-01T10:00:00", "2026-09-01"), while stamping UTC on the
+#     RFC-2822 branch — so ONE feed hands the same list both kinds.
+#   · anything reading a stamp the provider omitted or wrote badly, where
+#     the read then substituted a naive sentinel.
+#
+# MEASURED against the real ``create_app()`` with canned SUCCESSFUL
+# provider bodies, anonymous, one activation variable at a time:
+# ``GET /api/public/intelligence/macro-signals`` answered 500
+# (``TypeError: can't compare offset-naive and offset-aware datetimes``,
+# routes.py ``all_signals.sort``) with RSS_FEED_URLS set alone and a
+# bare-ISO ``pubDate``, and again with NEWS_API_KEY set alone and an
+# article whose ``publishedAt`` was malformed. The prior gate's canned RSS
+# body used an RFC-2822 date and its NewsAPI body always carried a valid
+# ``publishedAt``, so neither shape was ever generated and the gate was
+# green over a live 500.
+#
+# The failure is STICKY beyond the request that causes it: the poisoned
+# list is the CACHED feed (``routes._FEED_KEY``), so one naive stamp keeps
+# answering 500 for the whole feed TTL, and every other route that reads
+# the feed serves that stamp on to the FE as an offset-less ISO string.
+#
+# ABSENT != ZERO, and this helper does not decide the undated case. It
+# returns ``None`` unchanged; what an undated signal MEANS is the reader's
+# business and the readers deliberately disagree (the news adapter
+# includes one, the manual adapter excludes one). What the readers may no
+# longer do is invent a naive stand-in for it.
+
+
+def as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Coerce a datetime to timezone-aware UTC. ``None`` passes through.
+
+    A NAIVE input is READ AS UTC rather than as local time. That is the
+    correct reading for every producer on this path and is not a guess:
+    FRED and EIA publish observation dates in UTC, NewsAPI's
+    ``publishedAt`` and GDELT's ``seendate`` are both documented UTC, and
+    the RSS/news parsers already stamp ``timezone.utc`` on their other
+    branches. Interpreting a naive stamp as machine-local instead would
+    shift every cutoff by the deployment's offset — a silent correctness
+    bug that no test in a UTC container would ever show.
+
+    Defined HERE rather than in ``adapters/base.py`` so the model can hold
+    the invariant without importing its own readers. ``adapters.base``
+    re-exports it, so every existing ``from .base import as_utc`` is
+    unchanged and there is still exactly ONE implementation.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 # ─────────────────────────────────────────────────────────────────────────
 # Type aliases — kept on one page so a casual reader can see the full
@@ -123,6 +194,25 @@ class IntelligenceSignal:
     geography: list[str] = field(default_factory=list)            # e.g. ["taiwan","china"]
     financial_impact_channels: list[FinancialImpactChannel] = field(default_factory=list)
     risk_categories: list[RiskCategory] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Enforce the timezone boundary at the ONE place every signal is born.
+
+        Six adapters build this class and their number grows; a naive stamp
+        from any one of them poisons the single list they are merged into
+        for the whole feed TTL. Coercing at each producer would be six
+        edits that the seventh adapter is free to forget — this is the
+        boundary that a new producer cannot route around, because there is
+        no way to become an ``IntelligenceSignal`` without passing it.
+
+        ``object.__setattr__`` because the dataclass is frozen; the value
+        is normalised at construction and immutable thereafter.
+
+        This does NOT invent a timestamp. ``published_at=None`` stays
+        ``None`` — see ``as_utc`` above on why the undated case is the
+        reader's decision and not this class's.
+        """
+        object.__setattr__(self, "published_at", as_utc(self.published_at))
 
 
 # ─────────────────────────────────────────────────────────────────────────

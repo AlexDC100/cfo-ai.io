@@ -191,6 +191,23 @@ def reset_in_memory() -> None:
         _in_memory_cache.clear()
 
 
+def has_in_memory(ticker: str) -> bool:
+    """Would ``get_cached(ticker)`` answer from the in-memory layer?
+
+    Read by ``routes._filings_warm`` — the egress guard's question is
+    "would this compute make ZERO outbound calls", and only the in-memory
+    layer answers that: a DB hit is one request to our own Supabase, and a
+    miss is EDGAR + a paid completion. Records no hit/miss metric, because
+    a probe is not a read.
+    """
+    with _in_memory_lock:
+        entry = _in_memory_cache.get((ticker or "").strip().upper())
+        if entry is None:
+            return False
+        expires_at, _profile = entry
+        return time.time() < expires_at
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # DB layer — the source of truth
 # ─────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from .adapters import ManualSignalAdapter, SignalAdapter
+from .adapters.base import as_utc
 # Phase B + Phase C — real adapters for all 5 providers.
 from .adapters.news_signal_adapter import NewsSignalAdapter        # Phase B
 from .adapters.rss_signal_adapter import RssSignalAdapter           # Phase B (now w/ Romanian NFKD)
@@ -60,9 +61,25 @@ class MacroSignalService:
 
         Default `since` = 90 days ago — enough to catch all material macro
         events for radar aggregation without paging through years of news.
+
+        THE ONE CLOCK. This cutoff crosses the adapter Protocol into five
+        providers, so it is built tz-AWARE (``datetime.now(timezone.utc)``)
+        and NOT with ``datetime.utcnow()``, which returns a naive datetime
+        that Python refuses to order against the aware timestamps every
+        adapter here parses. That single naive call took all four signal
+        routes to 500 on any live provider — see ``adapters/base.py`` for
+        the measurement and the rule.
+
+        A caller-supplied ``since`` is coerced too. The adapters are also
+        defended at their own comparisons (``base.is_before``), because a
+        provider may return naive OR aware; belt and braces on purpose,
+        since the two protect different edges — this one the cutoff, that
+        one the provider.
         """
         if since is None:
-            since = datetime.utcnow() - timedelta(days=90)
+            since = datetime.now(timezone.utc) - timedelta(days=90)
+        else:
+            since = as_utc(since)  # type: ignore[assignment]
 
         collected: list[IntelligenceSignal] = []
         seen: set[tuple[str, str]] = set()  # (source, title) dedup key
