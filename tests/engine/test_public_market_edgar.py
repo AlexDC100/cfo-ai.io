@@ -166,6 +166,116 @@ def test_balance_sheet_figures_fy2025():
         assert figs[key]["fiscal"]["end"] == FY2025_END
 
 
+# ---------------------------------------------------------------------------
+# Retained earnings — mapped from the REAL bytes, refused only when truly absent
+# ---------------------------------------------------------------------------
+
+APPLE_RETAINED_EARNINGS_FY2025_USD = -14_264_000_000  # an accumulated DEFICIT
+
+# The six figures the adapter emitted before retained earnings was mapped.
+# Every one of them must still resolve whatever happens to retained earnings.
+OTHER_FIGURES = (
+    "revenue", "net_income", "total_assets", "equity",
+    "total_debt", "shares_outstanding",
+)
+
+
+def test_retained_earnings_extracts_from_real_bytes_with_its_accession():
+    """Apple reports retained earnings in its 10-K and EDGAR carries it
+    under us-gaap:RetainedEarningsAccumulatedDeficit — a filer whose book
+    is an accumulated DEFICIT, so the value is negative and travels as
+    such. Before this concept was mapped the adapter emitted no such
+    figure at all, and every consumer read that as "not reported" — an
+    absence the adapter manufactured, for every US company at once."""
+    ir = build_summary_ir(load_facts_doc(), fetched_at=FETCHED_AT)
+    fig = ir["figures"].get("retained_earnings")
+    assert fig is not None, (
+        "retained_earnings was not extracted from the real Apple bytes: the "
+        "concept map has no RetainedEarningsAccumulatedDeficit (the figure "
+        "the filing carries at 2025-09-27 under accession %s)" % APPLE_ACCN_FY2025
+    )
+    assert fig["value_minor"] == APPLE_RETAINED_EARNINGS_FY2025_USD * 100
+    assert fig["value_minor"] < 0  # a deficit is negative, never abs()'d
+    assert fig["currency"] == "USD"
+    prov = fig["provenance"]
+    assert prov["concept"] == "RetainedEarningsAccumulatedDeficit"
+    assert prov["taxonomy"] == "us-gaap"
+    assert prov["accession"] == APPLE_ACCN_FY2025
+    assert prov["dataset_version"] == APPLE_ACCN_FY2025
+    assert prov["form"] == "10-K"
+    assert prov["filed"] == "2025-10-31"
+    assert prov["as_of"] == FY2025_END
+    # a balance-sheet INSTANT on the fiscal anchor, like equity
+    assert fig["fiscal"] == {"fy": 2025, "fp": "FY", "start": None, "end": FY2025_END}
+    assert fig["fiscal"]["end"] == ir["figures"]["equity"]["fiscal"]["end"]
+    assert not [r for r in ir["refusals"] if r["figure"] == "retained_earnings"]
+
+
+def test_retained_earnings_rides_the_envelope_and_the_fiscal_anchor():
+    ir = build_summary_ir(load_facts_doc(), fetched_at=FETCHED_AT)
+    env = build_envelope(ir, ticker="AAPL")
+    assert env["figures"]["retained_earnings"]["provenance"]["accession"] == APPLE_ACCN_FY2025
+    assert env["fiscal_anchor"] == {"latest_fy": 2025, "latest_annual_end": FY2025_END}
+    assert env["provenance"]["dataset_version"] == APPLE_ACCN_FY2025
+    assert env["refusals"] == []
+
+
+def test_retained_earnings_truly_absent_is_a_named_refusal_and_nothing_else_moves():
+    """THE HONEST RULE, applied only to what is truly absent: delete the
+    concept from the real document and the figure is REFUSED by name —
+    never a zero, never borrowed from a neighbour — while every other
+    figure still resolves exactly as before."""
+    baseline = build_summary_ir(load_facts_doc(), fetched_at=FETCHED_AT)
+    doc = copy.deepcopy(load_facts_doc())
+    del doc["facts"]["us-gaap"]["RetainedEarningsAccumulatedDeficit"]
+    ir = build_summary_ir(doc, fetched_at=FETCHED_AT)
+    assert "retained_earnings" not in ir["figures"]
+    refusal = [r for r in ir["refusals"] if r["figure"] == "retained_earnings"]
+    assert len(refusal) == 1
+    assert refusal[0]["code"] == "CONCEPT_ABSENT"
+    assert "RetainedEarningsAccumulatedDeficit" in refusal[0]["detail"]
+    # nothing else moved: same six figures, same values, same accessions
+    for name in OTHER_FIGURES:
+        assert ir["figures"][name] == baseline["figures"][name], name
+    assert [r for r in ir["refusals"] if r["figure"] != "retained_earnings"] == []
+    env = build_envelope(ir, ticker="AAPL")
+    assert env["fiscal_anchor"]["latest_annual_end"] == FY2025_END
+
+
+def test_retained_earnings_neighbours_are_never_substituted():
+    """The chain has ONE member on purpose. A filer that tags only a
+    component of the line, or the REIT presentation of it, must REFUSE —
+    a component understates the book and the REIT concept carries the
+    opposite sign. Synthetic facts (pure-logic: the selection rule is
+    under test, no external format is being parsed)."""
+    doc = copy.deepcopy(load_facts_doc())
+    gaap = doc["facts"]["us-gaap"]
+    real = gaap.pop("RetainedEarningsAccumulatedDeficit")
+    template = [f for f in real["units"]["USD"] if f["end"] == FY2025_END][0]
+    for neighbour in (
+        "RetainedEarningsUnappropriated",
+        "RetainedEarningsAppropriated",
+        "AccumulatedDistributionsInExcessOfNetIncome",
+    ):
+        gaap[neighbour] = {
+            "label": neighbour, "description": "synthetic neighbour",
+            "units": {"USD": [dict(template, val=1)]},
+        }
+    ir = build_summary_ir(doc, fetched_at=FETCHED_AT)
+    assert "retained_earnings" not in ir["figures"]
+    assert [r["code"] for r in ir["refusals"] if r["figure"] == "retained_earnings"] == ["CONCEPT_ABSENT"]
+    assert edgar_concepts.RETAINED_EARNINGS_CHAIN == ["RetainedEarningsAccumulatedDeficit"]
+
+
+def test_retained_earnings_is_usd_only_like_every_other_figure():
+    doc = copy.deepcopy(load_facts_doc())
+    concept = doc["facts"]["us-gaap"]["RetainedEarningsAccumulatedDeficit"]
+    concept["units"] = {"EUR": concept["units"]["USD"]}  # relabel the unit
+    ir = build_summary_ir(doc, fetched_at=FETCHED_AT)
+    assert "retained_earnings" not in ir["figures"]
+    assert [r["code"] for r in ir["refusals"] if r["figure"] == "retained_earnings"] == ["CONCEPT_ABSENT"]
+
+
 def test_total_debt_composite_short_anchor_plus_addons():
     """Apple does not tag DebtCurrent. Short side = LongTermDebtCurrent (anchor)
     + CommercialPaper (optional add-on, present at the same instant). Long side
@@ -314,7 +424,7 @@ def test_envelope_shape_and_public_market_invariants():
     # figures are a closed set: distractor concepts in the fixture
     # (Liabilities, OperatingIncomeLoss, ...) must never leak through
     allowed = {
-        "revenue", "net_income", "total_assets", "equity",
+        "revenue", "net_income", "total_assets", "equity", "retained_earnings",
         "total_debt", "shares_outstanding",
     }
     assert set(env["figures"].keys()) <= allowed
@@ -583,6 +693,7 @@ def test_full_resolve_flow_offline():
     env = fetch_and_build(client)
     assert env["figures"]["revenue"]["value_minor"] == 41_616_100_000_000
     assert env["figures"]["total_debt"]["value_minor"] == 9_865_700_000_000
+    assert env["figures"]["retained_earnings"]["value_minor"] == APPLE_RETAINED_EARNINGS_FY2025_USD * 100
     # both requests carried the declared UA
     for _url, headers in transport.calls:
         assert headers["User-Agent"] == USER_AGENT

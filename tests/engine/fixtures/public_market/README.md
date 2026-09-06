@@ -29,15 +29,19 @@ Truncation rules (subset-only, no value edits):
 | us-gaap: SalesRevenueNet | end >= 2016-01-01 | legacy chain member (tail of its life) |
 | us-gaap: LongTermDebt | end >= 2022-01-01 | documented-EXCLUDED neighbor (double-count trap: includes current portion) |
 | us-gaap: AccountsPayableCurrent, CashAndCashEquivalentsAtCarryingValue, OperatingIncomeLoss, Liabilities | end >= 2022-01-01 | distractors — must never leak into the IR |
+| us-gaap: RetainedEarningsAccumulatedDeficit | end >= 2022-01-01 | **added 2026-09-05** from a fresh fetch of the same URL (HTTP 200, 3,789,099 bytes — byte-count identical to the 2026-08-29 response; sha256 73a86c6aedc31f77cac2ea4df5f80f0b3bd7e6eb58bb4e01444fbedf3afb9c43). Appended as the LAST us-gaap key; the first 85,508 bytes of the file are the previous fixture's bytes unchanged (asserted at regeneration). Apple tags this and ONLY this retained-earnings concept: no RetainedEarningsAppropriated / Unappropriated, no AccumulatedDistributionsInExcessOfNetIncome. 33 USD facts kept; the FY2025 10-K instant at 2025-09-27 is **-14,264,000,000** (an accumulated deficit — negative, and it must stay negative) under accession 0000320193-25-000079 |
 
-All other concepts (489 of 503 us-gaap) omitted. Top-level `cik`,
+All other concepts (488 of 503 us-gaap) omitted. Top-level `cik`,
 `entityName`, and each kept concept's `label`/`description` preserved verbatim.
 
 Notable real values used as test anchors (FY2025 10-K, accession
 `0000320193-25-000079`, filed 2025-10-31, period end 2025-09-27):
 revenue 416,161,000,000 USD; net income 112,010,000,000; assets
 359,241,000,000; equity 73,733,000,000; LongTermDebtCurrent 12,350,000,000;
-CommercialPaper 7,979,000,000; LongTermDebtNoncurrent 78,328,000,000.
+CommercialPaper 7,979,000,000; LongTermDebtNoncurrent 78,328,000,000;
+RetainedEarningsAccumulatedDeficit -14,264,000,000 (cross-checked 2026-09-04
+against the live Sharadar-normalised body of `/api/public/companies/AAPL`,
+whose `unmapped[].retained_earnings.amount` is the same -14,264,000,000).
 
 ## company_tickers_truncated.json
 

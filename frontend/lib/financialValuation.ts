@@ -458,6 +458,65 @@ function canonical(s: Statements): {
     || (s.assembled_pl !== undefined && s.assembled_pl !== null)
     || (s.assembled_cf !== undefined && s.assembled_cf !== null);
   const hasAssembledBs = s.assembled_bs !== undefined && s.assembled_bs !== null;
+  // ── THE FEED'S ABSENCE MANIFEST APPLIES TO X1 TOO ──────────────────
+  //
+  // `s.absentInputs` was honoured here for ONE line, `retainedEarnings`
+  // (below), and for nothing else — so the current side of the book came
+  // from `factsFrom(s)`, whose bucket sums add the placeholders the
+  // manifest says are unreported. Nobody noticed because the missing
+  // retained earnings refused X2 first, and a refused X2 refuses the
+  // score. The day retained earnings was read correctly off the public
+  // feed, this is what the reader minted for Apple's real FY2024 body:
+  //
+  //     X1 = −0.650  →  working capital −237 B  →  Z" 2.745, SAFE,
+  //     composite 66.6, letter BB+
+  //
+  // over a "current liabilities" that was the ENTIRE 308 B liability
+  // stack (the feed reports no maturity split) and a "current assets"
+  // of cash + receivables + inventory with the rest declared absent.
+  // Apple's actual working capital that year is about −23 B. A letter
+  // on that X1 is a rating built on a placeholder — the fabrication the
+  // completeness law exists to refuse. So: when the SOURCE declares
+  // absences, a current-side total is the reported total if the feed
+  // gave one, else NULL the moment any of its inputs is on the manifest,
+  // and working capital needs both sides. The private path declares no
+  // manifest — a trial balance is complete by construction — so its
+  // numbers do not move. Same shape as `computeRatios`' `gate()`.
+  const manifest = new Set<string>(s.absentInputs ?? []);
+  const sourceDeclaresAbsence = manifest.size > 0 || s.reportedTotals !== undefined;
+  const reportedTotal = (k: "totalCurrentAssets" | "totalCurrentLiabilities"): number | null => {
+    const v = s.reportedTotals?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const manifestTotal = (
+    k: "totalCurrentAssets" | "totalCurrentLiabilities",
+    inputs: readonly string[],
+    read: () => number | null,
+  ): number | null => {
+    if (!sourceDeclaresAbsence) return read();
+    const reported = reportedTotal(k);
+    if (reported !== null) return reported;
+    return inputs.some((i) => manifest.has(i)) ? null : read();
+  };
+  const currentSideAssets = manifestTotal(
+    "totalCurrentAssets",
+    ["cash", "accountsReceivable", "inventory", "otherCurrentAssets"],
+    () => sf.currentAssets(),
+  );
+  const currentSideLiabilities = manifestTotal(
+    "totalCurrentLiabilities",
+    ["accountsPayable", "shortTermDebt", "otherCurrentLiabilities"],
+    () => sf.currentLiabilities(),
+  );
+  const currentSide = {
+    assets: currentSideAssets,
+    liabilities: currentSideLiabilities,
+    workingCapital: !sourceDeclaresAbsence
+      ? sf.workingCapital()
+      : currentSideAssets === null || currentSideLiabilities === null
+        ? null
+        : currentSideAssets - currentSideLiabilities,
+  };
   // Statutory net income includes 722; operational view doesn't.
   const netIncomeStatutory =
     typeof pl.net_income_statutory === "number" ? pl.net_income_statutory : t.netIncome;
@@ -481,9 +540,9 @@ function canonical(s: Statements): {
     totalAssets: sf.totalAssets(),
     totalLiabilities: sf.totalLiabilities(),
     totalEquity: sf.totalEquity(),
-    totalCurrentAssets: sf.currentAssets(),
-    totalCurrentLiabilities: sf.currentLiabilities(),
-    workingCapital: sf.workingCapital(),
+    totalCurrentAssets: currentSide.assets,
+    totalCurrentLiabilities: currentSide.liabilities,
+    workingCapital: currentSide.workingCapital,
     // Z" needs retained earnings + current-year P&L (the cumulative book).
     //
     // THE AUTHORITY IS CHOSEN ONCE. When the engine sent an

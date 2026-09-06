@@ -185,7 +185,24 @@ export const pcmEn = {
     noPrice: "No price — {{reason}}",
     refusalsCount: "{{count}} figures refused rather than estimated",
     refusalsOne: "1 figure refused rather than estimated",
+    // One line per refused figure, naming the FIGURE and the FILING —
+    // never the company's condition. The figure label comes from
+    // `pcm.figure.*` when the name is known, else from the wire name.
+    refusedFigure: "{{figure}} not reported in this filing",
     filing: "Filing",
+  },
+
+  // ── figure labels, keyed by the pm1 wire name ──
+  figure: {
+    revenue: "Revenue",
+    net_income: "Net income",
+    ebitda: "EBITDA",
+    total_assets: "Total assets",
+    equity: "Equity",
+    retained_earnings: "Retained earnings",
+    total_debt: "Total debt",
+    cash_and_equivalents: "Cash and equivalents",
+    shares_outstanding: "Shares outstanding",
   },
 
   // ── company cards ──
@@ -352,7 +369,20 @@ export const pcmRo = {
     noPrice: "Fără preț — {{reason}}",
     refusalsCount: "{{count}} cifre refuzate în loc să fie estimate",
     refusalsOne: "1 cifră refuzată în loc să fie estimată",
+    refusedFigure: "{{figure}} — neraportat în această raportare",
     filing: "Raportare",
+  },
+
+  figure: {
+    revenue: "Venituri",
+    net_income: "Rezultat net",
+    ebitda: "EBITDA",
+    total_assets: "Total active",
+    equity: "Capitaluri proprii",
+    retained_earnings: "Rezultat reportat",
+    total_debt: "Datorii financiare totale",
+    cash_and_equivalents: "Numerar și echivalente",
+    shares_outstanding: "Acțiuni în circulație",
   },
 
   card: {

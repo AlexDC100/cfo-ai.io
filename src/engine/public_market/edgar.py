@@ -553,6 +553,13 @@ def build_summary_ir(doc, fetched_at):
                    edgar_concepts.ASSETS_CHAIN, "instant", fetched_at)
     _select_simple(figures, refusals, "equity", gaap_usd,
                    edgar_concepts.EQUITY_CHAIN, "instant", fetched_at)
+    # Retained earnings is a balance-sheet INSTANT like equity, anchored on
+    # the same fiscal year end and carrying its own accession. It exists so
+    # a downstream Altman X2 (retained earnings / total assets) is read off
+    # a tagged fact — a consumer that cannot find this figure must REFUSE
+    # the rating, never place a zero where the filer's book belongs.
+    _select_simple(figures, refusals, "retained_earnings", gaap_usd,
+                   edgar_concepts.RETAINED_EARNINGS_CHAIN, "instant", fetched_at)
     _build_total_debt(figures, refusals, gaap_usd, fetched_at)
     _build_shares(figures, refusals, doc, fetched_at)
 

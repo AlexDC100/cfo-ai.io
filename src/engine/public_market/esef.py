@@ -6,8 +6,8 @@ WHAT THIS FEED IS
     Inline XBRL filings (ESEF, UKSEF, UAIFRS programmes). Discovery is
     a JSON:API endpoint (``/api/filings``); each filing exposes the
     tagged data as xBRL-JSON (``json_url``) — a flat ``facts`` map this
-    adapter parses for the four core statement figures
-    {revenue, profit, assets, equity}.
+    adapter parses for the core statement figures
+    {revenue, profit, assets, equity, retained_earnings}.
 
 SOURCE TERMS (recorded verbatim from https://filings.xbrl.org/docs/about,
 retrieved 2026-08-29 — also in the fixtures README):
@@ -294,7 +294,38 @@ CORE_CONCEPTS = {
     "profit": ("ifrs-full:ProfitLoss",),
     "assets": ("ifrs-full:Assets",),
     "equity": ("ifrs-full:Equity",),
+    # Retained earnings — the whole component of equity, or nothing.
+    # ifrs-full:RetainedEarnings is the IFRS element for "cumulative
+    # undistributed earnings or deficit" (IAS 1.78(e)). It is the only
+    # CHAIN member: each neighbour ALONE is a substitution —
+    #   * ifrs-full:RetainedEarningsProfitLossForReportingPeriod is the
+    #     current-period slice (S.T. Dupont FY2026: 2,042,000 EUR = its
+    #     ProfitLoss), not the cumulative book;
+    #   * ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod
+    #     is the complement and understates by exactly that slice;
+    #   * filer EXTENSIONS (S.T. Dupont tags its complement as
+    #     STD:MiscellaneousOtherReservesAndRetainedEarningsExcludingProfit
+    #     LossForReportingPeriod, which also folds in "other reserves")
+    #     are filer-specific and cannot be mapped generically.
+    # The PAIR of ifrs-full components, at the SAME instant, IS the line
+    # — that is RETAINED_EARNINGS_COMPONENTS below, a both-or-refuse
+    # composite (the total_debt shape of the EDGAR adapter). Measured on
+    # two real FR filings (2026-09-05): NEITHER tags bare
+    # ifrs-full:RetainedEarnings; Medincell tags both components
+    # undimensioned (-11,446,000 + -31,287,000 EUR at 2026-03-31) and
+    # resolves through the composite; S.T. Dupont tags the slice plus an
+    # extension and is TRULY absent — ``bundle.absent`` says so.
+    "retained_earnings": ("ifrs-full:RetainedEarnings",),
 }  # type: Dict[str, Tuple[str, ...]]
+
+#: Retained earnings, composite fallback: BOTH ifrs-full components at the
+#: SAME instant and in the SAME currency, or the metric is absent. Never
+#: one side alone (a silent understatement), never an extension concept.
+RETAINED_EARNINGS_COMPONENTS = (
+    "ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod",
+    "ifrs-full:RetainedEarningsProfitLossForReportingPeriod",
+)  # type: Tuple[str, str]
+RETAINED_EARNINGS_COMPOSITE_CONCEPT = "composite(%s+%s)" % RETAINED_EARNINGS_COMPONENTS
 
 #: The four base OIM dimensions of an undimensioned (consolidated)
 #: fact. Any EXTRA key means a member/segment breakdown — those never
@@ -340,6 +371,9 @@ class EsefFigure:
     period_start: Optional[str]
     as_of: str
     provenance: Dict[str, object]
+    #: For a COMPOSITE figure only: every (concept, value) that was summed,
+    #: so the consumer can see the parts. None for a single-concept figure.
+    components: Optional[Tuple[Tuple[str, float], ...]] = None
 
 
 @dataclass(frozen=True)
@@ -383,7 +417,7 @@ def _clean_facts_for_concept(facts, concept):
 
 def extract_core_facts(document, filing, fetched_at):
     # type: (dict, Optional[EsefFiling], str) -> Union[EsefFactBundle, Refusal]
-    """Parse one xBRL-JSON document into the four core figures.
+    """Parse one xBRL-JSON document into the core figures.
 
     Pure — no I/O. ``fetched_at`` is REQUIRED (no default): provenance
     without a fetch stamp is not provenance, and making the caller
@@ -468,8 +502,84 @@ def extract_core_facts(document, filing, fetched_at):
                 del inconsistent[metric]  # a later candidate recovered it
             break
 
+    if "retained_earnings" not in figures:
+        composite = _retained_earnings_composite(facts, filing, fetched_at)
+        if isinstance(composite, EsefFigure):
+            figures["retained_earnings"] = composite
+            inconsistent.pop("retained_earnings", None)
+        elif composite is not None:
+            inconsistent["retained_earnings"] = composite
+
     absent = tuple(sorted(metric for metric in CORE_CONCEPTS if metric not in figures))
     return EsefFactBundle(figures=figures, absent=absent, inconsistent=inconsistent)
+
+
+def _retained_earnings_composite(facts, filing, fetched_at):
+    # type: (dict, Optional[EsefFiling], str) -> Union[EsefFigure, str, None]
+    """BOTH ifrs-full retained-earnings components at ONE instant, summed.
+
+    Returns the figure; a string naming an inconsistency (recorded, and the
+    metric stays absent); or None when a component is simply not tagged.
+    Fail closed at every seam: one side missing, sides at different
+    instants, sides in different currencies, or a side whose duplicate
+    tags disagree — each refuses the whole line rather than reporting a
+    number the filing did not state."""
+    excluding, slice_ = RETAINED_EARNINGS_COMPONENTS
+    try:
+        rows_ex = _clean_facts_for_concept(facts, excluding)
+        rows_sl = _clean_facts_for_concept(facts, slice_)
+    except (TypeError, ValueError):
+        return "%s: non-numeric value in a component" % RETAINED_EARNINGS_COMPOSITE_CONCEPT
+    if not rows_ex or not rows_sl:
+        return None  # a component the filer never tagged — absent, not 0
+
+    def _order_key(row):
+        # type: (Tuple[str, float, str]) -> Tuple[str, str]
+        start, as_of = derive_period(row[0])
+        return (as_of, start or "")
+
+    try:
+        anchor = max(rows_ex, key=_order_key)[0]
+    except ValueError:
+        return "%s: unparseable period" % RETAINED_EARNINGS_COMPOSITE_CONCEPT
+    parts = []  # type: List[Tuple[str, float, str]]
+    for concept, rows in ((excluding, rows_ex), (slice_, rows_sl)):
+        chosen = [row for row in rows if row[0] == anchor]
+        if not chosen:
+            return (
+                "%s: %s has no fact at instant %s — refusing to mix instants"
+                % (RETAINED_EARNINGS_COMPOSITE_CONCEPT, concept, anchor)
+            )
+        values = set(row[1] for row in chosen)
+        currencies = set(row[2] for row in chosen)
+        if len(values) != 1 or len(currencies) != 1:
+            return (
+                "%s: %d conflicting values in period %s"
+                % (concept, len(values), anchor)
+            )
+        parts.append((concept, values.pop(), currencies.pop()))
+    if parts[0][2] != parts[1][2]:
+        return (
+            "%s: components in different currencies (%s vs %s)"
+            % (RETAINED_EARNINGS_COMPOSITE_CONCEPT, parts[0][2], parts[1][2])
+        )
+    period_start, as_of = derive_period(anchor)
+    return EsefFigure(
+        metric="retained_earnings",
+        value=parts[0][1] + parts[1][1],
+        currency=parts[0][2],
+        concept=RETAINED_EARNINGS_COMPOSITE_CONCEPT,
+        period_start=period_start,
+        as_of=as_of,
+        provenance={
+            "source": SOURCE_NAME,
+            "accession": filing.fxo_id if filing is not None else None,
+            "sha256": filing.sha256 if filing is not None else None,
+            "as_of": as_of,
+            "fetched_at": fetched_at,
+        },
+        components=tuple((concept, value) for concept, value, _cur in parts),
+    )
 
 
 # ── sibling-document block (the spine assembles the envelope) ───────
@@ -492,6 +602,11 @@ def to_public_market_block(bundle, filing):
             "as_of": figure.as_of,
             "provenance": dict(figure.provenance),
         }
+        if figure.components is not None:
+            statement_facts[metric]["components"] = [
+                {"concept": concept, "value": value}
+                for concept, value in figure.components
+            ]
     return {
         "document_class": PUBLIC_MARKET_DOCUMENT_CLASS,
         "status": PUBLIC_MARKET_STATUS,

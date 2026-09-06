@@ -1,0 +1,1509 @@
+{
+ "documentInfo": {
+  "documentType": "https://xbrl.org/2021/xbrl-json",
+  "features": {
+   "xbrl:canonicalValues": true
+  },
+  "namespaces": {
+   "ifrs-full": "https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full",
+   "iso4217": "http://www.xbrl.org/2003/iso4217",
+   "medincell": "https://www.medincell.com/taxonomy/2025-12-31/medincell_full_entry_point",
+   "scheme": "http://standards.iso.org/iso/17442",
+   "xbrl": "https://xbrl.org/2021",
+   "xbrli": "http://www.xbrl.org/2003/instance"
+  },
+  "taxonomy": [
+   "https://www.medincell.com/taxonomy/2025-12-31/medincell-2026-03-31.xsd"
+  ]
+ },
+ "facts": {
+  "fact_470917": {
+   "value": "Medincell S.A",
+   "dimensions": {
+    "concept": "ifrs-full:NameOfReportingEntityOrOtherMeansOfIdentification",
+    "language": "fr",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  },
+  "fact_470407": {
+   "value": "3480000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470421": {
+   "value": "2647000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470409": {
+   "value": "2553000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RightofuseAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470423": {
+   "value": "2937000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RightofuseAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470410": {
+   "value": "15000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:InvestmentAccountedForUsingEquityMethod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470424": {
+   "value": "15000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:InvestmentAccountedForUsingEquityMethod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470411": {
+   "value": "2829000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherNoncurrentFinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470425": {
+   "value": "1900000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherNoncurrentFinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470412": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:DeferredTaxAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470426": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:DeferredTaxAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470413": {
+   "value": "11319000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470427": {
+   "value": "9835000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:NoncurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470415": {
+   "value": "86000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentTaxAssetsCurrent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470429": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentTaxAssetsCurrent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470416": {
+   "value": "7333000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherCurrentNonfinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470430": {
+   "value": "5573000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherCurrentNonfinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470417": {
+   "value": "22030000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherCurrentFinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470431": {
+   "value": "12857000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:OtherCurrentFinancialAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470419": {
+   "value": "96736000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470433": {
+   "value": "80617000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:CurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470420": {
+   "value": "108055000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470434": {
+   "value": "90452000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Assets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470437": {
+   "value": "-11446000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470460": {
+   "value": "-68985000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470438": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsProfitLossForReportingPeriod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470461": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RetainedEarningsProfitLossForReportingPeriod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470439": {
+   "value": "3064000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470462": {
+   "value": "-16367000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAttributableToOwnersOfParent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470441": {
+   "value": "3064000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470464": {
+   "value": "-16367000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470457": {
+   "value": "108055000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAndLiabilities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470480": {
+   "value": "90452000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:EquityAndLiabilities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470481": {
+   "value": "19518000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromContractsWithCustomers",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470507": {
+   "value": "25419000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:RevenueFromContractsWithCustomers",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470483": {
+   "value": "24277000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Revenue",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470509": {
+   "value": "27727000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Revenue",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470489": {
+   "value": "-20743000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "medincell:ProfitLossFromOrdinaryOperatingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470515": {
+   "value": "-10762000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "medincell:ProfitLossFromOrdinaryOperatingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470492": {
+   "value": "-20781000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470518": {
+   "value": "-10840000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossFromOperatingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470499": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470525": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470500": {
+   "value": "-31356000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossBeforeTax",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470526": {
+   "value": "-18278000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossBeforeTax",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470502": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470528": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470503": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470529": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470504": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToNoncontrollingInterests",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470530": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLossAttributableToNoncontrollingInterests",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470533": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470541": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470556": {
+   "value": "291000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470580": {
+   "value": "31015000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470604": {
+   "value": "-72000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470628": {
+   "value": "-47020000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470652": {
+   "value": "-25038000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470676": {
+   "value": "-40823000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470700": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470724": {
+   "value": "-40824000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470557": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470581": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470605": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470629": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470653": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470677": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470701": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470725": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470562": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470586": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470610": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470634": {
+   "value": "-25038000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470658": {
+   "value": "25038000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470682": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470706": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470730": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470563": {
+   "value": "33000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470587": {
+   "value": "39419000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470611": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470635": {
+   "value": "-6000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470659": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470683": {
+   "value": "39446000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470707": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470731": {
+   "value": "39446000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470567": {
+   "value": "331000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470591": {
+   "value": "70725000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470615": {
+   "value": "-71000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470639": {
+   "value": "-68914000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470663": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470687": {
+   "value": "-16367000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470711": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470735": {
+   "value": "-16367000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470568": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470592": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470616": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470640": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470664": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470688": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470712": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470736": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470573": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470597": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470621": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470645": {
+   "value": "-18439000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470669": {
+   "value": "18439000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470693": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470717": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470741": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughAppropriationOfRetainedEarnings",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470574": {
+   "value": "24000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470598": {
+   "value": "44844000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470622": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470646": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470670": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470694": {
+   "value": "44868000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470718": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470742": {
+   "value": "44868000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IssueOfEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470578": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470602": {
+   "value": "-70725000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470626": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470650": {
+   "value": "70725000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470674": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470698": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470722": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470746": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:IncreaseDecreaseThroughTransfersAndOtherChangesEquity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470579": {
+   "value": "359000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:IssuedCapitalMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470603": {
+   "value": "45438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:SharePremiumMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470627": {
+   "value": "-61000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470651": {
+   "value": "-11385000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:RetainedEarningsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470675": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "medincell:NetResultMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470699": {
+   "value": "3064000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:EquityAttributableToOwnersOfParentMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470723": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "ifrs-full:ComponentsOfEquityAxis": "ifrs-full:NoncontrollingInterestsMember",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470747": {
+   "value": "3064000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:Equity",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470779": {
+   "value": "-31287000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470812": {
+   "value": "-18438000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:ProfitLoss",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470786": {
+   "value": "40000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:AdjustmentsForLossesGainsOnDisposalOfNoncurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470753": {
+   "value": "156000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:AdjustmentsForLossesGainsOnDisposalOfNoncurrentAssets",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470795": {
+   "value": "1229000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470762": {
+   "value": "913000.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "ifrs-full:PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470796": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "medincell:ProceedsOfPropertyPlantEquipmentAndIntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470763": {
+   "value": "0.0",
+   "decimals": -3,
+   "dimensions": {
+    "concept": "medincell:ProceedsOfPropertyPlantEquipmentAndIntangibleAssetsOtherThanGoodwill",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2024-04-01T00:00:00/2025-04-01T00:00:00",
+    "unit": "iso4217:EUR"
+   }
+  },
+  "fact_470872": {
+   "value": "<div><div class=\"A1_01\" style=\"left:5.9em;top:34.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 944.766em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 160, 227); line-height: 1.11719em;\">4.22 – Reconnaissance des produits des activités ordinaires  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:36.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 946.766em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.31em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Les revenus générés par le Groupe proviennent de contrats de partenariat conclus avec des laboratoires de l'industrie  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:37.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 947.766em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">pharmaceutique et des fondations pour des programmes de recherche, de vente de licences.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:40.7459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 950.746em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Revenus perçus au titre des contrats de partenariat conclus avec des laboratoires de l'industrie pharmaceutique et des  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:41.7459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 951.746em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">fondations pour des programmes de recherche et ventes de licences  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:43.7459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 953.746em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.28em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Les produits développés par Medincell associent des principes actifs présents dans des médicaments innovants ou déjà  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:44.7459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 954.746em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.05em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">commercialisés à sa technologie propriétaire BEPO®.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:46.7259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 956.726em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.12em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Les revenus du Groupe proviennent de contrats de partenariat signés avec un nombre limité de partenaires, et permettent le  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:47.7259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 957.726em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">développement d'un portefeuille de produits injectables à action prolongée dans différentes aires thérapeutiques.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:49.7259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 959.726em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Les revenus relatifs à ces contrats sont généralement constitués :  </span></div></div><div class=\"A1_01\" style=\"left:7.4em;top:51.6798em;\"><div class=\"annul-style\" style=\"left: 7.4em; top: 961.68em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.66em; font-family: &quot;FRTSEK+SymbolMT&quot;, &quot;Times New Roman&quot;; color: rgb(0, 0, 0); line-height: 1.2251em;\">•</span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:51.7459em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 961.746em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">De paiements forfaitaires initiaux non remboursables reçus à la signature du contrat (ou « upfront payments ») ;  </span></div></div><div class=\"A1_01\" style=\"left:7.4em;top:52.7198em;\"><div class=\"annul-style\" style=\"left: 7.4em; top: 962.72em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.66em; font-family: &quot;FRTSEK+SymbolMT&quot;, &quot;Times New Roman&quot;; color: rgb(0, 0, 0); line-height: 1.2251em;\">•</span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:52.7859em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 962.786em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">De remboursements de charges des programmes de recherche, qui sont calculés en fonction des ressources internes  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:53.7859em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 963.786em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">allouées au programme scientifique concerné, notamment sur la base du nombre de « FTE » (Full Time Equivalent ou  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:54.7859em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 964.786em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.21em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Equivalent Temps Plein) affectés au programme, multipliés par un taux annuel de facturation. Ils peuvent inclure  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:55.7859em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 965.786em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">également les coûts directs de matériels, équipements et des activités sous-traitées ;  </span></div></div><div class=\"A1_01\" style=\"left:7.4em;top:56.7598em;\"><div class=\"annul-style\" style=\"left: 7.4em; top: 966.76em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.66em; font-family: &quot;FRTSEK+SymbolMT&quot;, &quot;Times New Roman&quot;; color: rgb(0, 0, 0); line-height: 1.2251em;\">•</span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:56.8259em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 966.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.25em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">De paiements forfaitaires non remboursables, qui deviennent acquis lors de certains événements techniques ou  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:57.8259em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 967.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.05em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">commerciaux (« milestones »). Ces paiements dépendent d'événements qui sont en-dehors du contrôle de la Société  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:58.8259em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 968.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.17em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">et qui sont incertains (décisions de poursuite du développement de la part du partenaire, obtention d'autorisations  </span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:59.8259em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 969.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">réglementaires, commercialisation par le partenaire, seuils de vente, etc.) ;  </span></div></div><div class=\"A1_01\" style=\"left:7.4em;top:60.7998em;\"><div class=\"annul-style\" style=\"left: 7.4em; top: 970.8em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.66em; font-family: &quot;FRTSEK+SymbolMT&quot;, &quot;Times New Roman&quot;; color: rgb(0, 0, 0); line-height: 1.2251em;\">•</span></div></div><div class=\"A1_01\" style=\"left:8.9em;top:60.8659em;\"><div class=\"annul-style\" style=\"left: 8.9em; top: 970.866em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">De royalties calculées sur les ventes réalisées par le partenaire.  </span></div></div><div class=\"A1_01\" style=\"left:43.0048em;top:64.5621em;\"><div class=\"annul-style\" style=\"left: 43.0048em; top: 974.562em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.62em; font-family: &quot;JCKJDU+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">92  </span></div></div></div><div><div class=\"A1_01\" style=\"left:5.9em;top:2.8693em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 982.869em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.46em; font-family: &quot;RASEUL+Lato-Black&quot;; color: rgb(0, 0, 0); line-height: 1.2em;\">3.  </span></div></div><div class=\"A1_01\" style=\"left:7.4em;top:2.8693em;\"><div class=\"annul-style\" style=\"left: 7.4em; top: 982.869em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.07em; font-size: 0.46em; font-family: &quot;RASEUL+Lato-Black&quot;; color: rgb(0, 0, 0); line-height: 1.2em; letter-spacing: -0.01em;\">INFORMATIONS FINANCIERES DE LA SOCIETE  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:5.8659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 985.866em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.2em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Les contrats du Groupe avec ses partenaires pour le développement de ses produits comprennent généralement plusieurs  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:6.8659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 986.866em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.06em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">obligations de performance.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:9.8659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 989.866em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Produits au titre des prestations de développement  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:11.8459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 991.846em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.14em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Lorsqu'une licence de technologie et une prestation de développement de formulation sont promises dans un même contrat,  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:12.8459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 992.846em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.13em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">celles-ci sont analysées comme une Obligation de Performance unique. La licence et le développement ne sont en effet pas  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:13.8459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 993.846em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.22em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">distincts, au sens d'IFRS 15, car chacun des deux éléments est indispensable pour permettre au client de bénéficier des  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:14.8459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 994.846em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">avantages de l'autre élément.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:16.8259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 996.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.13em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">L'Obligation de Performance unique comprenant la licence et le développement est reconnue à l'avancement des travaux de  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:17.8259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 997.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.1em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">développement dès lors qu'au moins un des critères requis par IFRS 15.35 est rempli. En l'espèce, la prestation crée un actif  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:18.8259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 998.826em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.02em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">dont le client obtient le contrôle au fur et à mesure de sa réalisation.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:20.8259em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1000.83em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.14em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Le Groupe retient la méthode de l'avancement des coûts (coûts encourus rapportés aux coûts totaux estimés à terminaison)  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:21.8059em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1001.81em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">comme la méthode la plus appropriée pour mesurer l'avancement des prestations.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:24.8059em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1004.81em; position: absolute; white-space: nowrap;\"><span style=\"font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em; letter-spacing: 0.01em;\">Milest<span style=\"letter-spacing: 0em;\">ones  </span></span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:26.8059em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1006.81em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.21em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">En application du principe du plafonnement des Contreparties Variables au montant hautement probable (IFRS 15.56), les  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:27.7859em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1007.79em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.05em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">paiements conditionnés par l'atteinte de milestones (décision du client de poursuivre les travaux de développement, succès des  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:28.7859em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1008.79em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.13em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">phases cliniques, autorisations réglementaires, seuils de vente atteints) sont exclus de l'estimation du Prix de la Transaction,  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:29.7859em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1009.79em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">compte tenu du haut degré d'incertitude attaché à la réalisation des événements correspondants.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:31.7859em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1011.79em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.17em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Ces paiements ne sont reconnus en chiffre d'affaires que lorsqu'ils sont effectivement acquis ou lorsqu'il devient hautement  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:32.7859em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1012.79em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">probable qu'ils ne donneront pas lieu à une reprise significative des revenus déjà comptabilisés.  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:35.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1015.77em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0em; font-size: 0.66em; font-family: &quot;IHULDT+Arial-BoldMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em; letter-spacing: 0.01em;\">Royalties co<span style=\"letter-spacing: 0em;\">mmerciaux  </span></span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:37.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1017.77em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.04em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">Même après l'obtention de l'AMM et le démarrage de la commercialisation du produit, les royalties assises sur les ventes nettes  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:38.7659em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1018.77em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.13em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">de produits réalisées par les partenaires, ne seront reconnues que lorsque les ventes auront été réalisées, en application de  </span></div></div><div class=\"A1_01\" style=\"left:5.9em;top:39.7459em;\"><div class=\"annul-style\" style=\"left: 5.9em; top: 1019.75em; position: absolute; white-space: nowrap;\"><span style=\"word-spacing: 0.03em; font-size: 0.66em; font-family: &quot;BNJIKG+ArialMT&quot;; color: rgb(0, 0, 0); line-height: 1.11719em;\">l'exception sur les « sales-based royalties » (IFRS 15.B63).  </span></div></div></div>",
+   "dimensions": {
+    "concept": "ifrs-full:DescriptionOfAccountingPolicyForRecognitionOfRevenue",
+    "language": "fr",
+    "entity": "scheme:969500R79U6PXCL2FF46",
+    "period": "2025-04-01T00:00:00/2026-04-01T00:00:00"
+   }
+  }
+ }
+}

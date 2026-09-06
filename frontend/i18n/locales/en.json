@@ -2884,13 +2884,27 @@
     "title": "Cookies",
     "body": "Strictly necessary and preference cookies load by default. Analytics cookies load only if you allow them, and declining changes nothing about how the platform works.",
     "policyLink": "Read the Cookie Policy",
-    "necessary": "Strictly necessary \u2014 sign-in, security, load balancing. Always on.",
-    "preferences": "Preferences \u2014 language, display currency, theme. Part of the service you asked for.",
-    "analytics": "Analytics \u2014 usage statistics. Only with your consent.",
+    "necessary": "Strictly necessary — sign-in, security, load balancing. Always on.",
+    "preferences": "Preferences — language, display currency, theme. Part of the service you asked for.",
+    "analytics": "Analytics — usage statistics. Only with your consent.",
     "accept": "Allow analytics",
     "reject": "Decline analytics",
     "currentChoice": "Current choice: {{value}}. You can change it at any time under Settings.",
     "stateAllowed": "analytics allowed",
     "stateDeclined": "analytics declined"
+  },
+  "publicCompany": {
+    "ratingUnavailable": "Rating unavailable: {{figure}} not reported in this filing",
+    "ratingUnavailableMany": "Rating unavailable: {{figures}} not reported in this filing",
+    "ratingUnavailableGeneric": "Rating unavailable: a required figure is not reported in this filing",
+    "figure": {
+      "retainedEarnings": "retained earnings",
+      "currentAssets": "current assets",
+      "currentLiabilities": "current liabilities",
+      "ebit": "operating income (EBIT)",
+      "totalAssets": "total assets",
+      "totalEquity": "total equity",
+      "totalLiabilities": "total liabilities"
+    }
   }
 }

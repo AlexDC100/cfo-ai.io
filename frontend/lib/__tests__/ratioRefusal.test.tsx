@@ -125,7 +125,6 @@ describe("the AAPL fixture is the right subject", () => {
       "accountsPayable",
       "longTermDebt",
       "shortTermDebt",
-      "retainedEarnings",
     ]) {
       expect(
         absent.has(name as never),
@@ -133,6 +132,20 @@ describe("the AAPL fixture is the right subject", () => {
           "computed from a placeholder zero.",
       ).toBe(true);
     }
+  });
+
+  it("retained earnings is REPORTED by this feed — it was never absent, only shelved", () => {
+    // This list used to pin `retainedEarnings` as absent. The feed REPORTS
+    // it: Sharadar's `retearn` is on the body, shelved under `unmapped[]`
+    // because canonical schema v1 has no bucket for the leaf name the
+    // normalizer tried. Pinning it absent encoded a manufactured absence
+    // as the law and made every Altman refusal look like the filing's
+    // fault. The reported book is an accumulated DEFICIT, so it is
+    // negative — a reader that took an absolute magnitude would be wrong
+    // by twice the number.
+    const { statements } = publicRatios();
+    expect(statements.absentInputs ?? []).not.toContain("retainedEarnings");
+    expect(statements.balanceSheet.retainedEarnings).toBe(-19_154_000_000);
   });
 });
 
@@ -154,6 +167,20 @@ describe("F2 — a ratio over an absent input has no value and no verdict", () =
     "ccc",
     "altman_z",
   ];
+
+  it("altman_z refuses on X1 (no current split in the feed), not on retained earnings", () => {
+    // With retained earnings read off the feed, X2 computes. The row STILL
+    // refuses — because the feed reports no current-asset / current-
+    // liability split, so X1 has no honest operands. Before the credit
+    // reader honoured the manifest for X1 it minted Z" 2.745 / SAFE /
+    // BB+ over a working capital of −237 B (every liability as current).
+    const { statements } = publicRatios();
+    const credit = computeCreditScore(statements);
+    expect(credit.altman.components.x2_re_to_assets).not.toBeNull();
+    expect(credit.altman.components.x1_wc_to_assets).toBeNull();
+    expect(credit.altman.score).toBeNull();
+    expect(credit.rating).toBeNull();
+  });
 
   it("each of them returns null, verdict `unknown`, and never `critical`", () => {
     const { all } = publicRatios();

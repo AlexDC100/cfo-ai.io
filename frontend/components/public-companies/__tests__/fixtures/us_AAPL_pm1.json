@@ -1,6 +1,6 @@
 {
   "envelope": {
-    "content_hash": "sha256:3a2d2e71bbc2b1227a5285d8005cde08e526d0de22cfc2a480b3b0e9309cc29b",
+    "content_hash": "sha256:d14dfd51d22ad5b4bc564e2b69040070ec5ada2ec953806205aee58fd59deaf8",
     "doc_class": "public_market",
     "entity": {
       "cik": "0000320193",
@@ -62,6 +62,32 @@
           "unit": "USD"
         },
         "value_minor": 11201000000000
+      },
+      "retained_earnings": {
+        "currency": "USD",
+        "fiscal": {
+          "end": "2025-09-27",
+          "fp": "FY",
+          "fy": 2025,
+          "start": null
+        },
+        "minor_unit": "cent",
+        "provenance": {
+          "accession": "0000320193-25-000079",
+          "accession_or_version": "0000320193-25-000079",
+          "as_of": "2025-09-27",
+          "concept": "RetainedEarningsAccumulatedDeficit",
+          "dataset_version": "0000320193-25-000079",
+          "fetched_at": "2026-08-30T04:59:44Z",
+          "filed": "2025-10-31",
+          "form": "10-K",
+          "fp": "FY",
+          "fy": 2025,
+          "source": "sec_edgar_companyfacts",
+          "taxonomy": "us-gaap",
+          "unit": "USD"
+        },
+        "value_minor": -1426400000000
       },
       "revenue": {
         "currency": "USD",

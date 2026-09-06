@@ -35,7 +35,8 @@ import type {
 import type {
   CFInvestingLine, CashFlowStatement,
 } from "@/lib/cfStructure";
-import type { StatementInput, Statements } from "@/lib/financialReport";
+import type { ReportedTotalKey, StatementInput, Statements } from "@/lib/financialReport";
+import type { CreditScoreResult } from "@/lib/financialValuation";
 import type { PublicCompanyEnvelope, PublicCompanyPeriod } from "@/lib/publicCompanyApi";
 
 type Headline = PublicCompanyPeriod["headline"];
@@ -73,6 +74,66 @@ function totalLiabilities(h: Headline | null | undefined): number | null {
   if (!h) return null;
   if (h.total_assets == null || h.total_equity == null) return null;
   return h.total_assets - h.total_equity;
+}
+
+// ── RETAINED EARNINGS: A LEAF NOTHING PRODUCED ──────────────────────────
+//
+// This adapter read `leaf(p, "retained_earnings_accumulated")`. The
+// Sharadar normalizer (`engine/public/normalizer.py`, `_EQUITY_MAP`) maps
+// SF1 `retearn` to exactly that canonical name — but canonical schema v1
+// has NO bucket by that name (`bucket_by_name` returns None), so the
+// normalizer SHELVES the reported value under `unmapped[]` with
+// `reason: "canonical_leaf_not_in_schema_v1"`, the signed `amount`
+// intact, and `canonical_attempted` naming the leaf it tried. The leaf
+// itself is never written. So every public company was declared to have
+// "not reported" retained earnings, and the credit reader — correctly —
+// refused Altman X2, the score, the zone and the letter on an absence
+// the ADAPTER manufactured. Measured on the live body of
+// `/api/public/companies/AAPL` (2026-09-04): `unmapped[].retained_earnings
+// .amount === -14,264,000,000`, byte-for-byte the FY2025
+// us-gaap:RetainedEarningsAccumulatedDeficit in Apple's 10-K (accession
+// 0000320193-25-000079), which the EDGAR adapter now also emits as the
+// pm1 figure `retained_earnings`.
+//
+// `reportedRetainedEarnings` reads the value from where the feed put it.
+// It is the feed's own record (name, code, amount), not a derivation. It
+// does NOT read `leaves.retained_earnings_accumulated`: if schema v1 ever
+// grows that bucket, the leaf would arrive as an ABSOLUTE `magnitude`
+// with a `sign_meaning` — and `leaf()` returns the magnitude, so an
+// accumulated deficit would flip positive. A signed line needs a signed
+// reader; this one takes the signed amount.
+//
+// THE SAME CLASS, NOT BRIDGED HERE (each moves verdicts and needs its own
+// gate): of the thirteen leaf names this file reads, NINE have no bucket
+// in schema v1 and are shelved the same way — `bank_loans_lt`,
+// `cfi_capex`, `cogs_materials`, `depreciation_total`,
+// `external_services_other`, `external_services_rnd`,
+// `interest_expense_bank`, `ppe_grossbook_buildings` and (now bridged)
+// `retained_earnings_accumulated`. Only `ar_trade_gross`,
+// `income_tax_current`, `intangibles_goodwill` and
+// `inventory_merchandise_resale` are leaves a producer can emit. Each
+// unbridged name is a manufactured absence of exactly this shape;
+// `shelvedReported` is the one-line bridge for any of them, once its
+// semantics (e.g. Sharadar `ppe` is NET, the leaf name says gross) are
+// confirmed.
+
+/** A figure the FEED reported that the normalizer could not place in a
+ *  canonical bucket. Returned SIGNED, as the feed stated it. `undefined`
+ *  when the feed carried no such record — absence stays absence. */
+function shelvedReported(p: PublicCompanyPeriod | null, sourceName: string): number | undefined {
+  if (!p) return undefined;
+  const rows = Array.isArray(p.unmapped) ? p.unmapped : [];
+  for (const u of rows) {
+    if (!u || u.name !== sourceName) continue;
+    if (u.reason !== "canonical_leaf_not_in_schema_v1") continue;
+    if (typeof u.amount === "number" && Number.isFinite(u.amount)) return u.amount;
+  }
+  return undefined;
+}
+
+/** Retained earnings (accumulated deficit when negative), as reported. */
+export function reportedRetainedEarnings(p: PublicCompanyPeriod | null): number | undefined {
+  return shelvedReported(p, "retained_earnings");
 }
 
 /** Investing / financing cash flow are NOT recoverable from the envelope —
@@ -332,10 +393,10 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
   const equity: BSSection = {
     header: "EQUITY",
     lines: [
-      bsLine("Retained earnings", leaf(cur, "retained_earnings_accumulated"), leaf(prior, "retained_earnings_accumulated")),
+      bsLine("Retained earnings", reportedRetainedEarnings(cur), reportedRetainedEarnings(prior)),
       bsLine("Other equity (paid-in capital, OCI, treasury)",
-        diff(c.total_equity, leaf(cur, "retained_earnings_accumulated")),
-        diff(p?.total_equity, leaf(prior, "retained_earnings_accumulated")),
+        diff(c.total_equity, reportedRetainedEarnings(cur)),
+        diff(p?.total_equity, reportedRetainedEarnings(prior)),
       ),
     ],
     subtotalLabel: "Total equity",
@@ -569,7 +630,7 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
   const intang = leaf(cur, "intangibles_goodwill");
   const ar = leaf(cur, "ar_trade_gross");
   const inv = leaf(cur, "inventory_merchandise_resale");
-  const retained = leaf(cur, "retained_earnings_accumulated");
+  const retained = reportedRetainedEarnings(cur);
 
   const bs = {
     // REPORTED — headline fields and mapped leaves.
@@ -692,8 +753,8 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
             otherCurrentLiabilities: 0,
             longTermDebt: leaf(prior, "bank_loans_lt") ?? 0,
             otherNonCurrentLiabilities: 0,
-            shareCapital: Math.max(0, (p.total_equity ?? 0) - (leaf(prior, "retained_earnings_accumulated") ?? 0)),
-            retainedEarnings: leaf(prior, "retained_earnings_accumulated") ?? 0,
+            shareCapital: Math.max(0, (p.total_equity ?? 0) - (reportedRetainedEarnings(prior) ?? 0)),
+            retainedEarnings: reportedRetainedEarnings(prior) ?? 0,
             otherEquity: 0,
           },
           incomeStatement: {
@@ -709,6 +770,81 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
       : undefined,
   };
   return result;
+}
+
+
+// ── THE RATING REFUSAL — precise, and about the FILING ─────────────────
+//
+// When the credit reader cannot mint a letter for a public company, the
+// page must say WHICH figure the filing did not report and nothing about
+// the company's condition: "Rating unavailable: retained earnings not
+// reported in this filing". This maps the reader's own refused Altman
+// components onto the feed's absence manifest — it decides no score and
+// carries no ladder, it only NAMES what the reader refused on.
+
+export type RatingFigure =
+  | "retainedEarnings"
+  | "currentAssets"
+  | "currentLiabilities"
+  | "ebit"
+  | "totalAssets"
+  | "totalEquity"
+  | "totalLiabilities";
+
+export interface RatingRefusal {
+  /** The figures the filing did not report, in Altman component order
+   *  (X1 → X4). Empty when the reader refused for a reason the manifest
+   *  does not name — the sentence then names no figure rather than
+   *  inventing one. */
+  figures: RatingFigure[];
+}
+
+const X1_CURRENT_ASSET_INPUTS: readonly StatementInput[] = [
+  "cash", "accountsReceivable", "inventory", "otherCurrentAssets",
+];
+const X1_CURRENT_LIABILITY_INPUTS: readonly StatementInput[] = [
+  "accountsPayable", "shortTermDebt", "otherCurrentLiabilities",
+];
+
+/** Null when a rating WAS minted. Otherwise the figures the refusal is
+ *  about, read off the same manifest the reader refused on. */
+export function ratingRefusalFor(s: Statements, credit: CreditScoreResult): RatingRefusal | null {
+  if (credit.rating !== null && credit.score !== null && credit.altman.score !== null) return null;
+  const absent = new Set<string>(s.absentInputs ?? []);
+  const reported = (k: ReportedTotalKey): boolean => {
+    const v = s.reportedTotals?.[k];
+    return typeof v === "number" && Number.isFinite(v);
+  };
+  const x = credit.altman.components;
+  const figures: RatingFigure[] = [];
+  const push = (f: RatingFigure) => { if (!figures.includes(f)) figures.push(f); };
+  if (x.x1_wc_to_assets === null) {
+    if (!reported("totalCurrentAssets") && X1_CURRENT_ASSET_INPUTS.some((k) => absent.has(k))) push("currentAssets");
+    if (!reported("totalCurrentLiabilities") && X1_CURRENT_LIABILITY_INPUTS.some((k) => absent.has(k))) push("currentLiabilities");
+  }
+  if (x.x2_re_to_assets === null && absent.has("retainedEarnings")) push("retainedEarnings");
+  if (x.x3_ebit_to_assets === null && !reported("ebit")) push("ebit");
+  if (x.x4_equity_to_liabilities === null) {
+    if (!reported("totalEquity")) push("totalEquity");
+    if (!reported("totalLiabilities")) push("totalLiabilities");
+  }
+  const anyNull = [x.x1_wc_to_assets, x.x2_re_to_assets, x.x3_ebit_to_assets, x.x4_equity_to_liabilities]
+    .some((v) => v === null);
+  if (anyNull && !reported("totalAssets")) push("totalAssets");
+  return { figures };
+}
+
+/** The sentence, composed from the i18n keys under `publicCompany.*`.
+ *  `t` is the app translator; the figure names come from the same
+ *  bundle so EN and RO cannot drift apart. */
+export function ratingRefusalSentence(
+  refusal: RatingRefusal,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (refusal.figures.length === 0) return t("publicCompany.ratingUnavailableGeneric");
+  const names = refusal.figures.map((f) => t(`publicCompany.figure.${f}`));
+  if (names.length === 1) return t("publicCompany.ratingUnavailable", { figure: names[0] });
+  return t("publicCompany.ratingUnavailableMany", { figures: names.join(", ") });
 }
 
 

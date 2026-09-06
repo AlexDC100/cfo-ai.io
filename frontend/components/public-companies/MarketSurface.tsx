@@ -58,6 +58,7 @@ const FIGURE_ORDER = [
   "ebitda",
   "total_assets",
   "equity",
+  "retained_earnings",
   "total_debt",
   "cash_and_equivalents",
   "shares_outstanding",
@@ -350,6 +351,16 @@ export function MarketCompanyDocumentView({
     (env.entity && typeof env.entity.ticker === "string" && env.entity.ticker) ||
     env.entity_id;
   const refusalCount = Array.isArray(env.refusals) ? env.refusals.length : 0;
+  // The figures the feed REFUSED, by name. A refusal record on the wire is
+  // `{figure, code, detail}`; only the figure name is rendered — the
+  // sentence names the figure and the filing, never the company's
+  // condition, and the rest of the document still renders every figure
+  // the filing did carry.
+  const refusedFigures = (Array.isArray(env.refusals) ? env.refusals : [])
+    .map((r) => (r && typeof r === "object" ? (r as { figure?: unknown }).figure : undefined))
+    .filter((f): f is string => typeof f === "string" && f.length > 0);
+  const figureLabel = (name: string): string =>
+    i18n.exists(`pcm.figure.${name}`) ? t(`pcm.figure.${name}`) : humanFigureName(name);
   // One currency for the whole block, and ONLY when every money figure
   // agrees. A mixed-currency document gets no shared label — the figures
   // would then each need their own, which is a case this feed refuses to
@@ -421,11 +432,22 @@ export function MarketCompanyDocumentView({
       )}
 
       {refusalCount > 0 && (
-        <p className="border-t border-rule-soft pt-2 text-[11px] text-ink-mute">
-          {refusalCount === 1
-            ? t("pcm.doc.refusalsOne")
-            : t("pcm.doc.refusalsCount", { count: refusalCount })}
-        </p>
+        <div className="border-t border-rule-soft pt-2 text-[11px] text-ink-mute">
+          <p>
+            {refusalCount === 1
+              ? t("pcm.doc.refusalsOne")
+              : t("pcm.doc.refusalsCount", { count: refusalCount })}
+          </p>
+          {refusedFigures.length > 0 && (
+            <ul className="mt-1 space-y-0.5" data-testid="market-document-refusals">
+              {refusedFigures.map((name) => (
+                <li key={name} data-testid={`market-document-refusal-${name}`}>
+                  {t("pcm.doc.refusedFigure", { figure: figureLabel(name) })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {/* The serving tier's own source + licence lines, verbatim. The

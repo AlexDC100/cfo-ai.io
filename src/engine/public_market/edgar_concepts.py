@@ -41,6 +41,32 @@ IncludingPortionAttributableToNoncontrollingInterest variant. The chosen
 concept name always travels in provenance, so the consumer can see which
 scope it got.
 
+RETAINED_EARNINGS_CHAIN — the whole balance-sheet line, or nothing:
+  1. RetainedEarningsAccumulatedDeficit — the us-gaap element for the
+     line "Retained earnings (accumulated deficit)". Credit-balance
+     positive: a deficit is a NEGATIVE value and travels as one (Apple
+     FY2025, accession 0000320193-25-000079: -14,264,000,000 USD). Apple
+     tags this and ONLY this retained-earnings concept — measured on the
+     full 3,789,099-byte companyfacts document, 503 us-gaap concepts.
+  This chain has one member on purpose. Every neighbour would be a
+  SUBSTITUTION, not a fallback, and none is in the chain:
+  * RetainedEarningsUnappropriated / RetainedEarningsAppropriated — the
+    two COMPONENTS of the line. Either alone understates the book; the
+    pair is a both-or-refuse composite (the total_debt shape) that no
+    committed real filing needs yet, and this table grows fixture-first.
+  * AccumulatedDistributionsInExcessOfNetIncome — the REIT presentation
+    of the same line (9 of the 14 registry members that do not tag
+    RetainedEarningsAccumulatedDeficit tag this instead, measured on the
+    SEC frames API, CY2025Q4I). It is DEBIT-balance positive: a positive
+    value IS the deficit, so mapping it means negating a fact — a
+    transformation this adapter performs nowhere else. It becomes a
+    sign-aware chain member only with a real REIT companyfacts fixture.
+  * StockholdersEquity minus (CommonStock + APIC + AOCI ...) — a residual
+    derived from other lines, not a tagged fact. Never.
+  * Any non-USD unit — USD-only in v1, like every other figure here.
+  A filer that tags none of the above gets a typed CONCEPT_ABSENT refusal
+  for `retained_earnings`; every other figure still resolves.
+
 TOTAL DEBT — "require both or refuse":
   total_debt = short-term debt + long-term debt, and BOTH sides must resolve
   at the SAME instant (period end) or the figure is refused. Never report one
@@ -124,6 +150,10 @@ EQUITY_CHAIN = [
     "StockholdersEquity",
     "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
 ]
+
+# Retained earnings (accumulated deficit): ONE member, on purpose — see the
+# module docstring for why every neighbour is a substitution, not a fallback.
+RETAINED_EARNINGS_CHAIN = ["RetainedEarningsAccumulatedDeficit"]
 
 # Short-term debt: umbrella first; composite fallback (anchor + optional add-ons)
 SHORT_DEBT_UMBRELLA_CHAIN = ["DebtCurrent"]

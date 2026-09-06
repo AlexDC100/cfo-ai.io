@@ -111,7 +111,12 @@ def test_extract_core_facts_st_dupont_real_filing():
 
     figures = bundle.figures
     assert set(figures) == {"revenue", "profit", "assets", "equity"}
-    assert bundle.absent == ()
+    # Retained earnings is TRULY absent from this filing: S.T. Dupont tags no
+    # ifrs-full:RetainedEarnings at all (it splits the line into an
+    # extension concept plus the period slice — see the test below). The
+    # honest answer is a named absence, never a zero and never a neighbour.
+    assert bundle.absent == ("retained_earnings",)
+    assert "retained_earnings" not in bundle.inconsistent
 
     assert figures["revenue"].value == 55810000.0
     assert figures["profit"].value == 2042000.0
@@ -154,7 +159,144 @@ def test_public_market_block_shape_and_status():
     assert facts["equity"]["value"] == 29802000.0
     assert facts["equity"]["provenance"]["source"] == "filings.xbrl.org"
     # absence is a first-class, visible list — never a zero
+    assert block["absent"] == ["retained_earnings"]
+    assert "retained_earnings" not in facts
+
+
+def test_retained_earnings_neighbours_in_the_real_filing_never_substitute():
+    """The real S.T. Dupont bytes carry the two concepts that LOOK like
+    retained earnings and are not the line: the period slice
+    (ifrs-full:RetainedEarningsProfitLossForReportingPeriod, which equals
+    the filing's ProfitLoss) and a filer extension for the complement.
+    Neither may be read as retained earnings — the metric refuses."""
+    doc = _dupont_doc()
+    concepts = set(
+        f["dimensions"]["concept"] for f in doc["facts"].values()
+        if isinstance(f, dict) and isinstance(f.get("dimensions"), dict)
+    )
+    assert "ifrs-full:RetainedEarnings" not in concepts
+    assert "ifrs-full:RetainedEarningsProfitLossForReportingPeriod" in concepts
+    assert any(c.startswith("STD:") and "RetainedEarnings" in c for c in concepts)
+    bundle = esef.extract_core_facts(doc, filing=_dupont_filing(), fetched_at=FETCHED_AT)
+    assert "retained_earnings" not in bundle.figures
+    assert "retained_earnings" in bundle.absent
+    assert esef.CORE_CONCEPTS["retained_earnings"] == ("ifrs-full:RetainedEarnings",)
+
+
+def test_retained_earnings_resolves_when_the_filer_tags_the_ifrs_element():
+    """Pure-logic (synthetic, per this module's policy): the CHAIN member.
+    No committed real filing tags an undimensioned ifrs-full:RetainedEarnings
+    — both real FR filings below split the line — so the single-concept
+    path is exercised by adding ONE such fact to the real Dupont document.
+    A filer that tags the element resolves through it, ahead of the
+    composite, and a deficit stays negative."""
+    doc = _dupont_doc()
+    doc["facts"]["fact_synthetic_re"] = {
+        "value": "-1141000.0",
+        "decimals": -3,
+        "dimensions": {
+            "concept": "ifrs-full:RetainedEarnings",
+            "entity": "scheme:969500YT2CGGAD8YNM04",
+            "period": "2026-04-01T00:00:00",
+            "unit": "iso4217:EUR",
+        },
+    }
+    bundle = esef.extract_core_facts(doc, filing=_dupont_filing(), fetched_at=FETCHED_AT)
+    fig = bundle.figures["retained_earnings"]
+    assert fig.value == -1141000.0  # a deficit stays negative
+    assert fig.concept == "ifrs-full:RetainedEarnings"
+    assert fig.components is None
+    assert fig.currency == "EUR"
+    assert fig.as_of == "2026-03-31"
+    assert fig.provenance["accession"] == "969500YT2CGGAD8YNM04-2026-03-31-ESEF-FR-0"
+    assert bundle.absent == ()
+
+
+# ── Medincell: the REAL filing that resolves through the composite ────
+
+
+def _medincell_doc():
+    return json.loads(_load("xbrl_json_medincell_2026_03_31_truncated.json"))
+
+
+def _medincell_filing():
+    filings = esef.parse_filings_response(_load("filings_api_fr_page.json"))
+    return [f for f in filings if f.entity_identifier == "969500R79U6PXCL2FF46"][0]
+
+
+def test_retained_earnings_composite_on_medincell_real_filing():
+    """Medincell (FY 2026-03-31) tags NO bare ifrs-full:RetainedEarnings but
+    BOTH ifrs-full components, undimensioned, at the same instant:
+    -11,446,000 (excluding the period) + -31,287,000 (the period slice).
+    The pair IS the line; the composite carries both parts with the
+    figure so the consumer can see what was summed."""
+    doc = _medincell_doc()
+    concepts = set(
+        f["dimensions"]["concept"] for f in doc["facts"].values()
+        if isinstance(f, dict) and isinstance(f.get("dimensions"), dict)
+    )
+    assert "ifrs-full:RetainedEarnings" not in concepts
+    bundle = esef.extract_core_facts(doc, filing=_medincell_filing(), fetched_at=FETCHED_AT)
+    assert not isinstance(bundle, Refusal)
+    assert bundle.absent == ()
+    assert bundle.inconsistent == {}
+    fig = bundle.figures["retained_earnings"]
+    assert fig.value == -42733000.0
+    assert fig.currency == "EUR"
+    assert fig.as_of == "2026-03-31"
+    assert fig.period_start is None  # an instant, like equity
+    assert fig.concept == esef.RETAINED_EARNINGS_COMPOSITE_CONCEPT
+    assert fig.components == (
+        ("ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod", -11446000.0),
+        ("ifrs-full:RetainedEarningsProfitLossForReportingPeriod", -31287000.0),
+    )
+    assert fig.provenance["accession"] == "969500R79U6PXCL2FF46-2026-03-31-ESEF-FR-0"
+    assert fig.provenance["fetched_at"] == FETCHED_AT
+    # the other four figures of the same real filing
+    assert bundle.figures["revenue"].value == 24277000.0
+    assert bundle.figures["revenue"].concept == "ifrs-full:Revenue"
+    assert bundle.figures["profit"].value == -31287000.0
+    assert bundle.figures["assets"].value == 108055000.0
+    assert bundle.figures["equity"].value == 3064000.0
+    block = esef.to_public_market_block(bundle, filing=_medincell_filing())
     assert block["absent"] == []
+    assert block["statement_facts"]["retained_earnings"]["components"] == [
+        {"concept": "ifrs-full:RetainedEarningsExcludingProfitLossForReportingPeriod", "value": -11446000.0},
+        {"concept": "ifrs-full:RetainedEarningsProfitLossForReportingPeriod", "value": -31287000.0},
+    ]
+
+
+def test_retained_earnings_composite_refuses_one_side_alone():
+    """Never a one-sided line: drop either component and the metric is
+    absent (a silent understatement is what the composite exists to
+    prevent), while every other figure still resolves."""
+    for dropped in esef.RETAINED_EARNINGS_COMPONENTS:
+        doc = _medincell_doc()
+        doc["facts"] = {
+            fid: f for fid, f in doc["facts"].items()
+            if f.get("dimensions", {}).get("concept") != dropped
+        }
+        bundle = esef.extract_core_facts(doc, filing=_medincell_filing(), fetched_at=FETCHED_AT)
+        assert "retained_earnings" not in bundle.figures, dropped
+        assert bundle.absent == ("retained_earnings",), dropped
+        assert set(bundle.figures) == {"revenue", "profit", "assets", "equity"}
+
+
+def test_retained_earnings_composite_refuses_mixed_instants():
+    """Both sides tagged, but the period slice only at an EARLIER instant
+    than the complement: refusing to mix balance dates is recorded as an
+    inconsistency and the metric stays absent."""
+    doc = _medincell_doc()
+    slice_concept = esef.RETAINED_EARNINGS_COMPONENTS[1]
+    doc["facts"] = {
+        fid: f for fid, f in doc["facts"].items()
+        if not (f.get("dimensions", {}).get("concept") == slice_concept
+                and f["dimensions"].get("period") == "2026-04-01T00:00:00")
+    }
+    bundle = esef.extract_core_facts(doc, filing=_medincell_filing(), fetched_at=FETCHED_AT)
+    assert "retained_earnings" not in bundle.figures
+    assert bundle.absent == ("retained_earnings",)
+    assert "refusing to mix instants" in bundle.inconsistent["retained_earnings"]
 
 
 # ────────────────────────────────────────────────────────────────────
