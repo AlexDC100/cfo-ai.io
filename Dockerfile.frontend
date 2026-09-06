@@ -33,6 +33,16 @@ COPY index.html vite.config.ts tailwind.config.ts postcss.config.js ./
 COPY tsconfig.json tsconfig.app.json tsconfig.node.json components.json ./
 COPY frontend/ ./frontend/
 COPY public/ ./public/
+# The Vite config imports the legal generator and prerenderer from scripts/,
+# and both read the reviewed documents from content/legal/. Neither was in
+# this image's context, so the first build after the legal publication
+# failed with `Could not resolve "./scripts/generate_legal_documents.mjs"` —
+# the SAME class of miss as shipping server.py without the modules it
+# imports: a build input that exists locally and nowhere else. The legal
+# gate (`node scripts/check_legal_published.mjs`) reads both trees too, so
+# they travel together or the gate cannot run in the image it certifies.
+COPY scripts/ ./scripts/
+COPY content/ ./content/
 RUN npm run build
 
 # ─── Runtime stage ───
