@@ -49,6 +49,79 @@ export function metricsFor(book: Book): Record<string, number | null> {
   return SERVED_METRICS[book] ?? {};
 }
 
+// ── THE WORKSPACE SETTING, WHICH THE BOOK ALONE DOES NOT CARRY ────────
+//
+// `saga_10_col_*.json` is captured from a book with no workspace
+// attached, so every one of them carries `industry: null`. A null
+// industry agrees with nothing and disagrees with nothing — so the case
+// the owner actually met, a LIVE Agras report headed "Real estate ·
+// residential rental" over a book of 301/341/345/371 and 70.5M of cost
+// of sales, was reachable from no committed artefact and the block that
+// exists for it was exercised only by payloads a test built by hand.
+//
+// These three files are the served response, in the three pieces the
+// route assembles it from (pipeline.py:7711):
+//
+//   saga_10_col_<book>.json   .statements          ← the book
+//   workspace_industry.json   .displays[<key>]     ← statements.industry
+//   industry_signal.json      [<book>][<key>]      ← statements.industry_signal
+//
+// All three are real engine output. `servedAs()` performs the join and
+// nothing else; no test composes it privately any more.
+
+interface WorkspaceIndustryFixture {
+  displays: Record<string, string>;
+  books: Record<Book, { structural_family: string; agrees: string; disputes: string }>;
+}
+
+const WORKSPACE_INDUSTRY = JSON.parse(
+  readFileSync(firm("workspace_industry.json"), "utf-8"),
+) as WorkspaceIndustryFixture;
+
+const INDUSTRY_SIGNALS = JSON.parse(
+  readFileSync(firm("industry_signal.json"), "utf-8"),
+) as Record<Book, Record<string, unknown>>;
+
+/** Which workspace key each book agrees with, and which it disputes. */
+export function workspaceKeys(book: Book): { agrees: string; disputes: string } {
+  const row = WORKSPACE_INDUSTRY.books[book];
+  return { agrees: row.agrees, disputes: row.disputes };
+}
+
+export function workspaceDisplay(key: string): string {
+  const display = WORKSPACE_INDUSTRY.displays[key];
+  if (display === undefined) {
+    throw new Error(`workspace_industry.json states no display for key ${JSON.stringify(key)}`);
+  }
+  return display;
+}
+
+/** The book as `GET /api/period/{id}` serves it for one workspace setting. */
+export function servedAs(book: Book, key: string): BookStatements {
+  const signal = INDUSTRY_SIGNALS[book][key];
+  if (signal === undefined) {
+    throw new Error(
+      `industry_signal.json carries no ${book}/${key}; it carries: ` +
+        Object.keys(INDUSTRY_SIGNALS[book]).join(", "),
+    );
+  }
+  return {
+    ...statementsFor(book),
+    industry: workspaceDisplay(key),
+    industry_signal: signal,
+  };
+}
+
+/** THE OWNER'S CASE, per book: the mix and the workspace disagree. */
+export function disputedBook(book: Book): BookStatements {
+  return servedAs(book, workspaceKeys(book).disputes);
+}
+
+/** The same book under the setting its own account mix seconds. */
+export function agreeingBook(book: Book): BookStatements {
+  return servedAs(book, workspaceKeys(book).agrees);
+}
+
 /** The whole printed document, as the Export tab writes it. */
 export function exportHtml(book: Book, statements = statementsFor(book)): string {
   return buildReportHtml(statements, { metricsByName: metricsFor(book) });

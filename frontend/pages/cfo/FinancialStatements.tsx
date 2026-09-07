@@ -4847,7 +4847,7 @@ function RatioTile({
         </div>
         <span
           className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
-            ratio.verdict === "unknown"
+            ratio.verdict === "unknown" || ratio.verdict === "ungraded"
               ? "border-rule text-ink-mute"
               : ratio.verdict === "critical"
                 ? "anim-fill-red border-red-500/40"
@@ -4865,7 +4865,9 @@ function RatioTile({
                 ? t("dashV2.ratioVerdictWatch")
                 : ratio.verdict === "unknown"
                   ? t("dashV2.ratioVerdictUnknown")
-                  : t("dashV2.ratioVerdictCritical")}
+                  : ratio.verdict === "ungraded"
+                    ? t("dashV2.ratioVerdictUngraded")
+                    : t("dashV2.ratioVerdictCritical")}
         </span>
       </div>
       {/* A REFUSED RATIO IS NOT A NUMBER, so it does not get the number

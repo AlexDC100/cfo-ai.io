@@ -53,6 +53,31 @@ import { spellLadder } from "./creditModel";
 // the block decision are all computed once in
 // `src/engine/industry/structural_signal.py`.
 import { blocksSectorContent, readIndustrySignal } from "./industrySignal";
+// CHARTS + THE DOCUMENT SHELL — `frontend/lib/charts/`. Server-generated
+// SVG, no chart library, no runtime dependency: every figure in every
+// chart is drawn into the bytes this function returns, so a gate can
+// parse it and a reader with no network can see it. The shell (cover,
+// contents, provenance card, find, toggles, print rules) lives beside
+// the charts because it is the same deliverable — the one HTML file.
+import {
+  allChartBlocks,
+  chartCss,
+  contentsPage,
+  contentsRail,
+  coverPage,
+  provAttrs,
+  miniTrack,
+  provenanceCard,
+  readBands,
+  renderChartBlock,
+  shellCss,
+  shellScript,
+  toggleBar,
+  zonesForKey,
+  type ChartBlock,
+  type ShellSection,
+  type ToggleSpec,
+} from "./charts";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -663,7 +688,20 @@ export function deriveTotals(s: Statements): DerivedTotals {
  *  that 0 as "critical", which is how the AAPL page came to show
  *  `interest_coverage 0.00x CRITICAL` for a company whose EBIT in the
  *  same fixture is 123,216,000,000. */
-export type RatioVerdict = "strong" | "healthy" | "watch" | "critical" | "unknown";
+/** `"ungraded"` is the OTHER refusal, and it is not the same one.
+ *  `"unknown"` says the ratio has no value. `"ungraded"` says the ratio
+ *  has a value and no ladder that may be applied to it here — measured
+ *  today only when the workspace's sector and the account mix disagree
+ *  and the band was one sector's (see `SECTOR_CALIBRATED_RATIOS`). They
+ *  are separate members because they print differently beside a figure:
+ *  "Not reported" over a printed 72 days would be a third lie. */
+export type RatioVerdict =
+  | "strong"
+  | "healthy"
+  | "watch"
+  | "critical"
+  | "unknown"
+  | "ungraded";
 
 export interface Ratio {
   key: string;
@@ -698,6 +736,28 @@ export interface Ratio {
    *  carry, or which denominator is zero. */
   unavailable?: FigureAbsence;
   commentary: string;
+  /** THE LADDER THE VERDICT WAS DECIDED BY, carried rather than discarded.
+   *
+   *  `row()` used to consume the band object and throw it away, so the
+   *  only trace of "healthy starts at 1.5×" was the English in
+   *  `benchmark`. That makes "what would change the verdict" — how far
+   *  this company is from the next rung — unanswerable except by
+   *  re-typing the cutoffs somewhere else, which is TC-10's exact
+   *  prohibition: a threshold written as prose beside a verdict computed
+   *  from a different copy of it.
+   *
+   *  ABSENT means NO LADDER WAS APPLIED, and that is not the same as an
+   *  empty one: a sector-calibrated row under a disputed sector carries
+   *  no ladder here precisely so nothing downstream can quote the cutoff
+   *  the card refused to print. */
+  ladder?: RatioLadder;
+}
+
+export interface RatioLadder {
+  bands: { critical?: number; watch?: number; healthy?: number; strong?: number };
+  /** Which direction the number improves in — without it a band edge is
+   *  a number with no side, and "distance to the next rung" has no sign. */
+  higherIsBetter: boolean;
 }
 
 // ── `bankruptcy` IS NOT A FIELD OF THIS BUNDLE, AND THAT IS THE FIX ────
@@ -743,6 +803,43 @@ const pct = (a: number, b: number): number => safeDiv(a, b) * 100;
  *  dash inside prose reads as a typesetting accident, and a reader who
  *  has to guess what it means guesses "zero". */
 export const UNREPORTED_WORD = "not reported";
+
+// ── WHICH BANDS ARE ONE SECTOR'S, AND WHICH ARE EVERY SECTOR'S ────────
+//
+// Not a taste call. `CLAUDE.md` Appendix A §5 tabulates the benchmark
+// for each ratio, and six of them are given as a RANGE THAT MOVES WITH
+// THE INDUSTRY — the framework states both ends itself:
+//
+//   EBITDA margin   food mfg 8–13%   ·  real estate 50%+
+//   Net margin      food mfg 3–7%    ·  real estate 20–50%
+//   Gross margin    "Industry-dependent"
+//   DIO             food mfg 40–70 d ·  real estate 0–5 d
+//   DSO             food mfg 30–60 d ·  real estate 15–45 d
+//   Asset turnover  "1.0–1.5×", and the row itself says "(industry-dependent)"
+//
+// Every other band in §5 is given as ONE number for all businesses
+// ("Current ratio >1.5× ideal", "Interest coverage >3.0× safe",
+// "Equity ratio >30%"). Those are not withheld when the sector is
+// disputed, because nothing about them was calibrated on a sector — and
+// a block that blanked them too would blank the report and prove
+// nothing. Six of twenty-two rows lose their ladder; sixteen keep it.
+//
+// `sectorBenchmarkLexiconLeak.test.ts` reds if a row outside this set
+// prints a band that names a sector.
+export const SECTOR_CALIBRATED_RATIOS: ReadonlySet<string> = new Set([
+  "gross_margin",
+  "ebitda_margin",
+  "net_margin",
+  "dio",
+  "dso",
+  "asset_turnover",
+]);
+
+/** What a sector-calibrated row prints INSTEAD of a band it may not
+ *  assert. Never "—": a dash in the benchmark column reads as "no
+ *  benchmark exists", which is the opposite of what happened. */
+export const SECTOR_BAND_WITHHELD =
+  "Benchmark withheld — this ratio's healthy range differs by sector and the sector is unconfirmed";
 
 /** Reader-facing words for a statement line. A refusal names the CONCEPT
  *  the filing is missing, not the camelCase field the code happens to
@@ -891,6 +988,12 @@ export function computeRatios(
    *  by `anchored()` below — the resolver every caption quotes through. */
   const apl = s.assembled_pl ?? {};
   const days = sup.periodDays ?? 365;
+  // THE ONE AUTHORITY, asked once. Never re-derived from `s.industry` or
+  // from `agreement` at a call site — a second spelling of this question
+  // is how a header ends up saying "unconfirmed" while the cards below
+  // it keep grading against one sector's ladder.
+  const sectorDisputed = blocksSectorContent(readIndustrySignal(s.industry_signal));
+  const sectorCalibrated = SECTOR_CALIBRATED_RATIOS;
 
   // ── WHAT THIS SOURCE ACTUALLY REPORTED ──────────────────────────────
   //
@@ -1245,6 +1348,34 @@ export function computeRatios(
         commentary: describeAbsence(absence),
       };
     }
+    // ── THE BAND IS SECTOR CONTENT; THE ARITHMETIC IS NOT ─────────────
+    //
+    // Measured on the disputed Agras export (the owner's live case: a
+    // meat book served under "Real estate · residential rental"), the
+    // header promised "no sector benchmark … is included below" and the
+    // §Efficiency card three screens down printed
+    //
+    //     Days Inventory Outstanding   72 days   Watch   ≤ 60 days for FMCG · varies by industry
+    //
+    // One document, two answers. The value is fine — inventory ÷ total
+    // operating expense × days does not know what sector it is in. What
+    // does not survive a disputed sector is the LADDER: 60 days is the
+    // FMCG rung, and both the printed band AND the badge banded off it
+    // are that rung's conclusion. Withholding the sentence while keeping
+    // the badge would be TC-10 backwards — a cutoff hidden from the
+    // verdict it produced. Both go, together, and the row says why.
+    if (sectorCalibrated.has(key) && sectorDisputed) {
+      return {
+        key,
+        label,
+        formula,
+        value: f.value,
+        unit,
+        verdict: "ungraded",
+        benchmark: SECTOR_BAND_WITHHELD,
+        commentary: commentary(f.value),
+      };
+    }
     return {
       key,
       label,
@@ -1254,6 +1385,9 @@ export function computeRatios(
       verdict: verdictFromBands(f.value, bands, higherIsBetter),
       benchmark,
       commentary: commentary(f.value),
+      // The SAME object `verdictFromBands` just read. "What would change
+      // the verdict" bands off this and cannot drift from the badge.
+      ladder: { bands, higherIsBetter },
     };
   };
   /** A money figure for commentary — the gap word when it is absent, so a
@@ -1516,6 +1650,13 @@ export function altmanRatio(credit: CreditScoreResult): Ratio {
     verdict: a.zone === "safe" ? "healthy" : a.zone === "grey" ? "watch" : "critical",
     benchmark,
     commentary: `${credit.components[0]?.read ?? ""} · ${credit.modelLabel}`.trim(),
+    // The reader's OWN thresholds — the same two numbers `benchmark`
+    // above spells and `a.zone` was decided by, so the distance-to-rung
+    // model quotes the model's ladder rather than a second copy of it.
+    ladder: {
+      bands: { healthy: a.thresholds.safe, watch: a.thresholds.distress },
+      higherIsBetter: true,
+    },
   };
 }
 
@@ -1888,9 +2029,10 @@ export function formatRatio(r: Ratio): string {
 export function verdictColor(v: RatioVerdict): { bg: string; text: string } {
   switch (v) {
     case "unknown":
+    case "ungraded":
       // Neutral, not red. A ratio nobody could compute is not a bad
-      // ratio; colouring it like one is the grading defect in another
-      // costume.
+      // ratio, and neither is one whose ladder was withheld; colouring
+      // either like one is the grading defect in another costume.
       return { bg: "#F1F1EF", text: "#5C5C57" }; // design-lint-allow-hex standalone generated report doc
     case "strong":
       return { bg: "#E7F3F1", text: "#0A6154" }; // design-lint-allow-hex standalone generated report doc
@@ -1912,7 +2054,9 @@ export function verdictLabel(v: RatioVerdict): string {
         ? "Watch"
         : v === "unknown"
           ? "Not reported"
-          : "Critical";
+          : v === "ungraded"
+            ? "Not graded"
+            : "Critical";
 }
 
 // ─── HTML report renderer ───────────────────────────────────────────────────
@@ -1939,6 +2083,32 @@ export function verdictLabel(v: RatioVerdict): string {
 // Planting an engine re-band (letter_grade "B" with its own ladder, Z″ 3.50)
 // moved every screen and the workbook to B / 3.50 / Safe. This document did
 // not move at all — it had nothing in it that could.
+/**
+ * THE CHARTS, BUILT ONCE — for the document AND for the workbook.
+ *
+ * R7 asks that the same figure read the same in every format. The only
+ * way to mean that is for the formats to share the construction, not to
+ * be compared afterwards and patched when they differ: two builders that
+ * agree today are two builders, and one of them will be edited alone.
+ * `renderReportHtml` and `buildExcelWorkbook` both call this, so a chart
+ * row's `printed` string is one string in both files.
+ */
+export function reportChartBlocks(
+  s: Statements,
+  credit: CreditScoreResult,
+  metricsByName?: Record<string, number | null>,
+): ChartBlock[] {
+  const ratios = computeRatios(s, undefined, metricsByName);
+  const signal = readIndustrySignal(s.industry_signal);
+  return allChartBlocks({
+    s,
+    ratios,
+    credit,
+    money: (v) => money(v, s.currency),
+    sectorBlocked: blocksSectorContent(signal),
+  });
+}
+
 export function renderReportHtml(
   s: Statements,
   credit: CreditScoreResult,
@@ -2520,6 +2690,8 @@ export function renderReportHtml(
       }
       .footer { display: none; }  /* superseded by @page bottom-center */
     }
+    ${chartCss()}
+    ${shellCss()}
   `;
 
   const today = new Date().toLocaleDateString("en-GB", {
@@ -2542,14 +2714,39 @@ export function renderReportHtml(
   // Verdict is rendered via scoped `.badge.v-<verdict>` class (CSS-driven)
   // rather than the shared `verdictColor()` palette — keeps the report's
   // restrained institutional tones independent of the live UI's colours.
+  // THE BAND POSITION, ON THE CARD. A verdict word says which bucket a
+  // ratio fell in and stops there; the chip below says how far into it.
+  // Same served bands, same construction (`zonesForKey`) as the full
+  // track in §Leverage, so the card and the track cannot place one ratio
+  // in two places. No numerals in it — the figure is already the biggest
+  // thing on the card.
+  const servedBandsForCards = readBands(s);
+  const cardTrack = (rt: Ratio): string => {
+    if (!servedBandsForCards) return "";
+    if (industryDisputed && servedBandsForCards.source !== null && servedBandsForCards.source !== "general_sme_fallback") return "";
+    const built = zonesForKey(servedBandsForCards, rt.key, rt.value);
+    if (!built) return "";
+    return miniTrack(`band-${rt.key}`, built.zones, rt.value, rt.verdict === "critical", rt.label).replace(
+      'class="chart"',
+      'class="chart mini"',
+    );
+  };
+
   const ratioCard = (rt: Ratio): string => `
       <div class="ratio-card">
         <div class="label">${escapeHtml(rt.label)}</div>
-        <div class="value${rt.value === null ? " unreported" : ""}">${escapeHtml(formatRatio(rt))}</div>
+        <div class="value${rt.value === null ? " unreported" : ""}" ${provAttrs({
+          label: rt.label,
+          value: formatRatio(rt),
+          formula: rt.formula,
+          method: rt.value === null ? rt.commentary : rt.benchmark,
+          snapshot: `${s.companyName} · ${s.periodLabel}`,
+        })}>${escapeHtml(formatRatio(rt))}</div>
         <div class="meta">
           <span class="badge v-${rt.verdict}">${escapeHtml(verdictLabel(rt.verdict))}</span>
           &nbsp;${escapeHtml(rt.value === null ? rt.commentary : rt.benchmark)}
         </div>
+        ${cardTrack(rt)}
         <div class="formula" data-ratio-formula="${escapeHtml(rt.key)}">${escapeHtml(rt.formula)}</div>
       </div>
     `;
@@ -2771,6 +2968,104 @@ export function renderReportHtml(
     `;
   };
 
+  // ── THE CHARTS ──────────────────────────────────────────────────────
+  //
+  // Built here, from the served envelope, the ratio bundle this document
+  // already prints and the credit reader that minted the letter — never
+  // from a second arithmetic. `allChartBlocks` returns a block per chart
+  // with BOTH halves (the SVG and its table) or, when the envelope did
+  // not carry the inputs, the gap card and no table. `renderChartBlock`
+  // writes both or neither, which is R5 made structural rather than
+  // remembered.
+  const charts: ChartBlock[] = reportChartBlocks(s, credit, metricsByName);
+  const chartById = (id: string): string => {
+    const b = charts.find((c) => c.id === id);
+    return b ? renderChartBlock(b) : "";
+  };
+
+  // ── THE TOGGLES ─────────────────────────────────────────────────────
+  //
+  // Two ship working, two ship as a STATED absence. A toggle that
+  // switches four figures and leaves ninety unswitched is worse than one
+  // that is not there: the reader believes the whole document moved.
+  //
+  // Working, because both states are figures the ENGINE emitted:
+  //   • P&L basis — the filed close (account 121) against the class-6/7
+  //     reconstruction, both served, both already printed in the P&L.
+  //   • Voice — two authored spellings of the same sentence, no figure
+  //     changes at all.
+  //
+  // Stated absent, with the reason on the control:
+  //   • Currency — this export is not handed a display currency or an FX
+  //     rate (`buildReportHtml` takes none today; the Excel path takes an
+  //     `ExportCurrencyContext` and the page passes `undefined` there
+  //     too). Converting inside the document would mint a rate.
+  //   • Intercompany — the envelope carries `subAggregates.ar_intercompany`,
+  //     a single carve-out, and no ex-intercompany totals, ratios or
+  //     statements. Netting one line and leaving the ratios built on the
+  //     gross one is a document that contradicts itself.
+  const toggles: ToggleSpec[] = [
+    hasBridge
+      ? {
+          attr: "pl-view",
+          label: "Reconciliation to 121",
+          options: [
+            { value: "filed", label: "Filed close", hint: "The headline figure is account 121's closing balance — what the company filed, and what every ratio here is built on. It does not change." },
+            { value: "reconstructed", label: "Show reconstruction", hint: "Also state the class-6/7 movement reconstruction beside it. Both figures are served and they differ on this book; neither is recomputed here." },
+          ],
+        }
+      : {
+          attr: "pl-view",
+          label: "Reconciliation to 121",
+          options: [],
+          unavailableReason: "nothing to reconcile — the class-6/7 reconstruction equals the filed close on this book",
+        },
+    {
+      attr: "voice",
+      label: "Language",
+      options: [
+        { value: "pro", label: "Pro", hint: "Lender register: the terms a credit committee uses." },
+        { value: "simple", label: "Simple", hint: "The same finding in plain words. No figure changes." },
+      ],
+    },
+    {
+      attr: "ccy",
+      label: "Currency",
+      options: [],
+      unavailableReason: `${s.currency} only — no display currency or FX rate was handed to this export`,
+    },
+    {
+      attr: "ic",
+      label: "Intercompany",
+      options: [],
+      unavailableReason: "not restatable — the envelope carries one carve-out, not an ex-intercompany book",
+    },
+  ];
+
+  const SECTIONS: ShellSection[] = [
+    { id: "sec-exec", title: "Executive summary" },
+    { id: "sec-statements", title: "Financial statements" },
+    { id: "sec-cash", title: "Cash and net debt" },
+    { id: "sec-liquidity", title: "Liquidity and working capital" },
+    { id: "sec-profit", title: "Profitability" },
+    { id: "sec-leverage", title: "Leverage and coverage" },
+    { id: "sec-credit", title: "Credit and distress" },
+    { id: "sec-recs", title: "Recommendations" },
+    { id: "sec-basis", title: "Basis of preparation" },
+  ];
+  const section = (id: string, title: string, bodyHtml: string): string =>
+    `<section class="rsec" id="${id}" data-collapsed="0"><h2>${escapeHtml(title)}</h2><div class="rsec-body">${bodyHtml}</div></section>`;
+
+  // Both voices, both in the document. The toggle shows one.
+  const voiced = (pro: string, simple: string, cls = "commentary"): string =>
+    `<div class="${cls}" data-variant="voice-pro">${pro}</div>` +
+    `<div class="${cls}" data-variant="voice-simple">${simple}</div>`;
+
+  const bsStatusLine = (() => {
+    const p2 = sf.presentStatus(s.currency);
+    return p2.exportHeadline;
+  })();
+
   const recommendationCard = (rec: Recommendation): string => `
     <div class="rec">
       <h4>
@@ -2791,19 +3086,33 @@ export function renderReportHtml(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(s.companyName)} — Financial Analysis ${escapeHtml(s.periodLabel)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>${css}</style>
 </head>
-<body>
+<body data-pl-view="filed" data-voice="pro" data-ccy="base" data-ic="with">
+  ${toggleBar(toggles)}
+  ${contentsRail(SECTIONS)}
+
+  ${coverPage({
+    company: s.companyName,
+    period: s.periodLabel,
+    currency: s.currency,
+    industryLine: industryDisputed
+      ? `unconfirmed — the account mix and the workspace setting disagree`
+      : s.industry ?? "not stated",
+    verdict: overallVerdict,
+    generated: today,
+    statusLine: bsStatusLine,
+  })}
+
+  ${contentsPage(SECTIONS)}
+
   <div class="running-header">
     <span class="org">${escapeHtml(s.companyName)}</span>
     <span class="meta">Financial Analysis &nbsp;·&nbsp; ${escapeHtml(s.periodLabel)}</span>
   </div>
 
-  <h1>${escapeHtml(s.companyName)}</h1>
   <div class="header-info">
     <p><strong>Comprehensive Financial Analysis</strong></p>
     <p>Period: ${escapeHtml(s.periodLabel)} &nbsp;·&nbsp; Currency: ${escapeHtml(s.currency)}${industryHeaderClause}</p>
@@ -2811,63 +3120,152 @@ export function renderReportHtml(
     ${industryDisputeNote}
   </div>
 
-  <h2>Executive Summary</h2>
+  ${section(
+    "sec-exec",
+    "Executive Summary",
+    `
   <div class="insight">
     <strong>Overall verdict:</strong> ${escapeHtml(overallVerdict)}
   </div>
+  ${voiced(
+    `<strong>How to read this document.</strong> Every figure is traceable: hover any ratio for its formula, the accounts behind it and the snapshot it came from. Charts never carry a number their own table does not print, and a figure the filing did not report is stated as a gap rather than shown as zero.`,
+    `<strong>How to read this.</strong> Every number here comes from your own books, and you can check any of them: hover a number to see the sum behind it. If something is missing from the filing, we say so instead of putting a zero in its place.`,
+  )}
   <div class="grid grid-4">
     <div class="ratio-card">
       <div class="label">Operating revenue</div>
-      <div class="value">${money(operatingRevenue, s.currency)}</div>
+      <div class="value" ${provAttrs({
+        label: "Operating revenue",
+        value: money(operatingRevenue, s.currency),
+        formula: "class 70 credit movements + capitalized own work (722)",
+        accounts: "70x, 722",
+        method: "assembled_pl.total_operating_revenue",
+        snapshot: `${s.companyName} · ${s.periodLabel}`,
+      })}>${money(operatingRevenue, s.currency)}</div>
       ${has722 ? `<div class="meta">incl. 722 ${money(capOwnWork, s.currency)}</div>` : ""}
     </div>
     <div class="ratio-card">
       <div class="label">EBITDA${has722 ? " (statutory)" : ""}</div>
-      <div class="value">${money(ebitdaStatutory, s.currency)}</div>
+      <div class="value" ${provAttrs({
+        label: `EBITDA${has722 ? " (statutory)" : ""}`,
+        value: money(ebitdaStatutory, s.currency),
+        formula: "operating revenue − operating expense, before depreciation",
+        accounts: "70x/72x − 60x/61x/62x/63x/64x/65x",
+        method: "assembled_pl.ebitda_statutory",
+        snapshot: `${s.companyName} · ${s.periodLabel}`,
+      })}>${money(ebitdaStatutory, s.currency)}</div>
       <div class="meta">${escapeHtml(printedRatio("ebitda_margin"))} margin</div>
     </div>
     <div class="ratio-card">
       <div class="label">Net Income (account 121, as filed)</div>
-      <div class="value">${money(netIncomeStatutory, s.currency)}</div>
-      <div class="meta">${escapeHtml(printedRatio("net_margin"))} margin</div>
+      <div class="value" ${provAttrs({
+        label: "Net income (account 121, as filed)",
+        value: money(netIncomeStatutory, s.currency),
+        formula: "account 121 closing balance",
+        accounts: "121",
+        method: "assembled_pl.net_income_statutory",
+        snapshot: `${s.companyName} · ${s.periodLabel}`,
+      })}>${money(netIncomeStatutory, s.currency)}</div>
+      ${
+        hasBridge
+          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(printedRatio("net_margin"))} margin</span><span data-variant="pl-reconstructed">reconstructed from class 6/7: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
+          : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(printedRatio("net_margin"))} margin</div>`
+      }
     </div>
     <div class="ratio-card">
       <div class="label">Total Debt</div>
-      <div class="value">${money(t.totalDebt, s.currency)}</div>
+      <div class="value" ${provAttrs({
+        label: "Total debt",
+        value: money(t.totalDebt, s.currency),
+        formula: "short-term debt + long-term debt",
+        accounts: "519, 162, 167, 168",
+        method: "derived from the served balance sheet",
+        snapshot: `${s.companyName} · ${s.periodLabel}`,
+      })}>${money(t.totalDebt, s.currency)}</div>
       <div class="meta">${escapeHtml(printedRatio("debt_to_ebitda"))} EBITDA</div>
     </div>
   </div>
+  ${chartById("chart-ebitda-bridge")}
+  ${chartById("chart-revenue-trend")}
+  `,
+  )}
 
-  <h2>Financial Statements</h2>
+  ${section(
+    "sec-statements",
+    "Financial Statements",
+    `
   ${balanceSheetTable()}
+  ${chartById("chart-bs-composition")}
   ${incomeStatementTable()}
+  `,
+  )}
 
-  <h2>Liquidity & Working Capital</h2>
+  ${section(
+    "sec-cash",
+    "Cash and Net Debt",
+    `
+  ${chartById("chart-cash-walk")}
+  ${chartById("chart-net-debt-walk")}
+  `,
+  )}
+
+  ${section(
+    "sec-liquidity",
+    "Liquidity & Working Capital",
+    `
   ${ratioGroup("Liquidity", r.liquidity)}
   ${ratioGroup("Working Capital Cycle", r.efficiency)}
+  ${chartById("chart-wc-cycle")}
+  `,
+  )}
 
-  <h2>Profitability</h2>
-  ${ratioGroup("Margin & Returns", r.profitability)}
+  ${section("sec-profit", "Profitability", ratioGroup("Margin & Returns", r.profitability))}
 
-  <h2>Leverage & Coverage</h2>
+  ${section(
+    "sec-leverage",
+    "Leverage & Coverage",
+    `
   ${ratioGroup("Capital Structure", r.leverage)}
   ${ratioGroup("Debt Coverage", r.coverage)}
+  ${chartById("chart-band-tracks")}
+  ${chartById("chart-covenant-headroom")}
+  `,
+  )}
 
-  <h2>Credit &amp; Distress</h2>
+  ${section(
+    "sec-credit",
+    "Credit & Distress",
+    `
   ${creditSection()}
+  ${chartById("chart-credit-contrib")}
+  ${chartById("chart-asset-age")}
+  `,
+  )}
 
-  <h2>Recommendations</h2>
-  ${recs.map(recommendationCard).join("")}
+  ${section("sec-recs", "Recommendations", recs.map(recommendationCard).join(""))}
 
+  ${section(
+    "sec-basis",
+    "Basis of Preparation",
+    `
   <aside class="basis-note">
     <strong>Basis of preparation</strong>
     Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.${provenanceNote}
   </aside>
+  ${voiced(
+    `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the filing did not carry is replaced by a card naming the missing input, never by an empty axis.`,
+    `<strong>About the charts.</strong> Each chart comes with the table of numbers behind it, so nothing is only in a picture. If we did not have the data for a chart, we say what is missing instead of drawing an empty one.`,
+  )}
+  `,
+  )}
+
+  ${provenanceCard()}
 
   <footer class="footer">
     <span class="lhs"><strong>CFO AI</strong> &nbsp;·&nbsp; Financial Statement Intelligence</span>
     <span class="rhs">Generated ${escapeHtml(today)} &nbsp;·&nbsp; Confidential &mdash; for internal use only</span>
   </footer>
+  <script>${shellScript()}</script>
 </body>
 </html>`;
 }

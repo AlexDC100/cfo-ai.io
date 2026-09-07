@@ -22,6 +22,7 @@ import {
   verdictLabel,
   altmanRatio,
   renderReportHtml,
+  reportChartBlocks,
   VERDICT_UNAVAILABLE_NOTE,
   saveHtmlReport,
   type Statements,
@@ -30,6 +31,10 @@ import {
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
 import { factsFrom } from "./servedFacts";
+// ONE sentence for "there is nothing to compare against", shared with
+// the report model — so the workbook and the printed document cannot
+// describe the same absence two different ways.
+import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "./reportComparatives";
 import {
   computeCostOfCapital,
   computeCreditScore,
@@ -202,7 +207,11 @@ export function buildExcelWorkbook(
       })
     : null;
   const plRows: (string | number)[][] = [
-    ["Profit & Loss", s.periodLabel, s.prior?.periodLabel ?? "—", "Δ Abs", "Δ %"],
+    // The comparison column is HEADED with what it holds. "—" as a
+    // header made the whole column ambiguous before a single cell was
+    // read; the sentence says the column is empty because there is no
+    // period behind it, not because nothing moved.
+    ["Profit & Loss", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
     plRow("Revenue", s.incomeStatement.revenue, priorIs?.revenue),
     plRow("Cost of goods sold", -s.incomeStatement.costOfGoodsSold, priorIs ? -priorIs.costOfGoodsSold : undefined),
     plRow("Gross profit", t.grossProfit, priorT?.grossProfit),
@@ -269,7 +278,7 @@ export function buildExcelWorkbook(
     const bs = s.balanceSheet;
     const bsP = s.prior?.balanceSheet;
     const bsRows: (string | number)[][] = [
-      ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? "—", "Δ Abs", "Δ %"],
+      ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
       plRow("Cash & equivalents", bs.cash, bsP?.cash),
       plRow("Accounts receivable", bs.accountsReceivable, bsP?.accountsReceivable),
       plRow("Inventory", bs.inventory, bsP?.inventory),
@@ -488,6 +497,38 @@ export function buildExcelWorkbook(
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(recRows), "Recommendations");
 
+  // ── CHARTS — the same rows the document draws (R7) ─────────────────
+  //
+  // Not a picture of a chart and not a second derivation: the blocks come
+  // from `reportChartBlocks`, the SAME call `renderReportHtml` makes, so
+  // every `printed` string in this sheet is the identical string the HTML
+  // prints. A workbook that re-derived them would agree until the day one
+  // of the two files was edited alone.
+  //
+  // The GAP CARDS travel too. A workbook that silently omitted the five
+  // charts this period could not produce would read as a period with five
+  // fewer questions in it.
+  const chartBlocks = reportChartBlocks(s, credit, envelopes?.metricsByName);
+  const chartRows: (string | number)[][] = [
+    [`${s.companyName} — chart data`, "", "", ""],
+    [`${s.periodLabel} · ${s.currency}`, "", "", ""],
+    [],
+  ];
+  for (const blk of chartBlocks) {
+    chartRows.push([blk.title, blk.status === "drawn" ? "charted" : "not charted", "", ""]);
+    if (blk.status === "drawn") {
+      chartRows.push(["Series", "Value", "Source", ""]);
+      for (const row of blk.rows) chartRows.push([row.label, row.printed, row.source, ""]);
+    } else if (blk.absence) {
+      chartRows.push(["Missing", blk.absence.missing.join("; "), "", ""]);
+      chartRows.push(["Why", blk.absence.because, "", ""]);
+      chartRows.push(["To produce it", blk.absence.toFix, "", ""]);
+    }
+    chartRows.push(["Note", blk.caption, "", ""]);
+    chartRows.push([]);
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(chartRows), "Charts");
+
   return wb;
 }
 
@@ -588,10 +629,28 @@ function plRow(
   if (typeof current !== "number" || !Number.isFinite(current)) {
     return [label, EXPORT_UNREPORTED, prior ?? "—", "", ""];
   }
-  if (prior === undefined || prior === null) return [label, current, "—", "", ""];
+  // AN ABSENT PRIOR PERIOD IS SAID, NOT DASHED. This used to write "—"
+  // into the prior column and leave both delta cells EMPTY, under a
+  // column header that was itself "—" (`s.prior?.periodLabel ?? "—"`).
+  // In a spreadsheet an empty delta cell and a zero delta cell read the
+  // same at a glance, and "—" beside a figure reads as "no change" at
+  // least as often as "no data". Every book the private path serves is
+  // in exactly this state — nothing populates `statements.prior` for a
+  // trial-balance upload — so this is the cell the owner actually sees.
+  if (prior === undefined || prior === null) {
+    return [label, current, NO_COMPARATIVE_CELL, NO_COMPARATIVE_CELL, NO_COMPARATIVE_CELL];
+  }
   const delta = current - prior;
-  const pct = prior !== 0 ? (delta / Math.abs(prior)) * 100 : 0;
-  return [label, current, prior, delta, prior !== 0 ? `${pct.toFixed(1)}%` : "—"];
+  // A percentage change from zero is undefined — not 0, not 100%. The
+  // absolute delta still carries the whole move, so the row is not
+  // silent about it.
+  return [
+    label,
+    current,
+    prior,
+    delta,
+    prior !== 0 ? `${((delta / Math.abs(prior)) * 100).toFixed(1)}%` : "no % — prior is zero",
+  ];
 }
 
 // ─── The OTHER deliverable, composed at the SAME point ──────────────────

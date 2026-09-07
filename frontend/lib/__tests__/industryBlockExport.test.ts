@@ -42,8 +42,17 @@
 // "≤ 60 days for FMCG · varies by industry" is hardcoded at
 // `financialReport.ts` (the `dio` row) and does not read the workspace
 // setting at all, which is why it printed "for FMCG" on a report headed
-// real estate. It is reported, not repaired, in this wave. Nor can it
-// see `usePeriodFacts`, which still hands `detectConditions` a display
+// real estate.
+//
+// ⚠ THAT HALF IS NOW REPAIRED AND GATED ELSEWHERE — see
+// `industrySectorContentBlocked.test.ts`, which asserts over the same
+// printed export that six sector-calibrated rows withhold BOTH the band
+// and the badge while the sector is disputed, that no sector idiom
+// survives, and — the non-vacuity half — that all of it comes back when
+// the account mix seconds the setting. This file keeps the header line
+// and the rule ids; it still reads no benchmark column.
+//
+// Nor can it see `usePeriodFacts`, which still hands `detectConditions` a display
 // label: after this repair those scoped rules are SILENT there rather
 // than wrongly firing, which is the safe direction but not the fix.
 
@@ -52,7 +61,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { BOOKS, type Book, statementsFor } from "./exportBooks";
+import { BOOKS, type Book, statementsFor, workspaceKeys } from "./exportBooks";
 import { buildReportHtml } from "@/lib/financialExports";
 import { generateRecommendations, type Statements } from "@/lib/financialReport";
 
@@ -64,12 +73,13 @@ const SIGNALS = JSON.parse(readFileSync(firm("industry_signal.json"), "utf-8")) 
   Record<string, { workspace: { display: string }; display: string }>
 >;
 
-const SETTINGS: Record<Book, { wrong: string; right: string }> = {
-  agras: { wrong: "real_estate_residential", right: "manufacturing" },
-  carniprod: { wrong: "real_estate_residential", right: "manufacturing" },
-  retail: { wrong: "real_estate_residential", right: "retail_ecom" },
-  realestate: { wrong: "manufacturing", right: "real_estate_residential" },
-};
+// WAS A SECOND COPY OF THE PAIRING, typed here. It now reads the
+// committed `tests/engine/fixtures/firm/workspace_industry.json`, so this
+// file and `industrySectorContentBlocked.test.ts` cannot drift into
+// testing two different disagreements about the same book.
+const SETTINGS: Record<Book, { wrong: string; right: string }> = Object.fromEntries(
+  BOOKS.map((b) => [b, { wrong: workspaceKeys(b).disputes, right: workspaceKeys(b).agrees }]),
+) as Record<Book, { wrong: string; right: string }>;
 
 /** The served payload for one book under one workspace setting — the
  *  industry display name and the engine's own reading of the mix. */

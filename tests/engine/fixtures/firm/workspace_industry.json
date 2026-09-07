@@ -1,0 +1,37 @@
+{
+  "_provenance": {
+    "what": "The workspace industry setting each committed firm book is served UNDER — the third field of GET /api/period/{id} that decides whether the report's sector-calibrated content may render.",
+    "why": "Every saga_10_col_*.json carries `industry: null`, because capture.py captures `statements` from a book with no workspace attached. A null industry agrees with nothing and disagrees with nothing, so the disagreement path the owner actually met — a LIVE Agras report headed 'Real estate · residential rental' over 301/341/345/371 and 70.5M of cost of sales — was reachable by no committed artefact. This file is the missing join.",
+    "how_to_compose": "statements = saga_10_col_<book>.json .statements, with `industry` set to displays[<key>] and `industry_signal` set to industry_signal.json[<book>][<key>]. That is exactly how pipeline.py:7711 assembles the served payload: the display label off organizations.industry_display_name, the signal off engine.industry.build_industry_signal(line_items, industry_key=...).",
+    "displays_are_not_keys": "`statements.industry` is organizations.industry_display_name — a LABEL. The rule registry scopes on the KEY. Both are recorded here so a consumer never has to invent one from the other.",
+    "regenerated_by": "tests/engine/fixtures/firm/capture_industry_signal.py writes industry_signal.json for exactly these (book, key) pairs; tests/engine/test_structural_industry_signal.py reds if that goes stale. This file is the index over it and is checked by frontend/lib/__tests__/industryFixtureIsReal.test.ts."
+  },
+  "displays": {
+    "manufacturing": "Manufacturing · industrial",
+    "real_estate_residential": "Real estate · residential rental",
+    "retail_ecom": "Retail · e-commerce"
+  },
+  "books": {
+    "agras": {
+      "structural_family": "manufacturing",
+      "agrees": "manufacturing",
+      "disputes": "real_estate_residential",
+      "note": "THE OWNER'S CASE. The live report was served under real_estate_residential."
+    },
+    "carniprod": {
+      "structural_family": "manufacturing",
+      "agrees": "manufacturing",
+      "disputes": "real_estate_residential"
+    },
+    "retail": {
+      "structural_family": "trade",
+      "agrees": "retail_ecom",
+      "disputes": "real_estate_residential"
+    },
+    "realestate": {
+      "structural_family": "real_estate",
+      "agrees": "real_estate_residential",
+      "disputes": "manufacturing"
+    }
+  }
+}

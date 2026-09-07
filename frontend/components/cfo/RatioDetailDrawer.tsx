@@ -203,7 +203,7 @@ function DrawerBody({
             </div>
             <span
               className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict ${
-                ratio.verdict === "unknown"
+                ratio.verdict === "unknown" || ratio.verdict === "ungraded"
                   ? "border-rule text-ink-mute"
                   : ratio.verdict === "critical"
                     ? "text-ink anim-fill-red border-red-500/40"
@@ -513,6 +513,15 @@ function focusForVerdict(verdict: RatioVerdict, label: string): string {
       // exist — which is how "critical" got attached to a refused ratio
       // in the first place.
       return `${label} could not be computed for this period, so there is no reading to act on. The commentary above names what the filing is missing.`;
+    case "ungraded":
+      // There IS a reading — the value is printed above. What is missing
+      // is the ladder: this ratio's healthy range is one sector's, and
+      // the workspace sector and the account mix disagree. Advice that
+      // named a direction here would be the withheld band, restated in
+      // prose. (Without this case the switch fell off the end and this
+      // panel returned `undefined` — tsc does not flag it, so it is
+      // written out rather than left to a default.)
+      return `${label} is measured above, but its healthy range differs by sector and this workspace's sector is unconfirmed — so no verdict is stated. Confirm the industry to grade it.`;
     case "strong":
       return `${label} is in a strong position. Keep monitoring trend lines; a single strong reading can mask a deteriorating trajectory if not re-checked next period.`;
     case "healthy":

@@ -272,6 +272,10 @@ const VERDICT_TONE: Record<RatioVerdict, ChipTone> = {
   // input and `verdictFromBands` graded that 0 — which is how this page
   // came to show `interest_coverage 0.00x CRITICAL` for Apple.
   unknown: "neutral",
+  // Same reasoning, different refusal: the figure exists, the LADDER was
+  // withheld because it is one sector's and the sector is unconfirmed.
+  // Neutral for the same reason — a withheld band is not a bad result.
+  ungraded: "neutral",
 };
 
 /** One ratio figure through the instrument, by unit. Every unit but "%"

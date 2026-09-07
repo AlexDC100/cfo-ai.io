@@ -1281,12 +1281,28 @@ function piotroskiFromEngine(env: PiotroskiEnvelope): PiotroskiResult {
 // so an ABSENT sub-score produced the sentence "Leverage component:
 // weak" — six such rows rendered under a headline that still read 82 /
 // A. There is no sentence for a component that was never emitted.
-function readForSubscore(label: string, value: number | null): string | null {
+//
+// ⚠ IT NO LONGER REPEATS THE METRIC'S NAME. It used to open with the
+// bare concept — "Interest coverage component: strong", "Equity ratio
+// component: strong" — beside a Value column holding the 0–100
+// SUB-SCORE, three screens under ratio cards printing the ratios
+// themselves. Measured on all four books, one document each:
+//
+//   Equity Ratio                              60.9%    (ratio card)
+//   Equity ratio                             100.00    (credit row)
+//   Interest Coverage (EBITDA / Interest)     66.28×   (ratio card)
+//   Interest Coverage (EBIT / Interest)       95.00    (credit row)
+//
+// The row above is not 95× of coverage; EBIT ÷ interest on that book is
+// 55.64×. 95.00 is the score the model banded that ratio into. A name
+// that promises an arithmetic beside a number that is not its output is
+// the R1 defect in its sharpest form, so the row labels now say
+// "sub-score 0–100" and this sentence bands the scale, not the metric.
+function readForSubscore(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) return null;
-  if (value >= 75) return `${label} component: strong`;
-  if (value >= 50) return `${label} component: adequate`;
-  if (value >= 25) return `${label} component: watch zone`;
-  return `${label} component: weak`;
+  const band =
+    value >= 75 ? "strong" : value >= 50 ? "adequate" : value >= 25 ? "watch zone" : "weak";
+  return `${band} on the model's 0–100 component scale`;
 }
 
 /** value × weight, absent-propagating — `null * 0.3` is 0 in JavaScript,
@@ -1474,7 +1490,6 @@ export function engineLetterGrade(
  *  component exists — they are all derived from the same `numOrNull`. */
 function subscoreRow(
   label: string,
-  readLabel: string,
   raw: number | null | undefined,
   rawWeight: number | null | undefined,
   defaultWeight: number,
@@ -1484,11 +1499,13 @@ function subscoreRow(
   return {
     label,
     value,
-    // On these six rows the displayed value IS the weighted input.
+    // On these six rows the displayed value IS the weighted input — a
+    // 0–100 sub-score, NOT the ratio the model banded to get it. The
+    // label says so; see `readForSubscore` for what that cost.
     subscore: value,
     weight,
     contribution: contributionOf(value, weight),
-    read: readForSubscore(readLabel, value),
+    read: readForSubscore(value),
   };
 }
 
@@ -1631,12 +1648,24 @@ export function engineCreditResult(
                 ? `Grey zone — elevated bankruptcy risk`
                 : `Distress zone — immediate action required`,
       },
-      subscoreRow("Profitability (ROE + Net Margin)", "Profitability", subs.profitability, weights.profitability, 0.20),
-      subscoreRow("Leverage (Net Debt / EBITDA)", "Leverage", subs.leverage, weights.leverage, 0.15),
-      subscoreRow("Interest Coverage (EBIT / Interest)", "Interest coverage", subs.coverage, weights.coverage, 0.10),
-      subscoreRow("DSCR (EBITDA / debt service)", "DSCR", subs.dscr, weights.dscr, 0.10),
-      subscoreRow("Liquidity (Current + Quick + Cash blend)", "Liquidity", subs.liquidity, weights.liquidity, 0.10),
-      subscoreRow("Equity ratio", "Equity ratio", subs.equity, weights.equity, 0.05),
+      // ── THESE ARE SUB-SCORES AND THE LABEL NOW SAYS SO ─────────────
+      // Every one of these rows prints a 0–100 number in a column headed
+      // "Value", next to a Weight and a Contribution. Six of them used
+      // to wear the NAME OF A RATIO — "Equity ratio", "Interest Coverage
+      // (EBIT / Interest)" — while the ratio tables above printed those
+      // same names against the ratios themselves: 60.9% and 100.00 for
+      // one concept, 66.28× and 95.00 for another, in one document, on
+      // all four books. The basis stays in the label because the reader
+      // still needs to know WHICH coverage was banded (the ratio card
+      // states the EBITDA basis; the model bands the EBIT one, and they
+      // are 66.28× against 55.64× on agras) — but the name is now the
+      // sub-score's, so no name carries two arithmetics.
+      subscoreRow("Profitability sub-score 0–100 (ROE + net margin)", subs.profitability, weights.profitability, 0.20),
+      subscoreRow("Leverage sub-score 0–100 (net debt ÷ EBITDA)", subs.leverage, weights.leverage, 0.15),
+      subscoreRow("Interest-coverage sub-score 0–100 (EBIT ÷ interest)", subs.coverage, weights.coverage, 0.10),
+      subscoreRow("DSCR sub-score 0–100 (EBITDA ÷ debt service)", subs.dscr, weights.dscr, 0.10),
+      subscoreRow("Liquidity sub-score 0–100 (current + quick + cash)", subs.liquidity, weights.liquidity, 0.10),
+      subscoreRow("Equity-ratio sub-score 0–100", subs.equity, weights.equity, 0.05),
     ];
 
     const engineScore = numOrNull(e.composite_score);

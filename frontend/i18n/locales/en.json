@@ -2356,6 +2356,7 @@
     "gradeDistress": "distress",
     "tabOverview": "Overview",
     "ratioVerdictUnknown": "Not reported",
+    "ratioVerdictUngraded": "Not graded",
     "ratioUnavailableAria": "Not reported for this period"
   },
   "metricsV2": {

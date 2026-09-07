@@ -2381,6 +2381,7 @@
     "gradeDistress": "dificultate",
     "tabOverview": "Sinteză",
     "ratioVerdictUnknown": "Neraportat",
+    "ratioVerdictUngraded": "Fără verdict",
     "ratioUnavailableAria": "Neraportat pentru această perioadă"
   },
   "metricsV2": {

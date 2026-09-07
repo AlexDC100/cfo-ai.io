@@ -775,6 +775,23 @@ describe("completeness law — the FE-fallback path, swept at the engine path's 
 
 // ─── SURFACE 1 — the Risks tab, in the DOM ──────────────────────────────
 
+/** THE SUB-SCORE READ SENTENCE, as it is worded today.
+ *
+ *  This used to be spelled `/component: (weak|watch zone|adequate|strong)/`
+ *  — i.e. the old `readForSubscore` output, "Interest coverage component:
+ *  strong". That wording opened with the METRIC'S OWN NAME beside a
+ *  Value column holding the 0–100 sub-score, three screens under ratio
+ *  cards printing the ratios themselves: "Equity ratio 60.9%" and
+ *  "Equity ratio 100.00" in one document. The name was removed from the
+ *  sentence (R1), so this gate follows the repaired wording rather than
+ *  pinning the shape the defect had.
+ *
+ *  WHAT IT STILL DISCRIMINATES — the property the gate is actually for:
+ *  the Altman row's read is a ZONE sentence ("Distress zone — immediate
+ *  action required"), not a sub-score sentence, so this matches exactly
+ *  the six weighted components and never the seventh row. */
+const SUBSCORE_READ = /on the model's 0–100 component scale/;
+
 describe("completeness law — surface 1: the Risks tab (rendered)", () => {
   afterEach(cleanup);
 
@@ -810,7 +827,7 @@ describe("completeness law — surface 1: the Risks tab (rendered)", () => {
     await renderPanel(c);
     expect(screen.getByTestId("credit-rating").textContent).toBe("CC");
     expect(
-      screen.queryAllByText(/component: (weak|watch zone|adequate|strong)/).length,
+      screen.queryAllByText(SUBSCORE_READ).length,
       "one engine emission path was deleted and the six reads vanished — a verdict that " +
         "is a function of which path survived",
     ).toBe(6);
@@ -829,14 +846,14 @@ describe("completeness law — surface 1: the Risks tab (rendered)", () => {
     // a zone sentence, not a sub-score sentence, so the correct count of
     // "<label> component: <verdict>" strings here is exactly zero.
     expect(
-      screen.queryAllByText(/component: (weak|watch zone|adequate|strong)/).length,
+      screen.queryAllByText(SUBSCORE_READ).length,
       "a sub-score the envelope did not carry produced a verdict sentence",
     ).toBe(0);
     // Non-vacuity for THIS case: the intact envelope does produce them.
     cleanup();
     await renderPanel(freshCase());
     expect(
-      screen.queryAllByText(/component: (weak|watch zone|adequate|strong)/).length,
+      screen.queryAllByText(SUBSCORE_READ).length,
       "the intact envelope must produce the six sub-score reads",
     ).toBe(6);
   });
