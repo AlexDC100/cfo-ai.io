@@ -99,7 +99,19 @@ const SPECS: Spec[] = [
   {
     key: "cash_ratio",
     label: "Cash Ratio",
-    formula: "cash ÷ current liabilities",
+    // ⚠ THE OLD ENTRY PINNED THE DEFECT. It read "cash ÷ current
+    // liabilities" — the words the card printed — and this gate passed,
+    // because the gate only ever asked whether the words matched the
+    // arithmetic. They did. What neither could see is that the word
+    // "cash" was doing undeclared work: it means bank balances and petty
+    // cash and NOT the RON 906,526 of short-term investments (RAS class
+    // 50) sitting in the same book's current assets. Counting those, the
+    // agras reading moves 0.0898× → 0.159× — Critical → Watch, one band
+    // either side of a choice the document never stated. The arithmetic
+    // below is unchanged, which is the point: the repair was to the
+    // WORDS, and this entry follows them.
+    formula:
+      "cash and bank balances ÷ current liabilities — cash excludes short-term investments (RAS class 50) and every other current asset",
     unit: "x",
     recompute: (e) => div(e.bs.cash, e.bs.total_current_liabilities),
   },
@@ -228,9 +240,24 @@ const SPECS: Spec[] = [
   {
     key: "adjusted_dscr",
     label: "Adjusted DSCR (incl. lease)",
-    formula: "no lease supplied — identical to DSCR above",
+    // ⚠ THE OLD ENTRY PINNED THE DEFECT, AND PINNED IT WORD FOR WORD.
+    // It asserted the card printed "no lease supplied — identical to
+    // DSCR above" and recomputed the plain DSCR to match it, so a green
+    // gate stood over a card that (a) restated the number from the card
+    // directly above it under a name claiming to include a lease, and
+    // (b) declared "no lease supplied" on a book whose own balance sheet
+    // carries RON 887,498 in account 167 — "Datorii din leasing
+    // financiar" per `packs/ro/omfp1802-v1/classification.yaml:107`.
+    // `supplementary.annualLeaseExpense` is a round-tripped USER
+    // ASSUMPTION, so its absence is a statement about the inputs, never
+    // about the company. The lease-adjusted view is now UNDEFINED
+    // without it, and `recompute` returns null so this gate reds if the
+    // card ever prints a figure for it again on a book that supplies no
+    // lease charge. All four committed books supply none.
+    formula:
+      "(EBITDA + annual lease expense) ÷ (interest expense + short-term debt + annual lease expense) — not computed: no annual lease expense was supplied for this period",
     unit: "x",
-    recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.short_term_debt),
+    recompute: () => null,
   },
   {
     key: "dscr_with_lt_principal",
@@ -264,7 +291,13 @@ const SPECS: Spec[] = [
   },
   {
     key: "dpo",
-    label: "Days Payables Outstanding",
+    // THE LABEL NAMES THE DENOMINATOR, and that is R1 across surfaces,
+    // not decoration: the insight engine's `trade_float` detector
+    // computes DPO on cost of goods sold over a narrower payables base
+    // and reads 37.2 days on this same agras book, against the 26.6 days
+    // this row computes. Two bases cannot share one name in one
+    // document.
+    label: "Days Payables Outstanding (on total operating cost)",
     formula:
       "trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × 365 days — not narrow COGS",
     unit: "days",

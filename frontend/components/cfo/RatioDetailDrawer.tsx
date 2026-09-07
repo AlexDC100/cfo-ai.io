@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   formatRatio,
+  ladderSentence,
   verdictLabel,
   type Ratio,
   type RatioBundle,
@@ -224,6 +225,23 @@ function DrawerBody({
         {/* Inline formula — primary surface */}
         <Section icon={Calculator} title="Formula · live numbers">
           <FormulaDisplay ratio={ratio} knowledge={knowledge} statements={statements} />
+          {/* ── THE ARITHMETIC THAT PRODUCED THE NUMBER ABOVE ──────────
+            *
+            * `knowledge.formula` is the TEXTBOOK spelling, hand-written
+            * in `ratioKnowledge.ts`, and for at least one metric it does
+            * not describe what this product computed: DPO's entry reads
+            * "(Payables ÷ COGS) × 365" (`ratioKnowledge.ts:413`) while
+            * the served figure divides by TOTAL operating expense. On
+            * the agras book those bases are 39.1 days and 26.6 days —
+            * the drawer was explaining a number with someone else's
+            * formula. `Ratio.formula` is the one `computeRatios` states
+            * for the value beside it and the one
+            * `exportRatioFormulas.test.ts` recomputes, so it is printed
+            * here as the authority rather than left to the report. */}
+          <p className="mt-2 text-[11.5px] text-ink-soft leading-relaxed">
+            <span className="text-ink-mute">As computed here: </span>
+            {ratio.formula}
+          </p>
           {knowledge.formulaParts && statements && (
             <p className="mt-2 text-[11px] text-ink-mute leading-relaxed">
               Tap any number to jump to its source row on the Balance Sheet.
@@ -263,10 +281,26 @@ function DrawerBody({
               </p>
             </Section>
 
+            {/* ── TC-10 ON THIS SURFACE TOO ──────────────────────────
+              *
+              * `knowledge.goodRange` is a THIRD hand-typed copy of the
+              * cutoffs ("≥ 1.5× healthy · ≥ 2.0× strong · < 1.0× tight"
+              * for the current ratio), written in a different file from
+              * the ladder the badge at the top of this drawer was banded
+              * with. When the row carries a ladder, the rungs shown are
+              * that ladder's, rendered — so the drawer cannot state a
+              * cutoff the verdict beside it did not use. The knowledge
+              * entry stays underneath as the general note it actually
+              * is. */}
             <Section icon={Target} title="What good looks like">
               <p className="text-[13.5px] text-ink-soft leading-relaxed">
-                {knowledge.goodRange}
+                {ratio.ladder ? ladderSentence(ratio.ladder, ratio.unit) : knowledge.goodRange}
               </p>
+              {ratio.ladder && (
+                <p className="mt-1.5 text-[12.5px] text-ink-mute leading-relaxed">
+                  {knowledge.goodRange}
+                </p>
+              )}
               <div className="mt-2 text-[11.5px] text-ink-mute">
                 Indicative range — varies by industry, capital structure, and stage.
               </div>

@@ -32,8 +32,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { BOOKS, type Book, exportDoc, exportHtml, statementsFor } from "./exportBooks";
-import type { Statements } from "@/lib/financialReport";
+import { BOOKS, type Book, exportDoc, exportHtml, metricsFor, statementsFor } from "./exportBooks";
+import { computeRatios, type Statements } from "@/lib/financialReport";
 
 interface Block {
   id: string;
@@ -196,22 +196,59 @@ describe("G-C1 — every chart, and every chart's table", () => {
 });
 
 describe("G-C1d — the band chip that replaces the word", () => {
-  it.each(BOOKS)("%s: a ratio with served bands carries its position, not only a word", (b: Book) => {
+  // ⚠ THE PREMISE OF THIS ASSERTION CHANGED ON 2026-09-07, and the old
+  // one was encoding a defect. It used to read "a card whose key appears
+  // in `assembled_bands` must carry a chip" — i.e. the chip was built
+  // from the SERVED bands while the badge beside it was banded from
+  // `Ratio.ladder`. Two objects, and for every percentage ratio not even
+  // in the same units: the engine serves `net_margin.healthy = 0.08`
+  // and the row bands a value of `6.35`. Fourteen cards across these
+  // four books drew a chip in the STRONG zone under a badge reading
+  // Watch or Critical. `financialReport.ts` now builds the chip from the
+  // row's own ladder, so the question this gate can ask is no longer
+  // "does the engine know this key" but "does this card's own ladder
+  // have a position to draw".
+  //
+  // REDS ON, after the repair: a graded ratio card losing its chip or
+  // its word; a chip drawn for a scale whose ladder declares no critical
+  // rung (the zone vocabulary always names one, so drawing it would
+  // promise a verdict the badge can never award).
+  // CANNOT SEE: whether the ladder itself is the right one — that is
+  // `ratioLadderHonesty.test.ts`, which compares the drawn thresholds
+  // against the row's ladder rung by rung.
+  it.each(BOOKS)("%s: a graded ratio carries its position, not only a word", (b: Book) => {
     const doc = exportDoc(b);
     const s = statementsFor(b) as Statements & { assembled_bands?: { bands: Record<string, unknown> } };
     const served = Object.keys(s.assembled_bands?.bands ?? {});
     expect(served.length, "no served bands — this assertion would be vacuous").toBeGreaterThan(5);
+    const ratios = computeRatios(s, undefined, metricsFor(b));
+    const ladderOf = new Map(
+      [ratios.liquidity, ratios.profitability, ratios.leverage, ratios.coverage, ratios.efficiency]
+        .flat()
+        .map((r) => [r.key, r.ladder] as const),
+    );
     const cards = Array.from(doc.querySelectorAll(".ratio-card"));
     const withFormula = cards.filter((c) => c.querySelector("[data-ratio-formula]") !== null);
-    const banded = withFormula.filter((c) =>
-      served.includes(c.querySelector("[data-ratio-formula]")?.getAttribute("data-ratio-formula") ?? ""),
-    );
-    expect(banded.length, "no ratio card matched a served band key").toBeGreaterThan(5);
+    const keyOf = (c: Element) =>
+      c.querySelector("[data-ratio-formula]")?.getAttribute("data-ratio-formula") ?? "";
+    const banded = withFormula.filter((c) => ladderOf.get(keyOf(c))?.bands.watch !== undefined);
+    expect(banded.length, "no ratio card carried a full ladder").toBeGreaterThan(5);
     for (const c of banded) {
-      const key = c.querySelector("[data-ratio-formula]")?.getAttribute("data-ratio-formula");
+      const key = keyOf(c);
       expect(c.querySelector("svg.chart.mini"), `${key} shows a word and no band position`).not.toBeNull();
       // the word stays too: it is the accessible reading of the shape
       expect(c.querySelector(".badge"), `${key} lost its verdict word`).not.toBeNull();
+    }
+    // And the other half of the law, so this is not one-directional: a
+    // scale with no critical rung draws no track.
+    for (const c of withFormula) {
+      const ladder = ladderOf.get(keyOf(c));
+      if (ladder && ladder.bands.watch === undefined) {
+        expect(
+          c.querySelector("svg.chart.mini"),
+          `${keyOf(c)} declares no critical rung but drew a track that names a critical zone`,
+        ).toBeNull();
+      }
     }
   });
 

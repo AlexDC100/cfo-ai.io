@@ -374,20 +374,16 @@
     },
     {
       "account_codes": [
-        "3",
         "301"
       ],
-      "amount": 4316023.15,
+      "amount": 3654805.78,
       "id": "inventory_raw_materials",
       "label": "Raw materials",
       "label_key": "bs.row.inventory_raw_materials",
       "leaf_ids": [
         "301.201",
         "301.202",
-        "301.203",
-        "348.102",
-        "378.078",
-        "378.080"
+        "301.203"
       ],
       "opening": null,
       "section": "current_assets"
@@ -431,23 +427,26 @@
     },
     {
       "account_codes": [
-        "345"
+        "345",
+        "348"
       ],
-      "amount": 795942.72,
+      "amount": 1457159.29,
       "id": "inventory_finished_goods",
       "label": "Finished goods",
       "label_key": "bs.row.inventory_finished_goods",
       "leaf_ids": [
-        "345.010"
+        "345.010",
+        "348.102"
       ],
       "opening": null,
       "section": "current_assets"
     },
     {
       "account_codes": [
-        "371"
+        "371",
+        "378"
       ],
-      "amount": 2064259.85,
+      "amount": 2064260.65,
       "id": "inventory_merchandise_resale",
       "label": "Merchandise for resale",
       "label_key": "bs.row.inventory_merchandise_resale",
@@ -457,7 +456,9 @@
         "371.050",
         "371.081",
         "371.093",
-        "371.095"
+        "371.095",
+        "378.078",
+        "378.080"
       ],
       "opening": null,
       "section": "current_assets"

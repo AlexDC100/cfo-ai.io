@@ -75,6 +75,7 @@ import {
   toggleBar,
   zonesForKey,
   type ChartBlock,
+  type ServedBands,
   type ShellSection,
   type ToggleSpec,
 } from "./charts";
@@ -841,11 +842,68 @@ export const SECTOR_CALIBRATED_RATIOS: ReadonlySet<string> = new Set([
 export const SECTOR_BAND_WITHHELD =
   "Benchmark withheld — this ratio's healthy range differs by sector and the sector is unconfirmed";
 
+// ── TC-10: THE PRINTED BAND IS RENDERED FROM THE LADDER, NEVER TYPED ──
+//
+// Measured on the rendered agras export, 2026-09-07:
+//
+//     Days Payables Outstanding   27 days   Critical
+//     Higher = better supplier float (within terms)
+//
+// The word "Critical" was produced by `{ strong: 60, healthy: 45,
+// watch: 30 }` and NOT ONE of those three numbers appears anywhere on
+// the card. Every other card was only better by degree — "Current Ratio
+// … ≥ 1.5× healthy · ≥ 2.0× strong" prints two of its three rungs and
+// omits the one that decides Critical, so a reader could not tell why
+// 0.99× is Critical and 1.01× is Watch.
+//
+// `ladderSentence` renders EVERY rung of the object `verdictFromBands`
+// just read, in the row's own unit and in the row's own direction. The
+// hand-typed `benchmark` prose survives after it as an editorial note
+// (some of it is real content — "varies by industry"), but it is no
+// longer the only place a cutoff is written down, and
+// `ratioLadderHonesty.test.ts` reds if a comparator-anchored number in
+// that note is not a rung of this row's own ladder.
+const LADDER_ORDER: ReadonlyArray<"strong" | "healthy" | "watch"> = ["strong", "healthy", "watch"];
+
+/** One rung, printed in the row's own unit. Never rounds a cutoff away:
+ *  a band at 0.0125 must not print as "0.01". */
+function rungFigure(v: number, unit: Ratio["unit"]): string {
+  const digits = Math.abs(v) >= 10 || Number.isInteger(v) ? 0 : Math.abs(v) >= 1 ? 2 : 4;
+  const shown = Number.isInteger(v) ? String(v) : v.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "");
+  return unit === "x" ? `${shown}×` : unit === "%" ? `${shown}%` : unit === "days" ? `${shown} d` : shown;
+}
+
+/** THE LADDER, IN WORDS, from the same object the badge was banded with.
+ *
+ *  `higherIsBetter` decides the comparator, so the sentence cannot state
+ *  the cutoff with the wrong side — the defect that made a printed
+ *  "≥ 1.25×" sit beside a lower-is-better verdict impossible to write.
+ *
+ *  The trailing clause names what happens BELOW the last declared rung,
+ *  and it is the honest half: a ladder that declares a `watch` rung has
+ *  a critical state under it; one that does not, does not. */
+export function ladderSentence(ladder: RatioLadder, unit: Ratio["unit"]): string {
+  const cmp = ladder.higherIsBetter ? "≥" : "≤";
+  const parts: string[] = [];
+  for (const name of LADDER_ORDER) {
+    const v = ladder.bands[name];
+    if (typeof v === "number") parts.push(`${name} ${cmp} ${rungFigure(v, unit)}`);
+  }
+  if (parts.length === 0) return "";
+  const worst = ladder.bands.watch;
+  parts.push(
+    typeof worst === "number"
+      ? `critical ${ladder.higherIsBetter ? "<" : ">"} ${rungFigure(worst, unit)}`
+      : "no critical rung on this scale",
+  );
+  return parts.join(" · ");
+}
+
 /** Reader-facing words for a statement line. A refusal names the CONCEPT
  *  the filing is missing, not the camelCase field the code happens to
  *  call it — a reader checking their own statements is looking for
  *  "interest expense", not `interestExpense`. */
-const INPUT_WORDS: Partial<Record<StatementInput, string>> = {
+const INPUT_WORDS: Partial<Record<StatementInput | keyof SupplementaryData, string>> = {
   cash: "cash",
   accountsReceivable: "trade receivables",
   inventory: "inventory",
@@ -870,6 +928,12 @@ const INPUT_WORDS: Partial<Record<StatementInput, string>> = {
   taxExpense: "income tax",
   financialIncome: "financial income",
   financialExpense: "financial expense",
+  // Not a statement line — a supplementary input somebody supplies with
+  // the period. It still needs a reader's word, because the refusal it
+  // produces ("this filing does not carry …") is read by someone
+  // checking their own inputs, and `annualLeaseExpense` is not a phrase
+  // that appears anywhere in their data.
+  annualLeaseExpense: "an annual lease expense",
 };
 
 function inputWord(name: string): string {
@@ -943,16 +1007,28 @@ function verdictFromBands(
 ): RatioVerdict {
   // Bands are thresholds. higherIsBetter=true means values ≥ threshold are
   // at least that good. Walk from best → worst.
+  //
+  // ⚠ A LADDER THAT DECLARES NO `watch` RUNG HAS NO CRITICAL STATE.
+  // This function used to `return "critical"` off the end unconditionally,
+  // which meant a scale could be given a distress verdict it never
+  // defined one for. That is not hypothetical: DPO's scale measures
+  // supplier float, and "settles suppliers faster than the benchmark"
+  // has no distress reading — the worst thing it can say is "below the
+  // benchmark float". Omitting `watch` is now how a row DECLARES that,
+  // and `ladderSentence` prints "no critical rung on this scale" from
+  // the same object, so the reader is told rather than left to infer it
+  // from a badge that never appears.
+  const floor: RatioVerdict = bands.watch === undefined ? "watch" : "critical";
   if (higherIsBetter) {
     if (bands.strong !== undefined && value >= bands.strong) return "strong";
     if (bands.healthy !== undefined && value >= bands.healthy) return "healthy";
     if (bands.watch !== undefined && value >= bands.watch) return "watch";
-    return "critical";
+    return floor;
   }
   if (bands.strong !== undefined && value <= bands.strong) return "strong";
   if (bands.healthy !== undefined && value <= bands.healthy) return "healthy";
   if (bands.watch !== undefined && value <= bands.watch) return "watch";
-  return "critical";
+  return floor;
 }
 
 export function computeRatios(
@@ -1239,15 +1315,41 @@ export function computeRatios(
   const dscr = mOr("dscr", div(ebitda, debtService, "interest + short-term debt"));
   // F2.2 — adjusted_dscr stays FE-arithmetic when annualLeaseExpense is
   // supplied (user input, not engine-derived). Same reasoning as LTV —
-  // legitimate FE arithmetic on user input. When no lease supplied,
-  // fall back to plain `dscr` (now engine canonical).
+  // legitimate FE arithmetic on user input.
+  //
+  // ── N1: AN ABSENT INPUT IS NOT A FINDING ABOUT THE COMPANY ─────────
+  //
+  // It used to fall back to plain `dscr` and print, on all four books:
+  //
+  //     Adjusted DSCR (incl. lease)   7.43×   Strong
+  //     no lease supplied — identical to DSCR above
+  //
+  // Two defects in one card. (1) It is the SAME NUMBER as the card above
+  // it, under a name that says it includes something it does not — R1,
+  // one value wearing two names, and the name that is wrong is the one
+  // claiming the extra content. (2) "no lease supplied" reads as a
+  // statement about the BOOK, and on the agras book it is contradicted
+  // by the book's own balance sheet: RON 887,498 sits in account 167,
+  // which `packs/ro/omfp1802-v1/classification.yaml:107` (rule `ro.167`)
+  // describes as "Datorii din leasing financiar". The document declared
+  // no lease on one page while carrying a finance-lease liability on
+  // another.
+  //
+  // `sup.annualLeaseExpense` is a round-tripped USER ASSUMPTION
+  // (`pipeline.py:7932`), so its absence means "nobody typed a lease
+  // charge", never "this company has no leases". The honest answer to
+  // "what is coverage including the lease charge?" when nobody supplied
+  // the lease charge is that it has no value — so the row refuses, names
+  // the missing input, and says why the balance-sheet liability cannot
+  // stand in for it. It asserts nothing either way about whether this
+  // book has a lease, because this surface cannot see account 167.
   const adjustedDscr = sup.annualLeaseExpense
     ? div(
         add(ebitda, known(sup.annualLeaseExpense)),
         add(debtService, known(sup.annualLeaseExpense)),
         "interest + short-term debt + lease",
       )
-    : dscr;
+    : absent("annualLeaseExpense");
   // F2.2 — NEW row: DSCR with LT principal proxy (engine canonical).
   // Different definition from `adjusted_dscr` above: principal proxy uses
   // LT debt / 8 (~10-year amortization), not lease expense. Surfaced as
@@ -1333,9 +1435,15 @@ export function computeRatios(
     benchmark: string,
     formula: string,
     commentary: (v: number) => string,
+    /** Extra prose this row needs and no other does. `absenceNote` is
+     *  appended to the refusal sentence — used where "not reported" alone
+     *  would let a reader conclude something about the COMPANY from the
+     *  absence of an INPUT. */
+    extra?: { absenceNote?: string },
   ): Ratio => {
     if (f.value === null) {
       const absence = f.absence ?? { kind: "missing", inputs: [] };
+      const note = extra?.absenceNote;
       return {
         key,
         label,
@@ -1345,7 +1453,7 @@ export function computeRatios(
         verdict: "unknown",
         benchmark,
         unavailable: absence,
-        commentary: describeAbsence(absence),
+        commentary: note ? `${describeAbsence(absence)} ${note}` : describeAbsence(absence),
       };
     }
     // ── THE BAND IS SECTOR CONTENT; THE ARITHMETIC IS NOT ─────────────
@@ -1376,6 +1484,14 @@ export function computeRatios(
         commentary: commentary(f.value),
       };
     }
+    // The SAME object `verdictFromBands` reads below. "What would change
+    // the verdict" bands off this and cannot drift from the badge — and
+    // so does the printed band sentence, which is the TC-10 half: the
+    // cutoffs a reader sees are the cutoffs the word was decided by,
+    // because they are rendered from this object rather than typed
+    // beside it.
+    const ladder: RatioLadder = { bands, higherIsBetter };
+    const spelled = ladderSentence(ladder, unit);
     return {
       key,
       label,
@@ -1383,11 +1499,9 @@ export function computeRatios(
       value: f.value,
       unit,
       verdict: verdictFromBands(f.value, bands, higherIsBetter),
-      benchmark,
+      benchmark: spelled === "" ? benchmark : `${spelled} — ${benchmark}`,
       commentary: commentary(f.value),
-      // The SAME object `verdictFromBands` just read. "What would change
-      // the verdict" bands off this and cannot drift from the badge.
-      ladder: { bands, higherIsBetter },
+      ladder,
     };
   };
   /** A money figure for commentary — the gap word when it is absent, so a
@@ -1415,14 +1529,36 @@ export function computeRatios(
           v >= 1
             ? "Cash + receivables alone cover current liabilities."
             : "Reliance on inventory liquidation to meet short-term obligations."),
+      // ── N3: THE EXCLUSION THAT DECIDED THE BAND, SAID OUT LOUD ──────
+      //
+      // Measured on the agras export: cash 1,168,047.04 ÷ current
+      // liabilities 13,012,976.77 = 0.0898× → Critical. The same book's
+      // balance sheet carries RON 906,526 of short-term investments
+      // (RAS class 50); the engine's own canonical schema files that
+      // bucket UNDER `cash_and_equivalents`
+      // (`src/engine/canonical/schema_v1.py:96`), and a cash ratio that
+      // counts it reads 2,074,573 ÷ 13,012,976.77 = 0.159× → Watch.
+      //
+      // ONE BAND EITHER SIDE OF A CHOICE THE DOCUMENT NEVER STATED. The
+      // choice itself is defensible — bank balances and petty cash are
+      // the only money that settles a payable on the day it falls due —
+      // but "cash ÷ current liabilities" beside a Critical badge told a
+      // reader nothing about which cash. It says so now, in the formula
+      // the gate recomputes, and the caption calls the reading a floor
+      // rather than a measurement of everything liquid.
+      //
+      // ⚠ THE FIGURE IS UNCHANGED and cannot change here: the served
+      // `BalanceSheet` shape carries no short-term-investments field, so
+      // this surface CANNOT include class 50 even if it decided to. See
+      // the envelope request in the wave report.
       row("cash_ratio", "Cash Ratio", "x", cashRatio,
         { strong: 0.5, healthy: 0.2, watch: 0.1 }, true,
-        "≥ 0.2× healthy",
-        "cash ÷ current liabilities",
+        "cash and bank balances only — short-term investments are NOT counted, so this is the floor reading of same-day liquidity",
+        "cash and bank balances ÷ current liabilities — cash excludes short-term investments (RAS class 50) and every other current asset",
         (v) =>
           v >= 0.2
             ? "Adequate cash buffer for operating shocks."
-            : "Limited dry cash — exposed to revenue interruption."),
+            : "Limited dry cash — exposed to revenue interruption. Counting short-term investments as well would raise this reading; the balance sheet's other current assets show how much is at stake."),
     ],
     profitability: [
       row("gross_margin", "Gross Margin", "%", grossMargin,
@@ -1531,11 +1667,15 @@ export function computeRatios(
         "≥ 1.25× including lease commitments",
         sup.annualLeaseExpense
           ? "(EBITDA + annual lease expense) ÷ (interest expense + short-term debt + annual lease expense)"
-          : "no lease supplied — identical to DSCR above",
-        () =>
-          sup.annualLeaseExpense
-            ? "Adds lease obligation to fixed charges — lender-style view."
-            : "No lease component — same as DSCR."),
+          : "(EBITDA + annual lease expense) ÷ (interest expense + short-term debt + annual lease expense) — not computed: no annual lease expense was supplied for this period",
+        () => "Adds lease obligation to fixed charges — lender-style view.",
+        {
+          absenceNote:
+            "The annual lease expense is a period charge somebody supplies with the period; " +
+            "a finance-lease liability on the balance sheet is a stock and cannot stand in for it. " +
+            "This says nothing about whether this company holds leases — supply the annual lease " +
+            "charge and the lender-style view computes.",
+        }),
       // F2.2 — NEW row: DSCR including LT principal amortization proxy
       // (engine canonical). Different from adjusted_dscr above:
       // numerator is statutory EBITDA, denominator adds LT debt / 8
@@ -1562,9 +1702,58 @@ export function computeRatios(
         "≤ 60 days for FMCG · varies by industry",
         `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
         (v) => `Inventory turns every ${v.toFixed(0)} days.`),
-      row("dpo", "Days Payables Outstanding", "days", dpo,
-        { strong: 60, healthy: 45, watch: 30 }, true,
-        "Higher = better supplier float (within terms)",
+      // ── N2: A DISTRESS VERDICT ON A SCALE THAT HAS NO DISTRESS END ──
+      //
+      // Measured on the agras export before this repair:
+      //
+      //     Days Payables Outstanding   27 days   Critical
+      //     Higher = better supplier float (within terms)
+      //
+      // and, four cards later in the same document, the cycle those very
+      // payables are a term of:
+      //
+      //     Cash Conversion Cycle       31 days   Healthy
+      //
+      // Three things were wrong and only one of them was the number.
+      //
+      // (1) TC-10. The cutoffs 60/45/30 that produced the word "Critical"
+      //     appeared nowhere on the card; the caption was prose carrying
+      //     no threshold at all. Now rendered by `ladderSentence` from
+      //     the same object `verdictFromBands` reads.
+      //
+      // (2) THE `watch: 30` RUNG IS GONE, and that is a claim, not a
+      //     widening. Settling suppliers in 27 days is paying early. It
+      //     costs free supplier credit; it is not insolvency, and no
+      //     lender reads it as one. The scale this row measures is
+      //     supplier float — an efficiency scale, with a good end and a
+      //     less-good end, not a solvency scale with a distress end. A
+      //     ladder that omits `watch` now DECLARES that (see
+      //     `verdictFromBands`), the sentence prints "no critical rung on
+      //     this scale" from the same object, and nothing downstream can
+      //     quote a distress cutoff this row does not have. 27 days reads
+      //     "watch" — below the benchmark float — which is what it is.
+      //
+      // (3) The rungs are general-SME defaults calibrated on a COST OF
+      //     GOODS SOLD denominator (CLAUDE.md Appendix A §5 states DPO's
+      //     benchmark as payables ÷ COGS × 365, 40–70 days) while this
+      //     figure divides by TOTAL operating cost, which also carries
+      //     payroll and depreciation — neither of which passes through a
+      //     trade payable. Measured across the four committed books the
+      //     two bases differ by 1.29× to 1.65× (carniprod: 51.5 d on
+      //     total operating cost, 85.1 d on cost of goods sold — the
+      //     whole width of the benchmark range and out the top). So the
+      //     rungs are indicative here, not calibrated, and the row says
+      //     so instead of letting a badge imply otherwise.
+      //
+      // THE LABEL NAMES ITS DENOMINATOR, and that is R1 across surfaces:
+      // the insight engine's `trade_float` detector computes DPO on the
+      // cost-of-goods-sold basis over a narrower payables base and gets
+      // 37.2 days on this same book. Once both blocks render in one
+      // document, "DPO 27 days" and "DPO 37.2 days" cannot both be
+      // called DPO. Two bases, two names.
+      row("dpo", "Days Payables Outstanding (on total operating cost)", "days", dpo,
+        { strong: 60, healthy: 45 }, true,
+        "supplier float, not a solvency test — paying faster than the benchmark forgoes free credit, so this scale declares no critical rung; the rungs are general-SME defaults measured on cost of goods sold while this figure divides by total operating cost, so read them as indicative",
         `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
         (v) => `${v.toFixed(0)}-day average to settle suppliers.`),
       row("ccc", "Cash Conversion Cycle", "days", ccc,
@@ -2720,11 +2909,48 @@ export function renderReportHtml(
   // track in §Leverage, so the card and the track cannot place one ratio
   // in two places. No numerals in it — the figure is already the biggest
   // thing on the card.
+  //
+  // ⚠ THE CHIP IS BUILT FROM THE ROW'S OWN LADDER, NOT FROM A SECOND
+  // COPY OF THE BANDS. It used to be built from `assembled_bands` while
+  // the badge two lines above it was banded from `Ratio.ladder`, and the
+  // two objects are not in the same units for a percentage ratio: the
+  // engine serves `net_margin.healthy = 0.08` (a fraction) and the row
+  // bands a value of `6.35` (a percent). Measured on the rendered export,
+  // 2026-09-07, fourteen cards across the four books drew a chip that
+  // contradicted the badge printed directly above it —
+  //
+  //   retail   EBITDA Margin  0.28%   badge Critical   chip drawn in the STRONG zone
+  //   agras    Net Margin     6.35%   badge Watch      chip drawn in the STRONG zone
+  //
+  // — because every percent sails past a ladder written in fractions.
+  // Two more (`ccc`, `asset_turnover`) disagreed on the rungs themselves
+  // rather than on the units. Feeding `zonesForKey` the row's OWN ladder
+  // makes card and badge the same object by construction, which is the
+  // only form of this fix that cannot come apart again.
+  //
+  // A row with NO LADDER (refused, sector-withheld) draws no chip, and
+  // neither does one whose ladder declares no critical rung: the track's
+  // zone vocabulary always names a critical zone, and drawing one for a
+  // scale that cannot award it is the same contradiction in the other
+  // direction.
   const servedBandsForCards = readBands(s);
   const cardTrack = (rt: Ratio): string => {
     if (!servedBandsForCards) return "";
     if (industryDisputed && servedBandsForCards.source !== null && servedBandsForCards.source !== "general_sme_fallback") return "";
-    const built = zonesForKey(servedBandsForCards, rt.key, rt.value);
+    if (!rt.ladder || rt.ladder.bands.watch === undefined) return "";
+    const ownLadder: ServedBands = {
+      bands: {
+        [rt.key]: {
+          direction: rt.ladder.higherIsBetter ? "higher" : "lower",
+          watch: rt.ladder.bands.watch,
+          healthy: rt.ladder.bands.healthy,
+          strong: rt.ladder.bands.strong,
+        },
+      },
+      source: servedBandsForCards.source,
+      disclosure: servedBandsForCards.disclosure,
+    };
+    const built = zonesForKey(ownLadder, rt.key, rt.value);
     if (!built) return "";
     return miniTrack(`band-${rt.key}`, built.zones, rt.value, rt.verdict === "critical", rt.label).replace(
       'class="chart"',

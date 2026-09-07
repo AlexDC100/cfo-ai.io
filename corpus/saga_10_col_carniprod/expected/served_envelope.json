@@ -425,17 +425,15 @@
     },
     {
       "account_codes": [
-        "3",
         "301"
       ],
-      "amount": 1793546.75,
+      "amount": 2150850.01,
       "id": "inventory_raw_materials",
       "label": "Raw materials",
       "label_key": "bs.row.inventory_raw_materials",
       "leaf_ids": [
         "301.01",
-        "301.08",
-        "348"
+        "301.08"
       ],
       "opening": null,
       "section": "current_assets"
@@ -494,14 +492,16 @@
     },
     {
       "account_codes": [
-        "345"
+        "345",
+        "348"
       ],
-      "amount": 2147572.21,
+      "amount": 1790268.95,
       "id": "inventory_finished_goods",
       "label": "Finished goods",
       "label_key": "bs.row.inventory_finished_goods",
       "leaf_ids": [
-        "345.01"
+        "345.01",
+        "348"
       ],
       "opening": null,
       "section": "current_assets"

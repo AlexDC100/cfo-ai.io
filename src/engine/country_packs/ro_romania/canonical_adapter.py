@@ -142,16 +142,52 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("281",   "accumulated_depreciation_ppe"),
     ("29",    "accumulated_impairment_ppe"),
     # ─── Class 3 — Inventory ───
+    #
+    # THE PRICE-DIFFERENTIAL FAMILY (3x8) BELONGS TO ITS OWN STOCK
+    # FAMILY, NOT TO THE CATCHALL. Measured 2026-09-07 on the committed
+    # corpus, BEFORE these five rules existed — every one of these
+    # accounts fell through to `("3", "inventory_raw_materials")` below:
+    #
+    #   saga_10_col_retail   378.51…378.98 (22 accounts)  -1,229,164.37
+    #     → the retailer's balance sheet printed a row reading
+    #       `Raw materials (3)   RON -1,229,164.37`. A NEGATIVE raw
+    #       materials line, on a book with no raw materials at all,
+    #       made entirely of the markup held against `371` merchandise
+    #       (7,917,059.01). Netted where it belongs, merchandise for
+    #       resale is 6,687,894.64 at cost and raw materials is absent.
+    #   saga_10_col_agras    348.102 661,216.57 · 378.078 0.63 ·
+    #                        378.080 0.17  = 661,217.37, which is 15.32%
+    #                        of the 4,316,023.15 "Raw materials" row the
+    #                        owner's deployed report prints.
+    #   saga_10_col_carniprod 348 -357,303.26
+    #   saga_10_col          346101 9,981.30 · 348101 455,356.00
+    #
+    # OMFP 1802 plan de conturi: 308 differential attaches to 301/302/303,
+    # 348 to the 34x products family, 378 to 371 mărfuri, 388 to 381
+    # ambalaje. Each now routes to the family it adjusts. `inventory_net`
+    # — and therefore current assets, total assets and every ratio built
+    # on them — is UNCHANGED by this: the amounts move between sibling
+    # leaves of the same aggregate, they do not enter or leave it.
     ("301",   "inventory_raw_materials"),
     ("302",   "inventory_consumables"),
     ("303",   "inventory_consumables"),
+    ("308",   "inventory_raw_materials"),     # dif. preț materii prime/materiale
     ("331",   "inventory_wip"),
+    ("332",   "inventory_wip"),               # servicii în curs de execuție
     ("341",   "inventory_wip"),
     ("345",   "inventory_finished_goods"),
+    ("346",   "inventory_finished_goods"),    # produse reziduale
+    ("347",   "inventory_finished_goods"),    # produse agricole
+    ("348",   "inventory_finished_goods"),    # dif. preț la produse (34x)
     ("351",   "inventory_at_third_parties"),
+    ("354",   "inventory_at_third_parties"),
+    ("356",   "inventory_at_third_parties"),
     ("357",   "inventory_at_third_parties"),
+    ("358",   "inventory_at_third_parties"),
     ("371",   "inventory_merchandise_resale"),
+    ("378",   "inventory_merchandise_resale"),  # dif. preț la mărfuri
     ("381",   "inventory_packaging"),
+    ("388",   "inventory_packaging"),         # dif. preț la ambalaje
     ("391",   "inventory_provisions"),
     ("392",   "inventory_provisions"),
     ("393",   "inventory_provisions"),
@@ -161,6 +197,25 @@ _RAS_TO_CANONICAL: List[tuple] = [
     ("397",   "inventory_provisions"),
     ("398",   "inventory_provisions"),
     ("39",    "inventory_provisions"),
+    # CATCHALL — THE FLOOR, AND WHAT IT STILL ABSORBS.
+    # A class-3 code that matches none of the rules above still lands
+    # here and is presented as "Raw materials", carrying the bare prefix
+    # "3" in the row's `account_codes` — which is the visible tell (the
+    # owner's deployed report read `Raw materials (3, 301)`).
+    # Measured on the four committed books after the rules above: NOTHING
+    # reaches this line any more, and
+    # `tests/engine/test_ro_inventory_catchall.py` reds by NAME and
+    # AMOUNT the moment anything does, so the absorption can never be
+    # silent again.
+    # DELIBERATELY still on the floor, as a stated decision rather than an
+    # oversight: 32x (stocuri în curs de aprovizionare) and 36x/368
+    # (active biologice de natura stocurilor + their differential). Both
+    # are genuine stock, so routing them to `unclassified_debit` would
+    # take real inventory out of inventory_net and move DIO, quick ratio
+    # and inventory turnover with it; and neither maps onto one of the
+    # eight canonical inventory leaves without a guess. The gate names
+    # them the first time a real book carries one, which is the point
+    # where the choice should be made with the book in hand.
     ("3",     "inventory_raw_materials"),           # catchall: default to raw_materials
     # ─── Class 4 — Receivables / Payables ───
     ("401",   "ap_trade"),
