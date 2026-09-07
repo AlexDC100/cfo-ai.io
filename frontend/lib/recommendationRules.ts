@@ -139,7 +139,15 @@ const RULES: Rule[] = [
           // and cover. Gating the rule by sector was the wrong fix, because
           // the rule genuinely applies everywhere: the PROSE had to stop
           // assuming one.
-          "Negotiate the covenant package: target a DSCR floor and a leverage ceiling you can hold through a bad quarter, and resist step-ups that tighten faster than the business can deleverage.",
+          //
+          // The 1.25× DSCR floor STAYS. Debt service cover is what every
+          // lender in every sector tests, and the first edit stripped it
+          // along with the property terms — over-correcting a sector leak
+          // into a vaguer, less useful recommendation. The
+          // covenant-targets gate caught that: it asserts every declared
+          // target is actually printed somewhere, so removing one left an
+          // unused allow-list entry and went red.
+          "Negotiate the covenant package: target a DSCR floor of 1.25× and a leverage ceiling you can hold through a bad quarter, and resist step-ups that tighten faster than the business can deleverage.",
         ],
         whatNotToDoFallback:
           "Don't ask the incumbent lender for a rate cut without alternatives in hand — without competing offers, there's no leverage.",
