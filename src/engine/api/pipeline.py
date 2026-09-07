@@ -6383,6 +6383,10 @@ def build_router() -> APIRouter:
         endpoint below.
         """
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — an expired
+        # bearer must be a 401 from the verifier, not a PostgREST 401
+        # escaping through raise_for_status as an opaque 500.
+        _user_id_from_jwt(jwt)
         with _supabase.per_user(jwt) as client:
             filters: Dict[str, str] = {"deleted_at": "not.is.null"}
             if period_id:
@@ -6430,6 +6434,10 @@ def build_router() -> APIRouter:
         docs-panel fix.)
         """
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — an expired
+        # bearer must be a 401 from the verifier, not a PostgREST 401
+        # escaping through raise_for_status as an opaque 500.
+        _user_id_from_jwt(jwt)
         doc_rows = [_verify_user_may_write_document(jwt, document_id)]  # the WRITE wall (FC1x, D4)
         with _supabase.per_user(jwt) as client:
             client.update("documents", {"deleted_at": _now_iso()}, filters={"id": f"eq.{document_id}"})
