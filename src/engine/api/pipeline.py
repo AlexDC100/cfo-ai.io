@@ -5069,6 +5069,102 @@ def _apply_envelope_truth_to_statements(
         )
 
 
+# ── The insight block (engine.insights) on the served statements ─────
+#
+# `engine.insights.build_insights` reads a FINISHED book and says what a
+# sharp reader would notice — 70.4% of Agras' gross PP&E already written
+# off, a current ratio of 2.11x that is 1.51x once intercompany comes
+# out, the 46,613.06 in account 413 that no statement line explains. It
+# was built, tested and committed and CALLED FROM NOWHERE, so
+# `statements.insights` was absent on every served payload and the
+# report showed none of it.
+#
+# TWO SEAMS, ONE CODE OBJECT. `statements` reaches a reader down exactly
+# two paths and this helper is called at the end of both:
+#   1. `get_period`                     — GET /api/period/{period_id},
+#                                         what the report renders
+#   2. `_rebuild_assembled_for_briefing` — the shared served-rebuild seam
+#                                         (Capsule, Radar, firm attention,
+#                                         briefing regenerate)
+# CLAUDE.md §14 records what a field threaded into one and not the other
+# costs: the account-121 anchor reached the persist path only and every
+# served "statutory" net income was a raw reconstruction for months.
+# Both call sites sit immediately after
+# `_apply_envelope_truth_to_statements`, so the book the detectors read
+# is the SERVED book — the same reconciliation-adjusted `canonical_bs`
+# the FE renders, never the round-trip artifact.
+def _attach_insights_block(
+    statements: Dict[str, Any], line_items: Optional[List[Dict[str, Any]]]
+) -> None:
+    """Attach `statements["insights"]` in place, or leave the key ABSENT.
+
+    ABSENT != ZERO, and this helper is where that law is enforced for
+    the wire. The engine's `not_fired` entries are stated gaps, which are
+    information — but only when the book was actually READ. Measured on
+    the agras fixture with its envelope withheld (the book that really
+    does carry 46,613.06 under an Unclassified row):
+
+        unclassified_balances | Every account in the book matched a
+        classification rule; no balance is carried under an Unclassified row.
+
+    That is a false all-clear produced by absence, not by a clean book.
+    So the block is served only when the payload carries BOTH authorities
+    the detectors read — the assembled P&L and the SERVED canonical rows.
+    Without them there is no block at all and the reader (`readInsights`
+    returns null) renders nothing, which is the truth.
+
+    Never raises: a failure here must not cost the reader the report, the
+    same rule the industry-signal block follows. On failure the key stays
+    absent rather than half-written.
+    """
+    try:
+        if not isinstance(statements, dict):
+            return
+        pl = statements.get("assembled_pl")
+        if not isinstance(pl, dict) or not pl:
+            return
+
+        # The envelope handed to the detectors, in one authority order:
+        # the served canonical envelope if the re-assembly produced one
+        # (its `canonical_bs` has already been REPLACED with the served
+        # copy by `_apply_envelope_truth_to_statements`), else the served
+        # `canonical_bs` on its own — which is what remains when the
+        # re-assembly failed but the persisted envelope was still served.
+        envelope = None  # type: Optional[Dict[str, Any]]
+        _env = statements.get("assembled_canonical_v1")
+        if isinstance(_env, dict) and isinstance(_env.get("canonical_bs"), dict):
+            envelope = _env
+        else:
+            _cbs = statements.get("canonical_bs")
+            if isinstance(_cbs, dict):
+                envelope = {"canonical_bs": _cbs}
+        if envelope is None:
+            return
+        rows = (envelope.get("canonical_bs") or {}).get("rows")
+        if not isinstance(rows, list) or not rows:
+            return
+
+        from engine.insights import build_insights as _build_insights
+
+        # `drafter=None`: no model, no network, no clock — a pure
+        # function of the book, which is what makes the served block
+        # byte-identical across two reads of the same period.
+        block = _build_insights({
+            "statements": statements,
+            "envelope": envelope,
+            "line_items": [li for li in (line_items or []) if isinstance(li, dict)],
+        })
+        if not isinstance(block, dict):
+            return
+        if not block.get("insights") and not block.get("not_fired"):
+            # A pack with no detectors. Nothing was checked, so nothing
+            # may be claimed — absent, not an empty list.
+            return
+        statements["insights"] = block
+    except Exception:  # noqa: BLE001
+        logger.exception("[insights] block build failed (non-fatal, key stays absent)")
+
+
 def _rebuild_assembled(
     line_items: List[Dict[str, Any]],
     period: Optional[Dict[str, Any]] = None,
@@ -5322,6 +5418,12 @@ def _rebuild_assembled_for_briefing(
     # persisted canonical_bs verbatim and overrides the assembled_bs
     # grand/current totals from the write-time envelope.
     _apply_envelope_truth_to_statements(statements, period)
+
+    # SEAM 2 of 2 — the insight block on the shared served-rebuild seam,
+    # so the Capsule, Radar, the firm attention lane and a regenerated
+    # briefing read the same block /api/period serves. See
+    # `_attach_insights_block`.
+    _attach_insights_block(statements, line_items)
 
     # F4.6 — surface deprecated-field warnings on the response so
     # consumers can migrate ahead of the 2Q sunset (~Nov 2026).
@@ -7460,6 +7562,12 @@ def build_router() -> APIRouter:
         # same `assembled_bs` dict by reference, so the override must land
         # first (correctness-by-aliasing noted in the audit).
         _apply_envelope_truth_to_statements(statements, period)
+
+        # SEAM 1 of 2 — the insight block. Immediately after the
+        # envelope-truth override so the detectors read the SERVED book
+        # (the reconciliation-adjusted `canonical_bs` the FE renders),
+        # never the round-trip artifact. See `_attach_insights_block`.
+        _attach_insights_block(statements, line_items)
 
         # ── F3.3 — Per-upload confidence report ─────────────────────
         # Surface the country-detection / layout / reconciliation /
