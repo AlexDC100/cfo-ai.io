@@ -37,9 +37,25 @@ CONTAINER = "cfo-ai-backend"
 #: the bundle is a build artifact and source hashes do not map to it.
 #: The honest frontend signal is the deployed commit SHA; recorded, not
 #: gold-plated in this pass.
-#: Sampled rather than exhaustive: enough to catch a stale image, cheap
-#: enough to run nightly. Each is a file a real change would touch.
-SAMPLE = [
+#: EXHAUSTIVE, NOT SAMPLED — and the five names below are kept only as
+#: the canaries that prove discovery worked.
+#:
+#: On 2026-09-06 this printed "IN SYNC" while 461 engine files differed
+#: from the committed tree, and production had been serving HTTP 500 on
+#: every upload for hours. `pipeline.py` had been deployed carrying a
+#: call to `_org.verified_user_id`; `_org.py` had not, so the running
+#: app raised `AttributeError: module 'engine.api._org' has no attribute
+#: 'verified_user_id'` at the first authenticated write. Not one of the
+#: five sampled files was involved, so the check answered the question
+#: it was asked and the question was too small.
+#:
+#: A sample is a reasonable economy for "is the image stale". It is the
+#: wrong instrument for "does production run the committed tree", which
+#: is what the banner claims and what an operator reads it as. Hashing
+#: every tracked file under src/ costs one `find | xargs sha256sum` in
+#: the container and one `git ls-tree` locally — cheaper than the sample
+#: was, because it is one round trip instead of five.
+CANARIES = [
     "engine/api/_ratio_units.py",
     "engine/api/_finding.py",
     "engine/ai/finding_sharpen.py",
@@ -68,32 +84,53 @@ def main():
         return 0
 
     drift = []
+
+    # Every tracked file under src/, hashed on both sides. One round trip.
+    tree = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", "src/"],
+        capture_output=True, text=True, cwd=root, timeout=60)
+    rels = [ln[len("src/"):] for ln in tree.stdout.splitlines()
+            if ln.startswith("src/") and not ln.endswith(".pyc")]
+
+    local = {}
+    for rel in rels:
+        blob = subprocess.run(["git", "show", "HEAD:src/%s" % rel],
+                              capture_output=True, cwd=root, timeout=30)
+        if blob.returncode == 0:
+            local[rel] = hashlib.sha256(blob.stdout).hexdigest()[:16]
+
+    r = sh("ssh -o BatchMode=yes %s \"docker exec %s sh -c "
+           "'cd /app/src && find . -type f -name \\\"*.py\\\" -o -type f "
+           "-name \\\"*.yaml\\\" -o -type f -name \\\"*.yml\\\" -o -type f "
+           "-name \\\"*.json\\\" -o -type f -name \\\"*.csv\\\" | "
+           "xargs sha256sum'\"" % (HOST, CONTAINER))
+    remote = {}
+    for line in (r.stdout or "").splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            remote[parts[1].strip().lstrip("./")] = parts[0][:16]
+
     checked = 0
-    for rel in SAMPLE:
-        # HASH THE COMMITTED BLOB, NOT THE CHECKOUT.
-        #
-        # This read the working-tree file, and on 2026-09-03 it reported
-        # `_ratio_units.py DRIFT` while production matched HEAD exactly —
-        # a running lane had the file modified and uncommitted. A drift
-        # check that fires on someone's in-flight edit is a check that
-        # cries wolf, and the nightly VPS copy (deploy/drift_check.sh)
-        # is immune only because it clones origin/main. Read HEAD here
-        # for the same reason: the question is "does production match
-        # what is COMMITTED", never "what is on this laptop right now".
-        blob = subprocess.run(
-            ["git", "show", "HEAD:src/%s" % rel],
-            capture_output=True, cwd=root, timeout=30)
-        if blob.returncode != 0:
+    missing = []
+    for rel, want in sorted(local.items()):
+        got = remote.get(rel)
+        if got is None:
+            # Not every tracked file ships into the image (fixtures, seeds
+            # excluded by .dockerignore). Absence is reported, never
+            # silently counted as agreement.
+            missing.append(rel)
             continue
-        local = hashlib.sha256(blob.stdout).hexdigest()[:16]
-        r = sh("ssh -o BatchMode=yes %s \"docker exec %s sha256sum /app/src/%s\""
-               % (HOST, CONTAINER, rel))
-        remote = (r.stdout or "").strip().split(" ")[0][:16]
         checked += 1
-        state = "MATCH" if local == remote else "DRIFT"
-        if state == "DRIFT":
-            drift.append((rel, local, remote))
+        if got != want:
+            drift.append((rel, want, got))
+
+    for rel in CANARIES:
+        state = ("MATCH" if remote.get(rel) == local.get(rel)
+                 else "DRIFT" if rel in remote else "NOT IN IMAGE")
         print("  %-38s %s" % (rel, state))
+    if missing:
+        print("  %d tracked file(s) not present in the image (excluded from"
+              " the build context)" % len(missing))
 
     # TC-3: a census over nothing must not read as agreement.
     if checked == 0:
@@ -103,13 +140,15 @@ def main():
         return 1
 
     print("-" * 62)
-    print("  %d file(s) compared" % checked)
+    print("  %d file(s) compared (every tracked file under src/)" % checked)
 
     if drift:
         print("")
         print("DRIFT NOTICE — production is NOT running the committed tree:")
-        for rel, local, remote in drift:
-            print("  %-38s committed %s  deployed %s" % (rel, local, remote))
+        for rel, want, got in drift[:25]:
+            print("  %-38s committed %s  deployed %s" % (rel, want, got))
+        if len(drift) > 25:
+            print("  … and %d more" % (len(drift) - 25))
         print("")
         print("Redeploy per CLAUDE.md §14: rsync host source FIRST, then")
         print("`docker compose build && up`. Never `docker cp` into a running")

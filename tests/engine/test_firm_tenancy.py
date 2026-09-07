@@ -1852,7 +1852,13 @@ SWEPT_PREFIXES = ("/api/firm", "/api/capsule")
 #: headers. Both are added in create_app() after CORS.
 DECLARED_MIDDLEWARE = (
     "SurfaceWallMiddleware", "SecurityHeadersMiddleware",
-    "CORSMiddleware", "GZipMiddleware",
+    "CORSMiddleware",
+    # Caps the request body (8 MiB general, 36 MiB on the two document
+    # paths) and answers 413 above it. Like the two above it can match a
+    # firm path, but it only refuses oversize bodies — it never serves
+    # firm data, and a 413 is a refusal, not a leak.
+    "BodyLimitMiddleware",
+    "GZipMiddleware",
 )
 
 #: The modules that may name a firm-model table (every `create table` of

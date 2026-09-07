@@ -6530,6 +6530,14 @@ def build_router() -> APIRouter:
         patch = {k: v for k, v in payload.items() if k in allowed}
         if not patch:
             raise HTTPException(400, "No allowed fields. Allowed: label, is_active.")
+        # VERIFY BEFORE READING (FC1x, critic finding I1). The read below
+        # goes to PostgREST as the caller. With an EXPIRED bearer — the
+        # everyday case, tokens last an hour — PostgREST answers 401,
+        # `raise_for_status` turns that into an exception no handler
+        # catches, and the user gets an opaque 500 instead of the 401
+        # the frontend keys its re-login off. Verifying first makes the
+        # refusal a decision rather than a crash.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             rows = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not rows:
@@ -6546,6 +6554,14 @@ def build_router() -> APIRouter:
         hides it. The sku_lines + sku_aggregates rows cascade-delete only
         when the dataset row itself is hard-deleted by the 30-day cron."""
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1). The read below
+        # goes to PostgREST as the caller. With an EXPIRED bearer — the
+        # everyday case, tokens last an hour — PostgREST answers 401,
+        # `raise_for_status` turns that into an exception no handler
+        # catches, and the user gets an opaque 500 instead of the 401
+        # the frontend keys its re-login off. Verifying first makes the
+        # refusal a decision rather than a crash.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not ds:
@@ -6580,6 +6596,14 @@ def build_router() -> APIRouter:
             )
 
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1). The read below
+        # goes to PostgREST as the caller. With an EXPIRED bearer — the
+        # everyday case, tokens last an hour — PostgREST answers 401,
+        # `raise_for_status` turns that into an exception no handler
+        # catches, and the user gets an opaque 500 instead of the 401
+        # the frontend keys its re-login off. Verifying first makes the
+        # refusal a decision rather than a crash.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             existing = client.select("sku_aggregates", filters={"id": f"eq.{sku_id}"}, single=True)
             if not existing:
@@ -6618,6 +6642,14 @@ def build_router() -> APIRouter:
         import re as _re
 
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1). The read below
+        # goes to PostgREST as the caller. With an EXPIRED bearer — the
+        # everyday case, tokens last an hour — PostgREST answers 401,
+        # `raise_for_status` turns that into an exception no handler
+        # catches, and the user gets an opaque 500 instead of the 401
+        # the frontend keys its re-login off. Verifying first makes the
+        # refusal a decision rather than a crash.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not ds:
@@ -6845,6 +6877,14 @@ def build_router() -> APIRouter:
         Frontend virtualizes the table, so this endpoint can return the
         whole list (typical files are 400-2000 SKUs, ~150 KB JSON)."""
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1). The read below
+        # goes to PostgREST as the caller. With an EXPIRED bearer — the
+        # everyday case, tokens last an hour — PostgREST answers 401,
+        # `raise_for_status` turns that into an exception no handler
+        # catches, and the user gets an opaque 500 instead of the 401
+        # the frontend keys its re-login off. Verifying first makes the
+        # refusal a decision rather than a crash.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             ds = client.select("sales_datasets", filters={"id": f"eq.{dataset_id}"}, single=True)
             if not ds:
@@ -7051,6 +7091,10 @@ def build_router() -> APIRouter:
         from datetime import datetime, timezone, timedelta
 
         recovered: List[Dict[str, Any]] = []
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
+        # on the sales-dataset handlers: an expired bearer must be a 401
+        # from the verifier, not a PostgREST 401 escaping as a 500.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "documents",
@@ -8199,6 +8243,12 @@ def build_router() -> APIRouter:
             build_confidence_report, confidence_report_to_dict,
         )
 
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
+        # on the sales-dataset handlers: an expired bearer must be a 401
+        # from the verifier, not a PostgREST 401 escaping as a 500.
+        # `_verified_user_id`, not `_org.`: this handler binds a LOCAL
+        # `_org` further down, which would shadow the module here.
+        _user_id_from_jwt(jwt)
         with _supabase.per_user(jwt) as client:
             periods = client.select(
                 "financial_periods",
@@ -8648,6 +8698,10 @@ def build_router() -> APIRouter:
         """
         jwt = _require_jwt(authorization)
         # 1. Ownership check via the user's own RLS scope.
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
+        # on the sales-dataset handlers: an expired bearer must be a 401
+        # from the verifier, not a PostgREST 401 escaping as a 500.
+        _org.verified_user_id(jwt)
         with _supabase.per_user(jwt) as user_client:
             visible = user_client.select(
                 "financial_periods",
