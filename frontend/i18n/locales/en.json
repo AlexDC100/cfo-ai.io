@@ -19,7 +19,7 @@
     "upload": "Upload Center",
     "reports": "Reports",
     "inventory": "Inventory",
-    "invoices": "Invoices",
+    "invoices": "Receivables & Payables",
     "footer_note": "AI-assisted financial recommendations only. Final decisions remain with management.",
     "multi_year_history": "Multi-Year History",
     "group_intelligence": "Intelligence",
@@ -2840,13 +2840,13 @@
     },
     "inventory": {
       "title": "Inventory",
-      "description": "Stock levels, days-inventory-outstanding and slow-mover detection.",
-      "requirement": "An inventory file"
+      "description": "Superseded by Products, which already carries the SKU-level stock detail, and by the trial balance's own class-3 accounts.",
+      "requirement": "Nothing — anything unique folds into Products"
     },
     "invoices": {
-      "title": "Invoices",
-      "description": "AR/AP ageing and the cash-conversion drilldown behind DSO and DPO.",
-      "requirement": "An invoice register"
+      "title": "Receivables & Payables",
+      "description": "Ageing buckets, counterparty concentration and overdue detail from the analytic 4111 and 401 accounts — the picture a trial balance total cannot give.",
+      "requirement": "e-Factura ingestion via ANAF SPV, which fills it automatically"
     },
     "decisions": {
       "title": "Decisions",

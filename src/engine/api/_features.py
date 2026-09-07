@@ -299,14 +299,29 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # Products / SKU Explorer remains REACHABLE via the legacy route but
     # is no longer a primary nav item; it appears under Inventory.
     "inventory": _feature(
-        "coming_soon",
+        # HIDDEN, not coming_soon, and the distinction is the owner's:
+        # its value duplicates Products (SKU-level stock detail) and the
+        # trial balance already carries the class-3 stock accounts, so
+        # there is nothing here a user is waiting for. Anything genuinely
+        # unique folds into Products post-launch. `hidden` keeps it off
+        # the menu; the route still renders PendingState so a deep link
+        # or an old bookmark explains itself instead of breaking.
+        "hidden",
         label="Inventory",
-        description="SKU explorer + stock + DIO analytics. Folds the legacy /products page.",
+        description="Superseded by Products (SKU-level stock detail) and the trial balance's own class-3 accounts. Anything unique folds into Products post-launch.",
     ),
     "invoices": _feature(
-        "coming_soon",
-        label="Invoices",
-        description="AR/AP invoice analytics + cash-conversion drilldown.",
+        # HIDDEN for launch, KEPT for post-launch. Unlike Inventory this
+        # is not a duplicate: it is the one surface a trial balance
+        # cannot produce. A balance gives the closing total on 4111 and
+        # 401; it cannot give ageing buckets, counterparty
+        # concentration, or which invoices are overdue and by how long —
+        # those live in the analytic sub-accounts. e-Factura ingestion
+        # through ANAF SPV is the roadmap item that fills it without the
+        # user assembling anything by hand.
+        "hidden",
+        label="Receivables & Payables",
+        description="Ageing buckets, counterparty concentration and overdue detail from the analytic 4111/401 accounts — what a trial balance total cannot give. e-Factura via ANAF SPV fills it automatically.",
     ),
     "products_legacy": _feature(
         "active",

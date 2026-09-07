@@ -155,11 +155,32 @@ function markByRegistry(
     .map((item) => {
       if (!item.featureKey) return item;
       const s = status(item.featureKey);
-      // `undefined` is the registry being unreachable, not a verdict —
-      // mark pending rather than claim the feature works, and rather than
-      // make the whole nav vanish on a failed fetch.
-      return s === "active" ? item : { ...item, pending: true };
-    });
+      // THREE STATES, and the difference between the last two is the
+      // owner's to set (see `_features.py`, which has documented this
+      // contract from the start):
+      //
+      //   active      — a working surface. Normal row.
+      //   coming_soon — real on the roadmap, not built. Row stays, muted,
+      //                 and its route renders PendingState: the user can
+      //                 see it is planned.
+      //   hidden      — deliberately off the menu. The row does not
+      //                 render at all. Used when there is nothing to
+      //                 wait for (Inventory, superseded by Products) or
+      //                 when a real feature is parked for a later
+      //                 release (Receivables & Payables).
+      //
+      // `hidden` still leaves the ROUTE rendering PendingState, so a deep
+      // link or an old bookmark explains itself rather than breaking —
+      // hiding a row is a menu decision, never a broken screen.
+      //
+      // `undefined` is the registry being unreachable, not a verdict: it
+      // marks pending rather than claiming the feature works, and rather
+      // than making the whole nav vanish on a failed fetch.
+      if (s === "active") return item;
+      if (s === "hidden") return null;
+      return { ...item, pending: true };
+    })
+    .filter((item): item is ShellNavItem => item !== null);
 }
 
 export interface ShellNavGroupResolved {

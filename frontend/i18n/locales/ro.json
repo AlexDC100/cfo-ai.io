@@ -19,7 +19,7 @@
     "upload": "Centru de încărcare",
     "reports": "Rapoarte",
     "inventory": "Stocuri",
-    "invoices": "Facturi",
+    "invoices": "Creanțe și datorii",
     "footer_note": "Recomandări financiare asistate de AI. Deciziile finale rămân la conducere.",
     "multi_year_history": "Istoric multianual",
     "group_intelligence": "Inteligență",
@@ -2865,13 +2865,13 @@
     },
     "inventory": {
       "title": "Stocuri",
-      "description": "Niveluri de stoc, zile de stoc și detectarea produselor cu rotație lentă.",
-      "requirement": "Un fișier de stocuri"
+      "description": "Înlocuit de Produse, care are deja detaliul stocurilor la nivel de SKU, și de conturile din clasa 3 ale balanței.",
+      "requirement": "Nimic — ce este specific se mută în Produse"
     },
     "invoices": {
-      "title": "Facturi",
-      "description": "Vechimea creanțelor și datoriilor și detalierea conversiei în cash din spatele DSO și DPO.",
-      "requirement": "Un registru de facturi"
+      "title": "Creanțe și datorii",
+      "description": "Vechimea soldurilor, concentrarea pe parteneri și detaliul restanțelor din conturile analitice 4111 și 401 — imaginea pe care totalul din balanță nu o poate da.",
+      "requirement": "Preluarea e-Factura prin SPV-ul ANAF, care o completează automat"
     },
     "decisions": {
       "title": "Decizii",
