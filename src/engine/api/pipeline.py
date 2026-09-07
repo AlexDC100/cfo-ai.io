@@ -6482,6 +6482,10 @@ def build_router() -> APIRouter:
           3. Hard-deletes the document row itself.
         """
         jwt = _require_jwt(authorization)
+        # VERIFY BEFORE READING (FC1x, critic finding I1) — an expired
+        # bearer must be a 401 from the verifier, not a PostgREST 401
+        # escaping through raise_for_status as an opaque 500.
+        _user_id_from_jwt(jwt)
         with _supabase.per_user(jwt) as client:
             rows = client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
             if not rows:
