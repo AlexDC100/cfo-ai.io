@@ -1,0 +1,292 @@
+# THE INSIGHT DETECTOR PACK — pure data, no code.
+#
+# Every detector's identity, its arithmetic in words, the SEVERITY LADDER
+# it is graded on, and the one sentence saying WHY that ladder's basis is
+# the defensible scale for THIS detector.
+#
+# WHY THE BANDS LIVE HERE AND NOT IN THE MODULE
+# ---------------------------------------------
+# TC-10: no cutoff is ever written as prose. The bands below are the ONLY
+# place a threshold exists; the verdict reads them, and the renderer
+# prints them back beside the verdict from this same table. A reader who
+# disagrees with a severity can see the ladder that produced it.
+#
+# R4 — SEVERITY IS MATERIALITY-SCALED, NOT ABSOLUTE
+# -------------------------------------------------
+# Every band is a share of a BASIS taken from the subject company, never
+# an absolute figure in currency. The same 46,613.06 RON residual is
+# `high` on a 39M book and `medium` on a 126M one, because it is graded
+# against that book's own total assets. `tests/engine/
+# test_insights_materiality.py` asserts exactly that, on two real books.
+#
+# `basis` values are resolved by `engine.insights.book.Book.basis()`.
+# `basis_fallback` is used ONLY when the primary basis is absent or
+# non-positive; when it is used, the rendered `why` says so.
+#
+# Bands are read TOP-DOWN and the FIRST whose `at_least` is met wins, so
+# they must be listed in descending order. The final band must have
+# `at_least: null` — the floor, which always matches.
+
+schema_version: "insights/1"
+pack_id: "insights-core"
+pack_version: "1"
+
+# The order below is the DECLARATION order. It is not the report order —
+# ranking is computed in `engine.insights.rank` and is severity-first.
+detectors:
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: asset_age
+    title: "Asset base is late in its depreciation life"
+    formula: "Accumulated depreciation ÷ gross PP&E; net book value ÷ annual D&A = remaining book life"
+    basis: gross_ppe
+    basis_label: "Gross PP&E"
+    basis_why: >-
+      Depreciation is graded against the asset base that produced it, so a
+      factory and a courier are compared on the share of their OWN gross
+      PP&E already written off rather than on an absolute charge.
+    magnitude: accumulated_depreciation
+    magnitude_label: "Accumulated depreciation"
+    bands:
+      - {level: critical, at_least: 0.85}
+      - {level: high,     at_least: 0.70}
+      - {level: medium,   at_least: 0.55}
+      - {level: low,      at_least: 0.35}
+      - {level: info,     at_least: null}
+    claim: >-
+      {measure:depreciated_share} of gross PP&E is already depreciated;
+      the remaining net book value of {money:net_book_value} carries
+      {measure:remaining_book_life} of life at the current annual charge
+      of {money:annual_da}.
+    rows:
+      gross_ppe: [ppe_land, ppe_buildings, ppe_machinery_equipment,
+                  ppe_furniture_office, ppe_under_construction, ppe_advances,
+                  ppe_investment_property]
+      accumulated_depreciation: [accumulated_depreciation_ppe,
+                                 accumulated_impairment_ppe]
+      gross_intangibles: [intangibles_other, intangibles_software, goodwill]
+      accumulated_amortization: [accumulated_amortization_intangibles]
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: liquidity_quality
+    title: "Headline liquidity leans on receivables that are not trade"
+    formula: >-
+      Current ratio recomputed with non-trade receivables (intercompany,
+      other debtors, supplier advances, tax recoverable) removed from
+      current assets
+    basis: total_current_liabilities
+    basis_label: "Total current liabilities"
+    basis_why: >-
+      The excluded assets are graded against the liabilities they were
+      being counted as cover for, which is the same denominator the
+      current ratio itself uses — so the severity IS the ratio movement.
+    magnitude: non_trade_current_assets
+    magnitude_label: "Non-trade receivables inside current assets"
+    bands:
+      - {level: critical, at_least: 0.75}
+      - {level: high,     at_least: 0.40}
+      - {level: medium,   at_least: 0.20}
+      - {level: low,      at_least: 0.05}
+      - {level: info,     at_least: null}
+    claim: >-
+      The current ratio of {measure:current_ratio} falls to
+      {measure:current_ratio_trade_only} once {money:non_trade} of
+      non-trade receivables is removed; the cash ratio is
+      {measure:cash_ratio}.
+    rows:
+      non_trade: [ar_intercompany, ar_other, ar_supplier_advances,
+                  ar_tax_recoverable, ar_personnel]
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: related_party_exposure
+    title: "Related-party and other-debtor balances sit inside the assets"
+    formula: >-
+      Related-party receivables ÷ total assets and ÷ total equity; every
+      dependent ratio recomputed at a 100% lender haircut
+    basis: total_equity
+    basis_label: "Total equity"
+    basis_why: >-
+      Equity is the cushion a lender writes the exposure off against, so
+      the exposure is graded as a share of that cushion rather than of the
+      balance sheet it is already inside.
+    magnitude: related_party_assets
+    magnitude_label: "Related-party receivables"
+    bands:
+      - {level: critical, at_least: 0.50}
+      - {level: high,     at_least: 0.25}
+      - {level: medium,   at_least: 0.10}
+      - {level: low,      at_least: 0.02}
+      - {level: info,     at_least: null}
+    claim: >-
+      {money:related_party} of related-party and other-debtor receivables
+      is {measure:share_of_assets} of total assets and
+      {measure:share_of_equity} of equity; written off in full, the equity
+      ratio moves from {measure:equity_ratio} to
+      {measure:equity_ratio_haircut} and the current ratio from
+      {measure:current_ratio} to {measure:current_ratio_haircut}.
+    rows:
+      related_party: [ar_intercompany, ar_personnel]
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: reconstruction_gap
+    title: "The P&L does not reach statutory profit on its own"
+    formula: >-
+      |account-121 reconciliation step| ÷ |reconstructed net income|
+    basis: reconstructed_net_income
+    basis_label: "Reconstructed net income"
+    basis_why: >-
+      The step is graded against the profit it is correcting. A bridge
+      worth a tenth of the answer is a footnote; one worth half of it
+      means the reconstruction is not the source of the printed profit.
+    basis_fallback: revenue
+    magnitude: reconciliation_step
+    magnitude_label: "Reconciliation to account 121"
+    bands:
+      - {level: critical, at_least: 0.50}
+      - {level: high,     at_least: 0.20}
+      - {level: medium,   at_least: 0.05}
+      - {level: low,      at_least: 0.01}
+      - {level: info,     at_least: null}
+    claim: >-
+      Rebuilding the P&L from the movement columns reaches
+      {money:reconstructed}; statutory profit in account 121 is
+      {money:statutory}. The unexplained step of {money:step} is
+      {measure:graded_share} of the {money:graded_base} it is bridging.
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: trade_float
+    title: "Suppliers and customers move the cash cycle"
+    formula: >-
+      DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷
+      cost of goods sold × 365; float = trade receivables net − trade payables
+    basis: revenue
+    basis_label: "Revenue"
+    basis_why: >-
+      Trade float is a claim on a year of trading, so it is graded as a
+      share of that year's revenue — the same base both day counts already
+      annualise against.
+    magnitude: trade_float
+    magnitude_label: "Net trade float"
+    bands:
+      - {level: critical, at_least: 0.20}
+      - {level: high,     at_least: 0.10}
+      - {level: medium,   at_least: 0.05}
+      - {level: low,      at_least: 0.01}
+      - {level: info,     at_least: null}
+    claim: >-
+      The net trade float is {money:float}: {money:trade_receivables} owed
+      by customers against {money:trade_payables} owed to suppliers —
+      {measure:dso} of sales outstanding against {measure:dpo} of payables,
+      a gap of {measure:float_days}.
+    rows:
+      trade_receivables: [ar_trade_gross, ar_doubtful_gross, ar_provisions]
+      trade_payables: [ap_trade]
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: financial_position
+    title: "The financial line is not incidental to the result"
+    formula: >-
+      Financial income − financial expense, against operating EBITDA
+    basis: ebitda_positive
+    basis_label: "EBITDA"
+    basis_why: >-
+      The financial result is graded against the operating earnings it sits
+      beside, because the question is how much of the bottom line the
+      company earned by trading rather than by lending or borrowing.
+    basis_fallback: total_assets
+    magnitude: net_financial_result
+    magnitude_label: "Net financial result"
+    bands:
+      - {level: critical, at_least: 0.50}
+      - {level: high,     at_least: 0.20}
+      - {level: medium,   at_least: 0.08}
+      - {level: low,      at_least: 0.02}
+      - {level: info,     at_least: null}
+    # Two genuinely different sentences, chosen by the detector, because
+    # "earns more than it pays" is the finding the lane asked to be
+    # flagged and it is not the sign flip of "pays more than it earns".
+    claim: >-
+      Financial income of {money:financial_income} against financial
+      expense of {money:financial_expense} leaves a net
+      {money:net_financial}, {measure:graded_share} of
+      {money:graded_base}.
+    claim_variants:
+      earns: >-
+        This book earns more on financial assets than it pays on debt:
+        financial income of {money:financial_income} against financial
+        expense of {money:financial_expense} leaves a net gain of
+        {money:net_financial}, {measure:graded_share} of
+        {money:graded_base}.
+      pays: >-
+        Financing costs the book more than its financial assets return:
+        financial expense of {money:financial_expense} against financial
+        income of {money:financial_income} leaves a net cost of
+        {money:net_financial}, {measure:graded_share} of
+        {money:graded_base}.
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: earnings_quality
+    title: "Part of EBITDA is not trading income"
+    formula: >-
+      (Other operating income + provision reversals) ÷ EBITDA; operating
+      cash proxy ÷ EBITDA; capitalised own work
+    basis: ebitda_positive
+    basis_label: "EBITDA"
+    basis_why: >-
+      Non-trading income is graded against the EBITDA it is inside, so the
+      severity answers "how much of this margin is not trading" rather than
+      "is this a big number".
+    basis_fallback: revenue
+    magnitude: non_trading_income
+    magnitude_label: "Other operating income and provision reversals"
+    bands:
+      - {level: critical, at_least: 0.30}
+      - {level: high,     at_least: 0.15}
+      - {level: medium,   at_least: 0.07}
+      - {level: low,      at_least: 0.02}
+      - {level: info,     at_least: null}
+    claim: >-
+      {money:non_trading} of operating income is other operating income
+      and provision reversals rather than trading margin —
+      {measure:graded_share} of {money:graded_base}; the operating cash
+      proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a
+      conversion of {measure:cash_conversion}.
+
+  # ────────────────────────────────────────────────────────────────────
+  - id: unclassified_balances
+    title: "Balances no statement line explains"
+    formula: >-
+      Sum of accounts the classification pack matched no rule for, ÷ total assets
+    basis: total_assets
+    basis_label: "Total assets"
+    basis_why: >-
+      An unexplained balance is graded against the balance sheet it had to
+      be forced into, because the question a reader asks is what share of
+      the statement is not actually classified.
+    magnitude: unclassified_total
+    magnitude_label: "Unclassified balances"
+    bands:
+      - {level: critical, at_least: 0.005}
+      - {level: high,     at_least: 0.001}
+      - {level: medium,   at_least: 0.0002}
+      - {level: low,      at_least: 0.00001}
+      - {level: info,     at_least: null}
+    claim: >-
+      {money:unclassified} across {measure:account_count} sits in the
+      statements under an Unclassified row because the classification pack
+      matched no rule for it — {measure:share_of_assets} of total assets.
+    rows:
+      unclassified: [unclassified_debit, unclassified_credit]
+
+# ── The ranking rule, stated once ─────────────────────────────────────
+# Read by `engine.insights.rank.rank_insights` and printed verbatim into
+# every insight's `rank_basis`, so the document explains its own order.
+ranking:
+  order:
+    - "severity level, critical before info"
+    - "materiality descending"
+    - "detector id ascending (the tie-break)"
+  summary_limit: 5
+  statement: >-
+    Ranked by severity level, then by materiality descending; ties broken
+    by detector id ascending. The top 5 carry into the executive summary.
