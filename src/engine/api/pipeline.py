@@ -7636,6 +7636,39 @@ def build_router() -> APIRouter:
             # current data the FE can read meanwhile.
         }
 
+        # ── The second opinion on `organizations.industry_key` ─────────
+        # The workspace industry is a USER SETTING and nothing checked it
+        # against the book: the Agras Dec-2025 report was headed "Real
+        # estate · residential rental" over a trial balance carrying 301
+        # raw materials, 341/345 own-produced stock and 26.5M of 607
+        # merchandise cost. Read the account mix here, next to the line
+        # items it reads, and serve the reading WITH its evidence plus a
+        # single agreement verdict — one computation, so the banner and
+        # the block cannot disagree with each other. A failure here must
+        # never cost the reader the rest of the report, so it degrades to
+        # an absent key (the FE then renders no banner and blocks
+        # nothing) rather than a 500.
+        industry_signal_block = None
+        try:
+            from ..industry import build_industry_signal as _build_industry_signal
+
+            # Bases come from the LINE ITEMS, not from the assembled
+            # totals: every share the reading prints must be reproducible
+            # from the accounts it names, and a denominator taken from a
+            # different object is a second authority the reader cannot
+            # check against the evidence. Measured on the four committed
+            # books, the line-item asset-bucket sum and the class-70 sum
+            # equal `assembled_bs.total_assets` / `assembled_pl.revenue`
+            # to the cent — so this costs no accuracy and keeps the read
+            # inside the import boundary (E-ASSEMBLED-TOTAL).
+            industry_signal_block = _build_industry_signal(
+                line_items or [],
+                industry_key=(org or {}).get("industry_key") if org else None,
+                industry_display=(org or {}).get("industry_display_name") if org else None,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
+
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
@@ -7671,6 +7704,11 @@ def build_router() -> APIRouter:
                 "industry_key": org.get("industry_key"),
                 "industry_display_name": org.get("industry_display_name"),
             },
+            # What the ACCOUNT MIX says the company does, the evidence for
+            # it, and whether that agrees with `organization.industry_key`.
+            # `block_sector_content` is the one authority the report reads
+            # before rendering anything calibrated by sector.
+            "industry_signal": industry_signal_block,
             "statements": statements,
             # Per-account line items — drives the reference-format P&L
             # renderer (account codes + per-line drill-down). Each entry

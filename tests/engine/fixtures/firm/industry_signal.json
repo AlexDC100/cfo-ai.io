@@ -1,0 +1,3774 @@
+{
+  "agras": {
+    "manufacturing": {
+      "agreement": "agree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 39272501.03
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 118576819.64
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 37351124.02
+        }
+      },
+      "block_sector_content": false,
+      "candidates": [
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 79311635.03,
+                  "code": "701"
+                }
+              ],
+              "amount": 79311635.03,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.668863,
+              "statement": "Sales of own production are 66.9% of revenue (79,311,635.03 of 118,576,819.64)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                }
+              ],
+              "amount": 1791931.09,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.045628,
+              "statement": "Work-in-progress / own-produced stock is 4.6% of total assets (1,791,931.09 of 39,272,501.03)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                }
+              ],
+              "amount": 45031585.84,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.379767,
+              "statement": "Raw materials and consumables consumed are 38.0% of revenue (45,031,585.84 of 118,576,819.64)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 3654805.78,
+                  "code": "301"
+                },
+                {
+                  "amount": 703644.32,
+                  "code": "302"
+                },
+                {
+                  "amount": 10900.82,
+                  "code": "303"
+                },
+                {
+                  "amount": 52648.19,
+                  "code": "381"
+                }
+              ],
+              "amount": 4421999.11,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.112598,
+              "statement": "Raw-material stock is 11.3% of total assets (4,421,999.11 of 39,272,501.03)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 6.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 35176699.41,
+                  "code": "707"
+                }
+              ],
+              "amount": 35176699.41,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.296657,
+              "statement": "Sales of merchandise bought for resale are 29.7% of revenue (35,176,699.41 of 118,576,819.64)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 26488094.73,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.223383,
+              "statement": "Cost of merchandise sold is 22.3% of revenue (26,488,094.73 of 118,576,819.64)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2064259.85,
+                  "code": "371"
+                }
+              ],
+              "amount": 2064259.85,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.052562,
+              "statement": "Merchandise held for resale is 5.3% of total assets (2,064,259.85 of 39,272,501.03)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                }
+              ],
+              "amount": 1791931.09,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.045628,
+              "statement": "No material work-in-progress stock (4.6% of total assets) (1,791,931.09 of 39,272,501.03)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 183977.61,
+                  "code": "706"
+                }
+              ],
+              "amount": 183977.61,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.001552,
+              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 118,576,819.64)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 39,272,501.03)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2573536.72,
+                  "code": "211"
+                },
+                {
+                  "amount": 6651005.88,
+                  "code": "212"
+                }
+              ],
+              "amount": 9224542.6,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 37351124.02,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": false,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.246968,
+              "statement": "Land and buildings are 24.7% of gross tangible fixed assets (9,224,542.60 of 37,351,124.02)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                },
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 71519680.57,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.603151,
+              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 15252.34,
+                  "code": "704"
+                }
+              ],
+              "amount": 15252.34,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.000129,
+              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 118,576,819.64)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 3654805.78,
+                  "code": "301"
+                },
+                {
+                  "amount": 703644.32,
+                  "code": "302"
+                },
+                {
+                  "amount": 10900.82,
+                  "code": "303"
+                },
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                },
+                {
+                  "amount": 661216.57,
+                  "code": "348"
+                },
+                {
+                  "amount": 2064259.85,
+                  "code": "371"
+                },
+                {
+                  "amount": 0.8,
+                  "code": "378"
+                },
+                {
+                  "amount": 52648.19,
+                  "code": "381"
+                },
+                {
+                  "amount": -6075.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 8933332.42,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.22747,
+              "statement": "Class-3 stock is 22.7% of total assets (8,933,332.42 of 39,272,501.03)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                },
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 71519680.57,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.603151,
+              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Manufacturing / production",
+      "family": "manufacturing",
+      "margin": 0.875,
+      "reason": "The account mix reads as Manufacturing / production, which is what 'Manufacturing · industrial' claims.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "own production",
+        "claims_families": [
+          "manufacturing"
+        ],
+        "display": "Manufacturing · industrial",
+        "in_catalog": true,
+        "industry_key": "manufacturing"
+      }
+    },
+    "real_estate_residential": {
+      "agreement": "disagree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 39272501.03
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 118576819.64
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 37351124.02
+        }
+      },
+      "block_sector_content": true,
+      "candidates": [
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 79311635.03,
+                  "code": "701"
+                }
+              ],
+              "amount": 79311635.03,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.668863,
+              "statement": "Sales of own production are 66.9% of revenue (79,311,635.03 of 118,576,819.64)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                }
+              ],
+              "amount": 1791931.09,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.045628,
+              "statement": "Work-in-progress / own-produced stock is 4.6% of total assets (1,791,931.09 of 39,272,501.03)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                }
+              ],
+              "amount": 45031585.84,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.379767,
+              "statement": "Raw materials and consumables consumed are 38.0% of revenue (45,031,585.84 of 118,576,819.64)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 3654805.78,
+                  "code": "301"
+                },
+                {
+                  "amount": 703644.32,
+                  "code": "302"
+                },
+                {
+                  "amount": 10900.82,
+                  "code": "303"
+                },
+                {
+                  "amount": 52648.19,
+                  "code": "381"
+                }
+              ],
+              "amount": 4421999.11,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.112598,
+              "statement": "Raw-material stock is 11.3% of total assets (4,421,999.11 of 39,272,501.03)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 6.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 35176699.41,
+                  "code": "707"
+                }
+              ],
+              "amount": 35176699.41,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.296657,
+              "statement": "Sales of merchandise bought for resale are 29.7% of revenue (35,176,699.41 of 118,576,819.64)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 26488094.73,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.223383,
+              "statement": "Cost of merchandise sold is 22.3% of revenue (26,488,094.73 of 118,576,819.64)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2064259.85,
+                  "code": "371"
+                }
+              ],
+              "amount": 2064259.85,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.052562,
+              "statement": "Merchandise held for resale is 5.3% of total assets (2,064,259.85 of 39,272,501.03)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                }
+              ],
+              "amount": 1791931.09,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.045628,
+              "statement": "No material work-in-progress stock (4.6% of total assets) (1,791,931.09 of 39,272,501.03)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 183977.61,
+                  "code": "706"
+                }
+              ],
+              "amount": 183977.61,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.001552,
+              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 118,576,819.64)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 39,272,501.03)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2573536.72,
+                  "code": "211"
+                },
+                {
+                  "amount": 6651005.88,
+                  "code": "212"
+                }
+              ],
+              "amount": 9224542.6,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 37351124.02,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": false,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.246968,
+              "statement": "Land and buildings are 24.7% of gross tangible fixed assets (9,224,542.60 of 37,351,124.02)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                },
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 71519680.57,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.603151,
+              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 15252.34,
+                  "code": "704"
+                }
+              ],
+              "amount": 15252.34,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.000129,
+              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 118,576,819.64)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 3654805.78,
+                  "code": "301"
+                },
+                {
+                  "amount": 703644.32,
+                  "code": "302"
+                },
+                {
+                  "amount": 10900.82,
+                  "code": "303"
+                },
+                {
+                  "amount": 995988.37,
+                  "code": "341"
+                },
+                {
+                  "amount": 795942.72,
+                  "code": "345"
+                },
+                {
+                  "amount": 661216.57,
+                  "code": "348"
+                },
+                {
+                  "amount": 2064259.85,
+                  "code": "371"
+                },
+                {
+                  "amount": 0.8,
+                  "code": "378"
+                },
+                {
+                  "amount": 52648.19,
+                  "code": "381"
+                },
+                {
+                  "amount": -6075.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 8933332.42,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 39272501.03,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.22747,
+              "statement": "Class-3 stock is 22.7% of total assets (8,933,332.42 of 39,272,501.03)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36942231.05,
+                  "code": "601"
+                },
+                {
+                  "amount": 8089354.79,
+                  "code": "602"
+                },
+                {
+                  "amount": 26488094.73,
+                  "code": "607"
+                }
+              ],
+              "amount": 71519680.57,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 118576819.64,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.603151,
+              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Manufacturing / production",
+      "family": "manufacturing",
+      "margin": 0.875,
+      "reason": "The account mix looks like Manufacturing / production; this workspace is set to Real estate · residential rental.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "residential rental — rental income and a property book",
+        "claims_families": [
+          "real_estate"
+        ],
+        "display": "Real estate · residential rental",
+        "in_catalog": true,
+        "industry_key": "real_estate_residential"
+      }
+    }
+  },
+  "carniprod": {
+    "manufacturing": {
+      "agreement": "agree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 125886192.51
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 99424740.16
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 149694128.73
+        }
+      },
+      "block_sector_content": false,
+      "candidates": [
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 87971361.94,
+                  "code": "701"
+                },
+                {
+                  "amount": 8849.09,
+                  "code": "703"
+                }
+              ],
+              "amount": 87980211.03,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.884893,
+              "statement": "Sales of own production are 88.5% of revenue (87,980,211.03 of 99,424,740.16)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                }
+              ],
+              "amount": 3538261.44,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.028107,
+              "statement": "Work-in-progress / own-produced stock is 2.8% of total assets (3,538,261.44 of 125,886,192.51)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                }
+              ],
+              "amount": 51374467.2,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.516717,
+              "statement": "Raw materials and consumables consumed are 51.7% of revenue (51,374,467.20 of 99,424,740.16)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2150850.01,
+                  "code": "301"
+                },
+                {
+                  "amount": 3825760.92,
+                  "code": "302"
+                },
+                {
+                  "amount": 126485.6,
+                  "code": "303"
+                },
+                {
+                  "amount": 314801.33,
+                  "code": "381"
+                }
+              ],
+              "amount": 6417897.86,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.050982,
+              "statement": "Raw-material stock is 5.1% of total assets (6,417,897.86 of 125,886,192.51)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 6.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 48000.0,
+                  "code": "706"
+                }
+              ],
+              "amount": 48000.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.000483,
+              "statement": "Rent and royalties are 0.0% of revenue (48,000.00 of 99,424,740.16)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 125,886,192.51)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 31473556.58,
+                  "code": "211"
+                },
+                {
+                  "amount": 51105957.17,
+                  "code": "212"
+                }
+              ],
+              "amount": 82579513.75,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 149694128.73,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": true,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.551655,
+              "statement": "Land and buildings are 55.2% of gross tangible fixed assets (82,579,513.75 of 149,694,128.73)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                },
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 57948721.14,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.58284,
+              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 194490.98,
+                  "code": "704"
+                }
+              ],
+              "amount": 194490.98,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.001956,
+              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 99,424,740.16)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2150850.01,
+                  "code": "301"
+                },
+                {
+                  "amount": 3825760.92,
+                  "code": "302"
+                },
+                {
+                  "amount": 126485.6,
+                  "code": "303"
+                },
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                },
+                {
+                  "amount": -357303.26,
+                  "code": "348"
+                },
+                {
+                  "amount": 733026.88,
+                  "code": "371"
+                },
+                {
+                  "amount": 314801.33,
+                  "code": "381"
+                },
+                {
+                  "amount": -475856.12,
+                  "code": "392"
+                },
+                {
+                  "amount": -60000.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 9796026.8,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.077817,
+              "statement": "Class-3 stock is 7.8% of total assets (9,796,026.80 of 125,886,192.51)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                },
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 57948721.14,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.58284,
+              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 8744638.05,
+                  "code": "707"
+                }
+              ],
+              "amount": 8744638.05,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.087952,
+              "statement": "Sales of merchandise bought for resale are 8.8% of revenue (8,744,638.05 of 99,424,740.16)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 6574253.94,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.066123,
+              "statement": "Cost of merchandise sold is 6.6% of revenue (6,574,253.94 of 99,424,740.16)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 733026.88,
+                  "code": "371"
+                }
+              ],
+              "amount": 733026.88,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.005823,
+              "statement": "Merchandise held for resale is 0.6% of total assets (733,026.88 of 125,886,192.51)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                }
+              ],
+              "amount": 3538261.44,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.028107,
+              "statement": "No material work-in-progress stock (2.8% of total assets) (3,538,261.44 of 125,886,192.51)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Manufacturing / production",
+      "family": "manufacturing",
+      "margin": 0.875,
+      "reason": "The account mix reads as Manufacturing / production, which is what 'Manufacturing · industrial' claims.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "own production",
+        "claims_families": [
+          "manufacturing"
+        ],
+        "display": "Manufacturing · industrial",
+        "in_catalog": true,
+        "industry_key": "manufacturing"
+      }
+    },
+    "real_estate_residential": {
+      "agreement": "disagree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 125886192.51
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 99424740.16
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 149694128.73
+        }
+      },
+      "block_sector_content": true,
+      "candidates": [
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 87971361.94,
+                  "code": "701"
+                },
+                {
+                  "amount": 8849.09,
+                  "code": "703"
+                }
+              ],
+              "amount": 87980211.03,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.884893,
+              "statement": "Sales of own production are 88.5% of revenue (87,980,211.03 of 99,424,740.16)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                }
+              ],
+              "amount": 3538261.44,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.028107,
+              "statement": "Work-in-progress / own-produced stock is 2.8% of total assets (3,538,261.44 of 125,886,192.51)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                }
+              ],
+              "amount": 51374467.2,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.516717,
+              "statement": "Raw materials and consumables consumed are 51.7% of revenue (51,374,467.20 of 99,424,740.16)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2150850.01,
+                  "code": "301"
+                },
+                {
+                  "amount": 3825760.92,
+                  "code": "302"
+                },
+                {
+                  "amount": 126485.6,
+                  "code": "303"
+                },
+                {
+                  "amount": 314801.33,
+                  "code": "381"
+                }
+              ],
+              "amount": 6417897.86,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.050982,
+              "statement": "Raw-material stock is 5.1% of total assets (6,417,897.86 of 125,886,192.51)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 6.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 48000.0,
+                  "code": "706"
+                }
+              ],
+              "amount": 48000.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.000483,
+              "statement": "Rent and royalties are 0.0% of revenue (48,000.00 of 99,424,740.16)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 125,886,192.51)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 31473556.58,
+                  "code": "211"
+                },
+                {
+                  "amount": 51105957.17,
+                  "code": "212"
+                }
+              ],
+              "amount": 82579513.75,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 149694128.73,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": true,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.551655,
+              "statement": "Land and buildings are 55.2% of gross tangible fixed assets (82,579,513.75 of 149,694,128.73)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                },
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 57948721.14,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.58284,
+              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 194490.98,
+                  "code": "704"
+                }
+              ],
+              "amount": 194490.98,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.001956,
+              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 99,424,740.16)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 2150850.01,
+                  "code": "301"
+                },
+                {
+                  "amount": 3825760.92,
+                  "code": "302"
+                },
+                {
+                  "amount": 126485.6,
+                  "code": "303"
+                },
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                },
+                {
+                  "amount": -357303.26,
+                  "code": "348"
+                },
+                {
+                  "amount": 733026.88,
+                  "code": "371"
+                },
+                {
+                  "amount": 314801.33,
+                  "code": "381"
+                },
+                {
+                  "amount": -475856.12,
+                  "code": "392"
+                },
+                {
+                  "amount": -60000.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 9796026.8,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.077817,
+              "statement": "Class-3 stock is 7.8% of total assets (9,796,026.80 of 125,886,192.51)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 38683994.61,
+                  "code": "601"
+                },
+                {
+                  "amount": 12690472.59,
+                  "code": "602"
+                },
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 57948721.14,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.58284,
+              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 8744638.05,
+                  "code": "707"
+                }
+              ],
+              "amount": 8744638.05,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.087952,
+              "statement": "Sales of merchandise bought for resale are 8.8% of revenue (8,744,638.05 of 99,424,740.16)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 6574253.94,
+                  "code": "607"
+                }
+              ],
+              "amount": 6574253.94,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 99424740.16,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.066123,
+              "statement": "Cost of merchandise sold is 6.6% of revenue (6,574,253.94 of 99,424,740.16)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 733026.88,
+                  "code": "371"
+                }
+              ],
+              "amount": 733026.88,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.005823,
+              "statement": "Merchandise held for resale is 0.6% of total assets (733,026.88 of 125,886,192.51)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 1390689.23,
+                  "code": "341"
+                },
+                {
+                  "amount": 2147572.21,
+                  "code": "345"
+                }
+              ],
+              "amount": 3538261.44,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 125886192.51,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.028107,
+              "statement": "No material work-in-progress stock (2.8% of total assets) (3,538,261.44 of 125,886,192.51)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Manufacturing / production",
+      "family": "manufacturing",
+      "margin": 0.875,
+      "reason": "The account mix looks like Manufacturing / production; this workspace is set to Real estate · residential rental.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "residential rental — rental income and a property book",
+        "claims_families": [
+          "real_estate"
+        ],
+        "display": "Real estate · residential rental",
+        "in_catalog": true,
+        "industry_key": "real_estate_residential"
+      }
+    }
+  },
+  "realestate": {
+    "manufacturing": {
+      "agreement": "disagree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 83417653.88
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 162365.46
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 12516850.06
+        }
+      },
+      "block_sector_content": true,
+      "candidates": [
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 161237.84,
+                  "code": "706"
+                }
+              ],
+              "amount": 161237.84,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": true,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.993055,
+              "statement": "Rent and royalties are 99.3% of revenue (161,237.84 of 162,365.46)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 83,417,653.88)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 10876204.38,
+                  "code": "211"
+                },
+                {
+                  "amount": 1466658.75,
+                  "code": "212"
+                }
+              ],
+              "amount": 12342863.13,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 12516850.06,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": true,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.9861,
+              "statement": "Land and buildings are 98.6% of gross tangible fixed assets (12,342,863.13 of 12,516,850.06)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": true,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Materials and merchandise cost is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 5.0,
+          "score": 0.625
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 1127.62,
+                  "code": "704"
+                }
+              ],
+              "amount": 1127.62,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.006945,
+              "statement": "Services rendered are 0.7% of revenue (1,127.62 of 162,365.46)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                },
+                {
+                  "amount": 30895952.0,
+                  "code": "371"
+                }
+              ],
+              "amount": 67821213.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.813032,
+              "statement": "Class-3 stock is 81.3% of total assets (67,821,213.71 of 83,417,653.88)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": true,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Materials and merchandise cost is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 1.0,
+          "score": 0.2
+        },
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                }
+              ],
+              "amount": 36925261.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.442655,
+              "statement": "Work-in-progress / own-produced stock is 44.3% of total assets (36,925,261.71 of 83,417,653.88)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.0,
+              "statement": "Raw materials and consumables consumed are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.0,
+              "statement": "Raw-material stock is 0.0% of total assets (0.00 of 83,417,653.88)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 1.0,
+          "score": 0.1667
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of merchandise bought for resale are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Cost of merchandise sold is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 30895952.0,
+                  "code": "371"
+                }
+              ],
+              "amount": 30895952.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.370377,
+              "statement": "Merchandise held for resale is 37.0% of total assets (30,895,952.00 of 83,417,653.88)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                }
+              ],
+              "amount": 36925261.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.442655,
+              "statement": "No material work-in-progress stock (44.3% of total assets) (36,925,261.71 of 83,417,653.88)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Real estate / property",
+      "family": "real_estate",
+      "margin": 0.425,
+      "reason": "The account mix looks like Real estate / property; this workspace is set to Manufacturing · industrial.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 0.625,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "own production",
+        "claims_families": [
+          "manufacturing"
+        ],
+        "display": "Manufacturing · industrial",
+        "in_catalog": true,
+        "industry_key": "manufacturing"
+      }
+    },
+    "real_estate_residential": {
+      "agreement": "agree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 83417653.88
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 162365.46
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 12516850.06
+        }
+      },
+      "block_sector_content": false,
+      "candidates": [
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 161237.84,
+                  "code": "706"
+                }
+              ],
+              "amount": 161237.84,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": true,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.993055,
+              "statement": "Rent and royalties are 99.3% of revenue (161,237.84 of 162,365.46)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 83,417,653.88)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 10876204.38,
+                  "code": "211"
+                },
+                {
+                  "amount": 1466658.75,
+                  "code": "212"
+                }
+              ],
+              "amount": 12342863.13,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 12516850.06,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": true,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.9861,
+              "statement": "Land and buildings are 98.6% of gross tangible fixed assets (12,342,863.13 of 12,516,850.06)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": true,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Materials and merchandise cost is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 5.0,
+          "score": 0.625
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 1127.62,
+                  "code": "704"
+                }
+              ],
+              "amount": 1127.62,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.006945,
+              "statement": "Services rendered are 0.7% of revenue (1,127.62 of 162,365.46)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                },
+                {
+                  "amount": 30895952.0,
+                  "code": "371"
+                }
+              ],
+              "amount": 67821213.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.813032,
+              "statement": "Class-3 stock is 81.3% of total assets (67,821,213.71 of 83,417,653.88)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": true,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Materials and merchandise cost is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 1.0,
+          "score": 0.2
+        },
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                }
+              ],
+              "amount": 36925261.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": true,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.442655,
+              "statement": "Work-in-progress / own-produced stock is 44.3% of total assets (36,925,261.71 of 83,417,653.88)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.0,
+              "statement": "Raw materials and consumables consumed are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.0,
+              "statement": "Raw-material stock is 0.0% of total assets (0.00 of 83,417,653.88)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 1.0,
+          "score": 0.1667
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of merchandise bought for resale are 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 162365.46,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": false,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.0,
+              "statement": "Cost of merchandise sold is 0.0% of revenue (0.00 of 162,365.46)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 30895952.0,
+                  "code": "371"
+                }
+              ],
+              "amount": 30895952.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.370377,
+              "statement": "Merchandise held for resale is 37.0% of total assets (30,895,952.00 of 83,417,653.88)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 36925261.71,
+                  "code": "331"
+                }
+              ],
+              "amount": 36925261.71,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 83417653.88,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": false,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.442655,
+              "statement": "No material work-in-progress stock (44.3% of total assets) (36,925,261.71 of 83,417,653.88)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 1.0,
+          "score": 0.125
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Real estate / property",
+      "family": "real_estate",
+      "margin": 0.425,
+      "reason": "The account mix reads as Real estate / property, which is what 'Real estate · residential rental' claims.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 0.625,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "residential rental — rental income and a property book",
+        "claims_families": [
+          "real_estate"
+        ],
+        "display": "Real estate · residential rental",
+        "in_catalog": true,
+        "industry_key": "real_estate_residential"
+      }
+    }
+  },
+  "retail": {
+    "real_estate_residential": {
+      "agreement": "disagree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 70089631.84
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 79510264.65
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 6110895.76
+        }
+      },
+      "block_sector_content": true,
+      "candidates": [
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 78330575.04,
+                  "code": "707"
+                }
+              ],
+              "amount": 78330575.04,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.985163,
+              "statement": "Sales of merchandise bought for resale are 98.5% of revenue (78,330,575.04 of 79,510,264.65)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63208118.74,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.794968,
+              "statement": "Cost of merchandise sold is 79.5% of revenue (63,208,118.74 of 79,510,264.65)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 7917059.01,
+                  "code": "371"
+                }
+              ],
+              "amount": 7917059.01,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.112956,
+              "statement": "Merchandise held for resale is 11.3% of total assets (7,917,059.01 of 70,089,631.84)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.0,
+              "statement": "No material work-in-progress stock (0.0% of total assets) (0.00 of 70,089,631.84)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 8.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,510,264.65)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.0,
+              "statement": "Work-in-progress / own-produced stock is 0.0% of total assets (0.00 of 70,089,631.84)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                }
+              ],
+              "amount": 177627.63,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.002234,
+              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,510,264.65)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 73273.0,
+                  "code": "302"
+                },
+                {
+                  "amount": 20011.56,
+                  "code": "303"
+                },
+                {
+                  "amount": 140526.37,
+                  "code": "381"
+                }
+              ],
+              "amount": 233810.93,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.003336,
+              "statement": "Raw-material stock is 0.3% of total assets (233,810.93 of 70,089,631.84)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 352714.12,
+                  "code": "706"
+                }
+              ],
+              "amount": 352714.12,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.004436,
+              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,510,264.65)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 70,089,631.84)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 23218.0,
+                  "code": "211"
+                },
+                {
+                  "amount": 1864345.1,
+                  "code": "212"
+                }
+              ],
+              "amount": 1887563.1,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 6110895.76,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": false,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.308885,
+              "statement": "Land and buildings are 30.9% of gross tangible fixed assets (1,887,563.10 of 6,110,895.76)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                },
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63385746.37,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.797202,
+              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 535742.05,
+                  "code": "704"
+                }
+              ],
+              "amount": 535742.05,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.006738,
+              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,510,264.65)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 73273.0,
+                  "code": "302"
+                },
+                {
+                  "amount": 20011.56,
+                  "code": "303"
+                },
+                {
+                  "amount": 7917059.01,
+                  "code": "371"
+                },
+                {
+                  "amount": -1229164.37,
+                  "code": "378"
+                },
+                {
+                  "amount": 140526.37,
+                  "code": "381"
+                },
+                {
+                  "amount": -66500.0,
+                  "code": "397"
+                },
+                {
+                  "amount": -60000.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 6795205.57,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.09695,
+              "statement": "Class-3 stock is 9.7% of total assets (6,795,205.57 of 70,089,631.84)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                },
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63385746.37,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.797202,
+              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Trade / distribution",
+      "family": "trade",
+      "margin": 1.0,
+      "reason": "The account mix looks like Trade / distribution; this workspace is set to Real estate · residential rental.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "residential rental — rental income and a property book",
+        "claims_families": [
+          "real_estate"
+        ],
+        "display": "Real estate · residential rental",
+        "in_catalog": true,
+        "industry_key": "real_estate_residential"
+      }
+    },
+    "retail_ecom": {
+      "agreement": "agree",
+      "bases": {
+        "assets": {
+          "measurable": true,
+          "source": "line items, asset buckets",
+          "value": 70089631.84
+        },
+        "revenue": {
+          "measurable": true,
+          "source": "line items, class 70",
+          "value": 79510264.65
+        },
+        "tangible_fixed": {
+          "measurable": true,
+          "source": "line items, 211–215 at gross",
+          "value": 6110895.76
+        }
+      },
+      "block_sector_content": false,
+      "candidates": [
+        {
+          "available_weight": 8.0,
+          "display": "Trade / distribution",
+          "family": "trade",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 78330575.04,
+                  "code": "707"
+                }
+              ],
+              "amount": 78330575.04,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_revenue",
+              "reads": [
+                "Sales of merchandise bought for resale (707)"
+              ],
+              "share": 0.985163,
+              "statement": "Sales of merchandise bought for resale are 98.5% of revenue (78,330,575.04 of 79,510,264.65)",
+              "test": "share >= 60.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63208118.74,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_cost",
+              "reads": [
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.794968,
+              "statement": "Cost of merchandise sold is 79.5% of revenue (63,208,118.74 of 79,510,264.65)",
+              "test": "share >= 55.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 7917059.01,
+                  "code": "371"
+                }
+              ],
+              "amount": 7917059.01,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "merchandise_stock",
+              "reads": [
+                "Merchandise held for resale (371)"
+              ],
+              "share": 0.112956,
+              "statement": "Merchandise held for resale is 11.3% of total assets (7,917,059.01 of 70,089,631.84)",
+              "test": "share >= 1.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "trade",
+              "fired": true,
+              "key": "no_production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.0,
+              "statement": "No material work-in-progress stock (0.0% of total assets) (0.00 of 70,089,631.84)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 8.0,
+          "score": 1.0
+        },
+        {
+          "available_weight": 6.0,
+          "display": "Manufacturing / production",
+          "family": "manufacturing",
+          "markers": [
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "own_production_revenue",
+              "reads": [
+                "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
+              ],
+              "share": 0.0,
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,510,264.65)",
+              "test": "share >= 30.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "production_stock",
+              "reads": [
+                "Work-in-progress and own-produced stock (331, 332, 341, 345, 346)"
+              ],
+              "share": 0.0,
+              "statement": "Work-in-progress / own-produced stock is 0.0% of total assets (0.00 of 70,089,631.84)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                }
+              ],
+              "amount": 177627.63,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "material_cost",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)"
+              ],
+              "share": 0.002234,
+              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,510,264.65)",
+              "test": "share >= 20.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 73273.0,
+                  "code": "302"
+                },
+                {
+                  "amount": 20011.56,
+                  "code": "303"
+                },
+                {
+                  "amount": 140526.37,
+                  "code": "381"
+                }
+              ],
+              "amount": 233810.93,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "manufacturing",
+              "fired": false,
+              "key": "raw_material_stock",
+              "reads": [
+                "Raw-material, consumable and packaging stock (301, 302, 303, 381)"
+              ],
+              "share": 0.003336,
+              "statement": "Raw-material stock is 0.3% of total assets (233,810.93 of 70,089,631.84)",
+              "test": "share >= 0.5%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 6.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 8.0,
+          "display": "Real estate / property",
+          "family": "real_estate",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 352714.12,
+                  "code": "706"
+                }
+              ],
+              "amount": 352714.12,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "rent_revenue",
+              "reads": [
+                "Rent and royalties (706)"
+              ],
+              "share": 0.004436,
+              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,510,264.65)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [],
+              "amount": 0.0,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "real_estate",
+              "fired": false,
+              "key": "investment_property",
+              "reads": [
+                "Investment property (215)"
+              ],
+              "share": 0.0,
+              "statement": "Investment property is 0.0% of total assets (0.00 of 70,089,631.84)",
+              "test": "share >= 20.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 23218.0,
+                  "code": "211"
+                },
+                {
+                  "amount": 1864345.1,
+                  "code": "212"
+                }
+              ],
+              "amount": 1887563.1,
+              "available": true,
+              "basis": "tangible_fixed",
+              "basis_amount": 6110895.76,
+              "basis_source": "line items, 211–215 at gross",
+              "family": "real_estate",
+              "fired": false,
+              "key": "land_and_buildings_dominate",
+              "reads": [
+                "Land and buildings (211, 212)"
+              ],
+              "share": 0.308885,
+              "statement": "Land and buildings are 30.9% of gross tangible fixed assets (1,887,563.10 of 6,110,895.76)",
+              "test": "share >= 50.0%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                },
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63385746.37,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "real_estate",
+              "fired": false,
+              "key": "no_cost_of_sales",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.797202,
+              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "test": "share < 5.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 8.0,
+          "points": 0,
+          "score": 0.0
+        },
+        {
+          "available_weight": 5.0,
+          "display": "Services",
+          "family": "services",
+          "markers": [
+            {
+              "accounts": [
+                {
+                  "amount": 535742.05,
+                  "code": "704"
+                }
+              ],
+              "amount": 535742.05,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "service_revenue",
+              "reads": [
+                "Services rendered and studies (704, 705)"
+              ],
+              "share": 0.006738,
+              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,510,264.65)",
+              "test": "share >= 50.0%",
+              "weight": 3.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 73273.0,
+                  "code": "302"
+                },
+                {
+                  "amount": 20011.56,
+                  "code": "303"
+                },
+                {
+                  "amount": 7917059.01,
+                  "code": "371"
+                },
+                {
+                  "amount": -1229164.37,
+                  "code": "378"
+                },
+                {
+                  "amount": 140526.37,
+                  "code": "381"
+                },
+                {
+                  "amount": -66500.0,
+                  "code": "397"
+                },
+                {
+                  "amount": -60000.0,
+                  "code": "398"
+                }
+              ],
+              "amount": 6795205.57,
+              "available": true,
+              "basis": "assets",
+              "basis_amount": 70089631.84,
+              "basis_source": "line items, asset buckets",
+              "family": "services",
+              "fired": false,
+              "key": "no_stock_at_all",
+              "reads": [
+                "Class-3 stock, net of 39x provisions"
+              ],
+              "share": 0.09695,
+              "statement": "Class-3 stock is 9.7% of total assets (6,795,205.57 of 70,089,631.84)",
+              "test": "share < 0.5%",
+              "weight": 1.0
+            },
+            {
+              "accounts": [
+                {
+                  "amount": 177627.63,
+                  "code": "602"
+                },
+                {
+                  "amount": 63208118.74,
+                  "code": "607"
+                }
+              ],
+              "amount": 63385746.37,
+              "available": true,
+              "basis": "revenue",
+              "basis_amount": 79510264.65,
+              "basis_source": "line items, class 70",
+              "family": "services",
+              "fired": false,
+              "key": "no_cost_of_goods",
+              "reads": [
+                "Raw materials and consumables consumed (601, 602)",
+                "Cost of merchandise sold (607)"
+              ],
+              "share": 0.797202,
+              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "test": "share < 10.0%",
+              "weight": 1.0
+            }
+          ],
+          "max_weight": 5.0,
+          "points": 0,
+          "score": 0.0
+        }
+      ],
+      "cannot_resolve": "Sub-sector. A Romanian chart of accounts distinguishes production from trade from property from services; it does not distinguish food manufacturing from industrial manufacturing, or commercial from residential rental.",
+      "display": "Trade / distribution",
+      "family": "trade",
+      "margin": 1.0,
+      "reason": "The account mix reads as Trade / distribution, which is what 'Retail · e-commerce' claims.",
+      "resolves_to": "family",
+      "schema_version": "structural-industry-signal/1",
+      "score": 1.0,
+      "thresholds": {
+        "min_available_weight": 4.0,
+        "min_margin": 0.15,
+        "min_score": 0.55
+      },
+      "undetermined_because": [],
+      "verdict": "decided",
+      "workspace": {
+        "catalog_note": "goods bought for resale",
+        "claims_families": [
+          "trade"
+        ],
+        "display": "Retail · e-commerce",
+        "in_catalog": true,
+        "industry_key": "retail_ecom"
+      }
+    }
+  }
+}

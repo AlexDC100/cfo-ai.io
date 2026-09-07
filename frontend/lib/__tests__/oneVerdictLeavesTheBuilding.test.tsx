@@ -622,6 +622,13 @@ describe("§6 the deleted arithmetic, planted, is caught", () => {
     return {
       key: "altman_z",
       label: "Altman Z″-Score",
+      // The deleted row's arithmetic, spelled — `Ratio.formula` became
+      // required in 2026-09-07's ratio-formula wave (G4), and this
+      // reconstruction of the pre-fix row has to wear the shape too.
+      formula:
+        "6.56 × (working capital ÷ total assets) + 3.26 × (retained earnings ÷ total assets) " +
+        "+ 6.72 × (EBIT ÷ total assets) + 1.05 × (book equity ÷ total liabilities) — the " +
+        "DELETED inline formula, not the credit reader's",
       value: z,
       unit: "ratio",
       // The `>=` ladder, exactly as it was.

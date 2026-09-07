@@ -47,6 +47,12 @@ import type { CreditScoreResult } from "./financialValuation";
 // ladder with the SAME function the screens do — it had its own inline
 // sort/map/join, which is a second spelling of one table.
 import { spellLadder } from "./creditModel";
+// VALUE import, and safe: `industrySignal.ts` is a leaf that imports
+// nothing. It is a READER over the engine's served block, not a second
+// implementation of the comparison — the reading, the workspace key and
+// the block decision are all computed once in
+// `src/engine/industry/structural_signal.py`.
+import { blocksSectorContent, readIndustrySignal } from "./industrySignal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -459,7 +465,17 @@ export interface Statements {
    *  matching, which treats one name containing the other as the same
    *  company. */
   cui?: string | null;
+  /** `organizations.industry_display_name` — a DISPLAY LABEL ("Real
+   *  estate · residential rental"), never the key the rule registry
+   *  scopes on. Read `industry_signal.workspace.industry_key` for the
+   *  key; see `resolveIndustryKey` below for why that distinction cost
+   *  two food factories a commercial-real-estate recommendation. */
   industry?: string;
+  /** The engine's reading of the ACCOUNT MIX and its verdict on whether
+   *  that agrees with the workspace setting — served on
+   *  `GET /api/period/{id}`. Absent on older payloads, which blocks
+   *  nothing. */
+  industry_signal?: unknown;
   currency: string;
   periodLabel: string; // e.g. "FY 2025"
   balanceSheet: BalanceSheet;
@@ -652,6 +668,25 @@ export type RatioVerdict = "strong" | "healthy" | "watch" | "critical" | "unknow
 export interface Ratio {
   key: string;
   label: string;
+  /** THE ARITHMETIC, IN WORDS, beside the figure it produced.
+   *
+   *  REQUIRED, so `tsc` enumerates every construction site rather than a
+   *  human remembering to fill it in. A rendered ratio a reader cannot
+   *  check is a claim, not a measurement, and the report used to print
+   *  twenty-two of them with nothing but a label and a benchmark band:
+   *  "Interest Coverage 66.28×" beside a credit component labelled
+   *  "Interest Coverage (EBIT / Interest)" whose basis gives 55.64× on
+   *  the same book, and "Quick Ratio 0.74×" whose value is
+   *  (cash + receivables) ÷ current liabilities where the textbook
+   *  (current assets − inventory) ÷ current liabilities is 1.42× — the
+   *  difference between Watch and Healthy, decided by a definition the
+   *  page never stated.
+   *
+   *  The words here must describe the arithmetic that produced `value`,
+   *  including where that value came off the engine rather than out of
+   *  the fallback below it. `exportRatioFormulas.test.ts` recomputes each
+   *  one from the served envelope and reds when the two disagree. */
+  formula: string;
   /** NULL when the ratio could not be computed. `unavailable` then says
    *  why, and every renderer must state that rather than print a figure. */
   value: number | null;
@@ -852,6 +887,9 @@ export function computeRatios(
   const bs = s.balanceSheet;
   const is = s.incomeStatement;
   const sup = s.supplementary;
+  /** The engine's assembled P&L, when the source carries one. Read only
+   *  by `anchored()` below — the resolver every caption quotes through. */
+  const apl = s.assembled_pl ?? {};
   const days = sup.periodDays ?? 365;
 
   // ── WHAT THIS SOURCE ACTUALLY REPORTED ──────────────────────────────
@@ -1014,6 +1052,40 @@ export function computeRatios(
   // legacy `canonicalMargins` pair or the new `metricsByName` map). Engine
   // emits margins as ratios (0–1); pct() emits 0–100; multiply canonical
   // value by 100 to align units.
+  // ── THE FACT A CAPTION IS ALLOWED TO QUOTE ──────────────────────────
+  //
+  // A caption is prose ABOUT the number beside it, so it must resolve
+  // through the same fact that number resolved. Until 2026-09-07 it did
+  // not: `netMargin` came from the engine's `net_margin` (built on
+  // account 121, the filed close) while its caption interpolated the
+  // FE reconstruction `netIncome` (`pretax − tax`). Measured, printed
+  // side by side in the same card on all four firm books:
+  //
+  //   book         Net Margin   the caption beside it        the anchor
+  //   agras            6.3 %    "RON 14.11M bottom-line"     7,533,676.02
+  //   carniprod        1.4 %    "RON 5.84M bottom-line"      1,435,533.59
+  //   realestate    −493.7 %    "RON −30.39M bottom-line"     −801,604.14
+  //   retail           4.0 %    "RON 1.16M bottom-line"      3,205,212.62
+  //
+  // On agras a reader is shown a 6.3 % margin and, one line below it, a
+  // profit that is 1.87× the one the margin was computed from.
+  //
+  // `anchored` is the one resolver: the engine's assembled figure first,
+  // then the served metric of the same name, then the FE reconstruction —
+  // which is all a source with no envelope (the public-company adapter)
+  // ever has.
+  const aplNum = (k: string): number | null => {
+    const v = apl[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const anchored = (field: string, metric: string, fallback: Fig): Fig => {
+    const a = aplNum(field);
+    return a === null ? mOr(metric, fallback) : known(a);
+  };
+  const anchoredNetIncome = anchored("net_income_statutory", "net_income_statutory", netIncome);
+  const anchoredEbitda = anchored("ebitda_statutory", "ebitda_statutory", ebitda);
+  const anchoredRevenue = anchored("revenue", "revenue", revenue);
+
   const grossMargin = mPctOr("gross_margin", pctOf(grossProfit, revenue, "revenue"));
   const ebitdaMargin = m("ebitda_margin") !== null
     ? known((m("ebitda_margin") as number) * 100)
@@ -1156,6 +1228,7 @@ export function computeRatios(
     bands: { critical?: number; watch?: number; healthy?: number; strong?: number },
     higherIsBetter: boolean,
     benchmark: string,
+    formula: string,
     commentary: (v: number) => string,
   ): Ratio => {
     if (f.value === null) {
@@ -1163,6 +1236,7 @@ export function computeRatios(
       return {
         key,
         label,
+        formula,
         value: null,
         unit,
         verdict: "unknown",
@@ -1174,6 +1248,7 @@ export function computeRatios(
     return {
       key,
       label,
+      formula,
       value: f.value,
       unit,
       verdict: verdictFromBands(f.value, bands, higherIsBetter),
@@ -1191,6 +1266,7 @@ export function computeRatios(
       row("current_ratio", "Current Ratio", "x", currentRatio,
         { strong: 2, healthy: 1.5, watch: 1 }, true,
         "≥ 1.5× healthy · ≥ 2.0× strong",
+        "current assets ÷ current liabilities",
         (v) =>
           v >= 1.5
             ? "Comfortable short-term cushion against current obligations."
@@ -1200,6 +1276,7 @@ export function computeRatios(
       row("quick_ratio", "Quick Ratio", "x", quickRatio,
         { strong: 1.5, healthy: 1, watch: 0.7 }, true,
         "≥ 1.0× healthy",
+        "(cash + trade receivables) ÷ current liabilities — the acid test; other current assets are excluded, which is why this can sit a full band below (current assets − inventory) ÷ current liabilities",
         (v) =>
           v >= 1
             ? "Cash + receivables alone cover current liabilities."
@@ -1207,6 +1284,7 @@ export function computeRatios(
       row("cash_ratio", "Cash Ratio", "x", cashRatio,
         { strong: 0.5, healthy: 0.2, watch: 0.1 }, true,
         "≥ 0.2× healthy",
+        "cash ÷ current liabilities",
         (v) =>
           v >= 0.2
             ? "Adequate cash buffer for operating shocks."
@@ -1216,18 +1294,22 @@ export function computeRatios(
       row("gross_margin", "Gross Margin", "%", grossMargin,
         { strong: 40, healthy: 25, watch: 15 }, true,
         "Industry-dependent · ≥ 25% healthy",
-        (v) => `${v.toFixed(1)}% gross margin on ${money(revenue)} revenue.`),
+        "gross profit ÷ revenue",
+        (v) => `${v.toFixed(1)}% gross margin on ${money(anchoredRevenue)} revenue.`),
       row("ebitda_margin", "EBITDA Margin", "%", ebitdaMargin,
         { strong: 25, healthy: 15, watch: 8 }, true,
         "≥ 15% healthy · ≥ 25% strong",
-        () => `${money(ebitda)} EBITDA — operating cash generation.`),
+        "EBITDA (statutory) ÷ revenue",
+        () => `${money(anchoredEbitda)} EBITDA on ${money(anchoredRevenue)} revenue — operating cash generation.`),
       row("net_margin", "Net Margin", "%", netMargin,
         { strong: 15, healthy: 8, watch: 3 }, true,
         "≥ 8% healthy",
-        () => `${money(netIncome)} bottom-line profit after all costs.`),
+        "net profit as filed (account 121) ÷ revenue",
+        () => `${money(anchoredNetIncome)} net profit as filed, on ${money(anchoredRevenue)} revenue.`),
       row("roa", "Return on Assets", "%", roa,
         { strong: 10, healthy: 5, watch: 2 }, true,
         "≥ 5% healthy",
+        "net profit as filed (account 121) ÷ total assets",
         (v) =>
           v >= 5
             ? "Assets generating solid returns."
@@ -1235,6 +1317,7 @@ export function computeRatios(
       row("roe", "Return on Equity", "%", roe,
         { strong: 20, healthy: 12, watch: 6 }, true,
         "≥ 12% healthy",
+        "net profit as filed (account 121) ÷ total equity",
         (v) =>
           v >= 12
             ? "Capital deployed efficiently for shareholders."
@@ -1245,6 +1328,7 @@ export function computeRatios(
       row("roic", "Return on Invested Capital", "%", roic,
         { strong: 15, healthy: 10, watch: 5 }, true,
         "≥ 10% healthy",
+        "EBIT × (1 − 16% tax) ÷ (total debt + total equity) — NOPAT over invested capital. Net profit is NOT an input: this ratio does not move with the account-121 anchor and is not expected to.",
         (v) =>
           v >= 10
             ? "Invested capital earning above typical WACC."
@@ -1254,6 +1338,7 @@ export function computeRatios(
       row("debt_to_ebitda", "Debt / EBITDA", "x", debtToEbitda,
         { strong: 2, healthy: 3, watch: 4.5 }, false,
         "≤ 3× healthy · ≤ 2× strong",
+        "total debt ÷ EBITDA (statutory)",
         (v) =>
           v <= 3
             ? "Debt service comfortably aligned with cash generation."
@@ -1263,23 +1348,38 @@ export function computeRatios(
       row("debt_to_equity", "Debt / Equity", "x", debtToEquity,
         { strong: 0.5, healthy: 1, watch: 2 }, false,
         "≤ 1.0× healthy",
+        "total debt ÷ total equity",
         (v) => (v <= 1 ? "Conservatively capitalized." : "Leverage exceeds equity cushion.")),
       row("equity_ratio", "Equity Ratio", "%", equityRatio,
         { strong: 50, healthy: 30, watch: 15 }, true,
         "≥ 30% healthy",
+        "total equity ÷ total assets",
         (v) => `${v.toFixed(1)}% of assets funded by equity.`),
       row("ltv", sup.propertyMarketValue ? "Loan-to-Value" : "Debt-to-Assets", "%", ltv,
         { strong: 50, healthy: 65, watch: 80 }, false,
         "≤ 65% healthy",
+        sup.propertyMarketValue
+          ? "total debt ÷ property market value (supplied by the reader, not from the trial balance)"
+          : "total debt ÷ total assets",
         (v) =>
           v <= 65
             ? "Asset coverage of debt is comfortable."
             : "Limited equity headroom against pledged assets."),
     ],
     coverage: [
-      row("interest_coverage", "Interest Coverage", "x", interestCoverage,
+      // THE LABEL IS THE THING THAT WAS WRONG, NOT THE VALUE. The engine's
+      // canonical `interest_coverage` is EBITDA ÷ interest (pipeline.py
+      // :2226, `safe(ebitda, interest)`) and every other surface reads it,
+      // so moving the number would move the dashboard, the covenant
+      // screens and the capsule with it. What the document could not do
+      // was print "Interest Coverage 66.28×" three pages above a credit
+      // component labelled "Interest Coverage (EBIT / Interest)" whose
+      // basis is 55.64× on the same book. Two bases, two numbers, one
+      // name. The card now says which one it is.
+      row("interest_coverage", "Interest Coverage (EBITDA / Interest)", "x", interestCoverage,
         { strong: 6, healthy: 3, watch: 1.5 }, true,
         "≥ 3× healthy",
+        "EBITDA (statutory) ÷ interest expense — NOT EBIT ÷ interest, which the credit component below bands on and which is a different number on every levered book",
         (v) =>
           v >= 3
             ? "Earnings comfortably absorb interest load."
@@ -1287,6 +1387,7 @@ export function computeRatios(
       row("dscr", "DSCR (interest + ST debt)", "x", dscr,
         { strong: 1.5, healthy: 1.25, watch: 1 }, true,
         "≥ 1.25× covenant-typical",
+        "EBITDA (statutory) ÷ (interest expense + short-term debt)",
         (v) =>
           v >= 1.25
             ? "Annual cash service comfortably covered."
@@ -1294,6 +1395,9 @@ export function computeRatios(
       row("adjusted_dscr", "Adjusted DSCR (incl. lease)", "x", adjustedDscr,
         { strong: 1.5, healthy: 1.25, watch: 1 }, true,
         "≥ 1.25× including lease commitments",
+        sup.annualLeaseExpense
+          ? "(EBITDA + annual lease expense) ÷ (interest expense + short-term debt + annual lease expense)"
+          : "no lease supplied — identical to DSCR above",
         () =>
           sup.annualLeaseExpense
             ? "Adds lease obligation to fixed charges — lender-style view."
@@ -1307,6 +1411,7 @@ export function computeRatios(
       row("dscr_with_lt_principal", "DSCR (incl. LT principal proxy)", "x", dscrWithLtPrincipal,
         { strong: 1.5, healthy: 1.25, watch: 1 }, true,
         "≥ 1.25× with 10-year amortization proxy",
+        "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
         (v) =>
           v >= 1.25
             ? "Comfortable coverage of interest + LT principal amortization."
@@ -1316,22 +1421,27 @@ export function computeRatios(
       row("dso", "Days Sales Outstanding", "days", dso,
         { strong: 30, healthy: 45, watch: 75 }, false,
         "≤ 45 days healthy",
+        `trade receivables ÷ revenue × ${days} days`,
         (v) => `Average ${v.toFixed(0)}-day collection cycle on receivables.`),
       row("dio", "Days Inventory Outstanding", "days", dio,
         { strong: 30, healthy: 60, watch: 100 }, false,
         "≤ 60 days for FMCG · varies by industry",
+        `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
         (v) => `Inventory turns every ${v.toFixed(0)} days.`),
       row("dpo", "Days Payables Outstanding", "days", dpo,
         { strong: 60, healthy: 45, watch: 30 }, true,
         "Higher = better supplier float (within terms)",
+        `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
         (v) => `${v.toFixed(0)}-day average to settle suppliers.`),
       row("ccc", "Cash Conversion Cycle", "days", ccc,
         { strong: 30, healthy: 60, watch: 100 }, false,
         "Lower is better — cash speed",
+        "DSO + DIO − DPO",
         (v) => `${v.toFixed(0)}-day gap between cash out and cash in.`),
       row("asset_turnover", "Asset Turnover", "x", assetTurnover,
         { strong: 1.5, healthy: 0.8, watch: 0.4 }, true,
         "≥ 0.8× healthy (industry-dependent)",
+        "revenue ÷ total assets",
         (v) => `${v.toFixed(2)}× revenue per unit of assets.`),
     ],
   };
@@ -1377,10 +1487,18 @@ export function altmanRatio(credit: CreditScoreResult): Ratio {
     `≥ ${a.thresholds.safe.toFixed(2)} safe · ` +
     `${a.thresholds.distress.toFixed(2)}–${a.thresholds.safe.toFixed(2)} grey · ` +
     `< ${a.thresholds.distress.toFixed(2)} distress (${a.variant} 1995 EM)`;
+  // The arithmetic, spelled from the reader's own coefficients rather than
+  // re-typed here, so a re-weighted model moves the printed formula with
+  // the number it produced.
+  const formula =
+    `6.56 × (working capital ÷ total assets) + 3.26 × (retained earnings ÷ total assets) ` +
+    `+ 6.72 × (EBIT ÷ total assets) + 1.05 × (book equity ÷ total liabilities) ` +
+    `— ${a.variant} emerging-markets variant, computed by ${credit.model}`;
   if (a.score === null || a.zone === null) {
     return {
       key: ALTMAN_RATIO_KEY,
       label,
+      formula,
       value: null,
       unit: "ratio",
       verdict: "unknown",
@@ -1392,6 +1510,7 @@ export function altmanRatio(credit: CreditScoreResult): Ratio {
   return {
     key: ALTMAN_RATIO_KEY,
     label,
+    formula,
     value: a.score,
     unit: "ratio",
     verdict: a.zone === "safe" ? "healthy" : a.zone === "grey" ? "watch" : "critical",
@@ -1444,9 +1563,53 @@ export interface Recommendation {
 // — that's the operational view that produced the 3 false-alarm cards.
 import { detectConditions, severityRank } from "./recommendationRules";
 
+/**
+ * The industry KEY a profile-gated rule may be scoped on — or null.
+ *
+ * Two measured defects live behind this one function (both on the four
+ * committed books, 2026-09-07):
+ *
+ *   · `detectConditions` scopes on the key `real_estate_residential`,
+ *     while `Statements.industry` is the display label "Real estate ·
+ *     residential rental". They never matched, so a correctly-set CRE
+ *     workspace never saw a CRE finding.
+ *   · Nothing checked the setting against the book, so the setting was
+ *     the only vote. `industry_signal.block_sector_content` is the
+ *     engine's verdict that the account mix and the setting are in
+ *     different families; while that stands, the profile is NOT
+ *     established and no rule scoped on one may fire.
+ *
+ * Returning null makes every `industries:`-scoped rule silent — the
+ * unscoped rules, which carry no sector calibration, still fire. Silence
+ * about a sector this book may not belong to is the correct output; a
+ * confident CRE card on a food factory is not.
+ */
+function resolveIndustryKey(s: Statements): string | null {
+  const signal = readIndustrySignal(s.industry_signal);
+  if (blocksSectorContent(signal)) return null;
+  const key = signal?.workspace.industry_key;
+  return key && key.length > 0 ? key : null;
+}
+
 export function generateRecommendations(
   s: Statements,
-  _ratios?: RatioBundle,
+  // ── THE RATIOS THE DOCUMENT PRINTS, not a second arithmetic ─────────
+  //
+  // This parameter existed and was ignored (`_ratios`), so the rules ran
+  // on a DSCR this function computed for itself:
+  //
+  //   EBITDA ÷ (interest + max(10% of debt, depreciation))
+  //
+  // while the Debt Coverage card three pages above printed the engine's
+  //
+  //   EBITDA ÷ (interest + short-term debt)
+  //
+  // On agras that is 5.70× in every recommendation against 7.43× in the
+  // ratio table — one concept, two values, in one document, and the
+  // reader has no way to know which one the covenant advice was written
+  // against. Passing the bundle in is not a convenience: it is the only
+  // way a recommendation can cite a figure the report also states.
+  ratios?: RatioBundle,
 ): Recommendation[] {
   // ── DELEGATING IMPLEMENTATION ────────────────────────────────────────
   // The previous in-place rule logic read `t.ebitda` and `t.netIncome`
@@ -1501,10 +1664,41 @@ export function generateRecommendations(
   const dteAdj = bankDebt > 0 && ebitdaStatutory > 0
     ? bankDebt / (ebitdaStatutory + pick(ap.financial_income_other, 0))
     : 0;
+  /** The value the DOCUMENT states for a ratio, or null when it refuses
+   *  to state one. A rule reading null keeps its absent-ratio discipline
+   *  (`has()` / `fx()` in recommendationRules) and prints "not reported"
+   *  instead of inventing a figure the report does not carry. */
+  const stated = (key: string): number | null => {
+    if (!ratios) return null;
+    const found = [
+      ratios.liquidity,
+      ratios.profitability,
+      ratios.leverage,
+      ratios.coverage,
+      ratios.efficiency,
+    ]
+      .flat()
+      .find((x) => x.key === key);
+    return found === undefined ? null : found.value;
+  };
+  /** `Ratio` emits percentages as 0-100; `PeriodFacts.ratios` carries
+   *  them as decimals. One conversion, at the boundary. */
+  const statedFraction = (key: string): number | null => {
+    const v = stated(key);
+    return v === null ? null : v / 100;
+  };
+
   const safeFacts = {
     period_id: "legacy",
     entity: s.companyName ?? "Entity",
-    industry: (s.industry ?? null) as string | null,
+    // THE KEY, OR NOTHING. `detectConditions` scopes on the key
+    // (`real_estate_residential`); `s.industry` is the display label
+    // ("Real estate · residential rental"), so the two never matched —
+    // a correctly-set CRE workspace lost its CRE findings. And when the
+    // account mix disagrees with the setting, the profile is not
+    // established, so every scoped rule stays silent. See
+    // `resolveIndustryKey`.
+    industry: resolveIndustryKey(s),
     currency: s.currency,
     computed_at: new Date().toISOString(),
     pipeline_version: "legacy",
@@ -1565,15 +1759,38 @@ export function generateRecommendations(
       dividends_declared_but_unpaid: apDividends > 1000,
     },
     ratios: {
-      current_ratio: 0, quick_ratio: 0, cash_ratio: 0,
-      debt_to_equity: 0, debt_to_assets: 0, equity_ratio: 0,
+      // Every ratio a rule reads comes from the bundle the document
+      // renders, so a figure quoted in a recommendation is the figure the
+      // ratio table states. The local arithmetic below each `??` is the
+      // legacy fallback for a caller that passes no bundle — and it is
+      // the arithmetic that produced the 5.70× / 7.43× split.
+      current_ratio: stated("current_ratio") ?? 0,
+      quick_ratio: stated("quick_ratio") ?? 0,
+      cash_ratio: stated("cash_ratio") ?? 0,
+      debt_to_equity: stated("debt_to_equity") ?? 0,
+      debt_to_assets: statedFraction("ltv") ?? 0,
+      equity_ratio: statedFraction("equity_ratio") ?? 0,
       interest_coverage_ebit: 0,
-      ebitda_to_interest: interest > 0 ? ebitdaStatutory / interest : 0,
-      dscr,
-      debt_to_ebitda: ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : 0,
-      debt_to_ebitda_adjusted: dteAdj,
-      ebitda_margin_gross: 0, ebitda_margin_clean: 0, net_margin: 0,
-      roe: 0, roa: 0, property_yield: 0,
+      ebitda_to_interest:
+        stated("interest_coverage") ?? (interest > 0 ? ebitdaStatutory / interest : 0),
+      dscr: stated("dscr") ?? dscr,
+      debt_to_ebitda:
+        stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : 0),
+      // `debt_to_ebitda_adjusted` adds participation dividends to the
+      // denominator, a concept the document does not state as a row. It
+      // equals `debt_to_ebitda` exactly whenever that income is zero
+      // (all four firm books), and where it is not, it is the one figure
+      // a recommendation cites that the report does not print — flagged,
+      // not silently reconciled.
+      debt_to_ebitda_adjusted:
+        pick(ap.financial_income_other, 0) === 0
+          ? stated("debt_to_ebitda") ?? dteAdj
+          : dteAdj,
+      ebitda_margin_gross: 0, ebitda_margin_clean: 0,
+      net_margin: statedFraction("net_margin") ?? 0,
+      roe: statedFraction("roe") ?? 0,
+      roa: statedFraction("roa") ?? 0,
+      property_yield: 0,
     },
     valuation: {
       primary_method: "asset_based", primary_value: 0, confidence: "low" as const,
@@ -1757,9 +1974,47 @@ export function renderReportHtml(
   // Scandia period that moved Interest Coverage 2.58× (Watch) → 1.46×
   // (Critical) in the printed document only.
   const r = computeRatios(s, undefined, metricsByName);
+  // ── ONE RATIO, ONE PRINTING ─────────────────────────────────────────
+  // The executive strip used to build its own margin strings with
+  // `(safeDiv(a, b) * 100).toFixed(1)` while §Profitability rendered the
+  // SAME concept through `formatRatio` off the engine's metric. Two
+  // arithmetics and two rounding paths for one number: on agras the
+  // strip printed "6.4% margin" beside a Net Margin card reading "6.3%",
+  // three pages apart in one document. The strip now reads the ratio
+  // objects the ratio cards render, so a divergence is not expressible.
+  const ratioNamed = (key: string): Ratio | undefined =>
+    [r.liquidity, r.profitability, r.leverage, r.coverage, r.efficiency]
+      .flat()
+      .find((x) => x.key === key);
+  const printedRatio = (key: string): string => {
+    const rt = ratioNamed(key);
+    return rt === undefined ? UNREPORTED_WORD : formatRatio(rt);
+  };
   const recs = generateRecommendations(s, r);
   // THE ONE ALTMAN, and the letter that travels with it.
   const altman = altmanRatio(credit);
+
+  // ── THE INDUSTRY LINE ───────────────────────────────────────────────
+  // This header printed `Industry: <workspace setting>` as a plain fact.
+  // On the Agras Dec-2025 export that read "Real estate · residential
+  // rental" over a trial balance carrying 301 raw materials, 341/345
+  // own-produced stock and 70.5M of cost of sales. The setting is a user
+  // choice; the engine now reads the account mix as a second opinion and
+  // serves its verdict. When the two are in different families the line
+  // stops asserting the setting and states the disagreement instead —
+  // naming BOTH, so a reader can settle it. Nothing else in this
+  // document is recalculated: the withheld part is the profile-gated
+  // recommendations, which go silent through `resolveIndustryKey`.
+  const industrySignal = readIndustrySignal(s.industry_signal);
+  const industryDisputed = blocksSectorContent(industrySignal);
+  const industryHeaderClause = industryDisputed
+    ? ` &nbsp;·&nbsp; Industry: <strong>unconfirmed</strong>`
+    : s.industry
+      ? ` &nbsp;·&nbsp; Industry: ${escapeHtml(s.industry)}`
+      : "";
+  const industryDisputeNote = industryDisputed && industrySignal
+    ? `<p>The account mix looks like ${escapeHtml(industrySignal.display ?? "")}; this workspace is set to ${escapeHtml(industrySignal.workspace.display ?? "")} — confirm which is right. Until then no sector benchmark, and no recommendation scoped to a sector, is included below; every figure that does not depend on the sector is unchanged.</p>`
+    : "";
 
   // Statutory-canonical pick (same pattern as `generateRecommendations` at line
   // 617-621). The standalone HTML report previously read only `is.revenue`,
@@ -1779,8 +2034,50 @@ export function renderReportHtml(
   const ebitdaStatutory = pick(ap.ebitda_statutory, t.ebitda);
   const ebitdaCash = pick(ap.ebitda_cash, t.ebitda);
   const netIncomeStatutory = pick(ap.net_income_statutory, t.netIncome);
-  const ebitStatutory = pick(ap.operating_ebit, ebitdaStatutory - s.incomeStatement.depreciationAmortization);
-  const pretaxStatutory = pick(ap.pretax, ebitStatutory - s.incomeStatement.interestExpense + (s.incomeStatement.financialIncome ?? 0) - (s.incomeStatement.financialExpense ?? 0));
+  // ── EBIT: THE ONE THAT FOOTS ────────────────────────────────────────
+  // `operating_ebit` and `ebit` are two served figures and they are not
+  // the same number: on the retail book they differ by the discounts
+  // received (767) the engine folds into the operating view —
+  // −1,254,751.03 against −1,256,674.81, 1,923.78 apart. Only `ebit` is
+  // `ebitda_statutory − depreciation`, and only `ebit + net_financial
+  // _result` reaches `pretax`. Printing `operating_ebit` in a column
+  // whose neighbours are built from `ebit` is one concept wearing two
+  // values two rows apart; G3 (exportPlFoots) reds on it.
+  const ebitStatutory = pick(ap.ebit, ebitdaStatutory - s.incomeStatement.depreciationAmortization);
+  // The financial block, in full. The table used to step EBIT → PBT
+  // through interest expense ALONE, so the printed column missed
+  // financial income and the non-interest financial expense the same
+  // envelope carries, and PBT did not foot on any of the four books.
+  const financialIncome = pick(ap.financial_income, s.incomeStatement.financialIncome ?? 0);
+  const interestExpense = pick(ap.interest_expense, s.incomeStatement.interestExpense);
+  // `financial_expense` is the NON-interest half (`financial_expense_total`
+  // = interest + this, verified on all four books). A source that carries
+  // only the total gives the remainder; one that carries neither gives 0.
+  const otherFinancialExpense = pick(
+    ap.financial_expense,
+    typeof ap.financial_expense_total === "number"
+      ? ap.financial_expense_total - interestExpense
+      : s.incomeStatement.financialExpense ?? 0,
+  );
+  const pretaxStatutory = pick(
+    ap.pretax,
+    ebitStatutory + financialIncome - interestExpense - otherFinancialExpense,
+  );
+  // ── THE RECONSTRUCTION, AND THE BRIDGE TO WHAT WAS FILED ────────────
+  // `pretax − tax` is the class-6/7 RECONSTRUCTION. The figure the memo
+  // ends on is account 121 — what the company filed. On three of the four
+  // firm books they differ, by 2.0M to 29.6M, and the reconciling amount
+  // is SERVED (`net_income_reconciliation_to_121`). It was the row that
+  // was missing, never the number.
+  const reconstructedNetIncome = pick(
+    ap.net_income_operational,
+    pretaxStatutory - s.incomeStatement.taxExpense,
+  );
+  const bridgeTo121 = pick(
+    ap.net_income_reconciliation_to_121,
+    netIncomeStatutory - reconstructedNetIncome,
+  );
+  const hasBridge = Math.abs(bridgeTo121) > 0.005;
   const has722 = Math.abs(capOwnWork) > 1;
 
   // ─ Style block ─ Lender-grade institutional document.
@@ -1957,6 +2254,15 @@ export function renderReportHtml(
       margin-top: 6px;
       line-height: 1.45;
     }
+    /* THE ARITHMETIC, printed under the figure it produced. A ratio a
+       reader cannot check is a claim, not a measurement. */
+    .ratio-card .formula {
+      font-size: 8pt;
+      color: var(--ink-mute);
+      margin-top: 4px;
+      line-height: 1.4;
+      font-style: italic;
+    }
 
     /* Verdict badge — restrained institutional tones */
     .badge {
@@ -2095,6 +2401,13 @@ export function renderReportHtml(
       padding-left: 22px;
       color: var(--ink-soft);
       font-weight: 400;
+    }
+    /* A MEMO stands beside the column and is never added into it. The
+       class is what tells a reader — and the footing gate — which rows
+       are steps; italic + muted is how the page says the same thing. */
+    table.fin tr.memo td {
+      font-style: italic;
+      color: var(--ink-mute);
     }
     table.fin tbody tr { break-inside: avoid; page-break-inside: avoid; }
 
@@ -2237,6 +2550,7 @@ export function renderReportHtml(
           <span class="badge v-${rt.verdict}">${escapeHtml(verdictLabel(rt.verdict))}</span>
           &nbsp;${escapeHtml(rt.value === null ? rt.commentary : rt.benchmark)}
         </div>
+        <div class="formula" data-ratio-formula="${escapeHtml(rt.key)}">${escapeHtml(rt.formula)}</div>
       </div>
     `;
 
@@ -2432,15 +2746,28 @@ export function renderReportHtml(
           <tr class="indent"><td>Other income</td><td class="num">${money(is.otherIncome, s.currency)}</td></tr>
           ${has722 ? `<tr class="indent"><td>Capitalized own work (722, non-cash memo)</td><td class="num">${money(capOwnWork, s.currency)}</td></tr>` : ""}
           <tr class="subtotal"><td>EBITDA${has722 ? " (statutory)" : ""}</td><td class="num">${money(ebitdaStatutory, s.currency)}</td></tr>
-          ${has722 ? `<tr class="indent"><td>EBITDA (cash view, excl. 722)</td><td class="num">${money(ebitdaCash, s.currency)}</td></tr>` : ""}
+          ${has722 ? `<tr class="indent memo"><td>EBITDA (cash view, excl. 722) — memo</td><td class="num">${money(ebitdaCash, s.currency)}</td></tr>` : ""}
           <tr class="indent"><td>Depreciation & amortization</td><td class="num">(${money(is.depreciationAmortization, s.currency)})</td></tr>
           <tr class="subtotal"><td>EBIT</td><td class="num">${money(ebitStatutory, s.currency)}</td></tr>
-          <tr class="indent"><td>Interest expense</td><td class="num">(${money(is.interestExpense, s.currency)})</td></tr>
+          <tr class="indent"><td>Financial income</td><td class="num">${money(financialIncome, s.currency)}</td></tr>
+          <tr class="indent"><td>Interest expense</td><td class="num">(${money(interestExpense, s.currency)})</td></tr>
+          <tr class="indent"><td>Other financial expense</td><td class="num">(${money(otherFinancialExpense, s.currency)})</td></tr>
           <tr class="subtotal"><td>Profit Before Tax</td><td class="num">${money(pretaxStatutory, s.currency)}</td></tr>
           <tr class="indent"><td>Tax expense</td><td class="num">(${money(is.taxExpense, s.currency)})</td></tr>
-          <tr class="total"><td>Net Income${has722 ? " (statutory, ties to acct 121)" : ""}</td><td class="num">${money(netIncomeStatutory, s.currency)}</td></tr>
+          ${
+            hasBridge
+              ? `<tr class="subtotal"><td>Net profit — reconstructed (class 6/7 movements)</td><td class="num">${money(reconstructedNetIncome, s.currency)}</td></tr>
+          <tr class="indent"><td>&plusmn; Reconciliation to account 121 — the class 6/7 movements do not sum to the filed close</td><td class="num">${money(bridgeTo121, s.currency)}</td></tr>`
+              : ""
+          }
+          <tr class="total"><td>Net Income (account 121, as filed)</td><td class="num">${money(netIncomeStatutory, s.currency)}</td></tr>
         </tbody>
       </table>
+      ${
+        hasBridge
+          ? `<div class="commentary" data-report-pl-bridge><strong>Reconstruction &rarr; filed accounts.</strong> The column above rebuilds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 movements; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure the company filed, and the one every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement: the class-6/7 movements this extract carries do not sum to what account 121 closed at. It is printed with its amount rather than folded into a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
+          : ""
+      }
     `;
   };
 
@@ -2479,8 +2806,9 @@ export function renderReportHtml(
   <h1>${escapeHtml(s.companyName)}</h1>
   <div class="header-info">
     <p><strong>Comprehensive Financial Analysis</strong></p>
-    <p>Period: ${escapeHtml(s.periodLabel)} &nbsp;·&nbsp; Currency: ${escapeHtml(s.currency)}${s.industry ? ` &nbsp;·&nbsp; Industry: ${escapeHtml(s.industry)}` : ""}</p>
+    <p>Period: ${escapeHtml(s.periodLabel)} &nbsp;·&nbsp; Currency: ${escapeHtml(s.currency)}${industryHeaderClause}</p>
     <p>Report generated: ${escapeHtml(today)}</p>
+    ${industryDisputeNote}
   </div>
 
   <h2>Executive Summary</h2>
@@ -2496,17 +2824,17 @@ export function renderReportHtml(
     <div class="ratio-card">
       <div class="label">EBITDA${has722 ? " (statutory)" : ""}</div>
       <div class="value">${money(ebitdaStatutory, s.currency)}</div>
-      <div class="meta">${(safeDiv(ebitdaStatutory, operatingRevenue) * 100).toFixed(1)}% margin</div>
+      <div class="meta">${escapeHtml(printedRatio("ebitda_margin"))} margin</div>
     </div>
     <div class="ratio-card">
-      <div class="label">Net Income${has722 ? " (statutory)" : ""}</div>
+      <div class="label">Net Income (account 121, as filed)</div>
       <div class="value">${money(netIncomeStatutory, s.currency)}</div>
-      <div class="meta">${(safeDiv(netIncomeStatutory, operatingRevenue) * 100).toFixed(1)}% margin</div>
+      <div class="meta">${escapeHtml(printedRatio("net_margin"))} margin</div>
     </div>
     <div class="ratio-card">
       <div class="label">Total Debt</div>
       <div class="value">${money(t.totalDebt, s.currency)}</div>
-      <div class="meta">${ebitdaStatutory > 0 ? `${safeDiv(t.totalDebt, ebitdaStatutory).toFixed(2)}× EBITDA` : "EBITDA ≤ 0"}</div>
+      <div class="meta">${escapeHtml(printedRatio("debt_to_ebitda"))} EBITDA</div>
     </div>
   </div>
 

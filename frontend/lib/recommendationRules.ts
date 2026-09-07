@@ -588,8 +588,24 @@ export function detectConditions(facts: PeriodFacts): DetectedCondition[] {
   const industry = (facts.industry ?? "").toLowerCase();
   const candidates: DetectedCondition[] = [];
   for (const rule of RULES) {
-    // Industry filter — when a rule scopes itself, skip non-matching industries.
-    if (rule.industries && industry && !rule.industries.includes(industry)) continue;
+    // ── SECTOR-CALIBRATED CONTENT IS BLOCKED WHEN THE SECTOR IS IN
+    //    DOUBT, NOT APPLIED BY DEFAULT ────────────────────────────────
+    //
+    // This read `rule.industries && industry && !includes(industry)`.
+    // The middle clause meant that a period with NO classified industry
+    // skipped the filter entirely, so every self-scoped rule fired on
+    // every book. Measured 2026-09-07 on the four firm fixtures, all of
+    // which carry `industry: null`: the agras book — a meat processor —
+    // printed three commercial-real-estate lender recommendations,
+    // including "Investment property carries RON 11,055,450 at book"
+    // (that figure is the factory's PP&E) and "no MAC clauses tied to
+    // single-tenant risk". A rule that declares a sector is calibrated
+    // for that sector; an unknown sector is not a licence to apply it.
+    //
+    // The filter now blocks. A rule with no `industries` is unscoped and
+    // still fires everywhere, which is what "generic-business rule"
+    // means in the header above.
+    if (rule.industries && !rule.industries.includes(industry)) continue;
     try {
       const c = rule.detect(facts);
       if (c) candidates.push(c);

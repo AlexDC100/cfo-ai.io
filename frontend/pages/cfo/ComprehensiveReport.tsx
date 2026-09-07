@@ -101,6 +101,8 @@ function sumOf(...parts: Array<number | null | undefined>): number | undefined {
   return total;
 }
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
+import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
+import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -175,6 +177,14 @@ interface PeriodResponse {
     assembled_bs?: Record<string, number>;
     assembled_cf?: Record<string, number | boolean | string[] | undefined>;
   };
+  /** What the ACCOUNT MIX says the company does, whether that agrees
+   *  with `organizations.industry_key`, and — the field this page acts
+   *  on — `block_sector_content`. Computed once in
+   *  `src/engine/industry/structural_signal.py`; this page renders the
+   *  verdict, it does not re-derive it. Absent on older period
+   *  responses, in which case nothing is blocked (the behaviour before
+   *  the check existed). */
+  industry_signal?: unknown;
   /** F1.i canonical envelope — the SAME field `lib/activePeriod.ts` has
    *  read off this endpoint since F2.4 to score the Dashboard's Risks
    *  tab. It rode this page's own `/api/period/:id` response the whole
@@ -330,6 +340,37 @@ export default function ComprehensiveReport() {
   const recs = report.recommendations ?? [];
   const alerts = report.alerts ?? [];
 
+  // ── THE INDUSTRY GATE ───────────────────────────────────────────────
+  // `organizations.industry_key` is a USER SETTING; until this landed
+  // nothing checked it against the book, and the Agras Dec-2025 report
+  // went out headed "Real estate · residential rental" over 301 raw
+  // materials, 341/345 own-produced stock and 70.5M of cost of sales,
+  // with recommendations about vacancy, LTV and single-tenant risk.
+  //
+  // The reading, the comparison and the verdict are computed ONCE
+  // engine-side (`src/engine/industry/structural_signal.py`) and served
+  // on this response. When they disagree at FAMILY level the report
+  // shows the confirm prompt and withholds everything calibrated by
+  // sector — the AI narrative (§1), the profile-gated findings (§7) and
+  // the recommendations built on them (§8). Everything sector-
+  // INDEPENDENT — the statements, the cash walk, the ratios, the
+  // valuation envelope, the credit score — renders unchanged: a
+  // disputed industry must not blank a report that is mostly not about
+  // the industry at all.
+  const industrySignal = readIndustrySignal(report.industry_signal);
+  const sectorBlocked = blocksSectorContent(industrySignal);
+  const withheldNote = (what: string) => (
+    <div
+      data-testid="sector-content-withheld"
+      className="rounded-md border border-rule bg-bg-2/40 px-4 py-4 text-[13px] text-ink-soft"
+    >
+      {what} is calibrated by sector and is withheld until the industry above
+      is confirmed. Nothing was computed differently — it is not shown,
+      because it would be read as a claim about a sector this book may not
+      belong to.
+    </div>
+  );
+
   // Canonical dual-basis metric object — single source of truth for
   // EBITDA + net-profit across every surface on this page. See
   // `src/lib/canonicalMetrics.ts` for the structure + the explicit
@@ -387,6 +428,11 @@ export default function ComprehensiveReport() {
           />
         </div>
 
+        {/* ── Industry gate — the confirm prompt, above everything it
+            withholds, so a reader meets the disagreement before the
+            report it changes. ── */}
+        {sectorBlocked && industrySignal && <IndustryConfirmBanner signal={industrySignal} />}
+
         {/* ── Section nav — local TOC ──────────────────────────────────── */}
         <nav className="mb-6 rounded-md border border-rule bg-surface px-4 py-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] print:hidden">
           {[
@@ -432,7 +478,12 @@ export default function ComprehensiveReport() {
                 No canonical metrics available for this period.
               </div>
             )}
-            {report.briefing?.summary && (
+            {/* The briefing is written by the engine WITH the workspace
+                industry in its prompt — it is sector language by
+                construction, so it is the first thing withheld. */}
+            {sectorBlocked ? (
+              <div className="mt-5">{withheldNote("The executive briefing")}</div>
+            ) : report.briefing?.summary ? (
               <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
                   Executive briefing
@@ -441,7 +492,7 @@ export default function ComprehensiveReport() {
                   {relabelOperationalInBriefing(report.briefing.summary)}
                 </p>
               </Panel>
-            )}
+            ) : null}
           </section>
 
           {/* ── 2. P&L ──────────────────────────────────────────────── */}
@@ -482,14 +533,29 @@ export default function ComprehensiveReport() {
                 Credit score not available — re-run the pipeline to compute the composite score for this period.
               </div>
             )}
-            <RiskInventory allAlerts={alerts} />
+            {/* The credit score above is sector-independent (Altman Z″
+                and the engine's own ladder) and stays. The risk
+                inventory does not: its rules are gated on the industry
+                profile and their thresholds come from it. */}
+            {sectorBlocked
+              ? withheldNote("The risk inventory")
+              : <RiskInventory allAlerts={alerts} />}
           </section>
 
           {/* ── 8. RECOMMENDATIONS + 90-DAY PLAN ────────────────────── */}
           <section id="recs" data-testid="report-section-8-recs">
             <SectionHeader number={8} title="Recommendations" />
-            <RecommendationsList recs={recs} />
-            <NinetyDayPlan recs={recs} />
+            {/* Every recommendation is written from the profile-gated
+                findings and the industry-keyed thresholds, so the whole
+                section — and the 90-day plan built out of it — is
+                withheld together. Half a list is worse than none: it
+                would read as the complete set. */}
+            {sectorBlocked ? withheldNote("The recommendations and the 90-day plan") : (
+              <>
+                <RecommendationsList recs={recs} />
+                <NinetyDayPlan recs={recs} />
+              </>
+            )}
           </section>
         </article>
 

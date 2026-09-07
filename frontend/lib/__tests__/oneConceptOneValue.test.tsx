@@ -279,3 +279,131 @@ describe("G1 — one concept, one value per rendered report", () => {
     });
   }
 });
+
+// ── G1b — THE LAW, EXTENDED TO PROSE ──────────────────────────────────
+//
+// Everything above compares NUMERIC fields: a tile against a table cell,
+// a percentage against a percentage. A caption disagreeing with the
+// number printed directly beside it passed all of it, and one did, on
+// every book, in the deliverable the owner actually reads — the printed
+// board pack `buildReportHtml` writes to disk.
+//
+// MEASURED ON THE CURRENT TREE BEFORE THE REPAIR (2026-09-07):
+//
+//   book         card “Net Margin”   its own caption            the anchor
+//   agras              6.3 %         "RON 14.11M bottom-line"   7,533,676.02
+//   carniprod          1.4 %         "RON 5.84M bottom-line"    1,435,533.59
+//   realestate      −493.7 %         "RON −30.39M bottom-line"   −801,604.14
+//   retail             4.0 %         "RON 1.16M bottom-line"    3,205,212.62
+//
+// The card's percentage came from the engine's `net_margin`, built on
+// account 121. The sentence under it interpolated the class-6/7
+// reconstruction. Both were right about themselves; together they told a
+// reader that a 6.3 % margin was earned on a profit 1.87× the one the
+// margin divides.
+//
+// WHAT IT REDS ON, after the repair (TC-11): any caption re-pointed at a
+// figure other than the one its metric resolved through — including a new
+// caption nobody declared here, which the coverage assertion catches by
+// walking every currency figure the document's prose states.
+//
+// WHAT IT CANNOT SEE: prose that quotes no figure (a verdict sentence
+// with no number in it cannot disagree with one), and captions on ratios
+// whose verdict is strong/healthy on all four books — the document only
+// prints a caption block for watch/critical rows, so a concept that never
+// reaches those bands on any book is never rendered and never read here.
+// The coverage assertion states which concepts were actually exercised.
+
+import {
+  BOOKS as EXPORT_BOOKS,
+  type Book as ExportBook,
+  exportDoc,
+  parsePrinted,
+  proseBlocks,
+  ratioCards,
+  statementsFor,
+} from "./exportBooks";
+
+/** Which served fact each money-quoting caption is allowed to name. */
+const CAPTION_FACTS: Array<{
+  card: string;
+  concept: string;
+  field: string;
+}> = [
+  { card: "Net Margin", concept: "net profit as filed (account 121)", field: "net_income_statutory" },
+  { card: "EBITDA Margin", concept: "EBITDA (statutory)", field: "ebitda_statutory" },
+  { card: "Gross Margin", concept: "revenue", field: "revenue" },
+];
+
+/** The prose block the document prints for a ratio card, if any. */
+function captionFor(doc: Document, card: string): string | null {
+  const prefix = `${card}:`;
+  const found = proseBlocks(doc).find((p) => p.startsWith(prefix));
+  return found === undefined ? null : found.slice(prefix.length).trim();
+}
+
+/** Every currency figure a sentence quotes, as printed. */
+function quotedMoney(prose: string): string[] {
+  return Array.from(prose.matchAll(/-?(?:RON|EUR|USD)\s?-?[\d,.]+\s?[KMB]?/g)).map((m) => m[0]);
+}
+
+describe("G1b — a caption resolves through the same fact as the number beside it", () => {
+  const exercised = new Set<string>();
+
+  for (const book of EXPORT_BOOKS) {
+    it(`${book}: every caption quotes the fact its metric resolved`, () => {
+      const doc = exportDoc(book as ExportBook);
+      const pl = statementsFor(book as ExportBook).assembled_pl ?? {};
+      const failures: string[] = [];
+
+      for (const { card, concept, field } of CAPTION_FACTS) {
+        const prose = captionFor(doc, card);
+        if (prose === null) continue; // this row is not in a band that prints a caption
+        const anchor = pl[field];
+        if (typeof anchor !== "number") continue; // nothing served to compare against
+        exercised.add(card);
+        const quoted = quotedMoney(prose);
+        if (quoted.length === 0) {
+          failures.push(`${book}: caption of “${card}” quotes no figure at all: ${JSON.stringify(prose)}`);
+          continue;
+        }
+        // Every figure the sentence states must be one of the facts this
+        // caption is allowed to name; the concept's own anchor must be
+        // among them.
+        const values = quoted.map((q) => ({ printed: q, n: parsePrinted(q) }));
+        const namesTheAnchor = values.some(
+          (v) => v.n !== null && Math.abs(v.n - anchor) <= Math.max(Math.abs(anchor) * 0.005, 1),
+        );
+        if (!namesTheAnchor) {
+          failures.push(
+            `${book}: the card “${card}” resolved ${concept} = ` +
+              `${anchor.toLocaleString("en-US")} (assembled_pl.${field}) and its caption states ` +
+              `${values.map((v) => `${v.printed} (${v.n})`).join(", ")} — the caption names a ` +
+              `different figure than the number printed beside it`,
+          );
+        }
+      }
+      expect(failures, `${book}: a caption disagrees with its own metric`).toEqual([]);
+    });
+
+    it(`${book}: no prose quotes a currency figure no declared caption owns`, () => {
+      const doc = exportDoc(book as ExportBook);
+      const declared = new Set(CAPTION_FACTS.map((c) => c.card));
+      const cards = new Set(ratioCards(doc).map((c) => c.label));
+      const stray: string[] = [];
+      for (const prose of proseBlocks(doc)) {
+        if (quotedMoney(prose).length === 0) continue;
+        const owner = [...cards].find((label) => prose.startsWith(`${label}:`));
+        if (owner === undefined || declared.has(owner)) continue;
+        stray.push(`${book}: caption of “${owner}” quotes ${quotedMoney(prose).join(", ")} and is not declared in CAPTION_FACTS`);
+      }
+      expect(stray, `${book}: an undeclared caption states a figure`).toEqual([]);
+    });
+  }
+
+  it("exercised at least one caption for each declared concept", () => {
+    // Not vacuous: a caption that never renders on any of the four books
+    // is never compared, and this states which were.
+    expect([...exercised].sort()).toEqual(CAPTION_FACTS.map((c) => c.card).sort());
+  });
+});
