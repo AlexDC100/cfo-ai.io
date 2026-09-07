@@ -131,7 +131,15 @@ const RULES: Rule[] = [
           "Request indicative term sheets from 2–3 alternative lenders (BCR, ING Romania, Banca Transilvania) for refinancing 30-50% of the current balance.",
           "Frame as syndication, not full replacement, to keep the existing lender relationship intact.",
           "Time the refinance to before the next major capex drawdown so the new lender prices the post-capex cash flow profile.",
-          "Negotiate the covenant package: target DSCR floor 1.25×, LTV ceiling 75%, no MAC clauses tied to single-tenant risk.",
+          // SECTOR-NEUTRAL. This rule declares no `industries`, so it fires
+          // on every book — and it was advising a meat processor to
+          // negotiate an "LTV ceiling" and refuse "MAC clauses tied to
+          // single-tenant risk". Loan-to-value and single-tenant risk are
+          // property-lending terms; a manufacturer's lender prices leverage
+          // and cover. Gating the rule by sector was the wrong fix, because
+          // the rule genuinely applies everywhere: the PROSE had to stop
+          // assuming one.
+          "Negotiate the covenant package: target a DSCR floor and a leverage ceiling you can hold through a bad quarter, and resist step-ups that tighten faster than the business can deleverage.",
         ],
         whatNotToDoFallback:
           "Don't ask the incumbent lender for a rate cut without alternatives in hand — without competing offers, there's no leverage.",
@@ -362,7 +370,10 @@ const RULES: Rule[] = [
           bank_debt_total: f.bs.bank_debt_total,
         },
         rationaleFallback:
-          `Annual covenant testing leaves blind spots between reviews — a single bad quarter (vacancy, FX, unplanned capex) ` +
+          // "vacancy" here was a real-estate example on a rule that fires
+          // for every sector. The shock named must be one the reader's own
+          // business can suffer, so it names none and says "a bad quarter".
+          `Annual covenant testing leaves blind spots between reviews — one bad quarter ` +
           `can push DSCR below the floor without anyone noticing until the formal test. Current DSCR ${fx(f.ratios.dscr, 2)}${has(f.ratios.dscr) ? "×" : ""} and ` +
           `Debt/EBITDA ${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} have meaningful headroom — the time to install monitoring is now, not after the first warning.`,
         actionsFallback: [
