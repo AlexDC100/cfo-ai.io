@@ -1,7 +1,8 @@
 # LAUNCH AUDIT — cfo-ai.io
 
-**Verdict: still NO-SHIP** (updated 2026-09-08, second pass — the reason is
-unchanged and it is not new defects; see "Second pass" below).
+**Verdict: NO-SHIP — but only on the two items that need you.**
+(updated 2026-09-08, third pass. Everything I can close is closed; the
+battery is GREEN for the first time. See "Third pass" at the bottom.)
 
 Not because the journey was found broken. Because **the journey could not be
 tested at all**, and a product handed to accounting firms today cannot rest on
@@ -323,3 +324,83 @@ compose, `PDF_SERVICE_TOKEN` unset — the endpoint answers 503 saying so.
 
 `ENGINE_API_TOKEN` was printed into the session transcript by a
 mis-quoted command. Nothing was published, but rotate it.
+
+
+---
+
+# THIRD PASS — 2026-09-08, "finalize it for the launch"
+
+**BATTERY: PASS — 39/40 gates green, 1 declared vacuous.** First green
+battery of the day. Frontend 2,709 tests, engine 5,733, tsc clean,
+provenance census PASS (797 figure sites), design lint PASS,
+`check_deploy_drift` IN SYNC, F-A3.1 GREEN, 20 mutating routes refusing
+cleanly, zero console errors on every public route.
+
+## The PDF is real and running
+
+`cfo-ai-pdf` (headless Chromium) is up and healthy. Chosen by testing
+both renderers on the real Agras report: WeasyPrint broke all 26 SVG
+charts — the balance-sheet chart printed a label and its figure on top of
+each other — and took 6x as long. 31 pages, A4, cover, running head on
+all 30 body pages.
+
+A service that renders caller-supplied HTML is an SSRF and
+local-file-read primitive by construction, so its unreachability IS the
+access control:
+
+    direct :8081            unreachable
+    POST /api/report/pdf    401 "Missing Bearer token"
+    cfo-ai.io/render        nginx SPA, POST 405
+    backend -> cfo-ai-pdf   200 {"status":"ok","configured":true}
+
+## What the verifiers caught, including me
+
+**My own second-pass fix landed on one surface.** Moving the statement to
+the canonical balance sheet left the RATIOS on the legacy assembly, so a
+printed ratio stopped dividing its own printed statement:
+
+    p7   Total current  27,371,337 / 13,012,977 = 2.10
+    p12  CURRENT RATIO  2.11x  "current assets / current liabilities"
+
+...and 27,476,057, the number the card actually divided, was printed
+nowhere in the document. All four books. Fixed.
+
+**Fixing that exposed something worse, live before today.** ROA and ROE
+printed the class-6/7 RECONSTRUCTION under a formula reading "net profit
+as filed (account 121)":
+
+    carniprod  account 121      1,435,533.59  ->  ROA 1.1403%
+               class 6/7        5,843,449.04  ->  ROA 4.6419%   <- printed
+
+Two gates had pinned that as expected behaviour. Both corrected with the
+measurement recorded, not relaxed.
+
+**The identity census caught the new PDF route the instant it was
+mounted** — "neither member-walled, firm-walled nor declared" — which is
+the census doing exactly its job on a route added minutes earlier.
+
+**Print, measured on rendered pixels:** 24 chart glyphs below 4.5:1
+contrast (three at 1.45:1, white on near-white) -> 0 of 544; 19 unmarked
+stacked slices -> 0; 40 dot leaders ending in nothing -> 0; 14 pages over
+250pt empty -> 0; 99 console errors -> 0.
+
+**Claims removed from live surfaces:** the product told customers its PDF
+is "threaded through the WeasyPrint render" — a library in no
+requirements file. `/contact-sales`, a public page, sold a "Professional"
+plan at EUR 499 for a EUR 16.99 product, and a "EUR 1 first month" that is
+actually a one-time EUR 0.99 seven-day single-document unlock. The
+`/public-companies` footer claimed ANAF provenance and five-minute price
+refresh on a market whose own registry says `price_source: none`.
+
+## What remains, and it is yours
+
+| # | Item | Why I cannot |
+|---|---|---|
+| 1 | The core journey, steps 2-8 | Needs a session. I may not create an account or type a password. |
+| 5 | Cross-tenant proof | Needs two accounts. |
+| 2b | Chat metering | Runs on the Supabase Edge Function; setting its secret needs `supabase login`, an account flow. Uploads ARE metered. |
+| 3 | Sentry DSN | Needs your Sentry account. The SDK is in the image; `/api/health` reports `configured: false` honestly. |
+| — | Rotate `ENGINE_API_TOKEN` | I printed it into the session transcript with a mis-quoted command. |
+
+Run the ten-step smoke script above. If steps 5-8 behave, the two
+blockers that remain are administrative, not product.
