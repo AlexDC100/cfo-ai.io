@@ -93,13 +93,33 @@ interface TextOpts {
   dy?: number;
 }
 
+/**
+ * One `<text>`.
+ *
+ * ── WHY `fill` IS WRITTEN AS A STYLE AND NOT AS AN ATTRIBUTE ──────────
+ *
+ * A presentation attribute (`fill="…"`) loses to ANY matching CSS rule,
+ * and `chartCss()` gives four of the five text classes a `fill`. So
+ * every `fill:` this function was passed for a `.c-val`, `.c-cat`,
+ * `.c-src` or `.c-zone` was silently discarded by the class beside it.
+ *
+ * MEASURED on the delivered Agras PDF: `bandTracks` asks for the
+ * measured value in ACCENT or, on a breach, in BREACH; all six printed
+ * INK, the `.c-val` class default. The zone words printed their class
+ * default too, which is what made the ink impossible to derive from the
+ * ground it lands on.
+ *
+ * An inline style wins over a class rule, so a colour the DRAWING
+ * computed now reaches the page. The class keeps the typography and
+ * supplies the default for every call that does not pass one.
+ */
 export function text(x: number, y: number, body: string, o: TextOpts = {}): string {
   const attrs = [
     `x="${n(x)}"`,
     `y="${n(y)}"`,
     o.anchor ? `text-anchor="${o.anchor}"` : "",
     `class="${o.cls ?? "c-lab"}"`,
-    o.fill ? `fill="${o.fill}"` : "",
+    o.fill ? `style="fill:${o.fill}"` : "",
     o.size ? `font-size="${n(o.size)}"` : "",
     o.weight ? `font-weight="${o.weight}"` : "",
     o.dy ? `dy="${n(o.dy)}"` : "",
@@ -139,6 +159,16 @@ export function line(
  * `role="img"` + `<title>`/`<desc>` are not decoration: the printed
  * document is read by screen readers and by the search box this report
  * ships, and both index `<desc>`.
+ *
+ * NO `height` ATTRIBUTE. `auto` is not a valid SVG length — SVG 1.1
+ * takes a `<length>` and SVG 2 takes `auto` only as a CSS property, not
+ * as a presentation attribute — so Chromium rejected it and logged
+ * `Error: <svg> attribute height: Expected length, "auto"` ONCE PER
+ * CHART: 26 console errors on every opened report, measured on the
+ * Agras export (5 full charts + 21 band chips). It was redundant as
+ * well as invalid: `chartCss()` already sets `svg.chart { height: auto }`
+ * as a real CSS declaration, which is where `auto` belongs and where it
+ * has been doing the work all along.
  */
 export function frame(
   id: string,
@@ -150,7 +180,7 @@ export function frame(
 ): string {
   return (
     `<svg class="chart" data-chart="${esc(id)}" viewBox="0 0 ${n(w)} ${n(h)}" ` +
-    `width="100%" height="auto" preserveAspectRatio="xMidYMin meet" ` +
+    `width="100%" preserveAspectRatio="xMidYMin meet" ` +
     `role="img" aria-labelledby="${esc(id)}-t ${esc(id)}-d" ` +
     `xmlns="http://www.w3.org/2000/svg">` +
     `<title id="${esc(id)}-t">${esc(title)}</title>` +

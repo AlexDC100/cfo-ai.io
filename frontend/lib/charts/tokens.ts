@@ -53,6 +53,73 @@ export function rampTone(i: number): string {
   return RAMP[((i % RAMP.length) + RAMP.length) % RAMP.length];
 }
 
+// ── INK ON A GROUND ────────────────────────────────────────────────────
+//
+// A label printed INSIDE a filled shape has two colours, and only one of
+// them was ever chosen: the ink was a constant and the ground was
+// whatever the ramp handed the slice. `primitives.ts` set every
+// in-segment label to `PAPER` unconditionally, and the ramp runs dark to
+// light, so the two lightest tones carried white text.
+//
+// MEASURED on the delivered Agras PDF, at 300 dpi, before this helper
+// existed (`RECEIVABLES` and `PAYABLES` are the two working-capital
+// lines of the balance sheet, and the first graphic in the pack):
+//
+//     Receivables  ground RAMP[4]  ink PAPER      1.44 : 1   ~5.9 pt
+//     Payables     ground RAMP[4]  ink PAPER      1.44 : 1   ~5.9 pt
+//     Inventory    ground RAMP[3]  ink PAPER      2.15 : 1   ~5.9 pt
+//     "strong"     ground RAMP[1]  ink INK_SOFT   1.39 : 1   ~5.2 pt
+//     "healthy"    ground RAMP[2]  ink INK_SOFT   2.48 : 1   ~5.2 pt
+//
+// WCAG AA is 4.5 : 1 for text this size; 3 : 1 is the LARGE-text floor
+// and these are nowhere near even that. The file's own header claims
+// "colour is never the only channel" — on those slices there was no
+// channel at all.
+//
+// The ink is now DERIVED FROM THE GROUND. Every ramp tone clears 4.5 : 1
+// against one of the document's two inks, so the derivation always has
+// an answer:
+//
+//     RAMP[0] → PAPER 11.78   RAMP[1] → PAPER 6.29   RAMP[2] → INK  5.49
+//     RAMP[3] → INK    9.03   RAMP[4] → INK   13.45
+
+/** The floor a printed label must clear against what it sits on. */
+export const MIN_TEXT_CONTRAST = 4.5;
+
+/** WCAG relative luminance of a `#rrggbb` literal. */
+export function relativeLuminance(hex: string): number {
+  const ch = (at: number): number => {
+    const v = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+}
+
+/** WCAG contrast ratio between two `#rrggbb` literals. Always ≥ 1. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * The ink to print ON `ground`.
+ *
+ * `preferred` is the design's first choice — white inside a dark slice,
+ * the muted slate on a band zone. It is honoured WHEN IT IS LEGIBLE and
+ * dropped when it is not, in favour of whichever of the document's two
+ * inks contrasts more. Legibility wins over the preference; it does not
+ * negotiate with it.
+ *
+ * Passing no preference asks for the most legible ink outright.
+ */
+export function inkOn(ground: string, ...preferred: string[]): string {
+  for (const p of preferred) {
+    if (contrastRatio(p, ground) >= MIN_TEXT_CONTRAST) return p;
+  }
+  return contrastRatio(PAPER, ground) >= contrastRatio(INK, ground) ? PAPER : INK;
+}
+
 /**
  * Waterfall step tones. A DELTA is read by direction, not by hue: the
  * `+`/`−` prefix on its own label carries the sign, the tone only

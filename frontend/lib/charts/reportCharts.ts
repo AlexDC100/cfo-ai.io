@@ -298,6 +298,42 @@ export function bsComposition(i: ChartInputs): ChartBlock {
     { key: "ap", label: "Payables", value: bs.accountsPayable, printed: i.money(bs.accountsPayable), source: "401/403/404/408" },
     { key: "othcl", label: "Other current liab.", value: bs.otherCurrentLiabilities, printed: i.money(bs.otherCurrentLiabilities), source: "42x/43x/44x/419/472" },
   ].filter((r) => Math.abs(r.value ?? 0) > 0.005);
+  // ── THE COLUMN SUMS TO THE TOTAL PRINTED OVER IT ────────────────────
+  //
+  // The two totals come from the SERVED canonical balance sheet; the
+  // slices come from `statements.balanceSheet`, which is the assembled
+  // shape and does not carry every row the canonical one does. MEASURED
+  // on the four committed books, printed total less the sum of the
+  // slices drawn under it:
+  //
+  //     agras       assets  +46,613     carniprod  funding  +15,751
+  //     realestate  ±1 (rounding)       retail     ±1 (rounding)
+  //
+  // 46,613 is the unclassified account-413 balance — the same figure the
+  // findings section names and the statement now prints as its own row.
+  // Drawn as a slice, it is a stack that adds up. LEFT OUT, it was a
+  // column labelled RON 39,319,114 over parts totalling RON 39,272,501,
+  // which is the defect an adversarial verifier found in the balance
+  // sheet itself by adding the two sides together.
+  //
+  // This row disappears on its own the day the assembled shape carries
+  // what the canonical one does: the residual goes to zero and the
+  // filter below drops it. It is a reconciling line, not a new fact —
+  // every figure in it is a difference of two figures already printed.
+  const reconcile = (rows: ChartRow[], total: number, what: string): void => {
+    const residual = total - rows.reduce((a, r) => a + (r.value ?? 0), 0);
+    if (Math.abs(residual) <= 0.5) return;
+    rows.push({
+      key: "unclassified",
+      label: "Unclassified",
+      value: residual,
+      printed: i.money(residual),
+      source: `served ${what} less the lines above`,
+    });
+  };
+  reconcile(assets, ta, "total assets");
+  reconcile(funding, tel, "equity + liabilities");
+
   // The letter key the drawing puts on a slice too thin to hold its name.
   // One alphabet per column, matching the segment order in each stack.
   const keyed = (rows: ChartRow[], side: string): ChartRow[] =>
@@ -318,7 +354,7 @@ export function bsComposition(i: ChartInputs): ChartBlock {
     rows,
     table: rowsTable(rows, i.s.currency),
     caption:
-      "Stacked, not pies: the two columns are compared against each other, and comparing two pies is comparing angles. A slice too thin to hold its name carries its letter key instead; the table below names every slice, its figure and its accounts under the same letter.",
+      "Stacked, not pies: the two columns are compared against each other, and comparing two pies is comparing angles. A slice too thin to hold its name carries its letter key instead — inside the slice where the key fits, otherwise in the margin beside the column on a hairline; the table below names every slice, its figure and its accounts under the same letter.",
   };
 }
 

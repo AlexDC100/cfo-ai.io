@@ -286,15 +286,87 @@ export function printCss(head: RunningHead): string {
       .grid-4 > .ratio-card .label { min-height: 2.5em; }
       .ratio-card { break-inside: avoid; page-break-inside: avoid; }
 
+      /* ── A BLOCK TALLER THAN WHAT IS LEFT ─────────────────────────
+         \`break-inside: avoid\` on a block that does not fit costs the
+         REST OF THE PAGE. That is the right trade for a KPI card and
+         the wrong one for a finding, because a finding card carries a
+         claim, its arithmetic in words, two ladder tables and its
+         accounts — routinely more than a page on its own.
+
+         MEASURED on the delivered Agras pack (trailing whitespace from
+         the last line of ink to the bottom of the text block, out of
+         734 pt of usable height):
+
+             p18  605 pt — a section heading, one intro paragraph, then
+                           eight inches of white, because finding 1 did
+                           not fit under them
+             p26  649 pt — three lines carried over from p25, then nine
+                           inches, because finding 7 did not fit
+             p28  414 pt — the tail of finding 7, then finding 8 moved
+             p24  267 pt — the tail of finding 5, then finding 6 moved
+
+         Four near-blank pages in a 31-page board pack, and none of them
+         bought anything: Chromium breaks these cards ANYWAY once they
+         are alone on a page (findings 1 and 7 both already spanned two
+         pages), so the whitespace was the cost of an \`avoid\` that was
+         then overruled.
+
+         So a finding card FLOWS, and the two rules below are what keep a
+         flowing card readable: the head is never printed away from the
+         claim it heads.
+
+         There is deliberately no \`orphans\`/\`widows\` pair here. Those
+         properties DO apply inside a card — a claim is line boxes in a
+         block, not table rows — but their initial value is already 2 in
+         every engine, so writing \`orphans: 2\` states the default and
+         changes nothing. Writing a rule that does nothing is how the
+         inert \`table.fin { orphans: 3 }\` above came to look like it had
+         solved the orphan problem. */
+      .insight-card { break-inside: auto; page-break-inside: auto; }
+      .insight-head {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+      .insight-claim { break-before: avoid; page-break-before: avoid; }
+      /* The two ladder tables sit side by side in a grid, and it FLOWS
+         for the same reason the card does. Held whole it was the last
+         near-blank page left: MEASURED on the Agras pack, page 25 ended
+         229 pt short because the grid below it moved off wholesale.
+         Letting it fragment took that page to 17 pt, and the worst
+         non-exempt page in ALL FOUR committed books to 122 pt.
+
+         A fragmented grid stays readable because each half is a
+         \`table.fin\`, and the \`table-header-group\` rule above reprints
+         its header on the continuation — so a reader meeting the second
+         half first still sees which column is which. */
+      .insight-cols { break-inside: auto; page-break-inside: auto; }
+
       /* ── CHARTS ───────────────────────────────────────────────────
-         A chart is never split, and it never separates from the table
-         that carries its figures — the document's rule is that no chart
-         is the only place a number appears, and a chart on page 12 with
-         its table on page 13 breaks that rule for a reader holding the
-         paper. */
-      .chart-block { break-inside: avoid; page-break-inside: avoid; }
-      svg.chart { break-inside: avoid; page-break-inside: avoid; }
+         THE DRAWING is never split, and the table that carries its
+         figures always STARTS on the drawing's own page — the document's
+         rule is that no chart is the only place a number appears, and a
+         chart on page 12 whose figures are all on page 13 breaks that
+         rule for a reader holding the paper.
+
+         What is NOT held together is the whole \`figure\`. It used to be
+         (\`.chart-figure { break-inside: avoid }\`, in \`chartCss()\`), and
+         the balance-sheet composition is a 92 mm drawing plus a
+         thirteen-row table plus a caption — taller than an A4 text
+         block. MEASURED on the delivered Agras pack: the figure moved
+         wholesale off the page it began on and left 534 pt of white
+         behind, and it broke on the next page anyway, because a block
+         taller than the page has to.
+
+         \`.chart-block\` below is retained deliberately: it is the class
+         the on-screen report uses for the same construct. It matched
+         nothing in the printed document, where the element is
+         \`figure.chart-figure\`, so it was doing none of the work its
+         name implied. */
+      .chart-block, svg.chart { break-inside: avoid; page-break-inside: avoid; }
       svg.chart + table.fin { break-before: avoid; page-break-before: avoid; }
+      .chart-figure figcaption { break-before: avoid; page-break-before: avoid; }
 
       /* The interactive furniture has no business on paper. \`.toolbar\`
          and \`.toc\` are already hidden by documentShell; \`.prov-card\`

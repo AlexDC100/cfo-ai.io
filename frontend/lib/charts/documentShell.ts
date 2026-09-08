@@ -274,7 +274,27 @@ export function shellCss(): string {
       .cover { min-height: 232mm; break-after: page; page-break-after: always; }
       .toc-print { display: block; break-after: page; page-break-after: always; }
       .toc-print ol { list-style: none; padding: 0; margin: 0; font-size: 11pt; }
-      .toc-print li { border-bottom: 1px dotted ${RULE}; padding: 7px 0; display: flex; justify-content: space-between; }
+      /* ── NO DOT LEADER ────────────────────────────────────────────
+         There used to be a dotted border-bottom on every row here, and
+         it was drawn UNCONDITIONALLY while the number after it came
+         from target-counter() — which Chromium does not implement, and
+         Chromium is the engine that produces our PDF (services/pdf/
+         render.mjs). MEASURED on the delivered Agras pack: page 2 read
+
+             Executive summary . . . . . . . . . . . . . . . . . . .
+             Financial statements  . . . . . . . . . . . . . . . . .
+
+         ten times over, every rule running to the right margin and
+         ending in white space. A dotted leader is a typographic promise
+         of a number; a leader with nothing at the end of it tells the
+         reader a fact went missing.
+
+         The a::after rule STAYS: in an engine that resolves it the
+         contents gains real page numbers, and where it does not it
+         renders nothing at all — which is a plain list, and a plain
+         list promises nothing. What was removed is the half that
+         promised. */
+      .toc-print li { padding: 7px 0; display: flex; justify-content: space-between; gap: 10px; }
       .toc-print a { color: ${INK}; text-decoration: none; }
       /* Paged-media page numbers. Resolves in a real paginator; renders
          NOTHING where it does not — never a wrong number. */

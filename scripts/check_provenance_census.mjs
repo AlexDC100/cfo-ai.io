@@ -618,8 +618,16 @@ const SURFACES = {
   // the law and the live spec asserts it.
   "billing-pricing": {
     ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
+    // 2026-09-08 — the witness used to say these surfaces render "from a
+    // static price list (lib/plans.ts)". That is no longer true and was
+    // the defect: lib/plans.ts held a hand-written EUR 99 / 499 catalog
+    // the backend never sold, and AuthCard quoted EUR 499 for a plan
+    // priced at EUR 16.99. Every price on these surfaces now comes from
+    // lib/pricingConfig.ts (GET /api/pricing/config); lib/plans.ts holds
+    // plan IDENTITIES and carries no number at all, gated by
+    // shippedClaimsMatchCode.
     witness:
-      "UNWITNESSED: the pricing page and the billing surfaces render from a static price list (lib/plans.ts) and Stripe's invoice preview; no workspace fixture reaches them",
+      "UNWITNESSED: the pricing page and the billing surfaces render from the live pricing config (GET /api/pricing/config) and Stripe's invoice preview; no workspace fixture reaches them",
     files: [
       "frontend/pages/cfo/Pricing.tsx",
       "frontend/components/cfo/BillingSection.tsx",
@@ -628,6 +636,10 @@ const SURFACES = {
       "frontend/components/cfo/UpcomingInvoicePreview.tsx",
       "frontend/components/cfo/pricing/IntroUnlockCallout.tsx",
       "frontend/components/cfo/pricing/MonthlyBillEstimator.tsx",
+      // 2026-09-08 — the "Selected plan" chip on /signup. One formatEur()
+      // over the live config's price_eur; a price list entry, not a
+      // figure from a company's envelope (same reading as AccountMenu).
+      "frontend/components/cfo/AuthCard.tsx",
     ],
   },
   "industry-classification": {

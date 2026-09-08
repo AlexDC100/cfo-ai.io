@@ -14,6 +14,7 @@
 import {
   ACCENT,
   BREACH,
+  BREACH_SOFT,
   HATCH_ID,
   INK,
   INK_MUTE,
@@ -25,6 +26,7 @@ import {
   STEP_DOWN,
   STEP_UP,
   hatchDefs,
+  inkOn,
   rampTone,
 } from "./tokens";
 import { esc, frame, line, n, rect, text, type ChartRow } from "./svg";
@@ -200,12 +202,22 @@ export function stackedColumns(o: StackedOpts): string {
     const x = startX + ci * (colW + gap);
     const colH = (colSums[ci] / scaleMax) * plotH;
     let y = padT + (plotH - colH);
+    // Slices too thin to hold a mark, collected here and keyed in the
+    // margin after the stack is drawn — see the block below the loop.
+    const margin: Array<{ key: string; midY: number }> = [];
     body += text(x + colW / 2, padT - 24, c.label, { anchor: "middle", cls: "c-cat", weight: 600, fill: INK });
     body += text(x + colW / 2, padT - 10, c.totalPrinted, { anchor: "middle", cls: "c-val", fill: INK });
     c.segments.forEach((s, si) => {
       const v = Math.abs(s.value ?? 0);
       const h = (v / scaleMax) * plotH;
-      body += rect(x, y, colW, h, rampTone(si), `stroke="${PAPER}" stroke-width="1"`);
+      const tone = rampTone(si);
+      // THE INK IS READ OFF THE GROUND IT LANDS ON. It used to be PAPER
+      // for every branch below, and the ramp runs dark to light, so the
+      // two lightest tones printed white on near-white — 1.44 : 1 at
+      // 5.9 pt on the delivered PDF. `inkOn` keeps the white where white
+      // is legible and swaps to INK where it is not.
+      const ink = inkOn(tone, PAPER);
+      body += rect(x, y, colW, h, tone, `stroke="${PAPER}" stroke-width="1"`);
       // Direct label inside the segment when it fits; otherwise a
       // one-letter tone key that the table repeats.
       //
@@ -224,26 +236,48 @@ export function stackedColumns(o: StackedOpts): string {
       // when it is not.
       const fitsOneLine = s.label.length + s.printed.length <= 26;
       if (h >= 17 && fitsOneLine) {
-        body += text(x + 8, y + h / 2 - 1, s.label, { cls: "c-seg", fill: PAPER });
-        body += text(x + colW - 8, y + h / 2 - 1, s.printed, { anchor: "end", cls: "c-seg", fill: PAPER });
+        body += text(x + 8, y + h / 2 - 1, s.label, { cls: "c-seg", fill: ink });
+        body += text(x + colW - 8, y + h / 2 - 1, s.printed, { anchor: "end", cls: "c-seg", fill: ink });
       } else if (h >= 26) {
-        body += text(x + 8, y + h / 2 - 5, s.label, { cls: "c-seg", fill: PAPER });
-        body += text(x + 8, y + h / 2 + 7, s.printed, { cls: "c-seg", fill: PAPER });
+        body += text(x + 8, y + h / 2 - 5, s.label, { cls: "c-seg", fill: ink });
+        body += text(x + 8, y + h / 2 + 7, s.printed, { cls: "c-seg", fill: ink });
       } else if (h >= 17) {
-        body += text(x + 8, y + h / 2 - 1, String.fromCharCode(65 + si), { cls: "c-seg", fill: PAPER });
-        body += text(x + colW - 8, y + h / 2 - 1, s.printed, { anchor: "end", cls: "c-seg", fill: PAPER });
+        body += text(x + 8, y + h / 2 - 1, String.fromCharCode(65 + si), { cls: "c-seg", fill: ink });
+        body += text(x + colW - 8, y + h / 2 - 1, s.printed, { anchor: "end", cls: "c-seg", fill: ink });
       } else if (h >= 9) {
-        const key = String.fromCharCode(65 + si);
-        body += text(x + colW / 2, y + h / 2 + 3, key, { anchor: "middle", cls: "c-seg", fill: INK });
+        body += text(x + colW / 2, y + h / 2 + 3, String.fromCharCode(65 + si), { anchor: "middle", cls: "c-seg", fill: ink });
+      } else {
+        // TOO THIN FOR A MARK OF ITS OWN — so the mark leaves the stack
+        // rather than being dropped.
+        //
+        // It used to be dropped, on the reasoning that a key printed on
+        // top of a neighbour's key is worse than no key. That reasoning
+        // is right about the INSIDE of the column and wrong about the
+        // drawing: the caption printed under this chart promises every
+        // thin slice a letter, and on the Agras export four slices got
+        // none — Intangibles (4.45 px), Other non-current (0.45 px),
+        // Other non-current liabilities (6.23 px) and CASH (7.72 px),
+        // the one item the document's own verdict grades critical.
+        //
+        // The key goes in the margin beside the column instead, where a
+        // character always fits, and a hairline ties it to the slice.
+        // The collision the old comment describes is answered by pushing
+        // each key clear of the last one (segments come in y order, so
+        // pushing down is enough), not by printing nothing.
+        margin.push({ key: String.fromCharCode(65 + si), midY: y + h / 2 });
       }
-      // Below 9 px a slice cannot hold even one character without
-      // printing over its neighbour — measured: two 2 px segments put
-      // their keys on top of each other. It gets no mark at all, and the
-      // table below keeps its letter in stack order, so the row is still
-      // findable. A key drawn on top of another key is worse than none.
       y += h;
     });
     body += rect(x, padT + (plotH - colH), colW, colH, "none", `stroke="${INK_SOFT}" stroke-width="1"`);
+
+    const keyX = x + colW + 9;
+    let lastKeyY = -Infinity;
+    for (const m of margin) {
+      const ky = Math.max(m.midY, lastKeyY + 10);
+      lastKeyY = ky;
+      body += line(x + colW + 1, m.midY, keyX - 2.5, ky, RULE, 'stroke-width="0.75"');
+      body += text(keyX, ky + 3, m.key, { cls: "c-seg", fill: INK });
+    }
   });
 
   const desc = o.columns
@@ -306,8 +340,16 @@ export function bandTracks(id: string, title: string, tracks: BandTrackRow[]): s
     t.zones.forEach((z, zi) => {
       const x0 = xOf(z.from);
       const x1 = xOf(z.to);
-      body += rect(x0, y + 8, x1 - x0, 18, z.breachZone ? "#E8D6D6" : rampTone(4 - Math.min(4, zi)) /* design-lint-allow-hex standalone generated report doc */, `stroke="${PAPER}" stroke-width="0.75"`);
-      if (x1 - x0 > 40) body += text((x0 + x1) / 2, y + 21, z.label, { anchor: "middle", cls: "c-zone" });
+      const ground = z.breachZone ? BREACH_SOFT : rampTone(4 - Math.min(4, zi));
+      body += rect(x0, y + 8, x1 - x0, 18, ground, `stroke="${PAPER}" stroke-width="0.75"`);
+      // Same rule as a stacked segment: the zone word is printed INSIDE
+      // the zone, so its ink is derived from the zone's own tone. The
+      // muted slate stays where it is legible — on the two lightest
+      // zones and on the breach tint — and is dropped on the darker
+      // ones, where it measured 1.39 : 1 and 2.48 : 1 at 5.2 pt.
+      if (x1 - x0 > 40) {
+        body += text((x0 + x1) / 2, y + 21, z.label, { anchor: "middle", cls: "c-zone", fill: inkOn(ground, INK_SOFT) });
+      }
     });
     body += rect(trackX, y + 8, trackW, 18, "none", `stroke="${RULE}" stroke-width="0.75"`);
 
@@ -320,6 +362,23 @@ export function bandTracks(id: string, title: string, tracks: BandTrackRow[]): s
     } else {
       const vx = xOf(t.value);
       const c = t.breach ? BREACH : ACCENT;
+      // THE OVERHANG IS LOAD-BEARING, not a flourish. The zone band is
+      // 18 units tall at `y + 8`; the marker is 28 at `y + 3`, so it
+      // stands 5 units clear of the band at each end, on white paper.
+      //
+      // It has to, because against the band itself the marker barely
+      // separates — computed from the palette this file draws with:
+      //
+      //     ACCENT on RAMP[1]  1.23 : 1   ΔL*  5.7   ("strong")
+      //     BREACH on RAMP[0]  1.27 : 1   ΔL*  6.8   ("strong", inverted)
+      //     ACCENT on RAMP[2]  1.44 : 1   ΔL* 10.3
+      //
+      // Against paper the same marks read 5.10 : 1 and 9.29 : 1. So a
+      // geometry change that tucked the marker inside the band would not
+      // move a colour and would still make the measured value invisible
+      // on exactly the tracks where the verdict is "strong".
+      // `check_report_print.mjs` I6 measures the overhang for that
+      // reason; the marker's own y/height are what it reds on.
       body += rect(vx - 1.6, y + 3, 3.2, 28, c);
       body += text(W - 90, y + 21, (t.breach ? "▲ " : "") + t.printed, { anchor: "start", cls: "c-val", fill: c });
     }
@@ -379,11 +438,28 @@ export function contributionBars(id: string, title: string, rows: ContribRow[]):
   let body = text(barX, 12, "contribution to the composite, out of the weight's ceiling", { cls: "c-src" });
   rows.forEach((r, i) => {
     const y = padT + i * rowH;
-    body += text(0, y + 15, r.label, { cls: "c-cat", fill: INK, anchor: "start" });
+    // THE LABEL IS WRAPPED TO ITS OWN COLUMN, not left to run.
+    //
+    // It was drawn as one line from x = 0 with nothing to stop it, and
+    // the bars are painted AFTER it, from x = 220. MEASURED on the
+    // delivered Agras PDF: five of the seven term names ran past 220 and
+    // the accent bar printed over the tail of each —
+    // "Term: Interest-coverage sub-score 0–100 (EBIT ÷ interest)" is
+    // ~262 px of 9.5 px text in a 210 px column, so ~42 px of it was
+    // buried under teal. `labW / 4.9` is the character budget at that
+    // size; two lines cover every term name the composite carries.
+    const labelLines = wrap2(r.label, Math.floor(labW / 4.9));
+    labelLines.forEach((l, li) => {
+      // One line sits on the bar's own centre line; two straddle it.
+      const dy = labelLines.length === 1 ? 16 : li === 0 ? 11 : 22;
+      body += text(0, y + dy, l, { cls: "c-cat", fill: INK, anchor: "start" });
+    });
     const cw = ((r.ceiling ?? 0) / maxCeil) * barW;
     body += rect(barX, y + 5, cw, 16, RULE_SOFT);
     if (r.value === null) {
-      body += text(barX + 6, y + 17, "not reported", { cls: "c-zone", fill: INK_MUTE });
+      // Printed on the ceiling track, not on paper: INK_MUTE measures
+      // 3.90 : 1 against RULE_SOFT, so the muted slate takes over.
+      body += text(barX + 6, y + 17, "not reported", { cls: "c-zone", fill: inkOn(RULE_SOFT, INK_MUTE, INK_SOFT) });
     } else {
       const vw = ((r.value as number) / maxCeil) * barW;
       body += rect(barX, y + 5, vw, 16, r.breach ? BREACH : ACCENT);
@@ -431,7 +507,7 @@ export function miniTrack(
   let body = "";
   zones.forEach((z, zi) => {
     const x0 = xOf(z.from);
-    body += rect(x0, 4, xOf(z.to) - x0, 8, z.breachZone ? "#E8D6D6" : rampTone(4 - Math.min(4, zi)) /* design-lint-allow-hex standalone generated report doc */, `stroke="${PAPER}" stroke-width="0.6"`);
+    body += rect(x0, 4, xOf(z.to) - x0, 8, z.breachZone ? BREACH_SOFT : rampTone(4 - Math.min(4, zi)), `stroke="${PAPER}" stroke-width="0.6"`);
   });
   body += rect(0, 4, W2, 8, "none", `stroke="${RULE}" stroke-width="0.6"`);
   if (value !== null) {
@@ -447,7 +523,13 @@ export function chartCss(): string {
   return `
     /* design-lint-allow-hex standalone generated report doc (chart block) */
     .ratio-card svg.chart.mini { width: 100%; max-width: 208px; height: 16px; margin: 6px 0 2px; }
-    .chart-figure { margin: 14px 0 26px; padding: 0; break-inside: avoid; page-break-inside: avoid; }
+    /* NO break-inside HERE. A figure is a chart PLUS its table plus its
+       caption, and on the balance-sheet composition that is taller than
+       an A4 text block — so "never split" cost the rest of whatever page
+       it started on (534 pt of white, measured). The print rules own the
+       fragmentation: reportPrintCss.ts keeps the DRAWING whole, starts
+       the table on the drawing's page, and lets the table alone flow. */
+    .chart-figure { margin: 14px 0 26px; padding: 0; }
     svg.chart { display: block; width: 100%; height: auto; overflow: visible; }
     svg.chart text { font-family: var(--sans); font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
     svg.chart .c-val { font-size: 10px; font-weight: 600; fill: ${INK}; letter-spacing: 0.01em; }
@@ -465,7 +547,6 @@ export function chartCss(): string {
     .chart-gap-b { font-size: 9.25pt; color: ${INK_SOFT}; margin: 4px 0; line-height: 1.5; }
     @media print {
       svg.chart { max-height: 92mm; }
-      .chart-figure { break-inside: avoid; page-break-inside: avoid; }
     }
   `;
 }

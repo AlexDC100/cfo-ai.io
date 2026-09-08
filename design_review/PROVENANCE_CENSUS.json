@@ -39,6 +39,12 @@
       "affordances": 0,
       "why": "OPENED 2026-09-04. Two formatEur() on the plan price and three formatTokens() on this month's token usage. A plan price is a PRICE LIST entry and token usage is telemetry about the account; neither is read from a company's envelope, so there is no cell to name."
     },
+    "frontend/components/cfo/AuthCard.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-08. One formatEur() on the 'Selected plan' chip, reading price_eur off the live GET /api/pricing/config payload — the same authority and the same formatter the /pricing cards use. Identical in kind to AccountMenu.tsx: a plan price is a PRICE LIST entry, not a figure read from a company's envelope, so there is no cell to name. The site is NEW: the chip previously called formatPriceLabel() out of a hand-written frontend catalog quoting EUR 499 for a plan the backend sells at EUR 16.99, which is precisely why the number now comes from the config instead."
+    },
     "frontend/components/cfo/BSStatementView.tsx": {
       "bucket": "HAS_SHOWS",
       "sites": 31,
