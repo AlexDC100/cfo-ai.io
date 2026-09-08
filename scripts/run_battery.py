@@ -290,8 +290,9 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_radar_detector_pack.py",
               "tests/engine/test_radar_detector_repairs.py",
               "tests/engine/test_radar_spine_join.py",
+              "tests/engine/test_radar_detector_lane.py",
               "tests/engine/test_e8_jurisdiction_blindness.py", "-q"],
-             work_junit=True, floor=125, units="tests",
+             work_junit=True, floor=138, units="tests",
              canaries=("test_a_part_year_never_produces_a_cutoff_finding",
                        "test_a_gap_inside_the_quiet_stretch_breaks_the_run",
                        "test_the_jurisdiction_guard_sees_the_lower_case_literal",
@@ -302,7 +303,10 @@ def _engine_gates() -> List[Gate]:
                        "test_a_served_row_carries_no_movement_and_no_opening",
                        "test_a_distribution_family_counts_each_booked_amount_once",
                        "test_the_row_carries_the_RULAJ_and_not_the_sume_totale",
-                       "test_the_two_paths_agree_on_every_real_book")),
+                       "test_the_two_paths_agree_on_every_real_book",
+                       "test_with_the_lane_off_the_payload_does_not_move",
+                       "test_the_flag_is_key_material",
+                       "test_the_lane_produces_ranked_findings_on_a_real_book")),
         # FORECAST: the route that made the projection reachable, and the
         # invariant it must keep on the way out. Named separately from
         # `pytest` because the failure this covers was not a red test —

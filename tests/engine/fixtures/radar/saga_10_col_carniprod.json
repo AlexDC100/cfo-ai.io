@@ -5081,6 +5081,9 @@
   },
   "info": [],
   "lanes": {
+   "detectors": {
+    "enabled": false
+   },
    "multi_period": {
     "checks": 8,
     "cold_start": true,

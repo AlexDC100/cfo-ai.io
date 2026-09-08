@@ -246,6 +246,15 @@ _MONEY_FACTS = frozenset([
     "equity", "equity_plus_liabilities",
     "current_assets", "current_liabilities", "working_capital",
     "net_result", "expenses", "difference",
+    # ── Radar detector families (2026-09-08) ───────────────────────────
+    # THE AMOUNT AT STAKE, which the serving lane requires before it will
+    # rank a finding: `serve.amount_at_stake` reads the largest MONEY
+    # figure a finding cites, and money "must be declared" — the sentence
+    # twenty lines above. Undeclared, all three of these families fired
+    # on a real book and were then refused with "the finding cites no
+    # money figure other than a company total", so the detector lane
+    # produced zero ranked candidates while reporting three fires.
+    "interco_balance", "top_counterparty_balance", "net_book_value",
     # Found by scripts/check_metric_declared.py, which enumerates the
     # Capsule's own frozen METRICS registry rather than guessing: the
     # scenario tool cites a money delta, and total_expenses is a served

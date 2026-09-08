@@ -2899,3 +2899,55 @@ never a silent fallback), the caller's own RLS-scoped client, and the org_id
 filter as a second lock on top of that. The declaration carries that
 classification inline; the gate above is what makes it true rather than
 claimed.
+
+### radar — the detector lane in the serving path (added 2026-09-08)
+
+`tests/engine/test_radar_detector_lane.py` folds into the `radar` gate.
+
+The pack-declared families now run as a THIRD lane beside the single-period
+and multi-period engines, ranked and capped by the same machinery. Two
+properties, and both were wrong first:
+
+**The flag has to be key material.** It lives on the REQUEST, not in the
+environment — `compose` is pure over its request and an env read inside it
+would end that — and it participates in `cache_key`, or turning the lane on
+would serve the pre-flag payload out of cache for the life of the process.
+The feature would look dead on exactly the deploy that enabled it.
+
+**The lane ran and produced nothing.** Three families fired on the agras
+served book and all three were refused with "the finding cites no money
+figure other than a company total": the serving lane ranks on an AMOUNT AT
+STAKE and the detectors published only shares. Three fires, zero candidates,
+and in every payload field except `lanes.detectors.candidates` it looks
+identical to "nothing found". The three families now publish the money the
+finding is really about — `interco_balance`, `top_counterparty_balance`,
+`net_book_value` — declared in `_ratio_units._MONEY_FACTS`, because money
+"must be declared" is that module's own rule.
+
+Measured on agras with the lane on: 4 surfaced → 7 surfaced, interleaved by
+rank rather than appended (`ro_receivable_concentration` at rank 2 between two
+single-lane rows), each with a real amount at stake — and the related-party
+row's stake is RON 7,692,202.74, the same `ar_intercompany` figure the export
+renderer was reading as 0 before that key was fixed.
+
+**PLANT / RED / REVERT**, four plants:
+
+```
+flag dropped from the cache key
+  -> E  AssertionError: the same key for both states
+the lane runs even with the flag off
+  -> E  the committed capture and today's payload differ
+families stop publishing the money at stake
+  -> E  AssertionError: the lane ran 5 famil(ies) and produced 0 ranked
+        candidate(s)
+the refusal loses its sentence
+  -> E  assert 'no jurisdiction pack was named' in ''
+```
+
+The six radar golden captures gained exactly one key each
+(`lanes.detectors: {"enabled": false}`), 18 lines across six files, verified
+before writing to be the ONLY difference.
+
+**What this gate cannot see:** any ROUTE calling it. Nothing does — the flag
+is off everywhere and there is no `/radar` surface. The gate says so rather
+than implying coverage it does not have.

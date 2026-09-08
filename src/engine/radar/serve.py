@@ -98,6 +98,12 @@ SOURCE = "radar"
 
 LANE_SINGLE = "single_period"
 LANE_MULTI = "multi_period"
+#: The pack-declared detector families (`engine.radar.detectors`), read
+#: over the `engine.radar.series` spine. A THIRD lane beside the two
+#: engines above, ranked and capped by the same machinery — a finding is
+#: a finding whatever produced it, and giving this one its own ranker
+#: would be two policies about what a reader sees.
+LANE_DETECTORS = "detectors"
 
 #: Company totals a finding compares AGAINST. They are excluded when the
 #: amount at stake is read off the finding's own figures, so a finding
@@ -194,6 +200,18 @@ class PeriodInput:
     #: can be formed BEFORE anything heavy is loaded. When absent,
     #: :func:`snapshot_key` derives it from what the input carries.
     content_key: Optional[str] = None
+    #: `statement_line_items` rows, when the route loaded them. The ONLY
+    #: account-level figure a persisted period carries, and what the
+    #: detector lane's SERVED-tier spine is built from. None means the
+    #: route did not load them — which is a different fact from "this
+    #: period has no accounts", and the lane says which.
+    line_items: Optional[Sequence[Dict[str, Any]]] = None
+    #: The company's CUI. A series cannot span two companies, and the
+    #: spine refuses to build without an identity to check against.
+    cui: Optional[str] = None
+
+    def has_line_items(self) -> bool:
+        return bool(self.line_items)
 
     def has_statements(self) -> bool:
         return isinstance(self.statements, dict) and bool(self.statements)
@@ -226,6 +244,19 @@ class RadarRequest:
     cap_policy: Optional[CAP.CapPolicy] = None
     materiality_policy: Optional[R.MaterialityPolicy] = None
     history_depth: int = DEFAULT_HISTORY_DEPTH
+    #: Run the pack-declared detector families. OFF by default and
+    #: carried on the REQUEST rather than read from the environment
+    #: inside `compose`, for two reasons: `compose` is pure over its
+    #: request and reading an env var inside it would end that, and the
+    #: flag has to reach `cache_key` or a flip would serve the previous
+    #: answer from cache. The route reads the environment; this lane
+    #: never does.
+    detectors_enabled: bool = False
+    #: The jurisdiction whose pack declares the detectors, and where the
+    #: packs live. Both are data, never a constant in this module — see
+    #: the N7 jurisdiction-blindness guard.
+    detector_jurisdiction: Optional[str] = None
+    detector_pack_root: Optional[str] = None
 
     def prior_periods(self) -> Tuple[PeriodInput, ...]:
         """Periods BEFORE the target on the spine, nearest first, at most
@@ -323,6 +354,14 @@ def cache_key(request: RadarRequest) -> str:
                         "info_fraction": mpolicy.info_fraction,
                         "source": mpolicy.source},
         "catalog": {"version": catalog.version, "origin": catalog.origin},
+        # A flag flip is a different answer, so it is different key
+        # material. Without this, turning the lane on would serve the
+        # pre-flag payload out of cache for the life of the process.
+        "detectors": {
+            "enabled": bool(request.detectors_enabled),
+            "jurisdiction": request.detector_jurisdiction,
+            "pack_root": request.detector_pack_root,
+        },
     }
     return _digest(material)
 
@@ -949,6 +988,243 @@ def run_multi_lane(request: RadarRequest, profile: "CP.CompanyProfile",
                      severity_by_rule=severity_by_rule)
 
 
+# ── The detector lane ────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class DetectorLane:
+    """The pack-declared families, over the served-tier spine."""
+
+    inputs: Tuple[R.RankInput, ...]
+    checks: Tuple[Dict[str, Any], ...]
+    amount_facts: Dict[str, str]
+    severity_by_rule: Dict[str, str]
+    provenance: Dict[str, RowProvenance]
+    #: Why the lane did not run, when it did not. None means it ran.
+    notice: Optional[str] = None
+    ran: Tuple[str, ...] = ()
+    waiting: Tuple[str, ...] = ()
+
+
+def _detector_spine(request: RadarRequest):
+    """The SERVED-tier spine over the request's periods, or a sentence
+    saying why there is none.
+
+    Served tier because that is what a persisted period carries: closing
+    balances from `statement_line_items`, and nothing else. The spine
+    stamps a typed refusal on the opening and movement slots and
+    `detectors.from_series` turns that into ABSENT, so the families that
+    read a movement report NOT APPLICABLE naming the missing column
+    rather than measuring a distribution over zeros.
+    """
+    from engine.radar import series as SER
+
+    spine_periods = list(request.prior_periods()) + [request.target]
+    spine_periods.sort(key=lambda p: (p.ordinal, p.period_id))
+    cui = next((p.cui for p in spine_periods if p.cui), None)
+    if not cui:
+        return None, ("detectors not run: no period on the spine carries a "
+                      "company identity, and a series that cannot say which "
+                      "company it is for is the one thing the spine must "
+                      "never produce")
+    try:
+        entity = SER.EntityKey.of(request.org_id, cui)
+    except SER.EntityUnknownError as exc:
+        return None, "detectors not run: %s" % exc
+
+    inputs = []
+    for period in spine_periods:
+        if not period.has_line_items():
+            # A period with no loaded accounts is a HOLE, declared as one.
+            # Dropping it instead would let a quiet run be measured across
+            # the gap.
+            inputs.append(SER.AbsentPeriodInput(
+                period_id=period.period_id,
+                fiscal_end=str(period.period_end or ""),
+                ordinal=int(period.ordinal), cui=str(period.cui or cui),
+                label=period.label))
+            continue
+        inputs.append(SER.ServedPeriodInput(
+            period_id=period.period_id,
+            fiscal_end=str(period.period_end or ""),
+            ordinal=int(period.ordinal),
+            currency=str(period.currency or "RON"),
+            cui=str(period.cui or cui),
+            line_items=list(period.line_items or ()),
+            snapshot_key=snapshot_key(period),
+            snapshot_id=period.snapshot_id,
+            source_document_id=period.source_document_id,
+            label=period.label))
+    try:
+        return SER.build(entity, inputs), None
+    except SER.SeriesError as exc:
+        return None, "detectors not run: %s" % exc
+
+
+def run_detector_lane(request: RadarRequest, profile: "CP.CompanyProfile",
+                      policy: R.MaterialityPolicy, basis: Basis,
+                      gateway: Optional[FactsGateway] = None) -> DetectorLane:
+    """Run the pack's detector families and shape their findings as
+    ranking candidates, exactly as the single lane does.
+
+    Everything this lane cannot do says so and stops: no pack, no
+    identity, no line items, a currency change on the spine. None of
+    those is an empty finding list, and none of them is silence.
+    """
+    from engine.radar import detectors as DET
+    from engine.radar.detectors import from_series as JOIN
+    from engine.radar.detectors import run as RUNMOD
+
+    empty = DetectorLane(inputs=(), checks=(), amount_facts={},
+                         severity_by_rule={}, provenance={})
+    jurisdiction = request.detector_jurisdiction
+    pack_root = request.detector_pack_root
+    if not jurisdiction or not pack_root:
+        return replace(empty, notice=(
+            "detectors not run: no jurisdiction pack was named for this "
+            "request"))
+    try:
+        pack = DET.load_pack(str(jurisdiction), str(pack_root))
+    except Exception as exc:  # noqa: BLE001 — the reason is the product
+        return replace(empty, notice="detectors not run: %s" % exc)
+
+    spine, why = _detector_spine(request)
+    if spine is None:
+        return replace(empty, notice=why)
+
+    # The totals a share is taken of come from the FACTS GATEWAY, which is
+    # the serving lane's own authority on them — `resolve_basis` already
+    # used it for the target and this lane is handed that answer. Reading
+    # the statement dicts directly instead was measured wrong on the very
+    # first book: `canonical_bs` carries no top-level `total_assets` (it
+    # carries `sections` and `invariants`), so every detector needing a
+    # basis reported "total_assets is not served for this period".
+    basis_by_period = {}  # type: Dict[str, Any]
+    for period in list(request.prior_periods()) + [request.target]:
+        totals = _detector_basis_for(
+            period, basis if period.period_id == request.target.period_id else None)
+        if totals is not None:
+            basis_by_period[period.period_id] = totals
+    try:
+        series = JOIN.book_series_from_spine(
+            spine, basis_by_period=basis_by_period)
+    except (JOIN.SpineJoinError, ValueError) as exc:
+        return replace(empty, notice="detectors not run: %s" % exc)
+
+    run = DET.run_detectors(pack, series, profile,
+                            snapshot_id=request.target.engine_snapshot_id())
+
+    inputs = []  # type: List[R.RankInput]
+    checks = []  # type: List[Dict[str, Any]]
+    amount_facts = {}  # type: Dict[str, str]
+    provenance = {}  # type: Dict[str, RowProvenance]
+    severity_by_rule = dict(
+        (f.rule_id, f.severity)
+        for f in run.findings)
+
+    # Every check the run recorded, verbatim: "measured and clear" and
+    # "could not measure" are different claims and both belong on the
+    # checks list.
+    for check in run.checks:
+        row = check.to_payload()
+        # The check list is read by ONE renderer, so a detector row must
+        # carry the same keys a rule row does. `rule_id` is the id the
+        # reader sees beside every other check; `detector_id` stays too,
+        # because the pack line it names is what a reader walks back to.
+        row["rule_id"] = row.get("detector_id")
+        row["note"] = row.get("reason")
+        row["fired"] = row.get("status") == RUNMOD.STATUS_FIRED
+        row["lane"] = LANE_DETECTORS
+        row["disposition"] = R.DISPOSITION_CHECKS
+        checks.append(row)
+
+    for finding in DET.surfaced(run):
+        root = root_cause_of(finding)
+        key = finding.rule_id + "|" + root
+        prov = verify_facts(finding, gateway, LANE_DETECTORS)
+        provenance[key] = prov
+        stake = amount_at_stake(finding)
+        reason = None  # type: Optional[str]
+        verdict = None  # type: Optional[R.MaterialityVerdict]
+        if prov.conflicts:
+            reason = ("fired but not served: provenance conflict — "
+                      + "; ".join(f.reason for f in prov.conflicts))
+        elif stake is None:
+            reason = ("fired but not ranked: the finding cites no money "
+                      "figure other than a company total, so the amount at "
+                      "stake cannot be read off its own evidence")
+        else:
+            try:
+                verdict = R.assess_materiality(
+                    policy, MATERIALITY_BASIS_ID, MATERIALITY_BASIS_LABEL,
+                    basis.value, stake.value, profile.currency)
+            except R.MaterialityBasisMissing as exc:
+                reason = "fired but not ranked: %s" % exc
+        if verdict is None or stake is None:
+            record = finding.check_record().to_payload()
+            note = record.get("note") or ""
+            record["note"] = "; ".join([bit for bit in (note, reason) if bit])
+            record["disposition"] = R.DISPOSITION_CHECKS
+            record["materiality"] = None
+            record["lane"] = LANE_DETECTORS
+            checks.append(record)
+            continue
+        amount_facts[key] = stake.fact
+        inputs.append(R.RankInput(
+            finding=finding, materiality=verdict, root_cause=root,
+            # Persistence is a claim about the SAME finding in earlier
+            # periods, and this lane runs once over the whole spine
+            # rather than once per period. Claiming a run it did not
+            # measure would be worse than claiming none.
+            persistence=1, scope_key=root,
+            period_ordinal=request.target.ordinal))
+
+    return DetectorLane(
+        inputs=tuple(inputs), checks=tuple(checks), amount_facts=amount_facts,
+        severity_by_rule=severity_by_rule, provenance=provenance,
+        notice=None, ran=tuple(run.ran), waiting=tuple(run.waiting))
+
+
+def _detector_basis_for(period: PeriodInput, resolved: Optional[Basis] = None):
+    """The totals a share is taken of, for one period.
+
+    From the FactsGateway, which is this lane's one authority on them —
+    the same accessor `resolve_basis` uses, so the detector families and
+    the serving lane can never disagree about what total assets are. When
+    the caller has already resolved the target's basis it is reused
+    verbatim rather than read a second time.
+
+    Never recomputed from line items: that would be a second opinion
+    about a total the engine already publishes.
+    """
+    from engine.radar.detectors import book as DBOOK
+
+    total_assets = resolved.value if resolved is not None else None
+    revenue = None  # type: Optional[float]
+    gateway = gateway_for(period)
+    if gateway is not None:
+        if total_assets is None:
+            total_assets = _gateway_amount(gateway, "total_assets")
+        revenue = _gateway_amount(gateway, "revenue")
+    if total_assets is None and revenue is None:
+        return None
+    return DBOOK.BasisTotals(
+        total_assets=total_assets, revenue=revenue,
+        source="FactsGateway over the persisted envelope for %s"
+               % (period.label or period.period_id))
+
+
+def _gateway_amount(gateway: FactsGateway, accessor: str) -> Optional[float]:
+    """One served total, or ABSENT. A fact the gateway declines to serve
+    is not zero, and the detector that needs it refuses by name."""
+    try:
+        fact = getattr(gateway, accessor)()
+    except (MissingFactError, AttributeError, ValueError):
+        return None
+    value = getattr(fact, "value", None)
+    return None if value is None else float(value)
+
+
 # ── The payload ──────────────────────────────────────────────────────────
 
 
@@ -1055,7 +1331,10 @@ def compose(request: RadarRequest) -> Served:
     request = RadarRequest(
         org_id=request.org_id, target=request.target, history=request.history,
         dismissals=dismissals, cap_policy=cap_policy, materiality_policy=policy,
-        history_depth=request.history_depth)
+        history_depth=request.history_depth,
+        detectors_enabled=request.detectors_enabled,
+        detector_jurisdiction=request.detector_jurisdiction,
+        detector_pack_root=request.detector_pack_root)
     index = R.DismissalIndex(dismissals)
     gateway = gateway_for(target)
 
@@ -1072,8 +1351,19 @@ def compose(request: RadarRequest) -> Served:
     single = run_single_lane(request, policy, index, prior_results, gateway)
     multi = run_multi_lane(request, single.result.profile, policy)
 
+    # THE DETECTOR LANE IS OFF UNTIL THE REQUEST SAYS OTHERWISE, and with
+    # it off nothing below changes: no lane object, no extra candidates,
+    # no extra check rows, and `cache_key` carries the flag so a flip is a
+    # recompute rather than a stale hit.
+    detectors = None  # type: Optional[DetectorLane]
+    if request.detectors_enabled:
+        detectors = run_detector_lane(
+            request, single.result.profile, policy, single.basis, gateway)
+
     severity_by_rule = dict(single.severity_by_rule)
     severity_by_rule.update(multi.severity_by_rule)
+    if detectors is not None:
+        severity_by_rule.update(detectors.severity_by_rule)
 
     surfaced_in = list(single.report.surfaced)
     info_in = list(single.report.info)
@@ -1082,6 +1372,25 @@ def compose(request: RadarRequest) -> Served:
         surfaced_in.extend(multi.report.surfaced)
         info_in.extend(multi.report.info)
         demoted_in.extend(multi.report.demoted)
+    detector_ids = set()  # type: set
+    if detectors is not None and detectors.inputs:
+        # Ranked through the SAME ranker, with the same dismissal index and
+        # the same policy source. A finding is a finding whatever produced
+        # it; a second ranker here would be a second policy about what a
+        # reader sees.
+        detector_report = R.rank_findings(
+            list(detectors.inputs), checks=(),
+            cap=max(1, len(detectors.inputs)), dismissals=index,
+            policy_source=policy.source)
+        detector_report = retain_dismissed_critical_groups(
+            detector_report, detectors.severity_by_rule)
+        for bucket in (detector_report.surfaced, detector_report.info,
+                       detector_report.demoted):
+            for rf in bucket:
+                detector_ids.add(id(rf.finding))
+        surfaced_in.extend(detector_report.surfaced)
+        info_in.extend(detector_report.info)
+        demoted_in.extend(detector_report.demoted)
     critical_below_floor = len([
         rf for rf in info_in if CAP.is_critical(rf, severity_by_rule)]) + len([
         rf for rf in demoted_in
@@ -1100,15 +1409,23 @@ def compose(request: RadarRequest) -> Served:
                     rf.finding, gateway, LANE_MULTI)
 
     def lane_of(rf: R.RankedFinding) -> str:
+        if id(rf.finding) in detector_ids:
+            return LANE_DETECTORS
         return LANE_MULTI if id(rf.finding) in multi_ids else LANE_SINGLE
 
     def row(rf: R.RankedFinding) -> Dict[str, Any]:
         key = rf.finding.rule_id + "|" + rf.root_cause
         lane = lane_of(rf)
-        prov = (multi_provenance.get(id(rf.finding)) if lane == LANE_MULTI
-                else single.provenance.get(key))
-        return _row(rf, target.period_id, lane, single.amount_facts.get(key),
-                    severity_by_rule, prov)
+        if lane == LANE_DETECTORS and detectors is not None:
+            prov = detectors.provenance.get(key)
+            fact = detectors.amount_facts.get(key)
+        elif lane == LANE_MULTI:
+            prov = multi_provenance.get(id(rf.finding))
+            fact = single.amount_facts.get(key)
+        else:
+            prov = single.provenance.get(key)
+            fact = single.amount_facts.get(key)
+        return _row(rf, target.period_id, lane, fact, severity_by_rule, prov)
 
     surfaced = [row(rf) for rf in decision.surfaced]
     info = [row(rf) for rf in info_in]
@@ -1117,6 +1434,8 @@ def compose(request: RadarRequest) -> Served:
 
     checks = list(single.report.checks) + list(single.refusals) \
         + list(multi.checks) + list(decision.checks)
+    if detectors is not None:
+        checks.extend(detectors.checks)
 
     counts = _merge_counts(single.report.counts,
                            multi.report.counts if multi.report is not None else {})
@@ -1197,6 +1516,18 @@ def compose(request: RadarRequest) -> Served:
                                     if multi.report is not None else {}),
                          "checks": len(multi.checks),
                          "cold_start": multi.needs_history is not None},
+            # `enabled: False` and `enabled: True, ran: []` are different
+            # facts and a reader of this payload must be able to tell
+            # them apart: the first says the lane is off, the second that
+            # it ran and every family declined.
+            LANE_DETECTORS: ({"enabled": False} if detectors is None else {
+                "enabled": True,
+                "notice": detectors.notice,
+                "ran": list(detectors.ran),
+                "waiting": list(detectors.waiting),
+                "candidates": len(detectors.inputs),
+                "checks": len(detectors.checks),
+            }),
         },
     }
     return Served(payload=payload, surfaced=decision.surfaced, profile=profile,

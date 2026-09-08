@@ -515,6 +515,12 @@ def concentration(spec: "DetectorSpec", series: "B.BookSeries",
             limit=limit, accounts=accounts, periods=(latest.label,),
             atom_ids=group.atom_ids(), reason=reason)]
     figures, facts = SUP.figures_of([
+        # THE AMOUNT AT STAKE. A share is what the finding is ABOUT; the
+        # money is what a reader is judged on, and the serving lane will
+        # not rank a finding that cites none — it refuses with "the
+        # finding cites no money figure other than a company total".
+        ("top_counterparty_balance", top_value, F.UNIT_MONEY,
+         "the balance %s carries" % top.code),
         ("top_counterparty_share", share, F.UNIT_PERCENT,
          "%s share of the %s balance" % (top.code, spec.scope)),
         ("subject_share", family_share, F.UNIT_PERCENT,
@@ -611,6 +617,8 @@ def interco(spec: "DetectorSpec", series: "B.BookSeries",
 
     haircut = balance * haircut_rate
     measured = [
+        ("interco_balance", balance, F.UNIT_MONEY,
+         "the related-party balance on %s" % codes),
         ("interco_share", share, F.UNIT_PERCENT,
          "related-party balances as a share of %s" % basis.label),
     ]
@@ -712,7 +720,13 @@ def assetage(spec: "DetectorSpec", series: "B.BookSeries",
             periods=(latest.label,), atom_ids=gross_group.atom_ids(),
             reason=reason, caveats=caveats)]
 
-    pairs = [("depreciated_share", depreciated, F.UNIT_PERCENT,
+    pairs = [# THE AMOUNT AT STAKE: what is left to depreciate, in money.
+             # A share says how worn the base is; the net book value is
+             # the number a capex conversation happens over, and the
+             # serving lane will not rank a finding that cites no money.
+             ("net_book_value", nbv, F.UNIT_MONEY,
+              "the net book value still carried on %s" % codes),
+             ("depreciated_share", depreciated, F.UNIT_PERCENT,
               "share of gross assets already depreciated"),
              ("net_book_value_share", nbv / gross, F.UNIT_PERCENT,
               "share of the gross base still carried")]
