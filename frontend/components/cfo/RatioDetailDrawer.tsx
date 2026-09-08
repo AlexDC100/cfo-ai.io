@@ -292,18 +292,58 @@ function DrawerBody({
               * cutoff the verdict beside it did not use. The knowledge
               * entry stays underneath as the general note it actually
               * is. */}
+            {/* ── AND THE WITHHOLDING IS HONOURED HERE TOO ───────────
+              *
+              * `ratio.ladder ? … : knowledge.goodRange` fired the
+              * hand-typed range in exactly the case the ladder was
+              * DELIBERATELY WITHHELD. On the owner's live configuration
+              * — the Agras meat book served as "Real estate ·
+              * residential rental" — `row()` returns `verdict:
+              * "ungraded"` with no ladder and the printed export says
+              * "Benchmark withheld — this ratio's healthy range differs
+              * by sector and the sector is unconfirmed". One click into
+              * the drawer, the same seven rows (ebitda_margin, dio,
+              * net_margin, gross_margin, dso, asset_turnover,
+              * adjusted_dscr) read "≥ 15% healthy · ≥ 25% strong". The
+              * export refused the sector's cutoff and the drawer served
+              * it — and it is the SAME cutoff, so the refusal bought
+              * nothing.
+              *
+              * `ungraded` is the withholding signal and it is distinct
+              * from `unknown` (no value at all): where the ladder was
+              * withheld, the drawer states the refusal and shows NO
+              * range, not even the general note underneath — a
+              * "general" range that happens to be the sector rung is
+              * the leak in a quieter font.
+              *
+              * AND THE REASON IS `ratio.benchmark`, NOT A GUESS. There
+              * are two withholdings, and only one of them is about the
+              * sector: `debt_to_ebitda` on the realestate book is
+              * ungraded because EBITDA is RON −29.04M and every rung
+              * would read backwards through a negative divisor. A
+              * hard-coded "confirm the industry" note would be the
+              * wrong instruction on that row, so the row's own
+              * withholding sentence is the only thing printed. */}
             <Section icon={Target} title="What good looks like">
-              <p className="text-[13.5px] text-ink-soft leading-relaxed">
-                {ratio.ladder ? ladderSentence(ratio.ladder, ratio.unit) : knowledge.goodRange}
-              </p>
-              {ratio.ladder && (
-                <p className="mt-1.5 text-[12.5px] text-ink-mute leading-relaxed">
-                  {knowledge.goodRange}
+              {ratio.verdict === "ungraded" ? (
+                <p className="text-[13.5px] text-ink-soft leading-relaxed">
+                  {ratio.benchmark}
                 </p>
+              ) : (
+                <>
+                  <p className="text-[13.5px] text-ink-soft leading-relaxed">
+                    {ratio.ladder ? ladderSentence(ratio.ladder, ratio.unit) : knowledge.goodRange}
+                  </p>
+                  {ratio.ladder && (
+                    <p className="mt-1.5 text-[12.5px] text-ink-mute leading-relaxed">
+                      {knowledge.goodRange}
+                    </p>
+                  )}
+                  <div className="mt-2 text-[11.5px] text-ink-mute">
+                    Indicative range — varies by industry, capital structure, and stage.
+                  </div>
+                </>
               )}
-              <div className="mt-2 text-[11.5px] text-ink-mute">
-                Indicative range — varies by industry, capital structure, and stage.
-              </div>
             </Section>
 
             <Section icon={TrendingUp} title="What may be driving it">
@@ -549,13 +589,20 @@ function focusForVerdict(verdict: RatioVerdict, label: string): string {
       return `${label} could not be computed for this period, so there is no reading to act on. The commentary above names what the filing is missing.`;
     case "ungraded":
       // There IS a reading — the value is printed above. What is missing
-      // is the ladder: this ratio's healthy range is one sector's, and
-      // the workspace sector and the account mix disagree. Advice that
-      // named a direction here would be the withheld band, restated in
-      // prose. (Without this case the switch fell off the end and this
-      // panel returned `undefined` — tsc does not flag it, so it is
-      // written out rather than left to a default.)
-      return `${label} is measured above, but its healthy range differs by sector and this workspace's sector is unconfirmed — so no verdict is stated. Confirm the industry to grade it.`;
+      // is the LADDER. Advice that named a direction here would be the
+      // withheld band, restated in prose. (Without this case the switch
+      // fell off the end and this panel returned `undefined` — tsc does
+      // not flag it, so it is written out rather than left to a default.)
+      //
+      // ⚠ IT USED TO NAME THE SECTOR AS THE REASON, AND THAT IS ONE OF
+      // TWO. `row()` withholds for a disputed sector; `computeRatios`
+      // also withholds where the scale itself cannot be read — on the
+      // realestate book `debt_to_ebitda` is ungraded because EBITDA is
+      // RON −29.04M, and "confirm the industry to grade it" is simply
+      // untrue there: confirming the industry would change nothing. The
+      // row's own withholding sentence is printed two sections above; a
+      // second, guessed one is how a caption stops being checkable.
+      return `${label} is measured above, but the ladder its verdict would come from was withheld — the reason is stated with the band, under "What good looks like".`;
     case "strong":
       return `${label} is in a strong position. Keep monitoring trend lines; a single strong reading can mask a deteriorating trajectory if not re-checked next period.`;
     case "healthy":

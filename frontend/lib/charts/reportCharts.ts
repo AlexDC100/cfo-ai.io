@@ -341,19 +341,46 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
   }
   const days = (v: number): string => `${v.toFixed(1)} days`;
   const dso = found[0] as Ratio, dio = found[1] as Ratio, dpo = found[2] as Ratio, ccc = found[3] as Ratio;
+  // ── THE FORMULA IS THE RATIO'S OWN, NOT A SECOND SPELLING ──────────
+  //
+  // These four `source` strings used to be typed here: "inventory ÷ cost
+  // of sales × days" and "payables ÷ cost of sales × days". The ratio
+  // cards two inches above the chart state
+  //
+  //     inventory ÷ TOTAL operating expense (COGS + opex + D&A) × 365
+  //     days — not narrow COGS
+  //
+  // and that is what `computeRatios` actually divides by. Measured on the
+  // agras export: a reader recomputing DIO from the chart's stated
+  // formula gets 46.21 days against the 31.5 printed beside it, and DPO
+  // 39.08 against 26.6. On the realestate book cost of goods sold is nil,
+  // so the chart printed "845.4 days | inventory ÷ cost of sales × days"
+  // — a formula that is a division by zero for the figure next to it.
+  // `Ratio.formula` is required, is what `exportRatioFormulas.test.ts`
+  // recomputes, and is the string the card prints; taking it from there
+  // means the document holds one spelling per concept by construction.
   const rows: ChartRow[] = [
-    { key: "dso", label: "DSO", value: dso.value, printed: days(dso.value as number), source: "receivables ÷ revenue × days", kind: "anchor" },
-    { key: "dio", label: "plus DIO", value: dio.value, printed: days(dio.value as number), source: "inventory ÷ cost of sales × days", kind: "delta" },
-    { key: "dpo", label: "less DPO", value: -(dpo.value as number), printed: days(-(dpo.value as number)), source: "payables ÷ cost of sales × days", kind: "delta" },
-    { key: "ccc", label: "equals CCC", value: ccc.value, printed: days(ccc.value as number), source: "DSO + DIO − DPO", kind: "anchor", breach: ccc.verdict === "critical" },
+    { key: "dso", label: "DSO", value: dso.value, printed: days(dso.value as number), source: dso.formula, kind: "anchor" },
+    { key: "dio", label: "plus DIO", value: dio.value, printed: days(dio.value as number), source: dio.formula, kind: "delta" },
+    { key: "dpo", label: "less DPO", value: -(dpo.value as number), printed: days(-(dpo.value as number)), source: dpo.formula, kind: "delta" },
+    { key: "ccc", label: "equals CCC", value: ccc.value, printed: days(ccc.value as number), source: ccc.formula, kind: "anchor", breach: ccc.verdict === "critical" },
   ];
+  // What the DRAWING carries under each bar. The table above is where the
+  // formula lives — a 78-character sentence set at 8 px under a 149 px
+  // bar slot wraps past the frame, and the gate for that overflow is in
+  // this feature's GATES.md. This is a POINTER, not a second formula: it
+  // names the row the reader should read it on, and there is still
+  // exactly one spelling of the arithmetic in the document. The chart
+  // used to restate "inventory ÷ cost of sales × days" while the card
+  // said "÷ TOTAL operating expense — not narrow COGS", ~30 lines apart.
+  const drawn = rows.map((r) => ({ ...r, source: "formula in the table below" }));
   const stepped = (dso.value as number) + (dio.value as number) - (dpo.value as number);
   const drift = (ccc.value as number) - stepped;
   return {
     id: "chart-wc-cycle",
     title,
     status: "drawn",
-    svg: waterfall({ id: "chart-wc-cycle", title, unit: "days", rows }),
+    svg: waterfall({ id: "chart-wc-cycle", title, unit: "days", rows: drawn }),
     rows,
     table: rowsTable(rows, "days"),
     caption:
@@ -458,6 +485,67 @@ export function zonesForKey(
   return { zones, thresholds: sorted, higher };
 }
 
+/**
+ * THE ZONES A RATIO'S OWN VERDICT WAS DECIDED BY.
+ *
+ * ⚠ THE RAIL USED TO BAND OFF `assembled_bands` WHILE THE BADGE BANDED
+ * OFF `Ratio.ladder`, AND ITS CAPTION ASSERTED THEY WERE THE SAME.
+ *
+ * The card chip already made this move (`financialReport.ts`, `cardTrack`)
+ * after fourteen chips were measured contradicting the badge above them.
+ * The FULL rail three sections later was left reading the served
+ * definitions. Measured 2026-09-07 on the four committed books, the two
+ * tables disagree on CCC everywhere — card `watch: 100`, served
+ * `watch: 90` — and on `carniprod` the rail drew `interest_coverage` and
+ * `dscr` tracks for two ratios that HAVE no verdict (both values null, so
+ * `row()` attaches no ladder at all).
+ *
+ * Planting `ccc = 95` on agras: the badge reads "Watch" (95 ≤ 100) and
+ * the old rail drew the marker inside the CRITICAL zone (95 > 90), under
+ * a caption reading "the bands its verdict was decided by". Both existing
+ * band gates query `.ratio-card` only, so neither could see it.
+ *
+ * One authority, one construction: the ladder that produced the word is
+ * the ladder the track is drawn on. A row with NO ladder — refused value,
+ * or sector-withheld — gets no track, because there is no verdict for a
+ * track to explain.
+ */
+export function zonesForRatio(
+  rt: Ratio,
+  served: ServedBands | null,
+): { zones: BandZone[]; thresholds: number[]; higher: boolean } | null {
+  if (!rt.ladder || rt.ladder.bands.watch === undefined) return null;
+  const shell: ServedBands = {
+    bands: {
+      [rt.key]: {
+        direction: rt.ladder.higherIsBetter ? "higher" : "lower",
+        watch: rt.ladder.bands.watch,
+        healthy: rt.ladder.bands.healthy,
+        strong: rt.ladder.bands.strong,
+      },
+    },
+    source: served?.source ?? null,
+    disclosure: served?.disclosure ?? null,
+  };
+  return zonesForKey(shell, rt.key, rt.value);
+}
+
+/** Does the engine's own band definition for this key agree with the
+ *  ladder the card banded on? Named so the caption can say WHICH rows
+ *  drifted instead of implying they cannot. */
+function servedAgrees(served: ServedBands, rt: Ratio): boolean | null {
+  const def = served.bands[rt.key];
+  if (!def || !rt.ladder) return null;
+  const l = rt.ladder.bands;
+  const dir = rt.ladder.higherIsBetter ? "higher" : "lower";
+  return (
+    def.watch === l.watch &&
+    def.healthy === l.healthy &&
+    def.strong === l.strong &&
+    (def.direction ?? "higher") === dir
+  );
+}
+
 const TRACK_KEYS = ["current_ratio", "quick_ratio", "debt_to_ebitda", "interest_coverage", "dscr", "ccc"];
 
 export function ratioBandTracks(i: ChartInputs): ChartBlock {
@@ -487,11 +575,20 @@ export function ratioBandTracks(i: ChartInputs): ChartBlock {
 
   const tracks: BandTrackRow[] = [];
   const rows: ChartRow[] = [];
+  const drifted: string[] = [];
   for (const key of TRACK_KEYS) {
     const rt = ratioNamed(i.ratios, key);
     if (!rt) continue;
-    const built = zonesForKey(served, key, rt.value);
+    // ONE AUTHORITY: the ladder that produced the badge is the ladder the
+    // track is drawn on. `zonesForRatio` returns null for a row the
+    // document declined to grade (refused value, or a sector-withheld
+    // band), so no track is drawn where there is no verdict to explain.
+    // This line read `zonesForKey(served, …)` — the served definitions —
+    // while the badge two sections above banded off `Ratio.ladder`, and
+    // the caption under it asserted the two were the same.
+    const built = zonesForRatio(rt, served);
     if (!built) continue;
+    if (servedAgrees(served, rt) === false) drifted.push(rt.label);
     const { zones, thresholds: sorted, higher } = built;
     const unit = rt.unit === "days" ? "d" : rt.unit === "%" ? "%" : "×";
     const spell = (v: number): string => (rt.unit === "days" ? `${v.toFixed(0)}d` : `${v.toFixed(2)}${unit}`);
@@ -522,18 +619,27 @@ export function ratioBandTracks(i: ChartInputs): ChartBlock {
   }
   if (tracks.length === 0) {
     const absence = {
-      missing: ["a ratio with both a value and a served band"],
-      because: "None of the tracked ratios resolved on this period, so there is nothing to place on a track.",
+      missing: ["a ratio carrying both a value and the ladder its verdict was decided by"],
+      because: "None of the tracked ratios was graded on this period — a refused value and a withheld sector band both leave a row with no ladder, and a track drawn without one would be this document choosing its own thresholds.",
       toFix: "The absent ratios need their inputs; see the refusal note printed on each ratio card.",
     };
-    return { id: "chart-band-tracks", title, status: "absent", svg: gapCard(title, absence), rows: [], table: "", caption: "Not charted: no tracked ratio resolved on this period.", absence };
+    return { id: "chart-band-tracks", title, status: "absent", svg: gapCard(title, absence), rows: [], table: "", caption: "Not charted: no tracked ratio carries the ladder its verdict was decided by.", absence };
   }
   const disclosure =
     served.source === "general_sme_fallback"
-      ? " These are GENERAL-SME bands, not calibrated to this company's industry: the engine serves them as `general_sme_fallback`, and every Healthy / Watch / Critical verdict in this document was decided by them."
+      ? " These are GENERAL-SME bands, not calibrated to this company's industry: the engine serves its band definitions as `general_sme_fallback`, and the ladders printed on the cards in this document are those same general-SME defaults."
       : served.source
         ? ` Band source: ${served.source}.`
         : "";
+  // A rung the engine and the card do not agree on, named rather than
+  // quietly resolved in the card's favour. Today this is CCC on all four
+  // committed books: the card bands `watch` at 100 days and the engine
+  // serves 90. The track follows the card, because the card is what
+  // produced the printed word — but a reader comparing this document to
+  // the engine's own definitions is entitled to know which row moved.
+  const driftNote = drifted.length
+    ? ` One rung differs from the engine's served definition on ${drifted.join(", ")}: the track follows the ladder printed on the card, which is the one the verdict was decided by.`
+    : "";
   return {
     id: "chart-band-tracks",
     title,
@@ -542,8 +648,9 @@ export function ratioBandTracks(i: ChartInputs): ChartBlock {
     rows,
     table: rowsTable(rows, "measured"),
     caption:
-      "Each track is one ratio placed on the bands its verdict was decided by, so the distance to the next band is visible rather than compressed into a word." +
-      disclosure,
+      "Each track is one ratio placed on the bands its verdict was decided by — the same ladder the card above it prints and the badge was banded on, so the distance to the next band is visible rather than compressed into a word." +
+      disclosure +
+      driftNote,
   };
 }
 

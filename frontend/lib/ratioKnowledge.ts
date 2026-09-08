@@ -129,8 +129,8 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     formula: "(Cash + receivables) ÷ Current liabilities",
     formulaParts: [
       { kind: "text",  value: "( " },
-      { kind: "value", label: "Cash", valueKey: "cash",
-        source: { statement: "bs", bucket: "cash", hint: "Cash & equivalents (5121 + 5124 + 5311)" } },
+      { kind: "value", label: "Cash & bank", valueKey: "cash",
+        source: { statement: "bs", bucket: "cash", hint: "Cash and bank balances (5121 + 5124 + 5311) — the same figure the cash ratio uses; short-term investments (class 50) are not in it" } },
       { kind: "text",  value: " + " },
       { kind: "value", label: "AR", valueKey: "accountsReceivable",
         source: { statement: "bs", bucket: "accountsReceivable", hint: "Trade receivables (4111)" } },
@@ -150,18 +150,32 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   },
   cash_ratio: {
     category: "liquidity",
+    // ── THE EXCLUSION THIS RATIO'S VERDICT TURNS ON ─────────────────
+    //
+    // "Cash & equivalents" is the phrase that hides the choice. On the
+    // owner's Agras report the card reads 0.09× CRITICAL; short-term
+    // investments (RAS class 50) stand at RON 906,526 in the same
+    // current-asset block, and counting them — which is what "cash
+    // equivalents" conventionally means — gives 0.159×, a WATCH. The
+    // report card was made to say so (`financialReport.ts`: "cash and
+    // bank balances ÷ current liabilities — cash excludes short-term
+    // investments (RAS class 50)"). This entry still said "equivalents",
+    // and it is the `formulaParts` entry, so the drawer rendered it as
+    // the live-numbers breakdown — the most authoritative-looking
+    // surface in the product for a figure whose whole verdict rests on
+    // what is left out.
     definition:
-      "Pure-cash coverage of current liabilities — the most conservative liquidity measure.",
-    formula: "Cash & equivalents ÷ Current liabilities",
+      "Coverage of current liabilities out of cash and bank balances alone — the floor reading of same-day liquidity, and the most conservative of the three liquidity ratios.",
+    formula: "Cash and bank balances ÷ Current liabilities — short-term investments (RAS class 50) are NOT counted",
     formulaParts: [
-      { kind: "value", label: "Cash", valueKey: "cash",
-        source: { statement: "bs", bucket: "cash", hint: "Cash & equivalents (5121 + 5124 + 5311)" } },
+      { kind: "value", label: "Cash & bank", valueKey: "cash",
+        source: { statement: "bs", bucket: "cash", hint: "Cash and bank balances (5121 + 5124 + 5311) — excludes short-term investments (class 50)" } },
       { kind: "text",  value: " ÷ " },
       { kind: "value", label: "Current liab", valueKey: "totalCurrentLiabilities",
         source: { statement: "bs", bucket: "totalCurrentLiabilities", hint: "Total current liabilities — section subtotal" } },
     ],
     whyItMatters:
-      "Tells you what happens if revenue stops tomorrow. Boards and lenders use this for stress-testing.",
+      "Tells you what happens if revenue stops tomorrow. Boards and lenders use this for stress-testing. Because short-term investments are left out, a company holding liquid securities reads lower here than on a textbook cash-equivalents basis — check the short-term investments line before treating a low reading as distress.",
     goodRange: "≥ 0.20× comfortable · < 0.10× exposed",
     drivers: [
       "Dividend or capex policy",
@@ -207,7 +221,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "profitability",
     definition:
       "Bottom-line earnings as a share of revenue — after every cost, including interest and tax.",
-    formula: "Net income ÷ Revenue",
+    formula: "Net profit as filed (account 121) ÷ Revenue",
     whyItMatters:
       "What actually reaches the equity holders. Sensitive to leverage and tax structure on top of operations.",
     goodRange: "≥ 8% healthy",
@@ -223,7 +237,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "profitability",
     definition:
       "How efficiently total assets generate earnings — combines profitability and asset productivity.",
-    formula: "Net income ÷ Total assets",
+    formula: "Net profit as filed (account 121) ÷ Total assets at period end",
     whyItMatters:
       "Captures asset-intensity in the business model. Two companies with the same net margin can have very different ROAs.",
     goodRange: "≥ 5% healthy · ≥ 10% strong",
@@ -237,8 +251,8 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   roe: {
     category: "profitability",
     definition:
-      "Return generated on book equity — the headline for shareholders.",
-    formula: "Net income ÷ Average equity",
+      "Return generated on book equity — the headline for shareholders. Computed here on CLOSING equity, not on the average of opening and closing: a trial balance carries one period, so an average would need a prior-period balance sheet this report does not have.",
+    formula: "Net profit as filed (account 121) ÷ Total equity at period end",
     whyItMatters:
       "Directly comparable to cost-of-equity. A persistent ROE below cost-of-capital means equity is being destroyed.",
     goodRange: "≥ 12% healthy · ≥ 20% strong",
@@ -330,11 +344,21 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   // ── Coverage ────────────────────────────────────────────────────
   interest_coverage: {
     category: "coverage",
+    // ── THE ROW WHOSE OWN CARD SAYS "NOT EBIT ÷ INTEREST" ───────────
+    //
+    // The card is labelled "Interest Coverage (EBITDA / Interest)" and
+    // its formula reads "EBITDA (statutory) ÷ interest expense — NOT
+    // EBIT ÷ interest, which the credit component below bands on and
+    // which is a different number on every levered book". This entry
+    // said "EBIT ÷ Interest expense" — the negated basis, verbatim —
+    // and the drawer prints it one click from the badge. On the retail
+    // book the two bases do not merely differ in size, they differ in
+    // SIGN: EBITDA ÷ interest is +0.09×, EBIT ÷ interest is −0.52×.
     definition:
-      "How many times operating profit covers interest expense.",
-    formula: "EBIT ÷ Interest expense",
+      "How many times operating cash earnings before depreciation cover interest expense. The credit model's own interest-coverage term uses EBIT instead, which is a different number on any book carrying depreciation — the two are not interchangeable.",
+    formula: "EBITDA (statutory) ÷ Interest expense — NOT EBIT ÷ interest",
     whyItMatters:
-      "Below 1.5× the business has almost no cushion against rate hikes or EBIT compression — a top early-warning indicator.",
+      "Below 1.5× the business has almost no cushion against rate hikes or earnings compression — a top early-warning indicator.",
     goodRange: "≥ 3× healthy · ≥ 6× strong",
     drivers: [
       "Average cost of debt",
@@ -392,11 +416,20 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   },
   dio: {
     category: "efficiency",
+    // ── THE DENOMINATOR THIS PRODUCT ACTUALLY DIVIDES BY ────────────
+    //
+    // Textbook DIO divides by narrow COGS. This product divides by TOTAL
+    // operating expense (COGS + opex + D&A), deliberately: in a
+    // manufacturer, inventory absorbs materials, labour, utilities and
+    // overhead, and the narrow basis inflated Scandia's DIO from ~53 to
+    // ~95 days (see the calibration note in `computeRatios`). The card
+    // says so; this entry did not, and on the agras book the difference
+    // between the two bases is 31.5 days and 46.2 days.
     definition:
-      "Average number of days inventory sits on the balance sheet before being sold.",
-    formula: "(Inventory ÷ COGS) × 365",
+      "Average number of days inventory sits on the balance sheet before being sold. Measured against TOTAL operating cost, not narrow COGS — a manufacturer's inventory absorbs labour, utilities and overhead as well as materials.",
+    formula: "(Inventory ÷ Total operating expense) × 365 — total operating cost, not narrow COGS",
     whyItMatters:
-      "Working-capital intensity proxy — high DIO ties up cash and exposes you to obsolescence.",
+      "Working-capital intensity proxy — high DIO ties up cash and exposes you to obsolescence. Because the denominator is the whole operating cost base, this reads LOWER than a narrow-COGS DIO on the same book; do not compare it against a published figure without checking which basis that figure used.",
     goodRange: "Industry-dependent · ≤ 60 days FMCG, 30–90 days manufacturing",
     drivers: [
       "Demand forecasting accuracy",
@@ -409,10 +442,10 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   dpo: {
     category: "efficiency",
     definition:
-      "Average number of days you take to pay your suppliers — a measure of supplier float.",
-    formula: "(Payables ÷ COGS) × 365",
+      "Average number of days you take to pay your suppliers — a measure of supplier float. Measured against TOTAL operating cost, not narrow COGS, so it pairs with DIO on the same denominator inside the cash-conversion cycle.",
+    formula: "(Trade payables ÷ Total operating expense) × 365 — total operating cost, not narrow COGS",
     whyItMatters:
-      "Higher DPO funds working capital from suppliers (within agreed terms). Push it too far and supplier risk + missed early-payment discounts erode margin.",
+      "Higher DPO funds working capital from suppliers (within agreed terms). Push it too far and supplier risk + missed early-payment discounts erode margin. Paying FASTER than the benchmark is not a distress signal — it forgoes free credit, which is why this scale declares no critical rung.",
     goodRange: "Higher = more supplier float — bounded by negotiated terms",
     drivers: [
       "Negotiated payment terms",
@@ -425,7 +458,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "efficiency",
     definition:
       "Cash conversion cycle — the gap between paying for inputs and collecting from customers.",
-    formula: "DIO + DSO − DPO",
+    formula: "DSO + DIO − DPO",
     whyItMatters:
       "The clearest summary of working-capital efficiency. A short or negative CCC means the business is self-funded; a long CCC eats cash.",
     goodRange: "Lower is better · negative CCC = customer-funded",
@@ -439,8 +472,8 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   asset_turnover: {
     category: "efficiency",
     definition:
-      "Revenue generated per unit of total assets — how productively the asset base is being used.",
-    formula: "Revenue ÷ Average total assets",
+      "Revenue generated per unit of total assets — how productively the asset base is being used. Computed here on CLOSING total assets, not on the average of opening and closing, for the same reason as ROE: one period of trial balance carries no opening balance sheet.",
+    formula: "Revenue ÷ Total assets at period end",
     whyItMatters:
       "Combined with net margin, this is one of the two levers in DuPont ROE. Low turnover means asset-heavy or under-utilized capacity.",
     goodRange: "Industry-dependent · ≥ 0.8× healthy for asset-light models",

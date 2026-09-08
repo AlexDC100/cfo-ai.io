@@ -193,14 +193,26 @@ function distancesFor(r: Ratio): ThresholdDistance[] {
   return out;
 }
 
+/**
+ * @param currentOverrides the figures the DOCUMENT already prints for these
+ *   concepts, keyed by comparative-line key. Forwarded verbatim to
+ *   `buildComparatives`, whose own contract explains why: the renderer
+ *   resolves EBITDA and net income through `pick(assembled_pl.*,
+ *   deriveTotals.*)`, and on the committed books those two readings are not
+ *   the same number — agras nets 7,533,676.02 as filed against 14,106,102.03
+ *   reconstructed. A tile built from `deriveTotals` alone would print the
+ *   second figure under the same name as the card printing the first, one
+ *   screen apart. That is R1, in a KPI strip.
+ */
 export function buildExecutiveSummary(
   s: Statements,
   ratios: RatioBundle,
   credit: CreditScoreResult,
   extraRatios: Ratio[] = [],
   limit = 5,
+  currentOverrides: Readonly<Record<string, number | null>> = {},
 ): ExecutiveSummary {
-  const comparatives = buildComparatives(s);
+  const comparatives = buildComparatives(s, currentOverrides);
   const totals = deriveTotals(s);
 
   // ── verdict ────────────────────────────────────────────────────────

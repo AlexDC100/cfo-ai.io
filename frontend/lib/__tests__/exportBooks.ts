@@ -122,6 +122,48 @@ export function agreeingBook(book: Book): BookStatements {
   return servedAs(book, workspaceKeys(book).agrees);
 }
 
+// ── THE FINDINGS BLOCK, WHICH THE BOOK CAPTURE DOES NOT CARRY ─────────
+//
+// `saga_10_col_<book>.json` was captured before `engine.insights`
+// existed, so its `.statements` has no `insights` key. Production serves
+// one — `pipeline.py:_attach_insights_block` writes it onto the same
+// `statements` object the four books above are captured from — and it is
+// committed separately as `insights.json`, keyed by book.
+//
+// `withInsights()` performs that join and nothing else, so no test
+// composes it privately. A gate that renders `statementsFor(book)` alone
+// is rendering a payload production stopped emitting.
+
+const INSIGHTS = JSON.parse(
+  readFileSync(firm("insights.json"), "utf-8"),
+) as Record<Book, unknown>;
+
+/** The book as the route serves it once the insight detectors have run. */
+export function withInsights(book: Book, statements = statementsFor(book)): BookStatements {
+  const block = INSIGHTS[book];
+  if (block === undefined) {
+    throw new Error(
+      `insights.json carries no block for ${book}; it carries: ` + Object.keys(INSIGHTS).join(", "),
+    );
+  }
+  return { ...statements, insights: block } as BookStatements;
+}
+
+/** The raw committed block, for a gate that needs to name its contents. */
+export function insightsFixture(book: Book): {
+  currency: string;
+  insights: Array<Record<string, unknown>>;
+  summary_ids: string[];
+  not_fired: Array<Record<string, unknown>>;
+} {
+  return INSIGHTS[book] as {
+    currency: string;
+    insights: Array<Record<string, unknown>>;
+    summary_ids: string[];
+    not_fired: Array<Record<string, unknown>>;
+  };
+}
+
 /** The whole printed document, as the Export tab writes it. */
 export function exportHtml(book: Book, statements = statementsFor(book)): string {
   return buildReportHtml(statements, { metricsByName: metricsFor(book) });
@@ -240,4 +282,29 @@ export function halfStep(printed: string): number {
   const t = printed.replace(/[   ]/g, " ");
   const decimals = (t.match(/[.,](\d+)(?!.*[.,]\d)/) ?? [, ""])[1]?.length ?? 0;
   return magnitudeOf(t) / Math.pow(10, decimals) / 2;
+}
+
+// ── THE SERVED BALANCE SHEET, WHICH THE BOOK CAPTURE ALSO DROPS ───────
+//
+// Same seam as `withInsights` above, one layer down.
+// `pipeline.py:4999` writes `statements["canonical_bs"] = _cbs` on the
+// SERVE path, after `capture.py` has already taken
+// `assembled["statements"]`. So `saga_10_col_<book>.json`'s statements
+// half carries `assembled_bs` but no `canonical_bs`, and every gate
+// rendering it alone is blind to each row the canonical BS names —
+// including `short_term_investments` (account codes ['50']), the near-cash
+// the Cash Ratio caption is about.
+//
+// The object joined here is the SAME fixture file's `envelope.canonical_bs`,
+// which is what `_gateway.served_canonical_bs` serves. This is a join of
+// two real halves, never a composed payload.
+export function withCanonicalBs(book: Book, statements = statementsFor(book)): BookStatements {
+  const fx = JSON.parse(readFileSync(firm(`saga_10_col_${book}.json`), "utf-8")) as {
+    envelope?: { canonical_bs?: unknown };
+  };
+  const cbs = fx.envelope?.canonical_bs;
+  if (cbs === undefined) {
+    throw new Error(`saga_10_col_${book}.json carries no envelope.canonical_bs`);
+  }
+  return { ...statements, canonical_bs: cbs } as BookStatements;
 }

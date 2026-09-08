@@ -79,6 +79,38 @@ import {
   type ShellSection,
   type ToggleSpec,
 } from "./charts";
+// THE FINDINGS, AND NOTHING BUT A READER OF THEM. `insights.ts` is a leaf
+// that imports nothing and computes nothing — every digit it prints came
+// off an `InsightMeasure` the engine authored, and `formatMeasure` is the
+// only thing that turns one into a string. The eight detectors, the
+// executive-summary model and the comparatives model were all built,
+// tested and served on `statements.insights` — and imported by NO
+// renderer, so the printed export was byte-identical with and without the
+// block (133,472 bytes either way on agras, measured 2026-09-07). That is
+// why the owner read the deployed report and said nothing had changed.
+import {
+  formatAmount,
+  formatMeasure,
+  readInsights,
+  severityCaption,
+  severityLadder,
+  SEVERITY_LABEL,
+  SEVERITY_ORDER,
+  type Insight,
+  type InsightsBlock,
+} from "./insights";
+// PAGE ONE'S MODEL. Both of these import values FROM this module, so the
+// graph has a cycle — benign because neither side touches the other at
+// module-evaluation time (both are called only from inside
+// `renderReportHtml`), and exercised on all four books by
+// `frontend/lib/__tests__/insightsExport.test.ts`.
+import { buildExecutiveSummary, type ExecutiveSummary } from "./executiveSummary";
+import {
+  formatVariance,
+  NO_COMPARATIVE_CELL,
+  type ComparativeLine,
+  type Comparatives,
+} from "./reportComparatives";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1265,6 +1297,27 @@ export function computeRatios(
   const anchoredEbitda = anchored("ebitda_statutory", "ebitda_statutory", ebitda);
   const anchoredRevenue = anchored("revenue", "revenue", revenue);
 
+  // ── A MARGIN OVER A COST LINE THAT IS NOT THERE ─────────────────────
+  //
+  // Measured on the `realestate` book: `cost_of_goods_sold` is 0.00 in
+  // the served envelope — a rental business books its costs to opex, not
+  // to class 607 — so gross profit IS revenue and the engine's served
+  // `gross_margin` is exactly 1.0. Printed, that read
+  //
+  //     Gross Margin   100.0%   Strong
+  //
+  // on a book losing 29,038,838 of EBITDA. The number is right; the BADGE
+  // is measuring the absence of a cost line and calling it performance.
+  // `≥ 40% strong` is a rung about how much revenue survives direct
+  // costs, and with no direct costs to survive there is nothing for it to
+  // grade.
+  //
+  // The VALUE stays — 100.0% is a true and useful statement about how
+  // this book is structured. The GRADE goes, through the same `ungraded`
+  // path the disputed-sector rows use, and `grossMarginUngradedNote`
+  // below says why on the card.
+  const costOfSales = I("costOfGoodsSold");
+  const grossMarginHasCostBase = costOfSales.value !== null && costOfSales.value !== 0;
   const grossMargin = mPctOr("gross_margin", pctOf(grossProfit, revenue, "revenue"));
   const ebitdaMargin = m("ebitda_margin") !== null
     ? known((m("ebitda_margin") as number) * 100)
@@ -1281,9 +1334,16 @@ export function computeRatios(
   // F2.2 — ROIC added as a new Profitability row (engine emits; FE didn't
   // surface previously). Engine formula: operating_profit × (1 − 0.16) /
   // max(total_debt + total_equity, 1) — NOPAT over invested capital.
+  //
+  // The `atLeast(…, 1)` floor is the engine's own guard, and it is the
+  // reason this row needs the sign check applied to the UNFLOORED figure:
+  // flooring a negative invested capital to 1 does not make the quotient
+  // gradable, it makes it enormous. The floor stays (it is what the
+  // engine's number was built with); the guard reads the real total.
+  const investedCapital = add(totalDebt, totalEquity);
   const roic = mPctOr(
     "roic",
-    pctOf(mul(ebit, known(1 - 0.16)), atLeast(add(totalDebt, totalEquity), 1), "invested capital"),
+    pctOf(mul(ebit, known(1 - 0.16)), atLeast(investedCapital, 1), "invested capital"),
   );
 
   // Leverage ─────────────────────────────────────────────────────────────────
@@ -1394,6 +1454,11 @@ export function computeRatios(
     "dpo",
     mul(div(B("accountsPayable"), totalOperatingExpense, "total operating expense"), dayCount),
   );
+  // NO SIGN GUARD, DELIBERATELY. `ccc` is a difference, not a quotient —
+  // a negative cash conversion cycle means the company is paid before it
+  // pays, which is the best thing this scale can say, and a refusal here
+  // would delete a real strength. It inherits the refusals of its three
+  // terms through `sub`/`add`, which is the correct propagation.
   const ccc = mOr("ccc", sub(add(dso, dio), dpo));
   const assetTurnover = mOr("asset_turnover", div(revenue, totalAssets, "total assets"));
 
@@ -1419,6 +1484,98 @@ export function computeRatios(
   // its drawer, the workbook and the printed document render one figure
   // with one ladder and one sentence.
 
+  /** A money figure for commentary — the gap word when it is absent, so a
+   *  sentence never quotes a number the ratios refused. */
+  const money = (f: Fig): string =>
+    f.value === null ? UNREPORTED_WORD : formatCurrency(f.value, s.currency);
+
+  /** The near-cash the Cash Ratio caption is ABOUT — read from the served
+   *  balance sheet's own row (`short_term_investments`, account codes
+   *  ['50']), not from any bucket that happens to contain it. ABSENT when
+   *  the envelope did not carry a canonical BS, and the caption then
+   *  states an unknown rather than a substitute. */
+  const shortTermInvestments: Fig = (() => {
+    const row = sf
+      .canonicalForRender()
+      ?.rows.find((x) => x.id === "short_term_investments");
+    return row === undefined ? absent("shortTermInvestments") : num("shortTermInvestments", row.amount);
+  })();
+
+  // ── EVERY LADDER THAT ASSUMES A POSITIVE DENOMINATOR, AND ITS ONE ───
+  // ── TABLE, SO A NEW ROW CANNOT BE ADDED ON THE WRONG SIDE OF IT ─────
+  //
+  // Measured on the committed `realestate` book, 2026-09-07, the printed
+  // export carried
+  //
+  //     Debt / EBITDA   -0.64×   STRONG
+  //     "Debt service comfortably aligned with cash generation."
+  //
+  // in the same document as EBITDA -29,038,838, DSCR -5.86× Critical,
+  // Interest Coverage -25.08× Critical, and a CRITICAL recommendation
+  // card reading "the operating model is not generating cash". The band
+  // track drew its marker in the strong zone too, because it bands off
+  // the same ladder.
+  //
+  // Dividing by a negative flips the quotient's sign, so a lower-is-better
+  // ladder reads the most distressed book in the corpus as beating its
+  // best rung, and a higher-is-better one does the reverse. The VALUE is
+  // arithmetically fine and stays on the card — it is a true statement
+  // about this book. The GRADE is what has no meaning, so the grade is
+  // what goes, through the same `ungraded` exit a withheld sector band
+  // uses (`RatioVerdict`, line 725: "the ratio has a value and no ladder
+  // that may be applied to it here").
+  //
+  // TWO THINGS MAKE THIS THE FORM OF THE FIX THAT HOLDS:
+  //
+  // 1. It is applied inside `row()` off ONE table, so every present and
+  //    future row is covered by construction rather than by whoever
+  //    remembers. `ratioSignGuard.test.ts` reds if a row whose formula
+  //    divides by a company figure is missing from the table.
+  // 2. It reads the DENOMINATOR FACT, not the value's provenance. The
+  //    -0.6388 was the ENGINE's served `debt_to_ebitda`, so a guard
+  //    inside the local `div()` would never have run — the local
+  //    arithmetic is not evaluated when a served metric exists.
+  //
+  // NOT LISTED, DELIBERATELY: `interest_coverage`, `dscr`,
+  // `dscr_with_lt_principal`, `adjusted_dscr`, `net_margin`,
+  // `ebitda_margin`, `roa`, `roe`, `roic`. Their denominators (interest,
+  // debt service, revenue, assets, equity, invested capital) are what a
+  // NEGATIVE NUMERATOR is divided BY on a loss-making book, and the
+  // resulting negative bands correctly — a coverage of -25× IS critical.
+  // Withholding those grades would delete a true distress signal, which
+  // is the same failure pointing the other way. They join the table only
+  // if their own denominator can turn negative, and `roa`/`roe`/`roic`
+  // are here for exactly that reason: assets, equity and invested
+  // capital CAN go negative, and then their sign flips too.
+  const positiveDenominator: ReadonlyArray<{
+    keys: readonly string[];
+    fig: Fig;
+    name: string;
+  }> = [
+    { keys: ["current_ratio", "quick_ratio", "cash_ratio"], fig: currentLiabilities, name: "current liabilities" },
+    { keys: ["gross_margin", "ebitda_margin", "net_margin", "dso"], fig: revenue, name: "revenue" },
+    { keys: ["roa", "ltv", "equity_ratio", "asset_turnover"], fig: totalAssets, name: "total assets" },
+    { keys: ["roe", "debt_to_equity"], fig: totalEquity, name: "total equity" },
+    { keys: ["roic"], fig: investedCapital, name: "invested capital" },
+    { keys: ["debt_to_ebitda"], fig: ebitda, name: "EBITDA" },
+    { keys: ["dio", "dpo"], fig: totalOperatingExpense, name: "total operating expense" },
+  ];
+  /** The reason this row's ladder may not be applied, or null. Rendered
+   *  from the denominator the verdict would have been decided against —
+   *  never a cutoff typed in prose (TC-10). */
+  const signWithheld = (key: string): string | null => {
+    for (const g of positiveDenominator) {
+      if (!g.keys.includes(key)) continue;
+      if (g.fig.value === null || g.fig.value >= 0) return null;
+      return (
+        `Band withheld — this scale's rungs assume ${g.name} is positive, and here it is ` +
+        `${money(g.fig)}. Dividing by a negative flips this ratio's sign, so every rung would ` +
+        `read backwards; the figure is stated, the verdict is not.`
+      );
+    }
+    return null;
+  };
+
   // ── ONE BUILDER FOR EVERY ROW ───────────────────────────────────────
   //
   // A refused ratio must not be graded, must not be formatted and must
@@ -1438,8 +1595,15 @@ export function computeRatios(
     /** Extra prose this row needs and no other does. `absenceNote` is
      *  appended to the refusal sentence — used where "not reported" alone
      *  would let a reader conclude something about the COMPANY from the
-     *  absence of an INPUT. */
-    extra?: { absenceNote?: string },
+     *  absence of an INPUT.
+     *
+     *  `ungradedBecause`, when present, keeps the VALUE and drops the
+     *  BADGE: the number is a true statement about this book and the
+     *  ladder is not a scale it sits on. Same shape the disputed-sector
+     *  branch below produces, with this row's own reason in place of the
+     *  sector one — and the reason is rendered from the data that
+     *  produced it, never typed as a cutoff (TC-10). */
+    extra?: { absenceNote?: string; ungradedBecause?: string },
   ): Ratio => {
     if (f.value === null) {
       const absence = f.absence ?? { kind: "missing", inputs: [] };
@@ -1484,6 +1648,25 @@ export function computeRatios(
         commentary: commentary(f.value),
       };
     }
+    // ── THE LADDER MEASURES SOMETHING THIS BOOK HAS NONE OF ───────────
+    // Same exit, two more reasons: the denominator's sign (from the one
+    // table above, so no row can be forgotten), and a row-specific
+    // `ungradedBecause`. Placed AFTER the sector branch so a disputed
+    // sector still wins — a withheld sector band is the stronger claim,
+    // and stacking two "why" sentences on one card teaches neither.
+    const withheld = signWithheld(key) ?? extra?.ungradedBecause ?? null;
+    if (withheld !== null) {
+      return {
+        key,
+        label,
+        formula,
+        value: f.value,
+        unit,
+        verdict: "ungraded",
+        benchmark: withheld,
+        commentary: commentary(f.value),
+      };
+    }
     // The SAME object `verdictFromBands` reads below. "What would change
     // the verdict" bands off this and cannot drift from the badge — and
     // so does the printed band sentence, which is the TC-10 half: the
@@ -1504,10 +1687,6 @@ export function computeRatios(
       ladder,
     };
   };
-  /** A money figure for commentary — the gap word when it is absent, so a
-   *  sentence never quotes a number the ratios refused. */
-  const money = (f: Fig): string =>
-    f.value === null ? UNREPORTED_WORD : formatCurrency(f.value, s.currency);
 
   return {
     liquidity: [
@@ -1551,6 +1730,23 @@ export function computeRatios(
       // `BalanceSheet` shape carries no short-term-investments field, so
       // this surface CANNOT include class 50 even if it decided to. See
       // the envelope request in the wave report.
+      //
+      // ── D4: THE CAPTION POINTED AT THE WRONG ROW ────────────────────
+      //
+      // It closed with "the balance sheet's other current assets show how
+      // much is at stake". On agras that row is RON 8,861,293 while the
+      // near-cash it MEANT is RON 906,526 — so a reader who followed the
+      // pointer and re-ran the arithmetic got (1,168,047 + 8,861,293) ÷
+      // 13,012,977 = 0.77×, nine times the 0.159× the sentence was about,
+      // and two whole bands past it. A caption that sends a reader to a
+      // figure and the figure is the wrong one is worse than silence,
+      // because the reader does the sum and trusts the answer.
+      //
+      // The served canonical balance sheet carries the right row by name
+      // (`short_term_investments`, account codes ['50']), so the sentence
+      // states THAT amount when the envelope carries it. When it does
+      // not, the sentence says the amount is not on this surface and
+      // points at nothing — an unstated number, never a wrong one.
       row("cash_ratio", "Cash Ratio", "x", cashRatio,
         { strong: 0.5, healthy: 0.2, watch: 0.1 }, true,
         "cash and bank balances only — short-term investments are NOT counted, so this is the floor reading of same-day liquidity",
@@ -1558,14 +1754,27 @@ export function computeRatios(
         (v) =>
           v >= 0.2
             ? "Adequate cash buffer for operating shocks."
-            : "Limited dry cash — exposed to revenue interruption. Counting short-term investments as well would raise this reading; the balance sheet's other current assets show how much is at stake."),
+            : "Limited dry cash — exposed to revenue interruption. Counting short-term investments as well would raise this reading" +
+              (shortTermInvestments.value === null
+                ? "; this document does not carry that balance as its own line, so how much it would raise it is not stated here."
+                : `; the balance sheet carries ${money(shortTermInvestments)} of them (RAS class 50), and that is the whole of what this reading leaves out.`)),
     ],
     profitability: [
       row("gross_margin", "Gross Margin", "%", grossMargin,
         { strong: 40, healthy: 25, watch: 15 }, true,
         "Industry-dependent · ≥ 25% healthy",
         "gross profit ÷ revenue",
-        (v) => `${v.toFixed(1)}% gross margin on ${money(anchoredRevenue)} revenue.`),
+        (v) =>
+          grossMarginHasCostBase
+            ? `${v.toFixed(1)}% gross margin on ${money(anchoredRevenue)} revenue.`
+            : `${v.toFixed(1)}% because this book reports no cost of sales at all — gross profit and revenue are the same figure, ${money(anchoredRevenue)}. Its costs sit in operating expenses; read EBITDA Margin below instead.`,
+        grossMarginHasCostBase
+          ? undefined
+          : {
+              ungradedBecause:
+                "Band withheld — the rungs measure how much revenue survives cost of sales, and this book reports a cost of sales of " +
+                `${money(costOfSales)}. There is nothing for the scale to grade, so the figure is printed without a verdict.`,
+            }),
       row("ebitda_margin", "EBITDA Margin", "%", ebitdaMargin,
         { strong: 25, healthy: 15, watch: 8 }, true,
         "≥ 15% healthy · ≥ 25% strong",
@@ -1885,6 +2094,63 @@ export interface Recommendation {
   factsCited?: Record<string, number | null>;
 }
 
+// ── THE ENGINE'S ASSEMBLED KEY SPACES ───────────────────────────────────────
+//
+// `statements.assembled_bs` / `assembled_pl` / `assembled_cf` are the ENGINE's
+// canonical views, and their key space is a DIFFERENT vocabulary from the
+// `PeriodFacts` shape the rule registry reads. Every name below is one the
+// served envelope really carries; anything else is a lookup that returns
+// `undefined` at runtime and reads as a hard-coded fallback forever.
+//
+// The arrays are the runtime half of the guard —
+// `frontend/lib/__tests__/envelopeKeySpace.test.ts` asserts each entry against
+// the keys of the four committed firm books, so a name that typechecks but
+// does not exist reds a gate instead of silently zeroing a fact. Adding a key
+// here is deliberate, which is the point.
+export const CANONICAL_BS_KEYS = [
+  "ap",
+  "ap_dividends",
+  "ar_intercompany",
+  "ar_net",
+  "cash",
+  "cash_fx_component",
+  "ppe_investment_net",
+  "ppe_net",
+  "retained_earnings",
+  "revaluation_reserves",
+  "share_capital",
+  "total_debt",
+] as const;
+export type CanonicalBsKey = (typeof CANONICAL_BS_KEYS)[number];
+
+export const CANONICAL_PL_KEYS = [
+  "capitalized_own_work_memo",
+  "depreciation",
+  "ebit",
+  "ebitda_cash",
+  "ebitda_statutory",
+  "financial_expense",
+  "financial_expense_total",
+  "financial_income",
+  "financial_income_other",
+  "fx_gain",
+  "fx_loss",
+  "interest_expense",
+  "net_financial_result",
+  "net_income_operational",
+  "net_income_reconciliation_to_121",
+  "net_income_statutory",
+  "operating_ebit",
+  "pretax",
+  "revenue",
+  "tax",
+  "total_operating_revenue",
+] as const;
+export type CanonicalPlKey = (typeof CANONICAL_PL_KEYS)[number];
+
+export const CANONICAL_CF_KEYS = ["capex_real", "cash_from_operating"] as const;
+export type CanonicalCfKey = (typeof CANONICAL_CF_KEYS)[number];
+
 // Inline import avoids the periodFacts ↔ financialReport circular
 // dependency. detectConditions consumes a PeriodFacts-shaped object;
 // we build a minimal one in-place from canonical statement fields when
@@ -1963,27 +2229,83 @@ export function generateRecommendations(
   const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
   const ab = (s as Statements & { assembled_bs?: Record<string, number> }).assembled_bs ?? {};
   const ac = (s as Statements & { assembled_cf?: Record<string, number> }).assembled_cf ?? {};
+  // ── THE ENGINE'S KEY SPACE, NAMED, SO A MISS IS A COMPILE ERROR ─────
+  //
+  // `ab` / `ap` / `ac` were typed `Record<string, number>`, which accepts
+  // ANY string. `assembled_bs` and `BSFacts` are two vocabularies for one
+  // balance sheet — `ar_intercompany` there is `intercompany_loans` here,
+  // `ap` is `suppliers`, `ppe_investment_net` is `investment_property_net`
+  // — so a `BSFacts` name typechecked clean and then missed on every
+  // lookup, forever, with nothing raised. Measured on the four committed
+  // firm books, this line
+  //
+  //     const intercompany = pick(ab.intercompany_loans, 0);
+  //
+  // read 0 on every one of them while the envelope carried
+  // `ar_intercompany` = 7,692,202.74 on agras — 32.15% of that book's
+  // equity — so the rule that grades related-party exposure could not
+  // clear its own floor and the printed report never mentioned it.
+  // `periodFacts.ts:278` had already met this exact trap and documented
+  // it; the repair was never carried across to this entry point.
+  //
+  // Naming the engine's key space makes the miss a compile error. The
+  // runtime arrays are the second half: `envelopeKeySpace.test.ts` asserts
+  // every name below is a key the served envelope really carries, so a
+  // name that compiles but does not exist reds a gate rather than
+  // silently reading `undefined`.
+  const abNum = (k: CanonicalBsKey): number | undefined => ab[k];
+  const apNum = (k: CanonicalPlKey): number | undefined => ap[k];
+  const acNum = (k: CanonicalCfKey): number | undefined => ac[k];
   const pick = (canon: number | undefined, legacy: number): number =>
     typeof canon === "number" ? canon : legacy;
   // Build the minimal PeriodFacts the rule registry reads. We populate
   // every field the rules touch — extra fields they don't read are fine
   // to omit. STATUTORY values come from `assembled_*` when present.
-  const ebitdaStatutory = pick(ap.ebitda_statutory, t.ebitda);
-  const niStatutory = pick(ap.net_income_statutory, t.netIncome);
-  const cfo = pick(ac.cash_from_operating, niStatutory + pick(ap.depreciation, s.incomeStatement.depreciationAmortization));
-  const capexReal = pick(ac.capex_real, -(ap.capitalized_own_work_memo ?? 0));
-  const bankDebt = pick(ab.total_debt, t.totalDebt);
+  const ebitdaStatutory = pick(apNum("ebitda_statutory"), t.ebitda);
+  const niStatutory = pick(apNum("net_income_statutory"), t.netIncome);
+  const cfo = pick(acNum("cash_from_operating"), niStatutory + pick(apNum("depreciation"), s.incomeStatement.depreciationAmortization));
+  const capexReal = pick(acNum("capex_real"), -(apNum("capitalized_own_work_memo") ?? 0));
+  const bankDebt = pick(abNum("total_debt"), t.totalDebt);
   const totalAssets = sf.totalAssets();
   const totalEquity = sf.totalEquity();
-  const cash = pick(ab.cash, s.balanceSheet.cash);
-  const apDividends = pick(ab.ap_dividends, 0);
-  const intercompany = pick(ab.intercompany_loans, 0);
-  const investmentProp = pick(ab.ppe_net, s.balanceSheet.propertyPlantEquipment);
-  const interest = pick(ap.interest_expense, s.incomeStatement.interestExpense);
-  const depreciation = pick(ap.depreciation, s.incomeStatement.depreciationAmortization);
-  const tax = pick(ap.tax, s.incomeStatement.taxExpense);
-  const rentalRevenue = pick(ap.revenue, s.incomeStatement.revenue);
-  const capitalized = pick(ap.capitalized_own_work_memo, 0);
+  const cash = pick(abNum("cash"), s.balanceSheet.cash);
+  const cashFx = pick(abNum("cash_fx_component"), 0);
+  const apDividends = pick(abNum("ap_dividends"), 0);
+  // THE KEY THE ENGINE ACTUALLY SERVES. `ab.intercompany_loans` is the
+  // `BSFacts` spelling and exists in no envelope; `ar_intercompany` is
+  // the one that does. Same field, same concept, same number as
+  // `periodFacts.ts:396` — so the screen and the printed document grade
+  // one exposure once.
+  const intercompany = pick(abNum("ar_intercompany"), 0);
+  // ONE CONCEPT, TWO VALUES ACROSS SURFACES - FLAGGED, NOT FIXED HERE.
+  //
+  // `investment_property_net` is fed the WHOLE property, plant and
+  // equipment book. The engine serves investment property as its own
+  // bucket, `ppe_investment_net`, and that bucket is 0.00 on all four
+  // committed firm books - the `realestate` book carries its property in
+  // 211 (land, 10,876,204.38) and 212 (buildings, 1,466,658.75) with no
+  // account 215 at all. `periodFacts.ts:397` reads the investment bucket
+  // and therefore answers 0.00 for the same field on the same book, so
+  // the SCREEN and the PRINTED EXPORT disagree about what this company's
+  // investment property is by 6,613,498.11.
+  //
+  // Redirecting this read to `ppe_investment_net` was tried and reverted:
+  // `recommendationRules.property_tax_reassessment_provision` reads
+  // `f.bs.investment_property_net` against a 5,000,000 floor, so the
+  // redirect silences the only CRE-scoped card that fires on the
+  // committed corpus and takes `industryBlockExport.test.ts`'s
+  // non-vacuity proof with it. The rule's own condition is about a
+  // property BOOK a Romanian municipality can revalue - which does not
+  // depend on whether the accountant booked it to 212 or 215 - so the
+  // repair belongs in the rule (read `ppe_net`, rename the cited fact),
+  // and `recommendationRules.ts` is not this lane's to edit.
+  const investmentProp = pick(abNum("ppe_net"), s.balanceSheet.propertyPlantEquipment);
+  const ppeNet = investmentProp;
+  const interest = pick(apNum("interest_expense"), s.incomeStatement.interestExpense);
+  const depreciation = pick(apNum("depreciation"), s.incomeStatement.depreciationAmortization);
+  const tax = pick(apNum("tax"), s.incomeStatement.taxExpense);
+  const rentalRevenue = pick(apNum("revenue"), s.incomeStatement.revenue);
+  const capitalized = pick(apNum("capitalized_own_work_memo"), 0);
   // APPROXIMATION — annual principal estimated at 10% of debt (a trial
   // balance carries no amortization schedule). Legacy fallback path only;
   // engine periodFacts carry the real figure when available.
@@ -1992,12 +2314,23 @@ export function generateRecommendations(
     ? ebitdaStatutory / Math.max(interest + Math.max(principalProxy, depreciation), 1)
     : 0;
   const dteAdj = bankDebt > 0 && ebitdaStatutory > 0
-    ? bankDebt / (ebitdaStatutory + pick(ap.financial_income_other, 0))
+    ? bankDebt / (ebitdaStatutory + pick(apNum("financial_income_other"), 0))
     : 0;
   /** The value the DOCUMENT states for a ratio, or null when it refuses
    *  to state one. A rule reading null keeps its absent-ratio discipline
    *  (`has()` / `fx()` in recommendationRules) and prints "not reported"
-   *  instead of inventing a figure the report does not carry. */
+   *  instead of inventing a figure the report does not carry.
+   *
+   *  ── AN UNGRADED ROW IS NULL HERE, AND THAT IS NOT THE SAME AS THE
+   *     ROW HIDING IT ────────────────────────────────────────────────
+   *  A row banded `ungraded` prints its FIGURE and withholds its VERDICT,
+   *  because the figure is a true statement about the book and the ladder
+   *  is not a scale it sits on (a negative denominator, or a disputed
+   *  sector). A RULE, though, reads these as quantities with a meaning —
+   *  `debt_to_ebitda` means "years of EBITDA to repay", and −0.64 is not
+   *  a number of years. `periodFacts.ts:545` already answers null in
+   *  exactly that case; this makes the export's fact feed agree with it,
+   *  so one exposure is not graded twice by two surfaces. */
   const stated = (key: string): number | null => {
     if (!ratios) return null;
     const found = [
@@ -2009,7 +2342,8 @@ export function generateRecommendations(
     ]
       .flat()
       .find((x) => x.key === key);
-    return found === undefined ? null : found.value;
+    if (found === undefined || found.verdict === "ungraded") return null;
+    return found.value;
   };
   /** `Ratio` emits percentages as 0-100; `PeriodFacts.ratios` carries
    *  them as decimals. One conversion, at the boundary. */
@@ -2035,38 +2369,48 @@ export function generateRecommendations(
     pl: {
       rental_revenue: rentalRevenue,
       capitalized_own_work_memo: capitalized,
-      revenue: pick(ap.total_operating_revenue, rentalRevenue + capitalized),
+      revenue: pick(apNum("total_operating_revenue"), rentalRevenue + capitalized),
       ebitda: ebitdaStatutory,
       ebitda_excl_capitalized: ebitdaStatutory - capitalized,
       depreciation,
-      ebit: pick(ap.operating_ebit, ebitdaStatutory - depreciation),
+      ebit: pick(apNum("operating_ebit"), ebitdaStatutory - depreciation),
       interest_expense: interest,
-      fx_result: 0,
-      dividend_income: pick(ap.financial_income_other, 0),
-      net_financial_result: 0,
-      profit_before_tax: pick(ap.pretax, ebitdaStatutory - depreciation - interest),
+      // 7651 − 6651, the same difference `periodFacts.ts:268` builds out
+      // of line items. The envelope carries both legs, so the printed
+      // report no longer tells the rules this book has no FX movement:
+      // on agras that zero stood in front of +157,000.88 / −65,946.65.
+      fx_result: pick(apNum("fx_gain"), 0) - pick(apNum("fx_loss"), 0),
+      dividend_income: pick(apNum("financial_income_other"), 0),
+      // WAS `0` ON EVERY BOOK while the envelope served the figure —
+      // agras +112,507.14, realestate −1,290,360.82, retail +2,418,632.79.
+      // A rule reading it could not tell "this company earns and pays
+      // nothing below the operating line" from "nobody plumbed the field",
+      // which is why `recommendationRules.belowOperatingLine` had to
+      // bracket the same span out of two other operands.
+      net_financial_result: pick(apNum("net_financial_result"), 0),
+      profit_before_tax: pick(apNum("pretax"), ebitdaStatutory - depreciation - interest),
       tax,
       net_profit: niStatutory,
     },
     bs: {
       cash,
-      cash_fx_component: 0,
-      ar_net: s.balanceSheet.accountsReceivable,
+      cash_fx_component: cashFx,
+      ar_net: pick(abNum("ar_net"), s.balanceSheet.accountsReceivable),
       intercompany_loans: intercompany,
       prepayments: 0,
       current_assets: sf.currentAssets(),
       investment_property_net: investmentProp,
-      ppe_net: investmentProp,
+      ppe_net: ppeNet,
       non_current_assets: sf.nonCurrentAssets(),
       total_assets: totalAssets,
-      suppliers: s.balanceSheet.accountsPayable,
+      suppliers: pick(abNum("ap"), s.balanceSheet.accountsPayable),
       dividends_payable: apDividends,
       bank_debt_total: bankDebt,
       short_term_liabilities: sf.currentLiabilities(),
       total_liabilities: sf.totalLiabilities(),
-      share_capital: s.balanceSheet.shareCapital,
-      revaluation_reserves: 0,
-      retained_earnings: pick(ab.retained_earnings, s.balanceSheet.retainedEarnings),
+      share_capital: pick(abNum("share_capital"), s.balanceSheet.shareCapital),
+      revaluation_reserves: pick(abNum("revaluation_reserves"), 0),
+      retained_earnings: pick(abNum("retained_earnings"), s.balanceSheet.retainedEarnings),
       current_year_pnl: niStatutory,
       total_equity: totalEquity,
       // Served drift, not a hardcoded 0 — cross-surface identical with
@@ -2078,6 +2422,24 @@ export function generateRecommendations(
       lender_concentration_pct: undefined as number | undefined,
       tenant_concentration_pct: undefined as number | undefined,
     },
+    // ── THE ONE BLOCK THAT STAYS ON THE LOCAL PROXY, AND WHY ──────────
+    //
+    // The census above wired every fact the envelope carries the exact
+    // concept for. `assembled_cf` carries all four of these
+    // (`cash_used_in_financing` −3,968,831.97 on agras,
+    // `net_change_in_cash` +5,987,892.24, `closing_cash_actual`
+    // 1,168,047.04) — and they are NOT measurements. The block declares
+    // itself: `is_approximated: true`, with `approximation_notes` saying
+    // working-capital movements are "estimated at 5% of current balances"
+    // and financing detail is "approximated from typical Romanian payout
+    // ratios". Reading opening cash back out of them (closing − net
+    // change) yields RON −4,819,845 on agras — a negative cash balance,
+    // which is an artefact of the estimate, not a fact about the company.
+    //
+    // So these four keep the local proxy, `periodFacts.ts:428` keeps the
+    // same one, and no rule reads any of them today. Wiring an
+    // approximation into a fact feed under a name that reads as measured
+    // would be the same defect as the zeros above, pointing the other way.
     cf: {
       cash_from_operating: cfo,
       cash_used_in_investing: capexReal,
@@ -2094,18 +2456,34 @@ export function generateRecommendations(
       // ratio table states. The local arithmetic below each `??` is the
       // legacy fallback for a caller that passes no bundle — and it is
       // the arithmetic that produced the 5.70× / 7.43× split.
-      current_ratio: stated("current_ratio") ?? 0,
-      quick_ratio: stated("quick_ratio") ?? 0,
-      cash_ratio: stated("cash_ratio") ?? 0,
-      debt_to_equity: stated("debt_to_equity") ?? 0,
-      debt_to_assets: statedFraction("ltv") ?? 0,
-      equity_ratio: statedFraction("equity_ratio") ?? 0,
-      interest_coverage_ebit: 0,
+      //
+      // ── `?? 0` WAS THE SAME DEFECT AS `intercompany_loans` ──────────
+      //
+      // Every field of `RatioFacts` is `number | null` and every rule
+      // guards with `has()`, precisely so a ratio the document REFUSED
+      // reaches them as an absence. These `?? 0`s converted each refusal
+      // into a confident zero on the way in: a refused `cash_ratio`
+      // arrived as "this company holds no cash against its current
+      // liabilities", a refused `debt_to_ebitda` as "this company has no
+      // leverage" — the reading `periodFacts.ts:545` spells out as the
+      // opposite of what a loss-making book means. The trailing zero is
+      // gone; where a genuine legacy-path arithmetic exists it stays.
+      current_ratio: stated("current_ratio"),
+      quick_ratio: stated("quick_ratio"),
+      cash_ratio: stated("cash_ratio"),
+      debt_to_equity: stated("debt_to_equity"),
+      debt_to_assets: statedFraction("ltv"),
+      equity_ratio: statedFraction("equity_ratio"),
+      // NOT PLUMBED, AND SAID SO. The document prints interest coverage
+      // on an EBITDA basis; the EBIT basis is a different number on every
+      // levered book (55.64× against 66.28× on agras) and no row states
+      // it, so there is nothing here for a rule to quote.
+      interest_coverage_ebit: null,
       ebitda_to_interest:
-        stated("interest_coverage") ?? (interest > 0 ? ebitdaStatutory / interest : 0),
-      dscr: stated("dscr") ?? dscr,
+        stated("interest_coverage") ?? (interest > 0 ? ebitdaStatutory / interest : null),
+      dscr: stated("dscr") ?? (ebitdaStatutory > 0 ? dscr : null),
       debt_to_ebitda:
-        stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : 0),
+        stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : null),
       // `debt_to_ebitda_adjusted` adds participation dividends to the
       // denominator, a concept the document does not state as a row. It
       // equals `debt_to_ebitda` exactly whenever that income is zero
@@ -2113,14 +2491,17 @@ export function generateRecommendations(
       // a recommendation cites that the report does not print — flagged,
       // not silently reconciled.
       debt_to_ebitda_adjusted:
-        pick(ap.financial_income_other, 0) === 0
-          ? stated("debt_to_ebitda") ?? dteAdj
-          : dteAdj,
-      ebitda_margin_gross: 0, ebitda_margin_clean: 0,
-      net_margin: statedFraction("net_margin") ?? 0,
-      roe: statedFraction("roe") ?? 0,
-      roa: statedFraction("roa") ?? 0,
-      property_yield: 0,
+        pick(apNum("financial_income_other"), 0) === 0
+          ? stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? dteAdj : null)
+          : (ebitdaStatutory > 0 ? dteAdj : null),
+      // Two margin bases this document does not print as rows. A rule
+      // that wants one has to say so and get it plumbed; until then the
+      // honest answer is that nobody measured it here, not that it is 0%.
+      ebitda_margin_gross: null, ebitda_margin_clean: null,
+      net_margin: statedFraction("net_margin"),
+      roe: statedFraction("roe"),
+      roa: statedFraction("roa"),
+      property_yield: null,
     },
     valuation: {
       primary_method: "asset_based", primary_value: 0, confidence: "low" as const,
@@ -2156,14 +2537,53 @@ export function generateRecommendations(
   }));
 
   if (out.length === 0) {
-    out.push({
-      id: "all_healthy",
-      priority: "info",
-      title: "Financials are in healthy range across all dimensions",
-      rationale: "No critical or high-priority items detected.",
-      action:
-        "Maintain current discipline. Consider strategic capital deployment: growth investment, dividend, or buyback.",
-    });
+    // ── "NO RULE FIRED" IS NOT "NOTHING IS WRONG" ─────────────────────
+    //
+    // This placeholder said "Financials are in healthy range across all
+    // dimensions / No critical or high-priority items detected." on ANY
+    // book where the registry happened to match nothing. Measured on the
+    // committed `carniprod` export, 2026-09-07, it printed that sentence
+    // in a document whose own ratio cards read Net Margin 1.4% CRITICAL,
+    // ROA 1.1% CRITICAL, ROE 1.3% CRITICAL and ROIC 4.6% CRITICAL — the
+    // card contradicted four cards on its own page, which is D2's defect
+    // one section lower.
+    //
+    // The registry is a finite list of rules. When none matches a book
+    // that is grading badly, the honest statement is about the REGISTRY,
+    // not about the company — and it names what it did not cover, so a
+    // reader is sent to the cards rather than reassured past them.
+    const flat = ratios
+      ? [ratios.liquidity, ratios.profitability, ratios.leverage, ratios.coverage, ratios.efficiency].flat()
+      : [];
+    const uncovered = flat.filter((x) => x.verdict === "critical" || x.verdict === "watch");
+    const worst = uncovered.filter((x) => x.verdict === "critical");
+    if (uncovered.length === 0) {
+      out.push({
+        id: "all_healthy",
+        priority: "info",
+        title: "Financials are in healthy range across all dimensions",
+        rationale: `No rule in the registry fired, and none of the ${flat.filter((x) => x.verdict !== "unknown" && x.verdict !== "ungraded").length} graded ratios in this document reads below healthy.`,
+        action:
+          "Maintain current discipline. Consider strategic capital deployment: growth investment, dividend, or buyback.",
+      });
+    } else {
+      out.push({
+        id: "no_rule_fired",
+        priority: worst.length > 0 ? "high" : "info",
+        title:
+          worst.length > 0
+            ? `No recommendation covers the ${worst.length} ratio${worst.length === 1 ? "" : "s"} grading critical on this page`
+            : `No recommendation covers the ${uncovered.length} ratio${uncovered.length === 1 ? "" : "s"} asking for attention on this page`,
+        rationale:
+          `The rule registry matched nothing on this book. That is a statement about the ` +
+          `registry, not about the company: ${uncovered
+            .map((x) => `${x.label} ${formatRatio(x)} ${verdictLabel(x.verdict).toLowerCase()}`)
+            .join("; ")}.`,
+        action:
+          "Read those cards directly — each states its own ladder and the accounts behind it. " +
+          "If this pattern recurs, the registry is missing a rule for it.",
+      });
+    }
   }
 
   // Sort by priority (critical → info).
@@ -2386,13 +2806,17 @@ export function renderReportHtml(
   // to the operational legacy fields when they aren't populated (older
   // pipeline payloads).
   const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
+  // Same typed key space as `generateRecommendations` — see
+  // `CANONICAL_PL_KEYS`. A name outside it is a compile error here too,
+  // so the renderer cannot acquire the miss the fact feed just lost.
+  const apNum = (k: CanonicalPlKey): number | undefined => ap[k];
   const pick = (canon: number | undefined, legacy: number): number =>
     typeof canon === "number" ? canon : legacy;
-  const capOwnWork = pick(ap.capitalized_own_work_memo, s.incomeStatement.capitalizedOwnWork ?? 0);
-  const operatingRevenue = pick(ap.total_operating_revenue, s.incomeStatement.revenue + capOwnWork);
-  const ebitdaStatutory = pick(ap.ebitda_statutory, t.ebitda);
-  const ebitdaCash = pick(ap.ebitda_cash, t.ebitda);
-  const netIncomeStatutory = pick(ap.net_income_statutory, t.netIncome);
+  const capOwnWork = pick(apNum("capitalized_own_work_memo"), s.incomeStatement.capitalizedOwnWork ?? 0);
+  const operatingRevenue = pick(apNum("total_operating_revenue"), s.incomeStatement.revenue + capOwnWork);
+  const ebitdaStatutory = pick(apNum("ebitda_statutory"), t.ebitda);
+  const ebitdaCash = pick(apNum("ebitda_cash"), t.ebitda);
+  const netIncomeStatutory = pick(apNum("net_income_statutory"), t.netIncome);
   // ── EBIT: THE ONE THAT FOOTS ────────────────────────────────────────
   // `operating_ebit` and `ebit` are two served figures and they are not
   // the same number: on the retail book they differ by the discounts
@@ -2402,24 +2826,24 @@ export function renderReportHtml(
   // _result` reaches `pretax`. Printing `operating_ebit` in a column
   // whose neighbours are built from `ebit` is one concept wearing two
   // values two rows apart; G3 (exportPlFoots) reds on it.
-  const ebitStatutory = pick(ap.ebit, ebitdaStatutory - s.incomeStatement.depreciationAmortization);
+  const ebitStatutory = pick(apNum("ebit"), ebitdaStatutory - s.incomeStatement.depreciationAmortization);
   // The financial block, in full. The table used to step EBIT → PBT
   // through interest expense ALONE, so the printed column missed
   // financial income and the non-interest financial expense the same
   // envelope carries, and PBT did not foot on any of the four books.
-  const financialIncome = pick(ap.financial_income, s.incomeStatement.financialIncome ?? 0);
-  const interestExpense = pick(ap.interest_expense, s.incomeStatement.interestExpense);
+  const financialIncome = pick(apNum("financial_income"), s.incomeStatement.financialIncome ?? 0);
+  const interestExpense = pick(apNum("interest_expense"), s.incomeStatement.interestExpense);
   // `financial_expense` is the NON-interest half (`financial_expense_total`
   // = interest + this, verified on all four books). A source that carries
   // only the total gives the remainder; one that carries neither gives 0.
   const otherFinancialExpense = pick(
-    ap.financial_expense,
-    typeof ap.financial_expense_total === "number"
-      ? ap.financial_expense_total - interestExpense
+    apNum("financial_expense"),
+    typeof apNum("financial_expense_total") === "number"
+      ? (apNum("financial_expense_total") as number) - interestExpense
       : s.incomeStatement.financialExpense ?? 0,
   );
   const pretaxStatutory = pick(
-    ap.pretax,
+    apNum("pretax"),
     ebitStatutory + financialIncome - interestExpense - otherFinancialExpense,
   );
   // ── THE RECONSTRUCTION, AND THE BRIDGE TO WHAT WAS FILED ────────────
@@ -2429,11 +2853,11 @@ export function renderReportHtml(
   // is SERVED (`net_income_reconciliation_to_121`). It was the row that
   // was missing, never the number.
   const reconstructedNetIncome = pick(
-    ap.net_income_operational,
+    apNum("net_income_operational"),
     pretaxStatutory - s.incomeStatement.taxExpense,
   );
   const bridgeTo121 = pick(
-    ap.net_income_reconciliation_to_121,
+    apNum("net_income_reconciliation_to_121"),
     netIncomeStatutory - reconstructedNetIncome,
   );
   const hasBridge = Math.abs(bridgeTo121) > 0.005;
@@ -2687,6 +3111,140 @@ export function renderReportHtml(
       margin-bottom: 4px;
     }
 
+    /* ── FINDINGS ──────────────────────────────────────────────────────
+       One card per finding, and every card carries the four things that
+       make it checkable: the level WITH the basis it was scaled against,
+       the claim, the arithmetic in words, and the accounts that fed it.
+       No fill, no colour-coded panel — the severity chip is the only
+       tinted element, and it borrows the badge palette already defined
+       above so a high finding and a critical ratio do not disagree
+       about what red means. */
+    .insight-card {
+      border-top: 1px solid var(--rule);
+      padding: 12px 0 6px;
+      margin: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .insight-card + .insight-card { margin-top: 4px; }
+    .insight-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin: 0 0 6px;
+    }
+    .insight-rank {
+      font-family: var(--sans);
+      font-size: 8.5pt;
+      color: var(--ink-mute);
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    .insight-title {
+      font-family: var(--serif);
+      font-size: 11.5pt;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+    }
+    .insight-severity {
+      font-family: var(--sans);
+      font-size: 8pt;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border: 1px solid var(--rule);
+      color: var(--ink-soft);
+      white-space: nowrap;
+    }
+    /* ⚠ THE CHIP DOES NOT BORROW .badge.v-* . The first draft mapped an
+       insight graded high onto v-watch — which in this stylesheet is
+       byte-identical to v-healthy, the calm teal. Five findings the
+       engine had graded HIGH would have printed in the same colour the
+       document uses for "this is fine". Attention (critical and high)
+       and context (medium, low, info) get two states, and the LEVEL IS
+       ALWAYS SPELLED OUT in the chip text besides, so the colour is
+       never the only thing carrying it. */
+    .insight-severity[data-level="critical"],
+    .insight-severity[data-level="high"] {
+      background: #F4E8E8; /* design-lint-allow-hex standalone generated report doc */
+      color: #7A1F1F; /* design-lint-allow-hex standalone generated report doc */
+      border-color: #C7A6A6; /* design-lint-allow-hex standalone generated report doc */
+    }
+    .insight-severity[data-level="critical"] { font-weight: 700; }
+    .insight-claim {
+      font-family: var(--serif);
+      font-size: 10.5pt;
+      line-height: 1.5;
+      color: var(--ink);
+      margin: 4px 0 8px;
+    }
+    .insight-formula,
+    .insight-basis,
+    .insight-explanation,
+    .insight-so-what,
+    .insight-narrative-source {
+      font-size: 9.25pt;
+      line-height: 1.5;
+      color: var(--ink-soft);
+      margin: 4px 0;
+    }
+    .insight-formula { font-family: var(--mono, var(--sans)); }
+    .insight-card table.fin { margin: 8px 0 10px; font-size: 9pt; }
+    .insight-card table.fin th { font-size: 8pt; }
+    .insight-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 18px;
+      align-items: start;
+    }
+    table.fin tr.measure-clash td {
+      font-size: 8.5pt;
+      color: var(--ink-soft);
+      background: var(--bg-soft);
+      line-height: 1.45;
+    }
+    .insight-ladder td.active {
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .insight-not-fired { margin-top: 14px; }
+    .insight-not-fired ul { margin: 6px 0 0; padding-left: 16px; }
+    .insight-not-fired li {
+      font-size: 9.25pt;
+      color: var(--ink-soft);
+      margin: 3px 0;
+      line-height: 1.45;
+    }
+    /* The variance strip on page one: values the document already prints,
+       and — on every book this product serves today — the STATED absence
+       of anything to compare them against. */
+    .comparatives-note {
+      font-size: 9.5pt;
+      color: var(--ink-soft);
+      line-height: 1.5;
+      margin: 6px 0 10px;
+    }
+    table.fin td.nocmp {
+      color: var(--ink-mute);
+      font-style: italic;
+      text-align: right;
+    }
+    .verdict-facts { margin: 8px 0 14px; }
+    ul.summary-insights { margin: 6px 0 14px; padding-left: 0; list-style: none; }
+    ul.summary-insights li {
+      font-size: 9.75pt;
+      line-height: 1.5;
+      color: var(--ink-soft);
+      margin: 6px 0;
+      padding-left: 0;
+      border-left: 2px solid var(--rule);
+      padding: 4px 0 4px 10px;
+      break-inside: avoid;
+    }
+    ul.summary-insights li strong { color: var(--ink); }
+    table.fin tr.active-rung td { background: var(--bg-soft); }
+
     .savings-box {
       background: var(--bg-soft);
       color: var(--ink);
@@ -2889,15 +3447,80 @@ export function renderReportHtml(
     day: "numeric",
   });
 
-  // Build executive summary block.
-  const criticalCount = recs.filter((r) => r.priority === "critical").length;
-  const highCount = recs.filter((r) => r.priority === "high").length;
+  // ── THE TOP LINE READS THE WHOLE PAGE, NOT ONE THIRD OF IT ──────────
+  //
+  // `overallVerdict` counted RECOMMENDATION PRIORITIES and nothing else,
+  // so it could be talked out of a warning by a change to the rule
+  // registry alone. Measured on the agras export, HEAD vs the working
+  // tree of 2026-09-07 — demoting one debt card PROMOTED the top line:
+  //
+  //   HEAD          "Generally healthy with 1 priority area to strengthen."
+  //   working tree  "Financials in healthy range across all dimensions."
+  //
+  // on a document that also prints Cash Ratio 0.09× CRITICAL, Quick
+  // Ratio Watch, Net Margin Watch, DPO Watch, and "Letter grade: not
+  // reported". `carniprod` printed the same all-clear over Net Margin
+  // 1.4% CRITICAL, ROA 1.1% CRITICAL, ROE 1.3% CRITICAL and ROIC 4.6%
+  // CRITICAL. An all-clear contradicted four cards down its own page is
+  // not a summary of the page; it is a summary of one section of it.
+  //
+  // So the verdict now reads the three things this document actually
+  // grades — the ratio badges, the insight severities and the
+  // recommendation priorities — and NAMES what drove it, so a reader can
+  // check the sentence against the cards rather than trust it. The
+  // all-clear states what was scanned to earn it, which is what makes it
+  // falsifiable: `execVerdictNoContradiction.test.ts` reds, naming the
+  // contradicting card, if any of the three grades below healthy while
+  // this line reads clear.
+  //
+  // `readInsights` is the same pure reader `insightsBlock` calls below on
+  // the same `s`; two calls cannot disagree. It is read here because the
+  // verdict is composed before that block is built.
+  const verdictInsights = readInsights(s);
+  const allRatios: Ratio[] = [r.liquidity, r.profitability, r.leverage, r.coverage, r.efficiency]
+    .flat()
+    .concat([altman]);
+  /** Everything on this page that grades below healthy, worst first, each
+   *  named the way the card that carries it is named. */
+  const gradedBelowHealthy = (
+    level: "critical" | "attention",
+  ): string[] => {
+    const ratioHit = level === "critical" ? "critical" : "watch";
+    const insightHit =
+      level === "critical" ? ["critical"] : ["high", "medium"];
+    const recHit = level === "critical" ? "critical" : "high";
+    return [
+      ...allRatios.filter((x) => x.verdict === ratioHit).map((x) => x.label),
+      ...(verdictInsights?.insights ?? [])
+        .filter((i) => insightHit.includes(i.severity.level))
+        .map((i) => i.title),
+      ...recs.filter((x) => x.priority === recHit).map((x) => x.title),
+    ];
+  };
+  /** At most four names, then a count — a cover line, not an inventory. */
+  const nameList = (names: string[]): string => {
+    if (names.length <= 4) return names.join("; ");
+    return `${names.slice(0, 4).join("; ")}; and ${names.length - 4} more`;
+  };
+  const verdictCritical = gradedBelowHealthy("critical");
+  const verdictAttention = gradedBelowHealthy("attention");
+  /** The denominator of the claim — how many things this line looked at.
+   *  Without it "4 items grade critical" is a bare count, and a reader
+   *  cannot tell a book with 4 of 23 from one with 4 of 5. */
+  const verdictScanned =
+    allRatios.filter((x) => x.verdict !== "unknown" && x.verdict !== "ungraded").length +
+    (verdictInsights?.insights ?? []).length +
+    recs.filter((x) => x.priority !== "info").length;
   const overallVerdict =
-    criticalCount > 0
-      ? `Action required — ${criticalCount} critical item${criticalCount === 1 ? "" : "s"} flagged.`
-      : highCount > 0
-        ? `Generally healthy with ${highCount} priority area${highCount === 1 ? "" : "s"} to strengthen.`
-        : "Financials in healthy range across all dimensions.";
+    verdictCritical.length > 0
+      ? `Action required — ${verdictCritical.length} of ${verdictScanned} graded items in this document ${
+          verdictCritical.length === 1 ? "reads" : "read"
+        } critical: ${nameList(verdictCritical)}.`
+      : verdictAttention.length > 0
+        ? `No item reads critical; ${verdictAttention.length} of ${verdictScanned} ask for attention: ${nameList(
+            verdictAttention,
+          )}.`
+        : `Financials in healthy range across all dimensions — all ${verdictScanned} graded items in this document read healthy or strong.`;
 
   // ─ Per-section renderers ──────────────────────────────────────────────────
   // Verdict is rendered via scoped `.badge.v-<verdict>` class (CSS-driven)
@@ -2990,6 +3613,430 @@ export function renderReportHtml(
       )
       .join("")}
   `;
+
+  // ── THE FINDINGS, PRINTED ───────────────────────────────────────────
+  //
+  // `src/engine/insights/` has run eight detectors over this book since
+  // the wire landed, and `statements.insights` has been on the served
+  // envelope since then. NOTHING RENDERED IT: `insights.ts` was imported
+  // by `executiveSummary.ts` and `recommendationRules.ts` and by no
+  // renderer at all, so this document was byte-identical with and
+  // without the block — 133,472 bytes either way on agras, measured on
+  // 2026-09-07 — while printing "Financials in healthy range across all
+  // dimensions" over a book the engine had graded five findings `high`.
+  //
+  // THE RULES THIS SECTION IS BUILT UNDER:
+  //   · an ABSENT block renders NOTHING. Not an empty section, not a "no
+  //     findings" line — a period served before the engine emitted the
+  //     block was never read, and a clean bill of health is a claim.
+  //   · `formatMeasure` is the only formatter, and it prints `null` as
+  //     "not reported". There is no `?? 0` anywhere below.
+  //   · the severity chip prints its BASIS beside the level. "High"
+  //     alone is a bare threshold claim — high against what?
+  //   · every card shows the accounts it read WITH their balances, and
+  //     the ladder it was banded against (TC-10: the cutoffs render from
+  //     the same table the verdict used, never as prose).
+  //   · the ranking is `src/engine/insights/rank.py`'s, consumed in the
+  //     order the block arrives in. This renderer never re-sorts.
+  const insightsBlock: InsightsBlock | null = readInsights(s);
+  const insightCurrency = insightsBlock?.currency || s.currency;
+
+  // ── ONE NAME, TWO VALUES — NOW THAT BOTH SURFACES ARE IN ONE FILE ───
+  //
+  // The ratio table and the detectors do not always compute a
+  // same-named figure the same way, and until this section existed they
+  // never met on one page. They do now. Measured on agras: the ratio
+  // card reads "Days Payables Outstanding (on total operating cost)
+  // 27 days" and `trade_float` reports "Days payables outstanding
+  // 37.2 days" — one name, two values, four pages apart, which is
+  // exactly the defect this wave was called in for.
+  //
+  // The renderer cannot reconcile the two arithmetics and must not
+  // pretend to. What it CAN do is refuse to let the contradiction be
+  // silent: where a measure's name collides with a ratio this document
+  // also prints, and the two figures differ, the card says so and names
+  // both formulas. The disambiguating parenthetical some card labels
+  // carry is stripped before matching — a suffix that hides a collision
+  // from a matcher does not hide it from a reader.
+  const nameKey = (label: string): string =>
+    label
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const printedRatiosByName = new Map<string, Ratio>();
+  for (const rt of [r.liquidity, r.profitability, r.leverage, r.coverage, r.efficiency].flat().concat([altman])) {
+    const key = nameKey(rt.label);
+    if (!printedRatiosByName.has(key)) printedRatiosByName.set(key, rt);
+  }
+  /** The measure's value expressed in the ratio card's own unit, or null
+   *  when the two units are not the same quantity and no comparison is
+   *  honest. */
+  const measureInRatioUnit = (m: { value: number | null; unit: string }, unit: Ratio["unit"]): number | null => {
+    if (m.value === null) return null;
+    if (unit === "days") return m.unit === "days" ? m.value : null;
+    if (unit === "x") return m.unit === "multiple" || m.unit === "ratio" ? m.value : null;
+    if (unit === "%") return m.unit === "ratio" ? m.value * 100 : m.unit === "pct" ? m.value : null;
+    return null;
+  };
+  const clashNote = (i: Insight, m: Insight["measures"][number]): string => {
+    const rt = printedRatiosByName.get(nameKey(m.label));
+    if (!rt || rt.value === null) return "";
+    const mine = measureInRatioUnit(m, rt.unit);
+    if (mine === null) return "";
+    const scale = Math.max(Math.abs(rt.value), 1e-9);
+    if (Math.abs(mine - rt.value) / scale <= 0.005) return "";
+    return (
+      `<tr class="measure-clash" data-clash="${escapeHtml(nameKey(m.label))}"><td colspan="2">` +
+      `This document also prints <strong>&ldquo;${escapeHtml(rt.label)}&rdquo; ${escapeHtml(
+        formatRatio(rt),
+      )}</strong>. Two arithmetics, not two books: that card computes ${escapeHtml(
+        rt.formula,
+      )}; this finding computes ${escapeHtml(i.formula)}.` +
+      `</td></tr>`
+    );
+  };
+
+  const insightMeasureRows = (i: Insight): string =>
+    i.measures
+      .map(
+        (m) =>
+          `<tr><td>${escapeHtml(m.label)}</td><td class="num">${escapeHtml(
+            formatMeasure(m, insightCurrency),
+          )}</td></tr>` + clashNote(i, m),
+      )
+      .join("");
+
+  const insightAccountRows = (i: Insight): string =>
+    i.accounts
+      .map(
+        (a) =>
+          `<tr><td>${escapeHtml(a.code)}</td><td>${escapeHtml(a.name)}</td>` +
+          `<td class="num">${escapeHtml(formatAmount(a.amount, insightCurrency))}</td>` +
+          `<td>${escapeHtml(a.role.replace(/_/g, " "))}</td></tr>`,
+      )
+      .join("");
+
+  const insightLadderRows = (i: Insight): string =>
+    severityLadder(i)
+      .map(
+        (rung) =>
+          `<tr${rung.active ? ' class="active-rung"' : ""}>` +
+          `<td class="${rung.active ? "active" : ""}">${escapeHtml(rung.label)}</td>` +
+          `<td class="num ${rung.active ? "active" : ""}">${rung.active ? "this book" : ""}</td></tr>`,
+      )
+      .join("");
+
+  const insightCard = (i: Insight): string => {
+    const sev = i.severity;
+    const basisLine =
+      `Scaled against ${escapeHtml(sev.basis_label || sev.basis || "no stated basis")}` +
+      ` ${escapeHtml(formatAmount(sev.basis_value, insightCurrency))}` +
+      ` &middot; magnitude ${escapeHtml(formatAmount(sev.magnitude, insightCurrency))}` +
+      ` &middot; ${escapeHtml(
+        formatMeasure({ value: sev.materiality, unit: "ratio" }, insightCurrency),
+      )} of it.` +
+      (sev.why ? ` ${escapeHtml(sev.why)}` : "");
+    // The narrative halves are ABSENT-CAPABLE: a lane that did not run
+    // says so, in its own words, instead of leaving a silent gap that
+    // reads as "nothing to say about this".
+    const narrative =
+      i.narrative.explanation === null && i.narrative.so_what === null
+        ? `<p class="insight-explanation">No written explanation accompanies this finding${
+            i.narrative.reason ? ` — ${escapeHtml(i.narrative.reason)}` : ""
+          }. The claim, the formula, the ladder and the accounts above are the whole of it.</p>`
+        : `${
+            i.narrative.explanation
+              ? `<p class="insight-explanation">${escapeHtml(i.narrative.explanation)}</p>`
+              : ""
+          }${
+            i.narrative.so_what
+              ? `<p class="insight-so-what"><strong>So what:</strong> ${escapeHtml(i.narrative.so_what)}</p>`
+              : ""
+          }`;
+    return `
+      <div class="insight-card" data-insight-id="${escapeHtml(i.id)}" data-severity="${escapeHtml(
+        i.severity.level,
+      )}" data-rank="${i.rank}"${i.in_summary ? ' data-in-summary="1"' : ""}>
+        <div class="insight-head">
+          <span class="insight-rank">${i.rank}</span>
+          <span class="insight-severity" data-level="${escapeHtml(
+            i.severity.level,
+          )}">${escapeHtml(severityCaption(i))}</span>
+          <span class="insight-title">${escapeHtml(i.title)}</span>
+        </div>
+        <p class="insight-claim">${escapeHtml(i.claim)}</p>
+        <p class="insight-formula"><strong>Formula:</strong> ${escapeHtml(i.formula)}</p>
+        <p class="insight-basis">${basisLine}</p>
+        <div class="insight-cols">
+          <table class="fin insight-measures">
+            <thead><tr><th>What was measured</th><th class="num">Value</th></tr></thead>
+            <tbody>${insightMeasureRows(i)}</tbody>
+          </table>
+          <table class="fin insight-ladder">
+            <thead><tr><th>Severity ladder actually applied</th><th class="num"></th></tr></thead>
+            <tbody>${insightLadderRows(i)}</tbody>
+          </table>
+        </div>
+        <table class="fin insight-accounts">
+          <thead><tr><th>Account</th><th>Name</th><th class="num">Balance</th><th>Role</th></tr></thead>
+          <tbody>${insightAccountRows(i)}</tbody>
+        </table>
+        ${narrative}
+        ${
+          i.narrative.source === "deterministic"
+            ? `<p class="insight-narrative-source">Wording above is the engine's own deterministic template${
+                i.narrative.reason ? ` — ${escapeHtml(i.narrative.reason)}` : ""
+              }; no figure in it was authored by anything but the detector.</p>`
+            : ""
+        }
+      </div>`;
+  };
+
+  const insightsSection = (): string => {
+    if (insightsBlock === null) return "";
+    const block = insightsBlock;
+    const rankBasis = block.insights[0]?.rank_basis ?? "";
+    const counted = SEVERITY_ORDER.map((level) => ({
+      level,
+      n: block.insights.filter((i) => i.severity.level === level).length,
+    })).filter((c) => c.n > 0);
+    const tally =
+      counted.length === 0
+        ? "No detector fired on this book."
+        : counted
+            .map((c) => `${c.n} ${escapeHtml(SEVERITY_LABEL[c.level].toLowerCase())}`)
+            .join(" &middot; ");
+    const notFired =
+      block.not_fired.length === 0
+        ? ""
+        : `<div class="insight-not-fired">
+            <h3>Checked and clear</h3>
+            <p class="insight-basis">These detectors ran on this book and did not fire. Each states why — a check that found nothing is a result, not an absence.</p>
+            <ul>${block.not_fired
+              .map(
+                (n) =>
+                  `<li data-insight-id="${escapeHtml(n.id)}"><strong>${escapeHtml(
+                    n.title,
+                  )}</strong> &mdash; ${escapeHtml(n.reason)}</li>`,
+              )
+              .join("")}</ul>
+          </div>`;
+    return section(
+      "insights",
+      "What the numbers say",
+      `
+  <div class="commentary">
+    <strong>${tally}.</strong> Each finding below carries the claim, the arithmetic in words, the accounts it read with their balances, and the severity ladder it was banded against &mdash; so a reader who disagrees with a level can check it without leaving the page. ${escapeHtml(
+      rankBasis,
+    )}
+  </div>
+  ${block.insights.map(insightCard).join("")}
+  ${notFired}
+  `,
+    );
+  };
+
+  // ── PAGE ONE'S MODEL ────────────────────────────────────────────────
+  //
+  // THE OVERRIDES ARE THE POINT. `buildComparatives` builds its own
+  // current-period figures from `deriveTotals`, and on these books that
+  // is not what this document prints: agras nets 14,106,102.03
+  // reconstructed against the 7,533,676.02 account-121 close on the card
+  // three inches above, and retail's revenue differs by 1,923.78. A
+  // strip built without these overrides would print a second value under
+  // the same name on the same page — R1, in a KPI table. Every figure
+  // passed here is the one the document already resolved and prints.
+  const summaryOverrides: Record<string, number | null> = {
+    revenue: operatingRevenue,
+    ebitda: ebitdaStatutory,
+    net_income: netIncomeStatutory,
+    total_assets: sf.totalAssets(),
+    total_equity: sf.totalEquity(),
+    equity_ratio: ratioNamed("equity_ratio")?.value ?? null,
+  };
+  const summary: ExecutiveSummary = buildExecutiveSummary(
+    s,
+    r,
+    credit,
+    [altman],
+    5,
+    summaryOverrides,
+  );
+
+  const tileFigure = (line: ComparativeLine | null, value: number | null): string => {
+    if (value === null || !Number.isFinite(value)) return UNREPORTED_WORD;
+    const unit = line?.unit ?? "money";
+    if (unit === "pct") return `${formatNumber(value, 1)}%`;
+    if (unit === "x") return `${formatNumber(value, 2)}×`;
+    return money(value, s.currency);
+  };
+
+  /** The KPI strip, and — on every book this product serves today — the
+   *  stated absence of anything to compare it against. Never a dash and
+   *  never a zero in the comparison column: both read as "no change",
+   *  which is a claim about a period nobody supplied. */
+  const comparativesBlock = (): string => {
+    const c: Comparatives = summary.comparatives;
+    const headings = c.available
+      ? c.periods.map((p) => `<th class="num">${escapeHtml(p.heading)}</th>`).join("")
+      : `<th class="num">Change</th>`;
+    // THE REASON TRAVELS WITH THE CELL. "no prior period" in a column
+    // headed "Change" is already better than a dash, but a reader
+    // hovering it (or a gate reading it) must be able to get the whole
+    // sentence — the module's own words for why this particular line
+    // cannot be compared, which is not always the same reason twice.
+    const noCell = (why: string): string =>
+      `<td class="nocmp" title="${escapeHtml(why)}">${escapeHtml(NO_COMPARATIVE_CELL)}</td>`;
+    const cell = (line: ComparativeLine, kind: "prior_period" | "prior_year"): string => {
+      const v = line.vs[kind];
+      if (v.absolute === null) return noCell(v.unavailable ?? c.degradedReason ?? "");
+      return `<td class="num">${escapeHtml(formatVariance(v, line.unit))}</td>`;
+    };
+    const rows = summary.tiles
+      .map((tile) => {
+        const line = tile.line;
+        const label = tile.key === "revenue" ? "Operating revenue" : tile.label;
+        const noReason =
+          line?.vs.prior_period.unavailable ?? c.degradedReason ?? "no comparison period reached this document";
+        const cells = c.available
+          ? c.periods.map((p) => (line ? cell(line, p.kind) : noCell(noReason))).join("")
+          : noCell(noReason);
+        return `<tr data-tile="${escapeHtml(tile.key)}"><td>${escapeHtml(label)}</td><td class="num">${escapeHtml(
+          tileFigure(line, tile.value),
+        )}</td>${cells}</tr>`;
+      })
+      .join("");
+    const note = c.available
+      ? `<p class="comparatives-note">Comparison periods: ${c.periods
+          .map((p) => `${escapeHtml(p.heading)} (${escapeHtml(p.periodLabel)})`)
+          .join(" &middot; ")}.</p>`
+      : `<p class="comparatives-note"><strong>${escapeHtml(c.degradedNote)}.</strong> ${escapeHtml(
+          c.degradedReason ?? "",
+        )}, so every figure in this document is a position at ${escapeHtml(
+          s.periodLabel,
+        )} rather than a movement. Nothing here is up or down against anything, and the column below says so on every line instead of showing a dash or a zero &mdash; both of which read as &ldquo;no change&rdquo;.</p>`;
+    return `
+    <h3>Headline figures</h3>
+    ${note}
+    <table class="fin comparatives">
+      <thead><tr><th>Figure</th><th class="num">${escapeHtml(s.periodLabel)}</th>${headings}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  };
+
+  /** WHY THIS VERDICT — the letter, the model that said it, and the two
+   *  or three graded facts behind it, worst first. A reader who
+   *  disagrees with the grade needs the evidence, and the evidence that
+   *  matters is what is failing. */
+  const verdictFactsBlock = (): string => {
+    const v = summary.verdict;
+    const head =
+      v.letter === null
+        ? `<strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(v.unavailable ?? "")}`
+        : `<strong>${escapeHtml(v.letter)}</strong>${
+            v.score === null ? "" : ` &middot; composite ${escapeHtml(formatNumber(v.score, 1))}`
+          } &middot; ${escapeHtml(v.model)}`;
+    const facts =
+      v.facts.length === 0
+        ? `<p class="insight-basis">No graded ratio on this book carries both a value and a band, so there is no evidence to quote for the grade.</p>`
+        : `<table class="fin verdict-facts-table">
+            <thead><tr><th>What produced it</th><th class="num">This book</th><th>Verdict</th><th>Band</th></tr></thead>
+            <tbody>${v.facts
+              .map(
+                (f) =>
+                  `<tr data-verdict-fact="${escapeHtml(f.key)}"><td>${escapeHtml(f.label)}</td>` +
+                  `<td class="num">${escapeHtml(f.printed)}</td>` +
+                  `<td><span class="badge v-${f.verdict}">${escapeHtml(verdictLabel(f.verdict))}</span></td>` +
+                  `<td>${escapeHtml(f.benchmark)}</td></tr>`,
+              )
+              .join("")}</tbody>
+          </table>`;
+    return `<div class="verdict-facts"><h3>Why this verdict</h3><p class="comparatives-note">${head}</p>${facts}</div>`;
+  };
+
+  /** THE TOP FIVE, ON PAGE ONE — the same objects §What the numbers say
+   *  prints in full, in the engine's own rank order. Absent block: this
+   *  returns "" and page one gains nothing, rather than asserting that
+   *  nothing was found. */
+  const summaryInsightsBlock = (): string => {
+    if (summary.insights.length === 0) {
+      return insightsBlock === null
+        ? ""
+        : `<div class="commentary"><strong>Findings.</strong> ${escapeHtml(
+            summary.insightsAbsence ?? "",
+          )}</div>`;
+    }
+    return `
+    <h3>What the numbers say</h3>
+    <p class="comparatives-note">The ${
+      summary.insights.length
+    } findings the engine ranked highest on this book. Each is printed in full &mdash; claim, formula, accounts and ladder &mdash; in <a href="#insights">What the numbers say</a>.</p>
+    <ul class="summary-insights">${summary.insights
+      .map(
+        (i) =>
+          `<li data-insight-id="${escapeHtml(i.id)}" data-severity="${escapeHtml(
+            i.severity.level,
+          )}"><span class="insight-severity" data-level="${escapeHtml(
+            i.severity.level,
+          )}">${escapeHtml(severityCaption(i))}</span> <strong>${escapeHtml(
+            i.title,
+          )}</strong> &mdash; ${escapeHtml(i.claim)}</li>`,
+      )
+      .join("")}</ul>`;
+  };
+
+  /** WHAT WOULD CHANGE THE VERDICT — the rungs this book is nearest to
+   *  crossing, each with its distance, rendered from the SAME ladder
+   *  object each badge above was decided by (TC-10). */
+  // ── A ROW THAT DOES NOT FOOT IS A ROW A READER CANNOT CHECK ─────────
+  //
+  // `rungFigure` exists to print a CUTOFF without rounding it away, and
+  // it picks its precision from the magnitude of the number in front of
+  // it. Three numbers that each pick their own precision do not subtract:
+  // measured on the first draft of this table, agras printed
+  // "31 d · 30 d · 1.07 d" and retail "56.6 · 30 · 26.5652" — rows whose
+  // own three cells contradict each other. The decimals are therefore
+  // chosen ONCE PER ROW, from the distance, wide enough that the rounding
+  // of the two operands cannot exceed 2% of the gap between them.
+  const wouldChangeDecimals = (distance: number): number => {
+    const gap = Math.abs(distance);
+    if (!Number.isFinite(gap) || gap === 0) return 2;
+    return Math.min(6, Math.max(0, Math.ceil(Math.log10(50 / gap))));
+  };
+  const wouldChangeFigure = (v: number, unit: Ratio["unit"], decimals: number): string => {
+    const shown = v.toFixed(decimals);
+    return unit === "x" ? `${shown}×` : unit === "%" ? `${shown}%` : unit === "days" ? `${shown} d` : shown;
+  };
+
+  const wouldChangeBlock = (): string => {
+    if (summary.wouldChange.length === 0) {
+      return `<div class="commentary"><strong>What would change the verdict.</strong> ${escapeHtml(
+        summary.wouldChangeAbsence ?? "",
+      )}</div>`;
+    }
+    return `
+    <h3>What would change the verdict</h3>
+    <p class="comparatives-note">${escapeHtml(summary.wouldChangeBasis)} Each row prints at the precision its own subtraction needs, so Now &minus; Rung equals Distance on every line; the cards above round the same values to the document&rsquo;s display precision, which is why a figure here can carry more decimals than the card it came from. It is the same value, not a second one.</p>
+    <table class="fin would-change">
+      <thead><tr><th>Ratio</th><th class="num">Now</th><th class="num">Rung</th><th class="num">Distance</th><th>Crossing it</th></tr></thead>
+      <tbody>${summary.wouldChange
+        .map((d) => ({ d, dp: wouldChangeDecimals(d.distance) }))
+        .map(
+          ({ d, dp }) =>
+            `<tr data-would-change="${escapeHtml(d.ratioKey)}" data-to-verdict="${escapeHtml(
+              d.toVerdict,
+            )}"><td>${escapeHtml(d.ratioLabel)}</td>` +
+            `<td class="num">${escapeHtml(wouldChangeFigure(d.value, d.unit, dp))}</td>` +
+            `<td class="num">${escapeHtml(wouldChangeFigure(d.threshold, d.unit, dp))}</td>` +
+            `<td class="num">${escapeHtml(wouldChangeFigure(d.distance, d.unit, dp))}</td>` +
+            `<td>${d.move === "improve" ? "would move it up to" : "would drop it to"} <span class="badge v-${
+              d.toVerdict
+            }">${escapeHtml(verdictLabel(d.toVerdict))}</span></td></tr>`,
+        )
+        .join("")}</tbody>
+    </table>`;
+  };
 
   // ── THE CREDIT SECTION ──────────────────────────────────────────────
   //
@@ -3276,6 +4323,14 @@ export function renderReportHtml(
     { id: "sec-profit", title: "Profitability" },
     { id: "sec-leverage", title: "Leverage and coverage" },
     { id: "sec-credit", title: "Credit and distress" },
+    // Listed only when the block is there to link to. A contents entry
+    // pointing at a section this document does not carry is a dead
+    // anchor in the rail AND a page-number row in the printed contents
+    // — and it would assert a findings section on a period that was
+    // served before the engine emitted one.
+    ...(insightsBlock === null
+      ? []
+      : [{ id: "insights", title: "What the numbers say" }]),
     { id: "sec-recs", title: "Recommendations" },
     { id: "sec-basis", title: "Basis of preparation" },
   ];
@@ -3411,6 +4466,10 @@ export function renderReportHtml(
       <div class="meta">${escapeHtml(printedRatio("debt_to_ebitda"))} EBITDA</div>
     </div>
   </div>
+  ${comparativesBlock()}
+  ${verdictFactsBlock()}
+  ${summaryInsightsBlock()}
+  ${wouldChangeBlock()}
   ${chartById("chart-ebitda-bridge")}
   ${chartById("chart-revenue-trend")}
   `,
@@ -3467,6 +4526,8 @@ export function renderReportHtml(
   ${chartById("chart-asset-age")}
   `,
   )}
+
+  ${insightsSection()}
 
   ${section("sec-recs", "Recommendations", recs.map(recommendationCard).join(""))}
 

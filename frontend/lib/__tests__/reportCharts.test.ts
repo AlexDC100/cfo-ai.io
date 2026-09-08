@@ -322,27 +322,50 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     );
   });
 
-  // A band track must be drawn against the bands the ENGINE served. The
-  // expectation below is read straight out of the fixture — a second
-  // opinion, not a restatement of the renderer.
-  it.each(BOOKS)("%s: band tracks quote the served thresholds", (b: Book) => {
-    const blk = byId(blocks(exportDoc(b)), "chart-band-tracks");
+  // ⚠ THIS ASSERTION USED TO NAME THE WRONG AUTHORITY, AND WAS VACUOUS
+  //   WHILE IT DID.
+  //
+  // It read: "a band track must be drawn against the bands the ENGINE
+  // served", matched against `Object.values(served).some(...)` — ANY of
+  // the 27 served definitions, not the one belonging to this ratio. On
+  // all four books the rail drew CCC on 30 / 60 / 90 while the CARD
+  // banded the badge on 30 / 60 / 100, and this gate stayed green
+  // because some other key's definition happens to be 30 / 60 / 100.
+  // Both halves were wrong: the ladder that decided the printed verdict
+  // is `Ratio.ladder` (see `financialReport.ts`'s `cardTrack`, which
+  // made the same move for the card chip after fourteen chips were
+  // measured contradicting the badge above them), and a ladder belongs
+  // to ONE ratio.
+  //
+  // What it asserts now: the rail's printed rungs are the rungs the
+  // card printed, per ratio. The engine cross-check did not disappear —
+  // `chartsAgreeWithCards.test.ts` §B4 holds each rail row against the
+  // served definition FOR ITS OWN KEY and requires the caption to name
+  // any row where the two differ.
+  it.each(BOOKS)("%s: band tracks quote the thresholds their own card printed", (b: Book) => {
+    const doc = exportDoc(b);
+    const blk = byId(blocks(doc), "chart-band-tracks");
     if (blk.status !== "drawn") return;
     const s = statementsFor(b) as Statements & { assembled_bands?: { bands: Record<string, Record<string, number | string>> } };
-    const served = s.assembled_bands?.bands ?? {};
-    expect(Object.keys(served).length).toBeGreaterThan(5);
+    expect(Object.keys(s.assembled_bands?.bands ?? {}).length).toBeGreaterThan(5);
+    const cardMeta = new Map(
+      Array.from(doc.querySelectorAll(".ratio-card")).map((c) => [
+        (c.querySelector(".label")?.textContent ?? "").replace(/\s+/g, " ").trim(),
+        (c.querySelector(".meta")?.textContent ?? "").replace(/\s+/g, " ").trim(),
+      ]),
+    );
     for (const row of blk.tableRows) {
       const nums = row.source.match(/[\d.]+/g) ?? [];
       expect(nums.length, `${row.label}: no thresholds printed`).toBe(3);
-      const printedSet = nums.map((x) => Number(x)).sort((x, y) => x - y);
-      // find the served definition whose three thresholds match
-      const match = Object.values(served).some((def) => {
-        const th = [def.watch, def.healthy, def.strong]
-          .filter((x): x is number => typeof x === "number")
-          .sort((x, y) => x - y);
-        return th.length === 3 && th.every((x, ix) => Math.abs(x - printedSet[ix]) < 0.005);
-      });
-      expect(match, `${row.label}: printed bands ${printedSet.join("/")} match no served band definition`).toBe(true);
+      const meta = cardMeta.get(row.label);
+      expect(meta, `${row.label}: the rail draws a track no ratio card matches`).toBeTruthy();
+      const onCard = new Set((meta ?? "").match(/[\d.]+/g)?.map((x) => Number(x).toString()) ?? []);
+      for (const n of nums.map(Number)) {
+        expect(
+          onCard.has(n.toString()),
+          `${row.label}: the rail prints ${n} and the card's own band sentence — "${meta}" — does not.`,
+        ).toBe(true);
+      }
     }
   });
 

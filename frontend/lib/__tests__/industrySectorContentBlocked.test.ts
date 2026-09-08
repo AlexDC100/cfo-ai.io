@@ -218,8 +218,22 @@ describe("0.1 — THE NEGATIVE: with the sector agreeing, all of it renders", ()
         card!.meta,
         `${book}: "${label}" withholds its band even though the mix seconds the setting`,
       ).not.toContain(SECTOR_BAND_WITHHELD);
+      // ── "Not graded" IS ALLOWED HERE, AND THE LINE ABOVE IS WHY ─────
+      //
+      // This gate's content is the assertion directly above: on an
+      // agreeing book, NO row may be withheld for a SECTOR reason. A row
+      // may still be ungraded for a reason that has nothing to do with
+      // sector, and one is: `realestate` reports a cost of sales of
+      // 0.00, so its Gross Margin is 100.0% by construction and the
+      // ladder ("≥ 40% strong") is grading the absence of a cost line.
+      // That row prints its figure and states its own reason.
+      //
+      // Widening the word list without the `SECTOR_BAND_WITHHELD`
+      // assertion above would gut the gate; with it, the sector block
+      // still cannot hide behind a second kind of withholding, because
+      // a sector withholding carries the sector sentence and reds.
       expect(
-        /Strong|Healthy|Watch|Critical|Not reported/.test(card!.meta),
+        /Strong|Healthy|Watch|Critical|Not reported|Not graded/.test(card!.meta),
         `${book}: "${label}" carries no verdict on an agreeing book: ${JSON.stringify(card!.meta)}`,
       ).toBe(true);
     }

@@ -272,6 +272,47 @@ const BANDS = {
   ],
 };
 
+/** ── ONE EXPOSURE, ONE ROW SET (R1 ACROSS SURFACES) ──────────────────
+ *
+ *  The insight engine's `related_party_exposure` detector sums TWO
+ *  canonical rows — `packs/insights/detectors.yaml`:
+ *
+ *      rows:
+ *        related_party: [ar_intercompany, ar_personnel]
+ *
+ *  and prints its fact as `canonical_bs.rows[ar_intercompany+ar_personnel]`.
+ *  This rule reads ONE number, `PeriodFacts.bs.intercompany_loans`, and
+ *  the two surfaces print in ONE document. Measured on the committed
+ *  `carniprod` insight fixture: the detector reports RON 148,332.17
+ *  (461.1 1,000.00 + 4610.01 19,323.03 + 4610.3 1,600.14 + 4382.01
+ *  126,409.00), of which only RON 21,923.17 is `ar_intercompany`. A feed
+ *  that delivers the intercompany slice alone puts two magnitudes for one
+ *  exposure two sections apart.
+ *
+ *  THE CONTRACT, therefore, and it is a contract on the FEED, not on this
+ *  file: whatever populates `bs.intercompany_loans` must carry the same
+ *  row set the detector sums. `financialReport.ts`'s `safeFacts` and
+ *  `periodFacts.ts`'s `bsFacts` are the two builders that fill it; today
+ *  the first reads `assembled_bs.intercompany_loans` (absent on all four
+ *  books, so the field is 0 and this rule never fires) and the second
+ *  scans account `461` only — which is neither row set, and is 2% of the
+ *  balance on agras. `relatedPartyExposureAgrees.test.ts` reds the day a
+ *  feed lands that disagrees with the detector.
+ *
+ *  MEASURED AGAIN 2026-09-07, after the feed repair landed:
+ *  `assembled_bs` carries `ar_intercompany` on all four books and carries
+ *  no `ar_personnel` key at all, so the FE literally cannot assemble the
+ *  detector's row set today. The closing move is one field on the served
+ *  `assembled_bs`; until it exists this rule measures the intercompany
+ *  slice and says so nowhere it cannot verify — the label below is the
+ *  detector's own `magnitude_label`, verbatim, so the two surfaces at
+ *  least name the exposure identically, and the gate holds the numbers
+ *  to each other.
+ *
+ *  The label is exported so the gate quotes the product's own words
+ *  rather than restating them. */
+export const RELATED_PARTY_MAGNITUDE_LABEL = "Related-party receivables";
+
 /** The covenant tiers the monitoring card proposes. They used to exist
  *  ONLY as a sentence inside that card's action list, which is why
  *  nothing could compare a book against them and the card asserted
@@ -672,6 +713,25 @@ const RULES: Rule[] = [
   // R4. Intercompany receivable recall (medium/high)
   // Material RON sitting in related-party receivables while interest is
   // paid on senior debt. Recall + prepay = pure capital-structure win.
+  //
+  // ── A RECALL CAN ONLY RETIRE DEBT THAT EXISTS ──────────────────────
+  //
+  // Measured on the committed `agras` book with the exposure delivered
+  // (RON 7,692,202.74 — the figure the engine's canonical rows carry and
+  // the one the insight engine reports), against this rule as it stood:
+  //
+  //   printed saving   7,692,202.74 × 7.635% = RON 587,302 / year
+  //   whole interest bill on the book         RON   277,930.35
+  //   printed ratio    (3,640,202.33 − 7,692,202.74) ÷ 18,420,491.28
+  //                    = −0.22× "(more bankable territory)"
+  //
+  // The prize was more than twice the entire interest expense, and the
+  // card offered a NEGATIVE Debt/EBITDA as an improvement. Both come
+  // from the same unstated assumption: that every RON recalled retires a
+  // RON of debt. Only RON 3,640,202.33 of debt exists. The rest of the
+  // recall returns as CASH — which is worth having, and is a different
+  // claim, so the card now makes it separately instead of pricing it as
+  // interest it cannot save.
   {
     key: "intercompany_receivable_recall",
     detect: (f) => {
@@ -697,13 +757,26 @@ const RULES: Rule[] = [
       // The absolute `ic <= 500_000` floor is gone with it: half a
       // million RON is a different thing on a 39M book than on a 400M one.
       if (!clearsFloor(ic, f.bs.total_equity, BANDS.exposureOfEquity)) return null;
-      const currentRate = f.pl.interest_expense / Math.max(f.bs.bank_debt_total, 1);
-      const interestSavings = ic * currentRate;
+      const debt = f.bs.bank_debt_total;
+      const currentRate = f.pl.interest_expense / Math.max(debt, 1);
+      // The recall is applied to principal until there is no principal
+      // left. Everything above that is cash on the balance sheet, not
+      // interest saved — and the saving is additionally capped at the
+      // interest actually paid, so a rate proxy that overshoots cannot
+      // promise more than the whole bill.
+      const appliedToDebt = Math.max(0, Math.min(ic, debt));
+      const returnedAsCash = Math.max(0, ic - appliedToDebt);
+      const interestSavings = Math.min(
+        appliedToDebt * currentRate,
+        Math.max(0, f.pl.interest_expense),
+      );
+      // Floored at zero for the same reason: debt cannot go below nil,
+      // so neither can the ratio built on it.
       const newDte =
-        f.pl.ebitda > 0 ? (f.bs.bank_debt_total - ic) / f.pl.ebitda : 0;
+        f.pl.ebitda > 0 ? Math.max(0, debt - appliedToDebt) / f.pl.ebitda : 0;
       const graded = grade(
         ic,
-        "Related-party receivables",
+        RELATED_PARTY_MAGNITUDE_LABEL,
         f.bs.total_equity,
         "Total equity",
         BANDS.exposureOfEquity,
@@ -711,31 +784,56 @@ const RULES: Rule[] = [
           "so the exposure is graded as a share of that cushion rather " +
           "than of the balance sheet it is already inside.",
       );
+      const capped = returnedAsCash > 0;
       return {
         ruleKey: "intercompany_receivable_recall",
         graded,
-        title: `Recall ${RON(ic)} intercompany receivable to prepay senior debt`,
+        title: `Recall ${RON(ic)} related-party receivable to prepay senior debt`,
         factsCited: {
           intercompany_loans: ic,
           total_assets: totalAssets,
           pct_of_assets: pct,
           total_equity: f.bs.total_equity,
-          bank_debt_total: f.bs.bank_debt_total,
+          bank_debt_total: debt,
           current_rate: currentRate,
+          recall_applied_to_debt: appliedToDebt,
+          recall_returned_as_cash: returnedAsCash,
+          interest_expense: f.pl.interest_expense,
           interest_savings_if_repaid: interestSavings,
           new_debt_to_ebitda: newDte,
         },
         rationaleFallback:
-          `Account 461 (Sundry debtors) holds ${RON(ic)} in intercompany receivables — ` +
+          // ── WHERE THE BALANCE SITS, WITHOUT NAMING A LEDGER THE RULE
+          //    CANNOT SEE ─────────────────────────────────────────────
+          // This sentence used to open "Account 461 (Sundry debtors)
+          // holds …". Measured on the agras classification
+          // (`corpus/saga_10_col_agras/expected/classification.json`
+          // joined to the served `ar_intercompany` row), the balance is
+          // 4511.01 = 7,536,754.90 (98.0%) and 461.x = 155,447.84
+          // (2.0%). A CFO sent to 461 would find 2% of the figure. The
+          // rule is handed one scalar and no account list, so it names
+          // the ROW SET it was measured from — which is checkable
+          // against the statements — and no account code.
+          `${RELATED_PARTY_MAGNITUDE_LABEL} total ${RON(ic)} — ` +
           `${(pct * 100).toFixed(1)}% of total assets sitting unproductively while the company pays ` +
-          `~${(currentRate * 100).toFixed(2)}% interest on senior bank debt. Recalling the receivable ` +
-          `and using it to prepay would reduce annual interest by ${RON(interestSavings)} and drop ` +
-          `Debt/EBITDA from ${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}× (more bankable territory). ` +
+          `~${(currentRate * 100).toFixed(2)}% interest on ${RON(debt)} of senior bank debt. ` +
+          (capped
+            ? `Recalling it retires the debt in full — ${RON(appliedToDebt)} of principal, worth ` +
+              `${RON(interestSavings)} a year, which is the whole interest bill of ` +
+              `${RON(f.pl.interest_expense)} — and returns the remaining ${RON(returnedAsCash)} as cash ` +
+              `rather than as interest saved. Debt/EBITDA goes from ` +
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}×. `
+            : `Recalling the receivable and using it to prepay would reduce annual interest by ` +
+              `${RON(interestSavings)} and drop Debt/EBITDA from ` +
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}× ` +
+              `(more bankable territory). `) +
           ladderSentence(graded.materiality),
         actionsFallback: [
           `Confirm with the related party that the ${RON(ic)} receivable is recoverable in cash within 90 days.`,
           "Structure the recall as a formal repayment (debt-vs-debt offset, not a fresh loan) to avoid tax / AGM complications.",
-          "Apply proceeds to senior principal; request the lender update the amortization schedule.",
+          capped
+            ? `Apply ${RON(appliedToDebt)} to senior principal — that clears the facility; plan the remaining ${RON(returnedAsCash)} as cash, not as debt service.`
+            : "Apply proceeds to senior principal; request the lender update the amortization schedule.",
           "Document the transaction for the audit trail — related-party movements draw scrutiny from RO tax authorities.",
         ],
         whatNotToDoFallback:
@@ -1212,6 +1310,32 @@ const RULES: Rule[] = [
 
 // ─── Public API ─────────────────────────────────────────────────────────
 
+/** ── THE OBSERVATION POINT, NOT A SECOND BUILDER ─────────────────────
+ *
+ *  What `detectConditions` was last given, and what it answered.
+ *
+ *  A gate over the printed report needs the LADDER behind a card, and
+ *  `generateRecommendations` maps `DetectedCondition → Recommendation`
+ *  and drops `materiality` on the way, so nothing downstream of the
+ *  render carries it. The previous gate solved that by rebuilding the
+ *  facts by hand — a ~90-line transcription of `financialReport.ts`'s
+ *  private `safeFacts` — and then grading THAT. Mirror doubles are this
+ *  repo's documented failure mode (`fake-store-hid-20-defects`): the
+ *  hand copy fed `stated("interest_coverage")` where the product feeds
+ *  a different bundle, and its agras net margin was 11.90% against the
+ *  6.35% the document prints. The gate graded a book the product never
+ *  renders.
+ *
+ *  This records the REAL call instead. It is written on every
+ *  invocation, costs one object assignment, and is read only by tests —
+ *  no product code branches on it. It is deliberately not a return
+ *  value: the signature is fixed by two call sites this lane does not
+ *  own. */
+export const LAST_DETECT_FOR_TEST: {
+  facts: PeriodFacts | null;
+  conditions: DetectedCondition[];
+} = { facts: null, conditions: [] };
+
 export function detectConditions(facts: PeriodFacts): DetectedCondition[] {
   const industry = (facts.industry ?? "").toLowerCase();
   const candidates: RuleFinding[] = [];
@@ -1250,7 +1374,10 @@ export function detectConditions(facts: PeriodFacts): DetectedCondition[] {
     seen.add(c.ruleKey);
     return true;
   });
-  return rankConditions(unique);
+  const ranked = rankConditions(unique);
+  LAST_DETECT_FOR_TEST.facts = facts;
+  LAST_DETECT_FOR_TEST.conditions = ranked;
+  return ranked;
 }
 
 /** Sort key, mirroring `engine/insights/rank.py::sort_key`:

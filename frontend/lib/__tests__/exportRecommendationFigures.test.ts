@@ -78,6 +78,21 @@ const DERIVED: Array<{
     what: "zero — a rule naming an income line the period does not carry",
     of: () => [0],
   },
+  {
+    // `intercompany_receivable_recall` fires on agras for the first time
+    // once `assembled_bs.ar_intercompany` is read under the key the
+    // engine actually serves (it was read as `intercompany_loans`, which
+    // exists in no envelope, and answered 0 on every book). When the
+    // exposure is larger than the whole facility, the card says so and
+    // names the remainder: "returns the remaining RON 4,052,000 as cash
+    // rather than as interest saved". Both operands are stated on the
+    // same card and in the balance sheet; the difference is the rule's
+    // arithmetic, so it is DECLARED here rather than exempted.
+    what:
+      "related-party receivables less total debt — the cash a full recall leaves over " +
+      "once it has retired the facility, quoted by intercompany_receivable_recall",
+    of: (_doc, env) => [env.bs.ar_intercompany - env.bs.total_debt],
+  },
 ];
 
 /** Every figure the document states, anywhere a reader can see it.
