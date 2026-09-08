@@ -50,7 +50,7 @@ it (bare single-letter markers are file-level attributions).
 | `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
 | `P2` | Adjustments are strictly additive. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
 | `P3` | Conservation, including unclassified value (AI-lane half under P8). | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_route.py`, `tests/engine/test_properties.py` |
-| `P4` | Auto-reconcile triggers iff 0 < ratio <= 0.001. | — | `tests/engine/test_properties.py` |
+| `P4` | Auto-reconcile triggers iff 0 < ratio <= 0.001. | — | `tests/engine/test_properties.py`, `tests/engine/test_report_pdf_route.py` |
 | `P5` | RECONCILED is never serialized as BALANCED, on any surface. | — | `tests/engine/test_properties.py` |
 | `P6` | Idempotence: pipeline(pipeline(x)) == pipeline(x). | — | `tests/engine/test_properties.py` |
 | `P7` | Permutation invariance of source rows. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_metamorphic.py`, `tests/engine/test_properties.py` |
