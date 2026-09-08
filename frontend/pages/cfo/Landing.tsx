@@ -915,7 +915,11 @@ function footer(year: number, L: LandingStrings, langCode: string) {
           // directly above the footer block that renders the real entity
           // from LEGAL_ENTITY — the exact duplication legalConfig exists
           // to prevent, surviving in the one spot the refactor missed.
-          .replace("{company}", LEGAL_ENTITY.denumire ?? ""),
+          // A Romanian entity name ends in "S.R.L." — a full stop of its
+          // own — and the sentence that follows adds another, so the
+          // first deploy of this line read "PARACHAIN CAPITAL S.R.L..".
+          // Trim the entity's terminal stop and let the sentence supply it.
+          .replace("{company}", (LEGAL_ENTITY.denumire ?? "").replace(/\.\s*$/, "")),
       )}</span>
       ${langSwitcher}
       <span>${L.footer.madeIn}</span>
