@@ -153,7 +153,12 @@ describe("the forecast page", () => {
     ).not.toBeNull();
     expect(painted?.getAttribute("data-projected-basis")).toBe("revenue_growth");
     expect(painted?.getAttribute("data-projected-base-period")).toBe("Dec 2025");
-    expect(within(row).getByText(/projected/i)).toBeTruthy();
+    // The word is on the MARK, not painted inline beside the number —
+    // see the note in projectedAmountRenders.test.tsx on why 912 cells
+    // each printing "projected" made the page unreadable.
+    const mark = row.querySelector("[data-projected-mark]");
+    expect(mark, "the projected mark is gone from the cell").not.toBeNull();
+    expect(mark!.getAttribute("aria-label")).toBe("projected");
   });
 
   it("renders a line the projection does not carry as an em-dash, not a zero", async () => {

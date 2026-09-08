@@ -3088,3 +3088,49 @@ detectors, which is how it will be turned on.
 one of the four routes not wrapped in `_guard`, so a `RadarLoadError` raised
 there would escape as a 500 rather than its carried status. Nothing on that
 path raises one today (`load_dismissals` fails open), so this is latent.
+
+### radar / forecast — what turning the flags on found (2026-09-08)
+
+Both flags were flipped on the agras corpus book and the real pages rendered
+headless over the real engine bytes. Two defects surfaced that no gate had:
+
+**The detector lane refused every real period.** `_detector_spine` built its
+entity with `EntityKey.of`, which NORMALIZES — and `normalize_cui` strips
+`workspace:<id>` to nothing. That is exactly what the serving path carries,
+because `financial_periods` has no CUI column. Measured on the first flip:
+`"cannot normalize a CUI from 'workspace:qa-org'"`, **0 families run on a
+book where 5 do**. Every other test in the lane's own suite passes a
+CUI-shaped identity, so none could see it. Now pinned by
+`test_a_workspace_identity_reaches_the_spine`, plant-proven: routing the
+workspace identity back through `of` reds with the engine's own sentence.
+
+**Every projected figure read `RON 100,709projected`.** The mark painted the
+word inline with no separator, 912 times on one page, sixteen per row — on a
+page whose every column header is a future period and which carries a
+standing banner saying every figure is a projection. A mark nobody can read
+past is not a warning. It is now a glyph (`◇`), with the WORD kept in
+`aria-label` and `title` and the machine-readable carrier unchanged
+(`data-projected="true"`). The two component gates were updated to assert the
+guarantee that matters — the mark exists and the word is reachable — rather
+than that the word is painted inline.
+
+**Also measured, and NOT a defect:** a first capture showed blank rows across
+the balance sheet. The DOM had every value (`RON 22,794◇`, `RON 85,134◇`); a
+viewport screenshot taken straight after `scrollIntoViewIfNeeded()` on a
+2400px viewport caught the page mid-repaint. Recorded because a screenshot
+that looks like a defect and is not costs the same time as one that is.
+
+**What the flags produced, on agras.** Forecast at 5 years: 16 periods (12
+monthly + 4 annual), 912 figures, 25 drivers, `unbalanced_periods: []` — and
+the rendered balance sheet closes month by month (total assets RON 404,305 =
+total equity and liabilities RON 404,305 in 2026-01). Radar with the detector
+lane on: 7 surfaced under a cap of 7, lanes `detectors · 3` and
+`this period · 4`, interleaved by rank.
+
+**Noted, not fixed:** the three detector rows render no "View evidence"
+button while the four engine rows do. `EvidenceLine` needs a verified fact,
+and the detector families' fact names are not in `serve.FACT_ACCESSORS`, so
+nothing walks back to a gateway accessor. That is the honest behaviour — the
+affordance appears only where the evidence can actually be walked — but it is
+a real asymmetry between the two lanes and is written down rather than left
+to be rediscovered.

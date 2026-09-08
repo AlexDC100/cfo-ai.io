@@ -121,15 +121,30 @@ export function ProjectedAmount({
       data-projected-base-period={marker.basePeriodLabel}
     >
       <span data-projected-value="true">{format(value)}</span>
-      <span
+      <sup
         aria-label={projectedLabel}
+        title={projectedLabel}
         data-projected-mark="true"
-        // The mark is not decoration and is not optional: it is rendered in
-        // the same expression as the value, from the same marker, so there is
-        // no code path that paints one without the other.
+        // THE MARK IS NOT DECORATION AND IS NOT OPTIONAL: it is rendered in
+        // the same expression as the value, from the same marker, so there
+        // is no code path that paints one without the other.
+        //
+        // It is a GLYPH and not the word, and that is a legibility repair
+        // rather than a softening. Measured on the first render of the
+        // forecast page: 912 figures each printing "projected" ran the word
+        // straight into the number — "RON 100,709projected" — sixteen times
+        // per row, on a page whose every column header is a future period
+        // and which carries a standing banner saying every figure is a
+        // projection. A mark nobody can read past is not a warning.
+        //
+        // The word survives in three places a reader or a machine can still
+        // reach: `aria-label` (screen readers say it), `title` (hover), and
+        // `data-projected="true"` on the wrapper, which is what every gate
+        // asserts on.
+        className="ml-[0.15em] select-none text-[0.65em] font-normal not-italic text-ink-mute"
       >
-        {projectedLabel}
-      </span>
+        ◇
+      </sup>
       {renderBasis ? renderBasis(marker) : null}
     </span>
   ));

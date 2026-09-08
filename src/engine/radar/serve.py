@@ -1028,7 +1028,18 @@ def _detector_spine(request: RadarRequest):
                       "company it is for is the one thing the spine must "
                       "never produce")
     try:
-        entity = SER.EntityKey.of(request.org_id, cui)
+        # A WORKSPACE IDENTITY IS NOT A CUI, and `EntityKey.of` normalizes
+        # — it strips `workspace:<uuid>` to nothing and refuses. That is
+        # what the serving path actually carries, because
+        # `financial_periods` has no CUI column, so routing every request
+        # through `of` refused the lane on every real period. Measured the
+        # first time the flag was turned on: "cannot normalize a CUI from
+        # 'workspace:qa-org'", 0 families run, on a book where 5 run.
+        if str(cui).startswith(SER.WORKSPACE_IDENTITY_PREFIX):
+            entity = SER.EntityKey.of_workspace(
+                str(cui)[len(SER.WORKSPACE_IDENTITY_PREFIX):])
+        else:
+            entity = SER.EntityKey.of(request.org_id, cui)
     except SER.EntityUnknownError as exc:
         return None, "detectors not run: %s" % exc
 

@@ -83,7 +83,19 @@ describe("<ProjectedAmount>", () => {
     const mark = root!.querySelector('[data-projected-mark="true"]');
     expect(value).toBeTruthy();
     expect(mark).toBeTruthy();
-    expect(mark!.textContent).toBe("projected");
+    // THE MARK IS A GLYPH, AND THE WORD IS STILL REACHABLE. It used to
+    // paint the word inline, and on a real forecast page that put
+    // "RON 100,709projected" in 912 cells — sixteen times a row, on a
+    // page whose every column is a future period and which carries a
+    // standing banner saying so. A mark nobody can read past is not a
+    // warning. So the visible carrier is a glyph and the WORD lives in
+    // `aria-label` and `title`, where a screen reader and a hover both
+    // still reach it.
+    //
+    // RED ON: the mark disappearing, or the word becoming unreachable.
+    expect(mark!.textContent!.trim()).not.toBe("");
+    expect(mark!.getAttribute("aria-label")).toBe("projected");
+    expect(mark!.getAttribute("title")).toBe("projected");
     // The mark is INSIDE the same element as the value, so no layout,
     // stylesheet or export path can carry one without the other.
     expect(root!.contains(value!)).toBe(true);
@@ -218,9 +230,9 @@ describe("<ProjectedAmount> over the bytes the engine actually serves", () => {
     expect(
       container.querySelector('[data-projected="refused"]'),
     ).toBeNull();
-    expect(
-      container.querySelector("[data-projected-mark]")?.textContent,
-    ).toBe("projected");
+    const mark = container.querySelector("[data-projected-mark]");
+    expect(mark?.textContent?.trim()).toBeTruthy();
+    expect(mark?.getAttribute("aria-label")).toBe("projected");
   });
 
   it("every served figure paints a number and none refuses", () => {

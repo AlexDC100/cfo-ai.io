@@ -42,7 +42,10 @@ from pathlib import Path
 
 import pytest
 
+from dataclasses import replace
+
 from engine.radar import serve as RS
+from engine.radar import series as RS_SERIES
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURES = REPO / "tests" / "engine" / "fixtures" / "radar"
@@ -192,6 +195,33 @@ def test_no_pack_named_is_a_refusal_that_says_so():
     assert lane["enabled"] is True
     assert "no jurisdiction pack was named" in (lane["notice"] or "")
     assert lane["candidates"] == 0
+
+
+def test_a_workspace_identity_reaches_the_spine(monkeypatch):
+    """THE DEFECT THE FLAG CAUGHT, the first time it was turned on.
+
+    `_detector_spine` built its entity with `EntityKey.of`, which
+    NORMALIZES — and `normalize_cui` strips `workspace:<uuid>` to nothing,
+    so the lane refused with "cannot normalize a CUI from
+    'workspace:qa-org'". That is what the serving path actually carries,
+    because `financial_periods` has no CUI column, so every real period
+    refused: 0 families run on a book where 5 do.
+
+    Nothing in the lane's own suite could see it — every other test in
+    this file passes a CUI-shaped identity. RED ON: the workspace
+    identity being routed through the CUI constructor again.
+    """
+    fx = _fixture()
+    workspace = RS_SERIES.WORKSPACE_IDENTITY_PREFIX + "org-%s" % CASE
+    target = _target(fx)
+    target = replace(target, cui=workspace)
+    request = RS.RadarRequest(
+        org_id="org-%s" % CASE, target=target, detectors_enabled=True,
+        detector_jurisdiction="ro", detector_pack_root=PACKS)
+    lane = RS.serve_period(request)["lanes"]["detectors"]
+    assert lane["notice"] is None, lane["notice"]
+    assert lane["ran"], "no family ran on a workspace-identified spine"
+    assert lane["candidates"] >= 3, lane
 
 
 def test_no_company_identity_is_a_refusal_that_says_so():
