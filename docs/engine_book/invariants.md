@@ -65,7 +65,7 @@ it (bare single-letter markers are file-level attributions).
 | `N1` | Front-end round-trip byte-stability + content_hash stability for every corpus input. | — | `tests/engine/test_frontends.py`, `tests/engine/test_ir_invariants.py` |
 | `N2` | Front-end -> IR mapping fidelity (keystone suite + explicit coverage-closure census). | — | `tests/engine/test_frontends.py`, `tests/engine/test_ir_invariants.py` |
 | `N3` | Pack pinning + effective-dated resolution (a 2024 period keeps its 2024 pack). | — | `tests/engine/test_pack_loader.py`, `tests/engine/test_pack_pinning.py` |
-| `N5` | ABSENT is not ZERO, end to end through the Phase-1 IR. | — | `tests/engine/test_properties.py` |
+| `N5` | ABSENT is not ZERO, end to end through the Phase-1 IR. | — | `tests/engine/test_properties.py`, `tests/engine/test_ro_inventory_catchall.py` |
 | `N6` | Currency scales HUF(0) / RON(2) / KWD(3) flow through Money and the IR. | — | `tests/engine/test_ir_invariants.py` |
 | `N7` | New-jurisdiction acceptance gate: a jurisdiction lands tree-only (packs + fixtures), never by editing engine code. | — | `tests/engine/test_company_profile.py`, `tests/engine/test_e8_jurisdiction_blindness.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_findings_single_period.py`, `tests/engine/test_movements.py`, `tests/engine/test_new_jurisdiction.py`, `tests/engine/test_public_market_gates.py`, `tests/engine/test_public_market_spine.py` |
 

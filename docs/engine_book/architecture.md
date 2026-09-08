@@ -47,7 +47,9 @@ graph LR
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
     pkg_frontends["frontends (11 modules)"]
+    pkg_industry["industry (2 modules)"]
     pkg_ingestion["ingestion (2 modules)"]
+    pkg_insights["insights (8 modules)"]
     pkg_intelligence["intelligence (4 modules)"]
     pkg_interp["interp (6 modules)"]
     pkg_ir["ir (4 modules)"]
@@ -83,6 +85,8 @@ graph LR
     pkg_api -->|3| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
+    pkg_api -->|1| pkg_industry
+    pkg_api -->|1| pkg_insights
     pkg_api -->|1| pkg_interp
     pkg_api -->|3| pkg_journal
     pkg_api -->|1| pkg_obs
@@ -117,6 +121,7 @@ graph LR
     pkg_frontends -->|2| pkg_core
     pkg_frontends -->|5| pkg_country_packs
     pkg_frontends -->|7| pkg_ir
+    pkg_insights -->|1| pkg_ai
     pkg_interp -->|2| pkg_ai
     pkg_interp -->|1| pkg_ai_lane
     pkg_journal -->|1| pkg_api
@@ -333,6 +338,7 @@ declaration is the supply-chain lock's job to reject).
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
 | `firm` | yaml (pyyaml) |
 | `frontends` | pandas (pandas) |
+| `insights` | yaml (pyyaml) |
 | `intelligence` | pandas (pandas) |
 | `interp` | openpyxl (openpyxl), pandas (pandas) |
 | `methodology` | yaml (pyyaml) |

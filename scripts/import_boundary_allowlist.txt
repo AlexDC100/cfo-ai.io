@@ -56,3 +56,29 @@ frontend/lib/resolveFormulaInput.ts
 frontend/lib/scenarios/baseline.ts
 frontend/lib/scenarios/dashboardCanon.ts
 frontend/pages/cfo/FinancialStatements.tsx
+
+# ── BURN-DOWN: carved out of financialReport.ts on 2026-09-08 ─────────────────
+# NOT legacy — these two are NEW, and they are on this list for one honest
+# reason: they are extractions of code that was already inside the
+# allowlisted `financialReport.ts` above. Splitting one allowlisted module
+# into three should not silently change the contract, and it should not
+# silently widen it either, so they are named here rather than left to make
+# the gate red for a move that added no new raw read.
+#
+# MEASURED before adding (do not take this on trust when burning them down):
+# on the agras fixture, deriveTotals' assets from the served line items and
+# `assembled_bs.total_assets` agree EXACTLY — 39,272,501.03 both sides,
+# difference 0.00. The 0.44%-35.47% figure in the v2 contract is ROUND-TRIP
+# drift on the persisted envelope, which `_apply_envelope_truth_to_statements`
+# corrects before the frontend is handed anything, so the frontend deriving
+# from served line items reproduces the served total.
+#
+# A first attempt at this audit made these lines REFUSE on that unmeasured
+# 35% figure and broke `comparativesDegradeHonestly`'s "a source that
+# declares nothing absent compares everything" — the gate was right and the
+# change was wrong. Measure before migrating.
+#
+# Burn down WITH financialReport.ts, not before it: they read `deriveTotals`
+# from it, so migrating them alone would leave the definition behind.
+frontend/lib/executiveSummary.ts
+frontend/lib/reportComparatives.ts
