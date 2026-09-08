@@ -22,6 +22,7 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LEGAL_DOC_IDS, LEGAL_ENTITY } from "@/lib/legalConfig";
+import { SocialLinks } from "./SocialLinks";
 import { docLangOf, documentLabel, entityLines, legalDocPath } from "@/lib/legalDocs";
 
 export function LegalFooter({ className = "" }: { className?: string }) {
@@ -69,6 +70,10 @@ export function LegalFooter({ className = "" }: { className?: string }) {
             </span>
           )}
         </div>
+        {/* Beneath the company-identification block, never inside it: the
+            identity above is a legal declaration and this is a marketing
+            affordance. Renders nothing at all when no handle is set. */}
+        <SocialLinks className="pt-1" />
       </div>
     </footer>
   );

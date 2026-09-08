@@ -34,7 +34,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
-import { LEGAL_ENTITY, legalDocPath } from "@/lib/legalConfig";
+import { LEGAL_ENTITY, legalDocPath, socialLinks } from "@/lib/legalConfig";
 import { openCookieSettings } from "@/components/cfo/CookieBanner";
 import { MARQUEE } from "@/lib/markets";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
@@ -845,7 +845,7 @@ const legalMain = (L: LandingStrings) => `
  * same file the app footer and the prerendered legal pages read; the block is
  * rendered here as an HTML string only because this whole page is.
  */
-function legalIdentityBlock() {
+function legalIdentityBlock(langCode: string) {
   const e = LEGAL_ENTITY;
   const identity = [e.denumire, e.cui ? `CUI ${e.cui}` : null, e.regCom]
     .filter(Boolean)
@@ -855,7 +855,46 @@ function legalIdentityBlock() {
     <div style="margin-top:14px;font-size:11.5px;line-height:1.7;color:var(--ink-mute)">
       <div style="font-family:var(--mono)">${identity}</div>
       <div>${esc(e.sediu ?? "")}</div>
-    </div>`;
+    </div>${socialRow(langCode)}`;
+}
+
+/**
+ * The social row, BENEATH the identity block and never inside it: the block
+ * above is a legal declaration a Romanian company must make, and this is a
+ * marketing affordance. Mixing them would put a brand link inside a
+ * statutory statement.
+ *
+ * Same data as the app footer's <SocialLinks>, through the same
+ * `socialLinks()` accessor, so the two surfaces cannot show different
+ * handles. Rendered as an HTML string only because this whole page is.
+ *
+ * A handle that is null, empty or half-typed RENDERS NOTHING — not a dead
+ * link, not a greyed glyph. `instagram` is null today because the brief
+ * that requested this carried "[INSTAGRAM URL — fill in]", and shipping a
+ * guess is precisely the class of bug that put "[Company Legal Name]" into
+ * this footer on 2026-09-08.
+ */
+function socialRow(langCode: string) {
+  const links = socialLinks();
+  if (links.length === 0) return "";
+  const ro = langCode.toLowerCase().startsWith("ro");
+  const label = (key: string) =>
+    key === "x"
+      ? (ro ? "Parachain Group pe X" : "Parachain Group on X")
+      : (ro ? "Parachain Group pe Instagram" : "Parachain Group on Instagram");
+  const glyph = (key: string) =>
+    key === "x"
+      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`
+      : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg>`;
+  // 44px tap target on mobile; the glyph stays 20px and the padding carries
+  // the rest, so the icon does not grow on a phone.
+  const item = ({ key, href }: { key: string; href: string }) =>
+    `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label(key))}" data-social="${esc(key)}" style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;color:var(--ink-mute);text-decoration:none" onmouseover="this.style.color='var(--brand)'" onmouseout="this.style.color='var(--ink-mute)'">${glyph(key)}</a>`;
+  return `
+    <div data-social-row style="margin-top:6px;display:flex;gap:2px;justify-content:center" class="cfo-social-row">
+      ${links.map(item).join("")}
+    </div>
+    <style>@media (min-width:640px){.cfo-social-row{justify-content:flex-end !important}}</style>`;
 }
 
 function footer(year: number, L: LandingStrings, langCode: string) {
@@ -924,7 +963,7 @@ function footer(year: number, L: LandingStrings, langCode: string) {
       ${langSwitcher}
       <span>${L.footer.madeIn}</span>
     </div>
-    ${legalIdentityBlock()}
+    ${legalIdentityBlock(langCode)}
   </div>
 </footer>`;
 }

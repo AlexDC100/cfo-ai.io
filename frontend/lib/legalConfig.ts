@@ -51,6 +51,52 @@ export interface LegalEntity {
   privacyEmail: string | null;
   /** Contact address for contractual/legal matters. */
   legalEmail: string | null;
+  /** Public social handles. A null handle RENDERS NOTHING — see below. */
+  social: SocialHandles;
+}
+
+/**
+ * The company's public social presence, declared in the SAME place as its
+ * legal identity and for the same reason.
+ *
+ * A NULL HANDLE RENDERS NOTHING. Not a dead link, not a greyed icon, not a
+ * placeholder — the glyph does not appear. That rule is here because on
+ * 2026-09-08 the production footer shipped the literal string
+ * "[Company Legal Name]", forty pixels above the block rendering the real
+ * entity, and the repair was to make absence render as absence rather than
+ * as unfinished-looking text. A social icon linking to "#" or to a
+ * half-typed URL is the same defect wearing a different shape.
+ *
+ * `instagram` is null today because the brief that requested this carried
+ * "[INSTAGRAM URL — fill in]". Filling in a guess would have been exactly
+ * the class of bug this file exists to prevent.
+ *
+ * Nothing may hardcode one of these outside this module —
+ * `frontend/lib/__tests__/socialLinksFromConfig.test.ts` fails on any
+ * social URL found elsewhere in the tree.
+ */
+export interface SocialHandles {
+  /** Full profile URL, or null when we do not have one. */
+  x: string | null;
+  instagram: string | null;
+}
+
+/** The handles that are actually set, in render order. Empty when none
+ *  are — a caller mapping this renders nothing without needing a guard. */
+export function socialLinks(): Array<{ key: keyof SocialHandles; href: string }> {
+  const s = LEGAL_ENTITY.social;
+  const out: Array<{ key: keyof SocialHandles; href: string }> = [];
+  // Order is declared here, not by object-key iteration, so a JSON reshuffle
+  // cannot silently reorder what a reader sees.
+  for (const key of ["x", "instagram"] as Array<keyof SocialHandles>) {
+    const href = s ? s[key] : null;
+    // A non-empty absolute https URL or nothing. An empty string, a "#", or
+    // a half-typed value is treated exactly like absent.
+    if (typeof href === "string" && /^https:\/\/\S+$/.test(href.trim())) {
+      out.push({ key, href: href.trim() });
+    }
+  }
+  return out;
 }
 
 /**

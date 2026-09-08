@@ -47,7 +47,12 @@ export const LEGAL_ENTITY_DATA = {
   "sediu": "Intrarea Bitolia nr. 32, Sector 1, București, România",
   "capitalSocial": null,
   "privacyEmail": "privacy@cfo-ai.io",
-  "legalEmail": "contact@cfo-ai.io"
+  "legalEmail": "contact@cfo-ai.io",
+  "social": {
+    "_note": "Public social handles. ONE authority, same as the identity above, so a component can never hardcode one — the gate frontend/lib/__tests__/socialLinksFromConfig.test.ts fails on any social URL outside this file. A handle left null RENDERS NOTHING: no icon, no dead link, no placeholder. That rule exists because the footer shipped '[Company Legal Name]' to production on 2026-09-08 and the fix was to make absence render as absence.",
+    "x": "https://x.com/ParachainGroup",
+    "instagram": null
+  }
 } as const;
 
 export const LEGAL_DOCUMENTS: Record<string, LegalDocument> = {
