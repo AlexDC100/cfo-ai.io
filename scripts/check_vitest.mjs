@@ -100,10 +100,19 @@ const missing = CANARIES.filter(
 
 console.log("VITEST GATE");
 console.log("=".repeat(62));
+// THE CANARY NAMES ARE PRINTED, not counted. `run_battery.py` greps a
+// gate's own OUTPUT for each canary string it declares, so "canaries=5/5"
+// satisfies this gate and fails the battery's — which is exactly what
+// happened the first time this ran under it. A count is a claim; the
+// name is the evidence.
 console.log(
   `GATE-WORK vitest units=${total} floor=${FLOOR} label=frontend-unit-tests ` +
     `canaries=${CANARIES.length - missing.length}/${CANARIES.length}`,
 );
+for (const canary of CANARIES) {
+  const seen = !missing.includes(canary);
+  console.log(`  canary ${canary}: ${seen ? "ran" : "NEVER RAN"}`);
+}
 console.log(
   `  ${total} test(s) across ${suites} suite(s) in ${ranFiles.length} file(s): ` +
     `${passed} passed, ${failed} failed, ${pending} skipped`,

@@ -3002,6 +3002,13 @@ The second plant is the point: **vitest exits ZERO with an include pattern
 that matches nothing.** Without the floor this gate would have printed PASS
 over an empty run — the same false green `check_tsc` was written to close.
 
+**One more thing it got wrong on its first battery run,** worth recording
+because it is the same family: the gate printed `canaries=5/5` and
+`run_battery.py` greps a gate's own OUTPUT for each canary STRING it
+declares. A count satisfied this gate and failed the battery's, with
+`DISCOVERY BROKEN — canary absent from the gate's own output`. A count is a
+claim; the name is the evidence. It now prints one line per canary.
+
 **What this gate cannot see:** Playwright. `e2e/` is a separate runner and is
 still NOT in the battery. That gap is real and this file does not close it.
 
