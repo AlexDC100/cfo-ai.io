@@ -335,6 +335,26 @@ const CAPTION_FACTS: Array<{
   { card: "Gross Margin", concept: "revenue", field: "revenue" },
 ];
 
+/**
+ * Captions entitled to quote a BALANCE-SHEET figure.
+ *
+ * Separate from `CAPTION_FACTS` on purpose. That table drives a
+ * cross-check against `assembled_pl.<field>`, and its non-vacuity rule is
+ * that every entry must actually be exercised. A balance-sheet caption
+ * can never satisfy that — `pl[field]` is undefined for it — so putting
+ * one there would either break the non-vacuity assertion or force it to
+ * be weakened, and a gate weakened to admit an exception stops guarding
+ * the rule it was written for.
+ *
+ * 2026-09-08: the Cash Ratio caption began quoting RON 907K the moment
+ * the export started rendering the SERVED balance sheet. `canonical_bs`
+ * carries a `short_term_investments` row (account codes ['50']) that the
+ * legacy `assembled_bs` path drops, so the caption can finally name the
+ * near-cash it excludes — instead of pointing at "other current assets",
+ * which was RON 8,861,293 and about ten times the real figure.
+ */
+const BS_CAPTION_CARDS: ReadonlySet<string> = new Set(["Cash Ratio"]);
+
 /** The prose block the document prints for a ratio card, if any. */
 function captionFor(doc: Document, card: string): string | null {
   const prefix = `${card}:`;
@@ -394,7 +414,7 @@ describe("G1b — a caption resolves through the same fact as the number beside 
       for (const prose of proseBlocks(doc)) {
         if (quotedMoney(prose).length === 0) continue;
         const owner = [...cards].find((label) => prose.startsWith(`${label}:`));
-        if (owner === undefined || declared.has(owner)) continue;
+        if (owner === undefined || declared.has(owner) || BS_CAPTION_CARDS.has(owner)) continue;
         stray.push(`${book}: caption of “${owner}” quotes ${quotedMoney(prose).join(", ")} and is not declared in CAPTION_FACTS`);
       }
       expect(stray, `${book}: an undeclared caption states a figure`).toEqual([]);

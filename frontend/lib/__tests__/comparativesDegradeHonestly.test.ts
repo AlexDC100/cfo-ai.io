@@ -100,10 +100,45 @@ describe("comparatives — the WORKBOOK's own comparison column", () => {
   // prior cell and both delta cells EMPTY. In a spreadsheet an empty
   // delta and a zero delta read the same at a glance, and a dash beside
   // a figure reads as "no change" at least as often as "no data".
+  // ONLY the P&L sheet carries a comparison column. The Balance Sheet
+  // sheet renders the ENGINE CANONICAL balance sheet — header
+  // "Balance Sheet — engine canonical", column 3 the account codes — and
+  // has no comparison column at all. That is honest (an absent column
+  // cannot read as "no change") and it is asserted separately below,
+  // because "it has no misleading cells" and "it has none because it has
+  // no column" are different claims and only the second one is true.
   const SHEETS: Array<[string, string, string]> = [
     ["P&L", "Profit & Loss", "Revenue"],
-    ["Balance Sheet", "Balance Sheet", "Cash & equivalents"],
   ];
+
+  it.each(BOOKS)(
+    "%s: the canonical Balance Sheet sheet offers no comparison at all, rather than an empty one",
+    (book: Book) => {
+      // The other half of the same law. This sheet gained its canonical
+      // form on 2026-09-08, when `statementsFor` began joining the served
+      // `canonical_bs` the way `pipeline.py` does — before that the
+      // workbook rendered the legacy shape and the two sides of the
+      // printed balance sheet differed by the unclassified balance.
+      const wb = buildExcelWorkbook(statementsFor(book));
+      const rows = XLSX.utils.sheet_to_json<(string | number)[]>(
+        wb.Sheets["Balance Sheet"], { header: 1, defval: "" },
+      );
+      const header = rows.find((r) => String(r[0]).startsWith("Balance Sheet"));
+      expect(header, `${book}/Balance Sheet has no header row`).toBeDefined();
+      // Column 3 is provenance, not a comparison.
+      expect(header![2], `${book}/Balance Sheet column 3`).toBe("Accounts");
+      // NOT VACUOUS: the sheet really does carry rows.
+      expect(rows.length, `${book}/Balance Sheet is empty`).toBeGreaterThan(20);
+      // And no row invents a comparison cell beyond the three columns.
+      for (const r of rows) {
+        expect(
+          r.length,
+          `${book}/Balance Sheet row ${JSON.stringify(r[0])} has a 4th cell — ` +
+            `a comparison column appeared without the honest note beside it`,
+        ).toBeLessThanOrEqual(3);
+      }
+    },
+  );
 
   it.each(BOOKS)("%s: says there is no comparison rather than dashing it", (book: Book) => {
     const wb = buildExcelWorkbook(statementsFor(book));

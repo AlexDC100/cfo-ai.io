@@ -38,7 +38,58 @@ export type BookStatements = Statements & {
   assembled_bs?: Record<string, number>;
 };
 
+/**
+ * THE BOOK AS PRODUCTION SERVES IT.
+ *
+ * ⚠ This used to return `fx.statements` alone, and that made every export
+ * gate in this repo render a document PRODUCTION DOES NOT PRODUCE.
+ *
+ * `capture.py` takes `assembled["statements"]` on the WRITE path.
+ * `pipeline.py:4999` writes `statements["canonical_bs"] = _cbs` on the
+ * SERVE path, afterwards. So the captured half carries `assembled_bs` and
+ * no `canonical_bs`, and `servedFacts.factsFrom()` silently falls back to
+ * the legacy route for the whole balance sheet.
+ *
+ * What that produced, measured on the rendered export before this change:
+ *
+ *     agras      Total Assets 39,272,501   Total L+E 39,319,114   +46,613
+ *     carniprod  Total Assets 125,886,193  Total L+E 125,870,442  -15,751
+ *
+ * A BALANCE SHEET THAT DOES NOT BALANCE, with no reconciling line — while
+ * the engine's own canonical_bs says `status: BALANCED, difference: 0.0`
+ * and puts BOTH sides at 39,319,114.09. The two totals were coming from
+ * two different authorities: assets off the legacy `assembled_bs`, E+L off
+ * the canonical. The 46,613 is exactly the unclassified account-413
+ * balance the canonical BS carries as a row and the legacy path drops.
+ *
+ * An adversarial verifier found this by ADDING UP THE TWO SIDES of the
+ * printed PDF, which is the first thing an accountant does and which no
+ * gate had ever done.
+ *
+ * `withCanonicalBs` already existed for exactly this join; it just was not
+ * the DEFAULT, so the gates that mattered never used it. Now it is. Every
+ * export gate renders the served shape, and a book missing its canonical
+ * half raises rather than quietly degrading.
+ */
 export function statementsFor(book: Book): BookStatements {
+  const fx = JSON.parse(readFileSync(firm(`saga_10_col_${book}.json`), "utf-8")) as {
+    statements: BookStatements;
+    envelope?: { canonical_bs?: unknown };
+  };
+  const cbs = fx.envelope?.canonical_bs;
+  if (cbs === undefined) {
+    throw new Error(
+      `saga_10_col_${book}.json carries no envelope.canonical_bs — the capture ` +
+        `is incomplete, and rendering without it prints an unbalanced balance sheet.`,
+    );
+  }
+  return { ...fx.statements, canonical_bs: cbs } as BookStatements;
+}
+
+/** The WRITE-path half alone, with no served canonical BS. Kept for the
+ *  gates that exist to prove the degraded/legacy path behaves — never a
+ *  default, because a legacy render is not what a customer gets today. */
+export function statementsWithoutCanonicalBs(book: Book): BookStatements {
   const fx = JSON.parse(readFileSync(firm(`saga_10_col_${book}.json`), "utf-8")) as {
     statements: BookStatements;
   };
