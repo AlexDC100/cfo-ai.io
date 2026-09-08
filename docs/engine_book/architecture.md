@@ -46,6 +46,9 @@ graph LR
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
+    pkg_forecast["forecast (9 modules)"]
+    pkg_forecast_drivers["forecast_drivers (7 modules)"]
+    pkg_forecast_serving["forecast_serving (6 modules)"]
     pkg_frontends["frontends (11 modules)"]
     pkg_industry["industry (2 modules)"]
     pkg_ingestion["ingestion (2 modules)"]
@@ -117,6 +120,10 @@ graph LR
     pkg_dst -->|1| pkg_serving
     pkg_firm -->|2| pkg_api
     pkg_firm -->|1| pkg_serving
+    pkg_forecast -->|1| pkg_canonical
+    pkg_forecast -->|1| pkg_serving
+    pkg_forecast_drivers -->|1| pkg_insights
+    pkg_forecast_serving -->|1| pkg_ai
     pkg_frontends -->|1| pkg_ai_lane
     pkg_frontends -->|2| pkg_core
     pkg_frontends -->|5| pkg_country_packs
@@ -337,6 +344,7 @@ declaration is the supply-chain lock's job to reject).
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
 | `firm` | yaml (pyyaml) |
+| `forecast_drivers` | yaml (pyyaml) |
 | `frontends` | pandas (pandas) |
 | `insights` | yaml (pyyaml) |
 | `intelligence` | pandas (pandas) |

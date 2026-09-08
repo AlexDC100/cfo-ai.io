@@ -1,0 +1,382 @@
+# THE FORECAST DRIVER PACK — pure data, no code.
+#
+# Every driver's identity, the AUTHORITY its default is read from, whether
+# it is a LEVEL (a state, measurable from one period) or a RATE (a change,
+# which needs at least two), and which way is upside.
+#
+# WHY THE CLASSIFICATION LIVES HERE AND NOT IN THE MODULE
+# ------------------------------------------------------
+# TC-10: no cutoff or rule is written as prose. Which expense leaves count
+# as fixed, which authority a default is read from, and which drivers move
+# between cases are all DATA below. The module reads this table; the
+# rendered `basis` sentence beside every number is generated from the same
+# table, so a reader who disagrees with a default can see the rule that
+# produced it.
+#
+# THE ONE RULE ABOUT DEFAULTS
+# ---------------------------
+# A default with no stated basis is a number someone will later mistake
+# for a fact. Every driver here names `authority` — the exact field of the
+# served payload its default comes from — and the module refuses to emit a
+# value it cannot attribute. `authority: none` means the served payload
+# carries NO source for this driver: it is emitted ABSENT (value None),
+# never 0. A company with no debt has no interest rate, and 0% is a
+# different claim from "not measurable".
+#
+# HOW THE THREE CASES ARE DERIVED — READ `case_rule`
+# --------------------------------------------------
+# `case_rule: band_traverse`  the upside is the STRONG rung and the
+#     downside is the WATCH rung of `statements.assembled_bands.bands`
+#     — the SAME rungs the report's own verdict grades this company on.
+#     No new number is invented: a downside case lands exactly on the
+#     threshold at which the product already says "watch this". Clamped so
+#     a case is never better than the actual on the downside or worse than
+#     the actual on the upside.
+# `case_rule: macro_band`     the upside/downside come from the published
+#     tolerance band of the macro anchor in ro_macro.yaml (the central
+#     bank's own ±band), not from a chosen percentage.
+# `case_rule: hold`           the driver does NOT move between cases. A
+#     case is a statement about TRADING CONDITIONS. Capex, headcount,
+#     dividend policy, the tax rate and the contracted rate on existing
+#     debt are management decisions and contracts — moving them by a
+#     percentage would be a gesture, not a case, and it would make the
+#     three sets incomparable because two things changed at once.
+#
+# When the company has 2+ periods the case rule is IGNORED for that driver
+# and its own observed history is used instead (see `engine.forecast_
+# drivers.cases`): the company's own best and worst beat any band.
+
+schema_version: "forecast_drivers/1"
+pack_id: "forecast-drivers"
+pack_version: "1"
+
+# Rounding is declared per unit so two runs on the same payload produce
+# byte-identical output. Determinism is not a test-time nicety here: a
+# saved assumption set is compared against a re-derived one to tell the
+# user their actuals moved.
+round_dp:
+  rate: 6
+  days: 4
+  currency: 2
+  count: 0
+  years: 2
+
+# The expense-nature split behind `opex_fixed_share`. A regression split
+# needs 3+ periods; with one period the only honest split is by NATURE,
+# and the classification has to be visible rather than buried in code.
+# Leaves are `envelope.leaves` keys. A leaf absent from BOTH lists is
+# counted in neither and shrinks the base — never silently called fixed.
+opex_nature_split:
+  fixed:
+    - personnel_wages
+    - personnel_social_security
+    - personnel_benefits
+    - personnel_other_contributions
+    - rent_operating_lease
+    - insurance
+    - other_operating_taxes
+  variable:
+    - energy_utilities
+    - transport_logistics
+    - maintenance_repairs
+    - third_party_services
+    - travel_protocol
+    - materials_non_inventory
+    - other_operating_expenses
+
+# Gross depreciable base for `depreciation_rate`. Land is excluded because
+# it is not depreciated; assets under construction are excluded because
+# they are not yet in service. Canonical BS row ids.
+depreciable_rows:
+  - ppe_buildings
+  - ppe_machinery_equipment
+  - ppe_furniture_office
+  - intangibles_other
+
+# Interest-bearing debt for `interest_rate`. Canonical BS row ids.
+debt_rows:
+  - lt_debt_bank
+  - lt_debt_other
+  - st_debt_bank
+
+# FX exposure is "material" — and `fx_rate_move` therefore emitted rather
+# than left absent — when FX cash plus realised FX result reaches this
+# share of revenue. Below it, the driver is ABSENT: a forecast that models
+# an immaterial exposure invites a reader to weight it.
+fx_materiality_of_revenue: 0.02
+
+drivers:
+
+  - key: revenue_growth
+    label: "Revenue growth"
+    unit: rate
+    kind: rate
+    favourable_direction: up
+    authority: "assembled_pl.revenue"
+    case_rule: macro_band
+    macro_anchor: inflation
+    why: >-
+      The top line of the projection. With two or more periods this is the
+      company's own compound growth; with one it is the inflation anchor,
+      which is a nominal continuation at constant real volume and is
+      labelled as such.
+
+  - key: gross_margin
+    label: "Gross margin"
+    unit: rate
+    kind: level
+    favourable_direction: up
+    authority: "methodology.ratios.gross_margin"
+    band_key: gross_margin
+    case_rule: band_traverse
+    why: >-
+      Read from the ratio the engine already publishes, not recomputed.
+      There are two gross profits in the served payload and recomputing
+      would have created a third.
+
+  - key: opex_growth
+    label: "Operating cost growth"
+    unit: rate
+    kind: rate
+    favourable_direction: neutral
+    authority: "assembled_pl.opex_excluding_cogs_and_da"
+    case_rule: hold
+    macro_anchor: inflation
+    why: >-
+      Held at the inflation anchor across all three cases. Applying the
+      SAME band to revenue and to costs in opposite directions would
+      assume low price inflation on what the company sells and high
+      inflation on what it buys, from one central-bank number.
+
+  - key: opex_rate
+    label: "Operating cost ÷ revenue"
+    unit: rate
+    kind: level
+    favourable_direction: down
+    authority: "assembled_pl.opex_excluding_cogs_and_da"
+    case_rule: hold
+    why: >-
+      The LEVEL that `opex_growth` is a change in. A projection needs
+      both: the share of revenue the operating base consumes today, and
+      the rate at which it moves. Without this driver the level is
+      re-measured by whoever projects, from whichever cost field they
+      pick, and one company acquires two operating-cost structures.
+      Held across the three cases for the same reason `opex_growth` is:
+      the operating-leverage response to a revenue case is carried by
+      `opex_fixed_share`, and moving the level as well would count the
+      same effect twice.
+
+  - key: opex_fixed_share
+    label: "Fixed share of operating cost"
+    unit: rate
+    kind: level
+    favourable_direction: neutral
+    authority: "envelope.leaves (opex_nature_split)"
+    case_rule: hold
+    why: >-
+      The operating-leverage lever: it is what makes a downside case bite
+      harder than the revenue fall alone. Split by expense NATURE from
+      this book's own leaves, because a regression split needs 3+ periods.
+
+  - key: personnel_rate
+    label: "Personnel cost ÷ revenue"
+    unit: rate
+    kind: level
+    favourable_direction: neutral
+    authority: "envelope.aggregates.personnel_total"
+    case_rule: hold
+    why: >-
+      The runnable form of the headcount driver. A trial balance carries
+      the personnel COST but never the headcount, so the cost ratio is
+      what can be defaulted; headcount and average cost stay absent until
+      a person supplies the number.
+
+  - key: headcount
+    label: "Headcount"
+    unit: count
+    kind: level
+    favourable_direction: neutral
+    authority: none
+    case_rule: hold
+    why: >-
+      No trial balance carries an employee count. Absent, not zero, and
+      not inferred by dividing by a guessed average wage.
+
+  - key: avg_personnel_cost
+    label: "Average cost per employee"
+    unit: currency
+    kind: level
+    favourable_direction: neutral
+    authority: "derived: personnel_total ÷ headcount"
+    case_rule: hold
+    why: >-
+      Computable the moment headcount is supplied, and absent until then.
+
+  - key: dso
+    label: "Days sales outstanding"
+    unit: days
+    kind: level
+    favourable_direction: down
+    authority: "methodology.ratios.days_sales_outstanding"
+    band_key: dso
+    case_rule: band_traverse
+    why: >-
+      Read from the published ratio. Recomputing it from receivables and
+      revenue would produce a second DSO on the same document.
+
+  - key: dio
+    label: "Days inventory outstanding"
+    unit: days
+    kind: level
+    favourable_direction: down
+    authority: "methodology.ratios.days_inventory_outstanding"
+    band_key: dio
+    case_rule: band_traverse
+    why: >-
+      As DSO. A book with no inventory has no DIO — the published ratio is
+      absent there, and so is this driver.
+
+  - key: dpo
+    label: "Days payable outstanding"
+    unit: days
+    kind: level
+    favourable_direction: up
+    authority: "methodology.ratios.days_payable_outstanding"
+    band_key: dpo
+    case_rule: band_traverse
+    why: >-
+      As DSO. Higher is favourable, so the upside and downside rungs are
+      read off the band in the opposite direction to DSO and DIO.
+
+  - key: capex_rate
+    label: "Capex ÷ revenue"
+    unit: rate
+    kind: level
+    favourable_direction: neutral
+    authority: "methodology.ratios.capex_intensity"
+    case_rule: hold
+    forced_status: fallback
+    why: >-
+      The engine publishes capex intensity as an explicit PROXY (D&A as a
+      share of revenue) and says so in its own note, because real capex
+      needs a period-over-period PP&E delta. That note is carried onto
+      this driver verbatim rather than dropped, and the driver is marked
+      a fallback even though a number is available. The cash-flow
+      statement's `capex_total` is NOT used: it is produced by the
+      approximation path that stamps `is_approximated: true`, and reading
+      it would launder an approximation into a default.
+
+  - key: depreciation_rate
+    label: "Depreciation rate on gross depreciable assets"
+    unit: rate
+    kind: level
+    favourable_direction: neutral
+    authority: "assembled_pl.depreciation ÷ canonical_bs rows (depreciable_rows)"
+    case_rule: hold
+    why: >-
+      The policy the projection depreciates new capex at. Taken from the
+      charge this book actually booked over the base it actually holds.
+
+  - key: new_debt
+    label: "New borrowing per year"
+    unit: currency
+    kind: level
+    favourable_direction: neutral
+    authority: none
+    case_rule: hold
+    why: >-
+      A plan, not a fact. Nothing in a closing trial balance says what the
+      company intends to draw next year, and defaulting it from last
+      year's drawdowns would present a financing plan as a measurement.
+
+  - key: debt_repayment_years
+    label: "Amortisation tenor of existing debt"
+    unit: years
+    kind: level
+    favourable_direction: neutral
+    authority: "engine assumption (dscr_approx note)"
+    case_rule: hold
+    forced_status: fallback
+    # Last-resort only. The tenor is READ from the served DSCR note; this
+    # value is used ONLY when a book's note declares none, and the driver
+    # then labels itself the pack's tenor rather than the engine's. A
+    # second copy of a number that claims to BE the engine's would go on
+    # claiming it after the engine changed its own.
+    fallback_value: 8.0
+    why: >-
+      A trial balance carries the debt BALANCE but never its maturity
+      schedule. The engine's own DSCR already amortises long-term debt
+      over a stated tenor, and that tenor is READ from the served
+      dscr_approx note rather than restated here, so two surfaces of one
+      report cannot disagree about it. Marked a fallback because it is an
+      assumption in both places.
+
+  - key: interest_rate
+    label: "Effective interest rate on debt"
+    unit: rate
+    kind: level
+    favourable_direction: down
+    authority: "assembled_pl.interest_expense ÷ canonical_bs rows (debt_rows)"
+    case_rule: hold
+    why: >-
+      What this company actually pays. Held across cases because the rate
+      on drawn debt is contracted, not a trading condition. Computed on
+      the CLOSING balance, which overstates the rate when debt grew during
+      the year; the note says so whenever no prior period is available to
+      average against.
+
+  - key: tax_rate
+    label: "Effective tax rate"
+    unit: rate
+    kind: level
+    favourable_direction: down
+    authority: "assembled_pl.income_tax ÷ assembled_pl.pretax"
+    case_rule: hold
+    why: >-
+      The EFFECTIVE rate this book paid, not the statutory headline. The
+      two differ for every Romanian company with a micro-enterprise
+      history, non-deductibles or a sponsorship credit, and the effective
+      rate is the one that projects. Measured only when BOTH are true: a
+      class-69 account (691 impozit pe profit / 698) stands behind the
+      charge, and this book's pre-tax result less that charge IS the
+      profit it filed in account 121, to the cent. The filed profit is
+      read from the account's own closing balance in
+      canonical_bs.invariants.p121_cross_check.p121, never from
+      assembled_pl.net_income_unexplained_vs_121 — the assembly sets that
+      field to 0.00 whenever its anchor override did not fire, and again
+      when no account-121 row survived extraction, so its zero is not a
+      measurement. A book carrying no class-69 account reports income_tax
+      0.00 as the sum of an empty set; a book whose build-up does not
+      reproduce its filed profit would have its rate measured across that
+      distance. Capitalised own work and the inventory variation are
+      named where they bridge the two and do not rescue the rate: both
+      sit inside the result the charge was assessed on and outside the
+      pre-tax figure this rate divides by. Either way the driver is
+      ABSENT and a consumer states the statutory rate under its own name.
+      On all four committed books this refuses.
+
+  - key: dividend_payout
+    label: "Dividend payout ratio"
+    unit: rate
+    kind: level
+    favourable_direction: neutral
+    authority: "line_items 457 / 129 (declared distribution)"
+    case_rule: hold
+    why: >-
+      Read only from an actual declared distribution — a dividends-payable
+      or profit-distribution balance. The cash-flow statement's
+      `dividends_paid` is NOT used: its own approximation note says it is
+      inferred from typical Romanian payout ratios, which is a market
+      assumption wearing a company's name.
+
+  - key: fx_rate_move
+    label: "FX move on exposed balances"
+    unit: rate
+    kind: rate
+    favourable_direction: neutral
+    authority: "canonical_bs cash_fx + assembled_pl fx_gain/fx_loss"
+    case_rule: hold
+    why: >-
+      Emitted only when the exposure reaches the materiality share above.
+      Below it the driver is absent, so a reader is never invited to
+      weight an FX line that does not move this company's result.

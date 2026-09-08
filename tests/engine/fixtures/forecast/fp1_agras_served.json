@@ -1,0 +1,602 @@
+{
+  "assumptions": [
+    {
+      "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+      "derived_from": [
+        "assembled_pl.revenue"
+      ],
+      "id": "revenue_growth",
+      "label": "Revenue growth",
+      "unit": "pct",
+      "values": {
+        "FY+1": 0.08,
+        "FY+2": 0.06,
+        "FY+3": 0.05
+      }
+    },
+    {
+      "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+      "derived_from": [
+        "assembled_pl.ebitda",
+        "assembled_pl.revenue"
+      ],
+      "id": "ebitda_margin",
+      "label": "EBITDA margin",
+      "unit": "ratio",
+      "values": {
+        "FY+1": 0.155,
+        "FY+2": 0.155,
+        "FY+3": 0.155
+      }
+    },
+    {
+      "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+      "derived_from": [
+        "canonical_bs.totals.assets",
+        "assembled_pl.revenue"
+      ],
+      "id": "asset_intensity",
+      "label": "Assets per unit of revenue",
+      "unit": "ratio",
+      "values": {
+        "FY+1": 0.3316,
+        "FY+2": 0.3316,
+        "FY+3": 0.3316
+      }
+    }
+  ],
+  "balance_check": [
+    {
+      "balances": true,
+      "difference_minor": 0,
+      "period": "FY+1"
+    },
+    {
+      "balances": true,
+      "difference_minor": 0,
+      "period": "FY+2"
+    },
+    {
+      "balances": true,
+      "difference_minor": 0,
+      "period": "FY+3"
+    }
+  ],
+  "base_period": {
+    "label": "Imported period",
+    "snapshot_id": "saga_10_col_agras"
+  },
+  "contract": "fp1",
+  "currency": "RON",
+  "figures": [
+    {
+      "amount_minor": 12806296521,
+      "amount_minor_projected": 12806296521,
+      "assumption_ids": [
+        "revenue_growth"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.08
+        }
+      ],
+      "currency": "RON",
+      "formula": "prior.revenue * (1 + revenue_growth)",
+      "kind": "projection",
+      "line": "revenue",
+      "period": "FY+1",
+      "projected": true
+    },
+    {
+      "amount_minor": 1984975960,
+      "amount_minor_projected": 1984975960,
+      "assumption_ids": [
+        "revenue_growth",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.08
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * ebitda_margin",
+      "kind": "projection",
+      "line": "ebitda",
+      "period": "FY+1",
+      "projected": true
+    },
+    {
+      "amount_minor": 4246567926,
+      "amount_minor_projected": 4246567926,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.08
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * asset_intensity",
+      "kind": "projection",
+      "line": "total_assets",
+      "period": "FY+1",
+      "projected": true
+    },
+    {
+      "amount_minor": 4377384332,
+      "amount_minor_projected": 4377384332,
+      "assumption_ids": [
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "base.equity + cumulative ebitda",
+      "kind": "projection",
+      "line": "total_equity",
+      "period": "FY+1",
+      "projected": true
+    },
+    {
+      "amount_minor": -130816406,
+      "amount_minor_projected": -130816406,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.08
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "total_assets - total_equity",
+      "kind": "projection",
+      "line": "total_liabilities",
+      "period": "FY+1",
+      "projected": true
+    },
+    {
+      "amount_minor": 13574674312,
+      "amount_minor_projected": 13574674312,
+      "assumption_ids": [
+        "revenue_growth"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.06
+        }
+      ],
+      "currency": "RON",
+      "formula": "prior.revenue * (1 + revenue_growth)",
+      "kind": "projection",
+      "line": "revenue",
+      "period": "FY+2",
+      "projected": true
+    },
+    {
+      "amount_minor": 2104074518,
+      "amount_minor_projected": 2104074518,
+      "assumption_ids": [
+        "revenue_growth",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.06
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * ebitda_margin",
+      "kind": "projection",
+      "line": "ebitda",
+      "period": "FY+2",
+      "projected": true
+    },
+    {
+      "amount_minor": 4501362001,
+      "amount_minor_projected": 4501362001,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.06
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * asset_intensity",
+      "kind": "projection",
+      "line": "total_assets",
+      "period": "FY+2",
+      "projected": true
+    },
+    {
+      "amount_minor": 6600557408,
+      "amount_minor_projected": 6600557408,
+      "assumption_ids": [
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "base.equity + cumulative ebitda",
+      "kind": "projection",
+      "line": "total_equity",
+      "period": "FY+2",
+      "projected": true
+    },
+    {
+      "amount_minor": -2099195407,
+      "amount_minor_projected": -2099195407,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.06
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "total_assets - total_equity",
+      "kind": "projection",
+      "line": "total_liabilities",
+      "period": "FY+2",
+      "projected": true
+    },
+    {
+      "amount_minor": 14253408027,
+      "amount_minor_projected": 14253408027,
+      "assumption_ids": [
+        "revenue_growth"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.05
+        }
+      ],
+      "currency": "RON",
+      "formula": "prior.revenue * (1 + revenue_growth)",
+      "kind": "projection",
+      "line": "revenue",
+      "period": "FY+3",
+      "projected": true
+    },
+    {
+      "amount_minor": 2209278244,
+      "amount_minor_projected": 2209278244,
+      "assumption_ids": [
+        "revenue_growth",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.05
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * ebitda_margin",
+      "kind": "projection",
+      "line": "ebitda",
+      "period": "FY+3",
+      "projected": true
+    },
+    {
+      "amount_minor": 4726430101,
+      "amount_minor_projected": 4726430101,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.05
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        }
+      ],
+      "currency": "RON",
+      "formula": "revenue * asset_intensity",
+      "kind": "projection",
+      "line": "total_assets",
+      "period": "FY+3",
+      "projected": true
+    },
+    {
+      "amount_minor": 9020243104,
+      "amount_minor_projected": 9020243104,
+      "assumption_ids": [
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "base.equity + cumulative ebitda",
+      "kind": "projection",
+      "line": "total_equity",
+      "period": "FY+3",
+      "projected": true
+    },
+    {
+      "amount_minor": -4293813003,
+      "amount_minor_projected": -4293813003,
+      "assumption_ids": [
+        "revenue_growth",
+        "asset_intensity",
+        "ebitda_margin"
+      ],
+      "basis": [
+        {
+          "basis": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement.",
+          "derived_from": [
+            "assembled_pl.revenue"
+          ],
+          "id": "revenue_growth",
+          "label": "Revenue growth",
+          "unit": "pct",
+          "value": 0.05
+        },
+        {
+          "basis": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else.",
+          "derived_from": [
+            "canonical_bs.totals.assets",
+            "assembled_pl.revenue"
+          ],
+          "id": "asset_intensity",
+          "label": "Assets per unit of revenue",
+          "unit": "ratio",
+          "value": 0.3316
+        },
+        {
+          "basis": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone.",
+          "derived_from": [
+            "assembled_pl.ebitda",
+            "assembled_pl.revenue"
+          ],
+          "id": "ebitda_margin",
+          "label": "EBITDA margin",
+          "unit": "ratio",
+          "value": 0.155
+        }
+      ],
+      "currency": "RON",
+      "formula": "total_assets - total_equity",
+      "kind": "projection",
+      "line": "total_liabilities",
+      "period": "FY+3",
+      "projected": true
+    }
+  ],
+  "horizon": [
+    "FY+1",
+    "FY+2",
+    "FY+3"
+  ],
+  "kind": "projection",
+  "unbalanced_periods": []
+}

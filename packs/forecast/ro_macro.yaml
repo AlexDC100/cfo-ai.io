@@ -1,0 +1,61 @@
+# MACRO ANCHORS — the ONLY numbers in the forecast that come from outside
+# the company's own book.
+#
+# WHY THIS FILE IS SEPARATE FROM drivers.yaml
+# -------------------------------------------
+# Everything in drivers.yaml is a RULE about how to read the company. The
+# values below are EXTERNAL FACTS about an economy. They age, they are
+# owned by an institution that is not us, and they must be replaceable
+# without touching a single rule. Keeping them in the driver pack would
+# have made "8.2% because that is this company's CAGR" and "2.5% because
+# a central bank says so" look like the same kind of number on the page.
+#
+# WHEN AN ANCHOR IS USED
+# ----------------------
+# ONLY when the workspace holds ONE actuals period, so the company's own
+# rate of change cannot be measured at all. Two periods beat this file;
+# three beat it decisively. Any driver defaulted from here is emitted with
+# status `fallback` and a note naming this file, and the surface must show
+# that note beside the number.
+#
+# WHY NOT ZERO
+# ------------
+# A one-period book does not tell us the company is flat. ABSENT != ZERO
+# applies to a growth rate exactly as it applies to a balance: 0% growth
+# is a claim about the future, and it is the wrong claim for a nominal
+# projection in an economy with a positive inflation target, because it
+# quietly assumes prices fall in real terms every year of the forecast.
+#
+# OPERATOR NOTE
+# -------------
+# `stated_as_of` is the date the value below was last confirmed against
+# the source by a person. It is NOT read by any code and nothing expires
+# on it; it exists so a reader can see how old the anchor is. Re-confirm
+# before a lending pack goes out.
+
+schema_version: "forecast_macro/1"
+pack_id: "ro-macro"
+pack_version: "1"
+jurisdiction: "RO"
+currency: "RON"
+
+anchors:
+
+  inflation:
+    label: "Inflation anchor"
+    value: 0.025
+    band_half_width: 0.010
+    source: "Banca Naţională a României — flat inflation target, 2.5% ±1pp"
+    source_kind: "central bank policy target"
+    stated_as_of: "2026-09-08"
+    unit: rate
+    why: >-
+      The target, not a forecast print. A published policy target is the
+      one macro number that is stable enough to sit under a 5-year
+      projection and specific enough to defend to a credit committee, and
+      its OWN ±1pp tolerance band is what the upside and downside cases
+      are built from — so even the spread between the cases is a number
+      someone else published rather than one we chose.
+    used_for:
+      - revenue_growth
+      - opex_growth
