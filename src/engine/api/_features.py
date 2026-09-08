@@ -343,10 +343,19 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
     ),
+    # RENAMED 2026-09-08. It was "Budget vs actual vs last year", which named
+    # the budget first and made the whole surface read as unavailable until
+    # someone uploaded one. It is not: the comparison it always renders is
+    # PERIOD vs PRIOR PERIOD vs LAST YEAR, built from the periods already
+    # attached to the workspace. The budget is a FOURTH column that unlocks
+    # on upload, and the page carries a persistent affordance for it.
+    #
+    # HIDDEN for the launch cut, per the owner. The route still renders
+    # PendingState (the three-state nav law), so a deep link explains itself.
     "variance": _feature(
-        "active",
-        label="Budget vs actual vs last year",
-        description="Line-by-line variance against an uploaded budget and the prior year.",
+        "hidden",
+        label="Comparison",
+        description="Period against prior period and last year, line by line. A budget column unlocks on upload.",
     ),
     "public_companies": _feature(
         "active",

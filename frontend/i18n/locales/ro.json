@@ -12,7 +12,7 @@
     "alerts": "Alerte",
     "benchmark": "Benchmark sectorial",
     "scenarios": "Scenarii",
-    "variance": "Buget vs Realizat vs LY",
+    "variance": "Comparativ",
     "chat": "Întreabă CFO AI",
     "publicCompanies": "Companii publice",
     "settings": "Setări",
@@ -2827,9 +2827,9 @@
       "requirement": "Se activează după lansare"
     },
     "variance": {
-      "title": "Buget vs realizat vs anul trecut",
-      "description": "Compară perioada curentă cu bugetul și cu aceeași perioadă din anul trecut, linie cu linie.",
-      "requirement": "Un buget încărcat și cel puțin 2 perioade comparabile"
+      "title": "Comparativ",
+      "description": "Compară perioada curentă cu perioada precedentă și cu aceeași perioadă din anul trecut, linie cu linie. Coloana de buget se deblochează când încarci un buget.",
+      "requirement": "Cel puțin 2 perioade atașate; bugetul este opțional"
     },
     "benchmarks": {
       "title": "Benchmark de industrie",

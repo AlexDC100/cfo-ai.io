@@ -12,7 +12,7 @@
     "alerts": "Alerts",
     "benchmark": "Benchmark",
     "scenarios": "Scenarios",
-    "variance": "Budget vs Actual vs LY",
+    "variance": "Comparison",
     "chat": "Ask CFO AI",
     "publicCompanies": "Public Companies",
     "settings": "Settings",
@@ -2802,9 +2802,9 @@
       "requirement": "Enabled after launch"
     },
     "variance": {
-      "title": "Budget vs actual vs last year",
-      "description": "Compares the period you are looking at against your budget and the same period last year, line by line.",
-      "requirement": "A budget upload and 2+ comparable periods"
+      "title": "Comparison",
+      "description": "Compares the period you are looking at against the previous period and the same period last year, line by line. The budget column unlocks when you upload a budget.",
+      "requirement": "At least 2 attached periods; a budget is optional"
     },
     "benchmarks": {
       "title": "Industry benchmark",
