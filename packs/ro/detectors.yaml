@@ -1,0 +1,474 @@
+# THE RADAR DETECTOR PACK — pure data, no code.
+#
+# Each row below is one DETECTOR: an instance of a FAMILY (the arithmetic,
+# which lives in `src/engine/radar/detectors/`) aimed at named accounts
+# with named numbers. Adding a detector is editing this file. Adding a
+# FAMILY is engine work. `tests/engine/test_radar_detector_pack.py` proves
+# the split by admitting a fictional detector through YAML alone.
+#
+# WHY THE PARAMETERS LIVE HERE (TC-10)
+# ------------------------------------
+# No cutoff is written as prose and none is written in code. A finding
+# renders its threshold FROM the row that produced it: `Threshold.source`
+# is this file's path plus the parameter's address, so a reader who
+# disagrees with a severity can open the exact line that graded them.
+#
+# COLD START IS DECLARED, NOT REMEMBERED
+# --------------------------------------
+# `single_period_valid` is REQUIRED on every row. Under three comparable
+# periods only the rows that answer `true` run, and the runner says so.
+# A new detector cannot forget the rule, because the loader refuses a row
+# that does not answer the question.
+#
+# TWO ROWS ARE SIGNALS, NOT ACCUSATIONS
+# -------------------------------------
+# `ro_round_amount_concentration` and `ro_first_digit_conformity` measure
+# the distribution of a POPULATION of amounts. A distribution says nothing
+# about any person. Both carry `signal_only: true`, both are graded `low`,
+# and the engine appends the same sentence to their reason every time.
+#
+# ACCOUNT PREFIXES are the Romanian chart of accounts (OMFP 1802/2014).
+# They are DATA: a second jurisdiction ships its own file with its own
+# prefixes and no engine module changes.
+
+schema_version: "radar-detectors/1"
+pack_id: "ro-radar-detectors-v1"
+
+detectors:
+
+  # ── D-DIRECTION ────────────────────────────────────────────────────
+  - id: ro_receivables_direction
+    family: direction
+    label: "Trade receivables rising, period after period"
+    scope: "trade receivables"
+    category: liquidity
+    severity: medium
+    single_period_valid: false
+    min_periods: 4
+    basis: total_assets
+    citation: >-
+      OMFP 1802/2014 chart of accounts, group 41 "Clienți și conturi
+      asimilate"; a receivable balance that only grows is cash the company
+      has earned and not collected.
+    accounts:
+      subject: ["411"]
+    params:
+      measure: closing
+      min_run: 3
+      adverse_direction: up
+      min_move_share: 0.02
+    why: >-
+      For a {profile_label}, {codes} has risen for {run} consecutive
+      periods and now stands at {share_now} of {basis_label} against
+      {share_then} when the run began, measured against {reference}.
+    actions:
+      - imperative: "Pull the aged receivable balance for {codes}"
+        artefact: "the aging schedule by counterparty at {periods}"
+        provider: "the accounting system's receivables ledger"
+      - imperative: "Trace the three largest balances to their invoices"
+        artefact: "invoice, delivery note and any settlement since period end"
+        provider: "the finance team"
+        horizon: "before the next close"
+
+  # ── D-MAGNITUDE ────────────────────────────────────────────────────
+  - id: ro_inventory_magnitude
+    family: magnitude
+    label: "Inventory movement outside its own historical spread"
+    scope: "inventory"
+    category: working_capital
+    severity: medium
+    single_period_valid: false
+    min_periods: 6
+    basis: total_assets
+    citation: >-
+      OMFP 1802/2014 chart of accounts, class 3 "Conturi de stocuri și
+      producție în curs de execuție"; the movement is graded against the
+      median and median absolute deviation of this account's OWN history,
+      never against a peer average.
+    accounts:
+      subject: ["30", "33", "34", "35", "37", "38"]
+    params:
+      measure: closing
+      min_movements: 4
+      min_robust_z: 3.0
+      min_move_share: 0.01
+    why: >-
+      For a {profile_label}, the latest movement on {codes} sits {z}
+      median absolute deviations from the median of its own previous
+      {sample} movements ({method}); the balance moved from {share_then}
+      to {share_now} of {basis_label}.
+    actions:
+      - imperative: "Reconcile the stock movement on {codes} to the goods received and issued"
+        artefact: "the stock movement report for {periods}"
+        provider: "the warehouse system"
+      - imperative: "Confirm the closing quantity against the last count"
+        artefact: "the physical inventory count sheet and its reconciliation"
+        provider: "the stock controller"
+
+  # ── D-DECOUPLE ─────────────────────────────────────────────────────
+  - id: ro_services_revenue_decouple
+    family: decouple
+    label: "External services growing while revenue stands still"
+    scope: "external services against revenue"
+    category: profitability
+    severity: high
+    single_period_valid: false
+    min_periods: 3
+    citation: >-
+      OMFP 1802/2014 chart of accounts, group 62 "Cheltuieli cu serviciile
+      executate de terți" against class 70 "Cifra de afaceri netă"; a cost
+      class that grows without the revenue that explains it is either a
+      margin loss or a classification question.
+    accounts:
+      subject: ["62"]
+      driver: ["70"]
+    params:
+      # Class 6 is a DEBIT-side charge and class 7 a CREDIT-side
+      # recognition. Both are closed to the result account at year end,
+      # so a NET movement on either is zero and a gross one is double.
+      measure: debit
+      driver_measure: credit
+      min_growth_gap: 0.20
+      driver_flat_band: 0.05
+    why: >-
+      For a {profile_label}, {codes} grew {subject_growth} across
+      {periods} while {driver_codes} moved {driver_growth} — a gap of
+      {gap} that the revenue line does not explain.
+    actions:
+      - imperative: "Split {codes} by supplier and by service type"
+        artefact: "the general ledger detail for {codes} across {periods}"
+        provider: "the accounting system"
+      - imperative: "Compare the largest new supplier lines to their contracts"
+        artefact: "the signed contract and the last three invoices"
+        provider: "the purchasing lead"
+
+  # ── D-VELOCITY ─────────────────────────────────────────────────────
+  - id: ro_collection_velocity
+    family: velocity
+    label: "Collection cycle breaking from its own median"
+    scope: "collection"
+    category: liquidity
+    severity: high
+    single_period_valid: false
+    min_periods: 4
+    citation: >-
+      Days sales outstanding computed as trade receivables (group 41) over
+      the period's revenue (class 70), scaled by the number of days that
+      period covers; the comparison is this company's own median, not a
+      sector band.
+    accounts:
+      stock: ["411"]
+      flow: ["70"]
+    params:
+      # Revenue is the CREDIT side of class 7 — see the note on the
+      # decoupling row.
+      flow_measure: credit
+      min_days_break: 20
+      min_periods_for_median: 3
+    why: >-
+      For a {profile_label}, the collection cycle on {codes} stands at
+      {days} days against this company's own median of {median_days} days
+      across {periods} — {break_days} days of working capital that has not
+      come back.
+    actions:
+      - imperative: "Pull the collection history for the five largest balances"
+        artefact: "receipts posted against each balance since the prior close"
+        provider: "the treasury ledger"
+      - imperative: "Agree payment dates with the counterparties behind the break"
+        artefact: "a written payment plan naming amounts and dates"
+        provider: "the commercial lead"
+        horizon: "within 30 days"
+
+  # ── D-REVERSAL ─────────────────────────────────────────────────────
+  - id: ro_period_end_reversal
+    family: reversal
+    label: "A period-end receivable handed back after the date"
+    scope: "period-end receivable movements"
+    category: coherence
+    severity: high
+    single_period_valid: false
+    min_periods: 3
+    basis: total_assets
+    citation: >-
+      ISA 240 journal-entry testing: entries booked at the period boundary
+      and reversed immediately after it are read from the MOVEMENT PAIR,
+      because the closing balance of a dressed period and of a clean one
+      look alike.
+    accounts:
+      subject: ["411"]
+    params:
+      min_movement_share: 0.01
+      min_reversed_share: 0.70
+    why: >-
+      For a {profile_label}, {booked_share} of {basis_label} was booked to
+      {codes} in {period_in} and {reversed_share} of it was reversed in
+      {period_out}.
+    actions:
+      - imperative: "Pull the journal entries behind both movements on {codes}"
+        artefact: "the entry detail for {period_in} and {period_out} with preparer and date"
+        provider: "the accounting system's journal log"
+      - imperative: "Trace the underlying transaction to its delivery evidence"
+        artefact: "delivery note, acceptance and the cash that followed"
+        provider: "the finance team"
+
+  # ── D-DORMANT ──────────────────────────────────────────────────────
+  - id: ro_sundry_debtor_reactivation
+    family: dormant
+    label: "A quiet sundry-debtor balance moving again"
+    scope: "sundry debtors"
+    category: coherence
+    severity: medium
+    single_period_valid: false
+    min_periods: 4
+    basis: total_assets
+    citation: >-
+      OMFP 1802/2014 chart of accounts, group 46 "Debitori și creditori
+      diverși"; an account that sat still for several periods and then
+      moved materially is a balance whose basis changed.
+    accounts:
+      subject: ["461"]
+    params:
+      quiet_tolerance_share: 0.005
+      min_quiet_periods: 2
+      min_reactivation_share: 0.01
+    why: >-
+      For a {profile_label}, {codes} did not move for {quiet_run} periods
+      and then moved {step_share} of {basis_label} in {period}.
+    actions:
+      - imperative: "Obtain the supporting document for the movement on {codes}"
+        artefact: "the contract or decision that created the balance"
+        provider: "the finance team"
+      - imperative: "Confirm the counterparty and the expected settlement date"
+        artefact: "a balance confirmation signed by the counterparty"
+        provider: "the counterparty"
+
+  # ── D-CUTOFF ───────────────────────────────────────────────────────
+  - id: ro_revenue_cutoff
+    family: cutoff
+    label: "The year's revenue crowding into its final period"
+    scope: "revenue recognition at the year boundary"
+    category: coherence
+    severity: high
+    single_period_valid: false
+    min_periods: 6
+    min_years: 2
+    citation: >-
+      Cut-off testing at the period boundary: the annual total is
+      unchanged by recognition pushed across the date, so only the SHAPE
+      of the year gives it away. The comparison is this account's own
+      final-period share in earlier years.
+    accounts:
+      subject: ["70"]
+    params:
+      # The credit side alone: the year-end entry closing class 7 to the
+      # result account is a DEBIT, and counting it would put most of
+      # every year's "activity" in its final period by construction.
+      measure: credit
+      min_periods_per_year: 3
+      min_share_lift: 0.15
+    why: >-
+      For a {profile_label}, {observed} of {year} revenue on {codes}
+      landed in the final period of the year against a median of
+      {median} in the years before it — a lift of {lift}.
+    actions:
+      - imperative: "Pull the revenue entries booked in the final period of {year}"
+        artefact: "the entry detail with invoice dates and delivery dates"
+        provider: "the accounting system"
+      - imperative: "Confirm delivery occurred before the year end for the largest ten"
+        artefact: "delivery notes signed by the customer"
+        provider: "the logistics team"
+
+  # ── D-ROUND ────────────────────────────────────────────────────────
+  - id: ro_round_amount_concentration
+    family: round
+    label: "Round amounts more frequent than this book's baseline"
+    scope: "round-number frequency"
+    category: coherence
+    severity: low
+    signal_only: true
+    single_period_valid: true
+    min_periods: 1
+    confidence_level: medium
+    confidence_basis: >-
+      the population is every account movement in this book at or above
+      the declared floor, read from the parsed source document
+    confidence_caveat: >-
+      a trial balance aggregates entries per account, so this measures the
+      distribution of ACCOUNT MOVEMENTS rather than of individual journal
+      entries
+    citation: >-
+      ISA 240 journal-entry testing treats round amounts as a selection
+      criterion, not as a conclusion. The frequency is judged against this
+      company's own earlier books where the spine carries them.
+    params:
+      measure: sides
+      round_unit: 1000
+      min_amount: 1000
+      min_population: 50
+      # MEASURED, not assumed: over the stated debit and credit sides of
+      # every account, the four real books in tests/engine/fixtures/firm
+      # carry 2/448 (0.45%), 9/422 (2.13%), 0/124 (0.00%) and 11/524
+      # (2.10%) of their amounts on an exact thousand. The cold-start
+      # baseline is the median of those four; where the spine carries
+      # earlier books, the company's OWN frequency replaces it and the
+      # finding says which one judged it.
+      expected_share: 0.0128
+      min_share: 0.06
+      min_share_lift: 0.04
+    why: >-
+      For a {profile_label}, {hits} of {population} account movements are
+      exact multiples of {unit} ({observed}) against a baseline of
+      {expected}. {signal_sentence}
+    actions:
+      - imperative: "List the round movements above the floor with their accounts"
+        artefact: "the movement detail for the amounts this test selected"
+        provider: "the accounting system"
+      - imperative: "Trace a sample of ten to the documents behind them"
+        artefact: "the invoice or decision supporting each amount"
+        provider: "the finance team"
+
+  # ── D-BENFORD ──────────────────────────────────────────────────────
+  - id: ro_first_digit_conformity
+    family: benford
+    label: "First-digit distribution outside the conformity band"
+    scope: "first-digit distribution"
+    category: coherence
+    severity: low
+    signal_only: true
+    single_period_valid: true
+    min_periods: 1
+    confidence_level: medium
+    confidence_basis: >-
+      the mean absolute deviation is computed over every account movement
+      in this book at or above the declared floor
+    confidence_caveat: >-
+      first-digit conformity is a property of a population; a trial
+      balance carries account movements, not individual entries, so a
+      deviation is a reason to look and never a conclusion about conduct
+    citation: >-
+      Nigrini, M. (2012), Benford's Law — mean absolute deviation
+      conformity bands for the first digit.
+    params:
+      measure: sides
+      min_amount: 100
+      min_population: 150
+      # NOT a fixed conformity band. Nigrini's cutoffs were calibrated on
+      # large transaction populations; a trial balance states a few
+      # hundred amounts, and at n=250 a PERFECTLY Benford population
+      # already produces a mean absolute deviation of 0.0149 by sampling
+      # alone — so a fixed 0.015 band calls almost every small book
+      # non-conformant. The engine computes that floor from this
+      # population's own n and this parameter is the MULTIPLE of it a
+      # deviation must reach.
+      min_mad_multiple: 2.0
+    why: >-
+      For a {profile_label}, the first-digit distribution of {population}
+      account movements deviates from the Benford expectation by {mad}
+      against a conformity band of {band}; leading 1s stand at
+      {leading_one} where {leading_one_expected} is expected.
+      {signal_sentence}
+    actions:
+      - imperative: "Export the movement population this test read"
+        artefact: "account code, movement and first digit for every amount"
+        provider: "the accounting system"
+      - imperative: "Reconcile the accounts contributing the largest digit excess"
+        artefact: "the entries behind those movements"
+        provider: "the finance team"
+
+  # ── D-CONCENTRA ────────────────────────────────────────────────────
+  - id: ro_receivable_concentration
+    family: concentration
+    label: "One counterparty carries most of the receivable book"
+    scope: "trade receivables"
+    category: concentration
+    severity: high
+    single_period_valid: true
+    min_periods: 1
+    basis: total_assets
+    citation: >-
+      OMFP 1802/2014 chart of accounts, group 41; the analytic accounts
+      under 411 are the counterparties this book distinguishes, and the
+      share is recomputed with the largest one removed.
+    accounts:
+      subject: ["411"]
+    params:
+      min_share: 0.50
+      min_counterparties: 3
+    why: >-
+      For a {profile_label}, {top_code} carries {share} of the {scope}
+      balance across {count} analytic accounts; {scope} is {share_with} of
+      {basis_label} as reported and {share_without} once that one
+      counterparty is removed.
+    actions:
+      - imperative: "Request a balance confirmation from {top_code}"
+        artefact: "a signed confirmation of the balance and its due dates"
+        provider: "the counterparty"
+      - imperative: "Recompute the collection cycle without that counterparty"
+        artefact: "days sales outstanding on the remaining book"
+        provider: "the finance team"
+
+  # ── D-INTERCO ──────────────────────────────────────────────────────
+  - id: ro_related_party_exposure
+    family: interco
+    label: "Related-party balances carry a material part of the assets"
+    scope: "related-party receivables"
+    category: interco
+    severity: high
+    single_period_valid: true
+    min_periods: 1
+    basis: total_assets
+    citation: >-
+      OMFP 1802/2014 chart of accounts, group 45 "Grup și acționari /
+      asociați" and group 46 "Debitori diverși"; a lender underwriting
+      this balance sheet discounts related-party claims, and the haircut
+      below states that view explicitly.
+    accounts:
+      subject: ["451", "452", "455", "461"]
+    params:
+      side: debit
+      min_share: 0.10
+      lender_haircut: 1.0
+    why: >-
+      For a {profile_label}, related-party balances on {codes} stand at
+      {share} of {basis_label}; a lender haircutting them at {haircut}
+      underwrites {underwritable} of the reported asset base.
+    actions:
+      - imperative: "Obtain the loan or current-account agreements behind {codes}"
+        artefact: "each agreement with its repayment terms and interest rate"
+        provider: "the group's legal file"
+      - imperative: "Confirm each balance with the related entity"
+        artefact: "a signed reciprocal balance confirmation"
+        provider: "the related entity's accountant"
+
+  # ── D-ASSETAGE ─────────────────────────────────────────────────────
+  - id: ro_asset_age
+    family: assetage
+    label: "The asset base is late in its depreciation life"
+    scope: "tangible fixed assets"
+    category: capex
+    severity: medium
+    single_period_valid: true
+    min_periods: 1
+    citation: >-
+      OMFP 1802/2014 chart of accounts, class 21 "Imobilizări corporale"
+      against 281 "Amortizări privind imobilizările corporale" and the
+      charge in 681; net book value over that charge is remaining book
+      life, counted in charge periods of the size the book states.
+    accounts:
+      gross: ["21"]
+      accumulated: ["281"]
+      charge: ["681"]
+    params:
+      min_depreciated_share: 0.55
+    why: >-
+      For a {profile_label}, {depreciated} of the gross base on {codes} is
+      already depreciated and the remaining net book value carries {life}
+      charge periods of life at the charge this book states.
+    actions:
+      - imperative: "Pull the fixed-asset register with acquisition dates and remaining life"
+        artefact: "the register for {codes} with each asset's net book value"
+        provider: "the accounting system"
+      - imperative: "Draft the replacement schedule for the assets past their book life"
+        artefact: "a capital plan naming assets, amounts and dates"
+        provider: "the operations lead"
+        horizon: "over the next 12 months"

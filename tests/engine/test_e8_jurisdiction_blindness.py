@@ -42,6 +42,13 @@ ENGINE = REPO / "src" / "engine"
 SCANNED_ROOTS = (
     ENGINE / "interp",
     ENGINE / "consensus",
+    # Radar's detector lane. A detector is PACK DATA
+    # (``packs/<jurisdiction>/detectors.yaml``) and the jurisdiction
+    # reaches this package as an opaque string used for a directory
+    # lookup — never compared, never named. A quoted country code here
+    # would mean one jurisdiction's rules had been welded into the
+    # engine, which is the thing the pack file exists to prevent.
+    ENGINE / "radar" / "detectors",
 )
 SCANNED_FILES = (
     ENGINE / "frontends" / "map_guided.py",

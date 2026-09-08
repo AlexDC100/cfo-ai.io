@@ -64,7 +64,7 @@ graph LR
     pkg_public["public (46 modules)"]
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
-    pkg_radar["radar (4 modules)"]
+    pkg_radar["radar (14 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (7 modules)"]
@@ -152,7 +152,9 @@ graph LR
     pkg_public_ro -->|1| pkg_journal
     pkg_public_ro -->|1| pkg_obs
     pkg_radar -->|1| pkg_ai
-    pkg_radar -->|2| pkg_api
+    pkg_radar -->|8| pkg_api
+    pkg_radar -->|1| pkg_consensus
+    pkg_radar -->|1| pkg_ir
     pkg_radar -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
