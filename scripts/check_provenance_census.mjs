@@ -210,6 +210,16 @@ const FORMATTERS = {
   formatCurrency: "frontend/lib/financialReport.ts",
   formatRatio: "frontend/lib/financialReport.ts",
   formatNumber: "frontend/lib/financialReport.ts",
+  // ── 2026-09-08, the report-v3 wave ───────────────────────────────────
+  // `formatMeasure` spells every figure on an insight card (the share, the
+  // ratio, the day count) and is the ONLY formatter that module exposes —
+  // its own contract says so, and that it returns the literal
+  // "not reported" rather than substituting a zero.
+  formatMeasure: "frontend/lib/insights.ts",
+  // `formatVariance` spells the period-over-period move on every
+  // comparative line. It also renders the REFUSAL — a line whose two sides
+  // were not built the same way prints a sentence, never a dash or a 0.
+  formatVariance: "frontend/lib/reportComparatives.ts",
 
   // ── R3, 2026-09-04 — TWENTY-ONE FORMATTERS THE CENSUS COULD NOT SEE ──
   //
@@ -447,6 +457,11 @@ const SURFACES = {
       "frontend/components/cfo/PLStatementView.tsx",
       "frontend/components/cfo/CashFlowStatementView.tsx",
       "frontend/components/cfo/StatementNotes.tsx",
+      // 2026-09-08 — sits above the statements when the account mix and
+      // the workspace industry disagree, and prints account codes with
+      // their balances as its evidence. Registered HAS_MISSING: the origin
+      // is in the payload, the affordance is not yet painted.
+      "frontend/components/cfo/IndustryConfirmBanner.tsx",
     ],
   },
   findings: {

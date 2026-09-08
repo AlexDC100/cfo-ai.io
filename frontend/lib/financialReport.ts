@@ -2812,8 +2812,50 @@ export function renderReportHtml(
   const apNum = (k: CanonicalPlKey): number | undefined => ap[k];
   const pick = (canon: number | undefined, legacy: number): number =>
     typeof canon === "number" ? canon : legacy;
-  const capOwnWork = pick(apNum("capitalized_own_work_memo"), s.incomeStatement.capitalizedOwnWork ?? 0);
-  const operatingRevenue = pick(apNum("total_operating_revenue"), s.incomeStatement.revenue + capOwnWork);
+
+  // ── ABSENT IS NOT ZERO, AND THIS BLOCK USED TO SAY IT WAS ───────────
+  //
+  // `provenance-census` counted a FOURTH absent-to-zero substitution in
+  // this file against a declared 3 and a ceiling that only falls. It was
+  // right, and the fabrications were here: three legacy fallbacks written
+  // `s.incomeStatement.<field> ?? 0`.
+  //
+  // They fire in exactly one situation — the canonical `assembled_pl` key
+  // is absent AND the statement field is absent — which is to say, when
+  // the source told us NOTHING about that line. On a current book the
+  // canonical key is always there, so this never fired in the four
+  // committed fixtures and nothing caught it. On an older payload it
+  // would have printed "Financial income RON 0" and "Capitalized own work
+  // RON 0", which are claims: they say the company earned no financial
+  // income and capitalised no work. The truth was that the source did not
+  // report it, and `money()` already knows how to say that — it returns
+  // "not reported" for null.
+  //
+  // So the fallbacks now yield NULL and the refusal propagates through the
+  // arithmetic. A subtotal built on an unreported component is itself
+  // unreported; it does not quietly become the sum of the parts that
+  // happened to be present.
+  const pickOrNull = (
+    canon: number | undefined,
+    legacy: number | null | undefined,
+  ): number | null =>
+    typeof canon === "number" ? canon : (typeof legacy === "number" ? legacy : null);
+  /** Null-propagating arithmetic: any absent operand makes the result absent. */
+  const nsum = (...xs: Array<number | null>): number | null =>
+    xs.some((x) => x === null) ? null : (xs as number[]).reduce((a, b) => a + b, 0);
+  const nneg = (x: number | null): number | null => (x === null ? null : -x);
+
+  const capOwnWork = pickOrNull(
+    apNum("capitalized_own_work_memo"),
+    s.incomeStatement.capitalizedOwnWork,
+  );
+  const operatingRevenue = pickOrNull(
+    apNum("total_operating_revenue"),
+    // Revenue itself is always present; only the 722 memo can be absent,
+    // and for the OPERATING REVENUE SUBTOTAL "none reported" is materially
+    // different from "none". Refuse rather than cast the gap away.
+    nsum(s.incomeStatement.revenue, capOwnWork),
+  );
   const ebitdaStatutory = pick(apNum("ebitda_statutory"), t.ebitda);
   const ebitdaCash = pick(apNum("ebitda_cash"), t.ebitda);
   const netIncomeStatutory = pick(apNum("net_income_statutory"), t.netIncome);
@@ -2831,20 +2873,23 @@ export function renderReportHtml(
   // through interest expense ALONE, so the printed column missed
   // financial income and the non-interest financial expense the same
   // envelope carries, and PBT did not foot on any of the four books.
-  const financialIncome = pick(apNum("financial_income"), s.incomeStatement.financialIncome ?? 0);
+  const financialIncome = pickOrNull(
+    apNum("financial_income"),
+    s.incomeStatement.financialIncome,
+  );
   const interestExpense = pick(apNum("interest_expense"), s.incomeStatement.interestExpense);
   // `financial_expense` is the NON-interest half (`financial_expense_total`
   // = interest + this, verified on all four books). A source that carries
   // only the total gives the remainder; one that carries neither gives 0.
-  const otherFinancialExpense = pick(
+  const otherFinancialExpense = pickOrNull(
     apNum("financial_expense"),
     typeof apNum("financial_expense_total") === "number"
       ? (apNum("financial_expense_total") as number) - interestExpense
-      : s.incomeStatement.financialExpense ?? 0,
+      : s.incomeStatement.financialExpense,
   );
-  const pretaxStatutory = pick(
+  const pretaxStatutory = pickOrNull(
     apNum("pretax"),
-    ebitStatutory + financialIncome - interestExpense - otherFinancialExpense,
+    nsum(ebitStatutory, financialIncome, -interestExpense, nneg(otherFinancialExpense)),
   );
   // ── THE RECONSTRUCTION, AND THE BRIDGE TO WHAT WAS FILED ────────────
   // `pretax − tax` is the class-6/7 RECONSTRUCTION. The figure the memo
@@ -2852,16 +2897,20 @@ export function renderReportHtml(
   // firm books they differ, by 2.0M to 29.6M, and the reconciling amount
   // is SERVED (`net_income_reconciliation_to_121`). It was the row that
   // was missing, never the number.
-  const reconstructedNetIncome = pick(
+  const reconstructedNetIncome = pickOrNull(
     apNum("net_income_operational"),
-    pretaxStatutory - s.incomeStatement.taxExpense,
+    nsum(pretaxStatutory, -s.incomeStatement.taxExpense),
   );
-  const bridgeTo121 = pick(
+  const bridgeTo121 = pickOrNull(
     apNum("net_income_reconciliation_to_121"),
-    netIncomeStatutory - reconstructedNetIncome,
+    nsum(netIncomeStatutory, nneg(reconstructedNetIncome)),
   );
-  const hasBridge = Math.abs(bridgeTo121) > 0.005;
-  const has722 = Math.abs(capOwnWork) > 1;
+  // A bridge that cannot be computed is not a bridge of zero. Both of
+  // these now read false when the input is absent, so the report omits
+  // the row rather than asserting "no reconciling difference" or "no
+  // capitalised own work" on a source that never said.
+  const hasBridge = bridgeTo121 !== null && Math.abs(bridgeTo121) > 0.005;
+  const has722 = capOwnWork !== null && Math.abs(capOwnWork) > 1;
 
   // ─ Style block ─ Lender-grade institutional document.
   // Restrained palette (ink + accent + greys), serif headlines + sans body,

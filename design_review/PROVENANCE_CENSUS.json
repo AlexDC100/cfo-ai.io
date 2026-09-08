@@ -540,9 +540,9 @@
     },
     "frontend/pages/cfo/ComprehensiveReport.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 32,
+      "sites": 29,
       "affordances": 6,
-      "why": "Every table row reads a served field by name, so the field path is the source (`<upload> · assembled_pl.revenue`, assembled_bs.cash, assembled_cf.delta_inventory; cash-flow rows add `indirect method · approximated` when the envelope says is_approximated). Rows this page ADDS or NEGATES say so in method and name the fields. KNOWN GAP: the nine KPI tiles sit inside LearnableNumber (a button); the ratio tables render through PercentLevel/CappedMultiple (no provenance prop); the valuation envelope is client arithmetic over the reader's multiples. All plain."
+      "why": "Every table row reads a served field by name, so the field path is the source (`<upload> · assembled_pl.revenue`, assembled_bs.cash, assembled_cf.delta_inventory; cash-flow rows add `indirect method · approximated` when the envelope says is_approximated). Rows this page ADDS or NEGATES say so in method and name the fields. KNOWN GAP: the nine KPI tiles sit inside LearnableNumber (a button); the ratio tables render through PercentLevel/CappedMultiple (no provenance prop); the valuation envelope is client arithmetic over the reader's multiples. All plain.  2026-09-08: 32 -> 29. Three figure sites were REMOVED, not added — the report-v3 wave moved that content into the standalone export renderer (financialReport.ts), which carries its own provenance affordances. A falling count is progress and the entry is re-stated rather than left to drift."
     },
     "frontend/pages/cfo/Decisions.tsx": {
       "bucket": "LACKS_SILENT",
@@ -615,6 +615,12 @@
       "sites": 1,
       "affordances": 0,
       "why": "OPENED 2026-09-04. THE CURRENCY STORE. One formatAmountFrom() inside the useAmountFormatter binding every other surface calls — it converts and spells whatever it is handed and holds no payload, exactly as ui/Money.tsx does. Callers that have an origin wrap the result."
+    },
+    "frontend/components/cfo/IndustryConfirmBanner.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-08. One toLocaleString. The banner fires when the account mix disagrees with the workspace industry setting, and it prints the ACCOUNT CODE beside its BALANCE for every marker the structural signal read (e.g. `2131 27,571,714.00`). The payload therefore CARRIES its origin — the figures come from engine.industry.structural_signal and are never recomputed here — but they are painted as plain mono text, with no affordance primitive, so a reader cannot click through to the source cell. REMAINING WORK: wrap the code+amount pair in the same provenance affordance the statement rows use. Not HAS_SHOWS: there is no affordance and no renders_via to name."
     }
   },
   "absent_leaf": {
