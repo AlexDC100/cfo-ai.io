@@ -1985,6 +1985,92 @@ def _table_readers(module_names, tables):  # type: (Any, Any) -> Dict[str, List[
     return out
 
 
+_APP_CLOSURE_CACHE = {}  # type: Dict[str, Tuple[str, ...]]
+
+
+def real_app_import_closure():  # type: () -> Tuple[str, ...]
+    """The `engine.*` modules the REAL app imports — MEASURED IN A CHILD
+    PROCESS, which is the only place the answer is a property of the app
+    rather than of the test session.
+
+    ── WHY NOT `sys.modules` ─────────────────────────────────────────────
+
+    The census below used to read `[m for m in sys.modules if
+    m.startswith("engine.")]`. That is not the app's import closure; it is
+    everything 136 test modules have imported by the time this one runs,
+    so the test PASSED ALONE AND FAILED IN THE FULL RUN. Measured
+    2026-09-08 on this tree, the three strangers it invented were
+
+        engine.api._radar          engine.dst.faults      engine.dst.harness
+
+    none of which `create_app()` imports — `_radar` appears in the app's
+    sources only inside two comments in `pipeline.py`, and the `dst`
+    package is the deterministic-simulation harness, which no route
+    reaches. A gate whose subject depends on collection order is a gate
+    that will be silenced by whoever hits it at 2 a.m., and the true
+    reading (this one) is the one that keeps its teeth.
+
+    An in-process alternative — drop every `engine.*` from `sys.modules`,
+    re-import, restore — was rejected: this package registers things at
+    import time, and re-running those registrations mid-session to
+    measure something is a side effect the measurement does not need.
+
+    ── THE CHILD ─────────────────────────────────────────────────────────
+
+    Same interpreter, same env the `real_app` fixture uses (including
+    `FIRM_COCKPIT_ENABLED=1`, or the Cockpit's own modules would be
+    missing from the closure and every one of them would read as stale),
+    and `netblock._install()` FIRST — the parent runs under `-p netblock`
+    and a child that quietly reached the network would defeat that.
+
+    Cached for the session: it costs one interpreter start, and nothing
+    about it changes between tests."""
+    import os as _os
+    import subprocess as _subprocess
+    import sys as _sys
+
+    cached = _APP_CLOSURE_CACHE.get("closure")
+    if cached is not None:
+        return cached
+    script = (
+        "import json, sys\n"
+        "sys.path.insert(0, %r)\n"
+        "sys.path.insert(0, %r)\n"
+        "import netblock; netblock._install()\n"
+        "from engine.api.server import create_app\n"
+        "create_app(config_path=%r)\n"
+        "print(json.dumps(sorted(m for m in sys.modules "
+        "if m == 'engine' or m.startswith('engine.'))))\n"
+        % (str(REPO), str(REPO / "src"), str(REPO / "config.yaml"))
+    )
+    env = dict(_os.environ)
+    env.update({
+        "VITE_SUPABASE_URL": "https://test.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "test-anon",
+        "SUPABASE_SERVICE_ROLE_KEY": "test-service",
+        "CFO_AI_SKIP_BOOT_VERIFY": "1",
+        "FIRM_COCKPIT_ENABLED": "1",
+    })
+    for key in ("PUBLIC_TEST_MODE", "ENGINE_TEST_MODE", "ENGINE_API_TOKEN"):
+        env.pop(key, None)
+    proc = _subprocess.run(
+        [_sys.executable, "-c", script],
+        cwd=str(REPO), env=env, stdout=_subprocess.PIPE, stderr=_subprocess.PIPE,
+    )
+    assert proc.returncode == 0, (
+        "could not build the real app in a child process to measure its import closure; "
+        "the census cannot run without it.\nstderr:\n%s"
+        % proc.stderr.decode("utf-8", "replace")[-3000:]
+    )
+    # The child prints exactly one JSON line last; anything a module wrote
+    # to stdout on import comes before it.
+    line = [ln for ln in proc.stdout.decode("utf-8", "replace").splitlines() if ln.startswith("[")]
+    assert line, "the child produced no closure line; stdout:\n%s" % proc.stdout.decode("utf-8", "replace")[-2000:]
+    closure = tuple(json.loads(line[-1]))
+    _APP_CLOSURE_CACHE["closure"] = closure
+    return closure
+
+
 def firm_model_tables():  # type: () -> Tuple[str, ...]
     """Every table the three firm migrations create — parsed, so a table a
     later migration adds is in the census the moment it exists."""
@@ -3351,11 +3437,23 @@ def test_every_module_reading_a_firm_table_is_a_declared_firm_module_under_a_swe
     module serving a route outside /api/firm or /api/capsule; a declared
     module that no longer names a firm table (a stale declaration); a new
     reader of a client-data table."""
-    import sys as _sys
     tables = firm_model_tables()
     assert len(tables) >= 17 and "firm_file_requests" in tables and "firms" in tables, tables
-    closure = [m for m in _sys.modules if m == "engine" or m.startswith("engine.")]
+    # THE APP'S closure, not the session's — see `real_app_import_closure`.
+    # `real_app` is requested (and therefore built here too) so that the
+    # census and the route walk below are reading one app.
+    closure = list(real_app_import_closure())
     assert len(closure) >= 150, "import-closure census collapsed: %d modules" % len(closure)
+    # Every module in the app's closure must also be imported HERE, or
+    # `_table_readers` — which reads `sys.modules[name].__file__` — would
+    # skip it and the census would go quiet on exactly the module the
+    # child found. Building `real_app` is what guarantees it; this is the
+    # assertion that the guarantee held.
+    import sys as _sys
+    unimported = [m for m in closure if m not in _sys.modules]
+    assert not unimported, (
+        "the child process imported %d module(s) this process did not, so the source census "
+        "cannot see them: %s" % (len(unimported), unimported[:8]))
     readers = _table_readers(closure, tables)
     assert readers, "DISCOVERY BROKEN — no module of the real app names a firm table"
     strangers = dict((m, t) for m, t in readers.items() if m not in DECLARED_FIRM_TABLE_READERS)

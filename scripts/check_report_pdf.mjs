@@ -31,8 +31,13 @@
  *   G9 a table that spans a page stops repeating its header row
  *   G10 the downloaded filename stops being read from the document, so
  *       a caller can name someone else's company on the file
- *   G11 the render sandbox opens — a script runs, a remote image loads,
- *       or a `file://` reference is followed
+ *   G11 the render sandbox opens — a script runs, a live listener the
+ *       document names is reached, or a neighbouring file is read (each
+ *       leg with a control that proves the guard, not the browser, is
+ *       what refused)
+ *   G12 a real company name — diacritics, quotes, a slash, stops —
+ *       stops reaching the running head, or stops folding to the same
+ *       safe filename
  *
  * WHAT IT CANNOT SEE:
  *   · whether the numbers are right — that is the 2,591 assertions in
@@ -51,7 +56,7 @@
 import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createServer } from "vite";
 
@@ -74,10 +79,47 @@ function firm(name) {
   return join(ROOT, "tests/engine/fixtures/firm", name);
 }
 
-async function buildAgrasHtml() {
-  // Vite's own SSR loader, so the document is built by the SAME
-  // TypeScript the app ships — not a re-implementation, and not a
-  // committed snapshot that would go stale the day the builder changes.
+/**
+ * Everything this gate needs out of the repo's own TypeScript, in ONE
+ * Vite SSR session.
+ *
+ * ── THE DOCUMENT ──────────────────────────────────────────────────────
+ *
+ * Built through `exportBooks.ts::statementsFor`, NOT from
+ * `saga_10_col_agras.json`'s `.statements` block directly. That block is
+ * the WRITE path's half; `pipeline.py` adds `canonical_bs` on the SERVE
+ * path afterwards, and a document rendered without it prints a balance
+ * sheet whose two sides differ by the unclassified account-413 balance —
+ * 46,613 RON on this very book, with no reconciling line. This gate read
+ * `.statements` directly until 2026-09-08 and was therefore paginating a
+ * document production does not produce. `statementsFor` performs the
+ * join and THROWS if a book lacks its canonical half, so the failure
+ * mode is a stopped gate rather than a quietly wrong one.
+ *
+ * ── THE READER ────────────────────────────────────────────────────────
+ *
+ * `pdfText.ts`, the same reader `threeWayParity.test.ts` runs its 2,591
+ * assertions through. This gate used to carry a SECOND reader
+ * (`scripts/_pdf_text.mjs`, now deleted): one renderer, two independent
+ * PDF parsers, and no way to tell which of them was wrong on a document
+ * they disagreed about. See that file's replacement note at the bottom
+ * of `pdfText.ts`.
+ *
+ * ── THE `__dirname` SHIM ──────────────────────────────────────────────
+ *
+ * `exportBooks.ts` resolves the fixture directory from `__dirname`,
+ * which vitest defines and a bare SSR module does not. It is defined
+ * here rather than changed there: that file is loaded by ~30 test files
+ * whose behaviour must not depend on how this one script loads it.
+ */
+/** The name G12 drives through the whole pipeline. Declared here because
+ *  `loadFromRepo` builds the document with it and the assertion far
+ *  below reads it back; one constant, two readers, no chance of the
+ *  gate testing a name the document was not built with. */
+const REAL_NAME = 'S.C. "AGRICOLĂ" ȘTEFĂNEŞTI-ARGEŞ / ŢARA S.R.L.';
+const REAL_PERIOD = "FY 2025";
+
+async function loadFromRepo() {
   const server = await createServer({
     configFile: join(ROOT, "vitest.config.ts"),
     root: ROOT,
@@ -85,29 +127,30 @@ async function buildAgrasHtml() {
     server: { middlewareMode: true, hmr: false },
   });
   try {
-    const mod = await server.ssrLoadModule("/frontend/lib/financialExports.ts");
-    const fx = JSON.parse(readFileSync(firm("saga_10_col_agras.json"), "utf-8"));
-    const served = JSON.parse(readFileSync(firm("served_metrics.json"), "utf-8"));
-    const insights = JSON.parse(readFileSync(firm("insights.json"), "utf-8"));
-    const statements = { ...fx.statements, insights: insights.agras };
+    globalThis.__dirname = join(ROOT, "frontend/lib/__tests__");
+    const books = await server.ssrLoadModule("/frontend/lib/__tests__/exportBooks.ts");
+    const reader = await server.ssrLoadModule("/frontend/lib/__tests__/pdfText.ts");
+    const statements = books.withInsights("agras", books.statementsFor("agras"));
     return {
-      html: mod.buildReportHtml(statements, { metricsByName: served.agras ?? {} }),
+      html: books.exportHtml("agras", statements),
       company: statements.companyName,
       period: statements.periodLabel,
+      // THE SAME BOOK UNDER A REAL NAME — built by the same builder, from
+      // the same statements, with only the two identity fields changed.
+      // Rewriting the name into the produced markup instead would test a
+      // string substitution; this tests the document builder, which is
+      // what writes the running head AND `--cfoai-doc-company`.
+      namedHtml: books.exportHtml("agras", {
+        ...statements, companyName: REAL_NAME, periodLabel: REAL_PERIOD,
+      }),
+      pageTexts: reader.pageTexts,
+      pageBoxesMm: reader.pageBoxesMm,
     };
   } finally {
+    delete globalThis.__dirname;
     await server.close();
   }
 }
-
-// ── reading the produced PDF ──────────────────────────────────────────
-//
-// `scripts/_pdf_text.mjs` — no new dependency, and it carries the two
-// traps that made a first cut of this gate report a false RED (Skia
-// shows text as HEX strings against per-font ToUnicode CMaps, and its
-// page tree is nested two levels deep).
-
-import { mediaBoxMm, pageTexts } from "./_pdf_text.mjs";
 
 // ── greyscale ─────────────────────────────────────────────────────────
 
@@ -125,7 +168,7 @@ function lstar(hex) {
 
 // ── run ───────────────────────────────────────────────────────────────
 
-const { html, company, period } = await buildAgrasHtml();
+const { html, company, period, namedHtml, pageTexts, pageBoxesMm } = await loadFromRepo();
 const { renderReport, renderPdf, closeBrowser } = await import(
   join(ROOT, "services/pdf/render.mjs")
 );
@@ -133,13 +176,22 @@ const { renderReport, renderPdf, closeBrowser } = await import(
 const first = await renderReport(html, { company, period });
 const second = await renderReport(html, { company, period });
 
-const box = mediaBoxMm(first.bytes);
+// EVERY page's box, not the document default. A pack whose contents
+// page silently printed Letter while the rest printed A4 would have
+// passed the old single-regex check.
+const boxes = pageBoxesMm(first.bytes);
+const offA4 = boxes
+  .map((b, i) => ({ i: i + 1, b }))
+  .filter(({ b }) => Math.abs(b.w - 210) >= 0.6 || Math.abs(b.h - 297) >= 0.6);
 check(
   "G1",
-  box !== null && Math.abs(box.w - 210) < 0.6 && Math.abs(box.h - 297) < 0.6,
-  box === null
-    ? "the produced PDF states no /MediaBox"
-    : `page is ${box.w.toFixed(1)}×${box.h.toFixed(1)} mm (A4 is 210×297)`,
+  boxes.length === first.pages && offA4.length === 0,
+  boxes.length !== first.pages
+    ? `read ${boxes.length} page boxes out of a ${first.pages}-page document`
+    : offA4.length === 0
+      ? `all ${boxes.length} pages are ${boxes[0].w.toFixed(1)}×${boxes[0].h.toFixed(1)} mm (A4 is 210×297)`
+      : `${offA4.length} page(s) are not A4: ` +
+        offA4.slice(0, 4).map(({ i, b }) => `p${i} ${b.w.toFixed(1)}×${b.h.toFixed(1)}`).join(", "),
 );
 
 const texts = pageTexts(first.bytes);
@@ -201,23 +253,42 @@ const SECTION_TITLES = [
   "Basis of Preparation",
 ];
 const notOpening = [];
-// The running head and the page counter are the first thing on every
-// page, so a section "opens" a page when its title is the first thing
-// AFTER them. Searching the whole page — or even its first 220
-// characters — would also match the printed CONTENTS page, which lists
-// all ten titles in a row, and the gate would pass with every section
-// mid-page.
-const headLength = (t) => {
-  const m = /Page\s*\d+\s*of\s*\d+/.exec(t.replace(/\s+/g, " "));
-  return m === null ? 0 : m.index + m[0].length;
+// A section "opens" a page when its title is the first thing on it that
+// is not PAGE FURNITURE. Searching the whole page — or even its first
+// 220 characters — would also match the printed CONTENTS page, which
+// lists all ten titles in a row, and the gate would pass with every
+// section mid-page.
+//
+// The furniture is dropped BY LINE, not by character offset. The
+// offset spelling ("everything up to the end of `Page N of M`") was
+// written against a reader that emitted a page as one flow; the running
+// head prints at the TOP of the page and the counter at the BOTTOM, so
+// against a reader that returns lines in visual order it skipped the
+// whole page and reported all nine sections missing. Lines are what
+// "the first thing on the page" means, so lines are what this reads.
+const FURNITURE = new RegExp(
+  `^(?:Page\\s*\\d+\\s*of\\s*\\d+|${
+    // The running head, as the document flattens it: company then period,
+    // which Skia may emit as one run with no space between them.
+    [company, period, company + period]
+      .map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*"))
+      .join("|")
+  })$`,
+  "i",
+);
+const firstRealLine = (t) => {
+  for (const raw of t.split("\n")) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (line === "" || FURNITURE.test(line)) continue;
+    return line;
+  }
+  return "";
 };
 for (const title of SECTION_TITLES) {
-  const flat = title.replace(/\s+/g, "");
+  const flat = title.replace(/\s+/g, "").toUpperCase();
   const opens = texts.some((t, i) => {
     if (i === 1) return false; // the printed contents page lists them all
-    const norm = t.replace(/\s+/g, " ");
-    const after = norm.slice(headLength(t)).replace(/\s+/g, "");
-    return after.startsWith(flat);
+    return firstRealLine(t).replace(/\s+/g, "").toUpperCase().startsWith(flat);
   });
   if (!opens) notOpening.push(`${title} (never the first thing on a page)`);
 }
@@ -241,6 +312,69 @@ check(
   "G7",
   /^[A-Za-z0-9_]+\.pdf$/.test(first.filename),
   `filename is ${JSON.stringify(first.filename)}`,
+);
+
+// ── G12 — A REAL COMPANY NAME, ALL THE WAY THROUGH ────────────────────
+//
+// THE COMMITTED BOOK IS CALLED `input`, AND THAT IS NOT A PLACEHOLDER
+// MISTAKE — IT IS WHAT PRODUCTION COMPUTES. `pipeline.py:783`
+// (`_deterministic_tb_parsed`) sets
+//
+//     "company_name": (doc["original_filename"] or "Imported entity").rsplit(".", 1)[0]
+//
+// and every corpus case's source file is literally `corpus/<case>/input.xlsx`,
+// so the capture in `tests/engine/fixtures/firm/*.json` faithfully
+// records the product's own derivation. Renaming the fixture would make
+// it agree with nothing.
+//
+// What the name DOES hide is this gate's own coverage. "input" has no
+// space, no diacritic, no punctuation and no reserved stem, so on the
+// committed book `filename.mjs`'s transliteration table, its
+// non-alphanumeric allowlist, its Windows-reserved-stem guard and its
+// 60-character truncation were all exercised by NOTHING, and G7 was an
+// assertion about a string that could not have failed it.
+//
+// So a second document is rendered with a name of the shape a Romanian
+// accounting firm actually uploads — diacritics in both the
+// comma-below and the cedilla spelling, a legal form ending in a stop,
+// quotes, and a slash — and the gate asserts THE SAME NAME reaches all
+// three places a reader sees it: the printed running head, the
+// document's own `--cfoai-doc-company` property, and the saved file.
+// The three are built from one interpolation; this is what proves they
+// still are.
+const named = await renderReport(namedHtml, { company: "IGNORED", period: "IGNORED" });
+const namedTexts = pageTexts(named.bytes);
+// Diacritics fold to their base letters in the filename, and everything
+// outside [A-Za-z0-9] collapses to a single underscore — so the expected
+// stem is stated here in full rather than recomputed by importing the
+// module under test, which would let a broken `filenamePart` agree with
+// itself.
+const WANT_FILE = "S_C_AGRICOLA_STEFANESTI_ARGES_TARA_S_R_L_FY_2025_CFO_Report.pdf";
+// The head, as the document prints it: uppercased by CSS, and Skia may
+// emit company and period with no space between them.
+const flatWanted = (REAL_NAME + REAL_PERIOD).replace(/\s+/g, "").toUpperCase();
+const headPages = namedTexts
+  .slice(1)
+  .filter((t) => t.replace(/\s+/g, "").toUpperCase().includes(flatWanted)).length;
+const nameProblems = [];
+if (named.filename !== WANT_FILE) {
+  nameProblems.push(`filename is ${JSON.stringify(named.filename)}, wanted ${JSON.stringify(WANT_FILE)}`);
+}
+if (!/^[A-Za-z0-9_]+\.pdf$/.test(named.filename)) {
+  nameProblems.push("the filename left the safe alphabet — this string goes into a Content-Disposition header");
+}
+if (headPages !== namedTexts.length - 1) {
+  nameProblems.push(
+    `the running head carries the real name on ${headPages} of ${namedTexts.length - 1} body pages`,
+  );
+}
+check(
+  "G12",
+  nameProblems.length === 0,
+  nameProblems.length === 0
+    ? `a real Romanian name (diacritics, quotes, a slash, stops) prints on all ${headPages} body ` +
+      `pages and saves as ${JSON.stringify(named.filename)}`
+    : nameProblems.join("; "),
 );
 
 // G10 — the file is named from the DOCUMENT, not from what the caller
@@ -320,14 +454,43 @@ if (plHeaderMatch === null || rowMatch === null) {
 // request aborted, no base URL); this asserts all three at once, on a
 // document written to exercise them.
 //
-// THE HONEST HOST. A first cut pointed the hostile `<img>` at
+// ── EVERY LEG NEEDS A CONTROL, AND TWO OF THEM DID NOT HAVE ONE ───────
+//
+// THE NETWORK LEG. A first cut pointed the hostile `<img>` at
 // 169.254.169.254 — the cloud metadata address, the classic SSRF
 // target. Removing the network abort did NOT red it: that host is
 // unreachable from this machine either way, so the gate was passing on
 // a coincidence rather than on the rule. It now serves the target
 // ITSELF, on an ephemeral port, and asserts the server received ZERO
 // requests. A reachable listener is the only thing that can tell
-// "blocked" from "unroutable".
+// "blocked" from "unroutable". Re-measured 2026-09-08 by removing
+// `page.route(…abort)` from a copy of `renderPdf`: the listener took 1
+// request and the response body PRINTED INTO THE PDF. The leg bites.
+//
+// THE FILE LEG had the same defect and kept it. Measured the same day,
+// four renders of one hostile document:
+//
+//   as shipped                        file read: no    net: 0 requests
+//   network abort removed             file read: NO    net: 1 request
+//   abort removed + JS on             file read: NO    net: 1 request
+//   loaded from a file:// URL         file read: YES   net: 0 (aborted)
+//
+// So `<iframe src="file:///etc/passwd">` is refused whatever this gate's
+// three guards do — Chromium blocks an `about:blank` document (which is
+// what `setContent` produces) from reaching a `file:` URL, and blocks
+// one `file:` directory from reaching another. The leg was green because
+// the browser said no, not because `render.mjs` did, and it would have
+// stayed green through a rewrite of `renderPdf` that opened the document
+// from disk.
+//
+// The guard that actually stops the read is the THIRD one — `setContent`
+// with no base URL — and what it stops is a SAME-DIRECTORY relative
+// reference. So that is what is tested, and it is tested WITH A CONTROL:
+// the identical document is also opened from a `file://` URL in the
+// directory holding the canary, on the same browser, and the canary must
+// appear there. If it does not, this leg is proving nothing and the gate
+// says so and fails, rather than reporting a pass it did not earn. (Same
+// shape as G9's defeated-repeat control, and for the same reason.)
 const { createServer: createHttpServer } = await import("node:http");
 let hits = 0;
 const decoy = createHttpServer((_req, res) => {
@@ -338,10 +501,22 @@ const decoy = createHttpServer((_req, res) => {
 await new Promise((r) => decoy.listen(0, "127.0.0.1", r));
 const decoyUrl = `http://127.0.0.1:${decoy.address().port}/metadata`;
 
+// The canary is written to a temp directory and named with a token that
+// occurs nowhere else in this repo, so "the PDF contains it" cannot be a
+// coincidence of the document's own words.
+const sandboxDir = mkdtempSync(join(tmpdir(), "pdf-sandbox-"));
+const CANARY = "CANARYNEIGHBOURFILE";
+writeFileSync(join(sandboxDir, "neighbour.txt"), `${CANARY}\n`);
+
 const hostile = [
   "<!doctype html><html><head><title>t</title></head><body>",
   '<p id="a">SCRIPT DID NOT RUN</p>',
-  '<p>FILE: <iframe src="file:///etc/passwd" width="300" height="60"></iframe></p>',
+  // Absolute, cross-directory: the classic phrasing. Kept because it
+  // costs nothing, NOT counted as evidence — see the note above.
+  '<p>ETC: <iframe src="file:///etc/passwd" width="300" height="60"></iframe></p>',
+  // Same directory, relative: the one that a base URL would resolve, and
+  // the one the control below proves is readable when it is allowed.
+  '<p>NEIGHBOUR: <iframe src="./neighbour.txt" width="300" height="40"></iframe></p>',
   `<p>NET: <img src="${decoyUrl}" alt="IMG DID NOT LOAD" width="200"></p>`,
   `<p>FRAME: <iframe src="${decoyUrl}" width="200" height="40"></iframe></p>`,
   `<script>document.getElementById('a').textContent='SCRIPT RAN';fetch(${JSON.stringify(decoyUrl)});</script>`,
@@ -349,6 +524,31 @@ const hostile = [
 ].join("\n");
 const sandboxed = await renderPdf(hostile);
 const sandboxText = pageTexts(sandboxed.bytes).join(" ").replace(/\s+/g, " ");
+
+// THE CONTROL. Same browser, same document, no sandbox — opened from
+// disk so its origin IS the directory holding the canary. Network is
+// aborted here too, so the control isolates the FILE guard alone and a
+// stray request cannot make it pass.
+writeFileSync(join(sandboxDir, "doc.html"), hostile);
+const controlBrowser = await (await import(join(ROOT, "services/pdf/render.mjs"))).browser();
+const controlCtx = await controlBrowser.newContext({ javaScriptEnabled: false });
+let controlText = "";
+try {
+  const controlPage = await controlCtx.newPage();
+  await controlPage.route("**/*", (route) => {
+    // Let the file: document and its same-directory neighbour load;
+    // abort anything that would leave the machine.
+    if (route.request().url().startsWith("file:")) return route.continue();
+    return route.abort();
+  });
+  await controlPage.goto(pathToFileURL(join(sandboxDir, "doc.html")).href, { waitUntil: "load" });
+  await controlPage.emulateMedia({ media: "print" });
+  controlText = pageTexts(await controlPage.pdf({ preferCSSPageSize: true, printBackground: true }))
+    .join(" ")
+    .replace(/\s+/g, " ");
+} finally {
+  await controlCtx.close();
+}
 decoy.close();
 
 const escaped = [];
@@ -356,12 +556,24 @@ if (hits > 0) escaped.push(`${hits} request(s) reached a live server the documen
 if (sandboxText.includes("SCRIPT RAN")) escaped.push("script executed");
 if (!sandboxText.includes("SCRIPT DID NOT RUN")) escaped.push("static text missing — the read failed");
 if (/root:x:|daemon:x:|nobody:/.test(sandboxText)) escaped.push("read /etc/passwd");
+if (sandboxText.includes(CANARY)) escaped.push("read a neighbouring file off the local disk");
 if (sandboxText.includes("SECRET")) escaped.push("rendered a response from the network");
+// The control is an assertion, not a diagnostic: a control that cannot
+// read the canary means the file leg above tested nothing.
+if (!controlText.includes(CANARY)) {
+  escaped.push(
+    "THE CONTROL FAILED — the same document opened from a file:// origin did not read the " +
+      "neighbouring file either, so the file leg of this gate is proving nothing. Fix the " +
+      "control before trusting the pass.",
+  );
+}
 check(
   "G11",
   escaped.length === 0,
   escaped.length === 0
-    ? "hostile document: no script ran, no file was read, and a live listener it named got 0 requests"
+    ? "hostile document: no script ran, a live listener it named got 0 requests, and the " +
+      "neighbouring file it referenced was NOT read — while the same document opened from a " +
+      "file:// origin read it, so the guard is what stopped it"
     : `the sandbox leaked: ${escaped.join("; ")}`,
 );
 
@@ -372,7 +584,7 @@ await closeBrowser();
 process.stdout.write("REPORT PDF GATE\n");
 process.stdout.write("=".repeat(62) + "\n");
 process.stdout.write(
-  `GATE-WORK report-pdf units=${notes.length + failures.length} floor=11 label=rendered-pdf-assertions\n`,
+  `GATE-WORK report-pdf units=${notes.length + failures.length} floor=13 label=rendered-pdf-assertions\n`,
 );
 for (const line of notes) process.stdout.write(line + "\n");
 for (const line of failures) process.stdout.write(line + "\n");

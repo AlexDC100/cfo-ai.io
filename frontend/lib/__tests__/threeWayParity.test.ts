@@ -674,18 +674,83 @@ describe("G-P1 — a refusal is a refusal in every format", () => {
     );
   });
 
+  // ── THIS LEG IS VACUOUS ON EVERY COMMITTED BOOK, AND SAYS SO ────────
+  //
+  // MEASURED 2026-09-08, all four books: `refusals === 0`. Not "no
+  // conflicts were found" — NOTHING WAS EXAMINED. The `for` loop reached
+  // `continue` on every one of its fourteen concepts, `conflicts` was
+  // `[]` because nothing could be pushed into it, and the surviving
+  // assertion (`expect(typeof refusals).toBe("number")`) was a
+  // tautology: it holds for 0, for 14, and for a loop that never ran.
+  //
+  // WHY IT IS EMPTY, which is the part worth knowing. The document's P&L
+  // rows print through `money(v, currency)`, which refuses when `v` is
+  // not a finite number. Every one of the seven core fields it reads is
+  // typed `number` on `IncomeStatement` — non-optional, non-nullable —
+  // and the serve path (`pipeline.py`, the `pl[...] += amount` bucket
+  // sum) initialises each to 0 and adds to it, so a concept the trial
+  // balance never mentioned arrives as a measured 0, not as an absence.
+  // Deleting `assembled_pl` entirely does not produce a refusal either:
+  // measured on agras, every row fell back to the `incomeStatement`
+  // arithmetic and printed a figure.
+  //
+  // So on the PRIVATE (trial-balance) path this leg has no subject BY
+  // CONSTRUCTION, and a floor like the ratio-card leg's would red on a
+  // correct product. It is declared vacuous instead — the shape
+  // `scripts/check_public_sitemaps.py` uses for PS6 on a host with no
+  // sitemap: PASS, stated out loud, never green-by-silence.
+  //
+  // IT IS NOT VACUOUS FOR EVER. `IncomeStatement.financialIncome` and
+  // `.financialExpense` ARE optional ("Optional for simple samples"),
+  // and the public-company adapters build envelopes from feeds that omit
+  // line items. The moment a book carrying such an envelope is
+  // committed, `subjects` below is non-zero and the assertions bite with
+  // no edit here.
+  //
+  // ⚠ AND THE ANSWER IS ALREADY KNOWN, because it was measured rather
+  // than assumed. Dropping those two optional fields (and the
+  // `assembled_pl` keys the document prefers over them) from the agras
+  // envelope, 2026-09-08:
+  //
+  //     Financial income        document "not reported"   workbook 0
+  //     Other financial expense document "(not reported)"  workbook 0
+  //     Profit Before Tax       document RON 15,577,652   workbook 15,187,214.54
+  //
+  // The document refuses; the workbook prints ZERO and then FOOTS WITH
+  // IT. `financialExports.ts:237` reads `s.incomeStatement.financialIncome
+  // ?? 0` on the current side — the comment three lines above it records
+  // the same defect being repaired on the PRIOR side and left in place
+  // on this one. That is ABSENT-READ-AS-ZERO in a deliverable, it is
+  // reported in this wave's lane notes, and the repair is NOT a `?? null`
+  // here: `deriveTotals` folds the same zero into `netFinancialResult`,
+  // `pbt` and `netIncome`, so the workbook's subtotals have to learn to
+  // refuse too. Writing the assertion before that repair lands would put
+  // a red gate in the tree; writing a floor of 0 and calling it covered
+  // would be the tautology this comment replaced.
   it.each(BOOKS)("%s: a concept the document refuses is not answered by the workbook", (book: Book) => {
     const b = of(book);
     const docRows = plRows(b.doc);
     const sheet = sheetRows(b.wb, "P&L");
     const conflicts: string[] = [];
-    let refusals = 0;
+    // The SUBJECT of this test: rows the document actually refused. It
+    // is reported whether it is zero or not, because "0 conflicts over 0
+    // subjects" and "0 conflicts over 6 subjects" are different facts
+    // and only one of them is coverage.
+    const subjects: string[] = [];
+    // Every concept must be FOUND in the printed table, refused or not.
+    // Without this the loop's `continue` also swallows a renamed row,
+    // and the leg would stay silent about the one thing it can still
+    // measure on today's books: that the fourteen labels exist.
+    const missing: string[] = [];
     for (const c of PL_CONCEPTS) {
       const row = docRows.find((r) => r.label.toLowerCase() === c.doc.toLowerCase());
-      if (!row) continue;
+      if (!row) {
+        missing.push(c.id);
+        continue;
+      }
       const refusedInDoc = new RegExp(UNREPORTED_WORD, "i").test(row.printed);
       if (!refusedInDoc) continue;
-      refusals += 1;
+      subjects.push(c.id);
       const wbCell = (sheet.find((r) => (r[0] ?? "").toLowerCase() === c.sheet.toLowerCase()) ?? [])[1] ?? "";
       if (normaliseMagnitude(wbCell, b.grammar) !== null) {
         conflicts.push(`${c.id}: the document prints "${row.printed}" and the workbook prints ${wbCell}`);
@@ -695,8 +760,27 @@ describe("G-P1 — a refusal is a refusal in every format", () => {
       }
     }
     expect(conflicts).toEqual([]);
-    // Nothing to assert is a fact, not a pass: say so out loud.
-    expect(typeof refusals).toBe("number");
+    // THE REAL FLOOR THIS LEG CAN CARRY TODAY: the concepts it would
+    // examine are all present in the printed P&L. Two are conditional on
+    // the book (`Capitalized own work`, the reconstruction bridge) and
+    // are not in PL_CONCEPTS; the fourteen that are must all be found,
+    // so a renamed or dropped row reds here instead of shrinking the
+    // subject silently.
+    expect(
+      missing,
+      `PL_CONCEPTS the printed P&L does not carry — the refusal join would skip them: ${missing.join(", ")}`,
+    ).toEqual([]);
+    // …and the vacuity is DECLARED, not implied by a green tick.
+    if (subjects.length === 0) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[G-P1 ${book}] VACUOUS: the document refuses 0 of ${PL_CONCEPTS.length} P&L concepts on ` +
+          `this book, so the document-vs-workbook and document-vs-PDF refusal joins examined ` +
+          `nothing. All ${PL_CONCEPTS.length} labels were found. See this test's header for why ` +
+          `the private path cannot produce a refusal here, and for the measured public-path case ` +
+          `that will.`,
+      );
+    }
   });
 });
 

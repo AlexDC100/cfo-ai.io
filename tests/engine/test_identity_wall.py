@@ -198,6 +198,19 @@ DECLARED = {
     ("POST", "/api/period/detect"): "read-only compute: period detection on the request body (JWT required)",
     ("POST", "/api/period/{period_id}/valuation/recompute"): "read-only compute: stateless DCF, does not persist",
     ("POST", "/api/financial-statements/parse"): "read-only compute: stateless parse of the request body",
+    # The PDF renderer takes the HTML the CALLER already holds and hands it
+    # to the Chromium sidecar. It requires a verified JWT
+    # (`_report_pdf._user_id` -> `_require_jwt` -> `client.get_user`), reads
+    # no client table and writes none: the document is in the request body,
+    # not in the database. There is nothing to member-wall, because the
+    # route never selects a row belonging to an organisation.
+    #
+    # What it DOES need, and what the wall would not have given it: the
+    # sidecar renders arbitrary HTML, so it is an SSRF surface by
+    # construction. That is closed at the renderer (network aborted,
+    # file:// refused) and by keeping the service off the public network —
+    # asserted in `tests/engine/test_report_pdf_route.py`, not here.
+    ("POST", "/api/report/pdf"): "read-only compute: renders caller-supplied HTML, writes no table (JWT verified)",
     ("POST", "/api/alerts"): "read-only compute: SKU engine over the request body",
     ("POST", "/api/analyze"): "read-only compute: SKU engine over the request body",
     ("POST", "/api/classify-rows"): "read-only compute: SKU engine over the request body",

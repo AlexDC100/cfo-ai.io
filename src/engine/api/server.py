@@ -55,6 +55,7 @@ from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
+from ._report_pdf import build_router as create_report_pdf_router
 from ._test_mode import build_router as create_test_mode_router
 from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
@@ -835,6 +836,21 @@ def create_app(
     # registry is a frozen allowlist of eight READS; there is no route
     # here that mutates anything (see _capsule_tools.py's C2 contract).
     app.include_router(create_capsule_router())
+    # ─── THE PDF RENDERER'S DOOR ───────────────────────────────────
+    #
+    # POST /api/report/pdf + its two polls. Mounted UNCONDITIONALLY, and
+    # deliberately so: every route inside checks `PDF_SERVICE_TOKEN` and
+    # answers 503 "PDF rendering is not configured on this deployment"
+    # when it is unset. That is a better answer than a 404 — a 404 tells
+    # an operator the build is old, a 503 with that sentence tells them
+    # exactly which environment variable to set. Mounting behind a flag
+    # would trade that sentence for the ambiguity.
+    #
+    # The renderer itself is `cfo-ai-pdf`, on the compose `default`
+    # network only, so THIS is the only path from a browser to it and the
+    # JWT check inside is the whole access-control story. See
+    # `docker-compose.yml`'s header for the three walls.
+    app.include_router(create_report_pdf_router())
     # ─── THE FIRM COCKPIT — MOUNTED ONLY WHEN EXPLICITLY ENABLED ───
     #
     # The Cockpit backend ships COMPLETE and OFF. `FIRM_COCKPIT_ENABLED`

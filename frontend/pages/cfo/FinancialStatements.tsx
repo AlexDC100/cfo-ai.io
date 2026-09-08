@@ -147,6 +147,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileDown,
   FileSpreadsheet,
   FileText,
   Info,
@@ -394,6 +395,16 @@ export default function FinancialStatements() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  // ── THE PDF EXPORT'S ONE PIECE OF STATE ─────────────────────────────
+  //
+  // A SENTENCE or null, not a boolean. A server-side render is a job with
+  // a queue behind it: "Waiting for a renderer — 2 ahead" and "Laying the
+  // document out on A4" are different facts, and a spinner that says
+  // neither is what makes a user press the button twice. `null` means
+  // idle, which is also what disables the button, so there is one source
+  // of truth for "is a render in flight" rather than two that can
+  // disagree.
+  const [pdfStatus, setPdfStatus] = useState<string | null>(null);
   // F6.0.1c — a PowerPoint/CSV/XLSX budget deck dropped on the MAIN upload
   // is a budget, not a trial balance; intercept it (see onFileChosen) and
   // route it to the Budget vs Actual variance store instead of the engine.
@@ -2450,7 +2461,7 @@ export default function FinancialStatements() {
               onCta={() => onTabChange("overview")}
             />
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {/* Instrument export panels — hairline surfaces, one accent.
               The colored sleeves + watermark icons are gone.
 
@@ -2467,8 +2478,11 @@ export default function FinancialStatements() {
               keys (`dash.exportPptxTitle` / `dash.exportPptxBody`) and
               `dash.comingNext` went with it in both languages.
 
-              THE GRID IS NOW 2-UP, not 3-up: leaving `md:grid-cols-3`
-              would have left a third of the row empty on every desktop. */}
+              THE GRID WENT 2-UP when that card was removed, and is 3-up
+              again as of 2026-09-08 — because the third slot now holds a
+              REAL export (PDF, rendered server-side by `cfo-ai-pdf`),
+              not an advertisement for one. The rule the pptx removal set
+              is unchanged: a card ships when the thing behind it does. */}
           <div className="flex flex-col rounded-md border border-rule bg-surface p-4 min-h-[200px]">
             <div className="flex items-center gap-2 text-ink-mute">
               <FileText size={15} strokeWidth={1.75} />
@@ -2522,6 +2536,108 @@ export default function FinancialStatements() {
                 className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
               >
                 <ArrowDownToLine size={14} strokeWidth={2} />
+                {t("common.download")}
+              </button>
+            </div>
+          </div>
+
+          {/* ── PDF ────────────────────────────────────────────────────
+              THE SAME DOCUMENT AS THE HTML CARD, PAGINATED.
+
+              `buildReportHtml(statements, creditEnvelopes)` — the exact
+              call the card to the left makes, with the exact same two
+              arguments — and the string it returns is what travels to
+              the renderer. That is why this card cannot state a
+              different figure from that one: there is no second builder,
+              no server-side re-derivation of a single number. The engine
+              hands the bytes to `cfo-ai-pdf`, which prints them.
+
+              THE TWO ARGUMENTS ARE NOT OPTIONAL. Dropping
+              `creditEnvelopes` here would repeat, in the PDF, the exact
+              defect the HTML card's comment above records: a document
+              scored by the OTHER credit model, printing a letter the app
+              never showed.
+
+              FIVE NEW KEYS, IN BOTH DICTIONARIES. `dash.exportPdf*`
+              were added to `en.json` AND `ro.json` in the same change as
+              this card, because `shippedClaimsMatchCode.test.ts` reads
+              the `t()` keys OFF THIS BLOCK and reds on any that exists in
+              only one language — which is the exact drift that would
+              render a raw `dash.exportPdfTitle` to every Romanian
+              customer. An inline `t(key, default)` fallback does not
+              satisfy it, and should not: a default is English in both
+              languages. */}
+          <div className="flex flex-col rounded-md border border-rule bg-surface p-4 min-h-[200px]">
+            <div className="flex items-center gap-2 text-ink-mute">
+              <FileDown size={15} strokeWidth={1.75} />
+              <h3 className="text-[15px] font-semibold tracking-tight text-ink">
+                {t("dash.exportPdfTitle")}
+              </h3>
+            </div>
+            <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
+              {t("dash.exportPdfBody")}
+            </p>
+            <div className="mt-auto pt-5 flex items-center justify-end gap-3">
+              {/* The queue sentence, beside the button and not inside it:
+                  a label that changes width mid-render makes the button
+                  jump under the pointer. `aria-live` so a screen reader
+                  hears the progress instead of a silently disabled
+                  control. */}
+              {pdfStatus !== null && (
+                <span
+                  className="text-[11.5px] text-ink-soft"
+                  aria-live="polite"
+                  data-testid="export-pdf-status"
+                >
+                  {pdfStatus}
+                </span>
+              )}
+              <button
+                disabled={pdfStatus !== null}
+                data-testid="export-pdf"
+                onClick={async () => {
+                  setPdfStatus(t("dash.exportPdfStarting"));
+                  try {
+                    const [fx, pdf] = await Promise.all([
+                      import("@/lib/financialExports"),
+                      import("@/lib/reportPdf"),
+                    ]);
+                    const html = fx.buildReportHtml(statements, creditEnvelopes);
+                    const out = await pdf.requestReportPdf(
+                      html,
+                      { company: statements.companyName, period: statements.periodLabel },
+                      {
+                        onProgress: (p) =>
+                          setPdfStatus(
+                            p.queuePosition === null
+                              ? p.serverProgress
+                              : t("dash.exportPdfQueued", { n: p.queuePosition }),
+                          ),
+                      },
+                    );
+                    pdf.saveReportPdf(out);
+                  } catch (e: unknown) {
+                    // THE SERVER'S OWN SENTENCE, not "export failed".
+                    // Two of the refusals a user can act on are a 401
+                    // (the session expired — sign in again) and a 503
+                    // ("PDF rendering is not configured on this
+                    // deployment"), and a generic message hides both.
+                    toast({
+                      title: t("dash.exportPdfFailedTitle"),
+                      description: e instanceof Error ? e.message : String(e),
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setPdfStatus(null);
+                  }
+                }}
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro disabled:opacity-50 disabled:hover:border-rule disabled:hover:bg-transparent"
+              >
+                {pdfStatus === null ? (
+                  <ArrowDownToLine size={14} strokeWidth={2} />
+                ) : (
+                  <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+                )}
                 {t("common.download")}
               </button>
             </div>

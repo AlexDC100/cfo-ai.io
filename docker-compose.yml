@@ -5,15 +5,82 @@
 # container (in network `scandia_default`) is the public ingress for
 # this VPS and also routes cfo-ai.finance to our services here.
 #
-# This stack adds two containers:
+# This stack adds three containers:
 #   · cfo-ai-backend  — FastAPI (uvicorn) — internal :8000
 #   · cfo-ai-frontend — Vite build via nginx — internal :80
+#   · cfo-ai-pdf      — headless-Chromium PDF renderer — internal :8081
 #
-# Both join the external network `scandia_default` so scandia-caddy can
-# reverse-proxy by container name (cfo-ai-backend:8000, cfo-ai-frontend:80).
-# That's why this compose has its own implicit `default` network AND
-# attaches both services to `scandia_default` — the existing Caddy
-# resolves Docker DNS only inside the network it lives in.
+# The first two join the external network `scandia_default` so
+# scandia-caddy can reverse-proxy by container name (cfo-ai-backend:8000,
+# cfo-ai-frontend:80). That's why this compose has its own implicit
+# `default` network AND attaches both services to `scandia_default` — the
+# existing Caddy resolves Docker DNS only inside the network it lives in.
+#
+# ── cfo-ai-pdf IS THE EXCEPTION, AND THAT IS THE POINT ────────────────
+#
+# It renders CALLER-SUPPLIED HTML in a browser. That is an SSRF and
+# local-file-read primitive by construction, so its reachability is a
+# security control and is written as one. Three walls, in order:
+#
+#   1. NETWORK SCOPE. It is on `default` ONLY. `scandia-caddy` — the
+#      public ingress for this VPS — lives in `scandia_default` and
+#      resolves Docker DNS only inside the network it is attached to, so
+#      it cannot even NAME this container, let alone route to it. Adding
+#      `scandia_default` to the list below would put a browser-execution
+#      service one Caddyfile matcher away from the internet.
+#   2. NO PUBLISHED PORT. `expose:` (container-to-container) and never
+#      `ports:` (host binding). Nothing on the VPS's public interface
+#      listens on 8081.
+#   3. A SHARED SECRET, FAIL-CLOSED. `PDF_SERVICE_TOKEN` unset ⇒ the
+#      sidecar 503s every route but `/health` and the engine 503s every
+#      route of `/api/report/pdf`. An unauthenticated renderer on an
+#      internal network is still a free CPU-and-memory amplifier for
+#      anything else that lands on it.
+#
+# `scripts/check_pdf_wiring.mjs` asserts 1 and 2 against THIS FILE, so a
+# future edit that attaches it to the ingress network or publishes its
+# port reds a gate instead of shipping quietly.
+#
+# ── FIRST DEPLOY OF cfo-ai-pdf (CLAUDE.md §14 order) ──────────────────
+#
+#  0. Mint the secret and put it in /opt/cfo-ai/.env ONCE — both
+#     containers read the same line from there:
+#         PDF_SERVICE_TOKEN=$(openssl rand -hex 32)
+#     Until it is set, the endpoint answers 503 with the sentence naming
+#     it. That is a safe state, not a broken one.
+#  1. Host source first, one rsync per (source, destination) pair:
+#         rsync -av docker-compose.yml       root@vps:/opt/cfo-ai/docker-compose.yml
+#         rsync -av Dockerfile.pdf           root@vps:/opt/cfo-ai/Dockerfile.pdf
+#         rsync -av services/pdf/            root@vps:/opt/cfo-ai/services/pdf/
+#         rsync -av src/engine/api/server.py root@vps:/opt/cfo-ai/src/engine/api/server.py
+#         rsync -av src/engine/api/_report_pdf.py \
+#                                            root@vps:/opt/cfo-ai/src/engine/api/_report_pdf.py
+#     (`services/pdf/` with a trailing slash is a directory mirror, not
+#     four sources into one directory — the §14 collision trap.)
+#  2. Build and replace. The pdf image pulls ~190 MB of Chromium on its
+#     first build; allow several minutes:
+#         docker compose build pdf backend && docker compose up -d pdf backend
+#  3. Prove it INSIDE the stack — none of this is reachable from outside:
+#         docker exec cfo-ai-pdf node -e \
+#           "fetch('http://127.0.0.1:8081/health').then(r=>r.json()).then(j=>console.log(j))"
+#           → {status:"ok", configured:true, active:0, queued:0}
+#         docker exec cfo-ai-backend python3 -c \
+#           "import urllib.request,json;print(urllib.request.urlopen('http://cfo-ai-pdf:8081/health').read())"
+#           → the same payload, i.e. the engine can reach the sidecar
+#         docker exec cfo-ai-backend python3 -c \
+#           "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/report/pdf')"
+#           → HTTP 405 (the route is MOUNTED; POST-only). A 404 means
+#             step 1 did not land.
+#  4. Prove it is NOT reachable, which is the security claim:
+#         docker inspect cfo-ai-pdf --format '{{json .NetworkSettings.Networks}}'
+#           → exactly one network, the stack's `default`; NOT scandia_default
+#         docker exec scandia-caddy wget -qO- http://cfo-ai-pdf:8081/health
+#           → fails to resolve. If it answers, STOP: the ingress can see
+#             a browser that renders caller-supplied HTML.
+#         curl -sS -o /dev/null -w '%{http_code}\n' https://cfo-ai.io/api/report/pdf
+#           → 405 (the engine's door, correct) — and nothing on :8081.
+#  5. F-A3.1, unchanged by this deploy but the §14 rule:
+#         docker exec cfo-ai-backend python3 /app/scripts/measure_bs_drift.py
 
 services:
   backend:
@@ -31,6 +98,24 @@ services:
       # *.finance entries once cfo-ai.finance traffic is statistically
       # zero (review at +90 days; sunset eligible at +12 months minimum).
       CORS_ORIGINS: "https://cfo-ai.io,https://www.cfo-ai.io,https://api.cfo-ai.io,https://cfo-ai.finance,https://www.cfo-ai.finance,https://api.cfo-ai.finance"
+      # Where the engine finds the renderer. The container name resolves
+      # on the `default` network both services share. Written here rather
+      # than left to the module's default so the wiring is READABLE in
+      # the compose file — an operator debugging a 502 should not have to
+      # open `_report_pdf.py` to learn what host it dialled.
+      PDF_SERVICE_URL: "http://cfo-ai-pdf:8081"
+      # The shared secret. Interpolated from /opt/cfo-ai/.env (compose's
+      # automatic env file) so ONE value reaches both containers and they
+      # cannot drift. Unset ⇒ both sides fail closed with a 503 that says
+      # so; that is the state production is in until it is set.
+      PDF_SERVICE_TOKEN: ${PDF_SERVICE_TOKEN:-}
+    depends_on:
+      # `service_started`, not `service_healthy`: the engine answers
+      # 502 "the PDF renderer is not reachable" on its own while the
+      # sidecar warms up, and gating the API on a browser image's
+      # healthcheck would hold up trial-balance analysis — the hot path —
+      # for a feature nobody has asked for yet in that minute.
+      - pdf
     volumes:
       - backend_data:/app/data
     expose:
@@ -74,6 +159,42 @@ services:
     networks:
       - default
       - scandia_default
+
+  # ── THE PDF RENDERER ────────────────────────────────────────────────
+  #
+  # Read the header of this file before changing anything here: the
+  # `networks` list and the absence of `ports` are the two walls that
+  # keep a browser-execution service off the public internet.
+  pdf:
+    build:
+      context: .
+      dockerfile: Dockerfile.pdf
+    container_name: cfo-ai-pdf
+    restart: unless-stopped
+    environment:
+      # The SAME value the backend gets, from the same .env line.
+      PDF_SERVICE_TOKEN: ${PDF_SERVICE_TOKEN:-}
+      # Simultaneous renders. Each is a browser context; two is the
+      # measured shape (a render of the real 31-page book is ~400 ms, so
+      # two in flight covers a firm's whole morning) and the queue in
+      # `server.mjs` holds the rest rather than fanning out into RAM.
+      PDF_CONCURRENCY: ${PDF_CONCURRENCY:-2}
+    expose:
+      - "8081"
+    networks:
+      # `default` ONLY. NOT scandia_default — see the header.
+      - default
+    # Chromium peaks at a few hundred MB of RSS per render and the
+    # backend is the hot path for upload and analysis on the same box.
+    # A ceiling here means a runaway render kills its own container and
+    # restarts, instead of the kernel picking a victim.
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/health').then(r=>r.json()).then(j=>process.exit(j.status==='ok'?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   backend_data:

@@ -948,3 +948,77 @@ export function extractPdfText(bytes: Uint8Array): PdfDocText {
     },
   };
 }
+
+// ── THE PAGE-SHAPED VIEW ──────────────────────────────────────────────
+//
+// `scripts/check_report_pdf.mjs` asks page-shaped questions — is this A4,
+// does page 7 carry the running head, does it number itself "Page 7 of
+// 31" — and used to answer them with a SECOND reader,
+// `scripts/_pdf_text.mjs`: 275 lines of independent PDF parsing over the
+// same format, with its own object scanner, its own CMap decoder and its
+// own page-tree walk.
+//
+// One renderer, two readers. The two had already diverged in kind rather
+// than in degree: this one indexes through the cross-reference table and
+// reports which path it took, that one brute-scanned `N 0 obj` bodies
+// and could not say; this one places every glyph and recovers columns,
+// that one concatenated show-operators. Whichever of them was wrong on a
+// given document, only one gate would have seen it.
+//
+// So the second reader was deleted and these two functions took its
+// place. They are thin views over `extractPdfText`, not a parallel path:
+// the parse, the CMaps and the page ordering are the ones the parity
+// gate's 2,591 assertions run on, and a regression in them now shows up
+// in both gates instead of one.
+//
+// Deliberately NOT preserved from the old reader: its `mediaBoxMm(bytes)`
+// took the FIRST `/MediaBox` in the file by regex, which is the document
+// default and not necessarily any page's box. `pageBoxesMm` walks the
+// page tree, so a document whose pages disagree about their size — the
+// exact thing a "is this A4?" check exists to catch — reports one entry
+// per page instead of one answer for all of them.
+
+export interface PdfPageBox {
+  /** Page width in millimetres. */
+  readonly w: number;
+  /** Page height in millimetres. */
+  readonly h: number;
+}
+
+const PT_TO_MM = 25.4 / 72;
+
+/** Every page's media box, in page order, in millimetres. */
+export function pageBoxesMm(bytes: Uint8Array): PdfPageBox[] {
+  const doc = new PdfDoc(bytes);
+  return doc.pages().map((page) => {
+    const box = doc.get(page, "MediaBox");
+    if (!Array.isArray(box) || box.length < 4) {
+      throw new Error(
+        "pdf: a page carries no resolvable /MediaBox — the page tree was read, so this is a " +
+          "malformed document rather than a reader limitation",
+      );
+    }
+    const n = box.map((v) => {
+      const r = doc.resolve(v);
+      return typeof r === "number" ? r : Number.NaN;
+    });
+    return { w: (n[2] - n[0]) * PT_TO_MM, h: (n[3] - n[1]) * PT_TO_MM };
+  });
+}
+
+/**
+ * The text of each page, in page order, one string per page.
+ *
+ * Every page the document has gets an entry — including one that carries
+ * no text at all, which is the empty string. Returning a shorter array
+ * would let a gate that counts pages agree with a reader that lost one.
+ */
+export function pageTexts(bytes: Uint8Array): string[] {
+  const { lines, structure } = extractPdfText(bytes);
+  const out: string[] = Array.from({ length: structure.pageCount }, () => "");
+  for (const line of lines) {
+    if (line.page < 1 || line.page > out.length) continue;
+    out[line.page - 1] = out[line.page - 1] === "" ? line.text : `${out[line.page - 1]}\n${line.text}`;
+  }
+  return out;
+}
