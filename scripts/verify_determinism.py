@@ -52,16 +52,50 @@ from engine.core.country_pack_registry import get_pack  # noqa: E402
 
 RUNS = 5
 
-# (fixture path, label, expected-anchor json path or None)
-FIXTURES: List[Tuple[Path, str, Path | None]] = [
+# (fixture path, label, expected-anchor json path or None, required)
+#
+# WHY THERE ARE TWO KINDS — this gate had NEVER PASSED IN CI.
+# ─────────────────────────────────────────────────────────────────────
+# 100 runs of `tier1-validation`, 100 failures, from 2026-08-13 to the
+# launch audit on 2026-09-08. The whole cause, on every run:
+#
+#     ✗ [agras] fixture missing: /home/runner/.../files/agras_tb_2025.xlsx
+#
+# Every subject lived under `files/`, which holds REAL CLIENT TRIAL
+# BALANCES and is correctly gitignored — `git ls-files files/` returns
+# three markdown files and no workbook. So the gate could not pass on a
+# clean checkout by construction, and nobody could tell a genuine
+# determinism break from the permanent red. A gate that is always red is
+# a gate nobody reads.
+#
+# The repo already ships committed RO workbooks under `corpus/`, put
+# there for exactly this reason. Those are now the REQUIRED subjects, so
+# CI has something real to examine. The client files stay OPTIONAL: they
+# are richer (the frozen Scandia book carries the external SF anchor) and
+# they run for whoever has them, but their ABSENCE is a notice, not a
+# failure.
+#
+# The vacuity guard below is the other half. "No failures" over zero
+# fixtures is not evidence, and this repo has shipped that shape before
+# (`public-sitemaps` in the battery announces itself VACUOUS rather than
+# claiming a pass). If nothing was examined, this exits 1.
+FIXTURES: List[Tuple[Path, str, Path | None, bool]] = [
+    # ── REQUIRED: committed, so CI can actually run them ──────────────
+    (REPO / "corpus" / "saga_10_col" / "input.xlsx", "corpus_saga_10_col", None, True),
+    (REPO / "corpus" / "saga_10_col_agras" / "input.xlsx", "corpus_agras", None, True),
+    (REPO / "corpus" / "saga_10_col_carniprod" / "input.xlsx", "corpus_carniprod", None, True),
+    (REPO / "corpus" / "saga_10_col_realestate" / "input.xlsx", "corpus_realestate", None, True),
+    (REPO / "corpus" / "saga_10_col_retail" / "input.xlsx", "corpus_retail", None, True),
+    # ── OPTIONAL: real client books, gitignored, absent in CI ─────────
     (
         REPO / "files" / "prod_scandia_frozen_31.12.2025.xlsx",
         "prod_scandia_frozen",
         REPO / "files" / "prod_scandia_frozen_31.12.2025.expected.json",
+        False,
     ),
-    (REPO / "files" / "agras_tb_2025.xlsx", "agras", None),
-    (REPO / "files" / "scandia_realestate_tb_2025.xlsx", "scandia_realestate", None),
-    (REPO / "files" / "carniprod_tb_2025.xlsx", "carniprod", None),
+    (REPO / "files" / "agras_tb_2025.xlsx", "agras", None, False),
+    (REPO / "files" / "scandia_realestate_tb_2025.xlsx", "scandia_realestate", None, False),
+    (REPO / "files" / "carniprod_tb_2025.xlsx", "carniprod", None, False),
 ]
 
 
@@ -103,10 +137,17 @@ def main() -> int:
     pack = get_pack("RO")
     failures: List[str] = []
 
-    for fixture_path, label, expected_path in FIXTURES:
+    examined = 0
+    skipped: List[str] = []
+
+    for fixture_path, label, expected_path, required in FIXTURES:
         if not fixture_path.is_file():
-            failures.append(f"[{label}] fixture missing: {fixture_path}")
+            if required:
+                failures.append(f"[{label}] REQUIRED fixture missing: {fixture_path}")
+            else:
+                skipped.append(f"[{label}] optional fixture not present: {fixture_path}")
             continue
+        examined += 1
         content = fixture_path.read_bytes()
 
         dumps: List[str] = []
@@ -189,13 +230,41 @@ def main() -> int:
             )
 
     print()
+    for s in skipped:
+        print(f"  · skipped {s}")
+
     if failures:
         print(f"DETERMINISM GATE: FAIL ({len(failures)} failure(s))")
         for f in failures:
             print(f"  ✗ {f}")
         return 1
-    print("DETERMINISM GATE: PASS — all fixtures byte-identical across "
-          f"{RUNS} runs; frozen SF sums match the file's totals row to the cent")
+
+    # VACUITY GUARD. "No failures" over nothing examined is not a pass, and
+    # this gate's whole history is a reminder: it read as red for 100 runs
+    # because its subjects were absent, and the opposite mistake — reading
+    # as green because its subjects are absent — is the more dangerous one.
+    if examined == 0:
+        print("DETERMINISM GATE: FAIL — NOTHING WAS EXAMINED.")
+        print("  Every fixture was missing, so there is no determinism claim")
+        print("  to make. This is not a pass. The committed corpus workbooks")
+        print("  under corpus/*/input.xlsx are the required subjects; if they")
+        print("  are gone, the checkout is broken.")
+        return 1
+
+    anchored = sum(
+        1 for p, _lbl, exp, _req in FIXTURES if exp is not None and p.is_file()
+    )
+    print(f"DETERMINISM GATE: PASS — {examined} fixture(s) byte-identical across "
+          f"{RUNS} runs")
+    if anchored:
+        print(f"  {anchored} fixture(s) also matched an external SF anchor to the cent.")
+    else:
+        # Said out loud rather than implied. The external anchor is the
+        # strongest assertion here and it rides on a gitignored file, so a
+        # CI run makes the WEAKER claim and must not sound like the strong one.
+        print("  No external SF anchor was checked — the anchored fixture is a")
+        print("  gitignored client book, absent here. Determinism is proven;")
+        print("  agreement with a real file's own totals row is not.")
     return 0
 
 
