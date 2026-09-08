@@ -906,7 +906,17 @@ function footer(year: number, L: LandingStrings, langCode: string) {
       </div>
     </div>
     <div style="margin-top:36px;padding-top:22px;border-top:1px solid var(--rule-soft);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-mute)">
-      <span>${L.footer.rights.replace("{year}", String(year))}</span>
+      <span>${esc(
+        L.footer.rights
+          .replace("{year}", String(year))
+          // The entity is declared ONCE, in content/legal/entity.json via
+          // `legalConfig`. This line used to carry the literal string
+          // "[Company Legal Name]" and shipped to production that way,
+          // directly above the footer block that renders the real entity
+          // from LEGAL_ENTITY — the exact duplication legalConfig exists
+          // to prevent, surviving in the one spot the refactor missed.
+          .replace("{company}", LEGAL_ENTITY.denumire ?? ""),
+      )}</span>
       ${langSwitcher}
       <span>${L.footer.madeIn}</span>
     </div>

@@ -230,7 +230,7 @@ const en: LandingStrings = {
     product: "Product", overview: "Overview", how: "How it works", trust: "Why trust it", audiences: "Who it's for", faq: "FAQ",
     legalCol: "Legal", cookieSettings: "Cookie settings",
     contactCol: "Contact", contactUs: "Contact us",
-    rights: "© {year} CFO AI · [Company Legal Name]. All rights reserved.",
+    rights: "© {year} CFO AI · {company}. All rights reserved.",
     madeIn: "Made in the EU · GDPR-compliant",
   },
   consent: {
@@ -377,7 +377,7 @@ const ro: LandingStrings = {
     product: "Produs", overview: "Prezentare", how: "Cum funcționează", trust: "De ce e de încredere", audiences: "Pentru cine este", faq: "Întrebări frecvente",
     legalCol: "Legal", cookieSettings: "Setări cookie-uri",
     contactCol: "Contact", contactUs: "Contactează-ne",
-    rights: "© {year} CFO AI · [Company Legal Name]. Toate drepturile rezervate.",
+    rights: "© {year} CFO AI · {company}. Toate drepturile rezervate.",
     madeIn: "Creat în UE · Conform GDPR",
   },
   consent: {
