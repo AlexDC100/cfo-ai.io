@@ -103,8 +103,21 @@ LEVEL_SYNTHETIC = "synthetic"
 
 SLOT_OPENING = "opening"
 SLOT_MOVEMENTS = "movements"
+#: THE RULAJ — the movement booked IN this period, the `r_d`/`r_c` pair.
+#:
+#: Distinct from `movements` above, which is the *sume totale* pair and is
+#: CUMULATIVE. Modelling only the cumulative one was a real gap: every
+#: movement-reading detector family (round-number frequency, first-digit
+#: conformity, velocity, magnitude, reversal, direction, decouple) needs
+#: the PERIOD movement, and none of them could be served through this
+#: spine on either tier. Worse, the module's own IR adapter
+#: `rows_from_ledger_doc` emitted the rulaj under `r_d`/`r_c` while the
+#: builder read only `st_d`/`st_c`, so the one path from real engine data
+#: into this spine produced an empty movement slot on EVERY account,
+#: always — and nothing called that adapter, so no test walked it.
+SLOT_PERIOD = "period"
 SLOT_CLOSING = "closing"
-SLOTS = (SLOT_OPENING, SLOT_MOVEMENTS, SLOT_CLOSING)
+SLOTS = (SLOT_OPENING, SLOT_PERIOD, SLOT_MOVEMENTS, SLOT_CLOSING)
 
 #: Why a slot carries no number. A value, never an exception — a caller
 #: reads `isinstance(slot, Money)` to ask "do I have a figure", and reads
@@ -421,6 +434,10 @@ class AccountPoint:
     movements: Slot
     closing: Slot
     provenance: AtomProvenance
+    #: The RULAJ pair. Declared after `provenance` with a default so no
+    #: positional constructor call changes meaning; every builder passes
+    #: it by keyword.
+    period: Slot = None  # type: ignore[assignment]
     #: For a synthetic point: the analytic codes rolled into it, sorted.
     #: Empty on an analytic point.
     contributors: Tuple[str, ...] = ()
@@ -428,6 +445,15 @@ class AccountPoint:
     #: caller declared them. None on the served tier and on any document
     #: whose front-end did not say.
     cumulative_semantics: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        # A point built without a rulaj slot has not REFUSED one, it has
+        # simply not been told — and `None` is not a Slot. Fill it with
+        # the refusal that says exactly that, so `slot_money` keeps
+        # working and no consumer ever sees a bare None.
+        if self.period is None:
+            object.__setattr__(self, "period", _not_served(
+                SLOT_PERIOD, REASON_COLUMN_ABSENT, DETAIL_COLUMN_ABSENT))
 
     @property
     def tier(self) -> str:
@@ -488,6 +514,7 @@ class AccountPoint:
             "account_code": self.account_code,
             "label": self.label,
             "opening": _slot_payload(self.opening),
+            "period": _slot_payload(self.period),
             "movements": _slot_payload(self.movements),
             "closing": _slot_payload(self.closing),
             "identity": self.identity().to_payload(),
@@ -819,6 +846,13 @@ def rows_from_ledger_doc(doc: Any) -> Tuple[Dict[str, Any], ...]:
     out = []  # type: List[Dict[str, Any]]
     pairs = (("opening_debit", "si_d"), ("opening_credit", "si_c"),
              ("period_debit", "r_d"), ("period_credit", "r_c"),
+             # The *sume totale* pair. Absent on the corpus books (the IR
+             # carries None), which is why it is a MISSING KEY here and
+             # `column_absent` downstream — the honest answer, and one this
+             # adapter used not to give at all: it emitted no `st_*` key
+             # while the builder read only `st_*`, so every ledger point
+             # built through the IR had an empty movement slot.
+             ("total_debit", "st_d"), ("total_credit", "st_c"),
              ("closing_debit", "sf_d"), ("closing_credit", "sf_c"))
     for atom in getattr(doc, "atoms", ()) or ():
         row = {"cont": atom.account_code, "nume_cont": atom.label}
@@ -993,10 +1027,12 @@ def _ledger_points(source: LedgerPeriodInput, currency: str
             entry = {
                 "label": str(row.get("nume_cont") or "").strip(),
                 "row_index": index,
-                "si": [0, 0, False], "st": [0, 0, False], "sf": [0, 0, False],
+                "si": [0, 0, False], "r": [0, 0, False],
+                "st": [0, 0, False], "sf": [0, 0, False],
             }
             accumulator[code] = entry
         for pair, dkey, ckey in (("si", "si_d", "si_c"),
+                                 ("r", "r_d", "r_c"),
                                  ("st", "st_d", "st_c"),
                                  ("sf", "sf_d", "sf_c")):
             if not _has(row, dkey, ckey):
@@ -1021,6 +1057,9 @@ def _ledger_points(source: LedgerPeriodInput, currency: str
 
         opening = _slot("si", SLOT_OPENING)
         closing = _slot("sf", SLOT_CLOSING)
+        # The rulaj needs no semantics declaration: it is the movement
+        # booked in the period, and there is only one reading of it.
+        period_slot = _slot("r", SLOT_PERIOD)
         if semantics not in (CUMULATIVE_WITH_OPENING, CUMULATIVE_MOVEMENTS):
             movements = _not_served(SLOT_MOVEMENTS,
                                     REASON_CUMULATIVE_SEMANTICS_UNKNOWN,
@@ -1033,6 +1072,7 @@ def _ledger_points(source: LedgerPeriodInput, currency: str
             account_code=code,
             label=entry["label"],
             opening=opening, movements=movements, closing=closing,
+            period=period_slot,
             cumulative_semantics=semantics,
             provenance=AtomProvenance(
                 period_id=str(source.period_id),
@@ -1082,6 +1122,9 @@ def _served_points(source: ServedPeriodInput, currency: str
             movements=_not_served(SLOT_MOVEMENTS,
                                   REASON_TIER_SERVED_CLOSING_ONLY,
                                   DETAIL_SERVED_CLOSING_ONLY),
+            period=_not_served(SLOT_PERIOD,
+                               REASON_TIER_SERVED_CLOSING_ONLY,
+                               DETAIL_SERVED_CLOSING_ONLY),
             closing=ServedAmount(
                 amount=Money.from_minor(currency, int(entry["minor"])),
                 bucket=("+".join(buckets) if buckets else None)),
@@ -1166,6 +1209,7 @@ def _roll_up(points: Dict[str, Tuple[AccountPoint, str]], currency: str,
             account_code=synthetic,
             label=first.label,
             opening=_sum(SLOT_OPENING),
+            period=_sum(SLOT_PERIOD),
             movements=_sum(SLOT_MOVEMENTS),
             closing=_sum(SLOT_CLOSING),
             contributors=contributors,
@@ -1343,6 +1387,7 @@ __all__ = [
     "REASON_CUMULATIVE_SEMANTICS_UNKNOWN", "REASON_PERIOD_ABSENT",
     "REASON_TIER_SERVED_CLOSING_ONLY",
     "SERIES_VERSION", "SLOTS", "SLOT_CLOSING", "SLOT_MOVEMENTS",
+    "SLOT_PERIOD",
     "SLOT_OPENING", "TIER_LEDGER", "TIER_SERVED",
     "AbsentPeriodInput", "AccountGap", "AccountPoint", "AccountSeriesSet",
     "AccountTimeSeries", "AtomProvenance", "Balance", "ColdStart",

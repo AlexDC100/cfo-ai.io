@@ -2808,3 +2808,61 @@ a figure picks up the snapshot the projection stands on
 `design_review/PROVENANCE_CENSUS.json` under the `forecast` surface, whose
 floor is zero and must stay zero: an affordance promising a jump to the source
 cell for 2030 revenue would be an affordance over nothing.
+
+### radar — the spine join (added 2026-09-08)
+
+`tests/engine/test_radar_spine_join.py` folds into the `radar` gate above.
+
+**What it covers.** Parts A and B of Radar landed in one commit and were NOT
+connected. `series.py` — 1,356 lines carrying the two tiers, the typed
+refusals, the cumulative-semantics guard and an identity measured exactly
+zero on every account of every corpus book — was imported by nothing in
+`src/`. The detectors read `detectors/book.py`, which parses `doc.atoms`
+directly. The commit message said "the cross-period spine and twelve
+detectors" as though the second read the first; it did not.
+
+Joining them surfaced four defects, two of them in Part A:
+
+| defect | what it cost |
+|---|---|
+| `PeriodBook` had no served-tier constructor | the serving lane holds `statement_line_items`, never a parsed ledger doc, so it could not build a `BookSeries` at all — which is why the detectors shipped with no production caller |
+| the spine modelled only the *sume totale* column, never the rulaj | seven of twelve families read the PERIOD movement; none of them could be served through the spine on either tier |
+| `rows_from_ledger_doc` emitted `r_d`/`r_c`, the builder read `st_d`/`st_c` | the one path from the engine's own IR into the spine produced an empty movement slot on EVERY account of EVERY book — and nothing called that adapter, so no test walked it |
+| the distribution families read every row | the spine adds synthetic roll-ups (413 rows against 331 on agras); a synthetic restates its analytics' money, so the same amount entered a Benford population twice and its leading digit was not independent of its children's. It flipped realestate from clear to FIRED. Live on the direct path too — Romanian trial balances routinely list a synthetic beside its own analytics — the spine only made it visible. |
+
+**GREEN** — the `radar` gate is now `127 passed` (floor 125).
+
+**PLANT / RED / REVERT**, six plants:
+
+```
+served refusal becomes a zero (D4, from the other side)
+  -> E  AssertionError: 101 reports a movement of 0.0 on a tier that serves none
+distribution families read every row again
+  -> E  AssertionError: 69 account(s) entered the population alongside their own
+        analytics, e.g. ['162', '167', '213', '267', '280']
+the join reads the cumulative pair instead of the rulaj
+  -> E  AssertionError: 1012.01; assert 1.0 == 0.0 ± 1.0e-12
+a spine gap becomes a row
+  -> AttributeError: 'AccountGap' object has no attribute 'opening'
+     (a crash, not the gate's own sentence — weaker than the others, recorded
+      as such rather than dressed up)
+mixed tiers are allowed through
+  -> E  Failed: DID NOT RAISE SpineJoinError
+the IR adapter stops emitting the sume-totale pair
+  -> E  KeyError: 'st_d'
+```
+
+That last plant went GREEN on its first form. No corpus book's IR carries a
+`total_*` pair, so removing the mapping changes nothing a real book can see —
+which is exactly how the original defect survived. The test now asserts the
+adapter against a STUB atom and separately measures that the corpus lacks the
+column, so the gate does not depend on data that cannot exercise it.
+
+**PARITY is the anti-vacuity control:** the spine path and the direct
+`from_ledger_doc` path must reach the same verdict on all four books. They now
+do, exactly. A divergence means a family has stopped reading leaves or the
+join has lost a level.
+
+**What this still cannot see:** whether the SERVE lane calls any of it. It
+does not — `run_detectors` has no production caller, and the gate says so
+rather than implying coverage it does not have.

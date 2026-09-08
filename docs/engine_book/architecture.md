@@ -64,7 +64,7 @@ graph LR
     pkg_public["public (46 modules)"]
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
-    pkg_radar["radar (14 modules)"]
+    pkg_radar["radar (15 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (7 modules)"]

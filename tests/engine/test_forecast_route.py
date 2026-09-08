@@ -37,6 +37,7 @@ Python 3.9 — no ``match``, no ``X | Y`` unions.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,17 @@ def _book(name):
 
 @pytest.fixture(scope="module")
 def app():
+    """The REAL app. Same env shape as `test_route_bindings.py`'s fixture,
+    including its refusal to build against a non-manifest Supabase URL —
+    "never point test-mode at production" is a standing rule here, and the
+    junk-workspace incident is why."""
+    os.environ.setdefault("VITE_SUPABASE_URL", "https://test.supabase.co")
+    os.environ.setdefault("VITE_SUPABASE_ANON_KEY", "test-anon")
+    os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
+    os.environ["CFO_AI_SKIP_BOOT_VERIFY"] = "1"
+    assert ("supabase.co" in os.environ["VITE_SUPABASE_URL"]
+            and "test." in os.environ["VITE_SUPABASE_URL"]), (
+        "refusing to build the app against a non-manifest Supabase URL")
     from engine.api.server import create_app
     return create_app()
 

@@ -71,8 +71,20 @@ def _amounts(book: "B.PeriodBook", prefixes: Sequence[str], measure: str,
     alternative — a NET movement — silently deletes every closed class 6
     and class 7 account, whose debit and credit sides cancel at year end,
     which is most of the amounts in the book.
+
+    LEAVES ONLY, and this one is a statistical requirement rather than a
+    tidiness preference. A synthetic account's figure is the SUM of its
+    analytics, so a population containing both carries the same money
+    twice and the parent's leading digit is not independent of its
+    children's — which is precisely the assumption a Benford test rests
+    on. Measured: reading every row instead of the leaves flipped the
+    realestate book from clear to FIRED, on a population inflated by 74
+    synthetic parents that restate money already counted. Romanian trial
+    balances routinely list a synthetic beside its own analytics, so this
+    is not an artefact of one construction path.
     """
-    rows = book.select(prefixes).rows if prefixes else book.rows
+    group = book.select(prefixes) if prefixes else B.Group(prefixes=(), rows=book.rows)
+    rows = group.leaves()
     values = []  # type: List[float]
     kept = []  # type: List[B.AccountRow]
     for row in rows:
