@@ -1,6 +1,7 @@
 # LAUNCH AUDIT — cfo-ai.io
 
-**Verdict: NO-SHIP.**
+**Verdict: still NO-SHIP** (updated 2026-09-08, second pass — the reason is
+unchanged and it is not new defects; see "Second pass" below).
 
 Not because the journey was found broken. Because **the journey could not be
 tested at all**, and a product handed to accounting firms today cannot rest on
@@ -240,3 +241,85 @@ product works today.
     explains itself — never a broken screen.
 
 If any of 5, 6, 7 or 8 misbehaves, do not send the emails.
+
+
+---
+
+# SECOND PASS — 2026-09-08, after the owner's directive
+
+Four of the six blockers are closed, PDF export is real, and the worst
+defect of the day was found by an adversarial verifier ADDING UP THE TWO
+SIDES OF THE PRINTED BALANCE SHEET — something no gate had ever done.
+
+## The balance sheet did not balance
+
+    Total Assets                RON  39,272,501
+    Total Liabilities + Equity  RON  39,319,114     out by RON 46,613
+
+Two of four books. No reconciling line. The findings section then pointed
+the reader at an "Unclassified row" that was not in the statement.
+
+The engine was never wrong — its `canonical_bs` says `BALANCED,
+difference 0.0` with both sides at 39,319,114.09. The two totals came from
+two authorities: assets off the legacy `assembled_bs`, equity+liabilities
+off the canonical. The 46,613 is exactly the unclassified account-413
+balance the canonical carries and the legacy path drops.
+
+Root cause is the seam this repo has now paid for three times: `capture.py`
+takes statements on the WRITE path, `pipeline.py` adds `canonical_bs` on
+the SERVE path afterwards, so **every export gate in the repo was
+rendering a document production does not produce.** `statementsFor` now
+performs the join and raises if a book lacks its canonical half. All four
+books balance to the cent. FIXED, `8ac7f82`.
+
+## Blocker status
+
+| # | Blocker | State |
+|---|---|---|
+| 1 | Core journey unverified | **OPEN — owner.** Needs a signed-in session. |
+| 2 | `USAGE_LIMITS_ENABLED` | **CLOSED for uploads.** Verified 0 of 10 subscribers would be hard-blocked, then proved reserve->allowed->release on a real subscriber with nothing consumed. Reject-path test written and plant-proven (dead RPC fails CLOSED). **Chat still unmetered** — it runs on the Supabase Edge Function and needs the secret set there; `supabase login` is an account flow. |
+| 3 | Error tracking | **HALF.** `sentry-sdk 2.68.1` is in the hash lock and live in the image; `/api/health` reports `configured: false, "SENTRY_DSN not set"`. Setting the DSN is now an env change and a restart. |
+| 4 | Backups | **CLOSED for data.** Daily snapshot of 11 tables + all 71 storage objects (80.5 MB), 35-day retention pruned by the script, weekly restore test. Restore proven twice: 82 artefacts matched sha256, then a restored .xlsx ran through the engine — 809 rows, 654 accounts, BALANCED. **Postgres schema/RLS/functions are NOT covered** — no DB connection string on the host, no `pg_dump` in the image. |
+| 5 | Cross-tenant | **OPEN — owner.** Needs two accounts. |
+| 6 | CI | **CLOSED.** Three causes: a job that never ran `pip install`; a determinism gate whose only fixtures were gitignored client files; and the job the launch gate required booting against PRODUCTION with live API keys on every PR. That one is now manual-only and no longer gates the branch. |
+
+## PDF export — real, not wired
+
+Headless Chromium (WeasyPrint broke all 26 SVG charts — the balance-sheet
+chart printed a label and its figure on top of each other). 31 pages, A4,
+cover, running head on all 30 body pages, `<thead>` repeat proven. A
+three-way gate parses the RENDERED BYTES back and compares PDF vs HTML vs
+XLSX vs the gateway, including that a refusal in one is a refusal in all.
+
+**Fails closed and is not deployed**: route not mounted, no pdf service in
+compose, `PDF_SERVICE_TOKEN` unset — the endpoint answers 503 saying so.
+
+## Still open, from the verifiers
+
+- **Three chart labels print at 1.45:1 contrast** — white on near-white at
+  5.9 pt, on the balance-sheet chart, the first graphic in the pack. Nine
+  spans below the 3:1 floor. HIGH.
+- **The contents page prints ten dot leaders that end in nothing** —
+  Chromium does not implement `target-counter()`. A leader is a promise of
+  a number.
+- **Four slices get no mark under a caption promising a letter key**, one
+  of them Cash — the very item the document's verdict calls critical.
+- **Four near-blank pages** (p15/18/26/28) from section openers and finding
+  cards breaking badly.
+- **Every fixture is named `"input"`**, so the cover, 30 running heads and
+  the filename were all judged against a placeholder.
+- **The copy gate cannot see `index.html`, `RoadmapPage.tsx` or Landing's
+  inline JSX** — three surfaces its own lane hand-edited. Proven by
+  planting false claims into two of them and watching it pass.
+- **`/signup?plan=professional` quotes EUR 499** for a EUR 16.99 plan and
+  stamps a third trial length. No in-product link uses it; old marketing
+  links and emails would.
+- **The in-app `/public-companies` footer still claims ANAF provenance and
+  five-minute price refresh** on a market whose registry says
+  `price_source: none`. The landing was corrected; this page was not.
+- `test_firm_tenancy` passes alone, fails in the full run (pollution).
+
+## Rotate this
+
+`ENGINE_API_TOKEN` was printed into the session transcript by a
+mis-quoted command. Nothing was published, but rotate it.
