@@ -87,7 +87,6 @@
    },
    "inventory_net": {
     "leaves": [
-     "inventory_raw_materials",
      "inventory_consumables",
      "inventory_merchandise_resale",
      "inventory_packaging",
@@ -637,41 +636,6 @@
     },
     {
      "account_codes": [
-      "3"
-     ],
-     "amount": -1229164.37,
-     "id": "inventory_raw_materials",
-     "label": "Raw materials",
-     "label_key": "bs.row.inventory_raw_materials",
-     "leaf_ids": [
-      "378.51",
-      "378.52",
-      "378.53",
-      "378.59",
-      "378.60",
-      "378.76",
-      "378.77",
-      "378.79",
-      "378.82",
-      "378.83",
-      "378.86",
-      "378.87",
-      "378.88",
-      "378.89",
-      "378.90",
-      "378.91",
-      "378.92",
-      "378.93",
-      "378.94",
-      "378.95",
-      "378.96",
-      "378.98"
-     ],
-     "opening": null,
-     "section": "current_assets"
-    },
-    {
-     "account_codes": [
       "302",
       "303"
      ],
@@ -694,9 +658,10 @@
     },
     {
      "account_codes": [
-      "371"
+      "371",
+      "378"
      ],
-     "amount": 7917059.01,
+     "amount": 6687894.64,
      "id": "inventory_merchandise_resale",
      "label": "Merchandise for resale",
      "label_key": "bs.row.inventory_merchandise_resale",
@@ -726,7 +691,29 @@
       "371.94",
       "371.95",
       "371.96",
-      "371.98"
+      "371.98",
+      "378.51",
+      "378.52",
+      "378.53",
+      "378.59",
+      "378.60",
+      "378.76",
+      "378.77",
+      "378.79",
+      "378.82",
+      "378.83",
+      "378.86",
+      "378.87",
+      "378.88",
+      "378.89",
+      "378.90",
+      "378.91",
+      "378.92",
+      "378.93",
+      "378.94",
+      "378.95",
+      "378.96",
+      "378.98"
      ],
      "opening": null,
      "section": "current_assets"
@@ -1420,9 +1407,9 @@
     "sign_meaning": "asset_positive"
    },
    "inventory_merchandise_resale": {
-    "magnitude": 7917059.01,
-    "ras_line_items_count": 26,
-    "ras_line_items_sum_signed": 7917059.01,
+    "magnitude": 9146223.38,
+    "ras_line_items_count": 48,
+    "ras_line_items_sum_signed": 6687894.64,
     "sign_meaning": "asset_positive"
    },
    "inventory_packaging": {
@@ -1436,12 +1423,6 @@
     "ras_line_items_count": 2,
     "ras_line_items_sum_signed": -126500.0,
     "sign_meaning": "asset_negative"
-   },
-   "inventory_raw_materials": {
-    "magnitude": 1229164.37,
-    "ras_line_items_count": 22,
-    "ras_line_items_sum_signed": -1229164.37,
-    "sign_meaning": "asset_positive"
    },
    "legal_reserves": {
     "magnitude": 1326320.0,

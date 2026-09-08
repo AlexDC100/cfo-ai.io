@@ -644,17 +644,15 @@
     },
     {
      "account_codes": [
-      "3",
       "301"
      ],
-     "amount": 1793546.75,
+     "amount": 2150850.01,
      "id": "inventory_raw_materials",
      "label": "Raw materials",
      "label_key": "bs.row.inventory_raw_materials",
      "leaf_ids": [
       "301.01",
-      "301.08",
-      "348"
+      "301.08"
      ],
      "opening": null,
      "section": "current_assets"
@@ -713,14 +711,16 @@
     },
     {
      "account_codes": [
-      "345"
+      "345",
+      "348"
      ],
-     "amount": 2147572.21,
+     "amount": 1790268.95,
      "id": "inventory_finished_goods",
      "label": "Finished goods",
      "label_key": "bs.row.inventory_finished_goods",
      "leaf_ids": [
-      "345.01"
+      "345.01",
+      "348"
      ],
      "opening": null,
      "section": "current_assets"
@@ -1385,9 +1385,9 @@
     "sign_meaning": "asset_positive"
    },
    "inventory_finished_goods": {
-    "magnitude": 2147572.21,
-    "ras_line_items_count": 1,
-    "ras_line_items_sum_signed": 2147572.21,
+    "magnitude": 2504875.47,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 1790268.95,
     "sign_meaning": "asset_positive"
    },
    "inventory_merchandise_resale": {
@@ -1409,9 +1409,9 @@
     "sign_meaning": "asset_negative"
    },
    "inventory_raw_materials": {
-    "magnitude": 2508153.27,
-    "ras_line_items_count": 3,
-    "ras_line_items_sum_signed": 1793546.75,
+    "magnitude": 2150850.01,
+    "ras_line_items_count": 2,
+    "ras_line_items_sum_signed": 2150850.01,
     "sign_meaning": "asset_positive"
    },
    "inventory_variation_memo": {
