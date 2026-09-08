@@ -52,6 +52,22 @@ dependencies = [
     # Scandia Sibiu FY2019 (249 leaf accounts, 95% movement capture,
     # account 121 exact). See country_packs/ro_romania/pdf_ingester.py.
     "pymupdf>=1.24",
+    # ERROR TRACKING. `engine.api._observability` has always been able to
+    # initialise Sentry — it needs SENTRY_DSN set AND `sentry_sdk`
+    # importable, and its own docstring records that the package was
+    # deliberately left out of the lock. The launch audit found the
+    # consequence: NO ERROR TRACKING IN PRODUCTION, so the first person to
+    # learn about a 500 is the customer who hit it.
+    #
+    # The DSN is the owner's to create; this is the other half, so setting
+    # it becomes an env change and a restart rather than an image rebuild.
+    # Until a DSN exists `/api/health` keeps saying, honestly,
+    # {"configured": false, "reason": "SENTRY_DSN not set"} — and with the
+    # package present but no DSN, nothing is sent anywhere.
+    #
+    # Pure-Python, no compiled extension, so the hash lock resolves the
+    # same on macOS and on the linux image.
+    "sentry-sdk>=2.0",
 ]
 
 [project.optional-dependencies]
