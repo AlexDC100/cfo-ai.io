@@ -146,7 +146,10 @@ export function buildExcelWorkbook(
     ["Revenue", s.incomeStatement.revenue],
     ["EBITDA", t.ebitda],
     ["EBIT", t.ebit],
-    ["Net income", t.netIncome],
+    // The COVER quotes the same figure the KPI card and the printed P&L's
+    // last row quote — account 121's close, not the reconstruction. See
+    // `statutoryNetIncome`.
+    [NET_INCOME_LABEL, statutoryNetIncome(s, t)],
     // BS headline KPIs come from the servedFacts gateway (adjusted figures
     // on RECONCILED periods) so the Cover can never quote a different book
     // than the Balance Sheet sheet — no presence branch here.
@@ -220,13 +223,62 @@ export function buildExcelWorkbook(
     plRow("EBITDA", t.ebitda, priorT?.ebitda),
     plRow("Depreciation & amortization", -s.incomeStatement.depreciationAmortization, priorIs ? -priorIs.depreciationAmortization : undefined),
     plRow("EBIT", t.ebit, priorT?.ebit),
-    plRow("Financial income", s.incomeStatement.financialIncome ?? 0, priorIs?.financialIncome ?? 0),
+    // ⚠ NO `?? 0` ON THE PRIOR SIDE. It used to read
+    // `priorIs?.financialIncome ?? 0`, so on a book with NO PRIOR PERIOD
+    // — which is every book this path serves — the sheet printed a prior
+    // of 0 and a delta equal to the whole current figure, on the one row
+    // out of sixteen where the fallback fired. Measured on agras: the
+    // comparison column said `Financial income · 456,384.14 · 0 ·
+    // 456,384.14 · no % — prior is zero` while the fifteen rows around it
+    // said "no prior period", and the printed document said "no prior
+    // period" for this row too. A reader diffing the two columns reads a
+    // movement that never happened. `undefined` is what "the source did
+    // not say" looks like, and `plRow` already renders it correctly.
+    plRow("Financial income", s.incomeStatement.financialIncome ?? 0, priorIs?.financialIncome),
     plRow("Interest expense", -s.incomeStatement.interestExpense, priorIs ? -priorIs.interestExpense : undefined),
-    plRow("Financial expense", -(s.incomeStatement.financialExpense ?? 0), priorIs ? -(priorIs.financialExpense ?? 0) : undefined),
+    plRow(
+      "Financial expense",
+      -(s.incomeStatement.financialExpense ?? 0),
+      priorIs && typeof priorIs.financialExpense === "number" ? -priorIs.financialExpense : undefined,
+    ),
     plRow("Net financial result", t.netFinancialResult, priorT?.netFinancialResult),
     plRow("Profit before tax", t.pbt, priorT?.pbt),
     plRow("Tax expense", -s.incomeStatement.taxExpense, priorIs ? -priorIs.taxExpense : undefined),
-    plRow("Net income", t.netIncome, priorT?.netIncome),
+    // ── THE COLUMN ENDS WHERE THE COMPANY'S FILING ENDS ────────────────
+    //
+    // `t.netIncome` is `pretax − tax` over the class-6/7 movements — the
+    // RECONSTRUCTION. Account 121's closing balance is what the company
+    // filed, and it is what every ratio, the KPI card, the printed P&L's
+    // last row and the Graham block four sheets away are built on.
+    //
+    // This sheet used to print the reconstruction under the bare name
+    // "Net income", so one workbook stated two different figures under
+    // one label — measured on all four committed books:
+    //
+    //   book         "Net income" here   account 121 (filed)
+    //   agras           14,106,102.03         7,533,676.02
+    //   carniprod        5,843,449.04         1,435,533.59
+    //   realestate     −30,391,418.38          −801,604.14
+    //   retail           1,161,957.98         3,205,212.62
+    //
+    // The document had already been repaired for exactly this
+    // (`exportPlFoots.test.ts`); the workbook had not, so the two
+    // deliverables disagreed about the company's profit by up to 38×.
+    //
+    // The repair is the document's: print the reconstruction under its
+    // own name, print the step, and end on the filed figure. The bridge
+    // is `filed − reconstructed` — the same subtraction the document
+    // does, not a second field read, so the two cannot drift.
+    ...(Math.abs(statutoryNetIncome(s, t) - t.netIncome) > 0.005
+      ? [
+          plRow("Net profit — reconstructed (class 6/7 movements)", t.netIncome, priorT?.netIncome),
+          plRow(
+            "± Reconciliation to account 121 — the class 6/7 movements do not sum to the filed close",
+            statutoryNetIncome(s, t) - t.netIncome,
+          ),
+        ]
+      : []),
+    plRow(NET_INCOME_LABEL, statutoryNetIncome(s, t), priorStatutoryNetIncome(s, priorT)),
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(plRows), "P&L");
 
@@ -358,7 +410,15 @@ export function buildExcelWorkbook(
   // ─ Cash flow ─────────────────────────────────────────────────────────────
   const cfRows: (string | number)[][] = [
     ["Cash Flow Snapshot", s.periodLabel],
-    ["Net income", cf.netIncome],
+    // NAMED FOR WHAT IT IS. `deriveCashFlow` starts its walk from
+    // `deriveTotals(s).netIncome`, the class-6/7 reconstruction, and the
+    // three rows below it are that figure's arithmetic — so relabelling
+    // is the honest repair here and substituting the filed figure under
+    // the old name would leave the column not adding up. That
+    // `deriveCashFlow` starts from the reconstruction at all is a
+    // question for `financialValuation.ts`, recorded rather than silently
+    // patched from this file.
+    ["Net income — reconstructed (class 6/7 movements)", cf.netIncome],
     ["+ Depreciation & amortization", cf.depreciationAmortization],
     ["- Δ Working capital", cf.workingCapitalChange],
     ["= Cash flow from operations (CFO)", cf.cfo],
@@ -407,7 +467,11 @@ export function buildExcelWorkbook(
     [],
     ["Graham Intrinsic Value"],
     ["Formula", graham.formula],
-    ["Net income", graham.eps * (s.supplementary.sharesOutstanding ?? 1)],
+    // `runGraham` already capitalises the STATUTORY figure (its own
+    // comment says so); the label now says which one it is, so no sheet
+    // in this workbook prints a bare "Net income" whose meaning the
+    // reader has to guess.
+    [NET_INCOME_LABEL, graham.eps * (s.supplementary.sharesOutstanding ?? 1)],
     ["Growth rate (g)", `${(graham.growthRate * 100).toFixed(1)}%`],
     ["AAA bond yield (Y)", `${(graham.bondYield * 100).toFixed(2)}%`],
     ["Intrinsic equity value", graham.intrinsicEquityValue],
@@ -617,6 +681,42 @@ function cell(v: number | null | undefined): string | number {
 function fixedCell(v: number | null | undefined, digits: number): string {
   return typeof v === "number" && Number.isFinite(v) ? v.toFixed(digits) : EXPORT_UNREPORTED;
 }
+
+// ── ONE NAME FOR THE COMPANY'S PROFIT, AND ONE FIGURE BEHIND IT ───────
+//
+// Account 121's closing balance is the statutory net profit
+// (`CLAUDE.md` Appendix A §3, "Critical reconciliation points"), and the
+// engine serves it as `assembled_pl.net_income_statutory`.
+// `deriveTotals(s).netIncome` is the class-6/7 RECONSTRUCTION, which on
+// the four committed books lands between 2.8× and 38× away from it.
+//
+// ⚠ This expression already exists three other places in the tree —
+// `financialValuation.ts:339` (`runGraham`), `:522`
+// (`computeCreditScore`) and `financialReport.ts:2862` (the printed
+// document). Its right home is the report model, so all four read one
+// function; that module is under repair by another lane in this session
+// and a cross-lane edit there would collide, so the fourth copy lives
+// here with this note rather than being written a fourth time inline in
+// three separate sheets of this file. `threeWayParity.test.ts` §4 reds
+// if any of them stops agreeing with the gateway.
+function statutoryNetIncome(s: Statements, t: { netIncome: number }): number {
+  const canonical = s.assembled_pl?.net_income_statutory;
+  return typeof canonical === "number" && Number.isFinite(canonical) ? canonical : t.netIncome;
+}
+
+function priorStatutoryNetIncome(
+  s: Statements,
+  priorT: { netIncome: number } | null,
+): number | undefined {
+  if (!s.prior || !priorT) return undefined;
+  const canonical = (s.prior as { assembled_pl?: { net_income_statutory?: number } }).assembled_pl
+    ?.net_income_statutory;
+  return typeof canonical === "number" && Number.isFinite(canonical) ? canonical : priorT.netIncome;
+}
+
+/** What every sheet calls the filed figure, so no sheet can call it
+ *  something else. The document's own row label, word for word. */
+const NET_INCOME_LABEL = "Net income (account 121, as filed)";
 
 function plRow(
   label: string,

@@ -1,0 +1,17 @@
+{
+  "name": "cfo-ai-pdf",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Renders the standalone CFO AI report HTML to A4 PDF with headless Chromium. Internal-only sidecar; see server.mjs for why it is not in the engine image.",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.59.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

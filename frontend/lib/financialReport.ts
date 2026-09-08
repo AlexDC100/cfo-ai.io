@@ -111,6 +111,7 @@ import {
   type ComparativeLine,
   type Comparatives,
 } from "./reportComparatives";
+import { printCss } from "./reportPrintCss";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -2915,19 +2916,11 @@ export function renderReportHtml(
   // ─ Style block ─ Lender-grade institutional document.
   // Restrained palette (ink + accent + greys), serif headlines + sans body,
   // tabular lining figures everywhere, hairline tables, A4 print-correct.
+  // The `@page` block that used to open this template moved to
+  // `reportPrintCss.ts` and is now emitted LAST, below — see that file
+  // for why the paper rules live in one place instead of three, and for
+  // the running head the margin box gained.
   const css = `
-    @page {
-      size: A4;
-      margin: 22mm 18mm 24mm 18mm;
-      @bottom-center {
-        content: "Financial Analysis · Page " counter(page) " of " counter(pages);
-        font-family: 'Inter', -apple-system, sans-serif;
-        font-size: 8.5pt;
-        color: #6b7280; /* design-lint-allow-hex standalone generated report doc */
-        letter-spacing: 0.04em;
-      }
-    }
-
     :root {
       /* Standalone generated document — cannot read the app token sheet;
          Paper palette baked in below (design-lint-allow-hex, whole block).
@@ -3488,6 +3481,7 @@ export function renderReportHtml(
     }
     ${chartCss()}
     ${shellCss()}
+    ${printCss({ company: s.companyName, period: s.periodLabel })}
   `;
 
   const today = new Date().toLocaleDateString("en-GB", {

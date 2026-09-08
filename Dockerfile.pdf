@@ -1,0 +1,62 @@
+# PDF sidecar image — `cfo-ai-pdf`.
+#
+# Renders the standalone report HTML to A4 PDF with headless Chromium.
+# See services/pdf/server.mjs for why this is its own image and not a
+# layer on the engine (short version: the engine installs under
+# `pip --require-hashes` and `scripts/check_supply_chain.py` C3 forbids
+# any install outside that lock; Playwright's browser download is a
+# CDN tarball pip never hashes).
+#
+# ── WHY bookworm-slim AND NOT alpine ──────────────────────────────────
+# `Dockerfile.frontend` uses `node:20-alpine`, and the instinct is to
+# match it. Playwright's Chromium is a glibc binary — it does not run on
+# musl, and Playwright ships no musl build. Debian is not a preference
+# here, it is the requirement.
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production \
+    # Put the browser inside the image rather than in a HOME that a
+    # non-root user may not own at run time. Without this, `playwright
+    # install` writes to /root/.cache and the service — which runs as
+    # `pwuser` — cannot read it, and the failure is a launch error at
+    # the first render rather than at build time.
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+WORKDIR /app
+
+COPY services/pdf/package.json ./package.json
+
+# `npm install` (no lockfile in this tree yet) with the version PINNED in
+# package.json — `playwright: "1.59.1"`, exact, no caret. That version is
+# the one measured in the bake-off; a floated Playwright is a floated
+# Chromium, and a different Chromium is a different paginator.
+RUN npm install --omit=dev --no-audit --no-fund
+
+# ── THE BROWSER ───────────────────────────────────────────────────────
+# `chromium-headless-shell`, NOT `chromium`: measured byte-identical PDF
+# output on the real Agras export (after date normalisation) at 189 MB
+# installed instead of 336 MB. `--with-deps` pulls the Debian libraries
+# Chromium links against (libnss3, libdrm, libgbm, libasound2, the font
+# stack); without them the launch fails with a bare dlopen error.
+RUN npx playwright install --with-deps chromium-headless-shell \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY services/pdf/ ./
+
+# Playwright's image convention: a non-root user that owns nothing it
+# does not need. The renderer reads a POST body and writes a Buffer; it
+# has no reason to be root inside its own container.
+RUN groupadd -r pwuser && useradd -r -g pwuser -m pwuser \
+ && chown -R pwuser:pwuser /app
+USER pwuser
+
+EXPOSE 8081
+
+# `configured` in the payload distinguishes "process is up but
+# PDF_SERVICE_TOKEN is unset" (it will 503 every render) from "process is
+# up and armed". A healthcheck that cannot tell those apart reports green
+# on a service that refuses every request.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s \
+  CMD node -e "fetch('http://127.0.0.1:8081/health').then(r=>r.json()).then(j=>process.exit(j.status==='ok'?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "server.mjs"]
