@@ -1891,6 +1891,15 @@ DECLARED_CLIENT_DATA_READERS = (
     "engine.actions", "engine.ai.numerals", "engine.ai_lane", "engine.ai_lane.routes",
     "engine.api._benchmarks", "engine.api._billing", "engine.api._capsule_tools",
     "engine.api._features", "engine.api._firm", "engine.api._firm_attention",
+    # PRODUCT route, under its own membership gate: `GET
+    # /api/forecast/{period_id}` resolves the workspace through
+    # `_org.resolve_org` (403 on a non-member org, never a silent
+    # fallback), reads `financial_periods` and `statement_line_items`
+    # through the CALLER's own RLS-scoped client, and filters on org_id
+    # as a second lock on top of that. Not a firm module and not under a
+    # swept prefix. Pinned behaviourally by
+    # tests/engine/test_forecast_route.py.
+    "engine.api._forecast_routes",
     "engine.api._firm_import", "engine.api._firm_requests", "engine.api._industry_detection",
     "engine.api._industry_intelligence", "engine.api._journal_routes", "engine.api._ops_routes",
     "engine.api._org", "engine.api._period_move", "engine.api._reconcile", "engine.api.cfo_ai",

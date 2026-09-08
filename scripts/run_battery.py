@@ -312,8 +312,10 @@ def _engine_gates() -> List[Gate]:
         # Plant log: docs/engine_book/gates.md
         Gate("forecast-route",
              [PY, "-m", "pytest", "tests/engine/test_forecast_route.py", "-q"],
-             work_junit=True, floor=20, units="tests",
+             work_junit=True, floor=22, units="tests",
              canaries=("test_the_route_is_mounted_on_the_real_app",
+                       "test_the_route_resolves_the_workspace_and_scopes_the_read_to_it",
+                       "test_the_period_read_filters_on_the_resolved_workspace",
                        "test_an_anonymous_call_is_refused",
                        "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
                        "test_no_projected_figure_carries_actual_provenance",

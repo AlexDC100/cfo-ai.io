@@ -119,6 +119,91 @@ def test_a_horizon_the_engine_does_not_offer_is_refused_by_name(app):
         assert str(allowed) in detail, detail
 
 
+def test_the_route_resolves_the_workspace_and_scopes_the_read_to_it(app, monkeypatch):
+    """THE MEMBERSHIP GATE, exercised rather than read.
+
+    `resolve_org` returns `(user_id, org_id)` — BOTH. Bound as one name it
+    becomes the tuple, `"eq.%s" % org_id` renders
+    `eq.('uid', 'orgid')`, PostgREST is handed a filter that matches
+    nothing, and the route answers 404 to every caller while reading as
+    "no such period". It shipped that way until the FC1 table census
+    pointed at the module and the unpack was read properly.
+
+    RED ON: the org resolution being dropped, its result mis-bound, or the
+    period read losing its org_id filter.
+    """
+    from engine.api import _forecast_routes as FR
+
+    seen = {}
+
+    def _fake_resolve(jwt, requested):
+        seen["jwt"] = jwt
+        seen["requested"] = requested
+        return ("user-1", "org-7")
+
+    def _fake_load(jwt, org_id, period_id):
+        seen["org_id"] = org_id
+        seen["period_id"] = period_id
+        raise AssertionError("stop here — the scoping is what is under test")
+
+    from engine.api import _org
+    monkeypatch.setattr(_org, "resolve_org", _fake_resolve)
+    monkeypatch.setattr(FR, "_load_period", _fake_load)
+
+    client = TestClient(app, raise_server_exceptions=False)
+    client.get("/api/forecast/p-1?horizon=3",
+               headers={"Authorization": "Bearer token-abc",
+                        "X-Org-Id": "org-7"})
+    assert seen.get("jwt") == "token-abc"
+    assert seen.get("requested") == "org-7"
+    assert seen.get("org_id") == "org-7", (
+        "the period read was scoped to %r; a tuple here means every filter "
+        "matches nothing and the route 404s for everyone"
+        % (seen.get("org_id"),))
+    assert isinstance(seen.get("org_id"), str)
+    assert seen.get("period_id") == "p-1"
+
+
+def test_the_period_read_filters_on_the_resolved_workspace():
+    """RED ON: `_load_period` reading a period by id alone. RLS is the
+    first lock and the org_id filter is the second; a route that drops the
+    second is relying on a policy it does not itself state."""
+    from engine.api import _forecast_routes as FR
+
+    calls = []
+
+    class _Client(object):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def select(self, table, **kw):
+            calls.append((table, kw.get("filters") or {}))
+            return []
+
+    class _Supabase(object):
+        @staticmethod
+        def per_user(jwt):
+            return _Client()
+
+    from engine.api import _supabase as real
+    original = real.per_user
+    real.per_user = _Supabase.per_user
+    try:
+        with pytest.raises(Exception):
+            FR._load_period("jwt", "org-7", "p-1")
+    finally:
+        real.per_user = original
+
+    assert calls, "no table was read at all"
+    table, filters = calls[0]
+    assert table == "financial_periods"
+    assert filters.get("org_id") == "eq.org-7", filters
+    assert filters.get("id") == "eq.p-1", filters
+
+
 @pytest.mark.parametrize("name", BOOKS)
 @pytest.mark.parametrize("horizon", (3, 5))
 def test_every_real_book_produces_a_servable_projection(name, horizon):

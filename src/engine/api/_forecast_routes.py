@@ -142,7 +142,12 @@ def build_router() -> APIRouter:
                 "reader asked for."
                 % (" or ".join(str(h) for h in ALLOWED_HORIZONS), horizon))
 
-        org_id = _org.resolve_org(jwt, x_org_id)
+        # `resolve_org` returns (user_id, org_id) — BOTH, and unpacking it
+        # is not a style choice. Bound as one name it becomes the tuple,
+        # `"eq.%s" % org_id` renders `eq.('uid', 'orgid')`, and PostgREST
+        # is handed a filter that matches nothing. The route would answer
+        # 404 to every caller and read as "no such period".
+        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
         period = _load_period(jwt, org_id, period_id)
 
         from engine.forecast import project_payload

@@ -2866,3 +2866,36 @@ join has lost a level.
 **What this still cannot see:** whether the SERVE lane calls any of it. It
 does not — `run_detectors` has no production caller, and the gate says so
 rather than implying coverage it does not have.
+
+### forecast-route — the membership gate (added 2026-09-08)
+
+The FC1 table census (`test_firm_tenancy.py::test_every_module_reading_a_firm
+_table_is_a_declared_firm_module_under_a_swept_prefix`) went red on the new
+module the hour it landed: `_forecast_routes` names `financial_periods` and
+`statement_line_items` and had not been declared or classified. Reading it
+properly found a live bug the route shipped with.
+
+`_org.resolve_org` returns `(user_id, org_id)` — BOTH. It was bound as one
+name, so `org_id` was the tuple, `"eq.%s" % org_id` rendered
+`eq.('uid', 'orgid')`, PostgREST was handed a filter matching nothing, and the
+route would have answered **404 to every caller** while reading as "no such
+period". Nothing in the route's own gate could see it: every test either fed
+the engine directly or stopped at the 401/422.
+
+Two plants, both red through their own message:
+
+```
+resolve_org bound as one name (the shipped bug)
+  -> E  AssertionError: the period read was scoped to ('user-1', 'org-7'); a
+        tuple here means every filter matches nothing and the route 404s for
+        everyone
+the period read drops its org_id filter
+  -> E  AssertionError: {'id': 'eq.p-1'}; assert None == 'eq.org-7'
+```
+
+The module is now declared in `DECLARED_CLIENT_DATA_READERS` as a PRODUCT
+route under its own membership gate — `resolve_org` (403 on a non-member org,
+never a silent fallback), the caller's own RLS-scoped client, and the org_id
+filter as a second lock on top of that. The declaration carries that
+classification inline; the gate above is what makes it true rather than
+claimed.
