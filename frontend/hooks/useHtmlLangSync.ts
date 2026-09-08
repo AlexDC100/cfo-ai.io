@@ -21,8 +21,8 @@ import { useTranslation } from "react-i18next";
 // index.html ships the English copy; when the UI language flips we swap
 // the meta tags too so shares + SERP snippets match the page language.
 const META_DESCRIPTION: Record<string, string> = {
-  en: "Upload your trial balance. Get analysis in 30 seconds. Auto-detects 15 European chart-of-accounts standards. Built for SME CFOs across Romania, Germany, France, Spain.",
-  ro: "Încărcați balanța de verificare. Primiți analiza în 30 de secunde. Detectează automat 15 planuri de conturi europene. Creat pentru directorii financiari ai IMM-urilor din România și Europa.",
+  en: "Upload your trial balance and get a CFO-grade analysis in 90 seconds — statements, 22 ratios, valuation, credit score. Romanian RAS at deterministic grade; other European charts of accounts read with AI assistance.",
+  ro: "Încarcă balanța de verificare și primești o analiză de nivel CFO în 90 de secunde — situații, 22 de indicatori, evaluare, scor de credit. RAS românesc la nivel determinist; alte planuri de conturi europene, citite cu ajutorul AI.",
 };
 const OG_LOCALE: Record<string, string> = { en: "en_GB", ro: "ro_RO" };
 

@@ -23,44 +23,39 @@ interface RoadmapEntry {
   tier_target?: string;
 }
 
-const Q2_2026: RoadmapEntry[] = [
+const NEXT_UP: RoadmapEntry[] = [
   {
     title: "ERP integration",
     description:
       "Direct sync from Saga, WinMentor, and SAP. No more manual trial-balance uploads.",
     status: "in-design",
-    tier_target: "Professional",
   },
   {
     title: "ANAF e-Factura sync",
     description:
       "Automatic VAT and invoice pull from Romania's national e-invoicing system.",
     status: "research",
-    tier_target: "Professional",
   },
 ];
 
-const Q3_2026: RoadmapEntry[] = [
+const AFTER_THAT: RoadmapEntry[] = [
   {
     title: "White-label PDF reports",
     description:
       "Your logo, your colors, your client-facing analysis pack.",
     status: "planning",
-    tier_target: "Professional",
   },
   {
     title: "SSO + Audit logs",
     description:
       "SAML/OIDC for enterprise teams; full audit trail per workspace.",
     status: "planning",
-    tier_target: "Professional",
   },
   {
     title: "Custom KPI dashboards",
     description:
       "Build your own KPIs from line items. Drag-and-drop dashboard editor.",
     status: "planning",
-    tier_target: "Professional",
   },
 ];
 
@@ -122,8 +117,8 @@ export default function RoadmapPage() {
           under-promise than refund.
         </p>
 
-        <RoadmapSection title="Q2 2026" entries={Q2_2026} />
-        <RoadmapSection title="Q3 2026" entries={Q3_2026} />
+        <RoadmapSection title="Next up" entries={NEXT_UP} />
+        <RoadmapSection title="After that" entries={AFTER_THAT} />
         <RoadmapSection title="Backlog (no date yet)" entries={BACKLOG} />
 
         <div className="mt-14 rounded-xl border border-rule bg-surface p-5 text-center">
@@ -132,7 +127,7 @@ export default function RoadmapPage() {
             <Link to="/contact-sales" className="text-ink underline underline-offset-2">
               Talk to us
             </Link>{" "}
-            — early-access for Professional customers.
+            — we will tell you honestly where it sits.
           </p>
         </div>
       </main>

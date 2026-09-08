@@ -622,7 +622,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
         return `
       <div class="card-hl" style="border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:26px;display:flex;flex-direction:column;text-align:left">
         <div style="display:flex;align-items:flex-start;gap:14px">
-          <div style="color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:40px;line-height:1;flex-shrink:0">${["▤", "◎", "▦", "✦"][i]}</div>
+          <div style="color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:40px;line-height:1;flex-shrink:0">${["▤", "◎", "✦"][i]}</div>
           <div>
             <h3 style="font-family:var(--serif);font-weight:400;font-size:21px">${card.title}</h3>
             <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute);margin-top:6px">${card.kicker}</div>

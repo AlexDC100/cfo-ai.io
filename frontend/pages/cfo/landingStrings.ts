@@ -13,6 +13,8 @@
 // contain {cookiePolicy}. Landing.tsx replaces them with localized in-page
 // link buttons.
 
+import type { FeatureKey } from "@/lib/features";
+
 export interface LandingStrings {
   nav: { home: string; pricing: string; legal: string; contact: string; workspace: string; language: string };
   auth: { signIn: string; getStartedFree: string };
@@ -37,7 +39,15 @@ export interface LandingStrings {
   global: { line: string };
   modules: {
     eyebrow: string; t1: string; thl: string;
-    cards: { kicker: string; title: string; body: string }[];
+    /** `featureKey` is the `_features.py` row the card sells. It is not
+     *  decoration: `shippedClaimsMatchCode.test.ts` parses the real
+     *  registry and reds when a card names a row that is not `active`.
+     *  A fourth card ("Invoice Intelligence") was removed on 2026-09-08
+     *  for exactly that reason — `invoices` is `hidden`, and its own
+     *  PendingState says it waits on e-Factura ingestion nobody has
+     *  built, while this card described it in the present tense as
+     *  "surfaced as dedicated tabs inside your statements". */
+    cards: { kicker: string; title: string; body: string; featureKey: FeatureKey }[];
   };
   how: {
     eyebrow: string; t1: string; thl: string;
@@ -108,35 +118,34 @@ const en: LandingStrings = {
   hero: {
     eyebrow: "CFO AI · Built for private businesses",
     t1: "Turn a trial balance into a ", thl: "CFO-grade analysis", t2: " in 90 seconds.",
-    body: "Upload your books. CFO AI reconstructs your P&L, balance sheet, cash flow, 100+ ratios, valuation and credit score — then benchmarks you against public companies your size, in your sector. Named comparisons, not vague industry averages.",
+    body: "Upload your books. CFO AI reconstructs your P&L, balance sheet, cash flow, 22 ratios, valuation and credit score — then benchmarks you against public companies your size, in your sector. Named comparisons, not vague industry averages.",
     ctaStart: "Get started", ctaSignIn: "Sign in",
-    checks: ["30-day trial", "RAS / EU filings supported", "Cancel anytime"],
+    checks: ["7-day free trial", "RAS / EU filings supported", "Cancel anytime"],
     mockNote: "Illustrative dashboard. AI-assisted analysis — final decisions remain with your management team.",
     mockTitle: "cfo-ai · today's briefing · 06:14",
   },
   stats: { drift: "Balance-sheet drift", ratios: "Financial ratios", peers: "Public-company peers", upload: "Upload to report" },
   global: { line: "Romania at deterministic grade. Any other country accepted — structure read by AI, numbers machine-verified twice." },
   modules: {
-    eyebrow: "Four flagship modules", t1: "One platform. ", thl: "Your books, or any public company.",
+    eyebrow: "Three flagship modules", t1: "One platform. ", thl: "Your books, or any public company.",
     cards: [
-      { kicker: "Trial balance → board-ready report", title: "Financial Statement Intelligence", body: "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued and explained." },
-      { kicker: "BVB tickers → analysis", title: "Public Company Intelligence", body: "Every company listed on the Bucharest Stock Exchange — statutory financials from official ANAF filings plus live BVB prices. Same dashboard, ratios, valuation and CFO chat as your private books — add any as a benchmark peer." },
-      { kicker: "ERP exports → cash forecast", title: "Invoice Intelligence", body: "Customer &amp; supplier concentration, margin by client, VAT reconciliation and payment timing — surfaced as dedicated tabs inside your statements." },
-      { kicker: "Ask questions → grounded answers", title: "Ask CFO AI", body: "A financial copilot grounded in your numbers. Ask why margin moved, what a ratio means, or what to do next — with the reasoning and source lines shown." },
+      { kicker: "Trial balance → board-ready report", title: "Financial Statement Intelligence", body: "Ministry-of-Finance filings, accountant exports, annual reports — from any European country. Auto-detected, normalized, ratioed, valued and explained.", featureKey: "upload_financial_statement" },
+      { kicker: "BVB tickers → analysis", title: "Public Company Intelligence", body: "Every company on the Bucharest Stock Exchange regulated market — statutory financials from the Ministry of Finance’s published filings (data.gov.ro, CC BY 4.0) plus delayed BVB quotes. Same dashboard, ratios, valuation and CFO chat as your private books — add any as a benchmark peer.", featureKey: "public_companies" },
+      { kicker: "Ask questions → grounded answers", title: "Ask CFO AI", body: "A financial copilot grounded in your numbers. Ask why margin moved, what a ratio means, or what to do next — with the reasoning and source lines shown.", featureKey: "chat_page" },
     ],
   },
   how: {
     eyebrow: "How it works", t1: "Three steps from spreadsheet to ", thl: "action plan.",
     steps: [
       { title: "Upload your books", body: "Trial balance, bilanț, P&amp;L or balance sheet — Excel, CSV, or PDF. Columns and RAS accounts are mapped automatically." },
-      { title: "CFO AI computes the economics", body: "P&amp;L, balance sheet, cash flow, 100+ ratios, EBITDA variants, Altman Z, valuation and credit score — reconciled to your source to ≤1% drift." },
-      { title: "You act with context", body: "Ranked, quantified recommendations plus named public-company peers — export to HTML, an 8-sheet Excel model, or a board summary." },
+      { title: "CFO AI computes the economics", body: "P&amp;L, balance sheet, cash flow, 22 ratios, EBITDA variants, Altman Z, valuation and credit score — reconciled to your source to ≤1% drift." },
+      { title: "You act with context", body: "Ranked, quantified recommendations plus named public-company peers — export to HTML or a 9-sheet Excel model." },
     ],
   },
   defensible: {
     eyebrow: "Defensible by design",
     title: "Numbers a lender, auditor or investor can trust.",
-    body: "The RAS-compliant engine reconciles all eight calibration fixtures to ≤1% balance-sheet drift — five of eight to exactly 0.00% — and reproduces filed-P&amp;L EBITDA across three named variants (reported, strict, cash). When a source file has an imbalance, CFO AI surfaces it explicitly rather than smoothing it over.",
+    body: "The RAS-compliant engine reconciles all eight calibration fixtures to ≤1% balance-sheet drift — four of eight to exactly 0.00% — and reproduces filed-P&amp;L EBITDA across three named variants (reported, strict, cash). When a source file has an imbalance, CFO AI surfaces it explicitly rather than smoothing it over.",
     bullets: [
       { strong: "Reproducible.", rest: "The same trial balance always produces the same output." },
       { strong: "Traceable.", rest: "Every number links back to the source line it came from." },
@@ -145,8 +154,8 @@ const en: LandingStrings = {
     proof: {
       label: "Engine proof · latest battery",
       stats: [
-        { value: "0.00%", caption: "balance-sheet drift — five of eight calibration fixtures exact, all eight within 1%" },
-        { value: "17/17", caption: "determinism gates green on the deployed engine" },
+        { value: "0.00%", caption: "balance-sheet drift — four of eight calibration fixtures exact, all eight within 1%" },
+        { value: "9 / 9", caption: "calibration fixtures byte-identical across five consecutive runs" },
         { value: "byte-identical", caption: "reruns — the same trial balance always produces the same output" },
       ],
       note: "Measured on the engine's calibration fixtures, re-run on every deploy.",
@@ -167,10 +176,10 @@ const en: LandingStrings = {
     eyebrow: "Questions", title: "Frequently asked",
     items: [
       { q: "What file formats can I upload?", a: "Trial balances (balanță de verificare), balance sheets, P&amp;L statements and annual reports as Excel, CSV or PDF. Exports from SAGA, WinMENTOR and standard Romanian and European accounting software are supported, with accounts mapped automatically." },
-      { q: "How accurate is the analysis?", a: "On clean trial balances, the engine reconciles balance-sheet totals to within 1% drift across its eight calibration fixtures — five of eight to exactly 0.00%. It computes three named EBITDA variants that match byte-for-byte between the methodology layer and the code. It is a decision-support tool, not a substitute for professional judgement." },
+      { q: "How accurate is the analysis?", a: "On clean trial balances, the engine reconciles balance-sheet totals to within 1% drift across its eight calibration fixtures — four of eight to exactly 0.00%. It computes three named EBITDA variants that match byte-for-byte between the methodology layer and the code. It is a decision-support tool, not a substitute for professional judgement." },
       { q: "Is my financial data secure?", a: "Your data is stored on EU-region infrastructure with row-level security so only your account can access it. We never sell your data. See our {privacy} for the full detail on sub-processors and your rights under the GDPR." },
-      { q: "Do you offer a free trial?", a: "Yes — every plan starts with a 30-day trial. Founding members pay just €1 for their first month. You can cancel any time before renewal." },
-      { q: "Which countries and accounting standards are supported?", a: "The engine is calibrated for Romanian RAS (OMFP 1802) today, with a country-agnostic canonical schema designed to extend to other European charts of accounts. Public-company analysis covers every company listed on the Bucharest Stock Exchange, from official ANAF statutory filings and live BVB market data." },
+      { q: "Do you offer a free trial?", a: "Yes — a 7-day free trial covering one document, with no card required. You can cancel any time before renewal." },
+      { q: "Which countries and accounting standards are supported?", a: "The engine is calibrated for Romanian RAS (OMFP 1802) today, with a country-agnostic canonical schema designed to extend to other European charts of accounts. Public-company analysis covers every company on the Bucharest Stock Exchange regulated market, from the Ministry of Finance’s published statutory filings and delayed BVB quotes." },
       { q: "Is this financial or investment advice?", a: "No. CFO AI produces AI-assisted analysis and decision support. It is not financial, investment, legal, tax or accounting advice, and final decisions remain with you and your management team. See our {terms}." },
     ],
   },
@@ -220,7 +229,7 @@ const en: LandingStrings = {
     sending: "Sending…", send: "Send",
     sentTitle: "Message sent.", sentBody: "Thanks for reaching out — we'll get back to you within one business day.",
     note: "By sending, you agree we may email you back about your request. See our Privacy Policy.",
-    sales: { kicker: "Sales &amp; Professional plan", blurb: "Custom limits, multi-entity and API access." },
+    sales: { kicker: "Sales", blurb: "Plans, limits and anything you need answered before you buy." },
     support: { kicker: "Support", blurb: "Help with your account, uploads or analyses." },
     privacy: { kicker: "Privacy &amp; data", blurb: "Exercise your GDPR rights or ask about data." },
     office: "Registered office",
@@ -255,35 +264,34 @@ const ro: LandingStrings = {
   hero: {
     eyebrow: "CFO AI · Creat pentru afaceri private",
     t1: "Transformă o balanță de verificare într-o ", thl: "analiză de nivel CFO", t2: " în 90 de secunde.",
-    body: "Încarcă-ți contabilitatea. CFO AI reconstruiește P&L-ul, bilanțul, fluxul de numerar, peste 100 de indicatori, evaluarea și scorul de credit — apoi te compară cu companii publice de dimensiunea ta, din sectorul tău. Comparații nominale, nu medii vagi de industrie.",
+    body: "Încarcă-ți contabilitatea. CFO AI reconstruiește P&L-ul, bilanțul, fluxul de numerar, 22 de indicatori, evaluarea și scorul de credit — apoi te compară cu companii publice de dimensiunea ta, din sectorul tău. Comparații nominale, nu medii vagi de industrie.",
     ctaStart: "Începe", ctaSignIn: "Autentificare",
-    checks: ["Probă de 30 de zile", "Suport RAS / raportări UE", "Anulezi oricând"],
+    checks: ["Probă gratuită de 7 zile", "Suport RAS / raportări UE", "Anulezi oricând"],
     mockNote: "Dashboard ilustrativ. Analiză asistată de AI — deciziile finale rămân la echipa ta de management.",
     mockTitle: "cfo-ai · briefingul de azi · 06:14",
   },
   stats: { drift: "Abatere de bilanț", ratios: "Indicatori financiari", peers: "Companii publice comparabile", upload: "De la încărcare la raport" },
   global: { line: "România la nivel determinist. Orice altă țară acceptată — structura citită de AI, cifrele verificate mecanic de două ori." },
   modules: {
-    eyebrow: "Patru module emblematice", t1: "O singură platformă. ", thl: "Contabilitatea ta sau orice companie publică.",
+    eyebrow: "Trei module emblematice", t1: "O singură platformă. ", thl: "Contabilitatea ta sau orice companie publică.",
     cards: [
-      { kicker: "Balanță de verificare → raport pentru board", title: "Financial Statement Intelligence", body: "Raportări la Ministerul de Finanțe, exporturi de la contabil, rapoarte anuale — din orice țară europeană. Detectate automat, normalizate, transformate în indicatori, evaluate și explicate." },
-      { kicker: "Tickere BVB → analiză", title: "Public Company Intelligence", body: "Toate companiile listate la Bursa de Valori București — situații financiare statutare din raportările oficiale ANAF plus prețuri BVB în timp real. Același dashboard, aceiași indicatori, aceeași evaluare și același chat CFO ca pentru cifrele tale private — adaugă oricare drept reper de comparație." },
-      { kicker: "Exporturi ERP → prognoză de numerar", title: "Invoice Intelligence", body: "Concentrarea clienților și furnizorilor, marja pe client, reconcilierea TVA și termenele de plată — afișate ca taburi dedicate în situațiile tale financiare." },
-      { kicker: "Pui întrebări → răspunsuri fundamentate", title: "Ask CFO AI", body: "Un copilot financiar ancorat în cifrele tale. Întreabă de ce s-a mișcat marja, ce înseamnă un indicator sau ce urmează — cu raționamentul și liniile-sursă afișate." },
+      { kicker: "Balanță de verificare → raport pentru board", title: "Financial Statement Intelligence", body: "Raportări la Ministerul de Finanțe, exporturi de la contabil, rapoarte anuale — din orice țară europeană. Detectate automat, normalizate, transformate în indicatori, evaluate și explicate.", featureKey: "upload_financial_statement" },
+      { kicker: "Tickere BVB → analiză", title: "Public Company Intelligence", body: "Toate companiile de pe piața reglementată a Bursei de Valori București — situații financiare statutare din raportările publicate de Ministerul Finanțelor (data.gov.ro, CC BY 4.0) plus cotații BVB cu întârziere. Același dashboard, aceiași indicatori, aceeași evaluare și același chat CFO ca pentru cifrele tale private — adaugă oricare drept reper de comparație.", featureKey: "public_companies" },
+      { kicker: "Pui întrebări → răspunsuri fundamentate", title: "Ask CFO AI", body: "Un copilot financiar ancorat în cifrele tale. Întreabă de ce s-a mișcat marja, ce înseamnă un indicator sau ce urmează — cu raționamentul și liniile-sursă afișate.", featureKey: "chat_page" },
     ],
   },
   how: {
     eyebrow: "Cum funcționează", t1: "Trei pași de la foaia de calcul la ", thl: "planul de acțiune.",
     steps: [
       { title: "Încarcă-ți contabilitatea", body: "Balanță de verificare, bilanț sau P&amp;L — Excel, CSV sau PDF. Coloanele și conturile RAS sunt mapate automat." },
-      { title: "CFO AI calculează economia afacerii", body: "P&amp;L, bilanț, cash flow, 100+ indicatori, variante de EBITDA, Altman Z, evaluare și scor de credit — reconciliate cu sursa până la o abatere de ≤1%." },
-      { title: "Tu acționezi în cunoștință de cauză", body: "Recomandări ierarhizate și cuantificate plus companii publice comparabile, numite explicit — export în HTML, model Excel cu 8 foi sau rezumat pentru board." },
+      { title: "CFO AI calculează economia afacerii", body: "P&amp;L, bilanț, cash flow, 22 de indicatori, variante de EBITDA, Altman Z, evaluare și scor de credit — reconciliate cu sursa până la o abatere de ≤1%." },
+      { title: "Tu acționezi în cunoștință de cauză", body: "Recomandări ierarhizate și cuantificate plus companii publice comparabile, numite explicit — export în HTML sau model Excel cu 9 foi." },
     ],
   },
   defensible: {
     eyebrow: "Defensibil prin design",
     title: "Cifre în care un creditor, auditor sau investitor poate avea încredere.",
-    body: "Motorul conform RAS reconciliază toate cele opt cazuri de calibrare la o abatere de bilanț de ≤1% — cinci din opt exact la 0,00% — și reproduce EBITDA din P&amp;L-ul depus în trei variante numite (raportat, strict, cash). Când un fișier-sursă are un dezechilibru, CFO AI îl semnalează explicit în loc să-l netezească.",
+    body: "Motorul conform RAS reconciliază toate cele opt cazuri de calibrare la o abatere de bilanț de ≤1% — patru din opt exact la 0,00% — și reproduce EBITDA din P&amp;L-ul depus în trei variante numite (raportat, strict, cash). Când un fișier-sursă are un dezechilibru, CFO AI îl semnalează explicit în loc să-l netezească.",
     bullets: [
       { strong: "Reproductibil.", rest: "Aceeași balanță de verificare produce întotdeauna același rezultat." },
       { strong: "Trasabil.", rest: "Fiecare cifră trimite înapoi la linia-sursă din care provine." },
@@ -292,8 +300,8 @@ const ro: LandingStrings = {
     proof: {
       label: "Proba motorului · ultima baterie de teste",
       stats: [
-        { value: "0,00%", caption: "abatere de bilanț — cinci din opt cazuri de calibrare exact, toate opt sub 1%" },
-        { value: "17/17", caption: "porți de determinism verzi pe motorul instalat" },
+        { value: "0,00%", caption: "abatere de bilanț — patru din opt cazuri de calibrare exact, toate opt sub 1%" },
+        { value: "9 / 9", caption: "cazuri de calibrare identice la nivel de octet în cinci rulări consecutive" },
         { value: "byte-identic", caption: "rerulări — aceeași balanță de verificare produce întotdeauna același rezultat" },
       ],
       note: "Măsurat pe cazurile de calibrare ale motorului, re-rulat la fiecare instalare.",
@@ -314,10 +322,10 @@ const ro: LandingStrings = {
     eyebrow: "Întrebări", title: "Întrebări frecvente",
     items: [
       { q: "Ce formate de fișiere pot încărca?", a: "Balanțe de verificare, bilanțuri, conturi de profit și pierdere și rapoarte anuale în Excel, CSV sau PDF. Exporturile din SAGA, WinMENTOR și software-ul de contabilitate standard românesc și european sunt suportate, cu maparea automată a conturilor." },
-      { q: "Cât de precisă este analiza?", a: "Pe balanțe curate, motorul reconciliază totalurile de bilanț la o abatere sub 1% pe cele opt cazuri de calibrare — cinci din opt exact la 0,00%. Calculează trei variante numite de EBITDA care corespund întocmai între metodologie și cod. Este un instrument de suport decizional, nu un substitut pentru judecata profesională." },
+      { q: "Cât de precisă este analiza?", a: "Pe balanțe curate, motorul reconciliază totalurile de bilanț la o abatere sub 1% pe cele opt cazuri de calibrare — patru din opt exact la 0,00%. Calculează trei variante numite de EBITDA care corespund întocmai între metodologie și cod. Este un instrument de suport decizional, nu un substitut pentru judecata profesională." },
       { q: "Datele mele financiare sunt în siguranță?", a: "Datele tale sunt stocate pe infrastructură din regiunea UE, cu securitate la nivel de rând, astfel încât doar contul tău le poate accesa. Nu îți vindem niciodată datele. Vezi {privacy} pentru detalii complete despre subprocesatori și drepturile tale conform GDPR." },
-      { q: "Oferiți o perioadă de probă gratuită?", a: "Da — fiecare plan începe cu o probă de 30 de zile. Membrii fondatori plătesc doar 1 € pentru prima lună. Poți anula oricând înainte de reînnoire." },
-      { q: "Ce țări și standarde contabile sunt suportate?", a: "Motorul este calibrat astăzi pentru RAS românesc (OMFP 1802), cu o schemă canonică independentă de țară, proiectată să se extindă la alte planuri de conturi europene. Analiza companiilor publice acoperă toate companiile listate la Bursa de Valori București, pe baza raportărilor statutare oficiale ANAF și a datelor de piață BVB în timp real." },
+      { q: "Oferiți o perioadă de probă gratuită?", a: "Da — o probă gratuită de 7 zile pentru un document, fără card. Poți anula oricând înainte de reînnoire." },
+      { q: "Ce țări și standarde contabile sunt suportate?", a: "Motorul este calibrat astăzi pentru RAS românesc (OMFP 1802), cu o schemă canonică independentă de țară, proiectată să se extindă la alte planuri de conturi europene. Analiza companiilor publice acoperă toate companiile de pe piața reglementată a Bursei de Valori București, pe baza raportărilor statutare publicate de Ministerul Finanțelor și a cotațiilor BVB cu întârziere." },
       { q: "Aceasta este consultanță financiară sau de investiții?", a: "Nu. CFO AI produce analiză asistată de AI și suport decizional. Nu reprezintă consultanță financiară, de investiții, juridică, fiscală sau contabilă, iar deciziile finale rămân la tine și la echipa ta de management. Vezi {terms}." },
     ],
   },
@@ -367,7 +375,7 @@ const ro: LandingStrings = {
     sending: "Se trimite…", send: "Trimite",
     sentTitle: "Mesaj trimis.", sentBody: "Mulțumim că ne-ai scris — revenim în cel mult o zi lucrătoare.",
     note: "Prin trimitere, ești de acord să te contactăm pe e-mail în legătură cu solicitarea ta. Vezi Politica de confidențialitate.",
-    sales: { kicker: "Vânzări &amp; planul Professional", blurb: "Limite personalizate, multi-entitate și acces API." },
+    sales: { kicker: "Vânzări", blurb: "Planuri, limite și orice altceva vrei lămurit înainte să cumperi." },
     support: { kicker: "Suport", blurb: "Ajutor cu contul, încărcările sau analizele tale." },
     privacy: { kicker: "Confidențialitate &amp; date", blurb: "Exercită-ți drepturile GDPR sau întreabă despre date." },
     office: "Sediu social",

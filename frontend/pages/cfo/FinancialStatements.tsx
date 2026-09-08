@@ -9,7 +9,7 @@
 //     after F3-UX-2 removed the paste-trial-balance dialog
 //
 // Engines (all pure TypeScript, run client-side):
-//   • computeRatios()         — 25+ ratios (financialReport.ts)
+//   • computeRatios()         — 22 ratios (financialReport.ts)
 //   • runDcf() / runGraham()  — intrinsic valuation (financialValuation.ts)
 //   • runPiotroski()          — 9-point quality screen
 //   • computeCreditScore()    — composite 0–100 → S&P-style rating
@@ -17,7 +17,7 @@
 //
 // Exports:
 //   • HTML report (downloadHtmlReport) — single-file, browser-printable to PDF
-//   • Excel workbook (downloadExcelReport) — 8-sheet xlsx model
+//   • Excel workbook (downloadExcelReport) — 9-sheet xlsx model
 
 import { useMemo, useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
@@ -151,7 +151,6 @@ import {
   FileText,
   Info,
   Loader2,
-  Presentation,
   Scale,
   Shield,
   Sparkles,
@@ -2451,9 +2450,25 @@ export default function FinancialStatements() {
               onCta={() => onTabChange("overview")}
             />
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
           {/* Instrument export panels — hairline surfaces, one accent.
-              The colored sleeves + watermark icons are gone. */}
+              The colored sleeves + watermark icons are gone.
+
+              ── 2026-09-08: THE PPTX CARD IS GONE ─────────────────────
+              A third card sat here advertising an "Investor-grade pptx
+              export … arrives in the next phase" under a Coming-next
+              chip. Measured on this tree: there is no pptx writer
+              anywhere in `frontend/`, `pptxgenjs` is not in
+              `package.json`, and the only PowerPoint code in the repo
+              reads a budget deck IN (`lib/comparison/parsePptxBudget.ts`).
+              Nobody is building the export either (LAUNCH_AUDIT.md:182).
+              "Coming soon" on something real is honest; on something
+              nobody is building it is an advertisement. Its two i18n
+              keys (`dash.exportPptxTitle` / `dash.exportPptxBody`) and
+              `dash.comingNext` went with it in both languages.
+
+              THE GRID IS NOW 2-UP, not 3-up: leaving `md:grid-cols-3`
+              would have left a third of the row empty on every desktop. */}
           <div className="flex flex-col rounded-md border border-rule bg-surface p-4 min-h-[200px]">
             <div className="flex items-center gap-2 text-ink-mute">
               <FileText size={15} strokeWidth={1.75} />
@@ -2512,18 +2527,6 @@ export default function FinancialStatements() {
             </div>
           </div>
 
-          <div className="flex flex-col rounded-md border border-rule bg-bg-2 p-4 min-h-[200px]">
-            <div className="flex items-center gap-2 text-ink-mute">
-              <Presentation size={15} strokeWidth={1.75} />
-              <h3 className="text-[15px] font-semibold tracking-tight text-ink">{t("dash.exportPptxTitle")}</h3>
-            </div>
-            <p className="text-[13px] text-ink-soft mt-2 leading-relaxed">
-              {t("dash.exportPptxBody")}
-            </p>
-            <div className="mt-auto pt-5 flex justify-end">
-              <Chip tone="neutral">{t("dash.comingNext")}</Chip>
-            </div>
-          </div>
           </div>
           )}
         </TabsContent>

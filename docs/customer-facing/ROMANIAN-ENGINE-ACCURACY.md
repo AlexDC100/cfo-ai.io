@@ -7,7 +7,9 @@ that reconciles all 8 calibration fixtures to ≤1% balance-sheet drift
 (7 of 8 below 0.12%; tightest at 0.0000%) and reproduces filed-P&L
 EBITDA byte-identically across three named variants with the
 methodology layer and in-code computation gated to ±1 RON tolerance.
-**Last updated:** 2026-05-31.
+**Last updated:** 2026-09-08 (drift column re-measured; the "five of
+eight at 0.00 %" figure corrected to four — the table in §3 had always
+listed four zeros and the prose beside it said five).
 **Status:** Production. The engine, methodology layer, and frontend
 consume the same byte-identical numbers — no surface contradicts
 another. The display layer is independently audited end-to-end; a
@@ -53,8 +55,9 @@ the result in place.
 > Crystal Reports, and standard Romanian accounting software, the
 > engine produces balance-sheet reconciliation within **1 % drift on
 > 8 of 8 calibrated fixtures** (Scandia Food, EEI, Sibiu, Frozen,
-> RealEstate, Agras, Carniprod, Retail). Five of eight reconcile to
-> exactly 0.00 %; the worst (Sibiu) reads 0.9993 %. Real user-upload
+> RealEstate, Agras, Carniprod, Retail). Four of eight reconcile to
+> exactly 0.00 % (EEI, Frozen, RealEstate, Retail); the worst (Sibiu)
+> reads 0.9975 %. Real user-upload
 > sample size is not yet sufficient for statistical claims; published
 > figures are based on the 8-fixture calibration set.
 
@@ -62,7 +65,7 @@ This is the **canonical wording** for any customer-facing copy.
 Three rules attach:
 
 - **Don't abbreviate** to "≤1 % drift" alone. Dropping the "8 of 8"
-  and the distribution (5 at 0.00 %, worst at 0.9993 %) underclaims
+  and the distribution (4 at 0.00 %, worst at 0.9975 %) underclaims
   against the empirical baseline.
 - **Don't extrapolate** to "we'll hit <1 % on your data too." The
   customer-upload distribution isn't yet measured at scale.
@@ -88,18 +91,18 @@ is calibrated to:
 | Fixture | Industry / role | F-A3.1 BS drift | F4.2-PARITY reported | F4.2-PARITY strict | F4.2-PARITY cash |
 |---|---|---:|---:|---:|---:|
 | EEI         | Real-estate single-asset | 0.0000 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
-| Scandia Food | Food manufacturing       | 0.0331 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
-| Sibiu (2019) | Distribution             | 0.9993 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
+| Scandia Food | Food manufacturing       | 0.0330 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
+| Sibiu (2019) | Distribution             | 0.9975 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
 | Frozen       | Food (frozen)            | 0.0000 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
 | RealEstate   | Real-estate developer    | 0.0000 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
-| Agras        | Agribusiness             | 0.1189 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
+| Agras        | Agribusiness             | 0.1187 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
 | Carniprod    | Meat processing          | 0.0125 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
 | Retail       | Retail distribution      | 0.0000 % | ±0.00 RON | ±0.00 RON | ±0.00 RON |
 
 **F-A3.1** measures balance-sheet drift (assets minus equity +
 liabilities, as a percentage of total assets). **8 of 8 fixtures
-reconcile below 1 % drift.** Five of eight read exactly 0.00 %; the
-worst (Sibiu, FY2019) reads 0.9993 %, driven by genuine source-file
+reconcile below 1 % drift.** Four of eight read exactly 0.00 % — EEI,
+Frozen, RealEstate and Retail; the worst (Sibiu, FY2019) reads 0.9975 %, driven by genuine source-file
 characteristics (multi-year-old PDF extract). The Carniprod value
 was 7.39 % before the F3.26 parser-regex fix that widened account-code
 matching to multi-segment suffixes — same source file, post-fix
@@ -258,7 +261,7 @@ to the transformation layer).
 ### 6c. The faithful-reproduction canary now: Sibiu
 
 The remaining fixture with non-trivial drift is Sibiu FY2019 at
-0.9993 %, driven by genuine source-file characteristics — it's a
+0.9975 %, driven by genuine source-file characteristics — it's a
 multi-year-old PDF extract with intrinsic imbalance. The engine
 canary holds it to the basis point. Sibiu is the current
 faithful-reproduction example: a fixture where the engine's reading
@@ -304,7 +307,7 @@ deploy and refuses to ship if any of the three locked EBITDA
 variants diverge by more than 1 RON. A second gate (F-A3.1)
 measures balance-sheet drift per fixture and refuses to ship if
 the canary readings move off their locked values (Carniprod
-0.0125 %, EEI 0.0000 %, Sibiu 0.9993 %, etc., across all 8
+0.0125 %, EEI 0.0000 %, Sibiu 0.9975 %, etc., across all 8
 fixtures). A third gate (F-A3.2 / F-A3.3) verifies cross-path
 consistency and canonical-envelope coverage. A fourth class of
 gate, added post-F3.27, exercises the BE/FE-glue transformation
