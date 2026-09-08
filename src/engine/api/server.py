@@ -51,6 +51,7 @@ from ._billing import build_router as create_billing_router
 from ._capsule_tools import build_router as create_capsule_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
+from ._forecast_routes import build_router as create_forecast_router
 from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
@@ -754,6 +755,14 @@ def create_app(
     # hidden". Read by Command Center + Sidebar + Settings on first
     # paint to gate UI rendering. No auth.
     app.include_router(create_features_router())
+    # FORECAST — the driver-based linked three-statement projection
+    # over ONE persisted period. Every figure it returns is
+    # PROJECTED and says so in the payload; the frontend reads it
+    # through `lib/forecastFacts.ts`, whose opaque `ProjectedMinor`
+    # type makes mixing a projection into an actual a compile
+    # error. See `_forecast_routes.py` for why refusals are the
+    # product here and not an error path.
+    app.include_router(create_forecast_router())
     # Pricing V2 — new tier model (trial/intro/starter/pro) with
     # config-driven prices, daily+monthly chat caps, extra-doc
     # metering, and an internal below-COGS warning. Public

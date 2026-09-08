@@ -27,7 +27,8 @@
     "group_system": "Sistem",
     "collapse": "Restrânge bara laterală",
     "expand": "Extinde bara laterală",
-    "disclaimer": "Precizări legale"
+    "disclaimer": "Precizări legale",
+    "forecast": "Prognoză"
   },
   "topbar": {
     "ask": "Întreabă CFO AI",
@@ -2933,6 +2934,43 @@
       "totalAssets": "totalul activelor",
       "totalEquity": "totalul capitalurilor proprii",
       "totalLiabilities": "totalul datoriilor"
+    }
+  },
+  "forecast": {
+    "eyebrow": "Prognoză",
+    "title": "Proiecție",
+    "years": "{{count}} ani",
+    "projected": "proiectat",
+    "line": "Linie",
+    "periods": "perioade",
+    "loading": "Se proiectează…",
+    "refused": "Fără proiecție",
+    "basePeriod": "Pornește de la",
+    "absent": "nu se poate măsura din această balanță",
+    "banner": {
+      "eyebrow": "Fiecare cifră de pe această pagină este o proiecție",
+      "body": "Nimic de aici nu vine dintr-o celulă a balanței tale. Fiecare număr este produs de ipotezele de mai jos și de poziția de închidere din {{period}}, singura cifră reală pe care se sprijină pagina."
+    },
+    "empty": {
+      "title": "Încarcă o perioadă de la care să pornim",
+      "subtitle": "O proiecție se sprijină pe un singur bilanț de închidere și pe un singur cont de profit și pierdere. Încarcă sau deschide o perioadă și prognoza se deschide odată cu ea."
+    },
+    "assumptions": {
+      "title": "Ipoteze",
+      "lead": "Fiecare număr de sub acest tabel este produs de acești factori. Un factor pe care balanța nu l-a putut măsura spune asta cu propriile cuvinte — nu este ținut la zero.",
+      "driver": "Factor",
+      "value": "Valoare",
+      "basis": "Temei",
+      "asOf": "Evaluat pentru"
+    },
+    "block": {
+      "pl": "Contul de profit și pierdere",
+      "bs": "Bilanț",
+      "cf": "Flux de numerar"
+    },
+    "balance": {
+      "ok": "Fiecare perioadă proiectată se închide la bănuț. Verificarea este exactă, nu o marjă de toleranță.",
+      "broken": "Bilanțul proiectat nu se închide în: {{periods}}. Este o eroare, nu o notă de rotunjire — proiecția este construită în unități întregi, deci verificarea este exactă."
     }
   }
 }

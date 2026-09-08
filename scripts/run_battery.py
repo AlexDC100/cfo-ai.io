@@ -298,6 +298,21 @@ def _engine_gates() -> List[Gate]:
                        "test_an_impact_that_renders_the_same_on_both_sides_is_refused",
                        "test_a_concentration_below_the_material_floor_does_not_surface",
                        "test_a_fictional_detector_added_through_yaml_alone_surfaces")),
+        # FORECAST: the route that made the projection reachable, and the
+        # invariant it must keep on the way out. Named separately from
+        # `pytest` because the failure this covers was not a red test —
+        # the engine, the serving contract, the reader and the renderer
+        # were all green and the feature was simply not mounted anywhere.
+        # Floor 20 = the measured 21 tests, rounded down.
+        # Plant log: docs/engine_book/gates.md
+        Gate("forecast-route",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_route.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_the_route_is_mounted_on_the_real_app",
+                       "test_an_anonymous_call_is_refused",
+                       "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
+                       "test_no_projected_figure_carries_actual_provenance",
+                       "test_every_projected_line_names_a_driver_or_a_stated_convention")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

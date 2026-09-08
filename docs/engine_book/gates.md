@@ -2760,3 +2760,51 @@ from `scripts/measure_radar_detectors.py`, which reports
 interval, and printing one would be the statistical dishonesty the error budget
 forbids. It also cannot see the serving lane: `run_detectors` has no production
 caller yet, so nothing here is reachable by a user.
+
+## forecast-route
+
+`tests/engine/test_forecast_route.py` — `GET /api/forecast/{period_id}`, the
+route that made the projection reachable, and the invariant it must keep on
+the way out.
+
+**Why this is a gate and not just part of `pytest`.** The failure it covers was
+not a red test. `engine/forecast` (nine modules, integer minor units, exact
+balance close), `engine/forecast_serving` (the fp1 contract and its boundary
+guards), `frontend/lib/forecastFacts.ts` (the opaque `ProjectedMinor` type) and
+`components/forecast/ProjectedAmount.tsx` were all complete and all green. No
+router mounted them, no page rendered them, no menu row pointed anywhere. The
+owner found it by looking for the feature in the product and not seeing it.
+
+Joining the halves surfaced a second defect of the same family. The producer
+emitted no `line_assumptions`, so the adapter attached no attribution, so
+`figure_names_no_assumption` refused the WHOLE payload — on agras, carniprod,
+retail AND realestate, at 3 years and at 5. The fp1 lane had only ever been
+exercised against a hand-built five-line fixture with three drivers. A shape
+nobody feeds back is a shape nobody has read; the same sentence appears in
+`forecastFacts.ts`'s own header about a different instance of it.
+
+**GREEN** — exit `0`: `21 passed`.
+
+**PLANT / RED / REVERT**, four plants:
+
+```
+unmount the router in server.py  (the state the feature shipped in)
+  -> E  AssertionError: the forecast route is not on the app; every projection
+        is unreachable again
+clamp the horizon instead of refusing it
+  -> E  AssertionError: (401, '...'); assert 401 == 422
+        (the refusal was the only thing standing there; with the clamp the
+         request proceeds)
+producer stops emitting `line_assumptions`
+  -> E  ProjectionContractError: figure_names_no_assumption: figure
+        'pl.amortisation'/'2026-01' names no assumption
+a figure picks up the snapshot the projection stands on
+  -> E  ProjectionContractError: figure_carries_actual_provenance: figure
+        'pl.amortisation'/'2026-01' carries 'snapshot_id'
+```
+
+**What this gate cannot see:** what the page paints.
+`frontend/pages/cfo/Forecast.tsx` is a different code path — it is rostered in
+`design_review/PROVENANCE_CENSUS.json` under the `forecast` surface, whose
+floor is zero and must stay zero: an affordance promising a jump to the source
+cell for 2030 revenue would be an affordance over nothing.

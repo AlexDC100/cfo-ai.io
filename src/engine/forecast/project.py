@@ -147,6 +147,206 @@ MODEL_CONVENTIONS = (
 )
 
 
+#: THE MODEL CONVENTIONS THAT PRODUCE A FIGURE, declared as assumptions.
+#:
+#: fp1 requires every projected figure to name the assumption that made
+#: it. Most name a numeric driver. A HELD line names none of them — and
+#: "held at the opening balance" is not an absence of an assumption, it
+#: is a strong, falsifiable claim ("other receivables at 2028-12-31 will
+#: be exactly what they were at 2025-12-31") produced by a decision this
+#: model made. It gets an id, a basis and a place in the served driver
+#: list like every other reason a number has.
+#:
+#: They carry the fp1 unit ``convention``: a stated rule with no
+#: quantity. That unit exists precisely so a word is never dressed as a
+#: number — the alternative considered was a `held_line_growth` ratio
+#: pinned at 0%, and it was rejected because a non-zero value would grow
+#: the two sides of the balance sheet by different amounts and break the
+#: close. A knob that must never be turned is not a driver.
+FP1_CONVENTIONS = (
+    ("held_at_opening_balance",
+     "balance-sheet lines this model does not drive are HELD at their "
+     "opening balance: they neither grow with the business nor decay. "
+     "Nothing in a single trial balance implies a rate at which they "
+     "move, and inventing one would move a total no assumption stated."),
+    ("interest_charged_on_opening_balance",
+     "interest is charged and paid in the period it accrues, on the "
+     "balance at the START of that period — which is what lets the "
+     "funding line be sized in one pass instead of by an iterative "
+     "solve whose convergence tolerance would leave a residual in a "
+     "balance sheet required to close exactly."),
+    ("tax_charged_when_it_arises",
+     "income tax is charged and paid in the period it arises, on a "
+     "positive pre-tax result only. The tax payable balance is held "
+     "rather than rolled, so the plan shows no tax-timing benefit, and "
+     "a loss is not carried forward."),
+)
+
+#: line id -> the drivers and conventions that produced it.
+#:
+#: Composed rather than transcribed. An aggregate's attribution is the
+#: UNION of its inputs', computed here from the same decomposition the
+#: arithmetic below uses, so the two cannot drift: change what feeds
+#: EBITDA and this map changes with it. A hand-written list would have
+#: been correct on the day it was written and wrong on the next one.
+_REVENUE = ("revenue_growth",)
+_COGS = _REVENUE + ("cogs_pct_of_revenue",)
+_OPEX = _REVENUE + ("opex_pct_of_revenue",)
+_OOI = _REVENUE + ("other_operating_income_pct_of_revenue",)
+_EBITDA = _REVENUE + _COGS + _OPEX + _OOI
+_CAPEX = _REVENUE + ("capex_pct_of_revenue",)
+_INTANGIBLE_ADD = _REVENUE + ("intangible_additions_pct_of_revenue",)
+_DEPRECIATION = _CAPEX + ("depreciation_rate", "days_basis")
+_AMORTISATION = _INTANGIBLE_ADD + ("depreciation_rate", "days_basis")
+_EBIT = _EBITDA + _DEPRECIATION + _AMORTISATION
+_INT_DEBT = ("interest_rate_debt", "days_basis",
+             "interest_charged_on_opening_balance")
+_INT_FUNDING = ("revolver_rate", "days_basis", "min_cash",
+                "interest_charged_on_opening_balance")
+_INT_INCOME = ("interest_income_rate", "interest_income_annual",
+               "days_basis", "interest_charged_on_opening_balance")
+_OTHER_FIN_INC = ("other_financial_income_annual",)
+_OTHER_FIN_EXP = ("other_financial_expense_annual",)
+_PRETAX = (_EBIT + _INT_DEBT + _INT_FUNDING + _INT_INCOME
+           + _OTHER_FIN_INC + _OTHER_FIN_EXP)
+_TAX = _PRETAX + ("tax_rate", "tax_charged_when_it_arises")
+_NET_INCOME = _PRETAX + _TAX
+_AR = _REVENUE + ("dso_days", "days_basis")
+_INVENTORY = _COGS + ("dio_days", "days_basis")
+_AP = _COGS + ("dpo_days", "days_basis")
+_DIVIDENDS = _NET_INCOME + ("dividend_payout_pct",)
+_FUNDING = ("min_cash", "revolver_rate")
+_HELD = ("held_at_opening_balance",)
+#: Everything that can move cash. The closing cash balance is the result
+#: of the whole model, and saying so is more honest than naming the three
+#: drivers nearest to it.
+_CASH = (_NET_INCOME + _DEPRECIATION + _AMORTISATION + _AR + _INVENTORY
+         + _AP + _CAPEX + _INTANGIBLE_ADD + _DIVIDENDS + _FUNDING)
+
+
+def _u(*groups):
+    """The union, in first-seen order — deterministic without a sort, and
+    reading in the order the arithmetic reaches them."""
+    out = []
+    for group in groups:
+        for key in group:
+            if key not in out:
+                out.append(key)
+    return tuple(out)
+
+
+LINE_ASSUMPTIONS = {
+    "pl.revenue": _u(_REVENUE),
+    "pl.cost_of_sales": _u(_COGS),
+    "pl.operating_costs": _u(_OPEX),
+    "pl.other_operating_income": _u(_OOI),
+    "pl.ebitda": _u(_EBITDA),
+    "pl.depreciation": _u(_DEPRECIATION),
+    "pl.amortisation": _u(_AMORTISATION),
+    "pl.ebit": _u(_EBIT),
+    "pl.interest_expense_debt": _u(_INT_DEBT),
+    "pl.interest_expense_funding_line": _u(_INT_FUNDING),
+    "pl.interest_income": _u(_INT_INCOME),
+    "pl.other_financial_income": _u(_OTHER_FIN_INC),
+    "pl.other_financial_expense": _u(_OTHER_FIN_EXP),
+    "pl.pretax_result": _u(_PRETAX),
+    "pl.income_tax": _u(_TAX),
+    "pl.net_income": _u(_NET_INCOME),
+
+    "bs.cash": _u(_CASH),
+    "bs.ar": _u(_AR),
+    "bs.inventory": _u(_INVENTORY),
+    "bs.other_current_assets": _u(_HELD),
+    "bs.ppe_net": _u(_CAPEX, _DEPRECIATION),
+    "bs.intangibles_net": _u(_INTANGIBLE_ADD, _AMORTISATION),
+    "bs.investment_property": _u(_HELD),
+    "bs.other_non_current_assets": _u(_HELD),
+    "bs.ap": _u(_AP),
+    "bs.other_current_liabilities": _u(_HELD),
+    # The debt schedule is a PLAN the caller supplies, not a rate; it is
+    # named through the rate that prices it and the convention that says
+    # when the charge lands.
+    "bs.st_debt": _u(_INT_DEBT),
+    "bs.lt_debt": _u(_INT_DEBT),
+    "bs.revolver": _u(_FUNDING, _CASH),
+    "bs.other_non_current_liabilities": _u(_HELD),
+    "bs.equity_contributed": _u(_HELD),
+    "bs.equity_reserves": _u(_HELD),
+    "bs.equity_retained": _u(_NET_INCOME, _DIVIDENDS),
+    "bs.equity_other": _u(_HELD),
+
+    "cf.net_income": _u(_NET_INCOME),
+    "cf.depreciation": _u(_DEPRECIATION),
+    "cf.amortisation": _u(_AMORTISATION),
+    "cf.change_in_receivables": _u(_AR),
+    "cf.change_in_inventory": _u(_INVENTORY),
+    "cf.change_in_payables": _u(_AP),
+    "cf.cash_from_operating": _u(_NET_INCOME, _DEPRECIATION, _AMORTISATION,
+                                 _AR, _INVENTORY, _AP),
+    "cf.capital_expenditure": _u(_CAPEX),
+    "cf.intangible_additions": _u(_INTANGIBLE_ADD),
+    "cf.cash_from_investing": _u(_CAPEX, _INTANGIBLE_ADD),
+    "cf.debt_drawdowns": _u(_INT_DEBT),
+    "cf.debt_repayments": _u(_INT_DEBT),
+    "cf.dividends_paid": _u(_DIVIDENDS),
+    "cf.funding_line_movement": _u(_FUNDING, _CASH),
+    "cf.cash_from_financing": _u(_INT_DEBT, _DIVIDENDS, _FUNDING, _CASH),
+    "cf.net_change_in_cash": _u(_CASH),
+    "cf.opening_cash": _u(_CASH),
+    "cf.closing_cash": _u(_CASH),
+
+    "bs_totals.assets": _u(_CASH, _AR, _INVENTORY, _CAPEX, _DEPRECIATION,
+                           _INTANGIBLE_ADD, _AMORTISATION, _HELD),
+    "bs_totals.current_assets": _u(_CASH, _AR, _INVENTORY, _HELD),
+    "bs_totals.current_liabilities": _u(_AP, _INT_DEBT, _FUNDING, _HELD),
+    "bs_totals.equity": _u(_NET_INCOME, _DIVIDENDS, _HELD),
+    "bs_totals.equity_plus_liabilities": _u(_AP, _INT_DEBT, _FUNDING,
+                                            _NET_INCOME, _DIVIDENDS, _HELD),
+}
+
+
+def _assert_attribution_covers_every_line():
+    """Every emitted line names at least one reason, and every reason is
+    a driver or a convention that actually exists.
+
+    At IMPORT, not in a test: a line added to `PL_LINES` without an entry
+    here would otherwise reach `fp1_from_forecast_v1`, arrive at the
+    serving contract with no attribution, and take the WHOLE projection
+    down with it — which is exactly how this map came to be written.
+    """
+    from .assumptions import KEYS
+    known = set(KEYS) | set(cid for cid, _basis in FP1_CONVENTIONS)
+    expected = set()
+    for line in PL_LINES:
+        expected.add("pl." + line)
+    for line in LINES:
+        expected.add("bs." + line)
+    for line in CF_LINES:
+        expected.add("cf." + line)
+    for line in ("assets", "current_assets", "current_liabilities",
+                 "equity", "equity_plus_liabilities"):
+        expected.add("bs_totals." + line)
+    missing = sorted(expected - set(LINE_ASSUMPTIONS))
+    if missing:
+        raise AssertionError(
+            "these projected lines name no assumption and would refuse the "
+            "whole projection at the fp1 contract: %s" % ", ".join(missing))
+    extra = sorted(set(LINE_ASSUMPTIONS) - expected)
+    if extra:
+        raise AssertionError(
+            "LINE_ASSUMPTIONS attributes lines this model does not "
+            "project: %s" % ", ".join(extra))
+    for line in sorted(LINE_ASSUMPTIONS):
+        unknown = sorted(set(LINE_ASSUMPTIONS[line]) - known)
+        if unknown:
+            raise AssertionError(
+                "%s names %s, which is neither a driver nor a declared "
+                "convention" % (line, ", ".join(unknown)))
+
+
+_assert_attribution_covers_every_line()
+
+
 def _period_charge(base_cents: int, annual_rate_micros: int, days: int,
                    days_basis: int) -> int:
     """An annual rate applied to a base for part of a year, rounded once."""
@@ -280,6 +480,22 @@ class Projection(object):
             shaped = item.as_fp1(labels)
             if shaped is not None:
                 out.append(shaped)
+        # The conventions, after the drivers. They are NOT in
+        # `_DEFAULTS` — `derive_assumptions` measures quantities from a
+        # book, and none of these is a quantity to measure. They belong
+        # to the fp1 VIEW: a reader being handed a held balance-sheet
+        # line needs to be told it is held, and the numeric engine does
+        # not. Emitted here so the two never have to agree about a driver
+        # that exists on only one side.
+        for cid, basis in FP1_CONVENTIONS:
+            out.append({
+                "id": cid,
+                "label": cid.replace("_", " "),
+                "unit": "convention",
+                "values": dict((label, None) for label in labels),
+                "basis": "%s [engine_default]" % basis,
+                "derived_from": [],
+            })
         return out
 
     def series(self) -> Dict[str, Tuple[float, ...]]:
@@ -301,6 +517,12 @@ class Projection(object):
             "history": self.history.as_dict(),
             "assumptions": self.assumptions.as_list(),
             "fp1_assumptions": self.fp1_assumptions(),
+            # The fp1 attribution map: line -> the reasons behind it.
+            # `engine.forecast_serving.adapter` reads this key and REFUSES
+            # every figure that is not in it, so an unattributed line
+            # cannot reach a reader as a number with no reason.
+            "line_assumptions": dict(
+                (line, list(ids)) for line, ids in LINE_ASSUMPTIONS.items()),
             "debt_schedule": self.assumptions.debt_schedule.as_list(),
             "notes": list(self.notes),
             "periods": [p.as_dict() for p in self.periods],

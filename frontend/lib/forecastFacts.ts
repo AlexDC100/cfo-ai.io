@@ -111,6 +111,13 @@ export const ASSUMPTION_UNITS = [
   "money_minor",
   "count",
   "months",
+  // The one non-quantitative unit: a stated rule with no number. A HELD
+  // balance-sheet line ("other receivables at 2028-12-31 will be exactly
+  // what they were at 2025-12-31") is a falsifiable claim the model made,
+  // so it must name its reason — and it has no rate to name. A convention
+  // carries `null` in every period and renders as its basis sentence, so
+  // nothing downstream can mistake it for a quantity.
+  "convention",
 ] as const;
 export type AssumptionUnit = (typeof ASSUMPTION_UNITS)[number];
 
@@ -182,6 +189,23 @@ export interface AssumptionRef {
   readonly label: string;
   readonly unit: AssumptionUnit | string;
   readonly value: number | null;
+  /** WHICH PERIOD `value` IS FOR, or `null` when the ref was built without
+   *  asking for one.
+   *
+   *  This exists because `value: null` was carrying two opposite meanings
+   *  and a surface read the wrong one. `assumptions` is the DECLARED list —
+   *  every driver, schedule and all, valued for no period — so every `value`
+   *  in it is null; a driver the book genuinely could not measure is ALSO
+   *  null. The forecast page's assumption schedule read the first and
+   *  printed the second: `revenue_growth`, supplied at 8%, rendered as "not
+   *  measurable from this book". Same shape as the absent-read-as-zero
+   *  defects elsewhere in this repo, one level up — a null that means "I
+   *  did not ask" read as a null that means "there is nothing to have".
+   *
+   *  Ask a question about a period (`assumptionsFor`) and this carries that
+   *  period. Read the declared list and it is null, which is the ref saying
+   *  it was never asked. */
+  readonly valuedFor: string | null;
   readonly basis: string;
   readonly derivedFrom: readonly string[];
 }
@@ -232,7 +256,12 @@ export interface ProjectionView {
   readonly basePeriodLabel: string;
   readonly baseSnapshotId: string | null;
   readonly horizon: readonly string[];
+  /** The DECLARED drivers, valued for no period — every `value` here is
+   *  null and every `valuedFor` is null, which is the ref saying it was
+   *  never asked. To render a number, ask `assumptionsFor(period)`. */
   readonly assumptions: readonly AssumptionRef[];
+  /** The same drivers, valued for one period of the horizon. */
+  assumptionsFor(period: string): readonly AssumptionRef[];
   readonly balanceCheck: readonly BalanceCheckRow[];
   /** Every projected year whose balance sheet does not close, in horizon
    *  order. Empty is the only shippable state. */
@@ -241,6 +270,18 @@ export interface ProjectionView {
   figures(): readonly ProjectedResult[];
   lines(): readonly string[];
 }
+
+/** The composite-key separator, and the "no period" sentinel.
+ *
+ *  Both are U+0000, written as an ESCAPE rather than as a literal NUL in the
+ *  source — which is what this file used to carry. A literal NUL makes the
+ *  whole file binary to `grep`, and every text-scanning gate in this repo
+ *  (`check_no_plants.mjs`, the hardcoded-URL scan, the metric-unit sweeps)
+ *  walks the tree with one. The file was invisible to all of them, silently,
+ *  which is the same shape as the intercepted route that had no gate. The
+ *  bytes the runtime sees are identical; only the source is now readable. */
+const KEY_SEP = "\u0000";
+const NO_PERIOD = "\u0000";
 
 // ─── The one door to the value ──────────────────────────────────────────
 
@@ -409,11 +450,13 @@ const asInt = (x: unknown): number | null =>
 function assumptionFrom(raw: RawRecord, period: string): AssumptionRef {
   const values = asRecord(raw.values);
   const derived = raw.derived_from ?? raw.derivedFrom;
+  const asked = period !== NO_PERIOD;
   return {
     id: asString(raw.id),
     label: asString(raw.label) || asString(raw.id),
     unit: asString(raw.unit),
-    value: values && period in values ? asNumber(values[period]) : null,
+    value: asked && values && period in values ? asNumber(values[period]) : null,
+    valuedFor: asked ? period : null,
     basis: asString(raw.basis),
     derivedFrom: Array.isArray(derived) ? derived.map((d) => String(d)) : [],
   };
@@ -469,7 +512,7 @@ export function readProjection(payload: unknown): ProjectionView | null {
     if (!rec) continue;
     const line = asString(rec.line);
     const period = asString(rec.period);
-    figureByKey.set(`${line} ${period}`, rec);
+    figureByKey.set(`${line}${KEY_SEP}${period}`, rec);
     figureOrder.push([line, period]);
   }
 
@@ -495,7 +538,7 @@ export function readProjection(payload: unknown): ProjectionView | null {
         detail: `the projection runs ${horizon.join(", ")}`,
       };
     }
-    const raw = figureByKey.get(`${line} ${period}`);
+    const raw = figureByKey.get(`${line}${KEY_SEP}${period}`);
     if (!raw) {
       return {
         projected: true,
@@ -569,9 +612,15 @@ export function readProjection(payload: unknown): ProjectionView | null {
     horizon,
     assumptions: assumptionOrder.map((id) =>
       // With no single period in view the driver values do not apply, and
-      // ABSENT != ZERO — the schedule is read per figure, not here.
-      assumptionFrom(assumptionById.get(id) as RawRecord, " "),
+      // ABSENT != ZERO. The refs come back with `valuedFor: null`, which is
+      // the ref saying it was never asked — read `assumptionsFor(period)`
+      // to get numbers.
+      assumptionFrom(assumptionById.get(id) as RawRecord, NO_PERIOD),
     ),
+    assumptionsFor: (period: string) =>
+      assumptionOrder.map((id) =>
+        assumptionFrom(assumptionById.get(id) as RawRecord, String(period)),
+      ),
     balanceCheck,
     // Horizon order, never Set order: same input, same bytes.
     unbalancedPeriods: horizon.filter((p) => failing.has(p)),

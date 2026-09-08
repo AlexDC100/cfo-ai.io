@@ -841,35 +841,102 @@ def test_the_adapter_converts_every_value_exactly_or_not_at_all():
 
 
 def test_the_adapter_never_invents_attribution():
-    """THE REFUSAL THAT MATTERS. `forecast_v1` states no link between its
-    drivers and its figures, so the adapter emits none, the contract refuses
-    the whole payload, and NO number is served.
+    """THE REFUSAL THAT MATTERS, restated now that the producer states
+    attribution.
 
-    The test fixture used to have a flag that attached all 17 drivers to all
-    496 figures so this path could go green; its own docstring called that
-    "dishonest attribution". A figure claiming seventeen drivers the model
-    never named is a false provenance, and a false provenance is worse than a
-    refusal — the refusal is legible and the false one is not.
+    Until 2026-09-08 `forecast_v1` named no link between its drivers and its
+    figures, so the adapter emitted none, the contract refused the whole
+    payload, and NO number was served — on every real book, at every horizon.
+    That was the honest behaviour of a producer that had not finished, and it
+    is also why the forecast shipped complete and unreachable: the surface
+    would have 422'd for every customer.
+
+    The law it protected has not changed and this test still enforces it: the
+    adapter attaches EXACTLY what the producer states and nothing else. A
+    figure claiming a driver the model never named is a FALSE provenance, and
+    a false provenance is worse than a refusal — the refusal is legible and
+    the false one is not. The test fixture once had a flag that attached all
+    17 drivers to all 496 figures so this path could go green; its own
+    docstring called that "dishonest attribution".
+
+    RED ON: the adapter inventing, widening or defaulting attribution; a
+    producer line reaching the wire with no reason behind it.
     """
     raw = _forecast_v1()
-    assert ATTRIBUTION_KEY not in raw, (
-        "the producer now states attribution — delete this assertion and "
-        "keep the served-path test below, which already covers it"
-    )
+    stated = raw[ATTRIBUTION_KEY]
+    assert isinstance(stated, dict) and stated, (
+        "the producer states no attribution at all — every figure would be "
+        "refused and no projection could be served")
+
     fp1 = fp1_from_forecast_v1(raw)
-    invented = [(f["line"], f["period"], f["assumption_ids"])
-                for f in fp1["figures"] if f["assumption_ids"]]
-    assert invented == [], (
-        "the adapter attached %d driver(s) to %r that the producer never "
-        "named — e.g. %r. A figure claiming drivers the model did not state "
-        "is a FALSE provenance, which is worse than a refusal: the refusal "
-        "is legible and the false one is not."
-        % (len(invented[0][2]), invented[0][0], invented[0])
-    )
+    for figure in fp1["figures"]:
+        expected = list(stated.get(figure["line"], ()))
+        assert figure["assumption_ids"] == expected, (
+            "%s/%s was served %r; the producer states %r"
+            % (figure["line"], figure["period"], figure["assumption_ids"],
+               expected))
+        assert figure["assumption_ids"], (
+            "%s reached the wire naming no assumption" % figure["line"])
+    assert clause_violations(fp1) == []
+
+
+def test_an_unstated_line_is_refused_not_defaulted():
+    """The other half, and the one that keeps the first honest: strip ONE
+    line out of the producer's attribution map and the contract must refuse
+    the whole payload rather than let that line through with a plausible
+    default.
+
+    RED ON: the adapter filling a gap in attribution from anywhere — the
+    section's other lines, the full driver list, the previous period.
+    """
+    raw = _forecast_v1()
+    victim = "pl.revenue"
+    assert victim in raw[ATTRIBUTION_KEY]
+    del raw[ATTRIBUTION_KEY][victim]
+
+    fp1 = fp1_from_forecast_v1(raw)
+    orphans = [f for f in fp1["figures"]
+               if f["line"] == victim and f["assumption_ids"]]
+    assert orphans == [], (
+        "the adapter invented %r for a line the producer stopped naming"
+        % (orphans[0]["assumption_ids"] if orphans else None))
     codes = sorted(set(code for code, _ in clause_violations(fp1)))
     assert codes == ["figure_names_no_assumption"], codes
     with pytest.raises(ProjectionContractError):
         ProjectionGateway.from_payload(fp1)
+
+
+def test_every_real_book_serves_a_whole_projection_at_every_horizon():
+    """WHAT THE ATTRIBUTION MAP BOUGHT, measured on the real books.
+
+    Before it, `ProjectionGateway(fp1_from_forecast_v1(...))` raised
+    `figure_names_no_assumption` on agras, carniprod, retail AND realestate,
+    at 3 years and at 5. The forecast computed correctly into a serving
+    contract that rejected all of it.
+
+    RED ON: any real book losing its projection, any figure arriving
+    unattributed, or a period whose balance sheet stops closing.
+    """
+    from engine.forecast import project_payload
+
+    seen = 0
+    for name in _all_books():
+        capture = _actual_book(name)
+        for horizon in (3, 5):
+            projection = project_payload(capture, horizon_years=horizon)
+            gateway = ProjectionGateway(
+                fp1_from_forecast_v1(projection.as_dict()))
+            payload = gateway.as_dict()
+            assert payload["unbalanced_periods"] == [], (
+                "%s at %d years does not close: %s"
+                % (name, horizon, payload["unbalanced_periods"]))
+            refused = [f for f in payload["figures"] if f.get("refused")]
+            assert refused == [], (
+                "%s at %d years refused %d figure(s), e.g. %r"
+                % (name, horizon, len(refused), refused[0] if refused else None))
+            assert len(payload["figures"]) > 500, (name, horizon)
+            seen += 1
+    assert seen == 8, seen
 
 
 def test_the_adapter_serves_the_attribution_the_producer_states():

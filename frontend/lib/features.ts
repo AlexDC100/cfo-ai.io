@@ -81,6 +81,7 @@ export type FeatureKey =
   // `_features.py`. Every key below is `hidden` server-side today; the
   // ROUTE (not only the nav item) consults it via <FeatureRoute>, so a
   // deep link renders <PendingState> instead of a half-verified screen.
+  | "forecast"
   | "scenarios"
   | "variance"
   | "public_companies"

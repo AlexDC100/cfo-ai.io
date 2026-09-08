@@ -27,7 +27,8 @@
     "group_system": "System",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "disclaimer": "Disclaimer"
+    "disclaimer": "Disclaimer",
+    "forecast": "Forecast"
   },
   "topbar": {
     "ask": "Ask CFO AI",
@@ -2908,6 +2909,43 @@
       "totalAssets": "total assets",
       "totalEquity": "total equity",
       "totalLiabilities": "total liabilities"
+    }
+  },
+  "forecast": {
+    "eyebrow": "Forecast",
+    "title": "Projection",
+    "years": "{{count}} years",
+    "projected": "projected",
+    "line": "Line",
+    "periods": "periods",
+    "loading": "Projecting…",
+    "refused": "No projection",
+    "basePeriod": "Stands on",
+    "absent": "not measurable from this book",
+    "banner": {
+      "eyebrow": "Every figure on this page is a projection",
+      "body": "Nothing here comes out of a cell in your trial balance. Each number is produced by the assumptions listed below and by the closing position of {{period}}, which is the only actual figure this page stands on."
+    },
+    "empty": {
+      "title": "Load a period to project from",
+      "subtitle": "A projection stands on one closing balance sheet and one profit and loss account. Upload or open a period and the forecast opens with it."
+    },
+    "assumptions": {
+      "title": "Assumptions",
+      "lead": "Every number below this table is produced by these drivers. A driver the book could not measure states so in its own words — it is not held at zero.",
+      "driver": "Driver",
+      "value": "Value",
+      "basis": "Basis",
+      "asOf": "Valued for"
+    },
+    "block": {
+      "pl": "Profit and loss",
+      "bs": "Balance sheet",
+      "cf": "Cash flow"
+    },
+    "balance": {
+      "ok": "Every projected period balances to the cent. The check is exact, not a tolerance band.",
+      "broken": "The projected balance sheet does not close in: {{periods}}. This is a hard error, not a rounding note — the projection is built in integer minor units so the check is exact."
     }
   }
 }

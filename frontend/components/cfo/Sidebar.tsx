@@ -39,6 +39,7 @@ import {
   Scale,
   Sparkles,
   SlidersHorizontal,
+  TrendingUp,
   PanelLeftClose,
   PanelLeftOpen,
   Globe,
@@ -121,6 +122,7 @@ export interface ShellNavItem {
 export const SHELL_NAV_ALL: ShellNavItem[] = [
   { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "overview", end: true },
   { to: "/workspace",  labelKey: "sidebar.workspaces", icon: Building2,       testId: "sidebar-workspaces", group: "overview" },
+  { to: "/dashboard/forecast", labelKey: "sidebar.forecast", icon: TrendingUp, testId: "sidebar-forecast", group: "analyze", featureKey: "forecast" },
   { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analyze", featureKey: "scenarios" },
   { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analyze", featureKey: "benchmarks" },
   { to: "/products",   labelKey: "sidebar.products",   icon: PackageSearch,   testId: "sidebar-products",   group: "analyze", featureKey: "products_legacy" },

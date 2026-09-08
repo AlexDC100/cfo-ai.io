@@ -195,6 +195,12 @@ class Assumption(object):
         _DAYS: "days",
         _MONEY: "money_minor",
         _COUNT: "count",
+        # A stated rule with no quantity. `year_one_granularity` is one:
+        # it is a shape choice a reader of the projection genuinely needs
+        # ("year one is monthly"), and it used to be dropped from the
+        # served payload entirely because the contract knew only numbers.
+        # It now travels as what it is instead of not travelling.
+        _TEXT: "convention",
     }
 
     def as_fp1(self, period_labels: Sequence[str]) -> Optional[Dict[str, Any]]:
@@ -207,6 +213,24 @@ class Assumption(object):
         unit = self.FP1_UNITS.get(self.unit)
         if unit is None:
             return None
+        if self.unit == _TEXT:
+            # ABSENT, not the word. A `values` map is a schedule of
+            # NUMBERS; putting a string in one would hand every consumer
+            # a quantity it cannot compute with, and `readProjection`
+            # would render it beside figures as though it were one. The
+            # word itself belongs in the basis, which is what renders.
+            return {
+                "id": self.key,
+                "label": self.key.replace("_", " "),
+                "unit": unit,
+                "values": dict((label, None) for label in period_labels),
+                "basis": ("%s: %s [%s]"
+                          % (self.basis or self.key.replace("_", " "),
+                             self.text, self.source)
+                          if self.text else
+                          "%s [%s]" % (self.basis, self.source)),
+                "derived_from": list(self.derived_from),
+            }
         value = self.exact if self.unit == _MONEY else self.value()
         return {
             "id": self.key,

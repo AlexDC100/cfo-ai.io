@@ -93,6 +93,12 @@
       "affordances": 0,
       "why": "OPENED 2026-09-04. The bridge is Reported − 758 − 781 = Core, with each adjustment naming its account (a.account) and amount from the per-account line items /api/period ships. Accounts ARE in the payload. Remaining work, named: wear {source: <filename> · lineItems, accounts: a.account} on each adjustment row and {method: reported − adjustments} on Core. Rendered plain until then."
     },
+    "frontend/components/cfo/IndustryConfirmBanner.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-08. One toLocaleString. The banner fires when the account mix disagrees with the workspace industry setting, and it prints the ACCOUNT CODE beside its BALANCE for every marker the structural signal read (e.g. `2131 27,571,714.00`). The payload therefore CARRIES its origin — the figures come from engine.industry.structural_signal and are never recomputed here — but they are painted as plain mono text, with no affordance primitive, so a reader cannot click through to the source cell. REMAINING WORK: wrap the code+amount pair in the same provenance affordance the statement rows use. Not HAS_SHOWS: there is no affordance and no renders_via to name."
+    },
     "frontend/components/cfo/KeyMetricsRow.tsx": {
       "bucket": "HAS_SHOWS",
       "sites": 2,
@@ -562,6 +568,12 @@
       "affordances": 1,
       "why": "Builds HeadlineProvenance once (verified to the cent inside lib/headlineProvenance) and hands the SAME object to KeyMetricsRow, StoryOverview, FirstUploadJourney and, by context, the configurable tiles. Its own figure — the hero score — names assembled_metrics.credit.composite_score when the score IS that field, else the client derivation."
     },
+    "frontend/pages/cfo/Forecast.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 2,
+      "affordances": 0,
+      "why": "OPENED 2026-09-08. THE ONE SURFACE WHERE PROVENANCE MUST NOT BE OFFERED. Every figure on this page is a PROJECTION: it resolves to the assumptions above it, never to a cell in an uploaded book, and the fp1 contract enforces that structurally — `assert_no_actual_provenance` refuses any projected figure carrying a snapshot_id, line_id or source_cell, and `ProjectedMinor` makes the value unreachable except through `projectedDisplay`, which hands the consumer the projected marker in the same call. A dotted underline promising to jump to the source cell for 2030 revenue would be an affordance over nothing, which is precisely the LACKS_SHOWS bucket this census exists to keep empty. The one Intl.NumberFormat here paints projected minor units in the BOOK's own currency (the display toggle is deliberately not applied — see makeFormatter); the reason behind every number is instead rendered in full, above the statements, as the assumption schedule."
+    },
     "frontend/pages/cfo/Landing.tsx": {
       "bucket": "LACKS_SILENT",
       "sites": 6,
@@ -621,12 +633,6 @@
       "sites": 1,
       "affordances": 0,
       "why": "OPENED 2026-09-04. THE CURRENCY STORE. One formatAmountFrom() inside the useAmountFormatter binding every other surface calls — it converts and spells whatever it is handed and holds no payload, exactly as ui/Money.tsx does. Callers that have an origin wrap the result."
-    },
-    "frontend/components/cfo/IndustryConfirmBanner.tsx": {
-      "bucket": "HAS_MISSING",
-      "sites": 1,
-      "affordances": 0,
-      "why": "OPENED 2026-09-08. One toLocaleString. The banner fires when the account mix disagrees with the workspace industry setting, and it prints the ACCOUNT CODE beside its BALANCE for every marker the structural signal read (e.g. `2131 27,571,714.00`). The payload therefore CARRIES its origin — the figures come from engine.industry.structural_signal and are never recomputed here — but they are painted as plain mono text, with no affordance primitive, so a reader cannot click through to the source cell. REMAINING WORK: wrap the code+amount pair in the same provenance affordance the statement rows use. Not HAS_SHOWS: there is no affordance and no renders_via to name."
     }
   },
   "absent_leaf": {

@@ -388,6 +388,11 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         label="Firm Cockpit",
         description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
     ),
+    "forecast": _feature(
+        "active",
+        label="Forecast",
+        description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
+    ),
     "anomaly_radar": _feature(
         "hidden",
         label="Anomaly Radar",

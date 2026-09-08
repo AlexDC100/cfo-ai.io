@@ -85,6 +85,7 @@ const Products = lazy(() => import("./pages/cfo/Products"));
 const Scenarios = lazy(() => import("./pages/cfo/Scenarios"));
 // F6.0.1b — Budget vs Actual vs Last-Year variance (/dashboard/variance).
 const Variance = lazy(() => import("./pages/cfo/Variance"));
+const Forecast = lazy(() => import("./pages/cfo/Forecast"));
 const Alerts = lazy(() => import("./pages/cfo/Alerts"));
 const Settings = lazy(() => import("./pages/cfo/Settings"));
 const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
@@ -165,6 +166,7 @@ function App() {
         () => import("./pages/cfo/BenchmarkReport"),
         () => import("./pages/cfo/Scenarios"),
         () => import("./pages/cfo/Variance"),
+        () => import("./pages/cfo/Forecast"),
         () => import("./pages/cfo/Settings"),
         () => import("./pages/cfo/Decisions"),
         () => import("./pages/cfo/Alerts"),
@@ -449,6 +451,13 @@ function AppRoutes() {
             <Route
               path="/dashboard/variance"
               element={<FeatureRoute featureKey="variance"><Variance /></FeatureRoute>}
+            />
+            {/* FORECAST — the driver-based projection. Gated on the same
+                registry row as everything else, so it is one edit in
+                `_features.py` away from being hidden again. */}
+            <Route
+              path="/dashboard/forecast"
+              element={<FeatureRoute featureKey="forecast"><Forecast /></FeatureRoute>}
             />
             <Route path="/dashboard/public/search" element={<Navigate to="/public-companies" replace />} />
             <Route

@@ -312,7 +312,30 @@ export function extractCanonicalBsFromReconcile(
   return null;
 }
 
+/** THE FORECAST HORIZONS THE ENGINE OFFERS.
+ *
+ *  Mirrors `engine.api._forecast_routes.ALLOWED_HORIZONS`. The engine
+ *  REFUSES anything else by name rather than clamping — silently serving
+ *  three years to someone who asked for seven is the class of defect this
+ *  repo keeps finding — so this list is the surface's half of that
+ *  contract, not a convenience. */
+export const FORECAST_HORIZONS = [3, 5] as const;
+export type ForecastHorizon = (typeof FORECAST_HORIZONS)[number];
+
 export const cfoApi = {
+  /** One fp1 projection over one persisted period.
+   *
+   *  Returns the raw payload. It is NOT typed as anything the rest of this
+   *  module returns, and that is deliberate: every figure inside is
+   *  PROJECTED, and the only sanctioned way to read one is
+   *  `readProjection()` in `lib/forecastFacts.ts`, whose opaque
+   *  `ProjectedMinor` type makes `actual + projected` a compile error.
+   *  Handing this back as a shaped object with plain `number` fields would
+   *  undo that in one line. */
+  forecast: (periodId: string, horizon: ForecastHorizon) =>
+    call<unknown>(
+      `/api/forecast/${encodeURIComponent(periodId)}?horizon=${horizon}`,
+    ),
   today: (req: TodayRequest) =>
     call<TodayResponse>("/api/cfo/today", { method: "POST", body: JSON.stringify(req) }),
   cash: (req: TodayRequest) =>

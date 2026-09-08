@@ -615,3 +615,59 @@ describe("a driver value the payload does not state reads as ABSENT", () => {
     expect(f.basis[0].value).toBeNull();
   });
 });
+
+// ─── `valuedFor`: the null that means "nobody asked" ────────────────────
+//
+// Added 2026-09-08, after the forecast page shipped its assumption schedule
+// reading `view.assumptions` — the DECLARED, period-less list — and printing
+// "not measurable from this book" beside `revenue_growth`, which was supplied
+// at 8%. `value: null` was carrying two opposite meanings and the surface read
+// the wrong one. It is the absent-read-as-zero family one level up: a null
+// that means "I did not ask" read as a null that means "there is nothing to
+// have".
+
+describe("a driver's value knows which period it is for", () => {
+  const view = () => {
+    const v = readProjection(
+      JSON.parse(readFileSync(FP1_SERVED, "utf8")) as unknown,
+    );
+    if (!v) throw new Error("the served fixture did not read as a projection");
+    return v;
+  };
+
+  it("the declared list is valued for NO period, and says so", () => {
+    for (const a of view().assumptions) {
+      expect(
+        a.valuedFor,
+        `${a.id} claims to be valued for ${a.valuedFor} in the declared list`,
+      ).toBeNull();
+      expect(a.value).toBeNull();
+    }
+  });
+
+  it("asking for a period gives the number AND names the period", () => {
+    const v = view();
+    const period = v.horizon[0];
+    const asked = v.assumptionsFor(period);
+    expect(asked.length).toBe(v.assumptions.length);
+    for (const a of asked) {
+      expect(a.valuedFor).toBe(period);
+    }
+    const withValues = asked.filter((a) => a.value !== null);
+    expect(
+      withValues.length,
+      "no driver carries a value for the first projected period; the " +
+        "schedule is not being read",
+    ).toBeGreaterThan(0);
+  });
+
+  it("a period outside the schedule is ABSENT, not the previous period's number", () => {
+    const asked = view().assumptionsFor("FY-not-in-this-projection");
+    for (const a of asked) {
+      expect(a.value).toBeNull();
+      // It still records WHAT was asked, so a caller can tell an
+      // out-of-schedule question from an unasked one.
+      expect(a.valuedFor).toBe("FY-not-in-this-projection");
+    }
+  });
+});

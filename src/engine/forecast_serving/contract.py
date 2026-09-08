@@ -135,7 +135,20 @@ BASE_PERIOD_KEYS = ("base_period", "opening")
 #: The units an assumption may be stated in. A driver whose unit is not
 #: one of these cannot be rendered honestly beside its figure, so it is
 #: refused rather than guessed at.
-UNITS = ("pct", "days", "ratio", "money_minor", "count", "months")
+#: ``convention`` is the one non-quantitative unit, and it is here so a
+#: word is never dressed as a number. A HELD balance-sheet line — "other
+#: receivables at 2028-12-31 will be exactly what they were at
+#: 2025-12-31" — is a strong, falsifiable claim produced by a decision
+#: this model made, so under `figure_names_no_assumption` it must name
+#: the reason behind it. It has no rate to name. The alternative
+#: considered was a `held_line_growth` ratio pinned at 0%, rejected
+#: because any non-zero value grows the two sides of the balance sheet by
+#: different amounts and breaks the close — a knob that must never be
+#: turned is not a driver. A convention carries `values: null` in every
+#: period (which `assumption_value_neither_number_nor_absent` already
+#: permits) and renders as its basis sentence.
+UNITS = ("pct", "days", "ratio", "money_minor", "count", "months",
+         "convention")
 
 #: Top-level keys that mean "this object carries ACTUAL figures". A
 #: projection payload carrying any of them is refused: one object that

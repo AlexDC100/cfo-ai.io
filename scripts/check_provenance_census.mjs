@@ -566,6 +566,21 @@ const SURFACES = {
       "frontend/components/comparison/VarianceTable.tsx",
     ],
   },
+  // 2026-09-08 — the projection surface. Its floor is zero and MUST stay
+  // zero: every figure on it is projected, so an affordance promising a
+  // jump to a source cell would be an affordance over nothing. The fp1
+  // contract enforces the same rule structurally
+  // (`assert_no_actual_provenance`), so a dot appearing here means a
+  // projected figure has picked up actual provenance somewhere upstream.
+  forecast: {
+    ratchet: 0, // MEASURED, exact — and required to stay 0, see above
+    witness:
+      "engine: tests/engine/test_forecast_serving_boundary.py asserts no projected figure carries actual provenance; FE: frontend/lib/__tests__/forecastFactsBoundary.test.ts asserts the same over the served bytes",
+    files: [
+      "frontend/pages/cfo/Forecast.tsx",
+      "frontend/components/forecast/ProjectedAmount.tsx",
+    ],
+  },
   scenarios: {
     ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
     witness: "live: P2[scenarios] asserts NO affordance on a LACKS_SILENT surface",
