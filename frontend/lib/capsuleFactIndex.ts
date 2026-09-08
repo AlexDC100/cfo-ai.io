@@ -306,7 +306,6 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "cash_from_operating",
   "covenant_limit",
   "cur_liab",
-  "currency",
   "current_assets",
   "current_liabilities",
   "difference",
@@ -324,7 +323,14 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "free_cash_flow",
   "fx_cash",
   "intercompany_loans",
+  // ── Radar detector families (2026-09-08) ───────────────────────────
+  // The AMOUNT AT STAKE each family publishes. `serve.amount_at_stake`
+  // ranks on the largest declared money figure a finding cites, and
+  // undeclared these three fired on a real book and produced zero ranked
+  // candidates.
+  "interco_balance",
   "market_cap",
+  "net_book_value",
   "net_debt",
   "net_income",
   "net_income_operating",
@@ -341,6 +347,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "total_equity",
   "total_expenses",
   "total_liabilities",
+  "top_counterparty_balance",
   "total_operating_revenue",
   "trade_rec",
   "working_capital",

@@ -604,6 +604,18 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"GATE-WORK tsc units=(\d+)", floor=400,
              units="project files typechecked",
              canaries=("tsconfig.app.json",)),
+        # VITEST — 2,784 frontend unit tests that were OUTSIDE the battery
+        # until 2026-09-08. `tsc` and `npm-build` were in it; nothing ran
+        # the suite. Same shape as the `check_tsc` false green above, and
+        # it was RED when first wired: an engine mirror had drifted, and
+        # the mirror test that exists to catch that had been passing on a
+        # quoted phrase lifted out of a Python COMMENT. The gate prints
+        # how many tests ran and names one file per area, because a suite
+        # matching nothing exits zero and reports 2,784 -> 0 silently.
+        Gate("vitest", ["node", "scripts/check_vitest.mjs"],
+             work_rx=r"GATE-WORK vitest units=(\d+)", floor=2500,
+             units="frontend unit tests",
+             canaries=("capsuleFactIndex.test.ts",)),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

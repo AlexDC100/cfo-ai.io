@@ -51,6 +51,41 @@ const drift = driftJson as unknown as Statements;
 const repoRoot = resolve(__dirname, "../../..");
 const readRepo = (p: string) => readFileSync(resolve(repoRoot, p), "utf-8");
 
+/** Python source with every `#` comment stripped, line by line.
+ *
+ *  THE MIRRORS BELOW EXTRACT QUOTED NAMES WITH A REGEX, and a regex over
+ *  raw source scoops up prose from comments too. Measured 2026-09-08: a
+ *  three-name addition to `_MONEY_FACTS` arrived with an explanatory
+ *  comment, and the mirror reported FIVE names missing — the two extras
+ *  being the phrases "must be declared" and "the finding cites no money
+ *  figure other than a company total", lifted out of that comment.
+ *
+ *  A false red is the mild failure. The severe one is the mirror going
+ *  GREEN because a comment happened to quote the very name somebody
+ *  forgot to add to the registry — which is exactly the drift these
+ *  tests exist to catch. Comments are not the registry, so they are
+ *  removed before the registry is read.
+ *
+ *  `#` inside a Python string literal is not stripped: the split keeps
+ *  everything before the first `#` that is not inside quotes. */
+function pythonCode(path: string): string {
+  return readRepo(path)
+    .split("\n")
+    .map((line) => {
+      let inSingle = false;
+      let inDouble = false;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === "\\") { i += 1; continue; }
+        if (ch === "'" && !inDouble) inSingle = !inSingle;
+        else if (ch === '"' && !inSingle) inDouble = !inDouble;
+        else if (ch === "#" && !inSingle && !inDouble) return line.slice(0, i);
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 /** Deep clone so a test that removes a block cannot leak into the next. */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -255,7 +290,7 @@ describe("ABSENT is not ZERO", () => {
 
 describe("engine mirrors — pinned against the Python sources", () => {
   it("RESULT_ROW_IDS matches engine.serving.facts._RESULT_ROW_IDS", () => {
-    const src = readRepo("src/engine/serving/facts.py");
+    const src = pythonCode("src/engine/serving/facts.py");
     const match = /_RESULT_ROW_IDS\s*=\s*\(([^)]*)\)/.exec(src);
     expect(match, "_RESULT_ROW_IDS not found in facts.py").toBeTruthy();
     const engineIds = Array.from(match![1].matchAll(/"([^"]+)"/g)).map((m) => m[1]);
@@ -263,7 +298,7 @@ describe("engine mirrors — pinned against the Python sources", () => {
   });
 
   it("ENGINE_MONEY_FACTS matches engine.api._ratio_units._MONEY_FACTS", () => {
-    const src = readRepo("src/engine/api/_ratio_units.py");
+    const src = pythonCode("src/engine/api/_ratio_units.py");
     const match = /_MONEY_FACTS\s*=\s*frozenset\(\[([\s\S]*?)\]\)/.exec(src);
     expect(match, "_MONEY_FACTS not found in _ratio_units.py").toBeTruthy();
     const engineNames = Array.from(match![1].matchAll(/"([^"]+)"/g)).map((m) => m[1]);
@@ -273,7 +308,7 @@ describe("engine mirrors — pinned against the Python sources", () => {
   });
 
   it("ENGINE_CAPSULE_METRICS matches _capsule_tools.METRICS", () => {
-    const src = readRepo("src/engine/api/_capsule_tools.py");
+    const src = pythonCode("src/engine/api/_capsule_tools.py");
     const block = /METRICS = MappingProxyType\(\{([\s\S]*?)\n\}\)/.exec(src);
     expect(block, "METRICS registry not found in _capsule_tools.py").toBeTruthy();
     const engineNames = Array.from(

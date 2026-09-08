@@ -2951,3 +2951,56 @@ before writing to be the ONLY difference.
 **What this gate cannot see:** any ROUTE calling it. Nothing does — the flag
 is off everywhere and there is no `/radar` surface. The gate says so rather
 than implying coverage it does not have.
+
+## vitest
+
+`scripts/check_vitest.mjs` — the frontend unit suite, 2,784 tests across 751
+suites in 165 files.
+
+**Why this is a gate.** It was not one. `tsc` and `npm-build` were in the
+battery; nothing ran the unit suite. That is the `check_tsc` shape exactly —
+a gate everybody assumed existed, over a body of tests nobody was watching.
+
+**It was RED the hour it was wired, for two reasons, and the second is the
+interesting one:**
+
+1. `ENGINE_MONEY_FACTS` in `frontend/lib/capsuleFactIndex.ts` had drifted from
+   `engine.api._ratio_units._MONEY_FACTS` — three names added engine-side an
+   hour earlier (`interco_balance`, `top_counterparty_balance`,
+   `net_book_value`) and never mirrored.
+2. **The mirror test that exists to catch exactly that had been passing on a
+   false match.** It regexed the RAW Python source, so it lifted quoted
+   phrases out of comments and counted them as fact names. `"currency"` was in
+   the frontend mirror and is not a money fact at all — the engine's only
+   occurrence of the string is inside
+   `` # `fmt: "currency"` in _benchmark_engine.METRIC_DISPLAY and were ``. The
+   frontend had been treating a currency CODE as a money figure, and the guard
+   agreed because of a comment.
+
+   Repaired by stripping `#` comments (quote-aware, so a `#` inside a string
+   literal survives) before the registry is read, in all three mirrors. The
+   phantom `currency` entry is removed.
+
+**GREEN** — exit `0`: `2783 passed, 0 failed, 1 skipped` across 165 files;
+every canary area ran.
+
+**PLANT / RED / REVERT**, three plants:
+
+```
+a real test fails (the mirror drifts again)
+  -> FAIL capsuleFactIndex.test.ts :: ENGINE_MONEY_FACTS matches
+     engine.api._ratio_units._MONEY_FACTS
+the config stops matching files (vitest.config.ts include -> *.nomatch.*)
+  -> · only 0 test(s) ran against a floor of 2500 — the config has stopped
+       matching files, which exits zero and proves nothing
+     · canary file(s) never ran: <all five>
+a canary area collapses but the total stays high
+  -> · canary file(s) never ran: frontend/lib/__tests__/aFileThatDoesNotExist.test.ts
+```
+
+The second plant is the point: **vitest exits ZERO with an include pattern
+that matches nothing.** Without the floor this gate would have printed PASS
+over an empty run — the same false green `check_tsc` was written to close.
+
+**What this gate cannot see:** Playwright. `e2e/` is a separate runner and is
+still NOT in the battery. That gap is real and this file does not close it.
