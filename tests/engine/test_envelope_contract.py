@@ -161,7 +161,14 @@ def _serve_statements(envelope: Dict[str, Any]) -> Dict[str, Any]:
 
 _vd = _load_by_path("verify_determinism", REPO / "scripts" / "verify_determinism.py")
 
-_GOLDEN = [(path, label) for path, label, _expected in _vd.FIXTURES]
+# `FIXTURES` entries gained a 4th member (`required`) when the
+# determinism gate was fixed to run on committed corpus workbooks as
+# well as the gitignored client books — see scripts/verify_determinism.py.
+# Only fixtures that are actually PRESENT are golden here: a missing
+# optional book must skip, not fail, and a missing required one is the
+# gate's own business, not this suite's.
+_GOLDEN = [(path, label) for path, label, _expected, _required in _vd.FIXTURES
+           if path.is_file()]
 _SYNTHETIC = [
     (SYNTHETIC_DIR / "synthetic_tb_ro_locale.xlsx", "synthetic_ro_locale"),
     (SYNTHETIC_DIR / "synthetic_tb_anglo_locale.xlsx", "synthetic_anglo_locale"),

@@ -36,7 +36,7 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (100 modules)"]
+    pkg_api["api (101 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_confidence["confidence (5 modules)"]
@@ -333,7 +333,7 @@ declaration is the supply-chain lock's job to reject).
 | `(root)` | anthropic (anthropic), pandas (pandas), pydantic (pydantic), uvicorn (uvicorn), yaml (pyyaml) |
 | `ai` | yaml (pyyaml) |
 | `ai_lane` | anthropic (anthropic), fastapi (fastapi), openpyxl (openpyxl) |
-| `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
+| `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sentry_sdk (sentry-sdk), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
 | `firm` | yaml (pyyaml) |
