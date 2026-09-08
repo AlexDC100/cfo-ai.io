@@ -253,13 +253,20 @@ describe("the owner's own findings survive into the reader", () => {
     expect(insight.claim).toContain("4.0 years");
   });
 
-  it("carries the 2.11 to 1.51 current-ratio restatement", () => {
+  // 2.11 -> 1.51 was read off the WRITE-PATH book. What the engine SERVES,
+  // and what the report prints, is 2.10 -> 1.50: the served balance sheet is
+  // the canonical one, whose current assets are 27,371,337.47 against the
+  // legacy assembly's 27,476,056.94. The finding is unchanged and is the
+  // point of the detector — a fifth of the current ratio is non-trade — but
+  // the figures here must be the ones a reader sees, not the ones an
+  // intermediate artefact carried.
+  it("carries the 2.10 to 1.50 current-ratio restatement", () => {
     const insight = insightById(
       blockFor("agras"),
       "liquidity_quality",
     ) as Insight;
-    expect(insight.claim).toContain("2.11×");
-    expect(insight.claim).toContain("1.51×");
+    expect(insight.claim).toContain("2.10×");
+    expect(insight.claim).toContain("1.50×");
   });
 
   it("carries the 46.6% reconstruction gap", () => {

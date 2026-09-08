@@ -1251,13 +1251,50 @@ export function computeRatios(
     return v === null ? fallback : known(v * 100);
   };
 
+  // ── BALANCE-SHEET RATIOS DIVIDE THE BALANCE SHEET THIS DOCUMENT PRINTS ──
+  //
+  // `mOr` above is right for P&L ratios and WRONG for balance-sheet ones,
+  // and commit 8ac7f82 is what made it wrong. That commit moved the
+  // printed statement onto the served `canonical_bs` — correctly: the two
+  // sides had differed by the unclassified account-413 balance. But the
+  // engine's `calculated_metrics` are computed on the LEGACY
+  // `assembled_bs`, and `mOr` lets them win. So the statement moved and
+  // the ratios did not, and the document stopped tying to itself.
+  //
+  // Measured on the four books, each against the division the card ITSELF
+  // prints under the number:
+  //
+  //     agras       27,371,337 / 13,012,977 = 2.1034 -> 2.10x   card 2.11x
+  //     carniprod                             1.8170 -> 1.82x   card 1.84x
+  //     realestate                            2.7214 -> 2.72x   card 2.73x
+  //     retail                                0.5707 -> 0.57x   card 0.58x
+  //
+  // and the denominator the card actually used — 27,476,057 on agras — is
+  // printed NOWHERE in the document. The first thing an accountant does
+  // with a board pack is check that a headline ratio ties to the statement
+  // behind it; on all four books it did not.
+  //
+  // So for a ratio whose inputs are balance-sheet totals, the computation
+  // from the SERVED facts wins, and the engine metric is the fallback for
+  // when those facts are absent. That is the opposite precedence to `mOr`
+  // and it is deliberate: this document prints the operands and prints the
+  // formula, so it must print the quotient of the two.
+  //
+  // The engine metric is still the right authority for a ratio the
+  // document does not show its operands for — which is why this is a
+  // SECOND helper rather than a change to the first.
+  const bsOr = (name: string, computed: Fig): Fig =>
+    computed.value !== null ? computed : mOr(name, computed);
+  const bsPctOr = (name: string, computed: Fig): Fig =>
+    computed.value !== null ? computed : mPctOr(name, computed);
+
   // Liquidity ────────────────────────────────────────────────────────────────
-  const currentRatio = mOr("current_ratio", div(currentAssets, currentLiabilities, "current liabilities"));
-  const quickRatio = mOr(
+  const currentRatio = bsOr("current_ratio", div(currentAssets, currentLiabilities, "current liabilities"));
+  const quickRatio = bsOr(
     "quick_ratio",
     div(add(B("cash"), B("accountsReceivable")), currentLiabilities, "current liabilities"),
   );
-  const cashRatio = mOr("cash_ratio", div(B("cash"), currentLiabilities, "current liabilities"));
+  const cashRatio = bsOr("cash_ratio", div(B("cash"), currentLiabilities, "current liabilities"));
 
   // Profitability ────────────────────────────────────────────────────────────
   // F1.e + F2.2: prefer engine canonical when supplied (via either the
@@ -1330,8 +1367,16 @@ export function computeRatios(
     : (canonicalMargins?.netMargin != null
         ? known(canonicalMargins.netMargin * 100)
         : pctOf(netIncome, revenue, "revenue"));
-  const roa = mPctOr("roa", pctOf(netIncome, totalAssets, "total assets"));
-  const roe = mPctOr("roe", pctOf(netIncome, totalEquity, "total equity"));
+  // BOTH OPERANDS, NOT ONE. `bsPctOr` makes the FE computation win so the
+  // ratio divides the balance sheet this document PRINTS (canonical), not
+  // the legacy assembly. But the numerator has an anchor of its own: the
+  // report is built on account 121 as filed, and plain `netIncome` here is
+  // the class-6/7 RECONSTRUCTION. Using it printed ROE 59.0% on agras where
+  // the anchored figure is 31.5% — a ratio silently re-pointed at the
+  // reconstruction, which `exportRatioFormulas` exists to catch and did.
+  // So the canonical denominator and the anchored numerator, together.
+  const roa = bsPctOr("roa", pctOf(anchoredNetIncome, totalAssets, "total assets"));
+  const roe = bsPctOr("roe", pctOf(anchoredNetIncome, totalEquity, "total equity"));
   // F2.2 — ROIC added as a new Profitability row (engine emits; FE didn't
   // surface previously). Engine formula: operating_profit × (1 − 0.16) /
   // max(total_debt + total_equity, 1) — NOPAT over invested capital.
@@ -1348,9 +1393,9 @@ export function computeRatios(
   );
 
   // Leverage ─────────────────────────────────────────────────────────────────
-  const debtToEbitda = mOr("debt_to_ebitda", div(totalDebt, ebitda, "EBITDA"));
-  const debtToEquity = mOr("debt_to_equity", div(totalDebt, totalEquity, "total equity"));
-  const equityRatio = mPctOr("equity_ratio", pctOf(totalEquity, totalAssets, "total assets"));
+  const debtToEbitda = bsOr("debt_to_ebitda", div(totalDebt, ebitda, "EBITDA"));
+  const debtToEquity = bsOr("debt_to_equity", div(totalDebt, totalEquity, "total equity"));
+  const equityRatio = bsPctOr("equity_ratio", pctOf(totalEquity, totalAssets, "total assets"));
   // F2.2 — LTV stays FE-arithmetic when propertyMarketValue is supplied
   // (user input, not engine-derived). When no override, read engine's
   // `debt_to_assets` canonical. This is one of the few FE-arithmetic sites
@@ -1360,7 +1405,7 @@ export function computeRatios(
   // user's market-value input from the LTV displayed value.
   const ltv = sup.propertyMarketValue
     ? pctOf(totalDebt, known(sup.propertyMarketValue), "property market value")
-    : mPctOr("debt_to_assets", pctOf(totalDebt, totalAssets, "total assets"));
+    : bsPctOr("debt_to_assets", pctOf(totalDebt, totalAssets, "total assets"));
 
   // Coverage ─────────────────────────────────────────────────────────────────
   // F2.2 — interest_coverage switches from FE EBIT-basis to engine
@@ -1446,7 +1491,7 @@ export function computeRatios(
     I("depreciationAmortization"),
   );
   const dayCount = known(days);
-  const dso = mOr("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount));
+  const dso = bsOr("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount));
   const dio = mOr(
     "dio",
     mul(div(B("inventory"), totalOperatingExpense, "total operating expense"), dayCount),
@@ -1461,7 +1506,7 @@ export function computeRatios(
   // would delete a real strength. It inherits the refusals of its three
   // terms through `sub`/`add`, which is the correct propagation.
   const ccc = mOr("ccc", sub(add(dso, dio), dpo));
-  const assetTurnover = mOr("asset_turnover", div(revenue, totalAssets, "total assets"));
+  const assetTurnover = bsOr("asset_turnover", div(revenue, totalAssets, "total assets"));
 
   // ── THE THIRD ALTMAN LIVED HERE AND IS DELETED ──────────────────────
   //

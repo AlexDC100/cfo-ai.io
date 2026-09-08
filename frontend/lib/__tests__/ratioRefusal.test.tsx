@@ -375,6 +375,15 @@ describe("F2 — the private path's numbers did not move", () => {
       const sf = factsFrom(fixture);
       const bs = fixture.balanceSheet;
       const is = fixture.incomeStatement;
+      // The filed close, as the served envelope carries it. Falls back to
+      // the reconstruction only when the envelope has no anchor at all —
+      // in which case the product has nothing better either.
+      const anchoredNetIncome =
+        typeof (fixture as { assembled_pl?: Record<string, number> })
+          .assembled_pl?.net_income_statutory === "number"
+          ? ((fixture as { assembled_pl: Record<string, number> })
+              .assembled_pl.net_income_statutory as number)
+          : t.netIncome;
       const days = fixture.supplementary.periodDays ?? 365;
       const totalOpEx =
         is.costOfGoodsSold + is.operatingExpenses + is.depreciationAmortization;
@@ -401,8 +410,26 @@ describe("F2 — the private path's numbers did not move", () => {
         gross_margin: [pct(t.grossProfit, is.revenue), is.revenue],
         ebitda_margin: [pct(t.ebitda, is.revenue), is.revenue],
         net_margin: [pct(t.netIncome, is.revenue), is.revenue],
-        roa: [pct(t.netIncome, TA), TA],
-        roe: [pct(t.netIncome, TE), TE],
+        // ⚠ ROA AND ROE ARE PINNED TO THE ANCHOR, NOT TO `t.netIncome`.
+        //
+        // `t.netIncome` is `deriveTotals`' CLASS-6/7 RECONSTRUCTION, and
+        // pinning these two to it recorded a defect as the expected value.
+        // Measured on carniprod:
+        //
+        //   net_income_statutory (account 121, as filed)   1,435,533.59
+        //   net_income_operational (class 6/7)             5,843,449.04
+        //   ROA anchored / assets                              1.1403 %
+        //   ROA reconstruction / assets                        4.6419 %
+        //
+        // The card printed 4.6 % under a formula reading "net profit as
+        // filed (account 121) ÷ total assets". `exportRatioFormulas` says
+        // in as many words that a net-income ratio must match the filed
+        // figure and NOT the reconstruction; it was measuring the export
+        // and this gate was measuring the model, so the two disagreed and
+        // only one of them was right. Repaired 2026-09-08 by anchoring
+        // both operands; this pin follows the repair.
+        roa: [pct(anchoredNetIncome, TA), TA],
+        roe: [pct(anchoredNetIncome, TE), TE],
         roic: [
           pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + TE, 1)),
           Math.max(t.totalDebt + TE, 1),

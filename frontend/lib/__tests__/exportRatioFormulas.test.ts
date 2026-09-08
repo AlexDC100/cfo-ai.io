@@ -337,11 +337,61 @@ function tolerance(unit: Spec["unit"], value: number): number {
   return served + printed + Math.abs(value) * 1e-6;
 }
 
+/**
+ * ⚠ THE BALANCE-SHEET HALF READS THE CANONICAL TOTALS, NOT `assembled_bs`.
+ *
+ * This gate recomputed from `assembled_bs` — the legacy assembly — and
+ * passed for as long as the printed STATEMENT came from there too. Commit
+ * 8ac7f82 moved the statement onto the served `canonical_bs`, because the
+ * legacy path dropped the unclassified account-413 balance and the printed
+ * balance sheet did not balance. The ratios were then left behind, and a
+ * verifier measured the consequence on the delivered PDF:
+ *
+ *     p7  Total current             RON 27,371,337
+ *     p7  Total current liabilities RON 13,012,977
+ *     p12 CURRENT RATIO 2.11x       "current assets / current liabilities"
+ *
+ * 27,371,337 / 13,012,977 is 2.10, not 2.11 — and 27,476,057, the number
+ * the card had actually divided, is printed NOWHERE in the document.
+ *
+ * So this gate's subject moved with the product. Recomputing from
+ * `assembled_bs` now asserts that a printed ratio must divide figures the
+ * document does not print, which is the shape TC-11 forbids: a gate that
+ * fails once the product is correct is the gate that is wrong.
+ *
+ * The P&L half is untouched — `assembled_pl` is still the one authority
+ * for those, and the canonical BS carries no P&L.
+ *
+ * WHAT THIS MOVE COSTS: the gate can no longer catch the FE and the ENGINE
+ * disagreeing about a balance-sheet total, because both now read the same
+ * canonical rows. That was never what it caught — it compared the FE to
+ * the legacy assembly, which is a third thing — but say it out loud so
+ * nobody assumes coverage that is not here.
+ */
 function envOf(book: Book): Env {
-  const s = statementsFor(book);
+  const s = statementsFor(book) as ReturnType<typeof statementsFor> & {
+    canonical_bs?: { totals?: Record<string, number> };
+  };
+  const canonical: Record<string, number> = s.canonical_bs?.totals ?? {};
+  const legacy = s.assembled_bs ?? {};
+  // Canonical names its totals differently from the legacy assembly; map
+  // the keys this gate's formulas use, and fall back per-key rather than
+  // wholesale so a missing canonical total is visible as a mismatch
+  // instead of silently reverting the whole balance sheet.
+  const bs: Record<string, number> = {
+    ...legacy,
+    ...(typeof canonical.assets === "number" ? { total_assets: canonical.assets } : {}),
+    ...(typeof canonical.equity === "number" ? { total_equity: canonical.equity } : {}),
+    ...(typeof canonical.liabilities === "number"
+      ? { total_liabilities: canonical.liabilities } : {}),
+    ...(typeof canonical.current_assets === "number"
+      ? { total_current_assets: canonical.current_assets } : {}),
+    ...(typeof canonical.current_liabilities === "number"
+      ? { total_current_liabilities: canonical.current_liabilities } : {}),
+  };
   return {
     pl: s.assembled_pl ?? {},
-    bs: s.assembled_bs ?? {},
+    bs,
     days: s.supplementary?.periodDays ?? 365,
   };
 }

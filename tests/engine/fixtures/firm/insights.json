@@ -322,14 +322,14 @@
             "role": "non_trade_receivable"
           }
         ],
-        "claim": "The current ratio of 2.11× falls to 1.51× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×.",
+        "claim": "The current ratio of 2.10× falls to 1.50× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×.",
         "claim_template": "The current ratio of {measure:current_ratio} falls to {measure:current_ratio_trade_only} once {money:non_trade} of non-trade receivables is removed; the cash ratio is {measure:cash_ratio}.",
         "facts": [
           {
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 27476056.94
+            "value": 27371337.47
           },
           {
             "label": "Total current liabilities",
@@ -364,13 +364,13 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 2.111435179331
+            "value": 2.103387868416
           },
           {
             "key": "current_ratio_trade_only",
             "label": "Current ratio, non-trade receivables removed",
             "unit": "multiple",
-            "value": 1.511769652533
+            "value": 1.503722341618
           },
           {
             "key": "ratio_delta",
@@ -388,7 +388,7 @@
             "key": "quick_ratio",
             "label": "Quick ratio as reported",
             "unit": "multiple",
-            "value": 1.424941029846
+            "value": 1.41689371893
           },
           {
             "key": "cash_ratio",
@@ -398,7 +398,7 @@
           }
         ],
         "narrative": {
-          "explanation": "The current ratio of 2.11× falls to 1.51× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×. Graded high: the amount at stake is 60.0% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
+          "explanation": "The current ratio of 2.10× falls to 1.50× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×. Graded high: the amount at stake is 60.0% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Read the current ratio in its trade-only form when setting covenant headroom. The non-trade balances removed here are not stock that converts on ordinary terms, and a lender will discount them.",
           "source": "deterministic"
@@ -578,7 +578,7 @@
             "role": "related_party"
           }
         ],
-        "claim": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.9% to 51.4% and the current ratio from 2.11× to 1.52×.",
+        "claim": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.8% to 51.3% and the current ratio from 2.10× to 1.51×.",
         "claim_template": "{money:related_party} of related-party and other-debtor receivables is {measure:share_of_assets} of total assets and {measure:share_of_equity} of equity; written off in full, the equity ratio moves from {measure:equity_ratio} to {measure:equity_ratio_haircut} and the current ratio from {measure:current_ratio} to {measure:current_ratio_haircut}.",
         "facts": [
           {
@@ -591,7 +591,7 @@
             "label": "Total assets",
             "name": "assembled_bs.total_assets",
             "unit": "money",
-            "value": 39272501.03
+            "value": 39319114.09
           },
           {
             "label": "Total equity",
@@ -603,7 +603,7 @@
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 27476056.94
+            "value": 27371337.47
           },
           {
             "label": "Total current liabilities",
@@ -626,7 +626,7 @@
             "key": "share_of_assets",
             "label": "Share of total assets",
             "unit": "ratio",
-            "value": 0.195867401827
+            "value": 0.195635199776
           },
           {
             "key": "share_of_equity",
@@ -638,25 +638,25 @@
             "key": "equity_ratio",
             "label": "Equity ratio as reported",
             "unit": "ratio",
-            "value": 0.609181567065
+            "value": 0.60845937844
           },
           {
             "key": "equity_ratio_haircut",
             "label": "Equity ratio at a 100% haircut",
             "unit": "ratio",
-            "value": 0.513987576398
+            "value": 0.513230040087
           },
           {
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 2.111435179331
+            "value": 2.103387868416
           },
           {
             "key": "current_ratio_haircut",
             "label": "Current ratio at a 100% haircut",
             "unit": "multiple",
-            "value": 1.520317337814
+            "value": 1.512270026899
           },
           {
             "key": "net_debt_ebitda",
@@ -666,7 +666,7 @@
           }
         ],
         "narrative": {
-          "explanation": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.9% to 51.4% and the current ratio from 2.11× to 1.52×. Graded high: the amount at stake is 32.2% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
+          "explanation": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.8% to 51.3% and the current ratio from 2.10× to 1.51×. Graded high: the amount at stake is 32.2% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
           "source": "deterministic"
@@ -740,7 +740,7 @@
             "label": "Total assets",
             "name": "assembled_bs.total_assets",
             "unit": "money",
-            "value": 39272501.03
+            "value": 39319114.09
           }
         ],
         "formula": "Sum of accounts the classification pack matched no rule for, ÷ total assets",
@@ -764,7 +764,7 @@
             "key": "share_of_assets",
             "label": "Share of total assets",
             "unit": "ratio",
-            "value": 0.001186913458
+            "value": 0.001185506364
           },
           {
             "key": "balance_sheet_delta",
@@ -806,10 +806,10 @@
           ],
           "basis": "total_assets",
           "basis_label": "Total assets",
-          "basis_value": 39272501.03,
+          "basis_value": 39319114.09,
           "level": "high",
           "magnitude": 46613.06,
-          "materiality": 0.001187,
+          "materiality": 0.001186,
           "why": "An unexplained balance is graded against the balance sheet it had to be forced into, because the question a reader asks is what share of the statement is not actually classified."
         },
         "title": "Balances no statement line explains"
@@ -2419,20 +2419,20 @@
             "role": "non_trade_receivable"
           }
         ],
-        "claim": "The current ratio of 1.84× falls to 1.82× once RON 283,390.61 of non-trade receivables is removed; the cash ratio is 0.59×.",
+        "claim": "The current ratio of 1.82× falls to 1.80× once RON 283,390.61 of non-trade receivables is removed; the cash ratio is 0.59×.",
         "claim_template": "The current ratio of {measure:current_ratio} falls to {measure:current_ratio_trade_only} once {money:non_trade} of non-trade receivables is removed; the cash ratio is {measure:cash_ratio}.",
         "facts": [
           {
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 31317306.47
+            "value": 31034007.52
           },
           {
             "label": "Total current liabilities",
             "name": "assembled_bs.total_current_liabilities",
             "unit": "money",
-            "value": 17064058.31
+            "value": 17079808.54
           },
           {
             "label": "Cash and equivalents",
@@ -2461,19 +2461,19 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 1.835278917891
+            "value": 1.816999730841
           },
           {
             "key": "current_ratio_trade_only",
             "label": "Current ratio, non-trade receivables removed",
             "unit": "multiple",
-            "value": 1.818671461162
+            "value": 1.800407588761
           },
           {
             "key": "ratio_delta",
             "label": "Movement in the current ratio",
             "unit": "multiple",
-            "value": 0.016607456729
+            "value": 0.01659214208
           },
           {
             "key": "non_trade",
@@ -2485,17 +2485,17 @@
             "key": "quick_ratio",
             "label": "Quick ratio as reported",
             "unit": "multiple",
-            "value": 1.261205234946
+            "value": 1.243455432786
           },
           {
             "key": "cash_ratio",
             "label": "Cash ratio as reported",
             "unit": "multiple",
-            "value": 0.593344728204
+            "value": 0.592797572425
           }
         ],
         "narrative": {
-          "explanation": "The current ratio of 1.84× falls to 1.82× once RON 283,390.61 of non-trade receivables is removed; the cash ratio is 0.59×. Graded info: the amount at stake is 1.7% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
+          "explanation": "The current ratio of 1.82× falls to 1.80× once RON 283,390.61 of non-trade receivables is removed; the cash ratio is 0.59×. Graded info: the amount at stake is 1.7% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Read the current ratio in its trade-only form when setting covenant headroom. The non-trade balances removed here are not stock that converts on ordinary terms, and a lender will discount them.",
           "source": "deterministic"
@@ -2527,10 +2527,10 @@
           ],
           "basis": "total_current_liabilities",
           "basis_label": "Total current liabilities",
-          "basis_value": 17064058.31,
+          "basis_value": 17079808.54,
           "level": "info",
           "magnitude": 283390.61,
-          "materiality": 0.016607,
+          "materiality": 0.016592,
           "why": "The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement."
         },
         "title": "Headline liquidity leans on receivables that are not trade"
@@ -2562,7 +2562,7 @@
             "role": "related_party"
           }
         ],
-        "claim": "RON 148,332.17 of related-party and other-debtor receivables is 0.1% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 84.9% to 84.9% and the current ratio from 1.84× to 1.83×.",
+        "claim": "RON 148,332.17 of related-party and other-debtor receivables is 0.1% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 84.9% to 84.9% and the current ratio from 1.82× to 1.81×.",
         "claim_template": "{money:related_party} of related-party and other-debtor receivables is {measure:share_of_assets} of total assets and {measure:share_of_equity} of equity; written off in full, the equity ratio moves from {measure:equity_ratio} to {measure:equity_ratio_haircut} and the current ratio from {measure:current_ratio} to {measure:current_ratio_haircut}.",
         "facts": [
           {
@@ -2587,13 +2587,13 @@
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 31317306.47
+            "value": 31034007.52
           },
           {
             "label": "Total current liabilities",
             "name": "assembled_bs.total_current_liabilities",
             "unit": "money",
-            "value": 17064058.31
+            "value": 17079808.54
           }
         ],
         "formula": "Related-party receivables ÷ total assets and ÷ total equity; every dependent ratio recomputed at a 100% lender haircut",
@@ -2634,13 +2634,13 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 1.835278917891
+            "value": 1.816999730841
           },
           {
             "key": "current_ratio_haircut",
             "label": "Current ratio at a 100% haircut",
             "unit": "multiple",
-            "value": 1.826586251275
+            "value": 1.808315080211
           },
           {
             "key": "net_debt_ebitda",
@@ -2650,7 +2650,7 @@
           }
         ],
         "narrative": {
-          "explanation": "RON 148,332.17 of related-party and other-debtor receivables is 0.1% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 84.9% to 84.9% and the current ratio from 1.84× to 1.83×. Graded info: the amount at stake is 0.1% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
+          "explanation": "RON 148,332.17 of related-party and other-debtor receivables is 0.1% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 84.9% to 84.9% and the current ratio from 1.82× to 1.81×. Graded info: the amount at stake is 0.1% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
           "source": "deterministic"
@@ -3005,20 +3005,20 @@
             "role": "non_trade_receivable"
           }
         ],
-        "claim": "The current ratio of 2.73× falls to 2.46× once RON 7,492,271.51 of non-trade receivables is removed; the cash ratio is 0.04×.",
+        "claim": "The current ratio of 2.72× falls to 2.46× once RON 7,492,271.51 of non-trade receivables is removed; the cash ratio is 0.04×.",
         "claim_template": "The current ratio of {measure:current_ratio} falls to {measure:current_ratio_trade_only} once {money:non_trade} of non-trade receivables is removed; the cash ratio is {measure:cash_ratio}.",
         "facts": [
           {
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 76799049.5
+            "value": 76525079.54
           },
           {
             "label": "Total current liabilities",
             "name": "assembled_bs.total_current_liabilities",
             "unit": "money",
-            "value": 28119256.42
+            "value": 28119256.47
           },
           {
             "label": "Cash and equivalents",
@@ -3047,19 +3047,19 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 2.731190624421
+            "value": 2.721447475741
           },
           {
             "key": "current_ratio_trade_only",
             "label": "Current ratio, non-trade receivables removed",
             "unit": "multiple",
-            "value": 2.464744335867
+            "value": 2.455001187661
           },
           {
             "key": "ratio_delta",
             "label": "Movement in the current ratio",
             "unit": "multiple",
-            "value": 0.266446288554
+            "value": 0.26644628808
           },
           {
             "key": "non_trade",
@@ -3071,17 +3071,17 @@
             "key": "quick_ratio",
             "label": "Quick ratio as reported",
             "unit": "multiple",
-            "value": 0.319277140757
+            "value": 0.309533996366
           },
           {
             "key": "cash_ratio",
             "label": "Cash ratio as reported",
             "unit": "multiple",
-            "value": 0.042120614867
+            "value": 0.042120614792
           }
         ],
         "narrative": {
-          "explanation": "The current ratio of 2.73× falls to 2.46× once RON 7,492,271.51 of non-trade receivables is removed; the cash ratio is 0.04×. Graded medium: the amount at stake is 26.6% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
+          "explanation": "The current ratio of 2.72× falls to 2.46× once RON 7,492,271.51 of non-trade receivables is removed; the cash ratio is 0.04×. Graded medium: the amount at stake is 26.6% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Read the current ratio in its trade-only form when setting covenant headroom. The non-trade balances removed here are not stock that converts on ordinary terms, and a lender will discount them.",
           "source": "deterministic"
@@ -3113,7 +3113,7 @@
           ],
           "basis": "total_current_liabilities",
           "basis_label": "Total current liabilities",
-          "basis_value": 28119256.42,
+          "basis_value": 28119256.47,
           "level": "medium",
           "magnitude": 7492271.51,
           "materiality": 0.266446,
@@ -3691,7 +3691,7 @@
             "role": "related_party"
           }
         ],
-        "claim": "RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 48.3% to 48.3% and the current ratio from 2.73× to 2.73×.",
+        "claim": "RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 48.3% to 48.3% and the current ratio from 2.72× to 2.72×.",
         "claim_template": "{money:related_party} of related-party and other-debtor receivables is {measure:share_of_assets} of total assets and {measure:share_of_equity} of equity; written off in full, the equity ratio moves from {measure:equity_ratio} to {measure:equity_ratio_haircut} and the current ratio from {measure:current_ratio} to {measure:current_ratio_haircut}.",
         "facts": [
           {
@@ -3716,13 +3716,13 @@
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 76799049.5
+            "value": 76525079.54
           },
           {
             "label": "Total current liabilities",
             "name": "assembled_bs.total_current_liabilities",
             "unit": "money",
-            "value": 28119256.42
+            "value": 28119256.47
           }
         ],
         "formula": "Related-party receivables ÷ total assets and ÷ total equity; every dependent ratio recomputed at a 100% lender haircut",
@@ -3763,13 +3763,13 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 2.731190624421
+            "value": 2.721447475741
           },
           {
             "key": "current_ratio_haircut",
             "label": "Current ratio at a 100% haircut",
             "unit": "multiple",
-            "value": 2.729816450459
+            "value": 2.720073301782
           },
           {
             "key": "net_debt_ebitda",
@@ -3779,7 +3779,7 @@
           }
         ],
         "narrative": {
-          "explanation": "RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 48.3% to 48.3% and the current ratio from 2.73× to 2.73×. Graded info: the amount at stake is 0.1% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
+          "explanation": "RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio moves from 48.3% to 48.3% and the current ratio from 2.72× to 2.72×. Graded info: the amount at stake is 0.1% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
           "source": "deterministic"
@@ -4989,14 +4989,14 @@
             "role": "non_trade_receivable"
           }
         ],
-        "claim": "The current ratio of 0.58× falls to 0.57× once RON 291,853.05 of non-trade receivables is removed; the cash ratio is 0.07×.",
+        "claim": "The current ratio of 0.57× falls to 0.55× once RON 291,853.05 of non-trade receivables is removed; the cash ratio is 0.07×.",
         "claim_template": "The current ratio of {measure:current_ratio} falls to {measure:current_ratio_trade_only} once {money:non_trade} of non-trade receivables is removed; the cash ratio is {measure:cash_ratio}.",
         "facts": [
           {
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 9943352.76
+            "value": 9705031.58
           },
           {
             "label": "Total current liabilities",
@@ -5031,13 +5031,13 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 0.584681419849
+            "value": 0.570667840198
           },
           {
             "key": "current_ratio_trade_only",
             "label": "Current ratio, non-trade receivables removed",
             "unit": "multiple",
-            "value": 0.567520100144
+            "value": 0.553506520492
           },
           {
             "key": "ratio_delta",
@@ -5055,7 +5055,7 @@
             "key": "quick_ratio",
             "label": "Quick ratio as reported",
             "unit": "multiple",
-            "value": 0.185114941949
+            "value": 0.171101362298
           },
           {
             "key": "cash_ratio",
@@ -5065,7 +5065,7 @@
           }
         ],
         "narrative": {
-          "explanation": "The current ratio of 0.58× falls to 0.57× once RON 291,853.05 of non-trade receivables is removed; the cash ratio is 0.07×. Graded info: the amount at stake is 1.7% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
+          "explanation": "The current ratio of 0.57× falls to 0.55× once RON 291,853.05 of non-trade receivables is removed; the cash ratio is 0.07×. Graded info: the amount at stake is 1.7% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Read the current ratio in its trade-only form when setting covenant headroom. The non-trade balances removed here are not stock that converts on ordinary terms, and a lender will discount them.",
           "source": "deterministic"
@@ -5174,7 +5174,7 @@
             "role": "related_party"
           }
         ],
-        "claim": "RON 90,140.24 of related-party and other-debtor receivables is 0.1% of total assets and 0.4% of equity; written off in full, the equity ratio moves from 36.0% to 35.9% and the current ratio from 0.58× to 0.58×.",
+        "claim": "RON 90,140.24 of related-party and other-debtor receivables is 0.1% of total assets and 0.4% of equity; written off in full, the equity ratio moves from 36.0% to 35.9% and the current ratio from 0.57× to 0.57×.",
         "claim_template": "{money:related_party} of related-party and other-debtor receivables is {measure:share_of_assets} of total assets and {measure:share_of_equity} of equity; written off in full, the equity ratio moves from {measure:equity_ratio} to {measure:equity_ratio_haircut} and the current ratio from {measure:current_ratio} to {measure:current_ratio_haircut}.",
         "facts": [
           {
@@ -5199,7 +5199,7 @@
             "label": "Total current assets",
             "name": "assembled_bs.total_current_assets",
             "unit": "money",
-            "value": 9943352.76
+            "value": 9705031.58
           },
           {
             "label": "Total current liabilities",
@@ -5246,13 +5246,13 @@
             "key": "current_ratio",
             "label": "Current ratio as reported",
             "unit": "multiple",
-            "value": 0.584681419849
+            "value": 0.570667840198
           },
           {
             "key": "current_ratio_haircut",
             "label": "Current ratio at a 100% haircut",
             "unit": "multiple",
-            "value": 0.579381062437
+            "value": 0.565367482785
           },
           {
             "key": "net_debt_ebitda",
@@ -5262,7 +5262,7 @@
           }
         ],
         "narrative": {
-          "explanation": "RON 90,140.24 of related-party and other-debtor receivables is 0.1% of total assets and 0.4% of equity; written off in full, the equity ratio moves from 36.0% to 35.9% and the current ratio from 0.58× to 0.58×. Graded info: the amount at stake is 0.4% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
+          "explanation": "RON 90,140.24 of related-party and other-debtor receivables is 0.1% of total assets and 0.4% of equity; written off in full, the equity ratio moves from 36.0% to 35.9% and the current ratio from 0.57× to 0.57×. Graded info: the amount at stake is 0.4% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
           "source": "deterministic"

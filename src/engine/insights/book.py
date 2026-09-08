@@ -145,7 +145,48 @@ class Book(object):
         """One assembled-P&L figure, or None when the payload omits it."""
         return _num(self._pl.get(key))
 
+    #: The canonical balance sheet names its totals differently from the
+    #: legacy assembly. Mapping the ones detectors actually ask for.
+    _CANONICAL_TOTALS = {
+        "total_assets": "assets",
+        "total_equity": "equity",
+        "total_liabilities": "liabilities",
+        "total_current_assets": "current_assets",
+        "total_current_liabilities": "current_liabilities",
+    }
+
     def bs(self, key: str) -> Optional[float]:
+        """One balance-sheet total, CANONICAL FIRST.
+
+        This module's own docstring says balance-sheet figures come from
+        ``envelope.canonical_bs`` — "a figure and the accounts behind it
+        therefore come from the same place and cannot disagree" — and this
+        method read ``statements.assembled_bs`` instead, which is the
+        legacy assembly. The two differ by whatever the canonical BS
+        carries and the legacy path drops.
+
+        Measured on the agras book, and printed in the delivered PDF:
+
+            canonical_bs.totals.assets   39,319,114.09   (statement, p7)
+            assembled_bs.total_assets    39,272,501.03   (finding,   p24)
+
+        ...a gap of 46,613.06, which is exactly the unclassified
+        account-413 balance THE FINDING ON PAGE 24 IS ABOUT. So the
+        detector graded that balance as a share of a balance sheet that
+        excludes it, and printed that base beside a statement saying
+        something else, on the same document.
+
+        Falls back to the legacy assembly for any key the canonical totals
+        do not carry, so a detector asking for something outside the five
+        mapped totals keeps working rather than silently reading None.
+        """
+        canonical_key = self._CANONICAL_TOTALS.get(key)
+        if canonical_key is not None:
+            totals = self._canonical.get("totals")
+            if isinstance(totals, dict):
+                v = _num(totals.get(canonical_key))
+                if v is not None:
+                    return v
         return _num(self._bs.get(key))
 
     def has_row(self, row_id: str) -> bool:

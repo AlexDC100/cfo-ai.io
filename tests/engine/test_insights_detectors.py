@@ -166,8 +166,16 @@ def test_asset_age_reproduces_the_owners_measurement_on_agras():
 
 def test_liquidity_quality_reproduces_the_owners_two_eleven_to_one_five_one():
     insight = _by_id(_block("agras"))["liquidity_quality"]
-    _approx(_measure(insight, "current_ratio"), 2.1114, 1e-3)
-    _approx(_measure(insight, "current_ratio_trade_only"), 1.5118, 1e-3)
+    # 2.1114 / 1.5118 until 2026-09-08. Those were computed over the
+    # LEGACY `assembled_bs.total_current_assets` (27,476,056.94). The
+    # detector now reads the canonical current assets the STATEMENT
+    # prints (27,371,337.47), so the insight and the balance sheet in the
+    # same document divide the same number. The owner's "2.11 -> 1.51"
+    # was read off the write-path book; what is served, and what the
+    # report shows, is 2.10 -> 1.50. The FINDING is unchanged: a fifth of
+    # the current ratio is non-trade.
+    _approx(_measure(insight, "current_ratio"), 2.10339, 1e-3)
+    _approx(_measure(insight, "current_ratio_trade_only"), 1.50372, 1e-3)
     _approx(_measure(insight, "non_trade"), 7803433.57, 0.01)
     # The disagreement the detector exists to surface: a "strong" current
     # ratio beside a cash ratio under a tenth.
@@ -177,10 +185,18 @@ def test_liquidity_quality_reproduces_the_owners_two_eleven_to_one_five_one():
 def test_related_party_exposure_names_the_accounts_and_haircuts_the_ratios():
     insight = _by_id(_block("agras"))["related_party_exposure"]
     _approx(_measure(insight, "related_party"), 7692202.74, 0.01)
-    _approx(_measure(insight, "share_of_assets"), 0.19587, 1e-4)
+    # 0.19587 until 2026-09-08 — that was 7,692,202.74 over the LEGACY
+    # `assembled_bs.total_assets` (39,272,501.03). The detector now reads
+    # the canonical balance sheet the report prints (39,319,114.09), which
+    # is 46,613.06 larger because it carries the unclassified account-413
+    # row the legacy assembly drops. Same numerator, the denominator the
+    # reader can actually see.
+    _approx(_measure(insight, "share_of_assets"), 0.195635, 1e-4)
     _approx(_measure(insight, "share_of_equity"), 0.32152, 1e-4)
-    _approx(_measure(insight, "equity_ratio"), 0.60918, 1e-4)
-    _approx(_measure(insight, "equity_ratio_haircut"), 0.513988, 1e-5)
+    # 0.60918 was equity over the legacy total assets; 0.608459 is equity
+    # over the canonical total the statement prints.
+    _approx(_measure(insight, "equity_ratio"), 0.608459, 1e-4)
+    _approx(_measure(insight, "equity_ratio_haircut"), 0.513230, 1e-5)
     codes = [a["code"] for a in insight["accounts"]]
     assert "4511.01" in codes, codes
     # The balances must reproduce the figure the claim printed.

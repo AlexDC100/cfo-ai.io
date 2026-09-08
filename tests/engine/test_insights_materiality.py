@@ -160,6 +160,27 @@ def test_scaling_a_book_up_moves_a_fixed_delta_down_the_ladder():
     for key, value in list(inflated["statements"]["assembled_bs"].items()):
         if isinstance(value, (int, float)):
             inflated["statements"]["assembled_bs"][key] = value * 10.0
+    # SCALE THE AUTHORITY, NOT JUST THE LEGACY COPY.
+    #
+    # `Book.bs()` reads `envelope.canonical_bs.totals` first from
+    # 2026-09-08 — the same balance sheet the report prints — and falls
+    # back to `assembled_bs` only for totals the canonical does not carry.
+    # Scaling `assembled_bs` alone therefore stopped reaching the
+    # denominator entirely, and this test failed with
+    # `assert 0.001185… < 0.001185…`: the same number on both sides,
+    # because the "inflated" book was not inflated where it counts.
+    #
+    # That is worth stating rather than quietly fixing: a scaling test
+    # whose scaling misses the value under test cannot fail for the reason
+    # it exists, and would have gone on passing if the canonical read had
+    # arrived with a smaller effect.
+    _canonical_totals = (
+        (inflated.get("envelope") or {}).get("canonical_bs") or {}
+    ).get("totals")
+    if isinstance(_canonical_totals, dict):
+        for key, value in list(_canonical_totals.items()):
+            if isinstance(value, (int, float)):
+                _canonical_totals[key] = value * 10.0
 
     before = _grade_on("agras", "unclassified_balances", PLANTED_DELTA)
     spec = load_pack().spec("unclassified_balances")
