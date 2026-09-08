@@ -29,6 +29,7 @@ import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
 import { buildFindingsReport } from "@/lib/findings";
 import { FindingsPanel } from "@/components/cfo/findings";
+import { RadarStrip } from "@/components/cfo/RadarStrip";
 // Module-level i18n handle — for the few strings rendered outside React
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
@@ -2024,6 +2025,20 @@ export default function FinancialStatements() {
                 testid="overview-recommendations"
               />
             )}
+
+            {/* RADAR — a one-line summary, ABOVE nothing and restating
+                nothing. The recommendations section directly above already
+                renders `<FindingsPanel>` over this period's persisted
+                alerts; a second findings panel here, ranked by a different
+                cap, would put two answers to "what is wrong with this book"
+                on one screen. This strip states counts and hands over to
+                /radar, which mounts the SAME panel — so a finding looks
+                identical wherever a reader meets it.
+
+                It renders NOTHING when the feature is not active or the
+                engine answers 404: an unmounted scan must never read as a
+                clean book. See RadarStrip.tsx. */}
+            <RadarStrip className="mt-4" />
 
             {/* Full configurable KPI grid + invoice analytics — behind a
                 disclosure so the overview's first paint stays focused. Open

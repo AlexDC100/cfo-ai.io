@@ -332,6 +332,17 @@ export const cfoApi = {
    *  `ProjectedMinor` type makes `actual + projected` a compile error.
    *  Handing this back as a shaped object with plain `number` fields would
    *  undo that in one line. */
+  /** The Radar payload for one period: ranked findings, the checks that
+   *  did NOT fire, the cap decision and the materiality basis.
+   *
+   *  Returns the raw payload for the same reason `forecast` does — the
+   *  shape is `buildFindingsReport`'s to parse (`lib/findings.ts`), and
+   *  a second typed mirror here would be a second opinion about it.
+   *
+   *  404 when `ANOMALY_RADAR_ENABLED` is unset on the engine, which is
+   *  its state today: the surface is absent rather than half-present. */
+  radar: (periodId: string) =>
+    call<unknown>(`/api/radar/${encodeURIComponent(periodId)}`),
   forecast: (periodId: string, horizon: ForecastHorizon) =>
     call<unknown>(
       `/api/forecast/${encodeURIComponent(periodId)}?horizon=${horizon}`,

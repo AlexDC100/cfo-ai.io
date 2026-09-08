@@ -396,7 +396,7 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     "anomaly_radar": _feature(
         "hidden",
         label="Anomaly Radar",
-        description="Cross-period anomaly detection over the ledger.",
+        description="Cross-period anomaly detection over the ledger. Backend is mounted ONLY when ANOMALY_RADAR_ENABLED is truthy (unset in production, where every /api/radar path is a 404 by construction); the pack-declared detector families carry a SECOND flag, RADAR_DETECTORS_ENABLED, so the surface can be enabled without them. This row is the frontend mirror of the first flag.",
     ),
 }
 

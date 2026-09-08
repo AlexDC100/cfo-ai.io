@@ -86,6 +86,7 @@ const Scenarios = lazy(() => import("./pages/cfo/Scenarios"));
 // F6.0.1b — Budget vs Actual vs Last-Year variance (/dashboard/variance).
 const Variance = lazy(() => import("./pages/cfo/Variance"));
 const Forecast = lazy(() => import("./pages/cfo/Forecast"));
+const Radar = lazy(() => import("./pages/cfo/Radar"));
 const Alerts = lazy(() => import("./pages/cfo/Alerts"));
 const Settings = lazy(() => import("./pages/cfo/Settings"));
 const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
@@ -167,6 +168,7 @@ function App() {
         () => import("./pages/cfo/Scenarios"),
         () => import("./pages/cfo/Variance"),
         () => import("./pages/cfo/Forecast"),
+        () => import("./pages/cfo/Radar"),
         () => import("./pages/cfo/Settings"),
         () => import("./pages/cfo/Decisions"),
         () => import("./pages/cfo/Alerts"),
@@ -458,6 +460,15 @@ function AppRoutes() {
             <Route
               path="/dashboard/forecast"
               element={<FeatureRoute featureKey="forecast"><Forecast /></FeatureRoute>}
+            />
+            {/* RADAR — the ranked findings surface. Gated on the registry
+                row, which is `hidden`; the ENGINE gates the routes it calls
+                on ANOMALY_RADAR_ENABLED, so both halves are off and the
+                page's own 404 state is what a reader would see if only one
+                of them were flipped. */}
+            <Route
+              path="/radar"
+              element={<FeatureRoute featureKey="anomaly_radar"><Radar /></FeatureRoute>}
             />
             <Route path="/dashboard/public/search" element={<Navigate to="/public-companies" replace />} />
             <Route

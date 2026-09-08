@@ -28,7 +28,8 @@
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
     "disclaimer": "Disclaimer",
-    "forecast": "Forecast"
+    "forecast": "Forecast",
+    "radar": "Radar"
   },
   "topbar": {
     "ask": "Ask CFO AI",
@@ -2946,6 +2947,39 @@
     "balance": {
       "ok": "Every projected period balances to the cent. The check is exact, not a tolerance band.",
       "broken": "The projected balance sheet does not close in: {{periods}}. This is a hard error, not a rounding note — the projection is built in integer minor units so the check is exact."
+    }
+  },
+  "radar": {
+    "eyebrow": "Radar",
+    "title": "Findings",
+    "loading": "Scanning…",
+    "failed": "Scan unavailable",
+    "empty": {
+      "title": "Load a period to scan",
+      "subtitle": "Radar reads one period against the periods before it. Upload or open a period and the scan opens with it."
+    },
+    "absent": {
+      "eyebrow": "Not scanned",
+      "body": "Radar is not enabled for this workspace, so nothing has looked at this period. That is different from a clean book, and this page will not show one until a scan has actually run."
+    },
+    "lane": {
+      "single_period": "this period",
+      "multi_period": "across periods",
+      "detectors": "detectors"
+    },
+    "severity": {
+      "critical": "critical",
+      "high": "high",
+      "medium": "medium",
+      "low": "low",
+      "info": "info"
+    },
+    "strip": {
+      "eyebrow": "Radar",
+      "clear": "Scanned — nothing surfaced.",
+      "held": "{{count}} held back by the cap",
+      "heldTitle": "The cap surfaces the highest-ranked findings; the rest are on the Radar page.",
+      "open": "Open Radar"
     }
   }
 }

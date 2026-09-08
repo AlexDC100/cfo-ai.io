@@ -3004,3 +3004,87 @@ over an empty run — the same false green `check_tsc` was written to close.
 
 **What this gate cannot see:** Playwright. `e2e/` is a separate runner and is
 still NOT in the battery. That gap is real and this file does not close it.
+
+### radar — the surface, wired (added 2026-09-08)
+
+`tests/engine/test_radar_wiring.py` (13) folds into the `radar` gate;
+`frontend/pages/cfo/__tests__/radarSurface.test.tsx` (9) runs under the new
+`vitest` gate.
+
+`src/engine/api/_radar.py` had four routes, a dismissal lane and an
+explanation lane, and `build_router()` was referenced NOWHERE in `server.py`
+— the THIRD "complete and unreachable" subsystem found in one session (the
+forecast and Radar's own Part A were the first two). Wiring it exposed three
+defects, all of which had been returning `None` quietly.
+
+**CAEN was always absent.** `light_input` read `row.get("caen_code")` off a
+`financial_periods` row, and the light projection deliberately does not
+select it — because there is no such column;
+`schema_phase7_benchmarks.sql` put CAEN on `organizations`. Every served
+radar payload therefore ran `s_engine.run_single_period(..., caen=None)` and
+no finding was qualified by an industry profile. The module's own comment
+records half the story: the PROJECTION was fixed after it 400'd in
+production, and the READ was left behind. That is the shape a dead read
+always takes — the loud half gets repaired and the quiet half keeps
+returning None.
+
+**No company identity.** `PeriodInput.cui` was never set, and the detector
+spine refuses without one. There is no CUI to set — `financial_periods`
+carries none — so the identity is the WORKSPACE, which in this product IS
+the company (root CLAUDE.md §16). `EntityKey.of_workspace` states that
+explicitly and prefixes it `workspace:`, which `normalize_cui` can never
+produce, so a period carrying a real CUI mismatches and refuses rather than
+being stitched in beside one that does not.
+
+**The line items were fetched and thrown away.** `load_statements` selected
+them, rebuilt the statements and dropped the rows.
+
+**PLANT / RED / REVERT** — engine, six plants, all red:
+
+```
+the surface mounts unconditionally      -> ['/api/radar/…'] == [] failed
+CAEN read off the period row again      -> the row's phantom caen_code won
+                                           over the org's real one: '9999' == '1013'
+a half-configured pack guesses          -> ('ro','/app/packs') == (None,None) failed
+the line items are dropped again        -> the rows did not reach the period input
+the workspace identity becomes a bare id-> 'workspace:' prefix absent
+an empty CAEN string reaches the engine -> assert '' is None
+```
+
+**PLANT / RED / REVERT** — frontend, four plants:
+
+```
+a 404 renders as an empty findings list -> no [data-testid=radar-surface-absent]
+the cap's held-back count disappears    -> no [data-testid=radar-strip-held]
+the strip queries while the feature is hidden
+  -> a hidden feature must not even ask the engine: spy called 1 time
+a failed payload is read as zero findings
+  -> "0 findings" over an unmounted scan is the defect; nothing is correct:
+     expected 'RadarScanned — nothing surfaced.Open …' to be ''
+```
+
+The last two are worth recording twice. Their FIRST form went GREEN, because
+the strip carries redundant guards (`enabled: active && …` as well as the
+early return; `query.isError` as well as `readCounts` returning null on a
+non-payload) and removing one guard changed no outcome. The plants above are
+the real regression shape — removing BOTH — and they red. The tests pin the
+OUTCOME, not one guard, which is why the redundancy is safe rather than
+untested.
+
+**The FE fixture is real engine bytes.** `radarSurface.test.tsx` reads
+`tests/engine/fixtures/radar/saga_10_col_agras.json` — the committed capture
+the Python R4 determinism gate compares against. A hand-written row was tried
+first and was a lookalike: `parseFinding` returns null without a
+`contract_elements` block, `hasContractRows` goes false, and
+`<FindingsPanel>` renders nothing — so the synthetic fixture quietly tested
+an empty panel and passed.
+
+**Two flags, deliberately separate.** `ANOMALY_RADAR_ENABLED` mounts the
+routes; `RADAR_DETECTORS_ENABLED` (+ `RADAR_DETECTOR_JURISDICTION`) runs the
+pack families inside them. The surface can be turned on without the
+detectors, which is how it will be turned on.
+
+**Flagged, not fixed:** `GET /api/radar/{period_id}/dismissals` is the only
+one of the four routes not wrapped in `_guard`, so a `RadarLoadError` raised
+there would escape as a 500 rather than its carried status. Nothing on that
+path raises one today (`load_dismissals` fails open), so this is latent.

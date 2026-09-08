@@ -28,7 +28,8 @@
     "collapse": "Restrânge bara laterală",
     "expand": "Extinde bara laterală",
     "disclaimer": "Precizări legale",
-    "forecast": "Prognoză"
+    "forecast": "Prognoză",
+    "radar": "Radar"
   },
   "topbar": {
     "ask": "Întreabă CFO AI",
@@ -2971,6 +2972,39 @@
     "balance": {
       "ok": "Fiecare perioadă proiectată se închide la bănuț. Verificarea este exactă, nu o marjă de toleranță.",
       "broken": "Bilanțul proiectat nu se închide în: {{periods}}. Este o eroare, nu o notă de rotunjire — proiecția este construită în unități întregi, deci verificarea este exactă."
+    }
+  },
+  "radar": {
+    "eyebrow": "Radar",
+    "title": "Constatări",
+    "loading": "Se scanează…",
+    "failed": "Scanarea nu este disponibilă",
+    "empty": {
+      "title": "Încarcă o perioadă pentru scanare",
+      "subtitle": "Radarul citește o perioadă în raport cu perioadele dinaintea ei. Încarcă sau deschide o perioadă și scanarea se deschide odată cu ea."
+    },
+    "absent": {
+      "eyebrow": "Nescanat",
+      "body": "Radarul nu este activat pentru acest spațiu de lucru, deci nimic nu s-a uitat la această perioadă. Asta e diferit de o balanță curată, iar pagina nu va arăta una până când o scanare chiar rulează."
+    },
+    "lane": {
+      "single_period": "această perioadă",
+      "multi_period": "între perioade",
+      "detectors": "detectoare"
+    },
+    "severity": {
+      "critical": "critic",
+      "high": "ridicat",
+      "medium": "mediu",
+      "low": "scăzut",
+      "info": "informativ"
+    },
+    "strip": {
+      "eyebrow": "Radar",
+      "clear": "Scanat — nimic de semnalat.",
+      "held": "{{count}} reținute de plafon",
+      "heldTitle": "Plafonul afișează constatările cu cel mai mare scor; restul sunt pe pagina Radar.",
+      "open": "Deschide Radar"
     }
   }
 }

@@ -158,8 +158,14 @@ def book():
                                  + line_item_rows("p-a-2024", agras)
                                  + line_item_rows("p-b-2025", retail)),
         "radar_dismissals": [],
-        "organizations": [{"id": "org-a", "name": "Alpha SRL"},
-                          {"id": "org-b", "name": "Beta SRL"}],
+        # CAEN lives HERE, on the org — `schema_phase7_benchmarks.sql`
+        # put it here and not on `financial_periods`. org-b carries none,
+        # so the route's fail-open path is exercised by a real fixture
+        # rather than only asserted about.
+        "organizations": [{"id": "org-a", "name": "Alpha SRL",
+                           "caen_code": "1013"},
+                          {"id": "org-b", "name": "Beta SRL",
+                           "caen_code": None}],
     }
     return ProjectingAdmin(tables)
 
@@ -338,7 +344,12 @@ def test_the_route_serves_account_121_as_statutory_net_income_like_every_other_s
     assert cited["net_income"]["snapshot_id"] == fx["envelope"]["provenance"]["content_hash"]
     # And the seam itself labelled the figure anchored on THIS row shape.
     light = [r for r in RT.list_light_periods(book, "org-b") if r["id"] == "p-b-2025"][0]
-    statements = RT.load_statements(book, light, RT.load_envelope(book, "p-b-2025"))
+    # `load_statements` returns (statements, line_items) — the ROWS travel
+    # on too, because the detector lane's served-tier spine is built from
+    # them and fetching them a second time is two chances to disagree.
+    statements, items = RT.load_statements(
+        book, light, RT.load_envelope(book, "p-b-2025"))
+    assert items, "the loader dropped the line items it read"
     pl = statements["assembled_pl"]
     assert pl["net_income_anchor_status"] == "anchored", pl.get("net_income_anchor_status")
     assert abs(float(pl["net_income_statutory"]) - p121) < 0.005
@@ -365,7 +376,7 @@ def test_a2_the_envelope_is_on_the_row_the_rebuild_seam_reads(book):
     assert full["assembled_canonical_v1"] is heavy.envelope
     # Handing the seam the LIGHT row is the recorded defect: measurably
     # different figures.
-    bare = RT.load_statements(book, dict(light, p121=None), None)
+    bare, _items = RT.load_statements(book, dict(light, p121=None), None)
     assert abs(float(bare["assembled_bs"]["total_assets"]) - total) > 1.0
     assert bare["assembled_pl"]["net_income_anchor_status"] == "absent"
 

@@ -311,6 +311,13 @@ class AtomProvenance:
 # ── Entity ───────────────────────────────────────────────────────────────
 
 
+#: The identity prefix a workspace-scoped entity carries in place of a
+#: CUI. Never a bare workspace id: a CUI and a workspace id must not be
+#: comparable, or a workspace whose id happened to normalize as digits
+#: could match a real company.
+WORKSPACE_IDENTITY_PREFIX = "workspace:"
+
+
 @dataclass(frozen=True)
 class EntityKey:
     """(workspace, CUI). The only identity a set has, and the reason a
@@ -318,6 +325,36 @@ class EntityKey:
 
     workspace_id: str
     cui: str
+
+    @classmethod
+    def of_workspace(cls, workspace_id: Any) -> "EntityKey":
+        """The identity for a product where the WORKSPACE is the company.
+
+        `financial_periods` carries no CUI — measured: the table has
+        `id, org_id, source_document_id, period_start, period_end,
+        currency, extraction_confidence` and nothing else, and no envelope
+        provenance block names one either. So on the serving path there is
+        no company registration number to key a series on, and
+        :meth:`of` refuses (correctly) rather than inventing one.
+
+        This product's answer is architectural and already written down:
+        a workspace IS an organization and holds ONE company (root
+        CLAUDE.md §16, "Multi-workspace — one workspace per company").
+        Two periods in one workspace are therefore the same company by
+        construction, and that is the fact this identity states.
+
+        It does NOT weaken :func:`_entity_guard`. The identity is
+        `workspace:<id>`, which `normalize_cui` can never produce, so a
+        period that DOES carry a real CUI mismatches and the build
+        refuses — which is the conservative answer and the one a reader
+        wants: a spine must not silently mix a registered company with an
+        unregistered one.
+        """
+        workspace = str(workspace_id or "").strip()
+        if not workspace:
+            raise EntityUnknownError("a series needs a workspace id")
+        return cls(workspace_id=workspace,
+                   cui=WORKSPACE_IDENTITY_PREFIX + workspace)
 
     @classmethod
     def of(cls, workspace_id: Any, cui_raw: Any) -> "EntityKey":
@@ -922,7 +959,15 @@ def _entity_guard(entity: EntityKey, inputs: Sequence[PeriodInputT]) -> None:
     """Every period is the SAME company or the build refuses. Absent CUI
     is refused too — absence is not agreement."""
     for period in inputs:
-        cui = normalize_cui(getattr(period, "cui", None))
+        raw = getattr(period, "cui", None)
+        # A workspace identity is carried verbatim, never normalized: it
+        # is not a registration number and `normalize_cui` would strip it
+        # to nothing. It still has to MATCH, so two workspaces cannot be
+        # stitched together any more than two companies can.
+        if isinstance(raw, str) and raw.startswith(WORKSPACE_IDENTITY_PREFIX):
+            cui = raw
+        else:
+            cui = normalize_cui(raw)
         if not cui:
             raise EntityUnknownError(
                 "period %r carries no CUI this build can normalize (%r); a "
@@ -1387,6 +1432,7 @@ __all__ = [
     "REASON_CUMULATIVE_SEMANTICS_UNKNOWN", "REASON_PERIOD_ABSENT",
     "REASON_TIER_SERVED_CLOSING_ONLY",
     "SERIES_VERSION", "SLOTS", "SLOT_CLOSING", "SLOT_MOVEMENTS",
+    "WORKSPACE_IDENTITY_PREFIX",
     "SLOT_PERIOD",
     "SLOT_OPENING", "TIER_LEDGER", "TIER_SERVED",
     "AbsentPeriodInput", "AccountGap", "AccountPoint", "AccountSeriesSet",

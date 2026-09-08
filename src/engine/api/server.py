@@ -554,6 +554,23 @@ def _active_walls():  # type: () -> List[Dict[str, Any]]
     return [s for s in WALLED_SURFACES if not _flag_on(s["flag"])]
 
 
+def _anomaly_radar_enabled():  # type: () -> bool
+    """True only when ANOMALY_RADAR_ENABLED is an explicit truthy string.
+
+    `/api/radar/*` is a fully built surface with no frontend caller and no
+    menu row — the same "complete and unreachable" shape the forecast was
+    in until today. Mounting it behind an explicit flag makes the state
+    honest: unset, every radar path is a 404 by construction, exactly the
+    way `/api/firm` is without FIRM_COCKPIT_ENABLED.
+
+    Read at create_app() time, never cached at import, so a test can build
+    one app with the surface and one without in the same process.
+    """
+    return os.environ.get("ANOMALY_RADAR_ENABLED", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 def _firm_cockpit_enabled():  # type: () -> bool
     """True only when FIRM_COCKPIT_ENABLED is an explicit truthy string.
 
@@ -870,6 +887,19 @@ def create_app(
     # enabling the surface is one environment variable, not a deploy of
     # new code. Absent the flag there is no surface to wall, which is the
     # only wall no critic can get past.
+    # ANOMALY RADAR — /api/radar/{period_id} and its dismissal routes.
+    # Behind its own flag; unset, the whole surface is absent rather than
+    # half-present. The DETECTOR families inside it carry a SECOND flag
+    # (RADAR_DETECTORS_ENABLED, read in `_radar.py`), so the surface can
+    # be turned on without them and turned on with them separately.
+    if _anomaly_radar_enabled():
+        # Imported here, not at module scope: the radar package pulls the
+        # explanation lane and the detector pack loader, and a
+        # partially-provisioned deployment must not fail to boot over a
+        # surface it does not serve.
+        from ._radar import build_router as create_radar_router
+        app.include_router(create_radar_router())
+
     if _firm_cockpit_enabled():
         # IMPORTED HERE, NOT AT MODULE SCOPE — this took the site down.
         # These four imports used to sit beside the others at the top of

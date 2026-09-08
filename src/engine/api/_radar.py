@@ -74,6 +74,7 @@ Python 3.9 — no ``match``, no ``X | Y`` unions.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -84,6 +85,7 @@ from pydantic import BaseModel, Field
 from engine.radar import cap as CAP
 from engine.radar import explain as X
 from engine.radar import serve as RS
+from engine.radar import series as RS_SERIES
 
 from . import _finding_rank as R
 
@@ -92,6 +94,23 @@ logger = logging.getLogger(__name__)
 TABLE_PERIODS = "financial_periods"
 TABLE_LINE_ITEMS = "statement_line_items"
 TABLE_DISMISSALS = "radar_dismissals"
+TABLE_ORGS = "organizations"
+
+#: CAEN lives on the ORG, not on the period.
+#:
+#: `light_input` used to read `row.get("caen_code")` off a
+#: `financial_periods` row, and the projection above deliberately does not
+#: select it — because there is no such column. So `PeriodInput.caen` was
+#: None on EVERY served radar payload, and `caen` is what
+#: `s_engine.run_single_period` uses to qualify a finding's industry
+#: profile (`serve.py:883`). Every serve ran the single-period engine with
+#: no industry code, silently.
+#:
+#: The comment above records half the story: the projection was fixed
+#: after it 400'd, and the READ was left behind. That is the shape a dead
+#: read always takes — the loud half gets repaired and the quiet half
+#: keeps returning None.
+ORG_COLUMNS = "id,caen_code"
 
 #: Light period columns — everything the cache key needs and nothing
 #: heavier. Every plain name is a column ``financial_periods`` carries
@@ -122,6 +141,38 @@ ENVELOPE_COLUMNS = "id,assembled_canonical_v1"
 
 #: Prior periods loaded on a miss, nearest first.
 HISTORY_DEPTH = RS.DEFAULT_HISTORY_DEPTH
+
+#: The pack-declared detector families, off unless this says otherwise.
+#:
+#: READ HERE, at the route, and never inside `engine.radar.serve.compose`
+#: — that function is pure over its request and an environment read
+#: inside it would end that. The value travels on the `RadarRequest`, so
+#: it is also key material and a flip is a recompute rather than a stale
+#: hit.
+DETECTORS_ENV = "RADAR_DETECTORS_ENABLED"
+#: Which pack declares them, and where the packs live. Data, not
+#: constants in a module — see the N7 jurisdiction-blindness guard.
+DETECTOR_JURISDICTION_ENV = "RADAR_DETECTOR_JURISDICTION"
+DETECTOR_PACK_ROOT_ENV = "RADAR_PACK_ROOT"
+DEFAULT_PACK_ROOT = "/app/packs"
+
+
+def detectors_enabled() -> bool:
+    return str(os.environ.get(DETECTORS_ENV, "")).strip().lower() in (
+        "1", "true", "yes", "on")
+
+
+def detector_pack() -> Tuple[Optional[str], Optional[str]]:
+    """(jurisdiction, pack root) or (None, None).
+
+    Both must be present. A jurisdiction with no root, or a root with no
+    jurisdiction, is a half-configured deploy and the lane says so rather
+    than guessing the other half."""
+    jurisdiction = str(os.environ.get(DETECTOR_JURISDICTION_ENV, "")).strip()
+    root = str(os.environ.get(DETECTOR_PACK_ROOT_ENV, "")).strip() or DEFAULT_PACK_ROOT
+    if not jurisdiction:
+        return None, None
+    return jurisdiction, root
 
 #: Process-level cache. A deploy restarts it; nothing is served stale
 #: because the key changes with every envelope write and every dismissal.
@@ -205,7 +256,40 @@ def period_label_of(row: Dict[str, Any]) -> str:
     return str(row.get("period_label") or row.get("period_end") or row.get("id") or "")
 
 
-def light_input(row: Dict[str, Any], ordinal: int) -> RS.PeriodInput:
+def load_caen(client: Any, org_id: str) -> Optional[str]:
+    """The workspace's CAEN code, or ABSENT.
+
+    One select per serve, on the org — which is where phase 7 put it, and
+    which is the right grain: this product is one workspace per company
+    (root CLAUDE.md §16), so the industry is a property of the workspace
+    and not of a period inside it.
+
+    Fails OPEN, like `load_dismissals`: a missing column or an RLS refusal
+    yields None, and a finding whose profile could not be qualified says
+    so through the profile itself. Raising here would take the whole
+    payload down over a classification.
+    """
+    try:
+        rows = client.select(TABLE_ORGS, filters={"id": "eq.%s" % org_id},
+                             columns=ORG_COLUMNS, limit=1) or []
+    except Exception:  # noqa: BLE001 — a classification is not worth a 500
+        logger.exception("[radar] CAEN lookup failed for org %s", org_id)
+        return None
+    if not rows:
+        return None
+    value = str(rows[0].get("caen_code") or "").strip()
+    return value or None
+
+
+def _workspace_identity(org_id: Any) -> Optional[str]:
+    """The workspace, spelled as an identity a series can key on."""
+    value = str(org_id or "").strip()
+    return (RS_SERIES.WORKSPACE_IDENTITY_PREFIX + value) if value else None
+
+
+def light_input(row: Dict[str, Any], ordinal: int,
+                org_id: Optional[str] = None,
+                caen: Optional[str] = None) -> RS.PeriodInput:
     return RS.PeriodInput(
         period_id=str(row.get("id") or ""),
         label=period_label_of(row),
@@ -215,8 +299,19 @@ def light_input(row: Dict[str, Any], ordinal: int) -> RS.PeriodInput:
         currency=str(row.get("currency") or "RON").upper(),
         snapshot_id=content_hash_of(row),
         source_document_id=(str(row.get("source_document_id") or "") or None),
-        caen=(str(row.get("caen_code")) if row.get("caen_code") else None),
+        # From the ORG, handed in — never from the row, which carries no
+        # such column and returned None on every serve.
+        caen=caen,
         content_key=content_key_of(row),
+        # THE COMPANY THIS PERIOD IS FOR. `financial_periods` carries no
+        # CUI — measured, the table has no such column and no envelope
+        # provenance block names one — so the identity is the WORKSPACE,
+        # which in this product IS the company (root CLAUDE.md §16, "one
+        # workspace per company"). `EntityKey.of_workspace` states that
+        # explicitly; it is not a CUI wearing a disguise, and a period
+        # that ever does carry a real CUI will mismatch and refuse rather
+        # than being stitched in beside one that does not.
+        cui=_workspace_identity(org_id or row.get("org_id")),
     )
 
 
@@ -348,8 +443,11 @@ def full_row(light_row: Dict[str, Any],
 
 
 def load_statements(client: Any, row: Dict[str, Any],
-                    envelope: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-    """The period's statements, rebuilt from its persisted line items the
+                    envelope: Optional[Dict[str, Any]] = None
+                    ) -> Tuple[Optional[Dict[str, Any]], Tuple[Dict[str, Any], ...]]:
+    """The period's statements AND the line items they were rebuilt from.
+
+    The statements are rebuilt from the persisted line items the
     way /api/period and the Capsule rebuild them — the same seam, over
     the same row shape (the envelope ON the row), so the detectors see
     the same numbers on every surface."""
@@ -357,22 +455,29 @@ def load_statements(client: Any, row: Dict[str, Any],
         TABLE_LINE_ITEMS, filters={"period_id": "eq.%s" % row.get("id")},
         columns=LINE_ITEM_COLUMNS) or []
     if not line_items:
-        return None
+        return None, ()
     from .pipeline import _rebuild_assembled_for_briefing  # lazy: heavy module
     try:
-        return _rebuild_assembled_for_briefing(
+        statements = _rebuild_assembled_for_briefing(
             line_items, full_row(row, envelope), None).get("statements")
     except Exception:  # noqa: BLE001
         logger.exception("[radar] statements rebuild failed for %s", row.get("id"))
-        return None
+        statements = None
+    # THE ROWS THEMSELVES travel on too. They are the only account-level
+    # figure a persisted period carries, and the detector lane's
+    # served-tier spine is built from them. Returned from here rather
+    # than fetched a second time: two selects of the same rows is two
+    # chances for them to disagree.
+    return statements, tuple(line_items)
 
 
 def heavy_input(client: Any, light: RS.PeriodInput,
                 row: Dict[str, Any]) -> RS.PeriodInput:
     """Envelope first, then the statements rebuilt WITH it on the row."""
     envelope = load_envelope(client, light.period_id)
-    return replace(light, statements=load_statements(client, row, envelope),
-                   envelope=envelope)
+    statements, line_items = load_statements(client, row, envelope)
+    return replace(light, statements=statements, envelope=envelope,
+                   line_items=line_items or None)
 
 
 # ── The composition ───────────────────────────────────────────────────────
@@ -394,11 +499,21 @@ def build_request(client: Any, org_id: str, period_id: str,
         raise RadarLoadError(404, "Period %s is not in this workspace." % period_id)
     dismissals = resolve_dismissals(load_dismissals(client, org_id, notices),
                                     spine, notices)
-    target = light_input(target_row, target_ordinal)
-    history = tuple(light_input(row, ordinal) for ordinal, row in enumerate(spine)
+    caen = load_caen(client, org_id)
+    if not caen:
+        notices.append(
+            "this workspace has no CAEN code, so no industry profile "
+            "qualifies these findings")
+    target = light_input(target_row, target_ordinal, org_id, caen)
+    history = tuple(light_input(row, ordinal, org_id, caen)
+                    for ordinal, row in enumerate(spine)
                     if ordinal < target_ordinal)
+    jurisdiction, pack_root = detector_pack()
     request = RS.RadarRequest(org_id=org_id, target=target, history=history,
-                              dismissals=dismissals, history_depth=int(depth))
+                              dismissals=dismissals, history_depth=int(depth),
+                              detectors_enabled=detectors_enabled(),
+                              detector_jurisdiction=jurisdiction,
+                              detector_pack_root=pack_root)
     return request, target_row, spine
 
 
@@ -683,7 +798,8 @@ def build_router(clock: Callable[[], str] = utc_now_iso,
 __all__ = [
     "DismissBody", "ENVELOPE_COLUMNS", "ExplainWiring", "HISTORY_DEPTH",
     "LIGHT_PERIOD_COLUMNS", "LINE_ITEM_COLUMNS", "RadarLoadError",
-    "TABLE_DISMISSALS", "TABLE_LINE_ITEMS", "TABLE_PERIODS", "anchor_ordinal",
+    "TABLE_DISMISSALS", "TABLE_LINE_ITEMS", "TABLE_ORGS", "TABLE_PERIODS",
+    "anchor_ordinal", "detector_pack", "detectors_enabled", "load_caen",
     "attach_explanations", "build_request", "build_router", "cache",
     "content_hash_of", "content_key_of", "dismissal_from_row", "full_row",
     "heavy_input", "light_input", "list_light_periods", "load_dismissals",
