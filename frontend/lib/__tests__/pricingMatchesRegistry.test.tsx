@@ -40,7 +40,11 @@
 //   · a bullet missing its English or Romanian half;
 //   · the rendered card showing a bullet the data does not declare, or
 //     dropping the marker from a rendered after-launch line;
-//   · the registry file becoming unparseable (floor assertion below).
+//   · the registry file becoming unparseable (floor assertion below);
+//   · the registry PARSER under-reading the registry — every `_feature(`
+//     call site in the file must land in STATUS, counted off the file
+//     rather than off the parser. Added 2026-09-08 after the regex here
+//     was measured reading 44 of 46 rows (see parseRegistry).
 //
 // WHAT IT CANNOT SEE (TC-11)
 //   Marketing prose that DESCRIBES a feature without naming its key. A
@@ -93,11 +97,22 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const REGISTRY_PATH = resolve(__dirname, "../../../src/engine/api/_features.py");
 
-/** Parse `"<key>": _feature("<status>",` out of the real registry. */
+/** Parse `"<key>": _feature("<status>",` out of the real registry.
+ *
+ *  The `(?:#[^\n]*\n\s*)*` hop is load-bearing, not defensive. Without it
+ *  the regex is comment-blind and reads 44 of the 46 rows: `inventory` and
+ *  `invoices` both carry an explanatory `#` line between `_feature(` and
+ *  their status, so both fell out of `STATUS` entirely — and both are
+ *  `hidden`, i.e. exactly the rows a copy gate exists to catch. A bullet
+ *  naming either resolved to `undefined` and was reported as "no such
+ *  registry entry" only by the first assertion; every status assertion
+ *  below skipped it. Measured on this tree: comment-blind 44, comment-aware
+ *  46, missing [inventory, invoices]. Same expression as the one in
+ *  `shippedClaimsMatchCode.test.ts`, which had already been repaired. */
 function parseRegistry(): Record<string, FeatureStatus> {
   const src = readFileSync(REGISTRY_PATH, "utf8");
   const out: Record<string, FeatureStatus> = {};
-  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*"(active|coming_soon|hidden)"/g;
+  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden)"/g;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(src)) !== null) out[m[1]] = m[2] as FeatureStatus;
   return out;
@@ -182,6 +197,26 @@ describe("the registry this gate reads", () => {
     expect(STATUS.dashboard).toBeDefined();
     expect(STATUS.chat_page).toBeDefined();
     expect(STATUS.benchmarks).toBeDefined();
+  });
+
+  it("reads EVERY `_feature(` row in the file, comments included", () => {
+    // The count floor above did not notice two rows going missing, because
+    // 44 clears "at least 40". So count the rows independently of the
+    // parser: every `_feature(` call site in the registry must appear in
+    // STATUS. A row the parser drops is a row every status assertion in
+    // this file silently skips.
+    const src = readFileSync(REGISTRY_PATH, "utf8");
+    const declared = [...src.matchAll(/"([a-z0-9_]+)":\s*_feature\(/g)].map((m) => m[1]);
+    const dropped = declared.filter((k) => STATUS[k] === undefined);
+    expect(
+      dropped,
+      `parseRegistry() dropped ${dropped.length} of ${declared.length} rows: ${dropped.join(", ")}`,
+    ).toEqual([]);
+    expect(Object.keys(STATUS).length).toBe(declared.length);
+    // Named, because these two are the rows the comment-blind regex ate
+    // and both are hidden — the exact shape a copy gate must not miss.
+    expect(STATUS.inventory, "the `inventory` row did not parse").toBeDefined();
+    expect(STATUS.invoices, "the `invoices` row did not parse").toBeDefined();
   });
 });
 

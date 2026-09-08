@@ -2,21 +2,37 @@
 // demo mode or pre-signup. Never blocks the UI: every helper has a fallback.
 //
 // The backing table is `subscriptions` (one row per user, see schema.sql).
-// The 14-day trial is seeded automatically by the on_auth_user_created
-// trigger so signed-in users always have a row by the time they reach this
-// module — but we still tolerate the row being absent (race window or hand-
-// rolled accounts) and create one on demand from useSubscription().
+// THE BROWSER READS IT AND NEVER WRITES IT. `src/engine/api/_billing.py`
+// owns every write — the Stripe webhook and the checkout routes — and it
+// is the only thing that may decide a user is entitled.
 //
-// Pre-Stripe: status flips to 'active' the moment a user picks a plan; the
-// real Stripe checkout will be inserted at the TODO sites below without
-// changing the surface this file exposes.
+// ── 2026-09-08 — THREE FABRICATIONS REMOVED ──────────────────────────
+// This module used to mint subscription state from the browser:
+//
+//   · `ensureTrialSubscription()` INSERTED a row with
+//     `plan: "professional"` and a 14-day trial whenever the read came
+//     back empty. `professional` is a legacy alias that
+//     `_pricing_config.py` maps to `multi`, the €16.99 top plan, and the
+//     configured trial window is SEVEN days — so a signup that raced the
+//     `on_auth_user_created` trigger handed itself the most expensive
+//     plan on a trial length nothing in the product sells.
+//   · `setPlan()` upserted `status: "active"` with a 30- or 365-day
+//     period after signup, with no payment anywhere in the path. It was
+//     dormant only by accident: `getPlan()` resolved three ids no live
+//     link uses, so the pre-pick was almost always empty. Repairing the
+//     ids (lib/plans.ts) would have woken it.
+//   · `setSelectedPlanLocal()` stamped a third trial length —
+//     `trialEnd = now + 14 days` — onto a value that is a SELECTION, not
+//     a subscription.
+//
+// What remains is read-only: a persisted pre-signup plan CHOICE, used to
+// show "Selected plan · X" on the signup card, cleared once the account
+// exists. It grants nothing and promises no window.
 
 import { useEffect, useSyncExternalStore } from "react";
 import {
-  ALL_PLAN_IDS,
-  PLANS,
+  isKnownPlanId,
   type BillingCycle,
-  type Plan,
   type PlanId,
 } from "@/lib/plans";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
@@ -58,7 +74,7 @@ function readLocal(): Subscription | null {
     if (raw === cachedRaw && cachedSub) return cachedSub;
     cachedRaw = raw;
     const parsed = JSON.parse(raw) as Subscription;
-    if (!ALL_PLAN_IDS.includes(parsed.planId)) return null;
+    if (!isKnownPlanId(parsed.planId)) return null;
     cachedSub = parsed;
     return parsed;
   } catch { return null; }
@@ -137,39 +153,21 @@ export async function fetchSubscription(): Promise<Subscription | null> {
     return null;
   }
   if (!data) {
-    // The trigger usually seeds a trial row, but if it's missing (hand-
-    // crafted account, race), create one now so the UI always has state.
-    const seeded = await ensureTrialSubscription(userId);
-    return seeded;
-  }
-  return rowToSubscription(data as SubscriptionRow);
-}
-
-async function ensureTrialSubscription(userId: string): Promise<Subscription | null> {
-  const sb = getSupabase();
-  if (!sb) return null;
-  const now = new Date().toISOString();
-  const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await sb
-    .from("subscriptions")
-    .insert({
-      user_id: userId,
-      plan: "professional" as PlanId,
-      billing_cycle: "monthly" as BillingCycle,
-      status: "trial",
-      trial_start: now,
-      trial_end: trialEnd,
-      current_period_start: now,
-      current_period_end: trialEnd,
-    })
-    .select()
-    .single();
-  if (error) {
-    console.warn("[billing] ensureTrialSubscription failed:", error.message);
+    // NO ROW MEANS NO SUBSCRIPTION. This used to call
+    // `ensureTrialSubscription(userId)`, which INSERTED
+    // `plan: "professional"` on a 14-day trial — a plan key that aliases
+    // to the €16.99 top tier and a window the pricing config does not
+    // sell. Absence is reported as absence; the backend
+    // (`_billing.py`, the Stripe webhook, the on_auth_user_created
+    // trigger) is the only thing that may create entitlement.
     return null;
   }
   return rowToSubscription(data as SubscriptionRow);
 }
+
+// `ensureTrialSubscription()` used to sit here. Deleted 2026-09-08: see
+// the header. It inserted `plan: "professional"` on a 14-day trial, both
+// of which the backend's pricing config contradicts.
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
@@ -235,24 +233,36 @@ function useSubscriptionInternal(local: Subscription | null) {
     setRemote(await fetchSubscription());
   }
 
+  /** Record a pre-signup plan CHOICE, or clear it once an account exists.
+   *
+   *  Stripe is live (`/api/health` → `"stripe":{"livemode":true}`) and
+   *  `_billing.py` owns `subscriptions`. This function used to upsert
+   *  `status: "active"` with a 30- or 365-day period straight from the
+   *  browser after signup — a paid entitlement granted with no payment
+   *  in the path. It only ever stayed dormant because `getPlan()`
+   *  resolved three ids that no live link carries; repairing the ids
+   *  would have woken it on the very next `/signup?plan=solo` click.
+   *
+   *  The authenticated branch now writes NOTHING. It clears the local
+   *  pick and returns whatever the server already says, so the user
+   *  reaches checkout with their choice remembered and no entitlement
+   *  invented on the way. */
   async function setPlan(planId: PlanId, cycle: BillingCycle = "monthly"): Promise<Subscription | null> {
     const sb = getSupabase();
     const { data: sess } = sb ? await sb.auth.getSession() : { data: { session: null } };
     const userId = sess.session?.user?.id;
 
-    // TODO: when Stripe is wired, replace this branch with:
-    //   const session = await createCheckoutSession({ planId, cycle, userId });
-    //   window.location.href = session.url;
-    // The DB row should not flip to 'active' until the checkout.session.completed
-    // webhook lands — until then it stays 'incomplete'.
-
     if (!sb || !userId) {
-      // No session — persist to local storage so /signup can read the
-      // chosen plan after the user signs up.
+      // No session — persist the CHOICE so /signup can show it. Status is
+      // "incomplete": chosen, not paid for. No trial window is stamped;
+      // the only trial the product has is the one _pricing_config.py
+      // configures, and it starts on the server, not here.
       const next: Subscription = {
-        planId, billingCycle: cycle, status: "trial",
-        trialStart: new Date().toISOString(),
-        trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        planId,
+        billingCycle: cycle,
+        status: "incomplete",
+        trialStart: null,
+        trialEnd: null,
         cancelAtPeriodEnd: false,
         isLocal: true,
       };
@@ -260,38 +270,12 @@ function useSubscriptionInternal(local: Subscription | null) {
       return next;
     }
 
-    // Authenticated path — upsert the DB row. Status flips to 'active'
-    // immediately because we have no payment processor yet; once Stripe
-    // is in, the webhook handler is what flips this.
-    const now = new Date().toISOString();
-    const periodEnd = new Date(
-      Date.now() + (cycle === "yearly" ? 365 : 30) * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const { data, error } = await sb
-      .from("subscriptions")
-      .upsert(
-        {
-          user_id: userId,
-          plan: planId,
-          billing_cycle: cycle,
-          status: "active",
-          current_period_start: now,
-          current_period_end: periodEnd,
-          cancel_at_period_end: false,
-        },
-        { onConflict: "user_id" },
-      )
-      .select()
-      .single();
-    if (error) {
-      console.warn("[billing] setPlan failed:", error.message);
-      return null;
-    }
-    const next = rowToSubscription(data as SubscriptionRow);
-    setRemote(next);
-    // Wipe the local pending pick once the DB row is the source of truth.
+    // Authenticated — the choice has done its job. Drop it and re-read
+    // the server's own answer.
     writeLocal(null);
-    return next;
+    const fresh = await fetchSubscription();
+    setRemote(fresh);
+    return fresh;
   }
 
   async function cancel(): Promise<Subscription | null> {
@@ -361,10 +345,11 @@ export function isSubscriptionEntitled(sub: Subscription | null): boolean {
   return sub.status === "active";
 }
 
-export function planFor(sub: Subscription | null): Plan | null {
-  if (!sub) return null;
-  return PLANS[sub.planId] ?? null;
-}
+// `planFor(sub)` used to live here, returning a `Plan` out of the
+// fabricated PLANS catalog. Deleted with the catalog (2026-09-08): it
+// had no callers, and a plan's NAME and PRICE now come from
+// `lib/pricingConfig.ts` — the live `GET /api/pricing/config` — so the
+// frontend has no second copy of either to drift.
 
 // ─── Pre-signup convenience (unchanged surface) ─────────────────────────────
 
@@ -372,12 +357,16 @@ export function planFor(sub: Subscription | null): Plan | null {
  *  signed in yet. After signup, AuthCard calls setPlan() which migrates
  *  this into the DB. */
 export function setSelectedPlanLocal(planId: PlanId, billingCycle: BillingCycle = "monthly") {
+  // A SELECTION, not a subscription. It used to stamp
+  // `trialEnd = now + 14 days` — a third trial length beside the seven
+  // days `_pricing_config.py` configures and the seven the landing FAQ
+  // quotes. A window nobody grants is a window nobody should write.
   const sub: Subscription = {
     planId,
     billingCycle,
-    status: "trial",
-    trialStart: new Date().toISOString(),
-    trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    status: "incomplete",
+    trialStart: null,
+    trialEnd: null,
     cancelAtPeriodEnd: false,
     isLocal: true,
   };
@@ -391,10 +380,10 @@ export function clearLocalSubscription() {
 
 // Legacy exports for components that haven't migrated to the new hook yet.
 // These will be removed once every caller is on useSubscription().
+// `getSelectedPlan()` went with the fabricated catalog it read from
+// (lib/plans.ts's PLANS): it had zero callers, and the only thing it
+// could return was a name and a price the backend does not sell.
 export const setSelectedPlan = setSelectedPlanLocal;
-export function getSelectedPlan(): Plan | null {
-  return planFor(readLocal());
-}
 export function markSubscriptionActivated(): void {
   // No-op for local subs — the real state machine lives in setPlan() now.
   // Kept so legacy AuthCard code doesn't break.

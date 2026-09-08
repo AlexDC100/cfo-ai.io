@@ -1161,6 +1161,11 @@
     "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei 22 de indicatori cu verdicte, linia Altman Z″, ratingul de credit și evaluarea riscului de faliment (cu modelul care le-a produs) și recomandări prioritizate.",
     "exportXlsxTitle": "Registru Excel",
     "exportXlsxBody": "Model xlsx cu 9 foi: copertă, cont de profit și pierdere, bilanț, indicatori, flux de numerar, evaluare (WACC + DCF + Graham), credit și risc, recomandări și datele din spatele fiecărui grafic din document.",
+    "exportPdfTitle": "Raport PDF",
+    "exportPdfBody": "Același document ca exportul HTML, paginat pe A4, cu copertă, cuprins și antet pe fiecare pagină. Este randat pe server, deci se tipărește identic oriunde îl deschizi.",
+    "exportPdfStarting": "Se pregătește…",
+    "exportPdfQueued": "Așteaptă un randator — {{n}} înainte",
+    "exportPdfFailedTitle": "Nu am putut genera PDF-ul",
     "secondaryEbitdaCrossCheck": "Secundar · Verificare încrucișată multiplu EBITDA",
     "persistedAssumptions": "Ipoteze salvate",
     "persistedAssumptionsBody": "Setați EBITDA, multiplu, datorie sau numerar personalizate pentru raportarea către consiliu. Se salvează pentru această perioadă; cardul principal de mai sus reflectă întotdeauna cele mai recente valori canonice plus poziția glisorului.",
@@ -2686,7 +2691,7 @@
       "eyebrow": "Inteligență companii listate",
       "titlePre": "Caută companii listate și adaugă-le ca ",
       "titleGrad": "peers de benchmark",
-      "subtitle": "Cifre statutare pentru fiecare companie listată la Bursa de Valori București — venituri, marje, capitaluri și evaluare, din raportările emitenților și din bilanțurile oficiale ANAF, cu prețuri BVB în timp real. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private în aceleași analize de indicatori, evaluare și risc.",
+      "subtitle": "Cifre statutare pentru piața reglementată a Bursei de Valori București — venituri, marje, capitaluri și evaluare, din rapoartele anuale ale emitenților și din bilanțurile statutare ANAF, cu prețuri BVB la ultima închidere. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private în aceleași analize de indicatori, evaluare și risc.",
       "tabOverview": "Prezentare",
       "tabRisk": "Radar de risc",
       "tabMap": "Hartă geografică",
@@ -2808,7 +2813,7 @@
     "footer": {
       "loading": "Se încarcă sursele…",
       "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
-      "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
+      "sources": "Surse: date de listare de la Bursa de Valori București, rapoartele anuale ale emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Cifrele fundamentale sunt raportări anuale statutare. Prețurile sunt ultima închidere de zi, reverificată la 5 minute — nu cotații în timp real."
     }
   },
   "pending": {

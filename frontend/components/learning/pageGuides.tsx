@@ -511,9 +511,14 @@ export const COMPREHENSIVE_GUIDE: GuideStep[] = [
     title: "Export & share",
     body: (
       <>
-        Print to PDF for board packets or investor decks — currency is
-        threaded through the WeasyPrint render so you can output in RON,
-        EUR, or USD without re-running anything.
+        {/* Named WeasyPrint until 2026-09-08 — a library that is in no
+            requirements file and no Dockerfile, and which this codebase
+            measured and rejected (it collapses every SVG chart). Naming a
+            third-party engine we do not run, to an accountant, inside the
+            product. The currency threading is real; the renderer was not. */}
+        Export to PDF for board packets or investor decks — your display
+        currency carries through, so you can output in RON, EUR or USD
+        without re-running anything.
       </>
     ),
   },

@@ -1156,6 +1156,11 @@
     "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 22 ratios with verdicts, the Altman Z″ row, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
     "exportXlsxTitle": "Excel workbook",
     "exportXlsxBody": "9-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations, and the chart data behind every figure the document draws.",
+    "exportPdfTitle": "PDF report",
+    "exportPdfBody": "The same document as the HTML export, paginated to A4 with a cover, a contents page and a running head on every page. Rendered on the server, so it prints identically wherever it is opened.",
+    "exportPdfStarting": "Preparing…",
+    "exportPdfQueued": "Waiting for a renderer — {{n}} ahead",
+    "exportPdfFailedTitle": "The PDF could not be produced",
     "secondaryEbitdaCrossCheck": "Secondary · EBITDA-multiple cross-check",
     "persistedAssumptions": "Persisted assumptions",
     "persistedAssumptionsBody": "Set custom EBITDA, multiple, debt or cash for board reporting. Persists to this period; the primary card above always reflects the latest canonical values plus your slider position.",
@@ -2661,7 +2666,7 @@
       "eyebrow": "Public Company Intelligence",
       "titlePre": "Search listed companies and add them as ",
       "titleGrad": "benchmark peers",
-      "subtitle": "Statutory financials for every company listed on the Bucharest Stock Exchange — revenue, margins, equity and valuation, from issuer disclosures and official ANAF filings, with live BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views.",
+      "subtitle": "Statutory financials for the Bucharest Stock Exchange regulated market — revenue, margins, equity and valuation, from issuer annual reports and ANAF statutory filings, with last-close BVB prices. Add any company as a benchmark peer and it slots next to your private books in the same ratios, valuation, and risk views.",
       "tabOverview": "Overview",
       "tabRisk": "Risk Radar",
       "tabMap": "Geographic Map",
@@ -2783,7 +2788,7 @@
     "footer": {
       "loading": "Loading sources…",
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
-      "sources": "Sources: Bursa de Valori București reference data plus issuer disclosures and ANAF statutory filings for {{bvb}} BVB listings. Fundamentals are end-of-day; prices refresh every 5 minutes."
+      "sources": "Sources: Bursa de Valori București listing data, issuer annual reports and ANAF statutory filings (bilanț) for {{bvb}} BVB listings. Fundamentals are annual statutory filings. Prices are the last daily close, re-checked every 5 minutes — not live quotes."
     }
   },
   "pending": {

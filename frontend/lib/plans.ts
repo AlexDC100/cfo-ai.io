@@ -1,157 +1,86 @@
-// CFO AI plan catalog — three tiers (Starter / Professional / Enterprise).
+// plans.ts — WHICH PLAN IDS A SIGNUP LINK MAY RESOLVE. Nothing else.
 //
-// One source of truth for pricing, limits, and feature lists. Used by:
-//   · PricingSection on the landing page
-//   · AuthCard / Signup to surface "Selected plan: X — €Y/month"
-//   · Settings → Subscription card
-//   · billing.ts for the database round-trip + Stripe placeholders
+// WHAT THIS FILE USED TO BE, AND WHY IT WAS WRONG
+//   Until 2026-09-08 this module carried a hand-written three-tier
+//   catalog — `starter` €99, `professional` €499, `enterprise` custom —
+//   with features, limits, CTAs and a `formatPriceLabel()` helper. The
+//   backend sells none of them. `_pricing_config.py` sells `solo` €4.99,
+//   `pro` €9.99 and `multi` €16.99; `starter` (€14.99) is retired
+//   (`purchasable=False`) and `professional` is only a LEGACY ALIAS that
+//   resolves to `multi` (`_pricing_config.py` legacy_tier_map).
 //
-// Plan IDs match the Supabase `subscriptions.plan` enum ('starter',
-// 'professional', 'enterprise'). NEVER hard-code plan ids elsewhere — read
-// from this catalog so the price + name + limits stay in sync everywhere.
+//   The consequence was live and reachable. `AuthCard` resolves
+//   `?plan=` through `getPlan()`, so `/signup?plan=professional` — the
+//   shape old marketing links and emails carry — rendered a "Selected
+//   plan · Professional — €499/month" chip for a plan the checkout sells
+//   at €16.99, a 29× overstatement, beside a 14-day trial stamped by
+//   `billing.ts` while the configured window is seven days. Meanwhile
+//   the LIVE landing links (`/signup?plan=solo|pro|multi`, Landing.tsx)
+//   resolved to nothing at all, because none of those ids were in the
+//   catalog — so the only ids that worked were the three fabricated
+//   ones.
+//
+// WHAT IT IS NOW
+//   The id set, and nothing that can go stale. There is no price, no
+//   feature list and no display name in this file: the signup surface
+//   reads all three from `lib/pricingConfig.ts`, the same live
+//   `GET /api/pricing/config` the pricing page reads. A price the
+//   frontend cannot invent is a price that cannot drift.
+//
+//   `PlanId` is an alias of `PlanKey`, so the enum lives in exactly one
+//   place (pricingConfig.ts, mirroring _pricing_config.py) rather than
+//   being copied here to fall behind again.
+//
+// GATED BY
+//   `lib/__tests__/shippedClaimsMatchCode.test.ts` — "a signup surface
+//   resolves only plan ids the backend sells" parses the plan keys and
+//   `purchasable` flags straight out of `_pricing_config.py` and reds if
+//   SELLABLE_PLAN_IDS drifts from them in either direction, and if any
+//   shipped copy names a plan the backend does not sell.
 
-export type PlanId = "starter" | "professional" | "enterprise";
+import type { PlanKey } from "@/lib/pricingConfig";
+
+/** Every plan key the backend's pricing config knows — including the
+ *  non-purchasable ones a legacy subscription row may still carry. */
+export type PlanId = PlanKey;
+
 export type BillingCycle = "monthly" | "yearly";
 
-export interface PlanLimits {
-  /** Max users on the workspace. `null` = no enforced cap. */
-  users: number | null;
-  /** Max distinct workspaces. */
-  workspaces: number | null;
-  /** Soft cap on SKU rows. `null` = unbounded. */
-  skuLimit: number | null;
-  /** Integration tier: false (none), 'basic', 'advanced'. */
-  integrations: false | "basic" | "advanced";
-  /** SLA + dedicated infrastructure (Enterprise only). */
-  slaSupport: boolean;
+/** Every key `_pricing_config.py` defines. Used to validate a persisted
+ *  row, not to decide what may be sold. */
+export const ALL_PLAN_IDS: PlanId[] = [
+  "trial",
+  "intro",
+  "starter",
+  "solo",
+  "pro",
+  "multi",
+];
+
+/** The recurring plans the backend will actually sell today —
+ *  `purchasable=True` and `recurring=True` in `_pricing_config.py`.
+ *
+ *  `starter` is deliberately absent: it is retired from purchase and
+ *  survives only so existing subscribers resolve. `trial` and `intro`
+ *  are absent because they are not something a `?plan=` link selects.
+ *  `professional`, `professional_contact`, `business` and `enterprise`
+ *  are absent because they are legacy aliases or were never real —
+ *  resolving them is what quoted €499 for a €16.99 plan. */
+export const SELLABLE_PLAN_IDS: PlanId[] = ["solo", "pro", "multi"];
+
+/** True when a `?plan=` value names a plan a new customer can buy.
+ *
+ *  A retired or aliased id returns false rather than mapping through to
+ *  its successor: a stale link must land the user on the pricing page,
+ *  where the live config states the real name and price, instead of on
+ *  a signup card confidently quoting a plan nobody chose. */
+export function isSellablePlanId(id: string | null | undefined): id is PlanId {
+  if (!id) return false;
+  return (SELLABLE_PLAN_IDS as string[]).includes(id);
 }
 
-export interface Plan {
-  id: PlanId;
-  name: string;
-  /** Monthly price in EUR. `null` for "custom / contact sales". */
-  monthly: number | null;
-  /** Stripe price ids — populate when checkout flips on. See billing.ts. */
-  stripePriceMonthly?: string;
-  stripePriceYearly?: string;
-  /** Display "from €X" instead of a fixed price. */
-  fromPrice: boolean;
-  description: string;
-  audience: string;
-  features: string[];
-  cta: string;
-  /** Pricing card badge (e.g. "Most popular"). */
-  badge?: string;
-  /** Enterprise tier opens a contact path instead of self-serve checkout. */
-  contactSales?: boolean;
-  limits: PlanLimits;
-}
-
-/** Yearly = 10× monthly = 2 months free. Industry-standard SaaS pricing. */
-export function yearlyPriceFor(plan: Plan): number | null {
-  if (plan.monthly === null) return null;
-  return plan.monthly * 10;
-}
-
-/** Effective per-month display price for the selected billing cycle. */
-export function displayMonthlyPrice(plan: Plan, cycle: BillingCycle): number | null {
-  if (plan.monthly === null) return null;
-  if (cycle === "monthly") return plan.monthly;
-  return Math.round((plan.monthly * 10) / 12);
-}
-
-export const PLANS: Record<PlanId, Plan> = {
-  starter: {
-    id: "starter",
-    name: "Starter",
-    monthly: 99,
-    fromPrice: false,
-    description: "For small operators getting their first dataset under control.",
-    audience: "Small team",
-    features: [
-      "1 workspace",
-      "Up to 5 users",
-      "CSV / Excel / PDF upload",
-      "Financial statement extraction (balance sheet + P&L)",
-      "Ratios, margins & cash-flow snapshot",
-      "EBITDA-multiple valuation with industry peers",
-      "AI-generated CFO briefing",
-      "SKU profitability analysis",
-      "Cash-trapped overview",
-      "Export to PDF / Excel",
-    ],
-    cta: "Start free trial",
-    limits: { users: 5, workspaces: 1, skuLimit: 1000, integrations: false, slaSupport: false },
-  },
-  professional: {
-    id: "professional",
-    name: "Professional",
-    monthly: 499,
-    fromPrice: false,
-    description: "For growing companies with serious working capital and inventory at stake.",
-    audience: "Growing operator",
-    features: [
-      "Unlimited users",
-      "ERP integrations",
-      "Advanced AI recommendations",
-      "Full alerting system",
-      "Multi-dataset workspaces",
-      "Recommendations queue",
-      "Weekly executive briefing",
-      "Priority support",
-    ],
-    cta: "Start free trial",
-    badge: "Most popular",
-    limits: { users: null, workspaces: 5, skuLimit: 50000, integrations: "advanced", slaSupport: false },
-  },
-  enterprise: {
-    id: "enterprise",
-    name: "Enterprise",
-    monthly: null,
-    fromPrice: true,
-    description: "For mid-market and up — SSO, custom integrations, dedicated support.",
-    audience: "Mid-market+",
-    features: [
-      "SSO / SAML",
-      "Dedicated infrastructure",
-      "Custom integrations",
-      "SLA-backed support",
-      "Unlimited workspaces",
-      "Audit logs + retention",
-      "Custom thresholds + reporting",
-      "Onboarding white-glove",
-    ],
-    cta: "Contact sales",
-    contactSales: true,
-    limits: { users: null, workspaces: null, skuLimit: null, integrations: "advanced", slaSupport: true },
-  },
-};
-
-export const ALL_PLAN_IDS: PlanId[] = ["starter", "professional", "enterprise"];
-
-export function getPlan(id: string | null | undefined): Plan | null {
-  if (!id) return null;
-  if (id in PLANS) return PLANS[id as PlanId];
-  return null;
-}
-
-/** Format the price label that appears on the pricing card. */
-export function formatPriceLabel(plan: Plan, cycle: BillingCycle): {
-  amount: string;
-  unit: string;
-  footnote: string;
-} {
-  if (plan.monthly === null) {
-    return { amount: "Custom", unit: "", footnote: "Tailored agreement" };
-  }
-  const monthly = displayMonthlyPrice(plan, cycle)!;
-  const prefix = plan.fromPrice ? "From €" : "€";
-  return {
-    amount: `${prefix}${monthly}`,
-    unit: "/month",
-    footnote:
-      cycle === "yearly"
-        ? `€${yearlyPriceFor(plan)} billed annually · 2 months free`
-        : `Billed monthly`,
-  };
+/** Narrow an arbitrary persisted value to a known plan key. */
+export function isKnownPlanId(id: string | null | undefined): id is PlanId {
+  if (!id) return false;
+  return (ALL_PLAN_IDS as string[]).includes(id);
 }

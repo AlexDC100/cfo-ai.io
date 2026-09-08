@@ -32,8 +32,25 @@ export const pcmEn = {
   // single foreign country is headlined. Romania's deterministic-grade
   // claim is NOT made here for every market — it lives on the Romania
   // surface, as `pcm.ro.grade`.
+  //
+  // 2026-09-08 — THE OLD SENTENCE NAMED MARKETS WITH NO FEED. It read
+  // "…from Romania, the US, Europe, China and the UAE — from official
+  // filings, with market prices." Against `public_market/markets.yaml`:
+  // `cn` and `ae` are `status: awaiting_provider` with
+  // `fundamentals_source: none`, and `de` (inside "Europe") likewise —
+  // filings.xbrl.org documents Germany as MISSING from the ESEF
+  // repository. Nothing in this repo has ever extracted a figure from a
+  // CN, AE or DE filing, so the lede promised financials from three
+  // markets that cannot produce one. "with market prices" was the second
+  // overstatement: every non-RO market's `price_source` is
+  // `licensed_provider_slot`, dark until `PROVIDER_API_KEY` is set, and
+  // `prices.py` omits RO by design. The replacement names only the two
+  // markets whose status is `live` and defers the rest to the per-market
+  // status the page already renders — which is the registry's own stated
+  // purpose for those cards ("so the gap is VISIBLE, never so a number
+  // can be invented to fill it"). Gated by `shippedClaimsMatchCode`.
   lede:
-    "Listed-company financials from Romania, the US, Europe, China and the UAE — from official filings, with market prices. Add any company as a benchmark peer and it sits next to your private books.",
+    "Listed-company financials from official filings — Romania and the United States today. Every other market shows exactly what it can serve, and says plainly when it has no feed yet. Add any company as a benchmark peer and it sits next to your private books.",
 
   // ── market + region names ──
   // The registry's display_name is authoritative and English; these keys
@@ -239,8 +256,10 @@ export const pcmEn = {
 };
 
 export const pcmRo = {
+  // See the EN note above for why China, the UAE and Germany left this
+  // sentence: the registry gives all three `fundamentals_source: none`.
   lede:
-    "Cifre financiare ale companiilor listate din România, Statele Unite, Europa, China și Emiratele Arabe Unite — din raportări oficiale, cu prețuri de piață. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private.",
+    "Cifre financiare ale companiilor listate, din raportări oficiale — România și Statele Unite astăzi. Fiecare altă piață arată exact ce poate servi și spune deschis când încă nu are sursă. Adaugă orice companie ca peer de benchmark și apare lângă cifrele tale private.",
 
   market: {
     ro: "România",

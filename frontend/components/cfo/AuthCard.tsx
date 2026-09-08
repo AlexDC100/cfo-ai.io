@@ -24,11 +24,20 @@ import {
 } from "@/lib/legalConsent";
 import { legalDocPath } from "@/lib/legalConfig";
 import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
+// The "Selected plan" chip reads its NAME and PRICE from the live
+// pricing config (GET /api/pricing/config), never from a catalog in the
+// frontend. lib/plans.ts contributes only the set of ids a `?plan=` link
+// is allowed to resolve. See the note on the chip below for the defect
+// this replaced.
 import {
-  getPlan,
-  formatPriceLabel,
+  isSellablePlanId,
   type BillingCycle,
 } from "@/lib/plans";
+import {
+  formatEur,
+  planByKey,
+  usePricingConfig,
+} from "@/lib/pricingConfig";
 import {
   setSelectedPlanLocal,
   useSubscription,
@@ -99,6 +108,7 @@ export function AuthCard({
   // detector when one path memoized differently from the other. Single call
   // here, derive `local` and `remote` separately from the same hook.
   const { subscription, setPlan } = useSubscription();
+  const { config: pricingConfig } = usePricingConfig();
 
   // All useState calls grouped; nothing conditional above them.
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -130,20 +140,34 @@ export function AuthCard({
   );
   const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
   const passwordChecks = useMemo(() => getPasswordChecks(password, t), [password, t]);
+  // The chip's plan, resolved against the LIVE pricing config. Null until
+  // the config loads and null for any key it does not carry, so the card
+  // renders no plan rather than a plan the backend cannot sell.
   const selectedPlan = useMemo(
-    () => (subscription ? getPlan(subscription.planId) : null),
-    [subscription],
+    () =>
+      subscription && isSellablePlanId(subscription.planId)
+        ? planByKey(pricingConfig, subscription.planId)
+        : null,
+    [subscription, pricingConfig],
   );
 
-  // ?plan=professional&cycle=yearly on the URL takes precedence over any
+  // ?plan=solo|pro|multi&cycle=yearly on the URL takes precedence over any
   // previously persisted selection. Stored locally so the chip survives
-  // refreshes and so AuthCard can promote it to the DB after sign-up.
+  // refreshes.
+  //
+  // `isSellablePlanId` is the gate, and it is deliberately strict. It used
+  // to be `getPlan(planFromUrl)` against a frontend catalog holding
+  // `starter`/`professional`/`enterprise` — ids the backend does not sell
+  // — so `/signup?plan=professional`, the shape old marketing links carry,
+  // resolved to "Professional — €499/month" for a plan the checkout prices
+  // at €16.99. A retired or aliased id now resolves to nothing and the
+  // user simply sees the normal signup card.
   useEffect(() => {
     const planFromUrl = searchParams.get("plan");
     const cycleFromUrl = searchParams.get("cycle") as BillingCycle | null;
-    if (planFromUrl && getPlan(planFromUrl)) {
+    if (isSellablePlanId(planFromUrl)) {
       setSelectedPlanLocal(
-        planFromUrl as never,
+        planFromUrl,
         cycleFromUrl === "yearly" ? "yearly" : "monthly",
       );
     }
@@ -368,17 +392,27 @@ export function AuthCard({
             <div className="text-[10.5px] uppercase tracking-[0.1em] text-brand/80 font-medium">
               {t("authX.selected_plan")}
             </div>
+            {/* Name and price both come from the live pricing config, and
+                the price is quoted with the SAME `formatEur` + the same
+                `pricing.perMonth` suffix the /pricing cards use, so the
+                two surfaces cannot disagree about one plan.
+
+                The cycle no longer changes the number. The old chip ran
+                `formatPriceLabel(plan, cycle)`, which for "yearly"
+                rendered `round(monthly * 10 / 12)` — a 2-months-free
+                discount invented in the frontend. `PlanConfig` carries
+                one recurring price and no annual field, so an annual
+                per-month figure has no source. The chosen cycle is still
+                stored and still reaches checkout; it is simply not quoted
+                here. */}
             <div className="text-[13px] text-ink truncate">
-              {selectedPlan.name}
-              {selectedPlan.monthly !== null && (
-                <span className="text-ink-soft">
-                  {" — "}
-                  {(() => {
-                    const { amount, unit } = formatPriceLabel(selectedPlan, subscription?.billingCycle ?? "monthly");
-                    return `${amount}${unit}`;
-                  })()}
-                </span>
-              )}
+              {selectedPlan.display_name}
+              <span className="text-ink-soft">
+                {" — "}
+                {formatEur(selectedPlan.price_eur)}
+                {" "}
+                {t("pricing.perMonth")}
+              </span>
             </div>
           </div>
           <Link

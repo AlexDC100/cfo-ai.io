@@ -95,7 +95,11 @@ export default function ContactSalesPage() {
 
       <main className="flex-1 mx-auto w-full max-w-[640px] px-5 sm:px-8 py-12">
         <h1 className="text-[32px] sm:text-[38px] tracking-tight text-ink">
-          Let's talk Professional
+          {/* Named a "Professional" plan until 2026-09-08. _pricing_config.py
+              sells trial / intro / starter / RO Solo / Pro / Multi-Country;
+              "Professional" and "Business" are legacy ALIASES, not products,
+              and this page is public and linked from /roadmap. */}
+          Let's talk about a larger rollout
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft">
           Tell us about your workflow. We'll reply within 4 business hours with
@@ -109,8 +113,9 @@ export default function ContactSalesPage() {
             </h2>
             <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed">
               We've logged your inquiry and sent you a confirmation email. In
-              the meantime, you're welcome to try Solo or Business with the
-              €1 first month offer.
+              the meantime, you're welcome to try RO Solo or Pro. There is
+              also a one-time €0.99 unlock that opens a single document for
+              7 days — it is not a subscription and not a first month.
             </p>
             <div className="mt-4 flex gap-3">
               <Link
@@ -225,7 +230,7 @@ export default function ContactSalesPage() {
               {submitting ? "Sending…" : "Send"}
             </button>
             <p className="text-[11.5px] text-ink-soft text-center">
-              By submitting, you agree we'll email you about Professional.
+              By submitting, you agree we'll email you about plans and pricing.
               We don't share your data with anyone.
             </p>
           </form>
