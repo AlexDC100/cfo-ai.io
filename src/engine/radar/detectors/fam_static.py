@@ -156,6 +156,23 @@ def _rows_matching(rows: Sequence["B.AccountRow"], measure: str,
     return hits
 
 
+def _sum_abs_present(rows: Sequence["B.AccountRow"], measure: str
+                     ) -> Optional[float]:
+    """Sum |measure| across rows, or ABSENT if any single row cannot say.
+
+    The `or 0.0` shape this replaces reads "treat what we do not know as
+    nothing", which is the one substitution a balance-sheet reader can
+    never make: a related-party movement of zero is a strong claim about
+    governance, and a movement we cannot see is no claim at all."""
+    total = 0.0
+    for row in rows:
+        value = getattr(row, measure)()
+        if value is None:
+            return None
+        total += abs(float(value))
+    return total
+
+
 def first_digit(value: float) -> Optional[int]:
     digits = ("%.10f" % abs(float(value))).replace(".", "").lstrip("0")
     if not digits:
@@ -431,14 +448,52 @@ def concentration(spec: "DetectorSpec", series: "B.BookSeries",
     top_value = abs(top.closing_signed() or 0.0)
     share = top_value / total
     limit = spec.number("min_share")
-    fired = share >= limit
 
     basis = SUP.basis_of(spec, latest)
     accounts = ((top.code, top.name),) + SUP.accounts_of(ranked[1:], limit=2)
     codes = ", ".join(c for c, _n in accounts)
     reason = ("%s carries %s of the %s balance across %d analytic accounts"
               % (top.code, SUP.pct(share), spec.scope, len(leaves)))
+    if basis is None:
+        return [na(spec.id, "concentration", SUP.basis_missing_reason(spec),
+                   accounts=accounts, periods=(latest.label,))]
+
+    family_share = total / basis.value
+    family_share_ex_top = (total - top_value) / basis.value
+
+    # A CONCENTRATION INSIDE AN IMMATERIAL BALANCE IS NOT A FINDING.
+    #
+    # The share is a true ratio at any size — one counterparty can hold
+    # 57% of a receivable book that is itself 0.03% of total assets, and
+    # on the realestate book it does. Surfaced as HIGH, that sentence
+    # spends a reader's attention on a number whose own consequence line
+    # reads "moves from 0.0% to 0.0%", because removing the counterparty
+    # entirely does not move the balance sheet at the precision the
+    # statement is printed to. The floor is pack data, not a number in
+    # this module: how large a line must be before it can matter is a
+    # policy about the reader's book, and the detector only enforces it.
+    min_subject = spec.number("min_subject_share_of_basis")
+    material = family_share >= min_subject
+    fired = share >= limit and material
+
     if not fired:
+        if share >= limit:
+            # The concentration is real and the balance is too small for
+            # it to mean anything. Record what actually decided it —
+            # reporting `min_share` here would say the share fell short
+            # when it did not.
+            return [DetectorResult(
+                detector_id=spec.id, family="concentration", fired=False,
+                observed=float(family_share), observed_unit=F.UNIT_PERCENT,
+                parameter="min_subject_share_of_basis",
+                parameter_label="%s as a share of %s" % (spec.scope, basis.label),
+                parameter_source=spec.address("min_subject_share_of_basis"),
+                comparator=">=", limit=min_subject, accounts=accounts,
+                periods=(latest.label,), atom_ids=group.atom_ids(),
+                reason=("%s, but %s is %s of %s — removing that counterparty "
+                        "outright would not move the balance sheet"
+                        % (reason, spec.scope, SUP.pct(family_share),
+                           basis.label)))]
         return [DetectorResult(
             detector_id=spec.id, family="concentration", fired=False,
             observed=float(share), observed_unit=F.UNIT_PERCENT,
@@ -447,12 +502,6 @@ def concentration(spec: "DetectorSpec", series: "B.BookSeries",
             parameter_source=spec.address("min_share"), comparator=">=",
             limit=limit, accounts=accounts, periods=(latest.label,),
             atom_ids=group.atom_ids(), reason=reason)]
-    if basis is None:
-        return [na(spec.id, "concentration", SUP.basis_missing_reason(spec),
-                   accounts=accounts, periods=(latest.label,))]
-
-    family_share = total / basis.value
-    family_share_ex_top = (total - top_value) / basis.value
     figures, facts = SUP.figures_of([
         ("top_counterparty_share", share, F.UNIT_PERCENT,
          "%s share of the %s balance" % (top.code, spec.scope)),
@@ -523,7 +572,15 @@ def interco(spec: "DetectorSpec", series: "B.BookSeries",
     haircut_rate = spec.number("lender_haircut")
     fired = share >= limit
 
-    movement = sum(abs(r.movement_signed() or 0.0) for r in rows)
+    # ABSENT IS NOT ZERO, and on this line it was the difference between a
+    # measured fact and a fabricated one. `canonical_bs` serves no movement
+    # column on any persisted period (its producer says so: "prior-period
+    # column not plumbed yet"), so `or 0.0` made EVERY served book report
+    # "related-party movement 0.0% of total assets" — a confident,
+    # printable, false zero, on agras where the ledger tier measures 2.12%.
+    # A row whose movement is absent makes the GROUP's movement absent, and
+    # an absent movement is simply not among the figures.
+    movement = _sum_abs_present(rows, "movement_signed")
     accounts = SUP.accounts_of(rows, limit=3)
     codes = ", ".join(c for c, _n in accounts)
     reason = ("related-party balances on %s stand at %s of %s; a lender "
@@ -541,15 +598,19 @@ def interco(spec: "DetectorSpec", series: "B.BookSeries",
             atom_ids=group.atom_ids(), reason=reason)]
 
     haircut = balance * haircut_rate
-    figures, facts = SUP.figures_of([
+    measured = [
         ("interco_share", share, F.UNIT_PERCENT,
          "related-party balances as a share of %s" % basis.label),
-        ("interco_movement_share", movement / basis.value, F.UNIT_PERCENT,
-         "movement on those accounts this period, against %s" % basis.label),
+    ]
+    if movement is not None:
+        measured.append(
+            ("interco_movement_share", movement / basis.value, F.UNIT_PERCENT,
+             "movement on those accounts this period, against %s" % basis.label))
+    measured.append(
         ("underwritable_asset_share", 1.0 - share * haircut_rate, F.UNIT_PERCENT,
          "share of the reported asset base left after a %s haircut"
-         % SUP.pct(haircut_rate)),
-    ])
+         % SUP.pct(haircut_rate)))
+    figures, facts = SUP.figures_of(measured)
     SUP.assert_units_declared(figures)
     impact = SUP.share_impact(
         "underwritable_asset_share",

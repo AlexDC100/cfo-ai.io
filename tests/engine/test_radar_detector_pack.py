@@ -90,7 +90,13 @@ FICTIONAL_ROW = {
     "citation": "A fictional rule, authored to prove that authoring one "
                 "needs no engine change.",
     "accounts": {"subject": ["401"]},
-    "params": {"min_share": 0.20, "min_counterparties": 2},
+    # `min_subject_share_of_basis` is 0 here on purpose: R9 asks whether a
+    # detector can reach a reader through YAML alone, not whether this
+    # fixture's balance clears a materiality floor. A floor of 0 is still
+    # the pack answering the question — the detector refuses to run until
+    # the pack says something.
+    "params": {"min_share": 0.20, "min_counterparties": 2,
+               "min_subject_share_of_basis": 0.0},
     "why": "For a {profile_label}, {top_code} carries {share} of the {scope} "
            "balance across {count} analytic accounts; {scope} is {share_with} "
            "of {basis_label} as reported and {share_without} once that one "

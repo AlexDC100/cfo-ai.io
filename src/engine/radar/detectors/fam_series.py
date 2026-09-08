@@ -635,17 +635,30 @@ def dormant(spec: "DetectorSpec", series: "B.BookSeries",
     if not prefixes:
         return [na(spec.id, "dormant", "detector declares no accounts.subject")]
     points = series.readings(prefixes, "closing")
-    present = [p for p in points if p.value is not None]
-    if len(present) < 3:
-        return [na(spec.id, "dormant",
-                   "dormancy needs a quiet run and a break in it; %d period(s) "
-                   "carry this account" % len(present))]
-    labels = tuple(p.book.label for p in present)
-    values = [float(p.value) for p in present]
     tolerance = spec.number("quiet_tolerance_share")
     min_quiet = int(spec.number("min_quiet_periods"))
+    # A HOLE MUST BREAK THE RUN. Filtering the gaps out and then measuring
+    # "consecutive" quiet periods lets 2023-01 and 2025-11 read as
+    # neighbours, and dormancy is a claim about an UNBROKEN stretch of
+    # silence — an account missing from the book is not an account we
+    # watched sit still. `contiguous_tail` truncates at the first gap
+    # walking back from the latest period, which is exactly the run the
+    # finding will go on to describe.
+    run = series.contiguous_tail(points)
+    # min_quiet quiet periods, plus the one that breaks them.
+    needed = min_quiet + 1
+    if len(run) < needed:
+        present = sum(1 for p in points if p.value is not None)
+        return [na(spec.id, "dormant",
+                   "dormancy needs %d quiet period(s) and a break in them, "
+                   "with no hole between: the unbroken run ending at the "
+                   "latest period is %d period(s) long (%d of %d periods "
+                   "carry this account at all)"
+                   % (min_quiet, len(run), present, len(points)))]
+    labels = tuple(p.book.label for p in run)
+    values = [float(p.value) for p in run]
     quiet_run = ST.unchanged_run(values[:-1], tolerance)
-    latest_book = present[-1].book
+    latest_book = run[-1].book
     basis = SUP.basis_of(spec, latest_book)
     if basis is None:
         return [na(spec.id, "dormant", SUP.basis_missing_reason(spec),
@@ -704,6 +717,54 @@ def dormant(spec: "DetectorSpec", series: "B.BookSeries",
 # ── D-CUTOFF ─────────────────────────────────────────────────────────────
 
 
+def _month_cadence(series: "B.BookSeries") -> Optional[int]:
+    """The spine's step in months, or ABSENT.
+
+    Derived from the periods themselves rather than declared, because a
+    declared cadence that disagrees with the books is worse than none: it
+    would make a gap look like a complete year.
+
+    The step is the SMALLEST gap between consecutive periods, and every
+    other gap must be a whole number of those. That is what separates a
+    HOLE from a different rhythm: months 1, 2, 5 is a monthly spine
+    missing two periods — and the caller wants to hear "2025 is missing
+    March and April", not "this book has no cadence". A spine whose gaps
+    are not multiples of one another (1, then 2.5 months) has no cadence
+    to speak of, and neither does one whose periods cannot say when they
+    are."""
+    stamps = []  # type: List[int]
+    for book in series.books:
+        if book.year is None or book.month is None:
+            return None
+        stamps.append(int(book.year) * 12 + int(book.month))
+    if len(stamps) < 2:
+        return None
+    stamps.sort()
+    steps = [b - a for a, b in zip(stamps, stamps[1:])]
+    if any(step <= 0 for step in steps):
+        return None
+    cadence = min(steps)
+    if any(step % cadence for step in steps):
+        return None
+    return cadence
+
+
+def _months_of_closed_year(fiscal_year_end_month: int, cadence: int
+                           ) -> Optional[set]:
+    """The exact set of months a COMPLETE year carries at this cadence,
+    counting back from the month that closes the year. ABSENT when the
+    cadence does not divide twelve, because then no set of periods ever
+    completes a year and saying otherwise would invent one."""
+    if cadence <= 0 or 12 % cadence != 0:
+        return None
+    months = set()
+    for n in range(12 // cadence):
+        month = ((fiscal_year_end_month - 1 - n * cadence) % 12) + 1
+        months.add(month)
+    return months
+
+
+
 @register("cutoff")
 def cutoff(spec: "DetectorSpec", series: "B.BookSeries",
            profile: Any) -> List["DetectorResult"]:
@@ -715,27 +776,93 @@ def cutoff(spec: "DetectorSpec", series: "B.BookSeries",
     if not prefixes:
         return [na(spec.id, "cutoff", "detector declares no accounts.subject")]
     points = series.readings(prefixes, str(spec.params.get("measure", "movement_gross")))
+    fye = spec.params.get("fiscal_year_end_month")
+    if fye is None:
+        return [na(spec.id, "cutoff",
+                   "this detector measures a share of a CLOSED year and "
+                   "cannot tell which period closes one: "
+                   "%s declares no fiscal_year_end_month"
+                   % spec.address("fiscal_year_end_month"))]
+    cadence = _month_cadence(series)
+    if cadence is None:
+        return [na(spec.id, "cutoff",
+                   "a year is complete or it is not, and that cannot be "
+                   "judged without a calendar: the spine's periods do not "
+                   "all carry a year and a month, or carry no single "
+                   "cadence")]
+    expected = _months_of_closed_year(int(fye), cadence)
+    if expected is None:
+        return [na(spec.id, "cutoff",
+                   "a cadence of %d month(s) does not divide the year, so "
+                   "no set of periods completes one" % cadence)]
+
     by_year = {}  # type: Dict[int, List[B.SeriesPoint]]
     for point in points:
         year = point.book.year
         if year is None or point.value is None:
             continue
         by_year.setdefault(int(year), []).append(point)
+
+    # WHICH YEARS MAY BE MEASURED AT ALL.
+    #
+    # The share this detector reports is "activity in the final period /
+    # activity in the year", and BOTH halves are wrong on a year that has
+    # not finished. Admitting a year on a count of periods present — which
+    # is what `min_periods_per_year` alone did — divides three months of
+    # revenue by three months of revenue and calls the last of them "the
+    # final period of the year". Measured on a clean monthly book: three
+    # months present fired HIGH at a 25.0% lift, four months at 16.7%,
+    # and only from five months on did it fall silent. Every accounting
+    # firm opening the product in Q1 would have been handed a cut-off
+    # accusation manufactured by the calendar.
+    #
+    # A year is admitted only when the periods present are EXACTLY the
+    # periods that make up a closed year at this spine's cadence. That is
+    # strictly stronger than "no hole": it also refuses a year the book
+    # joined halfway through, where the denominator is a half-year and the
+    # final-period share is inflated by construction. The fiscal year end
+    # arrives from the pack, never from this module — which month closes a
+    # year is a jurisdiction fact.
     complete = {}  # type: Dict[int, float]
+    closing_book = {}  # type: Dict[int, B.PeriodBook]
+    partial = []  # type: List[str]
     min_periods_per_year = int(spec.number("min_periods_per_year"))
     for year, rows in by_year.items():
-        if len(rows) < min_periods_per_year:
-            continue
         ordered = sorted(rows, key=lambda p: p.book.ordinal)
+        months = set(int(p.book.month) for p in ordered
+                     if p.book.month is not None)
+        if months != expected:
+            missing = sorted(expected - months)
+            if missing:
+                partial.append(
+                    "%d (%d of its %d period(s) absent: month %s)"
+                    % (year, len(missing), len(expected),
+                       ", ".join(str(m) for m in missing)))
+            else:
+                partial.append(
+                    "%d (carries month %s, which is not part of a year "
+                    "closing in month %d at this cadence)"
+                    % (year, ", ".join(str(m) for m in sorted(months - expected)),
+                       int(fye)))
+            continue
+        if len(ordered) < min_periods_per_year:
+            partial.append("%d (%d period(s), fewer than the %d this share "
+                           "is meaningful over)"
+                           % (year, len(ordered), min_periods_per_year))
+            continue
         total = sum(abs(float(p.value)) for p in ordered)
         if total <= 0:
+            partial.append("%d (no activity to take a share of)" % year)
             continue
         complete[year] = abs(float(ordered[-1].value)) / total
+        closing_book[year] = ordered[-1].book
     if len(complete) < 2:
         return [na(spec.id, "cutoff",
-                   "a final-period share needs at least two years each "
-                   "carrying %d periods; the spine carries %d such year(s)"
-                   % (min_periods_per_year, len(complete)))]
+                   "a final-period share compares a CLOSED year against the "
+                   "closed years before it; the spine carries %d complete "
+                   "year(s)%s"
+                   % (len(complete),
+                      (" — " + "; ".join(sorted(partial))) if partial else ""))]
     years = sorted(complete)
     latest_year = years[-1]
     history = [complete[y] for y in years[:-1]]
@@ -745,14 +872,17 @@ def cutoff(spec: "DetectorSpec", series: "B.BookSeries",
     limit = spec.number("min_share_lift")
     fired = lift >= limit
 
-    latest_book = series.books[-1]
+    # The accounts cited are the ones in the period the finding NAMES, not
+    # whatever the newest book happens to hold — the newest book may sit in
+    # a year this detector just refused to measure.
+    latest_book = closing_book[latest_year]
     rows = latest_book.select(prefixes)
     accounts = SUP.accounts_of(rows.rows, limit=3)
     codes = ", ".join(c for c, _n in accounts)
     labels = tuple(str(y) for y in years)
-    reason = ("%s of %s activity on %s landed in the final period of %d, "
-              "against a median of %s across %s"
-              % (SUP.pct(observed), str(latest_year), codes, latest_year,
+    reason = ("%s of %d activity on %s landed in %s, the final period of the "
+              "year, against a median of %s across %s"
+              % (SUP.pct(observed), latest_year, codes, latest_book.label,
                  SUP.pct(med), ", ".join(str(y) for y in years[:-1])))
     if not fired:
         return [DetectorResult(

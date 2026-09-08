@@ -2697,3 +2697,66 @@ real upstream amplifiers are anonymous GET routes — `price-history?refresh=tru
 Nasdaq on every call, unbounded, while the two shielded POST routes make zero
 outbound calls ever. That inversion is tracked separately; this gate must not
 be read as covering it.
+
+## radar
+
+`tests/engine/test_radar_series.py`, `test_radar_detectors.py`,
+`test_radar_detector_pack.py`, `test_radar_detector_repairs.py`,
+`test_e8_jurisdiction_blindness.py` — the cross-period spine, the twelve
+detector families as pack data, and the six defects an adversarial read found
+in them.
+
+**Why this is a gate and not just part of `pytest`.** All six defects shipped
+GREEN. Not one of them crashed, and not one of them produced a value a reader
+would have questioned:
+
+| defect | what a reader would have seen |
+|---|---|
+| a year admitted before it closed | `ro_revenue_cutoff` HIGH on a clean book: "33.3% of 2025 activity landed in 2025-03, the final period of the year". In March. |
+| a gap filtered out of a quiet run | a dormancy finding built across periods where the account was absent from the book — 2023-01 and 2025-11 read as neighbours |
+| the E8 jurisdiction guard case-sensitive | every pack loader lower-cases the token, so the shape a real weld takes — `if token == "ro":` — passed the guard that exists to catch it |
+| `movement_signed() or 0.0` | "related-party movement 0.0% of total assets" on every persisted period, because `canonical_bs` serves no movement column. The ledger tier measures 2.12% on the same book. |
+| an impact with two identical endpoints | a HIGH finding whose consequence line reads "moves from 0.0% to 0.0% (-0.0%)" |
+| a concentration inside an immaterial balance | 57% of a receivable ledger that is 0.03% of total assets, surfaced as HIGH |
+
+The last of those was found BY the fifth: the renderer-based impact check reds
+on the realestate book, which is how a true ratio with no consequence became
+visible at all.
+
+**GREEN** — exit `0`: `102 passed`.
+
+**PLANT / RED / REVERT**, six plants, each redding through its own message:
+
+```
+cutoff: admit a year on a count of periods present
+  -> E  AssertionError: a half-year and a quarter produced a cut-off finding:
+        33.3% of 2025 activity on 7015.01, 707.010, 707.093 landed in 2025-03,
+        the final period of the year, against a median of 16.7%
+dormant: filter the gaps out before measuring the run
+  -> E  AssertionError: the unbroken run ending at the latest period is 1 period
+        and the rule needs 3; this finding was built across a hole
+        (the planted run reported quiet_run=5 across a spine with a hole in it)
+E8 guard: drop re.IGNORECASE, plant `return token == "ro"` in pack.py
+  -> E  src/engine/radar/detectors/pack.py:294: return token == "ro"
+interco: movement_signed() or 0.0
+  -> E  AssertionError: a movement share was reported from a book that serves no
+        movement column: [('interco_share', 0.1958...), ('interco_movement_share', 0.0), ...]
+result: accept an impact that prints the same on both sides
+  -> E  Failed: DID NOT RAISE UnquantifiedFindingError
+concentration: remove the materiality floor from the fire decision
+  -> E  UnquantifiedFindingError: ro_receivable_concentration fired with an impact
+        that prints as '0.0%' on both sides
+```
+
+Two anti-vacuity controls carry their own weight. `test_two_closed_years_of_an_
+even_book_are_measured_and_stay_silent` reds if the completeness rule becomes so
+strict the detector can never speak, and `test_a_material_concentration_still_
+surfaces` reds if the materiality floor silences the family on every real book.
+Both were confirmed by raising the floor until they went red.
+
+**What this gate cannot see:** whether a detector is USEFUL. Fire rates come
+from `scripts/measure_radar_detectors.py`, which reports
+"N INSUFFICIENT to certify" on every family — four books cannot support a Wilson
+interval, and printing one would be the statistical dishonesty the error budget
+forbids. It also cannot see the serving lane: `run_detectors` has no production
+caller yet, so nothing here is reachable by a user.

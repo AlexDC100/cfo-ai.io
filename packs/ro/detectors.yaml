@@ -264,6 +264,13 @@ detectors:
       # result account is a DEBIT, and counting it would put most of
       # every year's "activity" in its final period by construction.
       measure: credit
+      # WHICH MONTH CLOSES A YEAR IS A JURISDICTION FACT, and it lives
+      # here rather than in the detector. The statutory reporting year for
+      # a Romanian SRL is the calendar year, so the period that closes one
+      # is December. The detector refuses to run at all without this: it
+      # reports a share of a CLOSED year, and it cannot know a year has
+      # closed if nothing tells it where the year ends.
+      fiscal_year_end_month: 12
       min_periods_per_year: 3
       min_share_lift: 0.15
     why: >-
@@ -394,6 +401,14 @@ detectors:
     params:
       min_share: 0.50
       min_counterparties: 3
+      # HOW BIG THE POT HAS TO BE BEFORE A CONCENTRATION INSIDE IT MATTERS.
+      # An asset-based planning-materiality benchmark sits in the 0.5-2%
+      # band of total assets; 1% is the middle of it. Below this, removing
+      # the dominant counterparty outright leaves the balance sheet
+      # unchanged at the precision it is printed to — the finding would be
+      # a true ratio with no consequence, which is the noise the cap and
+      # the impact contract both exist to keep off the page.
+      min_subject_share_of_basis: 0.01
     why: >-
       For a {profile_label}, {top_code} carries {share} of the {scope}
       balance across {count} analytic accounts; {scope} is {share_with} of

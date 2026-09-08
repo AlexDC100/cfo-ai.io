@@ -59,10 +59,17 @@ SCANNED_FILES = (
 
 #: Known jurisdiction vocabulary. Quoted, standalone. "ZZ" is the N7
 #: test jurisdiction — planting it here must fire too.
+#:
+#: CASE-INSENSITIVE, and that is load-bearing rather than tidiness. Every
+#: pack loader in the tree lower-cases the jurisdiction token before it
+#: uses it — `radar/detectors/pack.py` does `str(jurisdiction).lower()` —
+#: so the shape a real weld would take is `if token == "ro":`, in lower
+#: case, which a case-sensitive pattern reads straight past. The guard was
+#: measured blind to exactly that literal before this flag was added.
 _CODE = r"(?:RO|HU|ZZ)"
 TOKEN_PATTERNS = (
-    # quoted country-code literal: "RO" / 'HU'
-    re.compile(r"""["']%s["']""" % _CODE),
+    # quoted country-code literal: "RO" / 'HU' / "ro" / 'hu'
+    re.compile(r"""["']%s["']""" % _CODE, re.IGNORECASE),
     # comparisons against a jurisdiction variable, either direction
     re.compile(r"\bjurisdiction\s*(?:==|!=)"),
     re.compile(r"(?:==|!=)\s*jurisdiction\b"),

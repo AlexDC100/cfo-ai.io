@@ -90,6 +90,38 @@ class DetectorResult:
         if self.fired and not self.reason.strip():
             raise UnquantifiedFindingError(
                 "%s fired with no reason line" % self.detector_id)
+        if self.fired and self.impact is not None:
+            self._refuse_tautological_impact()
+
+    def _refuse_tautological_impact(self) -> None:
+        """An impact whose two endpoints PRINT THE SAME is not a
+        consequence, it is a sentence that says nothing twice.
+
+        The check is against the renderer rather than against a tolerance,
+        because the reader's question is "what changed?" and the reader
+        only ever sees `Impact.render`'s output. A verifier caught a HIGH
+        finding surfacing as "moves from 0.0% to 0.0% (-0.0%)" — the
+        endpoints were not bit-identical, so an `==` guard would have
+        passed it straight through, and the reader would still have been
+        handed a cost of nothing beside a severity that demands action.
+        Whatever the unit rounds away is, by construction, exactly what
+        the reader cannot see."""
+        impact = self.impact
+        assert impact is not None  # narrowed by the caller
+        currency = impact.currency or ""
+        before = F._format_value(impact.baseline, impact.unit, currency)
+        after = F._format_value(impact.adjusted, impact.unit, currency)
+        if before == after:
+            raise UnquantifiedFindingError(
+                "%s fired with an impact that prints as %r on both sides "
+                "(%s: baseline=%r adjusted=%r delta=%r). A finding whose "
+                "quantified consequence renders 'moves from X to X' costs the "
+                "reader attention and returns nothing — it is the shape of "
+                "noise Radar exists to remove. Either the detector fired on a "
+                "movement too small for its own unit to show, or the impact "
+                "measures the wrong pair of endpoints."
+                % (self.detector_id, before, impact.metric,
+                   impact.baseline, impact.adjusted, impact.delta))
 
     def scope_codes(self) -> Tuple[str, ...]:
         return tuple(code for code, _name in self.accounts)

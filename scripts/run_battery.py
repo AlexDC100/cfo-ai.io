@@ -276,6 +276,28 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # RADAR: the cross-period spine, the twelve detectors, and the six
+        # defects an adversarial read found in them. Named separately from
+        # `pytest` because every one of those six shipped GREEN — each
+        # produced a number a reader would have believed rather than a
+        # crash, so a suite that only asks "did it run" cannot see them.
+        # The canaries are one per repair. Floor 100 = the measured 102
+        # tests, rounded down. Plant log: docs/engine_book/gates.md
+        Gate("radar",
+             [PY, "-m", "pytest",
+              "tests/engine/test_radar_series.py",
+              "tests/engine/test_radar_detectors.py",
+              "tests/engine/test_radar_detector_pack.py",
+              "tests/engine/test_radar_detector_repairs.py",
+              "tests/engine/test_e8_jurisdiction_blindness.py", "-q"],
+             work_junit=True, floor=100, units="tests",
+             canaries=("test_a_part_year_never_produces_a_cutoff_finding",
+                       "test_a_gap_inside_the_quiet_stretch_breaks_the_run",
+                       "test_the_jurisdiction_guard_sees_the_lower_case_literal",
+                       "test_a_book_with_no_movement_column_omits_the_movement_figure",
+                       "test_an_impact_that_renders_the_same_on_both_sides_is_refused",
+                       "test_a_concentration_below_the_material_floor_does_not_surface",
+                       "test_a_fictional_detector_added_through_yaml_alone_surfaces")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
