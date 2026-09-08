@@ -150,7 +150,34 @@ per-request.**
 
 ---
 
+## Full battery
+
+`scripts/run_battery.py`, 40 gates. Result at the time of the run: **FAIL —
+37/40 green, 1 vacuous.** Three findings, two of them mine, and what I did:
+
+| Gate | Finding | Action |
+|---|---|---|
+| `import-boundary` | 3 raw totals reads in `executiveSummary.ts` / `reportComparatives.ts`, both carved out of the allowlisted `financialReport.ts` earlier today. | **Closed.** Allowlisted explicitly with the reason and a burn-down note. My first attempt made those lines *refuse* on the contract's "0.44–35.47% drift" — that broke a gate, and the gate was right: measured on agras, the derived and served total assets agree **exactly** (39,272,501.03, difference 0.00); the drift figure is *round-trip* drift that `_apply_envelope_truth_to_statements` already corrects. Reverted, and the measurement is now recorded in the allowlist. |
+| `pytest` (2 of 5,706) | `test_firm_attention` fixture drift — **caused by my wave**, proven by checking out the two engine files at `3d414b8` (passes) and restoring HEAD's (fails). An earlier lane report called it pre-existing; that was wrong. `test_firm_tenancy` fails only in the full run and **passes in isolation** (test pollution). | **Fixture: closed** (`dd21d71`) after diffing rather than regenerating blind — the only changes are inventory leaf moves totalling **0.00**, which is the class-3 catch-all repair working. **Pollution: open**, recorded below. |
+| `provenance-census` | 6 findings, all from today: two unrostered formatters (`formatMeasure`, `formatVariance`), one unregistered component (`IndustryConfirmBanner`), a count drift in `ComprehensiveReport` (32 declared, 29 measured — three *removed*, which is progress), and **a fourth absent-to-zero in `financialReport.ts` against a declared 3 and a ceiling of 3.** | **OPEN — deliberately left red.** The ceiling rule is "this only falls; a new fabrication does not get to hide behind an existing one's allowance." Raising it to go green would be manufacturing a pass, so I did not. See below. |
+
+**The battery is RED and I am reporting it red.** The remaining failure is
+`provenance-census` plus the tenancy test-pollution.
+
 ## Known gaps (recorded, not fixed — per your P1 rule)
+
+- **A fourth absent-to-zero in `financialReport.ts`.** The P&L build-up carries
+  legacy fallbacks (`s.incomeStatement.financialIncome ?? 0`, `capitalizedOwnWork
+  ?? 0`, the non-interest financial expense) that fire only when the canonical
+  `assembled_pl` key is absent — which is never on a current book, but is
+  possible on an older payload. On such a payload the report would print
+  "Financial income 0" where the truth is "the source did not say". It needs a
+  registry verdict (`FILED_ZERO` or `OPEN_DEFECT`) and, if the latter, a real
+  fix returning null. **Not a live wrong number on any current book; do not let
+  that make it disappear.**
+- **`test_firm_tenancy` passes alone and fails in the full run** — module-state
+  pollution between tests, not a product defect, but it makes the suite's
+  verdict depend on ordering.
 
 - **PDF and PPTX exports do not exist.** HTML and XLSX do. PDF is the browser's
   print of the same DOM (A4 rules are in place); a programmatic PDF and a PPTX
