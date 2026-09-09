@@ -331,7 +331,7 @@ export function AuthCard({
             {t("auth.welcome")}
           </h2>
         )}
-        <p className="text-[13px] text-ink-soft leading-snug">
+        <p className={`text-[13px] text-ink-soft leading-snug ${bare ? "text-center" : ""}`}>
           {subtitle ??
             (mode === "sign_in"
               ? t("authX.subtitle_sign_in")
