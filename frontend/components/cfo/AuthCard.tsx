@@ -287,6 +287,10 @@ export function AuthCard({
     setError(null);
     const missing =
       !email.trim() || !password || (mode === "sign_up" && (!companyName.trim() || !confirmPassword || !acceptedTerms));
+    // Create account and Google each tint only their own requirements;
+    // one attempt resets the other's highlights (2026-09-09 per operator).
+    setShowCompanyMissing(false);
+    setShowTermsMissing(false);
     setShowMissing(missing);
     if (missing) return;
     if (mode === "sign_up" && !companyName.trim()) {
@@ -721,6 +725,7 @@ export function AuthCard({
                     if (mode === "sign_up") {
                       const noCompany = !companyName.trim();
                       const noTerms = !acceptedTerms;
+                      setShowMissing(false);
                       setShowCompanyMissing(noCompany);
                       setShowTermsMissing(noTerms);
                       if (noCompany || noTerms) return;
