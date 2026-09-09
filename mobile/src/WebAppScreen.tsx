@@ -35,6 +35,7 @@ import { INTERNAL_HOSTS, OAUTH_REDIRECT, WEB_APP_URL } from "./config";
 import { BRAND, PAPER_BG, TERMINAL_BG, palette } from "./theme";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
+import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
 // Runs before the page's own scripts. `window.ReactNativeWebView` (injected by
 // react-native-webview) is what frontend/lib/nativeShell.ts detects; this flag
@@ -362,7 +363,12 @@ export function WebAppScreen({ tabKey, path }: Props) {
           // Full page (re)load — hide the burger until the new page's AppShell
           // reports chrome again (a reload into /login must not keep it).
           onLoadStart={() => setChrome("none")}
-          onLoadEnd={() => setFirstLoadDone(true)}
+          onLoadEnd={() => {
+            setFirstLoadDone(true);
+            // WKWebView must not add its own keyboard inset on top of the
+            // KeyboardAvoidingView shrink (modules/keyboard-insets).
+            enforceKeyboardInsets();
+          }}
           // No "< > Done" bar over the keyboard (2026-09-09 per operator).
           hideKeyboardAccessoryView
           onError={() => setFailed(true)}

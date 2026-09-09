@@ -147,6 +147,32 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const coarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia("(pointer: coarse)").matches;
+  // Tapping the composer while scrolled up glides the page to the bottom
+  // (2026-09-09 per operator) — and keeps gliding there as the keyboard
+  // shrinks the viewport over the next moments. While the motion runs the
+  // shell's top fade is lifted (html[data-chat-scroll-motion]) so passing
+  // content isn't faded under the status bar.
+  const settleTimer = useRef<number>();
+  const settleToComposer = useCallback(() => {
+    const doc = document.documentElement;
+    const toBottom = () => {
+      const max = doc.scrollHeight - window.innerHeight;
+      if (max - window.scrollY > 8) window.scrollTo({ top: max, behavior: "smooth" });
+    };
+    doc.dataset.chatScrollMotion = "1";
+    toBottom();
+    const onResize = () => toBottom();
+    window.addEventListener("resize", onResize);
+    window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      window.removeEventListener("resize", onResize);
+      delete doc.dataset.chatScrollMotion;
+    }, 900);
+  }, []);
+  useEffect(() => () => {
+    window.clearTimeout(settleTimer.current);
+    delete document.documentElement.dataset.chatScrollMotion;
+  }, []);
   const keyboardOpen = keyboardInset > 0 || (coarsePointer && composerFocused);
   // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
   // an entrance treatment for the first time you land on the tab; re-applying
@@ -583,7 +609,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           // keyboard being up hid the context row before the ⓘ bubble
           // could open (2026-09-08).
           onFocusCapture={(e) => {
-            if (e.target instanceof HTMLTextAreaElement) setComposerFocused(true);
+            if (!(e.target instanceof HTMLTextAreaElement)) return;
+            setComposerFocused(true);
+            if (coarsePointer) settleToComposer();
           }}
           onBlurCapture={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {

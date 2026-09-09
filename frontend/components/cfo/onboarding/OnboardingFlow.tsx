@@ -353,20 +353,32 @@ function OnboardingScreen() {
       closeOnboarding();
     }, 320);
   }, [leaving]);
-  // Get started (last instruction slide): Skip fades out before the final
-  // slide replaces it (2026-09-09 per operator).
-  const [headerFading, setHeaderFading] = useState(false);
-  const headerTimer = useRef<number>();
-  useEffect(() => () => window.clearTimeout(headerTimer.current), []);
+  // Get started (last instruction slide): the final slide shows AT ONCE
+  // (2026-09-09 per operator: no delay) while the step counter, progress
+  // bars and Skip fade out over it — pinned copies at the spots they held,
+  // gone after the fade.
+  const metaRef = useRef<HTMLDivElement>(null);
+  const skipRef = useRef<HTMLButtonElement>(null);
+  const [ghosts, setGhosts] = useState<{ key: "meta" | "skip"; rect: DOMRect }[]>([]);
+  const [ghostsFaded, setGhostsFaded] = useState(false);
+  const ghostTimer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(ghostTimer.current), []);
+  useEffect(() => {
+    if (ghosts.length === 0) return;
+    // Next frame, so the copies paint at full opacity before fading.
+    const raf = requestAnimationFrame(() => setGhostsFaded(true));
+    ghostTimer.current = window.setTimeout(() => {
+      setGhosts([]);
+      setGhostsFaded(false);
+    }, 360);
+    return () => cancelAnimationFrame(raf);
+  }, [ghosts]);
   const next = () => {
     if (step === SLIDES - 1) {
-      if (headerFading) return;
-      setHeaderFading(true);
-      headerTimer.current = window.setTimeout(() => {
-        setStep(SLIDES);
-        setHeaderFading(false);
-      }, 320);
-      return;
+      const next: { key: "meta" | "skip"; rect: DOMRect }[] = [];
+      if (metaRef.current) next.push({ key: "meta", rect: metaRef.current.getBoundingClientRect() });
+      if (skipRef.current) next.push({ key: "skip", rect: skipRef.current.getBoundingClientRect() });
+      setGhosts(next);
     }
     setStep((s) => Math.min(SLIDES, s + 1));
   };
@@ -386,21 +398,46 @@ function OnboardingScreen() {
       data-step={step}
     >
       {auth ? (
-        <FinalSlide t={t} isAuthenticated={isAuthenticated} signOut={signOut} onBack={() => setStep(SLIDES - 1)} onDone={dismiss} />
+        <>
+          <FinalSlide t={t} isAuthenticated={isAuthenticated} signOut={signOut} onBack={() => setStep(SLIDES - 1)} onDone={dismiss} />
+          {ghosts.map((g) => (
+            <div
+              key={g.key}
+              aria-hidden
+              data-testid={`onboarding-ghost-${g.key}`}
+              className="pointer-events-none fixed z-10 transition-opacity duration-300 ease-out"
+              style={{ left: g.rect.left, top: g.rect.top, width: g.rect.width, height: g.rect.height, opacity: ghostsFaded ? 0 : 1 }}
+            >
+              {g.key === "meta" ? (
+                <div className="flex flex-col gap-2.5">
+                  <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]">{`0${SLIDES}/0${SLIDES}`}</span>
+                  <div className="flex gap-[5px]">
+                    {Array.from({ length: SLIDES }, (_, i) => (
+                      <span key={i} className={`h-0.5 flex-1 ${i === SLIDES - 1 ? "ob-bar-on" : "ob-bar-done"}`} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <span className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]">{t("firstRun.btnSkip")}</span>
+              )}
+            </div>
+          ))}
+        </>
       ) : (
         <>
           <div className="relative flex min-h-[24px] items-center justify-between">
             {step === 0 ? (
               <span />
             ) : (
-              <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
+              <button type="button" onClick={back} className="ob-mute ob-touch font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
                 ← {t("firstRun.btnBack")}
               </button>
             )}
             <button
+              ref={skipRef}
               type="button"
               onClick={skip}
-              className={`ob-mute font-mono text-[11px] uppercase tracking-[.06em] transition-opacity duration-300 ${headerFading ? "opacity-0" : "opacity-100"}`}
+              className="ob-mute ob-touch font-mono text-[11px] uppercase tracking-[.06em]"
               data-testid="onboarding-skip"
             >
               {t("firstRun.btnSkip")}
@@ -408,14 +445,14 @@ function OnboardingScreen() {
           </div>
 
           <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
-            {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
+            {step === 0 && (<><Brand /><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
             {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
             {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}
             {step === 3 && (<><PeersCard t={t} /><Copy kicker={t("firstRun.s4kicker")} title={t("firstRun.s4title")} body={t("firstRun.s4body")} /></>)}
           </div>
 
           <div className="flex flex-col gap-[18px]">
-            <div className="flex flex-col gap-2.5">
+            <div ref={metaRef} className="flex flex-col gap-2.5">
               <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]" data-testid="onboarding-counter">{counter}</span>
               <div className="flex gap-[5px]">
                 {Array.from({ length: SLIDES }, (_, i) => (

@@ -27,6 +27,7 @@ import { frame, presentationBackground, presentationDetents, presentationDragInd
 import Constants from "expo-constants";
 import { WEB_APP_URL } from "./config";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
+import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
 export type NativeSheetKind = "account" | "notifications";
 
@@ -181,7 +182,10 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
                     setBuiltInZoomControls={false}
                     hideKeyboardAccessoryView
                     onLoadStart={() => setLoaded((l) => ({ ...l, [k]: false }))}
-                    onLoadEnd={() => setLoaded((l) => ({ ...l, [k]: true }))}
+                    onLoadEnd={() => {
+                      setLoaded((l) => ({ ...l, [k]: true }));
+                      enforceKeyboardInsets();
+                    }}
                   />
                 ))}
               {kind && !loaded[kind] && (

@@ -383,6 +383,9 @@ export function AppShell({ children }: Props) {
   const chatStore = useChatStore();
   const [drawerPull, setDrawerPull] = useState(0);
   const [drawerRefreshing, setDrawerRefreshing] = useState(false);
+  // The indicator fades out when the refresh is done (2026-09-09 per
+  // operator) before its row collapses.
+  const [drawerFading, setDrawerFading] = useState(false);
   const pullStartY = useRef<number | null>(null);
   const drawerScrollerRef = useRef<HTMLDivElement>(null);
   const onDrawerTouchStart = useCallback((e: React.TouchEvent) => {
@@ -421,8 +424,12 @@ export function AppShell({ children }: Props) {
       // as one.
       const rest = Math.max(0, 600 - (Date.now() - started));
       window.setTimeout(() => {
-        setDrawerRefreshing(false);
-        setDrawerPull(0);
+        setDrawerFading(true);
+        window.setTimeout(() => {
+          setDrawerRefreshing(false);
+          setDrawerPull(0);
+          setDrawerFading(false);
+        }, 260);
       }, rest);
     });
   }, [drawerPull, chatStore, refreshWorkspaces]);
@@ -485,7 +492,7 @@ export function AppShell({ children }: Props) {
         <div
           aria-hidden
           data-testid="shell-top-fade"
-          className="pointer-events-none fixed inset-x-0 top-0 z-30"
+          className="shell-top-fade pointer-events-none fixed inset-x-0 top-0 z-30 transition-opacity duration-200"
           style={{
             height: "calc(env(safe-area-inset-top) + 28px)",
             // Paints the SAME background the shell draws natively (canvas +
@@ -576,10 +583,10 @@ export function AppShell({ children }: Props) {
             {...sidebarHandlers}
             inDrawer
             // Pull-to-refresh indicator — the iOS activity indicator in the
-            // theme's accent colour: its bars light up in order as the pull
-            // grows and it spins once released past the threshold. Rendered
-            // at the top of the nav SCROLLER, under the fixed header
-            // (2026-09-09 per operator).
+            // theme's accent colour, nothing else (2026-09-09 per operator):
+            // it spins as it comes into view with the pull, and fades out
+            // once the refresh is done. Rendered at the top of the nav
+            // SCROLLER, under the fixed header.
             navTop={
               (drawerPull > 0 || drawerRefreshing) && (
                 <div
@@ -587,13 +594,13 @@ export function AppShell({ children }: Props) {
                   role={drawerRefreshing ? "status" : undefined}
                   data-testid="drawer-pull-refresh"
                   className="flex items-end justify-center overflow-hidden text-brand"
-                  style={{ height: drawerRefreshing ? PULL_THRESHOLD : drawerPull, transition: drawerRefreshing ? "height 120ms ease-out" : undefined }}
+                  style={{
+                    height: drawerRefreshing ? PULL_THRESHOLD : drawerPull,
+                    opacity: drawerFading ? 0 : drawerRefreshing ? 1 : Math.min(1, drawerPull / PULL_THRESHOLD),
+                    transition: drawerRefreshing ? "height 120ms ease-out, opacity 250ms ease" : undefined,
+                  }}
                 >
-                  <IosSpinner
-                    size={24}
-                    className="mb-3"
-                    progress={drawerRefreshing ? undefined : Math.min(1, drawerPull / PULL_THRESHOLD)}
-                  />
+                  <IosSpinner size={24} className="mb-3" />
                 </div>
               )
             }
