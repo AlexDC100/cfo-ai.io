@@ -422,7 +422,7 @@ function OnboardingScreen() {
             </button>
           </div>
 
-          <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
+          <div key={step} className="ob-a-slide flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
             {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
             {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
             {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}

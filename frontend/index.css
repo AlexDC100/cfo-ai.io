@@ -1265,6 +1265,8 @@ html.native-shell body::before {
 @keyframes ob-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .ob-a-rise { animation: ob-rise .5s cubic-bezier(.16, 1, .3, 1) both; }
 .ob-a-fade { animation: ob-fade .3s both; }
+/* A whole slide's content fading in on Continue / Back. */
+.ob-a-slide { animation: ob-fade .4s ease-out both; }
 .ob-a-pop { animation: ob-pop .3s both; }
 .ob-a-grow { transform-origin: bottom; animation: ob-pop .6s cubic-bezier(.16, 1, .3, 1) both; }
 .ob-a-bar { transform-origin: left; animation: ob-bar 1.5s cubic-bezier(.4, 0, .2, 1) both; }
