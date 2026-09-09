@@ -8,7 +8,7 @@ import { ActionSheetIOS, Alert, AppState } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { Button as UiButton, Host, Image as UiImage, Menu, Section } from "@expo/ui/swift-ui";
-import { buttonStyle, foregroundColor, frame, glassEffect } from "@expo/ui/swift-ui/modifiers";
+import { buttonBorderShape, buttonStyle, foregroundColor, frame } from "@expo/ui/swift-ui/modifiers";
 import {
   BackHandler,
   Linking,
@@ -594,18 +594,17 @@ export function WebAppScreen({ tabKey, path }: Props) {
           "chat-delete". */}
       {chrome === "menu" && trash && Platform.OS === "ios" && (
         <Host style={[styles.trashHit, { top: insets.top + 6 }]} matchContents>
+          {/* The glass is the MENU's button style, not a modifier on its
+              label: a label-level glassEffect was dropped once the menu's
+              presentation morphed back (2026-09-10 per operator). */}
           <Menu
             label={
               <UiImage
                 systemName="ellipsis"
-                modifiers={[
-                  frame({ width: 44, height: 44 }),
-                  glassEffect({ glass: { variant: "regular", interactive: true }, shape: "circle" }),
-                  foregroundColor(p.text),
-                ]}
+                modifiers={[frame({ width: 44, height: 44 }), foregroundColor(p.text)]}
               />
             }
-            modifiers={[buttonStyle("plain")]}
+            modifiers={[buttonStyle("glass"), buttonBorderShape("circle")]}
           >
             <Section title={chatTitle || undefined}>
               <UiButton label="Rename" systemImage="pencil" onPress={() => dispatchAction("chat-rename")} />
