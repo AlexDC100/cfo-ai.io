@@ -20,7 +20,7 @@
 // account row (drawer-only, opens the Command Center account surface),
 // notifications row in the footer, 44px touch targets, drawer-stagger.
 
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { usePrefetchPeriod } from "@/lib/activePeriod";
@@ -59,6 +59,8 @@ import {
 import { NotificationsMenu } from "./NotificationsMenu";
 import { ThemePicker } from "./ThemePicker";
 import { tapHandlers } from "@/lib/tapHandlers";
+import type { ChatConversation } from "./chat/types";
+import { ChatItemActionSheet } from "@/components/cfo/chat/ChatItemActionSheet";
 import { onboardingReplayAvailable, openOnboarding } from "@/lib/onboarding";
 import { Mark } from "./Mark";
 import { nativeShellVersion } from "@/lib/nativeShell";
@@ -244,6 +246,12 @@ export function Sidebar({
     if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
     onItemClick?.();
   };
+  // Long-press on a drawer chat item (2026-09-10 per operator): the held
+  // conversation gets an iOS-style action sheet; the tap that ends the
+  // hold is swallowed so it doesn't also open the chat.
+  const [actionSheetFor, setActionSheetFor] = useState<ChatConversation | null>(null);
+  const longPressTimer = useRef<number>();
+  const longPressedRef = useRef(false);
   // Drawer-only conversations dropdown under the Ask CFO AI row (2026-09-04
   // per operator). Same module store the chat page/panel mount, so the list
   // is always in step with them. Open state persists across sessions.
@@ -360,15 +368,6 @@ export function Sidebar({
         {...(inDrawer ? { "data-drawer-scroller": "" } : {})}
       >
         {inDrawer && navTop}
-        {/* Currency — DRAWER ONLY (2026-08-18, native-shell pass): inside
-            the shell the TopHeader (and its CurrencyMenu) isn't rendered,
-            so the burger menu carries the display-currency toggle. */}
-        {inDrawer && user && (
-          <div className="flex items-center justify-between gap-3 px-6">
-            <span className="text-[13px] text-ink-soft">{t("settings.currency", "Currency")}</span>
-            <CurrencyToggle />
-          </div>
-        )}
         {/* Ask CFO AI — the product's headline capability, promoted to
             the TOP of the rail as the one accent-filled button (operator
             directive 2026-08-29, restored 2026-09-06 after a stint as a
@@ -436,19 +435,40 @@ export function Sidebar({
               <div data-testid="sidebar-conversations">
                 {chat.conversations.map((c) => {
                   const selected = c.id === chat.currentId && location.pathname === "/chat";
+                  const open = () => {
+                    chat.select(c.id);
+                    go(askHref);
+                  };
+                  const tap = tapHandlers(open);
                   return (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => {
-                      chat.select(c.id);
-                      go(askHref);
+                      if (longPressedRef.current) { longPressedRef.current = false; return; }
+                      open();
                     }}
-                    {...tapHandlers(() => {
-                      chat.select(c.id);
-                      go(askHref);
-                    })}
-                    className={`w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] transition-colors duration-micro ${
+                    // Long-press (2026-09-10 per operator): hold a chat to get
+                    // the action sheet with Delete; a hold never also opens
+                    // the chat when the finger lifts.
+                    onTouchStart={(e) => {
+                      tap.onTouchStart(e);
+                      window.clearTimeout(longPressTimer.current);
+                      longPressTimer.current = window.setTimeout(() => {
+                        longPressedRef.current = true;
+                        setActionSheetFor(c);
+                      }, 500);
+                    }}
+                    onTouchMove={() => window.clearTimeout(longPressTimer.current)}
+                    onTouchEnd={(e) => {
+                      window.clearTimeout(longPressTimer.current);
+                      if (longPressedRef.current) { e.preventDefault(); return; }
+                      tap.onTouchEnd(e);
+                    }}
+                    onTouchCancel={() => { window.clearTimeout(longPressTimer.current); tap.onTouchCancel(); }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    style={{ WebkitTouchCallout: "none" }}
+                    className={`w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] select-none transition-colors duration-micro ${
                       selected
                         ? "text-ink font-medium bg-bg-2"
                         : "text-ink-soft hover:text-ink hover:bg-bg-2"
@@ -465,6 +485,11 @@ export function Sidebar({
                   </button>
                   );
                 })}
+                <ChatItemActionSheet
+                  conversation={actionSheetFor}
+                  onClose={() => { setActionSheetFor(null); longPressedRef.current = false; }}
+                  onDelete={(id) => chat.remove(id)}
+                />
               </div>
             )}
           </div>
@@ -528,11 +553,20 @@ export function Sidebar({
         <div
           // Pinned to the BOTTOM of the drawer: the nav above is the only
           // scroller, so this never moves (2026-09-09 per operator).
-          className="shrink-0 px-3 pt-2 border-t border-rule flex items-center gap-1 bg-bg"
+          className="shrink-0 border-t border-rule bg-bg"
           // Carries the home-indicator inset itself (the sheet has none), so
           // the row sits flush with the bottom edge.
           style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
         >
+          {/* Currency — DRAWER ONLY (2026-08-18, native-shell pass): inside
+              the shell the TopHeader (and its CurrencyMenu) isn't rendered,
+              so the burger menu carries the display-currency toggle. Under
+              the divider, above the credentials (2026-09-10 per operator). */}
+          <div className="flex items-center justify-between gap-3 px-6 pt-3 pb-1" data-testid="sidebar-currency-row">
+            <span className="text-[13px] text-ink-soft">{t("settings.currency", "Currency")}</span>
+            <CurrencyToggle />
+          </div>
+          <div className="px-3 pt-1 flex items-center gap-1">
           <button
             type="button"
             data-testid="sidebar-account"
@@ -565,6 +599,7 @@ export function Sidebar({
               right of the credentials — it needs a signed-in inbox, which
               this row already guarantees. */}
           <NotificationsMenu />
+          </div>
         </div>
       )}
 

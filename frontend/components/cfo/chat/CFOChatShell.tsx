@@ -29,7 +29,7 @@ import { useKeyboardInset } from "./useKeyboardInset";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trans, useTranslation } from "react-i18next";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
-import { CFOMessageList, type CFOMessageListHandle } from "./CFOMessageList";
+import { CFOMessageList } from "./CFOMessageList";
 import { CFOEmptyState, useWorkspacePrompts, useGeneralPrompts } from "./CFOEmptyState";
 import { useIndustryPrompts } from "./industryPrompts";
 import { useActiveOrg } from "@/lib/org";
@@ -39,7 +39,8 @@ import { useChatStore } from "./useChatStore";
 import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
 import { useAiDegraded } from "@/lib/aiDegraded";
 import { Chip } from "@/components/instrument/Panel";
-import { Info } from "lucide-react";
+import { Info, Trash2 } from "lucide-react";
+import { DeleteChatDialog } from "./DeleteChatDialog";
 import "./chatDegradedI18n";
 import { useCurrency } from "@/stores/currency";
 import { useAuth } from "@/lib/auth";
@@ -156,25 +157,38 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const coarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia("(pointer: coarse)").matches;
-  // Tapping the composer while scrolled up glides the thread to its newest
-  // message (2026-09-09 per operator); the list keeps gliding there as the
-  // keyboard shrinks it. While the motion runs the shell's top fade is
-  // lifted (html[data-chat-scroll-motion]) so passing content isn't faded
-  // under the status bar.
-  const listRef = useRef<CFOMessageListHandle | null>(null);
-  const settleTimer = useRef<number>();
-  const settleToComposer = useCallback(() => {
-    listRef.current?.scrollToBottom(true);
-    document.documentElement.dataset.chatScrollMotion = "1";
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => {
-      delete document.documentElement.dataset.chatScrollMotion;
-    }, 900);
-  }, []);
-  useEffect(() => () => {
-    window.clearTimeout(settleTimer.current);
-    delete document.documentElement.dataset.chatScrollMotion;
-  }, []);
+  // Focusing the composer never scrolls the thread (2026-09-10 per
+  // operator). A reader scrolled up stays where they are; the list shows
+  // its own "newer messages" arrow when there is content below.
+  // The composer block floats OVER the bottom of the thread with no
+  // background of its own (2026-09-10 per operator: content stays visible
+  // under it), so the scrollers pad their bottom by its measured height.
+  const composerBlockRef = useRef<HTMLDivElement | null>(null);
+  const composerBoxRef = useRef<HTMLDivElement | null>(null);
+  const [composerBlockHeight, setComposerBlockHeight] = useState(0);
+  // Distance from the column's bottom edge to the top of the input box —
+  // the "scroll to newest" arrow sits just above the box itself, lower
+  // than the rows stacked over it (2026-09-10 per operator).
+  const [arrowBottom, setArrowBottom] = useState(0);
+  useEffect(() => {
+    const el = composerBlockRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const block = el.getBoundingClientRect();
+      setComposerBlockHeight(Math.round(block.height));
+      const box = composerBoxRef.current?.getBoundingClientRect();
+      if (box) setArrowBottom(Math.round(block.bottom - box.top) + 8);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    if (composerBoxRef.current) ro.observe(composerBoxRef.current);
+    return () => ro.disconnect();
+  }, [variant]);
+  const scrollPadBottom = `${composerBlockHeight + 8}px`;
+  // Top-right delete disc on phones / in the shell (2026-09-10 per
+  // operator) — the same 52px tinted disc as the shell's native burger,
+  // mirrored to the other corner. Confirms before deleting.
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const keyboardOpen = keyboardInset > 0 || (coarsePointer && composerFocused);
   // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
   // an entrance treatment for the first time you land on the tab; re-applying
@@ -541,6 +555,29 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       </AnimatePresence>
 
       <div className="relative flex-1 min-w-0 flex flex-col h-full min-h-0">
+        {store.current && store.current.messages.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              aria-label={t("chatX.deleteChat")}
+              title={t("chatX.deleteChat")}
+              data-testid="chat-delete-button"
+              className="lg:hidden absolute right-3 z-30 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-rule bg-surface/85 backdrop-blur-xl text-ink active:opacity-70 transition-opacity duration-micro"
+              style={{ top: inShell ? "calc(env(safe-area-inset-top) + 2px)" : "0.75rem" }}
+            >
+              <Trash2 size={18} strokeWidth={1.75} />
+            </button>
+            <DeleteChatDialog
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+              onConfirm={() => {
+                setDeleteOpen(false);
+                if (store.currentId) store.remove(store.currentId);
+              }}
+            />
+          </>
+        )}
         {/* Content swap is instant — no fade (2026-07-26 per operator:
             "remove the fade in content effect when changing chat items"). The
             empty-state ↔ conversation swap snaps rather than cross-fading. */}
@@ -552,8 +589,8 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           <motion.div
             key="chat-empty-content"
             transition={{ duration: 0 }}
-            className={`chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain ${contentPadX} pt-6 sm:pt-10 lg:pt-12 pb-6`}
-            style={emptyPadTop ? { paddingTop: emptyPadTop } : undefined}
+            className={`chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain ${contentPadX} pt-6 sm:pt-10 lg:pt-12`}
+            style={{ paddingBottom: scrollPadBottom, ...(emptyPadTop ? { paddingTop: emptyPadTop } : {}) }}
             data-testid="chat-empty-scroller"
           >
             <PageHeader
@@ -568,11 +605,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         ) : (
           <CFOMessageList
             key="chat-live-content"
-            ref={listRef}
             messages={store.current.messages}
             groundedLabel={groundedLabel}
             padTop={scrollPadTop}
-            padBottom="0.75rem"
+            padBottom={scrollPadBottom}
+            arrowBottom={arrowBottom}
             wideContent
             searchQuery={chatQuery}
             onClearSearch={() => setChatQuery("")}
@@ -581,13 +618,18 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         )}
         </AnimatePresence>
 
-        {/* Composer block — in flow at the bottom of the column. The
-            home-indicator inset is part of its own padding so its
-            background reaches the screen edge (the env() is 0 while the
-            keyboard covers that strip). */}
+        {/* Composer block — floats over the bottom of the thread (absolute
+            inside the non-scrolling column, so it never moves) with NO
+            background: the conversation stays visible beneath and around
+            it; the input box alone carries a surface. The home-indicator
+            inset is part of its padding (the env() is 0 while the keyboard
+            covers that strip). */}
         <div
-          className={`shrink-0 ${composerPadX} pt-2`}
-          style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
+          ref={composerBlockRef}
+          className={`absolute inset-x-0 bottom-0 z-10 ${composerPadX} pt-2`}
+          // Idle, the input sits low — just clear of the home indicator
+          // (2026-09-10 per operator); with the keyboard up the env() is 0.
+          style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.875rem))", background: "transparent" }}
           data-testid="chat-composer-block"
           // Only the textarea counts as "typing" — a tapped ⓘ/attach/send
           // button also takes focus on Android, and treating that as the
@@ -596,7 +638,6 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           onFocusCapture={(e) => {
             if (!(e.target instanceof HTMLTextAreaElement)) return;
             setComposerFocused(true);
-            if (coarsePointer) settleToComposer();
           }}
           onBlurCapture={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -667,26 +708,31 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 </Chip>
               )}
             </div>
-            <CFOComposer
-              // Keyed by conversation so switching chats remounts the
-              // composer with that conversation's saved draft.
-              key={store.currentId ?? "new"}
-              draftKey={store.currentId ?? "new"}
-              ref={composerRef}
-              pending={pending}
-              onSubmit={send}
-              onStop={stopCurrent}
-              placeholder={expectGrounded ? t("chatX.askAboutPlaceholder", { name: companyName || t("chatX.yourCompany") }) : t("chatX.askAnythingPlaceholder")}
-              blockedReason={capBlocked}
-              degradedReason={degradedTooltip}
-            />
+            <div ref={composerBoxRef}>
+              <CFOComposer
+                // Keyed by conversation so switching chats remounts the
+                // composer with that conversation's saved draft.
+                key={store.currentId ?? "new"}
+                draftKey={store.currentId ?? "new"}
+                ref={composerRef}
+                pending={pending}
+                onSubmit={send}
+                onStop={stopCurrent}
+                placeholder={expectGrounded ? t("chatX.askAboutPlaceholder", { name: companyName || t("chatX.yourCompany") }) : t("chatX.askAnythingPlaceholder")}
+                blockedReason={capBlocked}
+                degradedReason={degradedTooltip}
+              />
+            </div>
           </div>
           {/* Context pill + general-answer disclosure — in line, under the input.
               The pill renders only when a workspace is grounded. Hidden while
               the on-screen keyboard is up (2026-08-18) — on a phone this row
               would eat the sliver of space above the keyboard; it returns
               when the keyboard closes. */}
-          <div className={`max-w-[1760px] pt-1 pb-3 flex flex-wrap items-center gap-x-3 gap-y-1 ${keyboardOpen ? "hidden" : ""}`}>
+          {/* On phones the row holds only the grounding chip, so without a
+              period it is dropped entirely — no empty band under the input
+              (2026-09-10 per operator). */}
+          <div className={`max-w-[1760px] pt-1 pb-3 flex-wrap items-center gap-x-3 gap-y-1 ${keyboardOpen ? "hidden" : hasPeriod ? "flex" : "hidden sm:flex"}`}>
             {/* Grounding as a Chip (tone accent) — workspace + period. The
                 grounding is a VERIFIED statement about which book the
                 assistant reads, so it carries the accent, not a neutral

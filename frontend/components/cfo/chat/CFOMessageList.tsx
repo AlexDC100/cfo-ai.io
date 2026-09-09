@@ -12,9 +12,9 @@
 // its caret drifted. It also re-pins to the bottom whenever its own
 // height changes (the keyboard shrinking the viewport), frame by frame.
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ArrowDown, ChevronDown, ChevronUp, X } from "lucide-react";
 
 import { useChatSearchHighlight } from "./useChatSearchHighlight";
 import { CFOMessageBubble } from "./CFOMessageBubble";
@@ -37,6 +37,9 @@ interface Props {
   padTop?: string;
   /** Space under the last message, as a CSS length. Default: 1.5rem. */
   padBottom?: string;
+  /** Where the "scroll to newest" arrow sits: px from the list's bottom
+   *  edge. Default: just above `padBottom`. */
+  arrowBottom?: number;
   /** When true, the CONTENT column follows the dashboard rendering rule
    *  (dashboard horizontal padding + left-anchored `max-w-[1760px]`) while the
    *  scroller stays full-bleed so the scrollbar keeps hugging the screen edge.
@@ -54,7 +57,7 @@ interface Props {
 }
 
 export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function CFOMessageList({
-  messages, groundedLabel, padTop = "1.5rem", padBottom = "1.5rem", wideContent = false,
+  messages, groundedLabel, padTop = "1.5rem", padBottom = "1.5rem", arrowBottom, wideContent = false,
   searchQuery = "", onClearSearch, onRetryFailed,
 }: Props, handleRef) {
   const { t } = useTranslation();
@@ -66,6 +69,15 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   const revision = `${messages.length}:${messages[messages.length - 1]?.content.length ?? 0}`;
   const search = useChatSearchHighlight(contentRef, searchQuery, revision);
   const stickToBottom = useRef(true);
+  // Whether there is more of the thread below the viewport — drives the
+  // "scroll to newest" arrow (2026-09-10 per operator). Only ever set to
+  // a different value, so it doesn't re-render on every scroll tick.
+  const [hasMoreBelow, setHasMoreBelow] = useState(false);
+  const measureBelow = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
+  }, []);
 
   // ── Typewriter bookkeeping ──────────────────────────────────────
   // We type out ONLY a freshly-arrived assistant answer — never history
@@ -126,13 +138,14 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
     if (!el) return;
     const slack = 24;
     const onScroll = () => {
+      measureBelow();
       // A glide in progress passes through "not at the bottom" — ignore it.
       if (Date.now() < glideUntil.current) return;
       stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < slack;
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [measureBelow]);
 
   // Re-pin whenever the scroller's own height changes — the on-screen
   // keyboard shrinking the page, a rotation, the sidebar toggling. The
@@ -143,15 +156,17 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
       if (stickToBottom.current) pin(Date.now() < glideUntil.current);
+      measureBelow();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pin]);
+  }, [pin, measureBelow]);
 
   // Auto-scroll on new messages while pinned to bottom.
   useEffect(() => {
     if (stickToBottom.current) pin(false);
-  }, [messages, pin]);
+    measureBelow();
+  }, [messages, pin, measureBelow]);
 
   const lastIsPendingAssistant =
     messages.length > 0 &&
@@ -249,6 +264,10 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   ) : null;
 
   return (
+    // The scroller plus, floating over its bottom edge, the arrow that
+    // brings a reader who scrolled up back to the newest message. The arrow
+    // is outside the scroller so it never moves with the content.
+    <div className="relative flex-1 min-h-0 flex flex-col">
     <div
       ref={ref}
       className={`chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain ${wideContent ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6"}`}
@@ -257,16 +276,34 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
       aria-live="polite"
       data-testid="chat-messages"
     >
-      {/* `min-h-full` + `justify-end` anchor the thread to the bottom and use
-          the FULL available height (short conversations sit just above the
-          composer instead of floating at the top). The content column spans
-          the full available width (no centering) so the conversation uses all
-          horizontal space; the scroller's scrollbar still hugs the screen's
-          right edge. */}
       {searchPill}
       <div ref={contentRef} className="min-h-full flex flex-col justify-end">
         {body}
       </div>
+    </div>
+    <button
+      type="button"
+      // Scrolling only (2026-09-10 per operator): the press must not take
+      // focus, or the composer would blur and the keyboard would close.
+      onPointerDown={(e) => e.preventDefault()}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        stickToBottom.current = true;
+        glideUntil.current = Date.now() + 900;
+        pin(true);
+      }}
+      aria-label={t("chatX.scrollToNewest")}
+      title={t("chatX.scrollToNewest")}
+      aria-hidden={!hasMoreBelow}
+      tabIndex={-1}
+      data-testid="chat-scroll-to-bottom"
+      // Just above the input box floating over the list's bottom, at the
+      // right so it never covers the rows stacked over the input.
+      style={{ bottom: arrowBottom != null ? arrowBottom : `calc(${padBottom} + 4px)` }}
+      className={`absolute left-1/2 -translate-x-1/2 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-rule bg-surface text-ink-soft shadow-sm transition-[opacity,transform] duration-200 hover:text-ink hover:border-rule-strong active:bg-bg-2 ${hasMoreBelow ? "opacity-100" : "pointer-events-none opacity-0 translate-y-1"}`}
+    >
+      <ArrowDown size={16} strokeWidth={2} />
+    </button>
     </div>
   );
 });

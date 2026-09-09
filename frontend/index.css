@@ -1265,8 +1265,6 @@ html.native-shell body::before {
 @keyframes ob-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .ob-a-rise { animation: ob-rise .5s cubic-bezier(.16, 1, .3, 1) both; }
 .ob-a-fade { animation: ob-fade .3s both; }
-/* The chat lifts the shell's top fade while it glides to the composer. */
-html[data-chat-scroll-motion] .shell-top-fade { opacity: 0; }
 /* /chat owns the viewport (2026-09-10): its message list is the only
    scroller, so the document itself is locked — no document scroll means
    no fixed elements lagging behind it and no drifting caret in WKWebView. */

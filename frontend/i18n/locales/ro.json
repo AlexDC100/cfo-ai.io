@@ -2094,7 +2094,12 @@
       "matchCount": "{{current}} din {{total}}",
       "prevMatch": "Potrivirea anterioară",
       "nextMatch": "Potrivirea următoare"
-    }
+    },
+    "scrollToNewest": "Derulează la cel mai nou mesaj",
+    "deleteChat": "Șterge conversația",
+    "deleteChatTitle": "Ștergi această conversație?",
+    "deleteChatBody": "Conversația și toate mesajele din ea sunt șterse definitiv. Acțiunea nu poate fi anulată.",
+    "deleteChatConfirm": "Șterge"
   },
   "panels": {
     "docsToggleTitle": "Documente · ⌘D",

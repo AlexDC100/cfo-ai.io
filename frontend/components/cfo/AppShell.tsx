@@ -657,7 +657,9 @@ export function AppShell({ children }: Props) {
         // content starts below it plus a little breathing room (2026-09-08
         // per operator: "more top padding on all pages").
         style={{
-          paddingBottom: "env(safe-area-inset-bottom)",
+          // /chat paints to the very bottom edge (2026-09-10 per operator);
+          // its composer keeps its own home-indicator inset.
+          paddingBottom: chatPage ? 0 : "env(safe-area-inset-bottom)",
           ...(inNativeShell ? { paddingTop: "env(safe-area-inset-top)" } : {}),
         }}
       >
@@ -690,8 +692,8 @@ export function AppShell({ children }: Props) {
           style={
             chatPage
               ? inNativeShell
-                ? { height: "calc(100dvh - env(safe-area-inset-bottom))", marginTop: "calc(-1 * env(safe-area-inset-top))" }
-                : { height: "calc(100dvh - 3.5rem - env(safe-area-inset-bottom))" }
+                ? { height: "100dvh", marginTop: "calc(-1 * env(safe-area-inset-top))" }
+                : { height: "calc(100dvh - 3.5rem)" }
               : { paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }
           }
         >

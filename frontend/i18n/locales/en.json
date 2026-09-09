@@ -2082,7 +2082,12 @@
       "matchCount": "{{current}} of {{total}}",
       "prevMatch": "Previous match",
       "nextMatch": "Next match"
-    }
+    },
+    "scrollToNewest": "Scroll to newest message",
+    "deleteChat": "Delete chat",
+    "deleteChatTitle": "Delete this chat?",
+    "deleteChatBody": "The conversation and every message in it are deleted permanently. This can't be undone.",
+    "deleteChatConfirm": "Delete"
   },
   "panels": {
     "docsToggleTitle": "Documents · ⌘D",
