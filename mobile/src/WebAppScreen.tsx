@@ -6,7 +6,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActionSheetIOS, Alert } from "react-native";
 import {
-  ActivityIndicator,
   BackHandler,
   Linking,
   Platform,
@@ -37,6 +36,7 @@ import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
 import { NativeComposer, type NativeComposerState } from "./NativeComposer";
+import { AppLoader } from "./AppLoader";
 import * as DocumentPicker from "expo-document-picker";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
@@ -577,9 +577,12 @@ export function WebAppScreen({ tabKey, path }: Props) {
         </TouchableOpacity>
       )}
 
+      {/* First-load cover: the page's own loader, drawn natively, on the
+          page's own canvas colour — so when the page paints its loader
+          underneath and this lifts, nothing visibly changes. */}
       {!firstLoadDone && !failed && (
-        <View style={[styles.overlay, { backgroundColor: p.background }]}>
-          <ActivityIndicator size="large" color={BRAND} />
+        <View style={[styles.overlay, { backgroundColor: chromeBg }]}>
+          <AppLoader palette={p} accent={accent} />
         </View>
       )}
 

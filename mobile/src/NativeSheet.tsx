@@ -20,7 +20,7 @@
 //                                          reload the main WebView, dismiss
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { BottomSheet, Group, Host, RNHostView } from "@expo/ui/swift-ui";
 import { frame, presentationBackground, presentationDetents, presentationDragIndicator } from "@expo/ui/swift-ui/modifiers";
@@ -28,6 +28,8 @@ import Constants from "expo-constants";
 import { WEB_APP_URL } from "./config";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
+import { AppLoader } from "./AppLoader";
+import { BRAND, palette } from "./theme";
 
 export type NativeSheetKind = "account" | "notifications";
 
@@ -200,7 +202,7 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
                 // Only a sheet opened before its page finished booting
                 // shows a spinner; a warmed page presents as-is.
                 <View pointerEvents="none" style={styles.loading}>
-                  <ActivityIndicator color={isDark(fallbackBg) ? "#ffffff" : "#000000"} />
+                  <AppLoader palette={palette(isDark(fallbackBg) ? "dark" : "light")} accent={isDark(fallbackBg) ? BRAND : "#0E7C6B"} compact />
                 </View>
               )}
             </View>
