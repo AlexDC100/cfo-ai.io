@@ -2818,11 +2818,9 @@
     "btnStart": "Get started",
     "btnSkip": "Skip",
     "btnBack": "Back",
-    "btnRestart": "Replay intro",
     "btnGoogle": "Continue with Google",
     "btnEmail": "Continue with email",
     "btnGuest": "Explore without an account",
-    "btnDashboard": "Go to dashboard",
     "guestNote": "Full app, demo company. Nothing saves.",
     "mFile": "balanta_2025_12.xlsx",
     "mAccounts": "accounts",
@@ -2844,6 +2842,8 @@
     "mPeerNote": "Above three of five listed peers on EBITDA margin; behind on inventory turns.",
     "mAsk": "Ask anything",
     "mChatQ": "Why did margin drop in Q4?",
-    "mChatA": "Gross margin fell 2.4 pts — materials cost rose 8% while prices held."
+    "mChatA": "Gross margin fell 2.4 pts — materials cost rose 8% while prices held.",
+    "btnSignIn": "Sign in",
+    "continueWithout": "Or continue without signing in"
   }
 }

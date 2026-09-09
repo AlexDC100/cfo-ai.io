@@ -164,12 +164,40 @@ function PeersCard({ t }: { t: T }) {
   );
 }
 
+/** Types `text` out character by character WITHOUT moving layout: the
+ *  full text is laid out invisibly to fix the box, and the visible prefix
+ *  sits on top of it — a prefix wraps exactly like the whole. */
+function Typewriter({ text, delayMs = 400, durationMs = 1600 }: { text: string; delayMs?: number; durationMs?: number }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setShown(text.length);
+      return undefined;
+    }
+    let raf = 0;
+    const start = performance.now() + delayMs;
+    const tick = (now: number) => {
+      const n = Math.max(0, Math.min(text.length, Math.round(((now - start) / durationMs) * text.length)));
+      setShown(n);
+      if (n < text.length) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [text, delayMs, durationMs]);
+  return (
+    <span className="relative block">
+      <span aria-hidden className="invisible">{text}</span>
+      <span className="absolute inset-0">{text.slice(0, shown)}</span>
+    </span>
+  );
+}
+
 function AskCard({ t }: { t: T }) {
   return (
     <div className="ob-panel ob-a-rise p-3.5">
       <div className="ob-mute font-mono text-[10px] uppercase tracking-[.1em]">{t("firstRun.mAsk")}</div>
       <div className="mt-3 font-mono text-[12px] leading-[1.5]">? {t("firstRun.mChatQ")}</div>
-      <div className="ob-accent ob-a-type mt-2 font-mono text-[12px] leading-[1.5]">{t("firstRun.mChatA")}</div>
+      <div className="ob-accent mt-2 font-mono text-[12px] leading-[1.5]"><Typewriter text={t("firstRun.mChatA")} /></div>
     </div>
   );
 }
@@ -233,11 +261,7 @@ function OnboardingScreen() {
             ← {counter}
           </button>
         )}
-        {auth ? (
-          <button type="button" onClick={() => setStep(0)} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-restart">
-            {t("firstRun.btnRestart")}
-          </button>
-        ) : (
+        {!auth && (
           <button type="button" onClick={skip} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-skip">
             {t("firstRun.btnSkip")}
           </button>
@@ -263,7 +287,12 @@ function OnboardingScreen() {
       {auth ? (
         <div className="flex flex-col gap-2.5">
           {isAuthenticated ? (
-            <button type="button" onClick={finish} className="ob-cta" data-testid="onboarding-finish">{t("firstRun.btnDashboard")}</button>
+            <>
+              <button type="button" onClick={onEmail} className="ob-cta" data-testid="onboarding-signin">{t("firstRun.btnSignIn")}</button>
+              <button type="button" onClick={finish} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
+                {t("firstRun.continueWithout")}
+              </button>
+            </>
           ) : (
             <>
               <button type="button" onClick={onGoogle} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-google">

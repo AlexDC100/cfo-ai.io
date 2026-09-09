@@ -1258,14 +1258,12 @@ html.native-shell body::before {
 @keyframes ob-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ob-pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
 @keyframes ob-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes ob-type { from { max-width: 0; } to { max-width: 100%; } }
 @keyframes ob-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .ob-a-rise { animation: ob-rise .5s cubic-bezier(.16, 1, .3, 1) both; }
 .ob-a-fade { animation: ob-fade .3s both; }
 .ob-a-pop { animation: ob-pop .3s both; }
 .ob-a-grow { transform-origin: bottom; animation: ob-pop .6s cubic-bezier(.16, 1, .3, 1) both; }
 .ob-a-bar { transform-origin: left; animation: ob-bar 1.5s cubic-bezier(.4, 0, .2, 1) both; }
-.ob-a-type { overflow: hidden; white-space: normal; animation: ob-type 1.6s .4s cubic-bezier(.4, 0, .2, 1) both; }
 .ob-a-blink { animation: ob-blink 1s .8s step-end infinite; }
 @media (prefers-reduced-motion: reduce) {
   .ob-screen * { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }

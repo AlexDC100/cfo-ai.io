@@ -2843,11 +2843,9 @@
     "btnStart": "Începe",
     "btnSkip": "Sari",
     "btnBack": "Înapoi",
-    "btnRestart": "Reia intro",
     "btnGoogle": "Continuă cu Google",
     "btnEmail": "Continuă cu e-mail",
     "btnGuest": "Explorează fără cont",
-    "btnDashboard": "Mergi la panou",
     "guestNote": "Aplicația completă, companie demo. Nimic nu se salvează.",
     "mFile": "balanta_2025_12.xlsx",
     "mAccounts": "conturi",
@@ -2869,6 +2867,8 @@
     "mPeerNote": "Peste trei din cinci companii listate la marja EBITDA; sub ele la rotația stocurilor.",
     "mAsk": "Întreabă orice",
     "mChatQ": "De ce a scăzut marja în T4?",
-    "mChatA": "Marja brută a scăzut 2,4 pp — costul materialelor a urcat 8%, prețurile au rămas."
+    "mChatA": "Marja brută a scăzut 2,4 pp — costul materialelor a urcat 8%, prețurile au rămas.",
+    "btnSignIn": "Autentifică-te",
+    "continueWithout": "Sau continuă fără autentificare"
   }
 }
