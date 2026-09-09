@@ -28,8 +28,6 @@ import Constants from "expo-constants";
 import { WEB_APP_URL } from "./config";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
-import { AppLoader } from "./AppLoader";
-import { BRAND, palette } from "./theme";
 
 export type NativeSheetKind = "account" | "notifications";
 
@@ -72,7 +70,6 @@ function toHex(color: string, fallback: string): string {
 export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Props) {
   const webRefs = useRef<Record<NativeSheetKind, WebView | null>>({ account: null, notifications: null });
   const presented = kind !== null;
-  const [loaded, setLoaded] = useState<Record<NativeSheetKind, boolean>>({ account: false, notifications: false });
   // A sheet requested before the warm-up mounts its page right away. Both
   // pages mount TOGETHER: mounting them one at a time (tried 2026-09-10)
   // left the hosted view sized for the first child, and the sheet's
@@ -186,20 +183,12 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
                     scalesPageToFit={false}
                     setBuiltInZoomControls={false}
                     hideKeyboardAccessoryView
-                    onLoadStart={() => setLoaded((l) => ({ ...l, [k]: false }))}
-                    onLoadEnd={() => {
-                      setLoaded((l) => ({ ...l, [k]: true }));
-                      enforceKeyboardInsets();
-                    }}
+                    // No native cover while the page boots (2026-09-10 per
+                    // operator: it kept drawing over the content): the page
+                    // shows its own loader on the sheet's backdrop.
+                    onLoadEnd={() => enforceKeyboardInsets()}
                   />
                 ))}
-              {kind && !loaded[kind] && (
-                // Only a sheet opened before its page finished booting
-                // shows a spinner; a warmed page presents as-is.
-                <View pointerEvents="none" style={styles.loading}>
-                  <AppLoader palette={palette(isDark(fallbackBg) ? "dark" : "light")} accent={isDark(fallbackBg) ? BRAND : "#0E7C6B"} compact />
-                </View>
-              )}
             </View>
           </RNHostView>
         </Group>
@@ -220,5 +209,4 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   web: { flex: 1, backgroundColor: "transparent" },
   parked: { position: "absolute", left: 0, top: 0, width: 1, height: 1, opacity: 0 },
-  loading: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
 });
