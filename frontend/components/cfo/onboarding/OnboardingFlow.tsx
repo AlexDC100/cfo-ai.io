@@ -400,7 +400,7 @@ function OnboardingScreen() {
                 left: step === 0 ? 0 : "50%",
                 transform: step === 0 ? "translate(0, -50%)" : "translate(-50%, -50%)",
                 opacity: headerFading ? 0 : 1,
-                transition: "left 520ms cubic-bezier(.16, 1, .3, 1), transform 520ms cubic-bezier(.16, 1, .3, 1), opacity 300ms ease",
+                transition: "left 850ms cubic-bezier(.16, 1, .3, 1), transform 850ms cubic-bezier(.16, 1, .3, 1), opacity 300ms ease",
               }}
             >
               <Mark />
