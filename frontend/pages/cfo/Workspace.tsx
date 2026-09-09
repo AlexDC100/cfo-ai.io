@@ -757,7 +757,12 @@ function StepRules() {
   );
 }
 
-function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => void }) {
+// EXPORTED FOR TEST. The wizard's upload step has broken twice — once
+// routing a balanță to the legacy SKU parser, once refusing .xls before
+// any request — and neither was catchable without rendering it. The e2e
+// route needs an authenticated workspace (engine PUBLIC_TEST_MODE), which
+// the battery does not run with, so this is where that path is gated.
+export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => void }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
