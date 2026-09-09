@@ -601,7 +601,10 @@ export function WebAppScreen({ tabKey, path }: Props) {
             label={
               <UiImage
                 systemName="ellipsis"
-                modifiers={[frame({ width: 44, height: 44 }), foregroundColor(p.text)]}
+                // The glass button style pads the label; a 28 pt label makes
+                // the whole disc ~44 pt, the burger's size (2026-09-10 per
+                // operator: the disc read bigger than the burger).
+                modifiers={[frame({ width: 28, height: 28 }), foregroundColor(p.text)]}
               />
             }
             modifiers={[buttonStyle("glass"), buttonBorderShape("circle")]}
