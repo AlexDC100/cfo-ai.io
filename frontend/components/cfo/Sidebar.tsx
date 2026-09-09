@@ -511,9 +511,9 @@ export function Sidebar({
                     onContextMenu={shellMenus ? undefined : (e) => e.preventDefault()}
                     // No link drag either way; the browser also drops the
                     // callout (its menu is the web one).
-                    style={shellMenus ? { WebkitUserDrag: "none" } : { WebkitTouchCallout: "none", WebkitUserDrag: "none" }}
+                    style={shellMenus ? undefined : { WebkitTouchCallout: "none" }}
                     draggable={false}
-                    className={`w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] select-none transition-colors duration-micro ${
+                    className={`drawer-row-nodrag w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] select-none transition-colors duration-micro ${
                       selected
                         ? "text-ink font-medium bg-bg-2"
                         : "text-ink-soft hover:text-ink hover:bg-bg-2"
@@ -840,14 +840,14 @@ function SidebarLink({
       end={end}
       // No iOS link preview / callout on a held row and no link drag
       // (2026-09-10 per operator: only chat items react to a hold).
-      style={{ WebkitTouchCallout: "none", WebkitUserDrag: "none" }}
+      style={{ WebkitTouchCallout: "none" }}
       draggable={false}
       className={({ isActive }) =>
         // Full-bleed rows; pl-6 keeps the icon center on the rail's 32px
         // line in BOTH modes so nothing shifts while the width animates.
         // Active is the 2px accent rule on the LEFT edge + ink text — no
         // pill, no fill. Hover is a quiet fill.
-        `group relative flex items-center min-h-[44px] sm:min-h-0 sm:h-9 gap-3 pl-6 pr-3 text-[13px] transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+        `drawer-row-nodrag group relative flex items-center min-h-[44px] sm:min-h-0 sm:h-9 gap-3 pl-6 pr-3 text-[13px] transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
           isActive
             ? "text-ink font-medium"
             : "text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/70"

@@ -1181,6 +1181,12 @@
 /* iOS activity indicator (components/cfo/IosSpinner): each bar fades from
    full to dim over one revolution; the per-bar negative delay staggers them
    so the bright bar appears to travel clockwise. */
+/* Drawer rows are never draggable (2026-09-10 per operator): WebKit would
+   otherwise start a link drag from a held row. */
+.drawer-row-nodrag {
+  -webkit-user-drag: none;
+}
+
 /* Drawer dividers (2026-09-10 per operator): inset from the edges and
    fading out at both ends instead of a full-width rule. */
 .drawer-rule {
