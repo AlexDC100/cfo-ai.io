@@ -54,10 +54,12 @@ import {
   User as UserIcon,
   X,
   type LucideIcon,
+  RotateCcw,
 } from "lucide-react";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { ThemePicker } from "./ThemePicker";
 import { tapHandlers } from "@/lib/tapHandlers";
+import { onboardingReplayAvailable, openOnboarding } from "@/lib/onboarding";
 import { Mark } from "./Mark";
 import { nativeShellVersion } from "@/lib/nativeShell";
 import { CurrencyToggle } from "./CurrencyToggle";
@@ -493,6 +495,25 @@ export function Sidebar({
           </Section>
         ))}
       </nav>
+
+      {/* Replay the first-run onboarding — DRAWER, DEV BUILDS ONLY
+          (2026-09-09 per operator): a local switch to watch the intro
+          again; never rendered in a production bundle. */}
+      {inDrawer && onboardingReplayAvailable && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            data-testid="sidebar-replay-onboarding"
+            onClick={() => { onItemClick?.(); openOnboarding(); }}
+            {...tapHandlers(() => { onItemClick?.(); openOnboarding(); })}
+            className="flex w-full items-center gap-2 rounded-md px-3 min-h-[44px] text-[13px] text-ink-soft hover:bg-bg-2 hover:text-ink transition-colors duration-micro"
+          >
+            <RotateCcw size={15} strokeWidth={1.75} className="shrink-0" />
+            <span className="truncate">{t("sidebar.replayOnboarding")}</span>
+            <span className="ml-auto font-mono text-[10px] uppercase tracking-[.08em] text-ink-mute">dev</span>
+          </button>
+        </div>
+      )}
 
       {/* Account row — DRAWER ONLY (2026-08-18, native-shell pass): inside
           the shell there is no TopHeader avatar, so the credentials row is

@@ -15,7 +15,8 @@ import { ComponentProps, useCallback, useEffect, useRef } from "react";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 
 import { setPref, usePrefSync } from "@/lib/prefs";
-import { isNativeShell, postToNativeShell } from "@/lib/nativeShell";
+import { isNativeShell } from "@/lib/nativeShell";
+import { reportThemeToShell } from "@/theme/reportThemeToShell";
 
 /**
  * Bridges next-themes to `user_prefs.prefs.theme` so the choice follows the
@@ -33,12 +34,6 @@ function ThemePrefSync() {
   useEffect(() => {
     if (!isNativeShell() || !resolvedTheme) return;
     const dark = resolvedTheme === "dark";
-    // The `--bg` token is "h s% l%" (Tailwind hsl-var form); RN wants
-    // "hsl(h, s%, l%)".
-    const token = (name: string): string | undefined => {
-      const parts = getComputedStyle(document.documentElement).getPropertyValue(name).trim().split(/\s+/);
-      return parts.length === 3 ? `hsl(${parts[0]}, ${parts[1]}, ${parts[2]})` : undefined;
-    };
     // This effect runs BEFORE the provider's own effect that puts the
     // `dark` class on <html> (children's effects run first), so reading the
     // tokens synchronously reported the OTHER theme's colours — the shell
@@ -53,14 +48,7 @@ function ThemePrefSync() {
         raf = requestAnimationFrame(send);
         return;
       }
-      postToNativeShell({
-        source: "cfo-ai",
-        type: "theme",
-        theme: dark ? "dark" : "light",
-        bg: token("--bg"),
-        accent: token("--brand"),
-        mode: theme === "system" || !theme ? "system" : "explicit",
-      });
+      reportThemeToShell(dark, theme === "system" || !theme ? "system" : "explicit");
     };
     raf = requestAnimationFrame(send);
     return () => cancelAnimationFrame(raf);

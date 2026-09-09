@@ -27,6 +27,7 @@ import {
 import { TopHeader } from "./TopHeader";
 import { PreviewSheet } from "./PreviewSheet";
 import { closePreviewSheet, getPreviewSheet, subscribePreviewSheet } from "@/lib/previewSheet";
+import { getOnboardingOpen, subscribeOnboarding } from "@/lib/onboarding";
 import { UploadResumeProvider } from "./UploadResumeProvider";
 import { Sidebar } from "./Sidebar";
 // FloatingAiButton import removed — see comment in JSX below.
@@ -164,6 +165,8 @@ export function AppShell({ children }: Props) {
   // An in-app preview sheet (lib/previewSheet.ts) is open — in the shell the
   // native button becomes "back" for as long as it is.
   const previewOpen = useSyncExternalStore(subscribePreviewSheet, getPreviewSheet, () => null) !== null;
+  // The first-run onboarding covers the whole screen — no burger over it.
+  const onboardingOpen = useSyncExternalStore(subscribeOnboarding, getOnboardingOpen, () => false);
 
   // Tell the shell when to show its burger: on while AppShell is mounted,
   // off while the drawer is open (the native button would float above the
@@ -175,13 +178,13 @@ export function AppShell({ children }: Props) {
     postToNativeShell({
       source: "cfo-ai",
       type: "chrome",
-      burger: !sidebarOpen && !previewOpen,
-      back: previewOpen,
+      burger: !sidebarOpen && !previewOpen && !onboardingOpen,
+      back: previewOpen && !onboardingOpen,
     });
     return () => {
       postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false });
     };
-  }, [inNativeShell, sidebarOpen, previewOpen]);
+  }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen]);
 
   // Shell: the Command Center bottom sheet rises OVER the open drawer, so a
   // jump launched from it (Workspace, Settings…) must also dismiss the

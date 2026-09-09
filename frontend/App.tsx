@@ -119,6 +119,7 @@ import { TestModeSessionBoot } from "@/components/cfo/TestModeSessionBoot";
 import { isPublicTestMode } from "@/lib/testMode";
 import { nativeSheetKind, isNativeShell } from "@/lib/nativeShell";
 import { NativeSheetRouteWatcher } from "./components/cfo/NativeSheetRouteWatcher";
+import { OnboardingFlow } from "./components/cfo/onboarding/OnboardingFlow";
 // RouteFallback — the skeleton shown while a lazy chunk fetches. Mirrors
 // the AppShell silhouette so the transition feels instant rather than
 // a jarring flash of nothing.
@@ -238,6 +239,10 @@ function App() {
                 Must be inside <BrowserRouter> (needs URL) and
                 <AuthProvider> (needs session). */}
             <LanguageSync />
+            {/* First-run onboarding (2026-09-09): full-screen over everything on
+                the shell's first launch; replayable from the drawer in dev.
+                Inside BrowserRouter + AuthProvider for its sign-in buttons. */}
+            <OnboardingFlow />
             {/* F5.0 Phase 1.5 — global popover stack provider. Every
                 <LearnableNumber> click pushes onto this stack. The
                 stack renderer (mounted as a sibling below) paints all
