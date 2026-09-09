@@ -848,7 +848,8 @@
     "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea conducerii.",
     "show_password": "Arată parola",
     "hide_password": "Ascunde parola",
-    "subtitle_sign_up_mobile": "Creați spațiul de lucru CFO AI."
+    "subtitle_sign_up_mobile": "Creează-ți contul CFO AI.",
+    "subtitle_sign_in_mobile": "Autentifică-te în contul tău CFO AI."
   },
   "notFound": {
     "title": "404",

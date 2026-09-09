@@ -848,7 +848,8 @@
     "disclaimer": "AI-assisted financial recommendations only. Final decisions remain with management.",
     "show_password": "Show password",
     "hide_password": "Hide password",
-    "subtitle_sign_up_mobile": "Create your CFO AI workspace."
+    "subtitle_sign_up_mobile": "Create your CFO AI account.",
+    "subtitle_sign_in_mobile": "Sign in to your CFO AI account."
   },
   "notFound": {
     "title": "404",

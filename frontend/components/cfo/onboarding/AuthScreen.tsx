@@ -27,8 +27,8 @@ export function Mark({ size = 22 }: { size?: number }) {
 export function Brand({ innerRef }: { innerRef?: RefObject<HTMLDivElement> }) {
   return (
     <div ref={innerRef} className="flex shrink-0 items-center justify-center gap-2" data-testid="onboarding-brand">
-      <Mark size={42} />
-      <span className="font-sans text-[34px] font-bold tracking-[-.025em]">
+      <Mark size={48} />
+      <span className="font-sans text-[40px] font-bold tracking-[-.03em]">
         CFO <span className="ob-accent">AI</span>
       </span>
     </div>
@@ -80,7 +80,7 @@ export function AuthPanel({
             initialMode={initialMode}
             mode={mode}
             onModeChange={setMode}
-            subtitle={mode === "sign_up" ? t("authX.subtitle_sign_up_mobile") : t("authX.subtitle_sign_in_page")}
+            subtitle={mode === "sign_up" ? t("authX.subtitle_sign_up_mobile") : t("authX.subtitle_sign_in_mobile")}
             onAuthenticated={onAuthenticated}
           />
         </div>
