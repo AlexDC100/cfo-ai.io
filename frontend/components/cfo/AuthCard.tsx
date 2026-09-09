@@ -141,6 +141,8 @@ export function AuthCard({
     [firstName, lastName],
   );
   const signupDetailsComplete = firstName.trim().length > 0 && lastName.trim().length > 0 && companyName.trim().length > 0;
+  const signupReady =
+    companyName.trim().length > 0 && email.trim().length > 0 && password.length > 0 && confirmPassword.length > 0 && acceptedTerms;
   const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
   const passwordChecks = useMemo(() => getPasswordChecks(password, t), [password, t]);
   const selectedPlan = useMemo(
@@ -546,37 +548,6 @@ export function AuthCard({
                     required
                   />
                 </Field>
-                {/* Google sign-UP (2026-09-09 per operator): above the email
-                    field, usable once name + company are filled — those
-                    are parked and applied to the new account, Google
-                    supplies the rest (lib/oauthProfile.ts). */}
-                {supabaseEnabled && oauthPlacement === "below" && (
-                  <div className="pt-1">
-                    <div className="grid grid-cols-1 gap-2">
-                      <OAuthButton
-                        provider="google"
-                        busy={busy}
-                        disabled={!signupDetailsComplete}
-                        onClick={() => {
-                          markPendingOAuthProfile({ firstName: firstName.trim(), lastName: lastName.trim(), companyName: companyName.trim() });
-                          void handleOAuth("google");
-                        }}
-                      />
-                    </div>
-                    {!signupDetailsComplete && (
-                      <p className="mt-1.5 text-[11px] text-ink-soft" data-testid="google-needs-details">
-                        {t("authX.google_needs_details")}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 mt-3" aria-hidden>
-                      <div className="flex-1 h-px bg-rule" />
-                      <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft/70">
-                        {t("authX.or_continue_email")}
-                      </span>
-                      <div className="flex-1 h-px bg-rule" />
-                    </div>
-                  </div>
-                )}
               </>
             )}
 
@@ -707,23 +678,27 @@ export function AuthCard({
 
             <button
               type="submit"
-              disabled={busy}
-              className="
+              // Create account stays faded until every required field is
+              // filled and the terms box is ticked (2026-09-09 per operator).
+              disabled={busy || (mode === "sign_up" && !signupReady)}
+              data-ready={mode === "sign_up" ? (signupReady ? "true" : "false") : undefined}
+              className={`
                 w-full mt-1
                 inline-flex items-center justify-center gap-2
                 h-11 px-5 rounded-full
                 bg-brand hover:bg-brand/90
                 text-primary-foreground text-[14px] font-medium
-                disabled:opacity-50 disabled:cursor-not-allowed
-                transition-all
-              "
+                disabled:cursor-not-allowed
+                transition-all duration-300
+                ${mode === "sign_up" && !signupReady ? "opacity-35" : busy ? "opacity-50" : "opacity-100"}
+              `}
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
               {mode === "sign_in" ? t("auth.sign_in") : t("auth.sign_up")}
             </button>
           </form>
 
-          {supabaseEnabled && oauthPlacement === "below" && mode === "sign_in" && (
+          {supabaseEnabled && oauthPlacement === "below" && (
             <>
               <div className="flex items-center gap-3 my-4" aria-hidden>
                 <div className="flex-1 h-px bg-rule" />
@@ -732,13 +707,25 @@ export function AuthCard({
                 </span>
                 <div className="flex-1 h-px bg-rule" />
               </div>
+              {/* Google sign-UP (2026-09-09 per operator): under Create
+                  account, usable once name + company are filled — those
+                  are parked and applied to the new account, Google
+                  supplies the rest (lib/oauthProfile.ts). */}
               <div className="grid grid-cols-1 gap-2">
                 <OAuthButton
                   provider="google"
                   busy={busy}
-                  onClick={() => handleOAuth("google")}
+                  disabled={mode === "sign_up" && !signupDetailsComplete}
+                  onClick={() => {
+                    if (mode === "sign_up") {
+                      markPendingOAuthProfile({ firstName: firstName.trim(), lastName: lastName.trim(), companyName: companyName.trim() });
+                    }
+                    void handleOAuth("google");
+                  }}
                 />
               </div>
+              {/* Faint rule before the switch-mode line. */}
+              <div aria-hidden className="mt-5 h-px bg-rule/60" />
             </>
           )}
 

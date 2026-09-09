@@ -848,7 +848,7 @@
     "disclaimer": "AI-assisted financial recommendations only. Final decisions remain with management.",
     "show_password": "Show password",
     "hide_password": "Hide password",
-    "google_needs_details": "Fill in your name and company first, then continue with Google."
+    "subtitle_sign_up_mobile": "Create your CFO AI workspace."
   },
   "notFound": {
     "title": "404",
