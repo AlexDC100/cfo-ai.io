@@ -11,8 +11,9 @@
 // normal browser.
 
 import { useCallback, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { ONBOARDING_LAST_STEP, openOnboarding } from "@/lib/onboarding";
 import { ArrowLeft } from "lucide-react";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { MarketingHeader } from "./Landing";
@@ -20,6 +21,7 @@ import { NATIVE_ACTION_EVENT, isNativeShell, postToNativeShell } from "@/lib/nat
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   // Optional return path (e.g. the landing page sends ?next=/ so the user
@@ -37,9 +39,17 @@ export default function Login() {
   // has somewhere to go back to; a cold open (shell reload straight into
   // /login) falls back to the sanitized `next` target instead of a dead end.
   const goBack = useCallback(() => {
+    // Opened from the first-run onboarding's Sign in (2026-09-09 per
+    // operator): Back returns to its last slide, not a bare dashboard.
+    if ((location.state as { fromOnboarding?: boolean } | null)?.fromOnboarding) {
+      openOnboarding(ONBOARDING_LAST_STEP);
+      if (window.history.length > 1) navigate(-1);
+      else navigate("/dashboard");
+      return;
+    }
     if (window.history.length > 1) navigate(-1);
     else navigate(next);
-  }, [navigate, next]);
+  }, [navigate, next, location.state]);
 
   // Inside the native shell the page's own back button is replaced by the
   // shell's floating glass button in BACK mode (2026-09-08 per operator) —

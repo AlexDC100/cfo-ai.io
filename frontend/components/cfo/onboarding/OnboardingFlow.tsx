@@ -14,13 +14,16 @@ import { LogIn } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import {
+  FROM_ONBOARDING_STATE,
+  ONBOARDING_LAST_STEP,
   closeOnboarding,
+  getOnboardingInitialStep,
   getOnboardingOpen,
   markOnboardingSeen,
   subscribeOnboarding,
 } from "@/lib/onboarding";
 
-const SLIDES = 4;
+const SLIDES = ONBOARDING_LAST_STEP;
 type T = (key: string) => string;
 
 function Mark({ size = 22 }: { size?: number }) {
@@ -198,7 +201,7 @@ function OnboardingScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isAuthenticated, signOut } = useAuth();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(getOnboardingInitialStep);
 
   const finish = useCallback(() => {
     markOnboardingSeen();
@@ -213,7 +216,8 @@ function OnboardingScreen() {
   const onSignIn = async () => {
     finish();
     if (isAuthenticated) await signOut();
-    navigate("/login");
+    // The login page's Back brings this slide back (lib/onboarding.ts).
+    navigate("/login", { state: FROM_ONBOARDING_STATE });
   };
 
   const counter = `${String(step + 1).padStart(2, "0")}/0${SLIDES}`;

@@ -59,7 +59,16 @@ export function getOnboardingOpen(): boolean {
   return open;
 }
 
-export function openOnboarding(): void {
+/** Slide to open on (the login page's Back reopens the LAST slide, so the
+ *  user lands where they left — 2026-09-09 per operator). */
+let initialStep = 0;
+
+export function getOnboardingInitialStep(): number {
+  return initialStep;
+}
+
+export function openOnboarding(atStep = 0): void {
+  initialStep = atStep;
   if (open) return;
   open = true;
   emit();
@@ -68,5 +77,12 @@ export function openOnboarding(): void {
 export function closeOnboarding(): void {
   if (!open) return;
   open = false;
+  initialStep = 0;
   emit();
 }
+
+/** Index of the final (sign in / explore) slide. */
+export const ONBOARDING_LAST_STEP = 4;
+
+/** History state the onboarding sets when it opens the login page. */
+export const FROM_ONBOARDING_STATE = { fromOnboarding: true } as const;
