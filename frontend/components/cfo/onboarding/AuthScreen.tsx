@@ -72,7 +72,7 @@ export function AuthPanel({
       >
         <div className="px-[26px]">
         <Brand innerRef={brandRef} />
-        <div className="ob-a-fade mt-2 flex justify-center" style={{ animationDelay: ".2s" }}>
+        <div className="ob-a-fade mt-0.5 flex justify-center" style={{ animationDelay: ".2s" }}>
           <AuthCard
             bare
             tabsHidden
