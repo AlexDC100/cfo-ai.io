@@ -762,7 +762,7 @@ export default function FinancialStatements() {
     return buildHeadlineProvenance({
       statements,
       pl: headline.pl,
-      fromLineItems: plBuiltFromLineItems(remotePeriod.lineItems),
+      fromLineItems: plBuiltFromLineItems(remotePeriod.lineItems, statements),
       metrics: remotePeriod.metrics,
       sourceDocumentFilename: remotePeriod.sourceDocumentFilename,
       periodLabel: statements.periodLabel ?? remotePeriod.label,

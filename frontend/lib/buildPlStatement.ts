@@ -153,6 +153,65 @@ function periodMonthName(isoDate?: string): string {
  */
 export const EBITDA_COMPOSITION_NOTE = "includes other operating income (758)";
 
+/** The exact account codes the LINE-ITEM P&L view knows how to place.
+ *
+ *  It is an EXACT-match table (`sumByExact`), so it silently omits any
+ *  account it does not name. That is how a condensed 4-digit balanță came
+ *  to serve three expense lines out of seventy: of its class-6 accounts
+ *  only 6024, 6051 and 6458 appear below. Nothing may route to the
+ *  line-item view without first measuring how much of the engine's
+ *  assembled operating expense this list actually reaches. */
+export const OPEX_CODES: readonly string[] = [
+  "6024", "6051", "605", "603", "604", "607",
+  "611", "6123", "612", "613",
+  "622", "626", "627", "628",
+  "635",
+  "641", "645", "6458", "6461",
+];
+
+/** How much of the engine's operating expense the line-item view must
+ *  reach before it may be used. Below this the aggregates are served —
+ *  they are the engine's own totals. Measured: the condensed Scandia
+ *  FY2024 book scores 0.014 (5,703,608.87 of 409,697,663.25); the analytic
+ *  FY2025 book and every corpus book score at or near 1. */
+export const OPEX_COVERAGE_FLOOR = 0.98;
+
+/** THE routing decision: may the LINE-ITEM P&L view be used for this book?
+ *
+ *  ONE AUTHORITY, ON PURPOSE. `headlineProvenance.plBuiltFromLineItems`
+ *  used to hold a SECOND COPY of this rule, and its own test existed to
+ *  catch the two drifting apart. It caught it the moment the rule changed
+ *  here — but two copies of one decision is the defect, and a test that
+ *  watches them disagree is a smoke alarm, not a fix. Both callers now ask
+ *  this function.
+ *
+ *  `statements` is required because coverage is measured against the
+ *  engine's assembled operating expense: the line items alone cannot say
+ *  whether the view they would produce is complete. */
+export function plUsesLineItems(
+  lineItems: readonly { statement?: string; ro_account_code?: string | null }[] | undefined,
+  statements: unknown,
+): boolean {
+  const plItems = (lineItems ?? []).filter((li) => li?.statement === "PL");
+  if (plItems.length === 0) return false;
+  const assembledOpex = Math.abs(
+    Number(
+      (statements as { assembled_pl?: { total_operating_expense?: unknown } })
+        ?.assembled_pl?.total_operating_expense ?? 0,
+    ),
+  );
+  // Nothing to measure against — keep the pre-existing behaviour rather
+  // than inventing a verdict from an absent total.
+  if (!(assembledOpex > 0)) return true;
+  const covered = Math.abs(
+    OPEX_CODES.reduce(
+      (sum, code) => sum + sumByExact(plItems as never, code),
+      0,
+    ),
+  );
+  return covered / assembledOpex >= OPEX_COVERAGE_FLOOR;
+}
+
 function oneEbitda(
   served: number | null | undefined,
   totalOperatingRevenue: number,
@@ -211,13 +270,10 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   };
 
   // ── OPERATING EXPENSES (excl D&A, interest, FX, tax) ─────────────────
-  const opexCodes = [
-    "6024", "6051", "605", "603", "604", "607",
-    "611", "6123", "612", "613",
-    "622", "626", "627", "628",
-    "635",
-    "641", "645", "6458", "6461",
-  ];
+  // The same table `plUsesLineItems` measures coverage against — if these
+  // two ever differed, the router would admit a book this builder cannot
+  // actually render.
+  const opexCodes = OPEX_CODES;
   const opexLines: PLLine[] = opexCodes
     .map((code) => ({ code, amount: sumByExact(items, code) }))
     .filter((x) => Math.abs(x.amount) > 0)
@@ -456,11 +512,21 @@ export function pickPLBuilder(
   if (plItems.length === 0) {
     return buildPLStatementFromAggregates(statements, args.canonicalMargins);
   }
-  const longCodeCount = plItems.filter(
-    (li) => typeof li.ro_account_code === "string" && li.ro_account_code.length > 4,
-  ).length;
-  const looksLikeSubAccountFormat = longCodeCount > plItems.length * 0.5;
-  if (looksLikeSubAccountFormat) {
+  // ROUTE ON COVERAGE, NOT ON CODE SHAPE.
+  //
+  // This used to guess from the LENGTH of the account codes: if most were
+  // longer than 4 characters it called the book "sub-account format" and
+  // used the engine's aggregates, otherwise it built from line items.
+  //
+  // A CONDENSED EXTERNAL balanță — 4-digit synthetic codes, an entirely
+  // normal Romanian disclosure level — therefore took the line-item
+  // branch, and `OPEX_CODES` names only three of its seventy class-6
+  // accounts. Dec 2024 served operating expenses of 5,703,608.87 against a
+  // book carrying 409,697,663.25, with revenue rendering as nothing at
+  // all. The engine had stored all 220 line items correctly; an exact-match
+  // table has no way to say "I did not recognise this account", so 67 of
+  // them vanished without a word.
+  if (!plUsesLineItems(items, statements)) {
     return buildPLStatementFromAggregates(statements, args.canonicalMargins);
   }
   return buildPLStatement({

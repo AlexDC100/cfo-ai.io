@@ -14,6 +14,7 @@
 // fabrication the check exists to refuse.
 
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -199,34 +200,71 @@ describe("revenue — the builder's own account codes, on the line-item path onl
   });
 });
 
-describe("plBuiltFromLineItems mirrors pickPLBuilder — measured against the real one", () => {
-  it("agrees on the line-item shape", () => {
+describe("plBuiltFromLineItems ASKS pickPLBuilder's rule — it no longer mirrors it", () => {
+  // This block used to assert that two SEPARATE copies of the routing rule
+  // agreed. They stopped agreeing on 2026-09-09, when the rule became a
+  // COVERAGE test — and the block did its job by going red. The fix was not
+  // to re-sync the copies but to delete one: `plBuiltFromLineItems` now
+  // delegates to `plUsesLineItems`, the single authority in
+  // buildPlStatement.ts. What is left to assert is that the delegation is
+  // real and that the predicate still describes what the picker did.
+
+  it("says TRUE exactly when the picker used the line-item builder", () => {
     const s = statementsWith(CASH);
-    expect(plBuiltFromLineItems(PL_ITEMS)).toBe(true);
-    // The real picker chose the line-item builder: its output is the
-    // line-item builder's output, section for section.
+    expect(plBuiltFromLineItems(PL_ITEMS, s)).toBe(true);
     const picked = plFor(PL_ITEMS, s);
-    const direct = buildPLStatement({ lineItems: PL_ITEMS, entity: "x", period: "FY 2025", currency: "RON" });
+    const direct = buildPLStatement({
+      lineItems: PL_ITEMS, entity: "x", period: "FY 2025", currency: "RON",
+    });
     expect(picked.sections.map((x) => x.subtotalAmount)).toEqual(
       direct.sections.map((x) => x.subtotalAmount),
     );
   });
 
-  it("agrees on the sub-account shape (falls back to aggregates)", () => {
-    const subAccounts: PeriodLineItem[] = PL_ITEMS.map((li) => ({
-      ...li,
-      ro_account_code: `${li.ro_account_code}01`,
-    }));
-    expect(plBuiltFromLineItems(subAccounts)).toBe(false);
-    const s = statementsWith(CASH);
-    const picked = plFor(subAccounts, s);
-    const direct = buildPLStatement({ lineItems: subAccounts, entity: "x", period: "FY 2025", currency: "RON" });
-    // Aggregates builder reads `statements.incomeStatement`, not the
-    // items — so the two disagree, which is the whole point of the flag.
+  it("says FALSE for a book the code table cannot cover, and the picker agrees", () => {
+    // A CONDENSED 4-digit book: the exact-code table names almost none of
+    // it, so coverage collapses and the aggregates must serve. This is the
+    // production shape that served three expense lines out of seventy.
+    const condensed: PeriodLineItem[] = [
+      "6011", "6012", "6021", "6022", "6111", "6411", "6451",
+    ].map((code, i) => ({
+      ...PL_ITEMS[0], id: `c-${i}`, ro_account_code: code, amount: 1_000_000,
+    })) as PeriodLineItem[];
+    // The envelope must state an operating-expense total, or there is
+    // nothing to measure coverage AGAINST and the predicate cannot judge.
+    const base = statementsWith(CASH);
+    const s = {
+      ...base,
+      assembled_pl: { ...(base as { assembled_pl?: object }).assembled_pl,
+                      total_operating_expense: 7_000_000 },
+    } as typeof base;
+    expect(
+      plBuiltFromLineItems(condensed, s),
+      "a book the table cannot cover must not be reported as read from line items",
+    ).toBe(false);
+    const picked = plFor(condensed, s);
+    const direct = buildPLStatement({
+      lineItems: condensed, entity: "x", period: "FY 2025", currency: "RON",
+    });
+    // The picker fell back to the aggregates, so its subtotals are the
+    // envelope's, not the line items'.
     expect(picked.sections[0].subtotalAmount).not.toBe(direct.sections[0].subtotalAmount);
   });
 
-  it("agrees when there are no P&L items at all", () => {
-    expect(plBuiltFromLineItems([])).toBe(false);
+  it("says FALSE when there are no P&L items at all", () => {
+    expect(plBuiltFromLineItems([], statementsWith(CASH))).toBe(false);
+  });
+
+  it("there is only ONE copy of the rule left", () => {
+    // The structural half. A second implementation is the defect this
+    // block was originally written to detect.
+    const src = readFileSync(
+      join(process.cwd(), "frontend", "lib", "headlineProvenance.ts"), "utf-8",
+    );
+    expect(src).toContain("plUsesLineItems");
+    expect(
+      src.includes("length > 4"),
+      "headlineProvenance has re-implemented the routing rule instead of asking for it",
+    ).toBe(false);
   });
 });

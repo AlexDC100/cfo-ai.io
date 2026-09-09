@@ -269,28 +269,33 @@ export const NO_HEADLINE_PROVENANCE: HeadlineProvenance = {
 /** A period line item, as `pickPLBuilder` sees it. Structural on purpose:
  *  the page hands over `remotePeriod.lineItems`, whose shape this file
  *  must not have to re-import. */
+import { plUsesLineItems } from "./buildPlStatement";
+
 export interface PlLineItemLike {
   statement: string;
   ro_account_code?: string | null;
 }
 
 /**
- * MIRRORS `buildPlStatement.pickPLBuilder`'s choice — the line-item
- * builder runs when the period has P&L line items and fewer than half of
- * them carry sub-account codes (5+ characters); otherwise the aggregates
- * builder runs and its account codes are bucket LABELS, which this module
- * refuses to present as codes that were read.
+ * ASKS `buildPlStatement.plUsesLineItems`. It does not mirror it.
  *
- * A mirror can drift. `__tests__/headlineProvenance.test.ts` calls the
- * real `pickPLBuilder` on both shapes and asserts it agrees with this
- * predicate, so a change to the rule upstream fails there rather than
- * silently changing what the card claims.
+ * This held a SECOND COPY of the routing rule until 2026-09-09, and
+ * `__tests__/headlineProvenance.test.ts` existed to catch the two drifting
+ * apart. It caught it: the rule became a COVERAGE test after a condensed
+ * 4-digit balanță served three expense lines out of seventy, and this copy
+ * still said the old thing — which would have made the provenance card
+ * claim figures were "read from line items" when the aggregates were
+ * serving them.
+ *
+ * Two copies of one decision IS the defect; the test watching them was a
+ * smoke alarm, not a fix. Delegating leaves nothing to drift.
+ *
+ * `statements` is required because coverage is measured against the
+ * engine's assembled operating expense.
  */
-export function plBuiltFromLineItems(lineItems: readonly PlLineItemLike[]): boolean {
-  const plItems = lineItems.filter((li) => li.statement === "PL");
-  if (plItems.length === 0) return false;
-  const longCodeCount = plItems.filter(
-    (li) => typeof li.ro_account_code === "string" && li.ro_account_code.length > 4,
-  ).length;
-  return !(longCodeCount > plItems.length * 0.5);
+export function plBuiltFromLineItems(
+  lineItems: readonly PlLineItemLike[],
+  statements: unknown,
+): boolean {
+  return plUsesLineItems(lineItems, statements);
 }
