@@ -338,3 +338,97 @@ correct behaviour the gate would ALSO red on, if that behaviour were
 wrong. Assert the CLAIM (is this figure real? is this row unchanged?),
 never a shape property of it (finite, non-null, present). Prefer an xfail
 with a reason to a deselect; prefer a fix to either.
+
+## TC-12 — A lookup must report its coverage; a shortfall refuses or routes elsewhere
+
+**An exact-match table cannot say "I did not recognise this account". It
+just returns less.** That sentence is the whole convention, and it is the
+general form of a defect this repo has now shipped twice.
+
+**Measured, 2026-09-09, live on production.** `buildPlStatement.ts` chose
+between two P&L builders by guessing the book's shape from the LENGTH of
+its account codes, then summed operating expenses with `sumByExact`
+against a fixed table of nineteen codes. A CONDENSED EXTERNAL balanță —
+4-digit synthetic codes, an entirely normal Romanian disclosure level —
+took the line-item branch, and of its seventy class-6 accounts exactly
+three were in that table. The served statement read:
+
+```
+Spare parts (6024)              55.31
+Energy (6051)            4,833,129.56
+Other social contrib (6458) 870,424.00
+Total operating expenses  5,703,608.87
+```
+
+for a book carrying 409,697,663.25, with revenue rendering as nothing.
+The parser, the pipeline and the database were all correct: 247 rows
+parsed, 220 line items stored, 70 class-6 accounts summing to the right
+figure. The statement dropped 67 of them and said nothing, because a
+`.get()` that misses is indistinguishable from a `.get()` that returns
+zero once you add it to a running total.
+
+**THE RULE.** Every lookup that maps source data to output must be able to
+answer "how much of the input did I account for?", and a shortfall must
+REFUSE or ROUTE ELSEWHERE — never silently return a subset.
+
+In practice that means one of:
+
+* **Route on coverage.** `plUsesLineItems` builds the per-account view
+  only when the code table reaches 98% of the operating expense the
+  engine assembled; below that the aggregates serve, because they are the
+  engine's own totals. The condensed book scores 0.014.
+* **Refuse with a named reason.** The Radar detectors already do this
+  right and are the counter-example worth copying: a subject prefix that
+  matches nothing returns `(), "no period in the spine carries an account
+  under %s, so there is nothing to read across time"` — a reason, not a
+  shorter list.
+* **Report the remainder.** `assemble_statements` carries every account
+  it could not map into an "Unclassified" row so the identity survives
+  and the gap is visible, rather than dropping it to keep the sheet tidy.
+
+**THE SWEEP, and what it found.** Three more sites of the same shape:
+
+| site | state |
+|---|---|
+| `buildPlStatement.ts` `OPEX_CODES` | the live defect above — FIXED, coverage-routed, gated |
+| `chart_of_accounts.py:892` `else: continue` | a bucket in neither field map is dropped with no counter. LATENT: measured complete across all 20 books, but nothing asserts it stays so |
+| `_benchmarks.py:763` `if not b: continue` | a metric with no benchmark vanishes from the comparison; the reader is never told which metrics were omitted |
+| `radar/detectors/fam_series.py:85` | the counter-example — refuses with a reason |
+
+**The tell.** Any `for x in wanted: total += table.get(x, 0)` or
+`if key not in map: continue` sitting between source data and a number a
+person reads. The loop is correct; the silence is the defect.
+
+## TC-13 — A check must name its own scope in its output
+
+`check_deploy_drift.py` printed **"IN SYNC — the deployed containers match
+the committed tree"** while eight stale scripts ran in production. It
+compared `src/` and nothing else, and its verdict said so nowhere. One of
+those scripts then failed the moment it was called: `reprocess_documents.py`
+invoked `signed_url()` without the `org_id` that had just become required,
+and the dry run skipped all sixteen periods.
+
+The banner was not a lie about what it checked. It was a true answer to a
+question narrower than the one it appeared to answer, and nothing in the
+output revealed the difference.
+
+**THE RULE.** Every gate prints WHAT IT EXAMINED, not only its verdict —
+the directories, the file counts, the objects probed, the things it could
+not see. The same reasoning that makes `PASS(VACUOUS)` a third state:
+"it passed" and "it had nothing to look at" must never read the same, and
+neither must "it passed" and "it looked at a sixth of the subject".
+
+Two worked examples now in the tree:
+
+* `check_deploy_drift.py` derives its scope from the Dockerfile's own
+  `COPY` set — never a hand-written list, so a new `COPY` is covered the
+  moment it is added — and prints every directory with its tracked count
+  and its in-image count before the verdict. Widening it took the
+  comparison from 443 files in one directory to 741 across six, and found
+  `packs/ro/detectors.yaml` stale in the running image: Radar had been
+  running a different detector pack than git, invisibly.
+* `check_migrations_applied.py` prints 41 files, 84 tables, 58 columns —
+  and 437 index/policy/constraint/function declarations that PostgREST
+  **cannot** see, counted and named as unverifiable rather than folded
+  into the pass. A gate that pretends to have checked what it cannot see
+  is worse than one that says so.

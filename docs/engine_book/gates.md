@@ -3253,3 +3253,124 @@ against it pins the fabrication as the contract. That is how a 500 on the
 whole Firm Attention board sat green. `test_caen_one_authority.py` now parses
 the real SQL and checks EVERY table in every hand-written column map. Planted
 an invented column on `organizations` → RED naming it.
+
+## playwright
+
+The last suite outside the battery until 2026-09-09, and it had already
+taken the battery down once by starving vitest of CPU.
+
+**Baseline is a RATCHET, not a certificate.** `design_review/
+PLAYWRIGHT_BASELINE.txt` records 339 ran / 29 skipped / 171 known
+failures, measured serially on a quiet machine with the dev server up AND
+the engine restarted from HEAD. More than half the suite is red; the
+baseline may only SHRINK, so the gate reds on a NEW failure and accepts a
+repaired one. Floor `PW_FLOOR_RAN=305` and a 0.75 skip ceiling exist
+because `playwright.config.ts`'s `webServer` block is commented out
+("locally we assume it's up") — a run with nothing on :5173 would
+otherwise baseline an empty suite as green.
+
+**PLANT** — the gate refuses any spec naming an absolute non-local origin.
+Restore the hardcoded production URL that
+`e2e/learning-landing-onboarding.spec.ts` used to carry:
+
+```
+-    const indexHtml = await request.get("/").then((r) => r.text());
++    const indexHtml = await request.get("https://cfo-ai.io/").then((r) => r.text());
+```
+
+**RED** (verbatim, `node scripts/check_playwright.mjs`):
+
+```
+PLAYWRIGHT GATE
+==============================================================
+REFUSED — these specs name an absolute non-local origin in code, so they
+reach it regardless of E2E_BASE_URL:
+  e2e/learning-landing-onboarding.spec.ts: https://cfo-ai.io
+Make the request relative so it resolves against the project's baseURL
+(--project=prod when you deliberately mean the live site).
+```
+
+**REVERT** — request made relative again; the gate proceeds to the run and
+compares against the baseline.
+
+**What it also reds on, with the defect repaired (TC-11):** a new failing
+test absent from the baseline; a ran-count below the floor (the dev server
+was down and the suite measured nothing); a skip rate above 0.75.
+
+**A false baseline is the trap this gate can still fall into, and it did
+once.** The first baseline (174 failures) was measured against an engine
+process started six days earlier that predated a feature-registry change —
+36 features where HEAD answers 47. Restarting :8000 from HEAD moved 31
+tests to passing and 28 to failing: a two-way swing of 59 on a net of 3.
+Identify the build before trusting a baseline; the scope of a measurement
+is part of its verdict (TC-13).
+
+## tenant-boundary
+
+The anatomy behind two P0s found an hour apart on 2026-09-09: **a
+browser-written column consumed by raw value inside a service-role
+operation, behind a wall that checks a different object.** Under the
+service role RLS does not apply, so THE FILTER IS THE ACCESS CONTROL.
+
+Three suites, 41 tests, floor 35: the storage seam
+(`test_storage_tenant_paths.py`), the period seam
+(`test_period_id_tenant_boundary.py`), a static census over every
+service-role call (`test_service_role_tenant_filter.py`), and cross-org
+reads against the real app (`test_cross_org_reads.py`).
+
+**PLANT A — the storage seam.** Remove the guard from `signed_url`:
+
+```
+-        assert_tenant_path(bucket, path, org_id, op="sign")
+```
+
+**RED:**
+
+```
+E   AssertionError: signed_url no longer calls assert_tenant_path — the
+    required keyword is then decoration, not enforcement
+FAILED test_storage_tenant_paths.py::test_each_storage_method_actually_calls_the_assertion[signed_url]
+```
+
+**PLANT B — the period seam.** Disable the tenant comparison in
+`_period_move._period_row` (`if not caller or owner != caller:` ->
+`if False:`).
+
+**RED** — 5 of 10, including the one that matters:
+
+```
+E   AssertionError: refused, but derived tables were already deleted: [...]
+```
+
+**PLANT C — the census.** Add a new unfiltered service-role select:
+
+```
++    with _supabase.admin() as ac:
++        return ac.select("financial_periods", filters={"id": "eq.%s" % period_id})
+```
+
+**RED:**
+
+```
+E   AssertionError: service-role calls on tenant-scoped tables with NO
+    org_id in their filter, and no declaration:
+E       _period_move.py:[634] select financial_periods
+```
+
+**PLANT D — cross-org reads.** Disabling RLS in the FirmWorld double reds
+with the leak rendered as its own symptom:
+
+```
+E   CROSS-ORG READ — SOLO holds a membership in ...cc and none in ORG_A1,
+    but these routes answered with something other than a refusal:
+E     GET /api/period/...12d [own-org-header] -> 200 {"canonical_version":"v2.1",...
+```
+
+**REVERT** — all four restored; 41 green.
+
+**One plant that proved nothing, recorded because it is the more useful
+lesson.** Removing the membership check from `_org.require_org_member`
+left all five cross-org read tests GREEN — those routes are guarded by RLS
+in the per-user client, not by that call. A plant that does not red is not
+evidence the gate is weak; it is evidence the plant was aimed at the wrong
+thing. It was replaced with Plant D, which reds.
