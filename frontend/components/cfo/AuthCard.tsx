@@ -123,8 +123,10 @@ export function AuthCard({
   // After a submit attempt, empty mandatory fields are tinted instead of
   // the browser's "Fill out this field" bubble (2026-09-09 per operator).
   const [showMissing, setShowMissing] = useState(false);
-  // Google tapped in create-account without a company: only that field.
+  // Google tapped in create-account without a company / the terms tick:
+  // only those get tinted.
   const [showCompanyMissing, setShowCompanyMissing] = useState(false);
+  const [showTermsMissing, setShowTermsMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   // Resend cooldown — Supabase rate-limits OTP / signup resends server-side
@@ -634,15 +636,11 @@ export function AuthCard({
                     in a modal rather than a link, because navigating away
                     from a half-filled signup form loses everything typed. */}
                 <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <CheckBox
                     checked={acceptedTerms}
-                    onChange={(e) => setAcceptedTerms(e.currentTarget.checked)}
-                    data-testid="signup-accept-terms"
-                    data-invalid={showMissing && !acceptedTerms ? "true" : undefined}
-                    className={`mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer ${
-                      showMissing && !acceptedTerms ? "ring-2 ring-alert/70 ring-offset-1 ring-offset-bg" : ""
-                    }`}
+                    onChange={setAcceptedTerms}
+                    invalid={(showMissing || showTermsMissing) && !acceptedTerms}
+                    testId="signup-accept-terms"
                   />
                   <span className="text-[11.5px] leading-snug text-ink-soft">
                     {t("authX.terms_agree_pre")}{" "}
@@ -665,13 +663,7 @@ export function AuthCard({
                 </label>
 
                 <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={wantsNewsletter}
-                    onChange={(e) => setWantsNewsletter(e.currentTarget.checked)}
-                    data-testid="signup-newsletter"
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
-                  />
+                  <CheckBox checked={wantsNewsletter} onChange={setWantsNewsletter} testId="signup-newsletter" />
                   <span className="text-[11.5px] leading-snug text-ink-soft">
                     {t("authX.newsletter_opt_in")}
                   </span>
@@ -717,8 +709,8 @@ export function AuthCard({
                 <div className="flex-1 h-px bg-rule" />
               </div>
               {/* Google sign-UP (2026-09-09 per operator): under Create
-                  account, always enabled; without a company it only tints
-                  that field. The company is parked and applied to the new
+                  account, always enabled; without a company or the terms
+                  tick it only tints those. The company is parked and applied to the new
                   account, everything else (name, email, avatar) comes from
                   Google (lib/oauthProfile.ts). */}
               <div className="grid grid-cols-1 gap-2">
@@ -727,10 +719,11 @@ export function AuthCard({
                   busy={busy}
                   onClick={() => {
                     if (mode === "sign_up") {
-                      if (!companyName.trim()) {
-                        setShowCompanyMissing(true);
-                        return;
-                      }
+                      const noCompany = !companyName.trim();
+                      const noTerms = !acceptedTerms;
+                      setShowCompanyMissing(noCompany);
+                      setShowTermsMissing(noTerms);
+                      if (noCompany || noTerms) return;
                       markPendingOAuthProfile({ companyName: companyName.trim() });
                     }
                     void handleOAuth("google");
@@ -862,6 +855,41 @@ function Tab({
     >
       {children}
     </button>
+  );
+}
+
+/** A checkbox drawn with plain elements: native boxes ignore box-shadow
+ *  rings in the iOS WebView, so the "mandatory, unticked" tint never
+ *  showed on the device (2026-09-09 per operator). The real input stays
+ *  on top (invisible) for taps, focus and assistive tech. */
+function CheckBox({
+  checked, onChange, invalid = false, testId,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  invalid?: boolean;
+  testId?: string;
+}) {
+  return (
+    <span className="relative mt-0.5 inline-flex h-4 w-4 shrink-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.currentTarget.checked)}
+        data-testid={testId}
+        data-invalid={invalid ? "true" : undefined}
+        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
+      />
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${
+          invalid ? "border-alert bg-alert/15" : "border-rule bg-bg-2/80"
+        } peer-checked:border-brand peer-checked:bg-brand`}
+      />
+      <span aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center text-paper opacity-0 transition-opacity peer-checked:opacity-100">
+        <Check size={11} strokeWidth={3} />
+      </span>
+    </span>
   );
 }
 
