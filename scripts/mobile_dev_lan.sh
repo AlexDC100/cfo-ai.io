@@ -27,5 +27,5 @@ if [ -f docker-compose.override.yml ]; then
   # itself goes through the Vite proxy.
   sed -i '' -E "s#http://[0-9.]+:5173#${url}#" docker-compose.override.yml
 fi
-curl -s -o /dev/null -m 3 -w "vite on ${url}: HTTP %{http_code}\n" "${url}/dashboard" || echo "vite is not answering on ${url} — start it with: npm run dev -- --host"
+curl -s -o /dev/null -m 3 -w "vite on ${url}: HTTP %{http_code}\n" "${url}/dashboard" || echo "vite is not answering on ${url} — start it with: npm run dev -- --host  (or in Docker: npm run dev:docker)"
 echo "now: cd mobile && npx expo start -c   (then rescan the QR code)"

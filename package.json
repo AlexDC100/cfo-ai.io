@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:docker": "docker compose --profile dev up frontend-dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

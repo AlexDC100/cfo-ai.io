@@ -20,7 +20,9 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   See root `CLAUDE.md` §"Milestone D" for why and what's duplicated where.
 
 ## Commands (run from repo root)
-- `npm run dev` — Vite dev server · `npm run build` — prod build
+- `npm run dev` — Vite dev server · `npm run dev:docker` — the same server inside
+  Docker (compose service `frontend-dev`, profile `dev`; proxies `/api` to the
+  `backend` container; port 5173 on the LAN) · `npm run build` — prod build
 - `npm run lint` — eslint · `npm test` — vitest (unit) · `npm run test:e2e` — Playwright
 - Typecheck: `npx tsc --noEmit -p tsconfig.json` (run this after edits)
 - Deploy FE: `docker compose build frontend && docker compose up -d frontend`

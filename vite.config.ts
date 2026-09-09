@@ -20,6 +20,11 @@ import path from "path";
 // ──────────────────────────────────────────────────────────────────────
 
 // https://vitejs.dev/config/
+// Where the dev proxy sends /api and /health. On the Mac the engine is on
+// 127.0.0.1:8000; inside the `frontend-dev` container (docker-compose.yml,
+// profile "dev") it is the `backend` service on the compose network.
+const DEV_ENGINE_URL = process.env.VITE_DEV_ENGINE_URL || "http://127.0.0.1:8000";
+
 export default defineConfig(({ mode }) => ({
   // Where the app is served from. Defaults to the domain root, which is what
   // the VPS Docker build needs. GitHub Pages project sites live under
@@ -43,6 +48,9 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    // File events don't always cross the Docker Desktop bind mount; the
+    // dev container sets this so edits on the Mac still hot-reload.
+    watch: process.env.VITE_WATCH_POLL === "1" ? { usePolling: true, interval: 300 } : undefined,
     // Dev-only proxy for BVB price charts (2026-07-23): Yahoo's chart API
     // has no CORS headers, so the browser can't call it directly. In dev,
     // /yahoo/* is proxied server-side; publicCompanyPriceHistory.ts uses
@@ -59,7 +67,7 @@ export default defineConfig(({ mode }) => ({
       // (TestModeSessionBoot is the main one) reach the local engine
       // instead of falling through to index.html.
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: DEV_ENGINE_URL,
         changeOrigin: true,
       },
       // The TopHeader backend-status dot polls `${API_URL}/health`; with an
@@ -68,7 +76,7 @@ export default defineConfig(({ mode }) => ({
       // otherwise index.html's 200 would paint the dot green with the
       // engine down.
       "/health": {
-        target: "http://127.0.0.1:8000",
+        target: DEV_ENGINE_URL,
         changeOrigin: true,
       },
     },

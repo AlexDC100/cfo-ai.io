@@ -902,6 +902,18 @@ predates this change) already does the right thing when merged with
 `CORS_ORIGINS` to localhost. No new file was needed — just stopped the
 manual process and confirmed `docker compose up` serves the same origins.
 
+**Vite in Docker too (2026-09-10).** `npm run dev:docker` runs the Vite dev
+server as the `frontend-dev` compose service (`docker-compose.yml`, behind
+the `dev` profile so the VPS's plain `docker compose up -d` never starts
+it). The repo is bind-mounted for hot reload (`VITE_WATCH_POLL=1` — file
+events don't cross the Docker Desktop mount reliably); `node_modules` is a
+named volume because the Mac's copy holds darwin binaries, and
+`scripts/docker_frontend_dev.sh` re-installs only when `package-lock.json`
+changes. `/api` and `/health` proxy to `http://backend:8000` on the compose
+network via `VITE_DEV_ENGINE_URL` (default stays `127.0.0.1:8000` for the
+bare `npm run dev`). Port 5173 is published, so the phone's WebView URL
+(`http://<mac-ip>:5173`) is unchanged.
+
 **`frontend/lib/useBackendStatus.ts` + `components/cfo/BackendStatusIndicator.tsx`**
 (new) — an 8px dot in `TopHeader`, polling `${API_URL}/health` every 20s
 plus an immediate re-probe on window `focus`/`online`. The tooltip text

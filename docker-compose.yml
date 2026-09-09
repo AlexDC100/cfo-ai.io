@@ -75,8 +75,38 @@ services:
       - default
       - scandia_default
 
+  # ── Local development only (2026-09-10) ────────────────────────────
+  # The Vite dev server in a container: `npm run dev:docker` (or
+  # `docker compose --profile dev up frontend-dev`). Behind the "dev"
+  # profile, so a plain `docker compose up -d` on the VPS never starts it.
+  # The repo is bind-mounted so edits hot-reload; node_modules lives in a
+  # named volume because the Mac's copy carries darwin binaries (swc,
+  # esbuild, rollup) that don't run on Linux — the entrypoint installs
+  # them inside the volume and re-installs only when package-lock.json
+  # changes. /api and /health are proxied to the `backend` container over
+  # the compose network, so nothing here depends on port 8000 being
+  # published. Port 5173 is published on all interfaces, so a phone on the
+  # LAN (the mobile shell) reaches it at http://<mac-ip>:5173 as before.
+  frontend-dev:
+    image: node:20-alpine
+    container_name: cfo-ai-frontend-dev
+    profiles: ["dev"]
+    working_dir: /app
+    entrypoint: ["sh", "/app/scripts/docker_frontend_dev.sh"]
+    environment:
+      VITE_DEV_ENGINE_URL: "http://backend:8000"
+      VITE_WATCH_POLL: "1"
+    volumes:
+      - .:/app
+      - frontend_dev_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
 volumes:
   backend_data:
+  frontend_dev_node_modules:
 
 networks:
   # Reuse the existing network scandia-caddy lives in — created by
