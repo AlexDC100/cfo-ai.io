@@ -343,11 +343,25 @@ function OnboardingScreen() {
         <FinalSlide t={t} isAuthenticated={isAuthenticated} signOut={signOut} onBack={() => setStep(SLIDES - 1)} onDone={dismiss} />
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            {step === 0 ? (
+          <div className="relative flex min-h-[24px] items-center justify-between">
+            {/* The mark sits top-left on the first slide and glides to the
+                centre when you continue (2026-09-09 per operator); one
+                element the whole way, so the move is a plain transition. */}
+            <div
+              className="absolute top-1/2 flex items-center"
+              data-testid="onboarding-mark"
+              style={{
+                left: step === 0 ? 0 : "50%",
+                transform: step === 0 ? "translate(0, -50%)" : "translate(-50%, -50%)",
+                transition: "left 520ms cubic-bezier(.16, 1, .3, 1), transform 520ms cubic-bezier(.16, 1, .3, 1)",
+              }}
+            >
               <Mark />
+            </div>
+            {step === 0 ? (
+              <span />
             ) : (
-              <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
+              <button type="button" onClick={back} className="ob-mute ob-a-fade font-mono text-[11px] uppercase tracking-[.06em]" style={{ animationDelay: ".15s" }} data-testid="onboarding-back">
                 ← {t("firstRun.btnBack")}
               </button>
             )}

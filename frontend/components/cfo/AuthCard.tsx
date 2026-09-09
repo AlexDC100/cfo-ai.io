@@ -338,7 +338,7 @@ export function AuthCard({
       `
       }
     >
-      <div className={`flex flex-col gap-1.5 ${bare ? "mb-5" : "mb-6"}`}>
+      <div className={`flex flex-col gap-1.5 ${bare ? "mb-4" : "mb-6"}`}>
         {!bare && (
           <h2 className="font-serif text-[26px] sm:text-[28px] leading-[1.1] tracking-[-0.01em]">
             {t("auth.welcome")}
