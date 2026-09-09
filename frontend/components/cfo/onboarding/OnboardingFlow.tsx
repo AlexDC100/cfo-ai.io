@@ -249,7 +249,8 @@ function FinalSlide({
   return (
     <>
       {!auth && (
-        <div className="flex items-center justify-between">
+        // Same header box as the slides so Back never moves (2026-09-09).
+        <div className="flex min-h-[24px] items-center justify-between">
           <button
             type="button"
             onClick={onBack}

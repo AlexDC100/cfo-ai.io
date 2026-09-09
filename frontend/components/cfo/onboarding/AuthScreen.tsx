@@ -95,17 +95,18 @@ export function AuthPanel({
           background: "linear-gradient(to bottom, hsl(var(--bg)) 0%, hsl(var(--bg)) 45%, hsl(var(--bg) / 0) 100%)",
         }}
       />
-      {/* Same text position as the slides' Back (26px in, 28px down):
-          the pill's padding is offset out of left/top so only the
-          background appears on scroll — the text never moves. */}
+      {/* The text lands exactly where the slides' Back text is (26px in,
+          32.8px below the inset): the pill's 12px padding + 1px border
+          are offset out of left/top, so only the background appears on
+          scroll — the text never moves. */}
       <button
         type="button"
         onClick={back}
         data-scrolled={scrolled ? "true" : "false"}
-        className={`ob-mute absolute left-[14px] rounded-full border px-3 py-2 font-mono text-[11px] uppercase tracking-[.06em] transition-[background-color,box-shadow,border-color] duration-200 ${
+        className={`ob-mute absolute left-[13px] rounded-full border px-3 py-2 font-mono text-[11px] uppercase tracking-[.06em] transition-[background-color,box-shadow,border-color] duration-200 ${
           scrolled ? "border-rule bg-surface text-ink shadow-md" : "border-transparent"
         }`}
-        style={{ top: `calc(${TOP_INSET} + 20px)` }}
+        style={{ top: `calc(${TOP_INSET} + 22.8px)` }}
         data-testid="onboarding-back"
       >
         ← {t("firstRun.btnBack")}
