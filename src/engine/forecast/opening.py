@@ -303,6 +303,7 @@ class OpeningPosition(object):
             totals=_served_totals(gateway),
         )
         _assert_partition_reproduces_serving(position, gateway)
+        _assert_the_opening_sheet_itself_balances(position, gateway)
         return position
 
 
@@ -347,6 +348,83 @@ def _assert_partition_reproduces_serving(position: "OpeningPosition",
                 side=side,
                 delta_cents=partitioned - served,
             )
+
+
+def _assert_the_opening_sheet_itself_balances(position: "OpeningPosition",
+                                              gateway: Any) -> None:
+    """PERIOD ZERO IS HELD TO THE SAME LAW AS EVERY PROJECTED PERIOD.
+
+    ``project()`` refuses any projected period whose assets do not equal
+    equity plus liabilities EXACTLY — no band, no residual line
+    (:class:`~engine.forecast.errors.BalanceViolation`). Period zero was
+    never held to it. A source period that did not close was therefore
+    carried into the plan untouched and surfaced one period LATER, as a
+    ``BalanceViolation`` naming the first PROJECTED period — a sentence
+    that blames the projection for a gap it inherited whole from the book
+    it opened on, and sends the reader hunting a driver defect that is
+    not there.
+
+    Measured, on the micro book ``test_forecast_drivers._micro_book``
+    builds with a filed account-121 balance its own closing balances
+    contradict: served assets 60,000.00, served equity + liabilities
+    56,000.00, and the refusal that reached the reader read
+
+        projected period 2026-01 does not balance: assets 61,480.35 −
+        (equity + liabilities) 57,480.35 = 4,000.00
+
+    — 4,000.00 that period 2026-01 did not create and could not have
+    fixed.
+
+    WHY THE CURRENT-YEAR RESULT IS QUOTED IN THE REFUSAL. The common
+    cause of a non-zero difference here is a disagreement about one row.
+    ``net_income_statutory`` — the served current-year result — is
+    anchored to account 121, the figure the company filed, always
+    (``chart_of_accounts.py``, 2026-09-09); the remaining closing
+    balances imply the class-6/7 reconstruction. On a real trial balance
+    those two agree by construction: 121 is a ledger row, so the sheet's
+    own residual IS its closing balance. Measured on the four committed
+    books, ``assets − (equity + liabilities)`` is 0.00 on every one of
+    them, with account-121 gaps as wide as 29,589,814.24 (realestate) —
+    the anchor is what makes them close, not what breaks them. So a
+    difference at this point means the anchor and the closing balances
+    did not come from the same extraction, and the two numbers a reader
+    needs to see that are the served result and what the rest of the
+    sheet implies it must be.
+
+    Neither number is invented: both are read through the gateway, the
+    same reader that produced the opening lines, and the totals quoted
+    are the position's own — pinned equal to the gateway's, to the cent,
+    by :func:`_assert_partition_reproduces_serving` one line above.
+    """
+    assets = position.total_assets_cents()
+    el = position.total_el_cents()
+    difference = assets - el
+    if difference == 0:
+        return
+
+    detail = ""
+    try:
+        result = gateway.net_result().amount_minor
+    except Exception:  # pragma: no cover - canonical tier always answers
+        # The result clause is extra detail for the reader. Losing it
+        # must never swallow the refusal below.
+        pass
+    else:
+        detail = (
+            " The served statement's current-year result is %s; the rest "
+            "of this sheet implies %s." % (fmt(result), fmt(result + difference))
+        )
+
+    raise OpeningPositionError(
+        "a projection cannot open on a balance sheet that does not "
+        "balance: the source period's served statement has assets %s "
+        "against equity + liabilities %s, a difference of %s that every "
+        "projected period would carry unchanged. Every projected period "
+        "is held to exactly 0, so period zero is too.%s"
+        % (fmt(assets), fmt(el), fmt(difference), detail),
+        side="assets",
+        delta_cents=difference,
+    )
 
 
 def _assert_every_aggregate_is_mapped() -> None:

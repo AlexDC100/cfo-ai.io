@@ -365,6 +365,126 @@ def test_f6_a_serving_with_no_balance_sheet_is_refused_not_defaulted():
 
 
 # ──────────────────────────────────────────────────────────────────────
+# F6 — PERIOD ZERO IS HELD TO THE SAME EXACT-ZERO LAW AS EVERY
+#      PROJECTED PERIOD
+#
+# WHAT THESE TWO GATES RED ON, stated after the repair (TC-11):
+#
+#   * a source period whose served balance sheet does not close being
+#     ACCEPTED as an opening position — the shape in which the gap is
+#     carried, unchanged, into every projected period and surfaces one
+#     period later as a `BalanceViolation` naming a PROJECTED period for
+#     a defect that was already there at period zero;
+#   * that same source reaching `project_payload` and coming back as a
+#     `BalanceViolation` instead of an `OpeningPositionError` — the
+#     mis-attribution itself, which is what cost the reading time.
+#
+# They do NOT red on a wide account-121 gap: all four committed books
+# carry one (agras 6,572,426.01; realestate 29,589,814.24) and all four
+# close to 0.00, because account 121 is a ledger row and the sheet's own
+# residual IS its closing balance. The anchor is what makes them close.
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _serve_the_reconstruction_as_the_result(payload):
+    """PLANT: serve the class-6/7 RECONSTRUCTION as the current-year
+    result instead of account 121 — precisely the statement the engine
+    emitted for any book inside the old 5% anchor band, before the anchor
+    became unconditional (`chart_of_accounts.py`, 2026-09-09).
+
+    Returns (planted payload, the step in cents). Nothing else is
+    touched, so the difference the gateway then reports IS the anchor
+    step and cannot be anything else.
+    """
+    import copy as _copy
+    planted = _copy.deepcopy(payload)
+    pl = planted["statements"]["assembled_pl"]
+    step = (cents_from(pl["net_income_operational"])
+            - cents_from(pl["net_income_statutory"]))
+    assert step != 0, (
+        "this book's reconstruction already equals its filed balance, so "
+        "the plant would change nothing — re-pick the book")
+    cbs = planted["envelope"]["canonical_bs"]
+    for row in cbs["rows"]:
+        if row.get("id") in ("current_year_profit", "current_year_loss"):
+            row["amount"] = round(float(row["amount"] or 0.0) + step / 100.0, 2)
+            break
+    else:  # pragma: no cover - every committed book carries a result row
+        pytest.fail("no current-year result row to plant into")
+    totals = cbs["totals"]
+    for key in ("equity", "equity_plus_liabilities"):
+        totals[key] = round(float(totals[key]) + step / 100.0, 2)
+    cbs["difference"] = round(
+        float(totals["assets"]) - float(totals["equity_plus_liabilities"]), 2)
+    return planted, step
+
+
+@pytest.mark.parametrize("book", BOOKS)
+def test_f6_every_committed_book_opens_on_a_sheet_that_closes(book):
+    """The positive law, and the reason the plant below is not vacuous.
+
+    Each of these books' class-6/7 run-down misses the profit it filed
+    in account 121 by millions. The served sheet closes anyway — the
+    anchored figure is the one the remaining closing balances imply — so
+    the opening position starts at exactly zero and has nothing to carry.
+    """
+    payload = load(book)
+    opening = opening_for(payload)
+    assert opening.total_assets_cents() - opening.total_el_cents() == 0, (
+        "%s opens out by %s" % (book, fmt(opening.total_assets_cents()
+                                          - opening.total_el_cents())))
+    pl = payload["statements"]["assembled_pl"]
+    assert cents_from(pl["net_income_operational"]) != cents_from(
+        pl["net_income_statutory"]), (
+        "%s: the reconstruction and the filed figure agree on this book, "
+        "so it says nothing about which of the two the sheet closes on"
+        % (book,))
+
+
+def test_f6_plant_an_unbalanced_source_sheet_and_the_opening_refuses():
+    """PLANT: the pre-anchor statement. The opening must REFUSE, and say
+    both how far out the sheet is and which two numbers disagree."""
+    payload = load("agras")
+    planted, step = _serve_the_reconstruction_as_the_result(payload)
+    gateway = gateway_for(planted)
+    assert gateway.difference().amount_minor == -step, (
+        "the plant did not move the served difference; it is testing "
+        "nothing (%s vs %s)" % (fmt(gateway.difference().amount_minor),
+                                fmt(-step)))
+    try:
+        OpeningPosition.from_gateway(gateway, str(planted["period_end"]))
+    except OpeningPositionError as err:
+        message = str(err)
+    else:
+        pytest.fail(
+            "the source balance sheet is out by %s and the opening took "
+            "it anyway. Period zero must be held to the same exact-zero "
+            "law every projected period is held to — otherwise this gap "
+            "is carried into the plan and re-emerges as a "
+            "BalanceViolation blaming the first projected period for it."
+            % (fmt(-step),))
+    assert "does not balance" in message
+    assert fmt(-step) in message, (
+        "the refusal must carry the size of the gap: %r" % (message,))
+    #: TC-10 — the two disagreeing numbers, rendered from the served
+    #: statement rather than described.
+    assert fmt(gateway.net_result().amount_minor) in message
+    assert fmt(gateway.net_result().amount_minor - step) in message
+
+
+def test_f6_an_unbalanced_source_is_refused_at_period_zero_not_blamed_on_a_projected_period():
+    """The mis-attribution itself. Before the repair this same payload
+    produced `BalanceViolation: projected period ... does not balance`,
+    which sends the reader after a driver defect that does not exist."""
+    payload = load("agras")
+    planted, step = _serve_the_reconstruction_as_the_result(payload)
+    with pytest.raises(OpeningPositionError) as excinfo:
+        project_payload(planted, revolver_rate=_CALLER_REVOLVER_RATE)
+    assert not isinstance(excinfo.value, BalanceViolation)
+    assert "period zero" in str(excinfo.value)
+
+
+# ──────────────────────────────────────────────────────────────────────
 # F1 — every projected period balances, to the cent
 # ──────────────────────────────────────────────────────────────────────
 

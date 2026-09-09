@@ -26,7 +26,11 @@ class OpeningPositionError(ForecastError):
     """The opening position could not be taken from the source period's
     CLOSING balances without loss. Raised when the partition of the
     served canonical balance sheet does not reproduce the served totals
-    to the cent, or when the serving carries no balance sheet at all."""
+    to the cent, when the SOURCE sheet does not itself balance (period
+    zero is held to the same exact-zero law as every projected period —
+    otherwise its gap re-emerges as a :class:`BalanceViolation` blaming
+    the first projected period for it), or when the serving carries no
+    balance sheet at all."""
 
     def __init__(self, message: str, *, side: Optional[str] = None,
                  delta_cents: Optional[int] = None) -> None:

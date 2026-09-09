@@ -1618,6 +1618,27 @@ def test_hx7_the_pedigree_reaches_the_wire(book):
 # (`canonical_bs.invariants.p121_cross_check.p121`), which is published
 # whether or not the override fired and is None — not zero — when no
 # account-121 row survived extraction.
+#
+# ── ADDENDUM 2026-09-09: THE BAND IS GONE, so two rows of the table
+#    above are now HISTORY, not current engine behaviour. ──────────────
+#
+# `chart_of_accounts.py` now anchors `net_income_statutory` to account
+# 121 ALWAYS; the 5% / 100,000-floor band was removed. Re-measured on
+# the same three shapes:
+#
+#   filed in 121   build-up   miss       assembled_pl says   driver
+#   19,000.00      19,000.00      0.00   unexplained     0.00  derived 5%
+#   15,000.00      19,000.00  4,000.00   unexplained −4,000.00 absent
+#   (no 121 row)   19,000.00  not meas.  unexplained     0.00  absent
+#
+# So the middle row's blind spot is REPAIRED UPSTREAM. The bottom row is
+# not, and cannot be: with no account 121 there is nothing to compare
+# against, and the field still says 0.00. That is the one surviving
+# shape in which this field reports "nothing unexplained" without a
+# comparison having been made, and it is why the drivers below read
+# `p121_cross_check.p121` — which is None, not zero — instead of it.
+# The gates below are unchanged in what they CLAIM; `test_hg0` was
+# rewritten to state the premise that survives (see the note on it).
 # ══════════════════════════════════════════════════════════════════════
 
 #: A micro-SRL, assembled by the SAME function the pipeline calls.
@@ -1637,14 +1658,60 @@ def _micro_book(filed_121, tax=1000.0, with_charge_account=True,
     override — the thing under test — runs for real. Nothing here edits
     an assembled field afterwards; the tests assert on what the engine
     emitted.
+
+    THE PAYABLES LINE IS SIZED FROM WHAT THE ENGINE SAYS 121 CLOSES TO,
+    not from this file's own idea of it (2026-09-09). It used to read
+    `assets - (capital + (pretax - tax))` — the class-6/7 RECONSTRUCTION
+    — while the caller separately declared a DIFFERENT filed account-121
+    balance. That made every non-tying shape a book that is not a trial
+    balance: its closing balances imply one current-year result and its
+    121 declares another, so assets − (equity + liabilities) ≠ 0.
+    Nothing noticed while the anchor override had a 5% band, because
+    below the band the engine served the reconstruction and the sheet
+    closed by accident. With the anchor always applied, the served sheet
+    carries the filed figure and the 4,000.00 this fixture built in
+    became visible — as a forecast BalanceViolation blaming a projected
+    period for it.
+
+    A real book cannot have this shape: account 121 IS a ledger row, so
+    the sheet's own residual is its closing balance whatever the class-6/7
+    run-down reaches (measured: all four committed books close to 0.00,
+    with 121 gaps up to 29,589,814.24). Reading the engine's own
+    `current_year_pnl` back in a first pass reproduces that property here
+    and, unlike an arithmetic copy, cannot drift from the engine again.
     """
     from engine.country_packs.ro_romania.chart_of_accounts import (
         assemble_statements)
 
     m = _MICRO
     pretax = m["revenue"] - m["opex"] - m["depreciation"]
-    equity = m["capital"] + (pretax - tax)
     assets = (m["ppe_gross"] - m["ppe_acc_dep"]) + m["cash"]
+
+    def _assemble(payables):
+        rows = _micro_accounts(m, tax, with_charge_account, extra_accounts,
+                               payables)
+        return assemble_statements(
+            rows, company_name="Micro SRL", period_label="FY2025",
+            account_121_anchor_override=filed_121)
+
+    # Pass 1 — any payables figure; account 401 is a class-4 liability and
+    # cannot move the current-year result. Pass 2 sizes the ledger so the
+    # residual IS that result, which is what makes this a trial balance.
+    probe = _assemble(0.0)
+    closes_to = float(
+        probe["statements"]["assembled_bs"].get("current_year_pnl") or 0.0)
+    assembled = _assemble(assets - (m["capital"] + closes_to))
+    return {
+        "case_id": "micro", "currency": "RON",
+        "period_start": "2025-01-01", "period_end": "2025-12-31",
+        "statements": assembled["statements"],
+        "envelope": assembled["assembled_canonical_v1"],
+        "line_items": assembled.get("lineItems") or [],
+    }
+
+
+def _micro_accounts(m, tax, with_charge_account, extra_accounts, payables):
+    """The micro ledger, with the payables line supplied by the caller."""
     accounts = [
         {"code": "704", "name": "Venituri din servicii",
          "amount": m["revenue"]},
@@ -1660,23 +1727,14 @@ def _micro_book(filed_121, tax=1000.0, with_charge_account=True,
          "amount": m["cash"]},
         {"code": "1012", "name": "Capital subscris varsat",
          "amount": m["capital"]},
-        {"code": "401", "name": "Furnizori", "amount": assets - equity},
+        {"code": "401", "name": "Furnizori", "amount": payables},
     ]
     if with_charge_account:
         accounts.append({"code": "691",
                          "name": "Cheltuieli cu impozitul pe profit",
                          "amount": tax})
     accounts.extend(extra_accounts)
-    assembled = assemble_statements(
-        accounts, company_name="Micro SRL", period_label="FY2025",
-        account_121_anchor_override=filed_121)
-    return {
-        "case_id": "micro", "currency": "RON",
-        "period_start": "2025-01-01", "period_end": "2025-12-31",
-        "statements": assembled["statements"],
-        "envelope": assembled["assembled_canonical_v1"],
-        "line_items": assembled.get("lineItems") or [],
-    }
+    return accounts
 
 
 def _build_up(payload):
@@ -1712,39 +1770,83 @@ def _micro_without_a_filed_balance():
     return _micro_book(None)
 
 
-def test_hg0_the_blind_spot_is_real_and_this_is_it():
+#: REWRITTEN 2026-09-09 — this test used to be
+#: `test_hg0_the_blind_spot_is_real_and_this_is_it` and asserted, on all
+#: three shapes:
+#:
+#:     assert pl["net_income_unexplained_vs_121"] == 0.00
+#:
+#: That was the 5% anchor band stated as a law. The band was removed
+#: (`chart_of_accounts.py`, "ALWAYS ANCHOR"), so the sub-threshold shape
+#: now reports its real −4,000.00 and the old assertion reds — correctly,
+#: exactly as its own docstring promised it would when the premise
+#: changed. It is rewritten rather than relaxed: the premise below is
+#: STRICTER than the one it replaces, because it pins the field to the
+#: measured distance wherever a filed balance exists instead of pinning
+#: it to a constant. A test that kept asserting 0.00 here would be
+#: pinning a repaired defect as the product's law.
+def test_hg0_the_premise_this_section_rests_on():
     """The premise, measured on the engine rather than asserted.
 
-    Every gate below rests on one claim about the upstream assembly:
-    `net_income_unexplained_vs_121` reads 0.00 both when the build-up
-    ties and when it misses by less than the anchor override's band —
-    and again when there is no account 121 at all. If that ever stops
-    being true, these fixtures stop testing what they say they test, and
-    this reds first and says so.
+    Every gate below rests on two claims about the upstream assembly:
+
+      * where account 121 exists, `net_income_unexplained_vs_121` is the
+        real distance from the build-up to the filed balance — so the
+        packages that measure that distance themselves can be pinned
+        against it (`test_hg6`);
+      * where account 121 does NOT exist, that same field still reads
+        0.00, with nothing having been compared. That is the surviving
+        ABSENT-as-ZERO shape, and it is why the drivers read
+        `p121_cross_check.p121` — None, not zero — instead.
+
+    If either stops being true these fixtures stop testing what they say
+    they test, and this reds first and says so.
     """
     ties = _micro_that_ties()
     missed = _micro_sub_threshold()
     absent = _micro_without_a_filed_balance()
     corrected = _micro_over_threshold()
 
-    for payload in (ties, missed, absent):
+    for name, payload in (("ties", ties), ("missed", missed),
+                          ("corrected", corrected)):
         pl = payload["statements"]["assembled_pl"]
-        assert pl["net_income_unexplained_vs_121"] == 0.0, (
-            "the field these packages used to condition on is expected to "
-            "read 0.00 on all three shapes; got %r"
-            % (pl["net_income_unexplained_vs_121"],))
+        filed = _p121_block(payload)["p121"]
+        assert filed is not None, name
+        assert pl["net_income_unexplained_vs_121"] == round(
+            filed - _build_up(payload), 2), (
+            "%s: the field must be the measured distance from the build-up "
+            "%s to the filed %s; got %r"
+            % (name, _build_up(payload), filed,
+               pl["net_income_unexplained_vs_121"]))
+
+    absent_pl = absent["statements"]["assembled_pl"]
+    assert _p121_block(absent)["p121"] is None, (
+        "the third shape must carry no account-121 balance at all; "
+        "ABSENT != ZERO is the whole point of it")
+    assert absent_pl["net_income_unexplained_vs_121"] == 0.0, (
+        "with no account 121 the field is expected to still read 0.00 "
+        "without having compared anything — the shape the drivers below "
+        "must not condition on; got %r"
+        % (absent_pl["net_income_unexplained_vs_121"],))
 
     assert _p121_block(ties)["p121"] == _build_up(ties)
     assert _p121_block(missed)["p121"] != _build_up(missed), (
         "the sub-threshold fixture must actually MISS its filed balance, "
         "or it is the tying book under another name")
-    assert _p121_block(absent)["p121"] is None, (
-        "the third shape must carry no account-121 balance at all; "
-        "ABSENT != ZERO is the whole point of it")
-    #: And the branch that already worked keeps working: over the band,
-    #: the engine corrects the statutory figure and reports the remainder.
-    assert (corrected["statements"]["assembled_pl"]
-            ["net_income_unexplained_vs_121"] != 0.0)
+
+    #: And every one of these books is a TRIAL BALANCE: the closing
+    #: balances close on the figure account 121 filed. `_micro_book` used
+    #: to size its payables line from the class-6/7 reconstruction
+    #: instead, which left the served sheet out by exactly the anchor
+    #: step and reached the forecast as a BalanceViolation blaming a
+    #: projected period for it.
+    for name, payload in (("ties", ties), ("missed", missed),
+                          ("absent", absent), ("corrected", corrected)):
+        assert payload["statements"]["assembled_bs"]["bs_balance_delta"] == 0.0, (
+            "%s: this book does not balance by %s — it is not a trial "
+            "balance and nothing measured on it is measured on a company"
+            % (name,
+               payload["statements"]["assembled_bs"]["bs_balance_delta"]))
 
 
 def test_hg1_a_sub_threshold_miss_refuses_the_rate():
@@ -1949,18 +2051,26 @@ def test_hg8_an_inventory_variation_does_not_bridge_the_distance():
     not assessed on. Measured on the committed realestate book, that is
     -30,391,418.38 against -801,604.14.
 
-    This book is ALSO inside the anchor override's band: the engine
-    publishes `net_income_unexplained_vs_121 = 0.00` for it, so the
-    condition this repair replaced would have measured a rate here.
+    This book used to sit inside the anchor override's band, where the
+    engine published `net_income_unexplained_vs_121 = 0.00` for it and
+    the condition this repair replaced would therefore have measured a
+    rate here. UPDATED 2026-09-09: the band is gone, so the engine now
+    reports the 3,000.00 itself — which is the same claim from the other
+    side, and a stronger premise. The assertion below used to read
+    `== 0.0` ("this fixture only tests what it claims while the upstream
+    field is still blind here"); it is not relaxed, it is inverted,
+    because the engine's own answer now agrees with this gate's.
     """
     payload = _micro_book(22000.0, extra_accounts=[
         {"code": "711", "name": "Venituri aferente costurilor stocurilor",
          "amount": 3000.0}])
     pl = payload["statements"]["assembled_pl"]
     assert pl["inventory_variation_memo"] == 3000.0, pl
-    assert pl["net_income_unexplained_vs_121"] == 0.0, (
-        "this fixture only tests what it claims while the upstream field "
-        "is still blind here")
+    assert pl["net_income_unexplained_vs_121"] == round(
+        _p121_block(payload)["p121"] - _build_up(payload), 2) != 0.0, (
+        "the assembly must itself report the inventory variation as NOT "
+        "bridging the distance to the filed balance; got %r"
+        % (pl["net_income_unexplained_vs_121"],))
     driver = build_case_set([payload]).case("base").driver("tax_rate")
     assert driver.value is None and driver.status == "absent", (
         "the inventory variation is not in the assembly's reconciliation "
