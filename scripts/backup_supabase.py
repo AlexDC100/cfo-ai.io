@@ -159,14 +159,15 @@ def dump_storage(ac: Any, dest: Path) -> List[Dict[str, Any]]:
 
     out: List[Dict[str, Any]] = []
     dest.mkdir(parents=True, exist_ok=True)
-    rows = ac.select("documents", columns="id,storage_path,size_bytes,original_filename",
+    rows = ac.select("documents", columns="id,org_id,storage_path,size_bytes,original_filename",
                      limit=10000) or []
     for r in rows:
         sp = r.get("storage_path")
         if not sp:
             continue
         try:
-            signed = ac.signed_url(DOCUMENTS_BUCKET, sp, expires_in=300)
+            signed = ac.signed_url(DOCUMENTS_BUCKET, sp,
+                                   org_id=r.get("org_id"), expires_in=300)
             resp = httpx.get(signed, timeout=60.0)
             resp.raise_for_status()
             blob = resp.content

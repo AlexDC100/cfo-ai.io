@@ -12,11 +12,68 @@ PostgREST URL pattern: <SUPABASE_URL>/rest/v1/<table>?select=*&col=eq.value
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import httpx
+
+
+logger = logging.getLogger(__name__)
+
+
+class CrossTenantStoragePath(RuntimeError):
+    """A storage path was asked for under an org that does not own it.
+
+    Raised INSTEAD of performing the operation. Never caught to continue —
+    a caller that sees this has been handed a path belonging to another
+    tenant and must fail the request.
+    """
+
+
+#: Buckets whose object keys are tenant-scoped as `{org_id}/...`.
+#: `documents` is written by lib/supabase.ts's uploadDocument and by
+#: `_firm_requests`, both using `{org_id}/uploads/{document_id}.{ext}`.
+TENANT_SCOPED_BUCKETS = frozenset({"documents"})
+
+
+def assert_tenant_path(bucket: str, path: str, org_id: Optional[str],
+                       *, op: str) -> None:
+    """Refuse a service-role storage operation on another tenant's object.
+
+    WHY THIS EXISTS (P0, 2026-09-09). `documents.storage_path` is written
+    by the BROWSER. RLS on the `documents` table constrains which org a
+    row may be filed under, and the storage bucket's own RLS binds the
+    first path segment to `is_member_of(...)` — but the engine signs and
+    deletes with the SERVICE ROLE, which bypasses storage RLS entirely,
+    and it took the path straight off the row without ever checking it
+    against that row's `org_id`. Filing a row in your own workspace with
+    `storage_path` pointing at another workspace's folder therefore
+    yielded a signed URL to their raw file, and the permanent-delete path
+    destroyed it. Both org id and document id travel in URLs, so the
+    values needed are not secret.
+
+    The tenant is a REQUIRED keyword on every storage method precisely so
+    a new call site cannot forget it: there is no default to inherit.
+    """
+    if bucket not in TENANT_SCOPED_BUCKETS:
+        return
+    first = (path or "").split("/", 1)[0].strip()
+    owner = str(org_id or "").strip()
+    if owner and first and first == owner:
+        return
+    # A security event, not a debug line: this is either a bug that would
+    # have crossed a tenant boundary, or someone probing for one.
+    logger.error(
+        "[security] REFUSED cross-tenant storage %s: bucket=%s path=%r "
+        "first_segment=%r declared_org=%r",
+        op, bucket, path, first, owner,
+    )
+    raise CrossTenantStoragePath(
+        "refused to %s %s/%s: the object's first path segment (%r) is not "
+        "the declared owning organization (%r)" % (op, bucket, path, first, owner)
+    )
 
 
 def _env(name: str) -> str:
@@ -186,7 +243,9 @@ class SupabaseClient:
 
     # ── Storage (signed URL minting) ──────────────────────────────────────
 
-    def signed_url(self, bucket: str, path: str, *, expires_in: int = 300) -> str:
+    def signed_url(self, bucket: str, path: str, *, org_id: str,
+                   expires_in: int = 300) -> str:
+        assert_tenant_path(bucket, path, org_id, op="sign")
         r = self._client.post(
             f"{self.url}/storage/v1/object/sign/{bucket}/{path}",
             json={"expiresIn": expires_in},
@@ -209,7 +268,9 @@ class SupabaseClient:
     # upsert — a request token is single-use, so a second write to the
     # same path is a bug, not a retry.
     def upload_object(self, bucket: str, path: str, content: bytes, *,
+                      org_id: str,
                       content_type: str = "application/octet-stream") -> None:
+        assert_tenant_path(bucket, path, org_id, op="upload")
         headers = dict(self._headers)
         headers["Content-Type"] = content_type or "application/octet-stream"
         headers["x-upsert"] = "false"
@@ -232,7 +293,8 @@ class SupabaseClient:
     # endpoint after a document has been soft-deleted — removes the
     # underlying blob from storage so the user's quota is reclaimed and
     # the file is genuinely gone (not just hidden behind `deleted_at`).
-    def delete_object(self, bucket: str, path: str) -> None:
+    def delete_object(self, bucket: str, path: str, *, org_id: str) -> None:
+        assert_tenant_path(bucket, path, org_id, op="delete")
         r = self._client.delete(f"{self.url}/storage/v1/object/{bucket}/{path}")
         # Some Supabase deployments return 200 with `{message: "Successfully deleted"}`,
         # others 204; 404 is also acceptable (object already gone).

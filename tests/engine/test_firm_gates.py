@@ -112,7 +112,7 @@ def landing_recorder():
         was_extra = False
 
     deps = FR.LandingDeps(
-        upload_object=lambda bucket, path, content, ctype: calls.append(("upload", bucket, path, len(content), ctype)),
+        upload_object=lambda bucket, path, content, ctype, org_id: calls.append(("upload", bucket, path, len(content), ctype)),
         insert_document=lambda row: (calls.append(("insert", dict(row))) or dict(row)),
         set_status=lambda doc_id, status, started: calls.append(("status", doc_id, status)),
         enqueue=lambda doc_id: calls.append(("enqueue", doc_id)),

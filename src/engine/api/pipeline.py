@@ -1011,7 +1011,9 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # spent on the wrong format.
         try:
             with _supabase.admin() as admin_client:
-                signed_for_text = admin_client.signed_url("documents", storage_path, expires_in=300)
+                signed_for_text = admin_client.signed_url(
+                    "documents", storage_path,
+                    org_id=doc.get("org_id"), expires_in=300)
             with httpx.Client(timeout=30.0) as http:
                 _r = http.get(signed_for_text)
                 _r.raise_for_status()
@@ -1184,7 +1186,9 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
             )
 
         with _supabase.admin() as admin_client:
-            signed = admin_client.signed_url("documents", storage_path, expires_in=300)
+            signed = admin_client.signed_url(
+                "documents", storage_path,
+                org_id=doc.get("org_id"), expires_in=300)
         from .financial_statements import (  # type: ignore
             ParseRequest,
             build_router as _build_fs_router,
@@ -1210,7 +1214,9 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("ANTHROPIC_API_KEY not configured.")
 
     with _supabase.admin() as admin_client:
-        signed = admin_client.signed_url("documents", storage_path, expires_in=300)
+        signed = admin_client.signed_url(
+            "documents", storage_path,
+            org_id=doc.get("org_id"), expires_in=300)
     with httpx.Client(timeout=30.0) as http:
         r = http.get(signed)
         r.raise_for_status()
@@ -3708,7 +3714,8 @@ def _run_sales_dataset_pipeline(doc: Dict[str, Any]) -> Optional[str]:
 
     # Mint a signed URL + download the bytes so openpyxl can read them.
     with _supabase.admin() as ac:
-        signed = ac.signed_url("documents", doc["storage_path"], expires_in=300)
+        signed = ac.signed_url("documents", doc["storage_path"],
+                               org_id=doc.get("org_id"), expires_in=300)
     r = httpx.get(signed, timeout=60.0)
     r.raise_for_status()
     xlsx_bytes = r.content
@@ -6506,7 +6513,8 @@ def build_router() -> APIRouter:
                 storage_path = doc.get("storage_path")
                 if storage_path:
                     try:
-                        admin.delete_object("documents", storage_path)
+                        admin.delete_object("documents", storage_path,
+                                            org_id=doc.get("org_id"))
                     except Exception:  # noqa: BLE001
                         logger.exception(
                             "[docs] clear-deleted: failed to remove blob %s", storage_path
@@ -6610,7 +6618,8 @@ def build_router() -> APIRouter:
             # missing blob shouldn't block the DB cleanup.
             if storage_path:
                 try:
-                    admin.delete_object("documents", storage_path)
+                    admin.delete_object("documents", storage_path,
+                                        org_id=doc.get("org_id"))
                 except Exception:  # noqa: BLE001
                     logger.exception(
                         "[docs] failed to remove storage blob %s (continuing with DB cleanup)",
@@ -6789,7 +6798,9 @@ def build_router() -> APIRouter:
                     if docs:
                         storage_path = docs[0].get("storage_path")
                         if storage_path:
-                            signed = ac.signed_url("documents", storage_path, expires_in=300)
+                            signed = ac.signed_url(
+                                "documents", storage_path,
+                                org_id=docs[0].get("org_id"), expires_in=300)
                             r = httpx.get(signed, timeout=60.0)
                             r.raise_for_status()
                             xlsx_bytes = r.content

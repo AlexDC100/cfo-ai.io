@@ -119,6 +119,7 @@ class FakeAdmin(object):
                               if not all(self._match(r, k, v) for k, v in filters.items())]
 
     def upload_object(self, bucket: str, path: str, content: bytes, *,
+                      org_id: str = "",
                       content_type: str = "application/octet-stream") -> None:
         self.uploads.append((bucket, path, len(content), content_type))
 

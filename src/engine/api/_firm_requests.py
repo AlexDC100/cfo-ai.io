@@ -579,7 +579,10 @@ class LandingDeps:
     PRODUCTION functions — the same ones /api/pipeline/run uses — so the
     request link is not a second pipeline."""
 
-    upload_object: Callable[[str, str, bytes, str], None]
+    # (bucket, path, content, content_type, org_id) — org_id is the
+    # tenant the object belongs to; _supabase.upload_object refuses a
+    # path whose first segment is not that org.
+    upload_object: Callable[[str, str, bytes, str, str], None]
     insert_document: Callable[[Dict[str, Any]], Dict[str, Any]]
     set_status: Callable[[str, str, Optional[str]], None]
     enqueue: Callable[[str], None]
@@ -588,9 +591,11 @@ class LandingDeps:
     now: Callable[[], datetime] = _now
 
 
-def _prod_upload_object(bucket: str, path: str, content: bytes, content_type: str) -> None:
+def _prod_upload_object(bucket: str, path: str, content: bytes,
+                        content_type: str, org_id: str) -> None:
     with _supabase.admin() as ac:
-        ac.upload_object(bucket, path, content, content_type=content_type)
+        ac.upload_object(bucket, path, content, org_id=org_id,
+                         content_type=content_type)
 
 
 def _prod_insert_document(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -731,7 +736,8 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
     ext = _ext_of(filename)
     storage_path = "%s/uploads/%s.%s" % (client_org_id, doc_id, ext)
     content_type = mime or "application/octet-stream"
-    deps.upload_object(DOC_BUCKET, storage_path, content, content_type)
+    deps.upload_object(DOC_BUCKET, storage_path, content, content_type,
+                       org_id=client_org_id)
 
     row = {
         "id": doc_id,

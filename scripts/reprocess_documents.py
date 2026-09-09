@@ -214,7 +214,7 @@ def main() -> int:
             if doc_id not in doc_cache:
                 rows = admin.select(
                     "documents",
-                    columns="id,original_filename,mime_type,storage_path,deleted_at,status",
+                    columns="id,org_id,original_filename,mime_type,storage_path,deleted_at,status",
                     filters={"id": f"eq.{doc_id}"},
                     single=True,
                 )
@@ -237,6 +237,7 @@ def main() -> int:
 
             try:
                 signed = admin.signed_url("documents", doc["storage_path"],
+                                          org_id=doc.get("org_id"),
                                           expires_in=300)
                 with httpx.Client(timeout=60.0) as http:
                     r = http.get(signed)

@@ -1915,6 +1915,15 @@ DECLARED_CLIENT_DATA_READERS = (
     "engine.api._industry_intelligence", "engine.api._journal_routes", "engine.api._ops_routes",
     "engine.api._org", "engine.api._period_move", "engine.api._reconcile", "engine.api.cfo_ai",
     "engine.api.frontend", "engine.api.pipeline", "engine.firm.attention",
+    # NOT a table reader. `_supabase` is the generic REST client — every
+    # table it touches arrives as a caller-supplied `table` argument, so
+    # it names none of its own. It appears in this census because the
+    # P0 cross-tenant storage guard (2026-09-09) names `documents` as a
+    # STORAGE BUCKET: `TENANT_SCOPED_BUCKETS`, plus the docstrings
+    # explaining that a service-role sign/delete on that bucket must
+    # match the row's org_id. Declared rather than exempted so the census
+    # keeps reporting it, and so this note is what the next reader finds.
+    "engine.api._supabase",
     "engine.storage.postgres",
 )
 
