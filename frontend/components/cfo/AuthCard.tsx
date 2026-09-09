@@ -140,9 +140,6 @@ export function AuthCard({
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
     [firstName, lastName],
   );
-  const signupDetailsComplete = firstName.trim().length > 0 && lastName.trim().length > 0 && companyName.trim().length > 0;
-  const signupReady =
-    companyName.trim().length > 0 && email.trim().length > 0 && password.length > 0 && confirmPassword.length > 0 && acceptedTerms;
   const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
   const passwordChecks = useMemo(() => getPasswordChecks(password, t), [password, t]);
   const selectedPlan = useMemo(
@@ -678,20 +675,16 @@ export function AuthCard({
 
             <button
               type="submit"
-              // Create account stays faded until every required field is
-              // filled and the terms box is ticked (2026-09-09 per operator).
-              disabled={busy || (mode === "sign_up" && !signupReady)}
-              data-ready={mode === "sign_up" ? (signupReady ? "true" : "false") : undefined}
-              className={`
+              disabled={busy}
+              className="
                 w-full mt-1
                 inline-flex items-center justify-center gap-2
                 h-11 px-5 rounded-full
                 bg-brand hover:bg-brand/90
                 text-primary-foreground text-[14px] font-medium
-                disabled:cursor-not-allowed
-                transition-all duration-300
-                ${mode === "sign_up" && !signupReady ? "opacity-35" : busy ? "opacity-50" : "opacity-100"}
-              `}
+                disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all
+              "
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
               {mode === "sign_in" ? t("auth.sign_in") : t("auth.sign_up")}
@@ -708,18 +701,17 @@ export function AuthCard({
                 <div className="flex-1 h-px bg-rule" />
               </div>
               {/* Google sign-UP (2026-09-09 per operator): under Create
-                  account, usable once name + company are filled — those
-                  are parked and applied to the new account, Google
-                  supplies the rest (lib/oauthProfile.ts). */}
+                  account, usable once the company is filled — the company
+                  is parked and applied to the new account, everything
+                  else (name, email, avatar) comes from Google
+                  (lib/oauthProfile.ts). */}
               <div className="grid grid-cols-1 gap-2">
                 <OAuthButton
                   provider="google"
                   busy={busy}
-                  disabled={mode === "sign_up" && !signupDetailsComplete}
+                  disabled={mode === "sign_up" && !companyName.trim()}
                   onClick={() => {
-                    if (mode === "sign_up") {
-                      markPendingOAuthProfile({ firstName: firstName.trim(), lastName: lastName.trim(), companyName: companyName.trim() });
-                    }
+                    if (mode === "sign_up") markPendingOAuthProfile({ companyName: companyName.trim() });
                     void handleOAuth("google");
                   }}
                 />
