@@ -251,8 +251,8 @@ function OnboardingScreen() {
           <>
             {/* App identity sits with the content on the last slide
                 (2026-09-09 per operator), not in the header. */}
-            <div className="flex flex-col items-center gap-3" data-testid="onboarding-brand">
-              <Mark size={48} />
+            <div className="flex items-center justify-center gap-3" data-testid="onboarding-brand">
+              <Mark size={40} />
               <span className="font-sans text-[28px] font-bold tracking-[-.02em]">
                 CFO <span className="ob-accent">AI</span>
               </span>
