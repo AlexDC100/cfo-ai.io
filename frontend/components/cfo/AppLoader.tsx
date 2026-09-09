@@ -16,8 +16,10 @@
 
 import { Logo } from "./Logo";
 
-/** Mark + indeterminate bar + caption. Shared by both loaders. */
-function LoaderBody({ label }: { label: string }) {
+/** Mark + indeterminate bar + caption. Shared by both loaders, and by
+ *  in-flow loading states that should look like the app loading rather
+ *  than a spinner (the notifications list). */
+export function LoaderBody({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-5 px-6">
       <Logo size={40} />

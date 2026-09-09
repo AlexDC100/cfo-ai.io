@@ -12,7 +12,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell } from "lucide-react";
+import { LoaderBody } from "@/components/cfo/AppLoader";
 
 import {
   Dialog,
@@ -121,9 +122,8 @@ export function NotificationsList({ alerts, loading }: { alerts: AlertRow[]; loa
     <>
 
             {loading ? (
-              <div className="py-10 flex items-center justify-center gap-2 text-[13px] text-ink-soft">
-                <Loader2 size={14} className="animate-spin" />
-                {t("common.loading")}
+              <div className="py-8 flex justify-center">
+                <LoaderBody label={t("common.loading")} />
               </div>
             ) : alerts.length === 0 ? (
               <div className="py-10 text-center">
