@@ -6,24 +6,21 @@
 // Paper and Terminal), defined as `.ob-*` classes in index.css — the token
 // sheet is the one place hex may live.
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LogIn } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import { AuthCard } from "@/components/cfo/AuthCard";
 import {
-  FROM_ONBOARDING_STATE,
-  ONBOARDING_LAST_STEP,
   closeOnboarding,
-  getOnboardingInitialStep,
   getOnboardingOpen,
   markOnboardingSeen,
   subscribeOnboarding,
 } from "@/lib/onboarding";
 
-const SLIDES = ONBOARDING_LAST_STEP;
+const SLIDES = 4;
 type T = (key: string) => string;
 
 function Mark({ size = 22 }: { size?: number }) {
@@ -197,105 +194,202 @@ export function OnboardingFlow() {
   return open ? <OnboardingScreen /> : null;
 }
 
-function OnboardingScreen() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { isAuthenticated, signOut } = useAuth();
-  const [step, setStep] = useState(getOnboardingInitialStep);
+function Brand({ innerRef }: { innerRef: React.RefObject<HTMLDivElement> }) {
+  return (
+    <div ref={innerRef} className="flex shrink-0 items-center justify-center gap-3" data-testid="onboarding-brand">
+      <Mark size={40} />
+      <span className="font-sans text-[28px] font-bold tracking-[-.02em]">
+        CFO <span className="ob-accent">AI</span>
+      </span>
+    </div>
+  );
+}
 
-  const finish = useCallback(() => {
-    markOnboardingSeen();
-    closeOnboarding();
-  }, []);
-  const next = () => setStep((s) => Math.min(SLIDES, s + 1));
-  const back = () => setStep((s) => Math.max(0, s - 1));
-  const skip = () => setStep(SLIDES);
-  // Replayed while signed in: the login page bounces a live session
-  // straight back to the dashboard, so "Sign in" ends it first (2026-09-09
-  // per operator — the button must land on the auth page).
-  const onSignIn = async () => {
-    finish();
+type FinalView = "slide" | "leaving" | "auth" | "returning";
+
+/** The last slide. Sign in transitions IN PLACE (2026-09-09 per operator):
+ *  the content under the lockup fades out, the lockup glides to the top
+ *  (FLIP: measured before and after the layout switch) and the app's
+ *  sign-in card fades in beneath it. Back reverses the motion. */
+function FinalSlide({
+  t,
+  isAuthenticated,
+  signOut,
+  onBack,
+  onDone,
+}: {
+  t: T;
+  isAuthenticated: boolean;
+  signOut: () => Promise<unknown>;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const [view, setView] = useState<FinalView>("slide");
+  const brandRef = useRef<HTMLDivElement>(null);
+  const fromTopRef = useRef<number | null>(null);
+  const timerRef = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+
+  const goAuth = async () => {
+    if (view !== "slide") return;
+    // A live session would make the card bounce straight to the dashboard.
     if (isAuthenticated) await signOut();
-    // The login page's Back brings this slide back (lib/onboarding.ts).
-    navigate("/login", { state: FROM_ONBOARDING_STATE });
+    setView("leaving");
+    timerRef.current = window.setTimeout(() => {
+      fromTopRef.current = brandRef.current?.getBoundingClientRect().top ?? null;
+      setView("auth");
+    }, 300);
+  };
+  const goSlide = () => {
+    if (view !== "auth") return;
+    fromTopRef.current = brandRef.current?.getBoundingClientRect().top ?? null;
+    setView("returning");
+    timerRef.current = window.setTimeout(() => setView("slide"), 30);
   };
 
-  const counter = `${String(step + 1).padStart(2, "0")}/0${SLIDES}`;
-  const auth = step === SLIDES;
+  // FLIP: the lockup keeps its DOM node across layouts; after a layout
+  // switch, start it where it WAS and let it glide to where it is.
+  useLayoutEffect(() => {
+    const el = brandRef.current;
+    const from = fromTopRef.current;
+    fromTopRef.current = null;
+    if (!el || from == null) return;
+    const dy = from - el.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    el.style.transition = "none";
+    el.style.transform = `translateY(${dy}px)`;
+    void el.offsetHeight;
+    el.style.transition = "transform 560ms cubic-bezier(.16, 1, .3, 1)";
+    el.style.transform = "translateY(0)";
+  }, [view]);
+
+  const auth = view === "auth";
+  const contentShown = view === "slide";
+  const fadeCls = `transition-opacity duration-300 ${contentShown ? "opacity-100" : "opacity-0"}`;
 
   return (
-    <div className="ob-screen font-sans" role="dialog" aria-modal="true" data-testid="onboarding" data-step={step}>
+    <>
       <div className="flex items-center justify-between">
-        {auth ? (
-          <span />
-        ) : step === 0 ? (
-          <Mark />
-        ) : (
-          <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
-            ← {t("firstRun.btnBack")}
-          </button>
-        )}
-        {!auth && (
-          <button type="button" onClick={skip} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-skip">
-            {t("firstRun.btnSkip")}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={auth ? goSlide : onBack}
+          className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]"
+          data-testid="onboarding-back"
+        >
+          ← {t("firstRun.btnBack")}
+        </button>
+        <span />
       </div>
 
-      <div key={step} className={`flex flex-1 flex-col justify-center overflow-y-auto py-4 ${auth ? "gap-5" : "gap-7"}`}>
-        {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
-        {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
-        {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}
-        {step === 3 && (<><PeersCard t={t} /><Copy kicker={t("firstRun.s4kicker")} title={t("firstRun.s4title")} body={t("firstRun.s4body")} /></>)}
-        {auth && (
-          <>
-            {/* App identity sits with the content on the last slide
-                (2026-09-09 per operator), not in the header. */}
-            <div className="flex items-center justify-center gap-3" data-testid="onboarding-brand">
-              <Mark size={40} />
-              <span className="font-sans text-[28px] font-bold tracking-[-.02em]">
-                CFO <span className="ob-accent">AI</span>
-              </span>
-            </div>
+      <div className={`flex flex-1 min-h-0 flex-col gap-5 overflow-y-auto py-4 ${auth ? "justify-start" : "justify-center"}`}>
+        <Brand innerRef={brandRef} />
+        {auth ? (
+          <div className="ob-a-fade flex justify-center" style={fade(0.25)} data-testid="onboarding-auth">
+            <AuthCard initialMode="sign_in" tabsHidden={false} subtitle={t("authX.subtitle_sign_in_page")} onAuthenticated={onDone} />
+          </div>
+        ) : (
+          <div className={`flex flex-col gap-5 ${fadeCls}`}>
             <AskCard t={t} />
             <div>
               <h2 className="font-sans text-[31px] font-semibold leading-[1.1] tracking-[-.025em] text-pretty">{t("firstRun.authTitle")}</h2>
               <p className="ob-soft mt-3 font-sans text-[14px] leading-[1.6] text-pretty">{t("firstRun.authBody")}</p>
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {auth ? (
-        <div className="flex flex-col gap-2.5">
-          <button type="button" onClick={() => void onSignIn()} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-signin">
+      {!auth && (
+        <div className={`flex flex-col gap-2.5 ${fadeCls}`}>
+          <button type="button" onClick={() => void goAuth()} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-signin">
             <LogIn size={15} strokeWidth={2} className="shrink-0" />
             {t("firstRun.btnSignIn")}
           </button>
           {isAuthenticated ? (
-            <button type="button" onClick={finish} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
+            <button type="button" onClick={onDone} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
               {t("firstRun.continueWithout")}
             </button>
           ) : (
-            <button type="button" onClick={finish} className="ob-dashed ob-soft h-[46px] rounded-lg border border-dashed font-mono text-[11.5px] uppercase tracking-[.08em]" data-testid="onboarding-guest">
+            <button type="button" onClick={onDone} className="ob-dashed ob-soft h-[46px] rounded-lg border border-dashed font-mono text-[11.5px] uppercase tracking-[.08em]" data-testid="onboarding-guest">
               {t("firstRun.btnGuest")}
             </button>
           )}
         </div>
+      )}
+    </>
+  );
+}
+
+function OnboardingScreen() {
+  const { t } = useTranslation();
+  const { isAuthenticated, signOut } = useAuth();
+  const [step, setStep] = useState(0);
+  // Leaving fades the whole overlay out before it unmounts (2026-09-09
+  // per operator: "smoothly display the app").
+  const [leaving, setLeaving] = useState(false);
+  const leaveTimer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
+
+  const dismiss = useCallback(() => {
+    if (leaving) return;
+    setLeaving(true);
+    leaveTimer.current = window.setTimeout(() => {
+      markOnboardingSeen();
+      closeOnboarding();
+    }, 320);
+  }, [leaving]);
+  const next = () => setStep((s) => Math.min(SLIDES, s + 1));
+  const back = () => setStep((s) => Math.max(0, s - 1));
+  const skip = () => setStep(SLIDES);
+
+  const counter = `${String(step + 1).padStart(2, "0")}/0${SLIDES}`;
+  const auth = step === SLIDES;
+
+  return (
+    <div
+      className={`ob-screen font-sans transition-opacity duration-300 ${leaving ? "pointer-events-none opacity-0" : "opacity-100"}`}
+      role="dialog"
+      aria-modal="true"
+      data-testid="onboarding"
+      data-step={step}
+    >
+      {auth ? (
+        <FinalSlide t={t} isAuthenticated={isAuthenticated} signOut={signOut} onBack={() => setStep(SLIDES - 1)} onDone={dismiss} />
       ) : (
-        <div className="flex flex-col gap-[18px]">
-          <div className="flex flex-col gap-2.5">
-            <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]" data-testid="onboarding-counter">{counter}</span>
-            <div className="flex gap-[5px]">
-              {Array.from({ length: SLIDES }, (_, i) => (
-                <span key={i} className={`h-0.5 flex-1 ${i === step ? "ob-bar-on" : "ob-bar-off"}`} />
-              ))}
-            </div>
+        <>
+          <div className="flex items-center justify-between">
+            {step === 0 ? (
+              <Mark />
+            ) : (
+              <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
+                ← {t("firstRun.btnBack")}
+              </button>
+            )}
+            <button type="button" onClick={skip} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-skip">
+              {t("firstRun.btnSkip")}
+            </button>
           </div>
-          <button type="button" onClick={next} className="ob-cta" data-testid="onboarding-next">
-            {step === SLIDES - 1 ? t("firstRun.btnStart") : t("firstRun.btnContinue")}
-          </button>
-        </div>
+
+          <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4">
+            {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
+            {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
+            {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}
+            {step === 3 && (<><PeersCard t={t} /><Copy kicker={t("firstRun.s4kicker")} title={t("firstRun.s4title")} body={t("firstRun.s4body")} /></>)}
+          </div>
+
+          <div className="flex flex-col gap-[18px]">
+            <div className="flex flex-col gap-2.5">
+              <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]" data-testid="onboarding-counter">{counter}</span>
+              <div className="flex gap-[5px]">
+                {Array.from({ length: SLIDES }, (_, i) => (
+                  <span key={i} className={`h-0.5 flex-1 ${i === step ? "ob-bar-on" : "ob-bar-off"}`} />
+                ))}
+              </div>
+            </div>
+            <button type="button" onClick={next} className="ob-cta" data-testid="onboarding-next">
+              {step === SLIDES - 1 ? t("firstRun.btnStart") : t("firstRun.btnContinue")}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
