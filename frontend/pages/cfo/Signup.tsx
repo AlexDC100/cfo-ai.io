@@ -4,10 +4,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { Logo } from "@/components/cfo/Logo";
+import { isNativeShell } from "@/lib/nativeShell";
+import { MobileAuthScreen } from "@/components/cfo/onboarding/AuthScreen";
 
 export default function Signup() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  // Inside the shell the ONE auth surface is the onboarding-style screen.
+  if (isNativeShell()) return <MobileAuthScreen initialMode="sign_up" next="/dashboard" />;
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <header className="px-6 sm:px-10 py-5 flex items-center justify-between gap-3">

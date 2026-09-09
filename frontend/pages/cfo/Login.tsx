@@ -10,13 +10,14 @@
 // already applies to TopHeader (see AppShell's `inNativeShell`). Inert in a
 // normal browser.
 
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { AuthCard } from "@/components/cfo/AuthCard";
 import { MarketingHeader } from "./Landing";
-import { NATIVE_ACTION_EVENT, isNativeShell, postToNativeShell } from "@/lib/nativeShell";
+import { isNativeShell } from "@/lib/nativeShell";
+import { MobileAuthScreen } from "@/components/cfo/onboarding/AuthScreen";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -46,40 +47,23 @@ export default function Login() {
   // the same disc that is the burger everywhere else, so the auth gate has
   // exactly one navigation affordance and it sits where the burger does.
   // Off again on unmount so the button doesn't outlive the page.
-  useEffect(() => {
-    if (!inNativeShell) return undefined;
-    postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: true });
-    function onAction(e: Event) {
-      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
-      if (action === "back") goBack();
-    }
-    window.addEventListener(NATIVE_ACTION_EVENT, onAction as EventListener);
-    return () => {
-      window.removeEventListener(NATIVE_ACTION_EVENT, onAction as EventListener);
-      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false });
-    };
-  }, [inNativeShell, goBack]);
+  // Inside the shell the ONE auth surface is the onboarding-style screen
+  // (2026-09-09 per operator); the browser keeps the marketing layout.
+  if (inNativeShell) return <MobileAuthScreen initialMode={initialMode} next={next} />;
+
 
   return (
     <div
       className="min-h-screen text-ink flex flex-col"
-      style={
-        // In the shell the page is transparent: the shell paints the static
-        // canvas + spotlight behind the WebView (the same background every
-        // tab has), and painting a second one here doubled it up.
-        inNativeShell
-          ? { paddingTop: "env(safe-area-inset-top)" }
-          : {
-              background:
-                "radial-gradient(ellipse 70% 60% at 50% 0%, hsl(var(--brand) / 0.10), transparent 60%), hsl(var(--bg))",
-            }
-      }
+      style={{
+        background:
+          "radial-gradient(ellipse 70% 60% at 50% 0%, hsl(var(--brand) / 0.10), transparent 60%), hsl(var(--bg))",
+      }}
     >
-      {!inNativeShell && <MarketingHeader />}
+      <MarketingHeader />
 
       <main className="flex-1 flex items-center justify-center px-5 py-10 sm:py-16">
         <div className="w-full max-w-[440px]">
-          {!inNativeShell && (
           <button
             type="button"
             data-testid="login-back"
@@ -89,7 +73,6 @@ export default function Login() {
             <ArrowLeft size={15} strokeWidth={1.75} className="shrink-0" />
             {t("common.back")}
           </button>
-          )}
           <AuthCard
             initialMode={initialMode}
             tabsHidden={false}

@@ -1223,6 +1223,8 @@ html.native-shell body::before {
   overscroll-behavior: contain;
   -webkit-tap-highlight-color: transparent;
 }
+/* Route-level auth screen: no slide padding, the panel handles insets. */
+.ob-screen.ob-flush { padding: 0; }
 .ob-accent { color: hsl(var(--brand)); }
 .ob-soft { color: hsl(var(--ink-soft)); }
 .ob-mute { color: hsl(var(--ink-mute)); }

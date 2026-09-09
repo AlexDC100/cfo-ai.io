@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { LogIn } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { AuthCard } from "@/components/cfo/AuthCard";
+import { AuthPanel, Brand, Mark } from "./AuthScreen";
 import {
   closeOnboarding,
   getOnboardingOpen,
@@ -22,16 +22,6 @@ import {
 
 const SLIDES = 4;
 type T = (key: string) => string;
-
-function Mark({ size = 22 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 64 64" width={size} height={size} aria-label="CFO AI">
-      <path className="ob-fill-accent" d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" />
-      <path className="ob-fill-ink" d="M 38 14 L 60 60 L 48 60 L 38 38 Z" />
-      <rect className="ob-fill-ink" x="34" y="34" width="14" height="3" />
-    </svg>
-  );
-}
 
 const fade = (delay: number) => ({ animationDelay: `${delay}s` });
 
@@ -194,17 +184,6 @@ export function OnboardingFlow() {
   return open ? <OnboardingScreen /> : null;
 }
 
-function Brand({ innerRef }: { innerRef: React.RefObject<HTMLDivElement> }) {
-  return (
-    <div ref={innerRef} className="flex shrink-0 items-center justify-center gap-3" data-testid="onboarding-brand">
-      <Mark size={40} />
-      <span className="font-sans text-[28px] font-bold tracking-[-.02em]">
-        CFO <span className="ob-accent">AI</span>
-      </span>
-    </div>
-  );
-}
-
 type FinalView = "slide" | "leaving" | "auth" | "returning";
 
 /** The last slide. Sign in transitions IN PLACE (2026-09-09 per operator):
@@ -269,25 +248,32 @@ function FinalSlide({
 
   return (
     <>
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={auth ? goSlide : onBack}
-          className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]"
-          data-testid="onboarding-back"
-        >
-          ← {t("firstRun.btnBack")}
-        </button>
-        <span />
-      </div>
+      {!auth && (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]"
+            data-testid="onboarding-back"
+          >
+            ← {t("firstRun.btnBack")}
+          </button>
+          <span />
+        </div>
+      )}
 
-      <div className={`flex flex-1 min-h-0 flex-col gap-5 overflow-y-auto py-4 ${auth ? "justify-start" : "justify-center"}`}>
-        <Brand innerRef={brandRef} />
-        {auth ? (
-          <div className="ob-a-fade flex justify-center" style={fade(0.25)} data-testid="onboarding-auth">
-            <AuthCard bare initialMode="sign_in" tabsHidden oauthPlacement="below" subtitle={t("authX.subtitle_sign_in_page")} onAuthenticated={onDone} />
-          </div>
-        ) : (
+      {auth ? (
+        // Edge to edge: cancel the slide padding so the auth panel uses the
+        // whole screen and scrolls under the top fade (2026-09-09).
+        <div
+          className="relative flex flex-1 min-h-0 flex-col"
+          style={{ margin: "calc(-1 * (env(safe-area-inset-top) + 28px)) -26px calc(-1 * (env(safe-area-inset-bottom) + 28px))" }}
+        >
+          <AuthPanel brandRef={brandRef} initialMode="sign_in" onBack={goSlide} onAuthenticated={onDone} />
+        </div>
+      ) : (
+        <div className="flex flex-1 min-h-0 flex-col justify-center gap-5 overflow-y-auto py-4">
+          <Brand innerRef={brandRef} />
           <div className={`flex flex-col gap-5 ${fadeCls}`}>
             <AskCard t={t} />
             <div>
@@ -295,8 +281,8 @@ function FinalSlide({
               <p className="ob-soft mt-3 font-sans text-[14px] leading-[1.6] text-pretty">{t("firstRun.authBody")}</p>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {!auth && (
         <div className={`flex flex-col gap-2.5 ${fadeCls}`}>

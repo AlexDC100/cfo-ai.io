@@ -73,6 +73,11 @@ interface Props {
   /** No panel chrome (border, fill, shadow, padding) and no heading — the
       form sits directly on the host surface (first-run onboarding). */
   bare?: boolean;
+  /** Controlled mode (sign in / create account). With `onModeChange` the
+      bottom "Create an account" / "Sign in" links switch modes IN PLACE
+      instead of navigating to /signup or /login. */
+  mode?: Mode;
+  onModeChange?: (mode: Mode) => void;
 }
 
 export function AuthCard({
@@ -82,6 +87,8 @@ export function AuthCard({
   onAuthenticated,
   oauthPlacement = "above",
   bare = false,
+  mode: modeProp,
+  onModeChange,
 }: Props) {
   // ─── Hooks (all unconditional, fixed order) ────────────────────────────
   // useAuth + useNavigate + useSearchParams must run on every render or React
@@ -99,7 +106,12 @@ export function AuthCard({
   const { subscription, setPlan } = useSubscription();
 
   // All useState calls grouped; nothing conditional above them.
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [modeState, setModeState] = useState<Mode>(initialMode);
+  const mode: Mode = modeProp ?? modeState;
+  const setMode = (next: Mode) => {
+    setModeState(next);
+    onModeChange?.(next);
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -699,9 +711,17 @@ export function AuthCard({
 
           <p className="mt-5 text-[11px] text-ink-soft text-center leading-relaxed">
             {mode === "sign_in" ? (
-              <>{t("authX.new_here")} <Link to="/signup" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")}>{t("authX.create_an_account")}</Link></>
+              <>{t("authX.new_here")} {onModeChange ? (
+                <button type="button" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")} data-testid="auth-switch-mode">{t("authX.create_an_account")}</button>
+              ) : (
+                <Link to="/signup" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")}>{t("authX.create_an_account")}</Link>
+              )}</>
             ) : (
-              <>{t("authX.already_have_account")} <Link to="/login" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_in")}>{t("auth.sign_in")}</Link></>
+              <>{t("authX.already_have_account")} {onModeChange ? (
+                <button type="button" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_in")} data-testid="auth-switch-mode">{t("auth.sign_in")}</button>
+              ) : (
+                <Link to="/login" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_in")}>{t("auth.sign_in")}</Link>
+              )}</>
             )}
           </p>
         </>
