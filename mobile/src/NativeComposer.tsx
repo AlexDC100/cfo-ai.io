@@ -97,8 +97,9 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
   const canSend = text.trim().length > 0 && !state.pending && !state.disabled;
   const dark = scheme === "dark";
   const fallback = glassFallback(dark, p.border);
-  // Idle: a little above the home indicator; keyboard up: tight on it.
-  const padBottom = keyboardUp ? 8 : Math.max(8, bottomInset - 6);
+  // Idle: clear of the home indicator (raised 8 pt 2026-09-10 per
+  // operator); keyboard up: tight on it.
+  const padBottom = keyboardUp ? 8 : Math.max(16, bottomInset + 2);
 
   return (
     <View
