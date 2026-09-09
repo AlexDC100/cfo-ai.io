@@ -32,7 +32,8 @@
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
     "disclaimer": "Disclaimer",
-    "replayOnboarding": "Replay onboarding"
+    "replayOnboarding": "Replay onboarding",
+    "groupDev": "Dev"
   },
   "topbar": {
     "ask": "Ask CFO AI",

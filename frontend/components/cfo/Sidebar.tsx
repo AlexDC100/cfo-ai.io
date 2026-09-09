@@ -497,26 +497,24 @@ export function Sidebar({
               ))}
           </Section>
         ))}
+        {/* Dev — DRAWER, DEV BUILDS ONLY (2026-09-09 per operator): a
+            section under Explore holding the onboarding replay; never in
+            a production bundle. */}
+        {inDrawer && onboardingReplayAvailable && (
+          <Section label={t("sidebar.groupDev")}>
+            <button
+              type="button"
+              data-testid="sidebar-replay-onboarding"
+              onClick={() => { onItemClick?.(); openOnboarding(); }}
+              {...tapHandlers(() => { onItemClick?.(); openOnboarding(); })}
+              className="relative flex w-full items-center min-h-[44px] sm:min-h-0 sm:h-9 gap-3 pl-6 pr-3 text-[13px] text-ink-soft hover:text-ink hover:bg-bg-2 transition-colors duration-micro"
+            >
+              <RotateCcw size={16} strokeWidth={1.75} className="shrink-0" />
+              <span className="truncate">{t("sidebar.replayOnboarding")}</span>
+            </button>
+          </Section>
+        )}
       </nav>
-
-      {/* Replay the first-run onboarding — DRAWER, DEV BUILDS ONLY
-          (2026-09-09 per operator): a local switch to watch the intro
-          again; never rendered in a production bundle. */}
-      {inDrawer && onboardingReplayAvailable && (
-        <div className="shrink-0 px-3 pb-2">
-          <button
-            type="button"
-            data-testid="sidebar-replay-onboarding"
-            onClick={() => { onItemClick?.(); openOnboarding(); }}
-            {...tapHandlers(() => { onItemClick?.(); openOnboarding(); })}
-            className="flex w-full items-center gap-2 rounded-md px-3 min-h-[44px] text-[13px] text-ink-soft hover:bg-bg-2 hover:text-ink transition-colors duration-micro"
-          >
-            <RotateCcw size={15} strokeWidth={1.75} className="shrink-0" />
-            <span className="truncate">{t("sidebar.replayOnboarding")}</span>
-            <span className="ml-auto font-mono text-[10px] uppercase tracking-[.08em] text-ink-mute">dev</span>
-          </button>
-        </div>
-      )}
 
       {/* Account row — DRAWER ONLY (2026-08-18, native-shell pass): inside
           the shell there is no TopHeader avatar, so the credentials row is
