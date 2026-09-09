@@ -443,7 +443,7 @@ def move_document_to_period(
     if not document_id or not org_id:
         raise MoveRefused("invalid_document", "Document is missing id or org.")
 
-    from_period = _period_row(client, document.get("period_id"))
+    from_period = _period_row(client, document.get("period_id"), org_id=org_id)
     siblings = _live_siblings(client, from_period, document_id)
     plan = plan_move(
         document=document,
@@ -540,7 +540,7 @@ def make_document_active(
             "This file is not attached to a period yet, so it cannot be its "
             "analysis source.",
         )
-    period = _period_row(client, period_id)
+    period = _period_row(client, period_id, org_id=org_id)
     if period is None:
         raise MoveRefused("period_missing", "The file's period no longer exists.")
 
@@ -579,13 +579,54 @@ def make_document_active(
 # ── small helpers ─────────────────────────────────────────────────────
 
 
-def _period_row(client: Any, period_id: Any) -> Optional[Dict[str, Any]]:
+def _period_row(client: Any, period_id: Any, *, org_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch a period BY ID under the service role, refusing one that
+    belongs to another tenant.
+
+    WHY THE TENANT IS A REQUIRED ARGUMENT (P0, 2026-09-09).
+    `documents.period_id` is written by the BROWSER — `documents` RLS is
+    `is_member_of(org_id)` with no column restriction, and
+    frontend/lib/supabase.ts inserts the row including `period_id`. Its
+    foreign key to `financial_periods(id)` is EXISTENCE-only; nothing
+    constrains it to the same organization.
+
+    `client` here is the SERVICE ROLE, so this select bypasses RLS: the
+    filter IS the access control. The write wall
+    (`_verify_user_may_write_document`) validates membership in the
+    DOCUMENT's org and never looks at `period_id`. So a row filed in your
+    own workspace, carrying another workspace's period id, walked
+    straight through it — and `make_document_active` then hard-deleted
+    that period's statement_line_items, calculated_metrics, briefings and
+    valuations, nulled its assembled_canonical_v1 and re-pointed its
+    source_document_id at the attacker's file.
+
+    This is the same defect as the storage-path bypass fixed the same day
+    (see `_supabase.assert_tenant_path`): a browser-written column
+    consumed by raw value in a service-role operation, behind a wall that
+    checks a different object. A firm viewer holding only a read cell has
+    every client period id by design, so the adversary is the one the
+    write wall was written for.
+    """
     if not period_id:
         return None
     rows = client.select(
         "financial_periods", filters={"id": "eq.%s" % period_id}, single=True
     )
-    return rows[0] if rows else None
+    row = rows[0] if rows else None
+    if row is None:
+        return None
+    owner = str(row.get("org_id") or "").strip()
+    caller = str(org_id or "").strip()
+    if not caller or owner != caller:
+        logger.error(
+            "[security] REFUSED cross-tenant period access: period=%r "
+            "period_org=%r caller_org=%r", period_id, owner, caller,
+        )
+        raise MoveRefused(
+            "period_not_in_workspace",
+            "That period belongs to a different workspace.",
+        )
+    return row
 
 
 def _live_siblings(

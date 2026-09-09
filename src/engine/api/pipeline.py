@@ -5635,7 +5635,7 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
     }
 
 
-def _maybe_drop_empty_period(period_id: str) -> None:
+def _maybe_drop_empty_period(period_id: str, *, org_id: str = "") -> None:
     """Hard-delete the period row when NO documents (live OR soft-deleted)
     reference it. Skipped when the period was created < 5 minutes ago
     (safety window — a freshly-uploaded doc may not yet have stage_persist
@@ -5662,7 +5662,8 @@ def _maybe_drop_empty_period(period_id: str) -> None:
     with _supabase.admin() as client:
         period_rows = client.select(
             "financial_periods",
-            filters={"id": f"eq.{period_id}"},
+            filters=({"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"}
+                     if org_id else {"id": f"eq.{period_id}"}),
             single=True,
         )
         if not period_rows:
@@ -5688,7 +5689,13 @@ def _maybe_drop_empty_period(period_id: str) -> None:
         if any_docs:
             return  # period still has at least one doc (live or sd) — keep it
 
-        client.delete("financial_periods", filters={"id": f"eq.{period_id}"})
+        # The org is named in the filter as well as in the select above:
+        # under the service role the filter IS the access control, and a
+        # guard that lives only in an earlier early-return is one edit away
+        # from being bypassed.
+        client.delete("financial_periods", filters=(
+            {"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"}
+            if org_id else {"id": f"eq.{period_id}"}))
         logger.info("[docs] dropped orphan period %s", period_id)
 
 
@@ -6557,7 +6564,8 @@ def build_router() -> APIRouter:
         period_id = doc and doc.get("period_id")
         if period_id:
             try:
-                _maybe_drop_empty_period(period_id)
+                _maybe_drop_empty_period(
+                    period_id, org_id=str((doc or {}).get("org_id") or ""))
             except Exception:  # noqa: BLE001
                 logger.exception("[docs] orphan-period cleanup failed for %s", period_id)
         return {"document_id": document_id, "deleted_at": _now_iso()}
@@ -7300,9 +7308,25 @@ def build_router() -> APIRouter:
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
         # wipe by document below for that one).
-        if doc.get("period_id"):
+        # THE ORG IS PART OF THE FILTER, not an assumption (P0, 2026-09-09).
+        # `documents.period_id` is written by the BROWSER — `documents` RLS is
+        # is_member_of(org_id) with no column restriction, and its FK to
+        # financial_periods is EXISTENCE-only, so nothing ties it to the same
+        # tenant. The write wall above validated the DOCUMENT; it never looked
+        # at period_id. This delete runs under the SERVICE ROLE, so the filter
+        # IS the access control — filtering on id alone let a row filed in
+        # your own workspace, carrying another workspace's period id, delete
+        # that period and cascade away its line items, metrics and briefings.
+        # Same defect as the storage-path bypass and the make-active twin
+        # fixed the same day. With org_id in the filter a cross-tenant id
+        # simply matches nothing.
+        doc_org = str(doc.get("org_id") or "").strip()
+        if doc.get("period_id") and doc_org:
             with _supabase.admin() as admin_client:
-                admin_client.delete("financial_periods", filters={"id": f"eq.{doc['period_id']}"})
+                admin_client.delete("financial_periods", filters={
+                    "id": f"eq.{doc['period_id']}",
+                    "org_id": f"eq.{doc_org}",
+                })
         with _supabase.admin() as admin_client:
             admin_client.delete("alerts", filters={"document_id": f"eq.{req.document_id}"})
             admin_client.update(
@@ -8924,7 +8948,13 @@ def build_router() -> APIRouter:
             # they were generated for is gone; safest to leave them — re-running
             # a future upload will overwrite. (Don't accidentally wipe other
             # periods' recommendations.)
-            ac.delete("financial_periods", filters={"id": f"eq.{period_id}"})
+            # org_id is re-stated here although the period was already
+            # authorized above (per-user select + require_org_member): a
+            # service-role delete of a period always names its tenant, so the
+            # rule holds by inspection at every site rather than by tracing
+            # each one back to its wall.
+            ac.delete("financial_periods",
+                      filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}"})
 
         return {
             "ok": True,
