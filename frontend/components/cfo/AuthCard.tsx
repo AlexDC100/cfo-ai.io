@@ -735,14 +735,11 @@ export function AuthCard({
                   }}
                 />
               </div>
-              {/* Faint rule before the switch-mode line (sign-in only: the
-                  in-place create-account view has no line under Google —
-                  Back returns to sign in). */}
-              {!(onModeChange && mode === "sign_up") && <div aria-hidden className="mt-5 h-px bg-rule/60" />}
+              {/* Faint rule before the switch-mode line. */}
+              <div aria-hidden className="mt-5 h-px bg-rule/60" />
             </>
           )}
 
-          {!(onModeChange && mode === "sign_up") && (
           <p className="mt-5 text-[11px] text-ink-soft text-center leading-relaxed">
             {mode === "sign_in" ? (
               <>{t("authX.new_here")} {onModeChange ? (
@@ -758,7 +755,6 @@ export function AuthCard({
               )}</>
             )}
           </p>
-          )}
         </>
       )}
 
