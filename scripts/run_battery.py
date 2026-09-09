@@ -270,6 +270,28 @@ def _engine_gates() -> List[Gate]:
         # `pytest` because a side channel around the pipeline and a model
         # in the ranking path both fail SILENTLY. Floor 15 = the measured
         # 22 tests, rounded down. Plant log: docs/engine_book/gates.md
+        # TENANT BOUNDARY — the anatomy that produced two P0s on
+        # 2026-09-09, an hour apart: a BROWSER-WRITTEN column consumed by
+        # raw value inside a SERVICE-ROLE operation, behind a wall that
+        # checks a different object. storage_path minted signed URLs for
+        # another org's raw trial balance; period_id hard-deleted another
+        # org's whole analysis; uploaded_by charged their quota and metered
+        # their Stripe subscription. Under the service role RLS does not
+        # apply, so the FILTER is the access control — a guard sitting in
+        # an earlier early-return is one edit away from being bypassed.
+        # These three suites are the permanent form of that sweep: the
+        # storage seam, the period seam, and a static census that fails any
+        # NEW unfiltered service-role call on a tenant table. Plant log:
+        # docs/engine_book/gates.md
+        Gate("tenant-boundary",
+             [PY, "-m", "pytest",
+              "tests/engine/test_storage_tenant_paths.py",
+              "tests/engine/test_period_id_tenant_boundary.py",
+              "tests/engine/test_service_role_tenant_filter.py", "-q"],
+             work_junit=True, floor=30, units="tests",
+             canaries=("test_another_orgs_path_is_refused_for_every_operation",
+                       "test_make_active_refuses_a_period_in_another_workspace",
+                       "test_every_unfiltered_service_role_call_is_declared")),
         Gate("route-binding",
              [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
              work_junit=True, floor=3, units="tests",

@@ -4031,7 +4031,7 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
             rows = ac.select(
                 "documents",
                 filters={"id": f"eq.{document_id}"},
-                columns="id,uploaded_by,metered_extra",
+                columns="id,org_id,uploaded_by,metered_extra",
                 single=True,
             )
         if not rows:
@@ -4039,6 +4039,31 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         row = rows[0]
         user_id = row.get("uploaded_by")
         if not user_id:
+            return
+        # `uploaded_by` IS BROWSER-WRITTEN (P0 family, 2026-09-09).
+        # `documents` RLS is is_member_of(org_id) with no column
+        # restriction, so the row's uploaded_by is whatever the client put
+        # there. This runs on the orchestrator thread with no JWT, so the
+        # column is the only identity available — and it decides whose
+        # daily/monthly quota is consumed and whose Stripe subscription is
+        # metered for an extra document. Filing a row that names someone
+        # else charged them.
+        #
+        # The tenant is the part this can prove: the charged user must be
+        # a member of the document's own organization. A stranger in
+        # another workspace can no longer be billed. Charging a COLLEAGUE
+        # inside one workspace remains possible and is the org's own
+        # business, but the durable fix is a DB constraint the client
+        # cannot forge — `with check (uploaded_by = auth.uid())` on the
+        # documents INSERT policy — which is a migration, not a code
+        # change. See docs/ for the pending migration note.
+        doc_org = str(row.get("org_id") or "").strip()
+        if not doc_org or not _org.user_is_member(str(user_id), doc_org):
+            logger.error(
+                "[security] REFUSED quota/billing commit: document=%s names "
+                "uploaded_by=%r who is not a member of its org=%r",
+                document_id, user_id, doc_org,
+            )
             return
         was_extra = bool(row.get("metered_extra"))
         # 2026-08 tiers — non-RO meter flags. Columns come from
