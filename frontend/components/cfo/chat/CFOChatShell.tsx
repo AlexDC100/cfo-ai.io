@@ -39,6 +39,7 @@ import { promptSignIn } from "@/lib/authPrompt";
 import { getActiveOrgId } from "@/lib/activeOrg";
 import { readPeriodVerdict } from "@/lib/dataPresence";
 import { usePublicCompanyChatContext } from "@/lib/publicCompanyChatStore";
+import { isNativeShell } from "@/lib/nativeShell";
 import type { ChatAttachment } from "./types";
 import type { Currency } from "@/lib/rates";
 
