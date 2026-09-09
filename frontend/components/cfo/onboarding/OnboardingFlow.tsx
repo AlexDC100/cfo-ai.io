@@ -434,7 +434,7 @@ function OnboardingScreen() {
               <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]" data-testid="onboarding-counter">{counter}</span>
               <div className="flex gap-[5px]">
                 {Array.from({ length: SLIDES }, (_, i) => (
-                  <span key={i} className={`h-0.5 flex-1 ${i === step ? "ob-bar-on" : i < step ? "ob-bar-done" : "ob-bar-off"}`} />
+                  <span key={i} className={`h-0.5 flex-1 transition-colors duration-500 ease-out ${i === step ? "ob-bar-on" : i < step ? "ob-bar-done" : "ob-bar-off"}`} />
                 ))}
               </div>
             </div>
