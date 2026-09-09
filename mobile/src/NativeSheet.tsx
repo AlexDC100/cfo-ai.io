@@ -20,7 +20,7 @@
 //                                          reload the main WebView, dismiss
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { BottomSheet, Group, Host, RNHostView } from "@expo/ui/swift-ui";
 import { frame, presentationBackground, presentationDetents, presentationDragIndicator } from "@expo/ui/swift-ui/modifiers";
@@ -70,6 +70,11 @@ function toHex(color: string, fallback: string): string {
 export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Props) {
   const webRefs = useRef<Record<NativeSheetKind, WebView | null>>({ account: null, notifications: null });
   const presented = kind !== null;
+  // The hosted view keeps whatever height SwiftUI first proposed (a
+  // screenshot showed the page ending halfway down the sheet, the rest
+  // bare backdrop). An explicit full-window height makes the page fill the
+  // sheet at every detent; a shorter sheet simply clips the bottom.
+  const { height: windowHeight } = useWindowDimensions();
   // A sheet requested before the warm-up mounts its page right away. Both
   // pages mount TOGETHER: mounting them one at a time (tried 2026-09-10)
   // left the hosted view sized for the first child, and the sheet's
@@ -161,7 +166,7 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
       >
         <Group modifiers={modifiers}>
           <RNHostView>
-            <View style={[styles.body, { backgroundColor: fallbackBg }]}>
+            <View style={[styles.body, { backgroundColor: fallbackBg, height: windowHeight }]}>
               {mounted &&
                 KINDS.map((k) => (
                   <WebView
