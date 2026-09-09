@@ -123,6 +123,8 @@ export function AuthCard({
   // After a submit attempt, empty mandatory fields are tinted instead of
   // the browser's "Fill out this field" bubble (2026-09-09 per operator).
   const [showMissing, setShowMissing] = useState(false);
+  // Google tapped in create-account without a company: only that field.
+  const [showCompanyMissing, setShowCompanyMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   // Resend cooldown — Supabase rate-limits OTP / signup resends server-side
@@ -282,7 +284,7 @@ export function AuthCard({
     e.preventDefault();
     setError(null);
     const missing =
-      !email.trim() || !password || (mode === "sign_up" && (!companyName.trim() || !confirmPassword));
+      !email.trim() || !password || (mode === "sign_up" && (!companyName.trim() || !confirmPassword || !acceptedTerms));
     setShowMissing(missing);
     if (missing) return;
     if (mode === "sign_up" && !companyName.trim()) {
@@ -550,7 +552,7 @@ export function AuthCard({
                     placeholder="Acme Romania SRL"
                     autoComplete="organization"
                     required
-                    invalid={showMissing && !companyName.trim()}
+                    invalid={(showMissing || showCompanyMissing) && !companyName.trim()}
                   />
                 </Field>
               </>
@@ -637,7 +639,10 @@ export function AuthCard({
                     checked={acceptedTerms}
                     onChange={(e) => setAcceptedTerms(e.currentTarget.checked)}
                     data-testid="signup-accept-terms"
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer"
+                    data-invalid={showMissing && !acceptedTerms ? "true" : undefined}
+                    className={`mt-0.5 h-4 w-4 shrink-0 rounded border-rule accent-brand cursor-pointer ${
+                      showMissing && !acceptedTerms ? "ring-2 ring-alert/70 ring-offset-1 ring-offset-bg" : ""
+                    }`}
                   />
                   <span className="text-[11.5px] leading-snug text-ink-soft">
                     {t("authX.terms_agree_pre")}{" "}
@@ -712,17 +717,22 @@ export function AuthCard({
                 <div className="flex-1 h-px bg-rule" />
               </div>
               {/* Google sign-UP (2026-09-09 per operator): under Create
-                  account, usable once the company is filled — the company
-                  is parked and applied to the new account, everything
-                  else (name, email, avatar) comes from Google
-                  (lib/oauthProfile.ts). */}
+                  account, always enabled; without a company it only tints
+                  that field. The company is parked and applied to the new
+                  account, everything else (name, email, avatar) comes from
+                  Google (lib/oauthProfile.ts). */}
               <div className="grid grid-cols-1 gap-2">
                 <OAuthButton
                   provider="google"
                   busy={busy}
-                  disabled={mode === "sign_up" && !companyName.trim()}
                   onClick={() => {
-                    if (mode === "sign_up") markPendingOAuthProfile({ companyName: companyName.trim() });
+                    if (mode === "sign_up") {
+                      if (!companyName.trim()) {
+                        setShowCompanyMissing(true);
+                        return;
+                      }
+                      markPendingOAuthProfile({ companyName: companyName.trim() });
+                    }
                     void handleOAuth("google");
                   }}
                 />
@@ -816,19 +826,19 @@ function GoogleLogo() {
     <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden focusable="false">
       <path
         d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.614z"
-        fill="hsl(var(--brand))"
+        fill="#4285F4" /* design-lint-allow-hex: Google brand mark */
       />
       <path
         d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
-        fill="hsl(var(--brand))"
+        fill="#34A853" /* design-lint-allow-hex: Google brand mark */
       />
       <path
         d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
-        fill="hsl(var(--brand-l))"
+        fill="#FBBC05" /* design-lint-allow-hex: Google brand mark */
       />
       <path
         d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
-        fill="hsl(var(--brand-d))"
+        fill="#EA4335" /* design-lint-allow-hex: Google brand mark */
       />
     </svg>
   );
