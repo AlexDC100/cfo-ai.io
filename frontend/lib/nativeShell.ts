@@ -89,7 +89,9 @@ type NativeShellMessage =
 /** The chat composer is NATIVE inside the shell (2026-09-10): the page
  *  reports what it should show; the shell answers with actions
  *  composer-submit { text } / composer-stop / composer-draft { text } /
- *  composer-height { height }. */
+ *  composer-height { height }. Being native it always draws over the page,
+ *  so the shell hides it (keeping its text) whenever the `chrome` message
+ *  takes the burger away — drawer open, preview sheet, onboarding. */
 export interface NativeComposerState {
   show: boolean;
   placeholder?: string;

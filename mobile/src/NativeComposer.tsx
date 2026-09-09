@@ -68,8 +68,6 @@ function glassFallback(dark: boolean, border: string) {
 
 export function NativeComposer({ state, scheme, palette: p, accent, bottomInset, onSubmit, onStop, onDraft, onAttach, onScroll, onHeight }: Props) {
   const [text, setText] = useState(state.draft ?? "");
-  // Text height, from the field's own content measurement; one line at rest.
-  const [contentHeight, setContentHeight] = useState(LINE);
   const [keyboardUp, setKeyboardUp] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -79,7 +77,6 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
     if (keyRef.current !== state.key) {
       keyRef.current = state.key;
       setText(state.draft ?? "");
-      if (!state.draft) setContentHeight(LINE);
     }
   }, [state.key, state.draft]);
 
@@ -101,7 +98,6 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
   const fallback = glassFallback(dark, p.border);
   // Idle: a little above the home indicator; keyboard up: tight on it.
   const padBottom = keyboardUp ? 8 : Math.max(8, bottomInset - 6);
-  const fieldHeight = Math.min(MAX_LINES * LINE, Math.max(LINE, contentHeight)) + 14;
 
   return (
     <View
@@ -128,7 +124,11 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
       )}
       <GlassView glassEffectStyle="regular" isInteractive colorScheme={dark ? "dark" : "light"} style={[styles.glass, fallback]}>
         {/* Row 1: the message on its own line. Row 2: attach · ⓘ on the
-            left, Send on the right (2026-09-10 per operator). */}
+            left, Send on the right (2026-09-10 per operator). The field
+            auto-grows between one and MAX_LINES lines with NO explicit
+            height: feeding onContentSizeChange back into `height` made
+            iOS report the new bounds as the next content size, so the
+            composer crept up and down on its own. */}
         <TextInput
           value={text}
           onChangeText={(t) => {
@@ -136,14 +136,12 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
             clearTimeout(draftTimer.current);
             draftTimer.current = setTimeout(() => onDraft(t), 250);
           }}
-          onContentSizeChange={(e) => setContentHeight(e.nativeEvent.contentSize.height)}
           placeholder={state.placeholder ?? "Ask CFO AI anything…"}
           placeholderTextColor={p.textMute}
           editable={!state.disabled}
           multiline
-          scrollEnabled={contentHeight > MAX_LINES * LINE}
           keyboardAppearance={dark ? "dark" : "light"}
-          style={[styles.input, { color: p.text, height: fieldHeight }]}
+          style={[styles.input, { color: p.text }]}
           accessibilityLabel="Ask CFO AI"
         />
         <View style={styles.toolbar}>
@@ -191,7 +189,6 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
                 if (!t) return;
                 onSubmit(t);
                 setText("");
-                setContentHeight(LINE);
                 clearTimeout(draftTimer.current);
                 onDraft("");
               }}
@@ -261,6 +258,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 4,
     paddingHorizontal: 16,
+    minHeight: LINE + 14,
+    maxHeight: MAX_LINES * LINE + 14,
   },
   send: {
     width: 36,

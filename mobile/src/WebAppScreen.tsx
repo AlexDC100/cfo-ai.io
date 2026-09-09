@@ -469,9 +469,13 @@ export function WebAppScreen({ tabKey, path }: Props) {
         />
         {/* The chat composer in Liquid Glass (2026-09-10 per operator) —
             inside the KeyboardAvoidingView so it rides the keyboard with
-            the WebView's bottom edge. */}
+            the WebView's bottom edge. Being native it always draws over
+            the page, so it steps aside whenever the page has something
+            over its content — the open drawer, a preview sheet, the
+            onboarding — which the page reports by taking the burger away
+            (its text survives; the component stays mounted). */}
         <NativeComposer
-          state={composer}
+          state={chrome === "menu" ? composer : { ...composer, show: false }}
           scheme={scheme}
           palette={p}
           accent={accent}
