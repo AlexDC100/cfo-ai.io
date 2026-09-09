@@ -42,11 +42,13 @@ export default function ReportProblem() {
   const total = files.reduce((n, f) => n + f.size, 0);
   const canSend = message.trim().length > 0 && state !== "sending" && total <= MAX_TOTAL && files.length <= MAX_FILES;
 
-  const addFiles = (list: FileList | null) => {
-    if (!list) return;
+  // Takes a copied array: the input's FileList is live and is emptied when
+  // the input's value is reset right after the change event.
+  const addFiles = (list: File[]) => {
+    if (list.length === 0) return;
     setError(null);
     setFiles((cur) => {
-      const next = [...cur, ...Array.from(list)].slice(0, MAX_FILES);
+      const next = [...cur, ...list].slice(0, MAX_FILES);
       if (cur.length + list.length > MAX_FILES) setError(t("reportX.tooMany", { n: MAX_FILES }));
       if (next.reduce((n, f) => n + f.size, 0) > MAX_TOTAL) setError(t("reportX.tooLarge"));
       return next;
@@ -143,7 +145,7 @@ export default function ReportProblem() {
               multiple
               accept="image/*,.pdf,.xlsx,.xls,.csv,.txt,.log,.json"
               className="hidden"
-              onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
+              onChange={(e) => { addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
               data-testid="report-file-input"
             />
             <button
