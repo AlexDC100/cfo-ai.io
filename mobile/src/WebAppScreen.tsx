@@ -81,7 +81,7 @@ type ShellMessage =
   // notifications page in a SwiftUI sheet (src/NativeSheet.tsx).
   | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean }
   // The web app's resolved theme — the shell's chrome follows it (2026-09-08).
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" | "transient" };
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
 
 type Props = {
   /** Stable key in the webviewRegistry (the tab name). */
@@ -279,7 +279,7 @@ export function WebAppScreen({ tabKey, path }: Props) {
         if (message.theme === "light" || message.theme === "dark") setWebTheme(message.theme);
         setWebBg(bg);
         setWebAccent(accent);
-        if (message.mode !== "transient" && (message.theme === "light" || message.theme === "dark")) {
+        if (message.theme === "light" || message.theme === "dark") {
           const stored: StoredTheme = { theme: message.theme, bg, accent };
           void (message.mode === "system"
             ? AsyncStorage.removeItem(SHELL_THEME_KEY)

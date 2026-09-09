@@ -66,9 +66,7 @@ type NativeShellMessage =
   // `mode` (2026-09-09): whether the theme is the user's explicit choice or
   // follows the system — the shell remembers an explicit choice so the NEXT
   // launch paints status-bar icons and chrome right before the page loads.
-  // "transient" (a full-screen overlay with its own colours) is applied
-  // but never remembered.
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" | "transient" };
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
 
 type ShellWindow = Window & {
   ReactNativeWebView?: { postMessage: (data: string) => void };

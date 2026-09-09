@@ -10,38 +10,25 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useTheme } from "next-themes";
+import { LogIn } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { isNativeShell } from "@/lib/nativeShell";
 import {
   closeOnboarding,
   getOnboardingOpen,
   markOnboardingSeen,
   subscribeOnboarding,
 } from "@/lib/onboarding";
-import { reportThemeToShell } from "@/theme/reportThemeToShell";
 
 const SLIDES = 4;
 type T = (key: string) => string;
 
-function Mark() {
+function Mark({ size = 22 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 64 64" width="22" height="22" aria-label="CFO AI">
+    <svg viewBox="0 0 64 64" width={size} height={size} aria-label="CFO AI">
       <path className="ob-fill-accent" d="M 30 4 L 4 20 L 4 44 L 30 60 L 30 50 L 14 41 L 14 23 L 30 14 Z" />
       <path className="ob-fill-ink" d="M 38 14 L 60 60 L 48 60 L 38 38 Z" />
       <rect className="ob-fill-ink" x="34" y="34" width="14" height="3" />
-    </svg>
-  );
-}
-
-function GoogleGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 18 18" aria-hidden="true" className="ob-fill-deep">
-      <path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.614z" />
-      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" />
-      <path opacity=".7" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" />
-      <path opacity=".55" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" />
     </svg>
   );
 }
@@ -210,24 +197,8 @@ export function OnboardingFlow() {
 function OnboardingScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAuthenticated, signInWithOAuth } = useAuth();
-  const { theme, resolvedTheme } = useTheme();
+  const { isAuthenticated, signOut } = useAuth();
   const [step, setStep] = useState(0);
-
-  // The overlay is dark whatever the app theme: the shell must match it
-  // (light status-bar icons) for as long as it is up, and get the real
-  // theme back when it closes. reportThemeToShell() picks the overlay
-  // palette while the store says "open" — which is why the cleanup runs
-  // after closeOnboarding() has flipped it.
-  useEffect(() => {
-    if (!isNativeShell()) return undefined;
-    reportThemeToShell(resolvedTheme === "dark", theme === "system" || !theme ? "system" : "explicit");
-    return () => {
-      reportThemeToShell(resolvedTheme === "dark", theme === "system" || !theme ? "system" : "explicit");
-    };
-    // Mount/unmount only — the page theme cannot change underneath it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const finish = useCallback(() => {
     markOnboardingSeen();
@@ -236,12 +207,12 @@ function OnboardingScreen() {
   const next = () => setStep((s) => Math.min(SLIDES, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
   const skip = () => setStep(SLIDES);
-  const onGoogle = () => {
+  // Replayed while signed in: the login page bounces a live session
+  // straight back to the dashboard, so "Sign in" ends it first (2026-09-09
+  // per operator — the button must land on the auth page).
+  const onSignIn = async () => {
     finish();
-    void signInWithOAuth("google");
-  };
-  const onEmail = () => {
-    finish();
+    if (isAuthenticated) await signOut();
     navigate("/login");
   };
 
@@ -251,14 +222,13 @@ function OnboardingScreen() {
   return (
     <div className="ob-screen font-sans" role="dialog" aria-modal="true" data-testid="onboarding" data-step={step}>
       <div className="flex items-center justify-between">
-        {step === 0 || auth ? (
-          <div className="flex items-center gap-2">
-            <Mark />
-            {!auth && <span className="ob-mute font-mono text-[11px] font-medium tracking-[.1em]">{counter}</span>}
-          </div>
+        {auth ? (
+          <span />
+        ) : step === 0 ? (
+          <Mark />
         ) : (
-          <button type="button" onClick={back} className="ob-mute font-mono text-[11px] tracking-[.1em]" data-testid="onboarding-back">
-            ← {counter}
+          <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
+            ← {t("firstRun.btnBack")}
           </button>
         )}
         {!auth && (
@@ -268,13 +238,21 @@ function OnboardingScreen() {
         )}
       </div>
 
-      <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4">
+      <div key={step} className={`flex flex-1 flex-col justify-center overflow-y-auto py-4 ${auth ? "gap-5" : "gap-7"}`}>
         {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
         {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
         {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}
         {step === 3 && (<><PeersCard t={t} /><Copy kicker={t("firstRun.s4kicker")} title={t("firstRun.s4title")} body={t("firstRun.s4body")} /></>)}
         {auth && (
           <>
+            {/* App identity sits with the content on the last slide
+                (2026-09-09 per operator), not in the header. */}
+            <div className="flex flex-col items-center gap-3" data-testid="onboarding-brand">
+              <Mark size={48} />
+              <span className="font-sans text-[28px] font-bold tracking-[-.02em]">
+                CFO <span className="ob-accent">AI</span>
+              </span>
+            </div>
             <AskCard t={t} />
             <div>
               <h2 className="font-sans text-[31px] font-semibold leading-[1.1] tracking-[-.025em] text-pretty">{t("firstRun.authTitle")}</h2>
@@ -286,36 +264,29 @@ function OnboardingScreen() {
 
       {auth ? (
         <div className="flex flex-col gap-2.5">
+          <button type="button" onClick={() => void onSignIn()} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-signin">
+            <LogIn size={15} strokeWidth={2} className="shrink-0" />
+            {t("firstRun.btnSignIn")}
+          </button>
           {isAuthenticated ? (
-            <>
-              <button type="button" onClick={onEmail} className="ob-cta" data-testid="onboarding-signin">{t("firstRun.btnSignIn")}</button>
-              <button type="button" onClick={finish} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
-                {t("firstRun.continueWithout")}
-              </button>
-            </>
+            <button type="button" onClick={finish} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
+              {t("firstRun.continueWithout")}
+            </button>
           ) : (
-            <>
-              <button type="button" onClick={onGoogle} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-google">
-                <GoogleGlyph />
-                {t("firstRun.btnGoogle")}
-              </button>
-              <button type="button" onClick={onEmail} className="ob-ghost h-[52px] rounded-lg border font-mono text-[11.5px] font-medium uppercase tracking-[.1em]" data-testid="onboarding-email">
-                {t("firstRun.btnEmail")}
-              </button>
-              <div className="ob-rule my-1.5 h-px" />
-              <button type="button" onClick={finish} className="ob-dashed ob-soft h-[46px] rounded-lg border border-dashed font-mono text-[11.5px] uppercase tracking-[.08em]" data-testid="onboarding-guest">
-                {t("firstRun.btnGuest")}
-              </button>
-              <p className="ob-mute text-center font-mono text-[10.5px] leading-[1.5]">{t("firstRun.guestNote")}</p>
-            </>
+            <button type="button" onClick={finish} className="ob-dashed ob-soft h-[46px] rounded-lg border border-dashed font-mono text-[11.5px] uppercase tracking-[.08em]" data-testid="onboarding-guest">
+              {t("firstRun.btnGuest")}
+            </button>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-[18px]">
-          <div className="flex gap-[5px]">
-            {Array.from({ length: SLIDES }, (_, i) => (
-              <span key={i} className={`h-0.5 flex-1 ${i === step ? "ob-bar-on" : "ob-bar-off"}`} />
-            ))}
+          <div className="flex flex-col gap-2.5">
+            <span className="ob-mute text-center font-mono text-[11px] font-medium tracking-[.1em]" data-testid="onboarding-counter">{counter}</span>
+            <div className="flex gap-[5px]">
+              {Array.from({ length: SLIDES }, (_, i) => (
+                <span key={i} className={`h-0.5 flex-1 ${i === step ? "ob-bar-on" : "ob-bar-off"}`} />
+              ))}
+            </div>
           </div>
           <button type="button" onClick={next} className="ob-cta" data-testid="onboarding-next">
             {step === SLIDES - 1 ? t("firstRun.btnStart") : t("firstRun.btnContinue")}

@@ -1206,10 +1206,10 @@ html.native-shell body::before {
   display: none;
 }
 
-/* ── First-run onboarding — "Terminal" treatment (design 1b, 2026-09-09) ──
-   A fixed dark palette that reads the same on Paper and Terminal; the
-   overlay is the only consumer. Colours live here (the token sheet), the
-   component carries layout only. */
+/* ── First-run onboarding (design 1b layout, 2026-09-09) ──
+   Painted on the app's own tokens so it follows Paper / Terminal like
+   every other surface (2026-09-09 per operator). The overlay is the only
+   consumer of these classes; the component carries layout only. */
 .ob-screen {
   position: fixed;
   inset: 0;
@@ -1218,35 +1218,35 @@ html.native-shell body::before {
   flex-direction: column;
   box-sizing: border-box;
   padding: calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 28px);
-  background: #080D0B;
-  color: #E8EFEB;
+  background: hsl(var(--bg));
+  color: hsl(var(--ink));
   overscroll-behavior: contain;
   -webkit-tap-highlight-color: transparent;
 }
-.ob-accent { color: #49C4B0; }
-.ob-soft { color: #99A5A0; }
-.ob-mute { color: #7C8681; }
-.ob-deep { color: #06110E; }
-.ob-accent-bg { background: #49C4B0; }
-.ob-panel { background: #0F1614; border: 1px solid #222E2A; border-radius: 10px; overflow: hidden; }
-.ob-panel-bg { background: #0F1614; }
-.ob-border { border-color: #222E2A; }
-.ob-rule { background: #222E2A; }
-.ob-track { background: #141D1A; }
-.ob-bar-on { background: #49C4B0; }
-.ob-bar-dim { background: #2B6E63; }
-.ob-bar-off { background: #222E2A; }
-.ob-bar-peer { background: #2A3833; }
-.ob-fill-accent { fill: #49C4B0; }
-.ob-fill-ink { fill: #E8EFEB; }
-.ob-fill-deep { fill: #06110E; }
-.ob-ghost { border-color: #33413C; color: #E8EFEB; }
-.ob-dashed { border-color: #33413C; }
+.ob-accent { color: hsl(var(--brand)); }
+.ob-soft { color: hsl(var(--ink-soft)); }
+.ob-mute { color: hsl(var(--ink-mute)); }
+.ob-deep { color: hsl(var(--paper)); }
+.ob-accent-bg { background: hsl(var(--brand)); }
+.ob-panel { background: hsl(var(--surface)); border: 1px solid hsl(var(--rule)); border-radius: 10px; overflow: hidden; }
+.ob-panel-bg { background: hsl(var(--surface)); }
+.ob-border { border-color: hsl(var(--rule)); }
+.ob-rule { background: hsl(var(--rule)); }
+.ob-track { background: hsl(var(--bg-2)); }
+.ob-bar-on { background: hsl(var(--brand)); }
+.ob-bar-dim { background: hsl(var(--brand) / .45); }
+.ob-bar-off { background: hsl(var(--rule)); }
+.ob-bar-peer { background: hsl(var(--rule-strong)); }
+.ob-fill-accent { fill: hsl(var(--brand)); }
+.ob-fill-ink { fill: hsl(var(--ink)); }
+.ob-fill-deep { fill: hsl(var(--paper)); }
+.ob-ghost { border-color: hsl(var(--rule-strong)); color: hsl(var(--ink)); }
+.ob-dashed { border-color: hsl(var(--rule-strong)); }
 .ob-cta {
   height: 52px;
   border-radius: 8px;
-  background: #49C4B0;
-  color: #06110E;
+  background: hsl(var(--brand));
+  color: hsl(var(--paper));
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 11.5px;
   font-weight: 500;
