@@ -219,7 +219,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   useEffect(() => {
     if (!isNativeShell() || !chatOpen) return undefined;
     const onAction = (e: Event) => {
-      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
+      const d = (e as CustomEvent<{ action?: string; id?: string }>).detail;
+      // With an id it is the drawer's row menu (Sidebar handles it).
+      if (!d || typeof d.id === "string") return;
+      const action = d.action;
       if (action === "chat-delete") setNativeDeleteOpen(true);
       if (action === "chat-rename" && store.current) {
         const conv = store.current;

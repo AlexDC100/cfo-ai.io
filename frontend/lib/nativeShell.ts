@@ -59,6 +59,9 @@ type NativeShellMessage =
   // posts a local notification when the app is not in the foreground.
   | { source: "cfo-ai"; type: "notify"; title: string; body: string }
   | { source: "cfo-ai"; type: "notify-permission" }
+  // Labels for the shell's native chat-row context menu (2026-09-10): the
+  // shell installs it on the WebView with these, in the UI language.
+  | { source: "cfo-ai"; type: "link-menu"; rename: string; remove: string }
   // Native bottom sheets (2026-09-08, iOS): `open` asks the shell to present
   // a SwiftUI sheet hosting a second WebView on /_native/sheet/<kind>; from
   // INSIDE that sheet, `close` dismisses it and `navigate` asks the shell to

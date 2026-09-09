@@ -43,6 +43,7 @@ import { NativeComposer, type NativeComposerState } from "./NativeComposer";
 import { AppLoader } from "./AppLoader";
 import * as DocumentPicker from "expo-document-picker";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
+import { installLinkMenu } from "../modules/link-menu";
 
 // Runs before the page's own scripts. `window.ReactNativeWebView` (injected by
 // react-native-webview) is what frontend/lib/nativeShell.ts detects; this flag
@@ -95,6 +96,7 @@ type ShellMessage =
   | { source: "cfo-ai"; type: "haptic"; kind: "light" | "medium" | "selection" }
   | { source: "cfo-ai"; type: "notify"; title: string; body: string }
   | { source: "cfo-ai"; type: "notify-permission" }
+  | { source: "cfo-ai"; type: "link-menu"; rename: string; remove: string }
   // Native bottom sheet request (2026-09-08, iOS): present the account /
   // notifications page in a SwiftUI sheet (src/NativeSheet.tsx).
   | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean }
@@ -204,6 +206,13 @@ export function WebAppScreen({ tabKey, path }: Props) {
   const [trash, setTrash] = useState(false);
   // The open chat's title — the header of the disc's native menu.
   const [chatTitle, setChatTitle] = useState("");
+  // Labels for the chat rows' system context menu (modules/link-menu), in
+  // the page's UI language; re-installed whenever they or the theme change.
+  const [linkMenuLabels, setLinkMenuLabels] = useState<{ rename: string; remove: string } | null>(null);
+  useEffect(() => {
+    if (!linkMenuLabels || !firstLoadDone) return;
+    installLinkMenu(linkMenuLabels, scheme === "dark");
+  }, [linkMenuLabels, firstLoadDone, scheme]);
   // Native composer state, as last reported by the chat page.
   const [composer, setComposer] = useState<NativeComposerState>({ show: false });
   // Native bottom sheet currently presented (iOS only).
@@ -324,6 +333,8 @@ export function WebAppScreen({ tabKey, path }: Props) {
       } else if (message.type === "haptic") {
         if (message.kind === "selection") void Haptics.selectionAsync();
         else void Haptics.impactAsync(message.kind === "medium" ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+      } else if (message.type === "link-menu") {
+        setLinkMenuLabels({ rename: message.rename, remove: message.remove });
       } else if (message.type === "notify-permission") {
         void Notifications.requestPermissionsAsync().catch(() => {});
       } else if (message.type === "notify") {
@@ -483,9 +494,10 @@ export function WebAppScreen({ tabKey, path }: Props) {
           }}
           // No "< > Done" bar over the keyboard (2026-09-09 per operator).
           hideKeyboardAccessoryView
-          // No link preview on a held link (2026-09-10 per operator: only
-          // chat items react to a hold).
-          allowsLinkPreview={false}
+          // Link previews stay ON: they are how WebKit runs the chat rows'
+          // system context menu (modules/link-menu); every other link gets
+          // no menu from that delegate, so tabs don't react to a hold.
+          allowsLinkPreview
           onError={() => setFailed(true)}
           // iOS can't render in-page downloads (report exports) — system browser.
           onFileDownload={({ nativeEvent }) => {

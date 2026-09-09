@@ -200,6 +200,14 @@ export function AppShell({ children }: Props) {
       postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false, trash: false });
     };
   }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen, shellTrash, shellChatTitle]);
+  // The shell's native chat-row context menu needs its labels in the UI
+  // language (2026-09-10).
+  const renameLabel = t("chatX.rename");
+  const deleteLabel = t("chatX.deleteChat");
+  useEffect(() => {
+    if (!inNativeShell) return;
+    postToNativeShell({ source: "cfo-ai", type: "link-menu", rename: renameLabel, remove: deleteLabel });
+  }, [inNativeShell, renameLabel, deleteLabel]);
   // A haptic tick as the drawer opens and closes (2026-09-10 per operator).
   const drawerWasOpen = useRef(false);
   useEffect(() => {
@@ -511,7 +519,7 @@ export function AppShell({ children }: Props) {
           className="
             w-[min(280px,calc(100vw-3rem))] p-0
             bg-bg
-            border-r border-rule rounded-r-3xl
+            border-r border-rule rounded-r-[40px]
             [&>button.absolute]:hidden
             flex flex-col overflow-hidden overscroll-contain touch-pan-y
           "

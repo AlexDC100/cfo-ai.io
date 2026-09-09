@@ -61,7 +61,8 @@ import { ThemePicker } from "./ThemePicker";
 import { tapHandlers } from "@/lib/tapHandlers";
 import type { ChatConversation } from "./chat/types";
 import { ChatItemMenu, type ChatItemMenuAnchor } from "@/components/cfo/chat/ChatItemMenu";
-import { postHaptic } from "@/lib/nativeShell";
+import { isNativeShell, postHaptic, showNativePrompt, NATIVE_ACTION_EVENT } from "@/lib/nativeShell";
+import { DeleteChatDialog } from "@/components/cfo/chat/DeleteChatDialog";
 import { onboardingReplayAvailable, openOnboarding } from "@/lib/onboarding";
 import { Mark } from "./Mark";
 import { nativeShellVersion } from "@/lib/nativeShell";
@@ -250,6 +251,9 @@ export function Sidebar({
   // conversation gets an iOS-style action sheet; the tap that ends the
   // hold is swallowed so it doesn't also open the chat.
   // Held chat row → floating Rename / Delete menu (2026-09-10 per operator).
+  // Browser only: inside the shell the rows are links and WebKit's own
+  // long-press shows the SYSTEM context menu (mobile/modules/link-menu), whose
+  // choices arrive below as chat-rename / chat-delete / chat-open with an id.
   const [chatMenu, setChatMenu] = useState<{ conversation: ChatConversation; anchor: ChatItemMenuAnchor } | null>(null);
   const longPressTimer = useRef<number>();
   const longPressedRef = useRef(false);
@@ -257,6 +261,30 @@ export function Sidebar({
   // per operator). Same module store the chat page/panel mount, so the list
   // is always in step with them. Open state persists across sessions.
   const chat = useChatStore();
+  const shellMenus = inDrawer && isNativeShell();
+  const [nativeDeleteFor, setNativeDeleteFor] = useState<string | null>(null);
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
+  useEffect(() => {
+    if (!shellMenus) return undefined;
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<{ action?: string; id?: string }>).detail;
+      if (!d || typeof d.id !== "string") return;
+      const conv = chatRef.current.conversations.find((c) => c.id === d.id);
+      if (!conv) return;
+      if (d.action === "chat-delete") setNativeDeleteFor(conv.id);
+      else if (d.action === "chat-open") { chatRef.current.select(conv.id); go(askHref); }
+      else if (d.action === "chat-rename") {
+        void showNativePrompt({ title: t("chatX.rename"), defaultValue: conv.title, options: [t("common.cancel"), t("common.save")] }).then((text) => {
+          const title = (text ?? "").trim();
+          if (title && title !== conv.title) chatRef.current.rename(conv.id, title);
+        });
+      }
+    };
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shellMenus, t]);
   const [convosOpen, setConvosOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     try { return window.localStorage.getItem(SIDEBAR_CONVOS_OPEN_KEY) !== "0"; }
@@ -382,8 +410,9 @@ export function Sidebar({
           <NavLink
             to={askHref}
             data-testid="sidebar-chat"
-            onClick={onLinkClick}
-            {...(inDrawer ? tapHandlers(() => { if (confirmLeaveUnsaved()) go(askHref); }) : {})}
+            // Opens a BLANK chat (2026-09-10 per operator), not the last one.
+            onClick={(e) => { onLinkClick(e); if (!e.defaultPrevented) chat.createNew(); }}
+            {...(inDrawer ? tapHandlers(() => { if (confirmLeaveUnsaved()) { chat.createNew(); go(askHref); } }) : {})}
             title={effectivelyCollapsed ? t("sidebar.chat") : undefined}
             className={({ isActive }) =>
               `group flex items-center justify-center gap-2 rounded-md min-h-[44px] sm:min-h-0 sm:h-9 text-[13px] font-semibold transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
@@ -444,19 +473,27 @@ export function Sidebar({
                     go(askHref);
                   };
                   const tap = tapHandlers(open);
+                  // Shell: a real link, so WebKit's long-press shows the
+                  // system context menu (the id and title ride in the href
+                  // for the native side); the tap is still handled here.
+                  const href = `/chat?c=${encodeURIComponent(c.id)}&t=${encodeURIComponent(c.title)}`;
                   return (
-                  <button
+                  <a
                     key={c.id}
-                    type="button"
-                    onClick={() => {
+                    href={href}
+                    data-chat-id={c.id}
+                    onClick={(e) => {
+                      e.preventDefault();
                       if (longPressedRef.current) { longPressedRef.current = false; return; }
                       open();
                     }}
-                    // Long-press (2026-09-10 per operator): hold a chat to get
-                    // its Rename / Delete menu, lifted off the row; a hold
-                    // never also opens the chat when the finger lifts.
+                    // Browser: hold a chat to get the web Rename / Delete
+                    // menu, lifted off the row; a hold never also opens the
+                    // chat when the finger lifts. In the shell WebKit owns
+                    // the hold, so no timer runs there.
                     onTouchStart={(e) => {
                       tap.onTouchStart(e);
+                      if (shellMenus) return;
                       const rowEl = e.currentTarget;
                       window.clearTimeout(longPressTimer.current);
                       longPressTimer.current = window.setTimeout(() => {
@@ -471,8 +508,11 @@ export function Sidebar({
                       tap.onTouchEnd(e);
                     }}
                     onTouchCancel={() => { window.clearTimeout(longPressTimer.current); tap.onTouchCancel(); }}
-                    onContextMenu={(e) => e.preventDefault()}
-                    style={{ WebkitTouchCallout: "none" }}
+                    onContextMenu={shellMenus ? undefined : (e) => e.preventDefault()}
+                    // No link drag either way; the browser also drops the
+                    // callout (its menu is the web one).
+                    style={shellMenus ? { WebkitUserDrag: "none" } : { WebkitTouchCallout: "none", WebkitUserDrag: "none" }}
+                    draggable={false}
                     className={`w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] select-none transition-colors duration-micro ${
                       selected
                         ? "text-ink font-medium bg-bg-2"
@@ -487,7 +527,7 @@ export function Sidebar({
                     ) : (
                       <span className="truncate">{c.title}</span>
                     )}
-                  </button>
+                  </a>
                   );
                 })}
               </div>
@@ -496,7 +536,17 @@ export function Sidebar({
         )}
         {/* The held chat's menu covers the whole drawer (the nav scrolls
             under it), so it lives outside the nav scroller. */}
-        {inDrawer && (
+        {shellMenus && (
+          <DeleteChatDialog
+            open={nativeDeleteFor !== null}
+            onOpenChange={(o) => { if (!o) setNativeDeleteFor(null); }}
+            onConfirm={() => {
+              if (nativeDeleteFor) chat.remove(nativeDeleteFor);
+              setNativeDeleteFor(null);
+            }}
+          />
+        )}
+        {inDrawer && !shellMenus && (
           <ChatItemMenu
             conversation={chatMenu?.conversation ?? null}
             anchor={chatMenu?.anchor ?? null}
@@ -788,9 +838,10 @@ function SidebarLink({
       // keyboard-accessible, AT-friendly, zero extra weight.
       title={collapsed ? label : undefined}
       end={end}
-      // No iOS link preview / callout on a held row (2026-09-10 per
-      // operator: only chat items react to a hold).
-      style={{ WebkitTouchCallout: "none" }}
+      // No iOS link preview / callout on a held row and no link drag
+      // (2026-09-10 per operator: only chat items react to a hold).
+      style={{ WebkitTouchCallout: "none", WebkitUserDrag: "none" }}
+      draggable={false}
       className={({ isActive }) =>
         // Full-bleed rows; pl-6 keeps the icon center on the rail's 32px
         // line in BOTH modes so nothing shifts while the width animates.
