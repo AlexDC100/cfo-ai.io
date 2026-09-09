@@ -325,7 +325,23 @@ function OnboardingScreen() {
       closeOnboarding();
     }, 320);
   }, [leaving]);
-  const next = () => setStep((s) => Math.min(SLIDES, s + 1));
+  // Get started (last instruction slide): the centred mark and Skip fade
+  // out before the final slide replaces them (2026-09-09 per operator).
+  const [headerFading, setHeaderFading] = useState(false);
+  const headerTimer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(headerTimer.current), []);
+  const next = () => {
+    if (step === SLIDES - 1) {
+      if (headerFading) return;
+      setHeaderFading(true);
+      headerTimer.current = window.setTimeout(() => {
+        setStep(SLIDES);
+        setHeaderFading(false);
+      }, 320);
+      return;
+    }
+    setStep((s) => Math.min(SLIDES, s + 1));
+  };
   const back = () => setStep((s) => Math.max(0, s - 1));
   const skip = () => setStep(SLIDES);
 
@@ -354,7 +370,8 @@ function OnboardingScreen() {
               style={{
                 left: step === 0 ? 0 : "50%",
                 transform: step === 0 ? "translate(0, -50%)" : "translate(-50%, -50%)",
-                transition: "left 520ms cubic-bezier(.16, 1, .3, 1), transform 520ms cubic-bezier(.16, 1, .3, 1)",
+                opacity: headerFading ? 0 : 1,
+                transition: "left 520ms cubic-bezier(.16, 1, .3, 1), transform 520ms cubic-bezier(.16, 1, .3, 1), opacity 300ms ease",
               }}
             >
               <Mark />
@@ -366,7 +383,12 @@ function OnboardingScreen() {
                 ← {t("firstRun.btnBack")}
               </button>
             )}
-            <button type="button" onClick={skip} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-skip">
+            <button
+              type="button"
+              onClick={skip}
+              className={`ob-mute font-mono text-[11px] uppercase tracking-[.06em] transition-opacity duration-300 ${headerFading ? "opacity-0" : "opacity-100"}`}
+              data-testid="onboarding-skip"
+            >
               {t("firstRun.btnSkip")}
             </button>
           </div>
