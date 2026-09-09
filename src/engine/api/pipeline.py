@@ -69,6 +69,10 @@ from . import _valuation
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
+# Account-121 anchor provenance — the SAME code object the offline seam
+# (RomaniaPack.assemble_parsed_tb) stamps with, so the served and
+# offline `assembled_pl` can never carry different field sets.
+from engine.core import net_income_anchor as _net_income_anchor
 # sv1 FACTS GATEWAY — the ONE typed reader of served (reconciliation-
 # adjusted) balance-sheet truth. Every totals-level read in this module
 # goes through it; raw envelope/canonical_bs totals reads are forbidden
@@ -1628,12 +1632,14 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
     # always `anchored` — but they must be emitted on both paths, or a
     # reader would have to know which seam produced a payload before it
     # could trust `net_income_statutory`. See `_annotate_net_income_anchor`.
-    _statutory = parsed.get("statutory_net_profit_anchor")
-    _annotate_net_income_anchor(
-        assembled,
-        _statutory,
-        "parsed_tb_rows" if _statutory is not None else None,
-        applied=_statutory is not None,
+    #
+    # The SAME call the offline seam makes
+    # (`RomaniaPack.assemble_parsed_tb`), through the same helper: the
+    # `source` label and the `applied` derivation live inside it, so the
+    # two seams cannot label the same book differently. Gated by
+    # tests/engine/test_offline_served_parity.py.
+    _net_income_anchor.annotate_from_parsed_tb_rows(
+        assembled, parsed.get("statutory_net_profit_anchor"),
     )
 
     # THE PRODUCT SEAM — structural impossibilities refuse here.
@@ -4105,8 +4111,23 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
             if nr:
                 nonro_doc = bool(nr[0].get("nonro_doc"))
                 nonro_extra = bool(nr[0].get("nonro_metered_extra"))
-        except Exception:  # noqa: BLE001 — migration may not be applied
-            pass
+        except Exception as _nonro_err:  # noqa: BLE001
+            # LOUD, not silent. This cannot refuse — the analysis is already
+            # done by the time the terminal commit runs — but a meter that
+            # cannot read its own flags must SAY SO. Until 2026-09-10 this
+            # was a bare `pass`, and with schema_phase_plan_caps.sql absent
+            # from production it meant every non-RO document settled as if
+            # it were an ordinary RO one, for 113 days. The reserve side now
+            # fails closed (see _usage_gate.reserve_nonro_document), so a
+            # document should never REACH here unmetered; if one does, this
+            # line is how anyone finds out.
+            logger.error(
+                "[pipeline][billing] cannot read non-RO meter flags for "
+                "document=%s (%s: %s). Apply "
+                "supabase/schema_phase_plan_caps.sql and reload the "
+                "PostgREST schema cache. This document settles as RO.",
+                document_id, type(_nonro_err).__name__, str(_nonro_err)[:160],
+            )
         if success:
             _ug.commit_document(user_id, was_extra=was_extra)
             # WS2 — when the doc succeeded AND was flagged as a paid extra,
@@ -4702,10 +4723,16 @@ def _run_pipeline_sync(document_id: str) -> None:
 # cannot be half-done. Gated by
 # tests/engine/test_rebuild_net_income_anchor.py.
 
-#: `assembled_pl.net_income_anchor_status` vocabulary.
-NET_INCOME_ANCHOR_ANCHORED = "anchored"
-NET_INCOME_ANCHOR_WITHIN_TOLERANCE = "within_tolerance"
-NET_INCOME_ANCHOR_ABSENT = "absent"
+#: `assembled_pl.net_income_anchor_status` vocabulary. Defined once in
+#: `engine.core.net_income_anchor` and re-exported here so the offline
+#: seam (`RomaniaPack.assemble_parsed_tb`) can label a book without
+#: importing this module — see that module's header for why the two
+#: field sets used to differ.
+NET_INCOME_ANCHOR_ANCHORED = _net_income_anchor.NET_INCOME_ANCHOR_ANCHORED
+NET_INCOME_ANCHOR_WITHIN_TOLERANCE = (
+    _net_income_anchor.NET_INCOME_ANCHOR_WITHIN_TOLERANCE
+)
+NET_INCOME_ANCHOR_ABSENT = _net_income_anchor.NET_INCOME_ANCHOR_ABSENT
 
 
 def _statutory_anchor_for(
@@ -4900,90 +4927,14 @@ def _anchor_reached_the_assembler(
         return False
 
 
-def _annotate_net_income_anchor(
-    assembled: Optional[Dict[str, Any]],
-    anchor: Optional[float],
-    source: Optional[str],
-    *,
-    applied: bool,
-) -> None:
-    """Stamp the anchor provenance onto `assembled.statements
-    .assembled_pl`, in place. Called on EVERY path that produces an
-    `assembled_pl` — persist and rebuild alike — so the field set never
-    depends on which seam the reader came through.
-
-    Adds, always:
-      · ``net_income_reconstructed``   the class-6/7 build-up, i.e. the
-        number `net_income_statutory` would carry with no anchor.
-        Derived as `net_income_operational + capitalized_own_work_memo`
-        — that identity IS the assembler's pre-override expression
-        (chart_of_accounts.py:1069), so this costs nothing and needs no
-        second assembly.
-      · ``net_income_statutory_anchor``  account 121, or null.
-      · ``net_income_anchor_source``     where the anchor came from.
-      · ``net_income_anchor_status``     anchored | within_tolerance |
-        absent.
-
-    `net_income_statutory` itself is left ALONE — never nulled. The
-    frontend reads it through `?? 0` fallbacks
-    (frontend/lib/canonicalMetrics.ts), so a null would render as a
-    fabricated zero. A labelled number the reader can check beats a
-    blank they cannot.
-
-    STATUS IS OBSERVED, NOT RE-DERIVED:
-
-      absent            no anchor reached the assembler — either none was
-                        resolvable, or one was but the pack's
-                        `assemble_statements` has no override parameter
-                        (`applied=False`). Either way the served figure is
-                        a reconstruction and says so.
-      anchored          the served `net_income_statutory` equals account
-                        121 to the cent — true exactly when the
-                        assembler's 5%-of-max(|121|, 100k) override fired,
-                        or when the reconstruction already agreed.
-      within_tolerance  the anchor WAS given to the assembler and the
-                        assembler deliberately kept the reconstruction
-                        (inside its band).
-
-    Reading the decision off the assembler's OUTPUT, rather than
-    re-implementing its threshold here, is what stops this helper from
-    drifting away from the rule it reports on. `applied` is what makes
-    that reading safe: without it, a site that resolved the anchor and
-    forgot to pass it would produce a large gap and get labelled
-    `within_tolerance` — the exact defect, wearing a reassuring label.
-
-    `net_income_statutory_anchor` is emitted whenever an anchor was
-    RESOLVED, `applied` or not, so a reader can always see the account
-    121 figure and check the gap themselves.
-    """
-    if not isinstance(assembled, dict):
-        return
-    pl = ((assembled.get("statements") or {}) or {}).get("assembled_pl")
-    if not isinstance(pl, dict):
-        return
-
-    def _num(key: str) -> Optional[float]:
-        val = pl.get(key)
-        return float(val) if isinstance(val, (int, float)) else None
-
-    operational = _num("net_income_operational")
-    capitalized = _num("capitalized_own_work_memo")
-    statutory = _num("net_income_statutory")
-
-    pl["net_income_reconstructed"] = (
-        round(operational + (capitalized or 0.0), 2)
-        if operational is not None else None
-    )
-    pl["net_income_statutory_anchor"] = (
-        round(float(anchor), 2) if anchor is not None else None
-    )
-    pl["net_income_anchor_source"] = source if anchor is not None else None
-    if anchor is None or not applied:
-        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ABSENT
-    elif statutory is not None and abs(statutory - float(anchor)) < 0.005:
-        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ANCHORED
-    else:
-        pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_WITHIN_TOLERANCE
+#: Anchor provenance is stamped by ONE code object
+#: (`engine.core.net_income_anchor.annotate_net_income_anchor`), shared
+#: with the offline seam `RomaniaPack.assemble_parsed_tb`. This name is
+#: kept as the pipeline-local alias because every rebuild call site and
+#: `tests/engine/test_rebuild_net_income_anchor.py` reach it through the
+#: pipeline module. The docstring the rule is written in lives with the
+#: implementation, not here, so there is only one place to read it.
+_annotate_net_income_anchor = _net_income_anchor.annotate_net_income_anchor
 
 
 def _apply_envelope_truth_to_statements(

@@ -335,16 +335,40 @@ def test_nonro_reserve_overage_flags_was_extra(monkeypatch):
     assert d.was_extra is True
 
 
-def test_nonro_reserve_rpc_unavailable_degrades_open(monkeypatch):
-    """Migration not applied yet + flag on: better to under-bill than to
-    block a paying multi user. Degrade to allowed-unmetered (logged)."""
+def test_nonro_reserve_rpc_unavailable_refuses(monkeypatch):
+    """REVERSED 2026-09-10, and the reversal is the point.
+
+    This test used to be named `..._degrades_open` and asserted
+    `d.kind == "allowed"` — it pinned the defect as the law. Its
+    reasoning was "better to under-bill than to block a paying multi
+    user", which is a real trade-off and was decided the wrong way:
+    under-billing is not a bounded cost, it is an unbounded one that
+    reports itself only in a log line at WARNING.
+
+    MEASURED before the reversal, in production: USAGE_LIMITS_ENABLED=true,
+    all three `*_user_nonro_upload` RPCs absent and all three meter columns
+    absent, because schema_phase_plan_caps.sql was never applied. 27
+    non-RO documents analysed unmetered between 2026-05-19 and 2026-09-08
+    — a 113-day window, with a live Stripe key.
+
+    The meter now refuses, with a TYPED code the frontend can tell apart
+    from a plan limit, and a message that does not blame the user for our
+    missing migration. Blocking is loud, bounded, and fixed by one
+    migration; the alternative was silent and open-ended.
+    """
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
     with patch.object(_usage_gate._plan_state, "get_plan_state",
                       return_value=_mk_state("multi")):
         with patch.object(_usage_gate, "_rpc", return_value=None):
             d = _usage_gate.reserve_nonro_document("u-x")
-    assert d.kind == "allowed"
+    assert d.kind == "refused", (
+        "an unreachable meter allowed the document through — this is the "
+        "113-day unmetered window, reopened"
+    )
+    assert d.refusal == "metering_unavailable"
     assert d.was_extra is False
+    # It must not read as a plan limit: the user's entitlement is fine.
+    assert "upgrade" not in (d.message or "").lower()
 
 
 def test_nonro_commit_and_release_call_rpcs(monkeypatch):

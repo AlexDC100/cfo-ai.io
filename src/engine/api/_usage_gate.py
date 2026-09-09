@@ -433,17 +433,46 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
         "p_allow_extra": plan.extra_nonro_doc_eur is not None,
     })
     if body is None:
-        logger.warning(
-            "[usage-gate] reserve_user_nonro_upload unavailable (migration "
-            "schema_phase_plan_caps.sql not applied?) — degrading OPEN, "
-            "non-RO doc unmetered for user=%s", user_id,
+        # FAIL CLOSED. This is a BILLING path with a LIVE Stripe key.
+        #
+        # Until 2026-09-10 this degraded OPEN: it logged a warning naming
+        # the exact missing migration and then returned `allowed`, so the
+        # document was analysed and never metered. MEASURED in production
+        # on that date — with USAGE_LIMITS_ENABLED=true, all three
+        # `*_user_nonro_upload` RPCs absent and all three meter columns
+        # absent — 27 non-RO documents passed through unmetered between
+        # 2026-05-19 and 2026-09-08, a 113-day window. Nobody was
+        # overcharged; the company simply was not paid, silently, and the
+        # log line that said so was a warning nobody was reading.
+        #
+        # A meter that cannot record is not a meter. The choice at this
+        # seam is "refuse the work" or "do the work for free forever, and
+        # only find out by auditing" — and the second is not a choice a
+        # gate gets to make on its own. Refusing is loud, reversible in
+        # one migration, and tells the user something true.
+        #
+        # The refusal is TYPED so the FE can render it: the generic
+        # failure handler persists `documents.error`, the generic release
+        # path frees the doc-slot reservation, and `metering_unavailable`
+        # is matched the same way `non_ro_not_included` is.
+        logger.error(
+            "[usage-gate][billing] reserve_user_nonro_upload UNAVAILABLE — "
+            "refusing the document rather than analysing it unmetered. "
+            "Apply supabase/schema_phase_plan_caps.sql and reload the "
+            "PostgREST schema cache. user=%s plan=%s", user_id, plan.key,
         )
         return NonRoReserveDecision(
-            kind="allowed", plan_key=plan.key,
+            kind="refused", plan_key=plan.key,
             used=state.nonro_used_this_period,
             cap=plan.included_nonro_docs,
             extra_nonro_doc_eur=plan.extra_nonro_doc_eur,
-            was_extra=False, refusal=None, message="",
+            was_extra=False, refusal="metering_unavailable",
+            message=(
+                "We could not record usage for this document, so it was not "
+                "analysed. Nothing has been charged. This is a configuration "
+                "fault on our side, not a limit on your plan — support has "
+                "been alerted."
+            ),
         )
 
     kind = body.get("kind", "blocked")
