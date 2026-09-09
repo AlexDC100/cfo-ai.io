@@ -184,6 +184,33 @@ export function OnboardingFlow() {
   return open ? <OnboardingScreen /> : null;
 }
 
+/** Horizontal swipe → onLeft (next) / onRight (back). A clearly
+ *  horizontal move of 56px+ counts; vertical scrolling is untouched
+ *  (2026-09-09 per operator). */
+function useSwipe(onLeft: () => void, onRight: () => void) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onTouchStart: (e: React.TouchEvent) => {
+      const t = e.touches[0];
+      start.current = t ? { x: t.clientX, y: t.clientY } : null;
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      const s0 = start.current;
+      start.current = null;
+      const t = e.changedTouches[0];
+      if (!s0 || !t) return;
+      const dx = t.clientX - s0.x;
+      const dy = t.clientY - s0.y;
+      if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (dx < 0) onLeft();
+      else onRight();
+    },
+    onTouchCancel: () => {
+      start.current = null;
+    },
+  };
+}
+
 type FinalView = "slide" | "leaving" | "auth" | "returning";
 
 /** The last slide. Sign in transitions IN PLACE (2026-09-09 per operator):
@@ -244,6 +271,7 @@ function FinalSlide({
 
   const auth = view === "auth";
   const contentShown = view === "slide";
+  const swipe = useSwipe(() => {}, () => { if (view === "slide") onBack(); });
   const fadeCls = `transition-opacity duration-300 ${contentShown ? "opacity-100" : "opacity-0"}`;
 
   return (
@@ -273,7 +301,7 @@ function FinalSlide({
           <AuthPanel brandRef={brandRef} initialMode="sign_in" onBack={goSlide} onAuthenticated={onDone} />
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 flex-col justify-center gap-5 overflow-y-auto py-4">
+        <div className="flex flex-1 min-h-0 flex-col justify-center gap-5 overflow-y-auto py-4" {...swipe}>
           <Brand innerRef={brandRef} />
           <div className={`flex flex-col gap-5 ${fadeCls}`}>
             <AskCard t={t} />
@@ -347,6 +375,7 @@ function OnboardingScreen() {
 
   const counter = `${String(step + 1).padStart(2, "0")}/0${SLIDES}`;
   const auth = step === SLIDES;
+  const swipe = useSwipe(next, back);
 
   return (
     <div
@@ -393,7 +422,7 @@ function OnboardingScreen() {
             </button>
           </div>
 
-          <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4">
+          <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
             {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
             {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
             {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}

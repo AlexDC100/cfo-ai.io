@@ -572,27 +572,31 @@ export function AppShell({ children }: Props) {
             onTouchEnd={onDrawerTouchEnd}
             onTouchCancel={onDrawerTouchEnd}
           >
-          {/* Pull-to-refresh indicator — the iOS activity indicator in the
-              theme's accent colour: its bars light up in order as the pull
-              grows and it spins once released past the threshold. */}
-          {(drawerPull > 0 || drawerRefreshing) && (
-            <div
-              aria-hidden={!drawerRefreshing}
-              role={drawerRefreshing ? "status" : undefined}
-              data-testid="drawer-pull-refresh"
-              className="flex items-end justify-center overflow-hidden text-brand"
-              style={{ height: drawerRefreshing ? PULL_THRESHOLD : drawerPull, transition: drawerRefreshing ? "height 120ms ease-out" : undefined }}
-            >
-              <IosSpinner
-                size={24}
-                className="mb-3"
-                progress={drawerRefreshing ? undefined : Math.min(1, drawerPull / PULL_THRESHOLD)}
-              />
-            </div>
-          )}
           <Sidebar
             {...sidebarHandlers}
             inDrawer
+            // Pull-to-refresh indicator — the iOS activity indicator in the
+            // theme's accent colour: its bars light up in order as the pull
+            // grows and it spins once released past the threshold. Rendered
+            // at the top of the nav SCROLLER, under the fixed header
+            // (2026-09-09 per operator).
+            navTop={
+              (drawerPull > 0 || drawerRefreshing) && (
+                <div
+                  aria-hidden={!drawerRefreshing}
+                  role={drawerRefreshing ? "status" : undefined}
+                  data-testid="drawer-pull-refresh"
+                  className="flex items-end justify-center overflow-hidden text-brand"
+                  style={{ height: drawerRefreshing ? PULL_THRESHOLD : drawerPull, transition: drawerRefreshing ? "height 120ms ease-out" : undefined }}
+                >
+                  <IosSpinner
+                    size={24}
+                    className="mb-3"
+                    progress={drawerRefreshing ? undefined : Math.min(1, drawerPull / PULL_THRESHOLD)}
+                  />
+                </div>
+              )
+            }
             noWorkspace={noWorkspaces}
             onItemClick={() => setSidebarOpen(false)}
             // Drawer account row (2026-08-18) — no header inside the native
