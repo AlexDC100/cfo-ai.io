@@ -33,7 +33,9 @@
     "expand": "Expand sidebar",
     "disclaimer": "Disclaimer",
     "replayOnboarding": "Replay onboarding",
-    "groupDev": "Dev"
+    "groupDev": "Dev",
+    "report": "Report a problem",
+    "groupSupport": "Support"
   },
   "topbar": {
     "ask": "Ask CFO AI",
@@ -2853,5 +2855,24 @@
     "mChatA": "Gross margin fell 2.4 pts — materials cost rose 8% while prices held.",
     "btnSignIn": "Sign in",
     "continueWithout": "Or continue without signing in"
+  },
+  "reportX": {
+    "title": "Report a problem",
+    "intro": "Tell us what went wrong. Screenshots and files help.",
+    "messageLabel": "Message",
+    "placeholder": "What happened, and what did you expect?",
+    "emailLabel": "Your email (so we can reply)",
+    "emailPlaceholder": "you@company.com",
+    "attach": "Attach",
+    "attachHint": "Screenshots, PDFs, spreadsheets · up to 5 files, 12 MB",
+    "remove": "Remove",
+    "send": "Send report",
+    "sending": "Sending…",
+    "sent": "Report sent.",
+    "sentBody": "Thanks — it went to {{email}}. We'll reply to your email if we need more.",
+    "another": "Send another",
+    "failed": "Couldn't send the report. Please email {{email}} directly.",
+    "tooMany": "At most {{n}} files.",
+    "tooLarge": "Attachments are too large (12 MB in total)."
   }
 }

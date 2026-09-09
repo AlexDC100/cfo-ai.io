@@ -33,7 +33,9 @@
     "expand": "Extinde bara laterală",
     "disclaimer": "Precizări legale",
     "replayOnboarding": "Reia introducerea",
-    "groupDev": "Dev"
+    "groupDev": "Dev",
+    "report": "Raportează o problemă",
+    "groupSupport": "Suport"
   },
   "topbar": {
     "ask": "Întreabă CFO AI",
@@ -2878,5 +2880,24 @@
     "mChatA": "Marja brută a scăzut 2,4 pp — costul materialelor a urcat 8%, prețurile au rămas.",
     "btnSignIn": "Autentifică-te",
     "continueWithout": "Sau continuă fără autentificare"
+  },
+  "reportX": {
+    "title": "Raportează o problemă",
+    "intro": "Spune-ne ce n-a mers. Capturile de ecran și fișierele ajută.",
+    "messageLabel": "Mesaj",
+    "placeholder": "Ce s-a întâmplat și la ce te așteptai?",
+    "emailLabel": "Emailul tău (ca să-ți putem răspunde)",
+    "emailPlaceholder": "tu@firma.ro",
+    "attach": "Atașează",
+    "attachHint": "Capturi, PDF-uri, tabele · cel mult 5 fișiere, 12 MB",
+    "remove": "Elimină",
+    "send": "Trimite raportul",
+    "sending": "Se trimite…",
+    "sent": "Raport trimis.",
+    "sentBody": "Mulțumim — a ajuns la {{email}}. Îți răspundem pe email dacă avem nevoie de mai multe.",
+    "another": "Trimite altul",
+    "failed": "Raportul nu a putut fi trimis. Scrie-ne direct la {{email}}.",
+    "tooMany": "Cel mult {{n}} fișiere.",
+    "tooLarge": "Atașamentele sunt prea mari (12 MB în total)."
   }
 }

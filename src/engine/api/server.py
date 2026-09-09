@@ -39,6 +39,7 @@ from ._health import build_router as create_health_router
 from ._industry_intelligence import build_router as create_industry_router
 from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
+from ._report import build_router as create_report_router
 from ._test_mode import build_router as create_test_mode_router
 from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
@@ -170,6 +171,8 @@ def create_app(
     # frontend ever called `/api/ask` — confirmed dead, not a duplicate.
     # Stripe-backed billing (checkout, portal, webhook, renewal cron)
     app.include_router(create_billing_router())
+    # Problem reports → reports inbox via Resend (2026-09-10).
+    app.include_router(create_report_router())
     # Phase 7 — industry-benchmark comparison (suggest / set-caen / report).
     app.include_router(create_benchmarks_router())
     # Phase Industry Intelligence B — read-only routes over the new

@@ -82,6 +82,8 @@ const Scenarios = lazy(() => import("./pages/cfo/Scenarios"));
 const Variance = lazy(() => import("./pages/cfo/Variance"));
 const Alerts = lazy(() => import("./pages/cfo/Alerts"));
 const Settings = lazy(() => import("./pages/cfo/Settings"));
+// "Report a problem" (2026-09-10) — mails the reports inbox.
+const ReportProblem = lazy(() => import("./pages/cfo/ReportProblem"));
 const BenchmarkReport = lazy(() => import("./pages/cfo/BenchmarkReport"));
 const ComprehensiveReport = lazy(() => import("./pages/cfo/ComprehensiveReport"));
 const PeerComparisonReport = lazy(() => import("./pages/cfo/PeerComparisonReport"));
@@ -418,6 +420,7 @@ function AppRoutes() {
             <Route path="/report" element={<ComprehensiveReport />} />
             <Route path="/peer-report" element={<PeerComparisonReport />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/report-problem" element={<ReportProblem />} />
             <Route path="/ops" element={<Ops />} />
             {/* Flag-gated: render the page when enabled, else redirect. */}
             <Route

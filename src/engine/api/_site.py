@@ -25,6 +25,10 @@ SITE = {
     # emails where replies don't make sense (welcome, password reset).
     # Replies-To still resolves to support_email.
     "noreply_email": os.environ.get("SITE_NOREPLY_EMAIL", "noreply@cfo-ai.io"),
+    # Problem reports from the in-app "Report a problem" page (2026-09-10).
+    "reports_email": os.environ.get("SITE_REPORTS_EMAIL", "reports@cfo-ai.io"),
+    # Privacy requests (GDPR); quoted by the legal pages.
+    "privacy_email": os.environ.get("SITE_PRIVACY_EMAIL", "privacy@cfo-ai.io"),
     # Public-facing app name (greeting copy, email subject prefixes).
     "app_name": os.environ.get("SITE_APP_NAME", "CFO AI"),
     # Public domain + URL — mirror FE `SITE.domain` / `SITE.url`.

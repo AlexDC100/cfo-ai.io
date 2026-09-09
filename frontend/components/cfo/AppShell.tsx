@@ -13,6 +13,7 @@
 // pill sits bottom-right on every viewport.
 
 import { ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { refreshPlanState } from "@/lib/planState";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -200,6 +201,12 @@ export function AppShell({ children }: Props) {
       postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false, trash: false });
     };
   }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen, shellTrash, shellChatTitle]);
+  // Shell: fetch the plan state at app open, so the account sheet (its own
+  // page, booted a moment later) finds it in the shared cache and paints
+  // with the data already there (2026-09-10 per operator).
+  useEffect(() => {
+    if (inNativeShell) void refreshPlanState();
+  }, [inNativeShell]);
   // The shell's native chat-row context menu needs its labels in the UI
   // language (2026-09-10).
   const renameLabel = t("chatX.rename");

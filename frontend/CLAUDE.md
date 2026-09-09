@@ -95,6 +95,15 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   (`chatTurns.ts` → `postNotify`). The drawer ticks a haptic on open/close and on
   entering a tab, and its nav always scrolls (`overflow-y-scroll` + content ≥ 100%+1px).
 
+## Report a problem (`pages/cfo/ReportProblem.tsx`, 2026-09-10)
+- `/report-problem` — message + up to 5 attachments (base64 in JSON) →
+  `cfoApi.sendReport` → engine `POST /api/report` (`src/engine/api/_report.py`)
+  → Resend (`_email.send_email` with `attachments`) to `SITE.reportsEmail`
+  (reports@cfo-ai.io; engine env `REPORTS_INBOX_EMAIL` overrides). Reached from
+  the drawer's Support section and the rail's System group (`sidebar-report`).
+  Needs `RESEND_API_KEY` + a verified `RESEND_FROM` on the engine; without them
+  the page shows the "email us directly" failure.
+
 ## Design system (use tokens, not hex)
 - Colors are CSS vars in `index.css`, theme-aware (light/dark via `next-themes`) and
   exposed as Tailwind classes (`tailwind.config.ts`):

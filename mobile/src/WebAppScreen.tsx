@@ -190,7 +190,9 @@ export function WebAppScreen({ tabKey, path }: Props) {
   const [warmSheets, setWarmSheets] = useState(false);
   useEffect(() => {
     if (!firstLoadDone || warmSheets) return;
-    const t = setTimeout(() => setWarmSheets(true), 1500);
+    // Right after the main page is up (2026-09-10 per operator: the sheet
+    // must have its data the moment it opens).
+    const t = setTimeout(() => setWarmSheets(true), 300);
     return () => clearTimeout(t);
   }, [firstLoadDone, warmSheets]);
   const [failed, setFailed] = useState(false);

@@ -312,7 +312,20 @@ export function extractCanonicalBsFromReconcile(
   return null;
 }
 
+export interface ReportRequest {
+  message: string;
+  email?: string;
+  page?: string;
+  platform?: string;
+  app_version?: string;
+  files: Array<{ name: string; type: string; content: string }>;
+}
+
 export const cfoApi = {
+  /** "Report a problem" (2026-09-10): mailed to the reports inbox with the
+   *  attachments inline (base64). */
+  sendReport: (req: ReportRequest) =>
+    call<{ ok: boolean }>("/api/report", { method: "POST", body: JSON.stringify(req) }),
   today: (req: TodayRequest) =>
     call<TodayResponse>("/api/cfo/today", { method: "POST", body: JSON.stringify(req) }),
   cash: (req: TodayRequest) =>

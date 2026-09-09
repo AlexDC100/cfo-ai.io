@@ -46,6 +46,7 @@ import {
   Building2,
   ChevronDown,
   Loader2,
+  Flag,
   LogIn,
   MessageSquareText,
   Monitor,
@@ -587,6 +588,21 @@ export function Sidebar({
               ))}
           </Section>
         ))}
+        {/* Support — DRAWER: "Report a problem" (2026-09-10 per operator);
+            the rail carries it in its System group below. */}
+        {inDrawer && (
+          <Section label={t("sidebar.groupSupport")}>
+            <SidebarLink
+              to="/report-problem"
+              testId="sidebar-report"
+              icon={Flag}
+              label={t("sidebar.report")}
+              collapsed={false}
+              onClick={onItemClick}
+              onTap={go}
+            />
+          </Section>
+        )}
         {/* Dev — DRAWER, DEV BUILDS ONLY (2026-09-09 per operator): a
             section under Explore holding the onboarding replay; never in
             a production bundle. */}
@@ -730,6 +746,13 @@ export function Sidebar({
               label={t("sidebar.settings")}
               collapsed={effectivelyCollapsed}
               disabled={noWorkspace && !ALWAYS_ENABLED.has("/settings")}
+            />
+            <SidebarLink
+              to="/report-problem"
+              testId="sidebar-report"
+              icon={Flag}
+              label={t("sidebar.report")}
+              collapsed={effectivelyCollapsed}
             />
             {/* Signed-in keeps the one-tap Paper/Terminal flip; guests get
                 the three-way picker above instead. */}

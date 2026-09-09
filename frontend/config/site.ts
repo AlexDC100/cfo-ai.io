@@ -41,6 +41,11 @@ export const SITE = {
    *  `${SITE.supportMailto}?subject=...&body=...` at the call site. */
   supportMailto: "mailto:contact@cfo-ai.io",
   noreplyEmail: "noreply@cfo-ai.io",
+  /** Where the in-app "Report a problem" page delivers (via the engine +
+   *  Resend). */
+  reportsEmail: "reports@cfo-ai.io",
+  /** Privacy / GDPR requests — quoted by the legal pages. */
+  privacyEmail: "privacy@cfo-ai.io",
   /** Social handle (used in Twitter card meta + footer). Update once @cfoai
    *  is verified across platforms; for now keep as placeholder. */
   twitterHandle: "@cfoai",

@@ -64,6 +64,7 @@ def send_email(
     reply_to: Optional[str] = None,
     headers: Optional[Dict[str, str]] = None,
     tags: Optional[List[Dict[str, str]]] = None,
+    attachments: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """Send one email through Resend. Never raises on a delivery problem —
     returns a result dict the caller can inspect/log. Raises only on a
@@ -90,6 +91,9 @@ def send_email(
         payload["headers"] = headers
     if tags:
         payload["tags"] = tags
+    if attachments:
+        # Resend: [{"filename", "content" (base64)}], 40 MB per email all-in.
+        payload["attachments"] = attachments
 
     try:
         with httpx.Client(timeout=20.0) as client:
