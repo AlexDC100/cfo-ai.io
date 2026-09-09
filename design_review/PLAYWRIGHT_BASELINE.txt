@@ -30,12 +30,8 @@ design/capsule-craft-surface.spec.ts :: no border, ring or outline encloses the 
 design/capsule-craft-surface.spec.ts :: the accent underline IS present, so focus is still visible
 design/capsule-craft.spec.ts :: G5.a — the observer registers a planted shift
 design/capsule-craft.spec.ts :: four top-level interactive elements, and the Capsule is one of them
-design/capsule-craft.spec.ts :: ink density, air, and the 70vh ceiling, in every state
-design/capsule-craft.spec.ts :: ink density, air, and the 70vh ceiling, in every state
 design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
 design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
-design/capsule-craft.spec.ts :: nothing is painted below the composer, in any state
-design/capsule-craft.spec.ts :: nothing is painted below the composer, in any state
 design/capsule.spec.ts :: live census on /chat
 design/capsule.spec.ts :: live census on /dashboard
 design/capsule.spec.ts :: the header lane's own sanctioned set agrees with this budget
@@ -64,38 +60,35 @@ design/modes.spec.ts :: axe clean [simple/light]: /public-companies
 design/modes.spec.ts :: axe clean [simple/light]: /settings
 design/modes.spec.ts :: axe clean [simple/light]: /workspace
 design/modes.spec.ts :: cmd+K opens the command palette (simple)
-design/modes.spec.ts :: renders [pro]: /benchmark
-design/modes.spec.ts :: renders [pro]: /chat
-design/modes.spec.ts :: renders [pro]: /dashboard
-design/modes.spec.ts :: renders [pro]: /dashboard/scenarios
-design/modes.spec.ts :: renders [pro]: /dashboard/variance
-design/modes.spec.ts :: renders [pro]: /products
 design/modes.spec.ts :: renders [pro]: /public-companies
-design/modes.spec.ts :: renders [pro]: /settings
-design/modes.spec.ts :: renders [pro]: /workspace
-design/modes.spec.ts :: renders [simple]: /benchmark
-design/modes.spec.ts :: renders [simple]: /chat
-design/modes.spec.ts :: renders [simple]: /dashboard
-design/modes.spec.ts :: renders [simple]: /dashboard/scenarios
-design/modes.spec.ts :: renders [simple]: /dashboard/variance
-design/modes.spec.ts :: renders [simple]: /products
 design/modes.spec.ts :: renders [simple]: /public-companies
-design/modes.spec.ts :: renders [simple]: /settings
-design/modes.spec.ts :: renders [simple]: /workspace
-design/provenance-screens.spec.ts :: dashboard · statements · findings · public companies
+design/provenance.spec.ts :: Capsule: the resting tiles and the Tier-0 answer name the sheet and real accounts
+design/provenance.spec.ts :: P4[capsule]
+design/provenance.spec.ts :: P4[dashboard]
+design/provenance.spec.ts :: P4[findings]
 design/provenance.spec.ts :: P4[markets-overview]
 design/provenance.spec.ts :: P4[public-companies]
-design/provenance.spec.ts :: P4[report]
 design/provenance.spec.ts :: P4[statements]
+design/provenance.spec.ts :: P4[trust-receipt]
+design/provenance.spec.ts :: P8[findings] — same law on the findings surface
+design/provenance.spec.ts :: P8[statements] — every affordance draws a dotted underline
+design/provenance.spec.ts :: a statement figure opens on hover, opens on Tab-focus, and closes on Escape
+design/provenance.spec.ts :: dashboard: every headline names the document and a field the served statements hold, and IS that field's value
 design/provenance.spec.ts :: every anchor matches on the live surface; no real Supabase host; no engine mutation
+design/provenance.spec.ts :: findings-limits: the limit names its parameter file, the observed and impact figures the finding's own evidence
+design/provenance.spec.ts :: findings: every cited figure of a provenance-bearing finding wears it
+design/provenance.spec.ts :: findings: line_refs, snapshot and source are the engine's own
 design/provenance.spec.ts :: markets-overview: every tile figure names the feed row's own source; no zero stands in for an absent change; no `computed` is the engine's process clock
+design/provenance.spec.ts :: products (Products.tsx, 8 affordances): no sales dataset in the test workspace
 design/provenance.spec.ts :: public-companies: SEC concept and accession are the companyfacts document's own
-design/provenance.spec.ts :: report: every row names a field of the served statements and IS its value; no absent field wears a source
+design/provenance.spec.ts :: public-company-dashboard (PublicCompanyDashboard.tsx, 10 affordances): needs a Nasdaq key
+design/provenance.spec.ts :: statements-pl-cf: the P&L and cash-flow tabs paint figures and wear NOTHING while HAS_MISSING
 design/provenance.spec.ts :: statements: every account-coded row of the served envelope wears it
 design/provenance.spec.ts :: statements: sheet, accounts, method and pack are the envelope's own
+design/provenance.spec.ts :: statements: the opening column is absent in the fixture and absent on screen
+design/provenance.spec.ts :: trust-receipt: the difference row names the served envelope field, its method and its pack
 f61-demo-variance.prod.spec.ts :: /dashboard/variance route is NOT orphaned — still loads
 f61-demo-variance.prod.spec.ts :: dashboard greets with the Meridian demo + Snapshot/Trend toggle
-f61-demo-variance.prod.spec.ts :: sidebar no longer has Budget vs Actual, but keeps Scenarios/Benchmark
 golden-path.spec.ts :: Dashboard is financial-first, not inventory-first
 launch-public-live.prod.spec.ts :: / loads clean
 launch-public-live.prod.spec.ts :: / loads clean
@@ -107,9 +100,17 @@ launch-public-live.prod.spec.ts :: /pricing loads clean
 launch-public-live.prod.spec.ts :: /pricing loads clean
 launch-public-live.prod.spec.ts :: /signup loads clean
 launch-public-live.prod.spec.ts :: /signup loads clean
+launch-public-live.prod.spec.ts :: public-companies is not a working screen for an anonymous visitor
 launch-route-cut.spec.ts :: LR1/LR2 /benchmark — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /chat — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /dashboard/scenarios — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /peer-report — CUT
 launch-route-cut.spec.ts :: LR1/LR2 /products — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /public-companies — CUT — post-launch wave
+launch-route-cut.spec.ts :: LR1/LR2 /report — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /roadmap — CUT — not in the eight
 launch-route-cut.spec.ts :: LR3 — 'Coming soon' only where the registry says coming_soon
+launch-route-cut.spec.ts :: LR3 — PendingState never says 'Coming soon'
 launch-route-cut.spec.ts :: every <Route path> in App.tsx is covered by this file
 learning-balance-sheet-trace.spec.ts :: All 12 map chips are present and clickable
 learning-balance-sheet-trace.spec.ts :: BalanceSheetMap renders with 3 columns + affordance text
@@ -165,10 +166,6 @@ learning-recommendations.spec.ts :: Recommendations tab renders at least one car
 learning-recommendations.spec.ts :: Severity pill clicks open alert_severity concept popover
 learning-valuation-bridge.spec.ts :: Click Cash → popover with 5121/5124/531 source accounts
 learning-valuation-bridge.spec.ts :: Click Gross Debt → popover with 162/167/519 source accounts
-public-companies-drawer.spec.ts :: /public-companies — a sector pill narrows the grid, and un-narrows
-public-companies-drawer.spec.ts :: /public-companies — search narrows the grid
-public-companies-drawer.spec.ts :: /public-companies — the company grid hydrates a full page of tiles
-public-companies-drawer.spec.ts :: ESC closes the drawer and clears the URL
-public-companies-drawer.spec.ts :: change range → chart re-renders
-public-companies-drawer.spec.ts :: click TLV tile → drawer opens with chart and deep-links the URL
-public-companies-drawer.spec.ts :: the drawer footer offers Ask CFO AI
+prod-smoke.spec.ts :: /public-companies — a sector pill narrows the grid
+prod-smoke.spec.ts :: /public-companies — the market grid hydrates, or says it is not in this release
+prod-smoke.spec.ts :: first grid tile opens the stock drawer with Ask CFO AI

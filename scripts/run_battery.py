@@ -656,7 +656,19 @@ def _frontend_gates() -> List[Gate]:
         # PLAYWRIGHT — the last suite outside the net until 2026-09-09, and
         # it had already taken the battery down once by starving vitest of
         # CPU. Baseline measured serially on a quiet machine with the dev
-        # server up: 339 ran, 29 skipped, 174 known failures. That ratio is
+        # server up AND the engine restarted from HEAD: 339 ran, 29 skipped,
+        # 171 known failures.
+        #
+        # RE-RECORDED 2026-09-09. The first baseline (174) was measured
+        # against an engine started six days earlier, which predated a
+        # feature-registry change and answered 36 features where HEAD
+        # answers 47. Restarting :8000 from HEAD moved 31 tests to passing
+        # and 28 to failing — a two-way swing of 59 on a net of 3, which is
+        # why a baseline is only meaningful against a build you have
+        # identified. HEAD's registry was then checked against PRODUCTION's
+        # /api/features/status and matches it exactly, so this baseline
+        # measures what ships. Of the 171, seven are launch-route-cut
+        # asserting a cut that production no longer applies. That ratio is
         # not healthy, and the baseline is NOT a certificate that it is —
         # design_review/PLAYWRIGHT_BASELINE.txt may only SHRINK, so the
         # gate reds on a NEW failure and accepts a repaired one.
