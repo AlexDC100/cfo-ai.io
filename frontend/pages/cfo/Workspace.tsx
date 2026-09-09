@@ -9,9 +9,12 @@
 //   2. Decision rules               — the DecisionRules controls rendered
 //                                     INLINE (not as a modal) via the shared
 //                                     <DecisionRulesPanel/>.
-//   3. Upload files                 — a dropzone that posts the workbook to
-//                                     the SKU pipeline (same call the upload
-//                                     dialog uses).
+//   3. Upload files                 — a dropzone that feeds the FINANCIAL
+//                                     pipeline (uploadDocument → enqueue),
+//                                     exactly the Dashboard's own path, then
+//                                     lands on /dashboard. It does NOT post to
+//                                     the legacy SKU endpoint — see
+//                                     routeToFinancialPipeline for why.
 //
 // Once completed (or skipped) the page shows the workspace hub: the loaded
 // company/period + quick-access cards into every analysis view. A "Restart
@@ -68,10 +71,9 @@ import {
   type OrgPeriodsPayload,
 } from "@/lib/orgPeriods";
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
-import { uploadExcelToBackend } from "@/lib/api";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { FINANCIAL_UPLOAD_ACCEPT, isAcceptedFinancialUpload } from "@/lib/uploadAccept";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
-import { setActiveRun, setAnalysis, setUploadAlerts } from "@/lib/runStore";
 import {
   readDecisionRules,
   resetDecisionRulesToDefaults,
@@ -502,15 +504,26 @@ function Onboarding({
     onDone(industry);
   }
 
-  // Trial-balance reroute (2026-08-04, operator hit this on mobile): the
-  // wizard's step-3 dropzone feeds the SKU/trading parser, but the single
-  // most common first upload is a balanță de verificare. The old behavior
-  // was a dead-end English error telling the user to go find the Dashboard
-  // themselves. Now: when the backend flags the trial-balance shape, we
-  // finish onboarding and hand the SAME file to the financial pipeline
-  // (uploadDocument → enqueue — exactly the Dashboard's own path), then
-  // land on the Dashboard where the scan progress takes over.
-  async function routeTrialBalanceToDashboard(file: File): Promise<void> {
+  // Step-3 upload goes straight into the FINANCIAL pipeline — uploadDocument
+  // → enqueue, exactly the Dashboard's own path.
+  //
+  // History, because the shape of this bug repeats: the dropzone used to post
+  // to /api/upload-excel, the legacy SKU/trading parser. A balanță de
+  // verificare dropped there died on "missing Categ_Pr / Volume(to) /
+  // NIV (kRon)", so 2026-08-04 added a reroute — but only AFTER the backend
+  // answered with a [TRIAL_BALANCE] token. On 2026-09-05 that endpoint was
+  // walled behind LEGACY_SKU_AI_ENABLED (an anonymous POST spent an Anthropic
+  // completion with no bearer and no rate limit), and the wall answers 404
+  // BEFORE routing — so the backend never saw the file, never emitted the
+  // token, and the reroute became unreachable. Every new-workspace onboarding
+  // ended on a bare "Upload failed 404" (operator hit this 2026-09-09).
+  //
+  // The reroute-on-detection is therefore gone: detection required the very
+  // round-trip that is walled. AppShell's CommandCenter already made this same
+  // call on 2026-08-02 (onOpenUpload routes to the Dashboard, full stop); this
+  // brings the wizard in line. SKU workbooks have their own uploader on
+  // /products, which uses uploadDocument({scope:"sku"}) and is not walled.
+  async function routeToFinancialPipeline(file: File): Promise<void> {
     const [{ uploadDocument }, { startUpload, patchUpload, clearUpload }] = await Promise.all([
       import("@/lib/supabase"),
       import("@/lib/uploadStore"),
@@ -531,62 +544,21 @@ function Onboarding({
       patchUpload({ status: "failed", error: reason });
       throw new Error(reason);
     }
-    toast.success(t("ws.tbRoutedTitle"), {
-      description: t("ws.tbRoutedDesc", { filename: file.name }),
+    toast.success(t("ws.uploadRoutedTitle"), {
+      description: t("ws.uploadRoutedDesc", { filename: file.name }),
     });
     finish();
     navigate("/dashboard");
   }
 
-  // Same call the upload dialog uses — posts the workbook to the SKU pipeline
-  // and seeds the run store so Products / decision rules light up with data.
   async function handleUpload(file: File) {
     setBusy(true);
     try {
-      const result = await uploadExcelToBackend(file);
-      setActiveRun(
-        result.run,
-        {
-          fileName: result.file_name,
-          rowCount: result.transaction_rows,
-          uploadedAt: new Date().toISOString(),
-        },
-        result.raw_rows.map((r) => ({
-          sku: r.sku,
-          category: r.category,
-          volumeT: r.volume_tons,
-          revenue: r.revenue_kron,
-          grossMarginPct: r.gross_margin_pct,
-          dioDays: 90,
-          strategicFlag: false,
-        })),
-      );
-      setAnalysis({ ...result.analysis, generatedAt: new Date().toISOString() });
-      setUploadAlerts(result.alerts ?? null);
-      const skuCount = result.skus?.sku_count ?? 0;
-      toast.success(t("ws.workbookImported"), {
-        description: t("ws.workbookImportedDesc", { count: skuCount }),
-      });
-      finish();
+      await routeToFinancialPipeline(file);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("productsX.toast.uploadFailed");
-      // Backend flagged a trial balance ([TRIAL_BALANCE] token on new
-      // backends; phrase-match keeps the reroute working across deploy skew).
-      if (/\[TRIAL_BALANCE\]|looks like a trial balance/i.test(msg)) {
-        try {
-          await routeTrialBalanceToDashboard(file);
-          return;
-        } catch (reErr) {
-          const reMsg = reErr instanceof Error ? reErr.message : t("productsX.toast.uploadFailed");
-          toast.error(t("productsX.toast.uploadFailed"), { description: reMsg });
-          setBusy(false);
-          return;
-        }
-      }
       toast.error(t("productsX.toast.uploadFailed"), {
-        description: msg.includes("Failed to fetch")
-          ? t("ws.backendNotRunning")
-          : msg.replace(/^\[TRIAL_BALANCE\]\s*/, ""),
+        description: msg.includes("Failed to fetch") ? t("ws.backendNotRunning") : msg,
       });
       setBusy(false);
     }
@@ -793,8 +765,12 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
   function pick(files: FileList | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
-    const ok = f.name.toLowerCase().endsWith(".xlsx") || f.name.toLowerCase().endsWith(".csv");
-    if (!ok) {
+    // Drag-and-drop bypasses the `accept` attribute, so re-check here — and
+    // check against the SAME list the Dashboard uses. This used to be a
+    // hard-coded `.xlsx || .csv`, which silently refused .xls: Crystal Reports
+    // and older SAGA exports are .xls, the engine reads them via xlrd, and the
+    // file simply could not be chosen here.
+    if (!isAcceptedFinancialUpload(f.name)) {
       toast.error(t("ws.unsupportedFile"), { description: t("ws.unsupportedFileDesc") });
       return;
     }
@@ -810,7 +786,7 @@ function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => 
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.csv"
+        accept={FINANCIAL_UPLOAD_ACCEPT}
         className="hidden"
         onChange={(e) => pick(e.target.files)}
       />

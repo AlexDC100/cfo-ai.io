@@ -30,6 +30,30 @@ export interface ParseDocumentResponse {
   };
 }
 
+/** The most specific error message a failed response carries.
+ *
+ *  FastAPI puts it in `detail`. The SurfaceWallMiddleware in
+ *  src/engine/api/server.py answers a walled surface with
+ *  `{error: {code, message, details}}` and NO `detail` — so reading only
+ *  `detail` collapsed "The legacy SKU analysis surface is not enabled on this
+ *  deployment" into a bare "404", indistinguishable from a missing route.
+ *  That is precisely how the workspace-onboarding dead end stayed invisible:
+ *  the operator saw a status code where the server had sent a reason.
+ *
+ *  Falls back to "<status> <statusText>" when the body carries neither. */
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body?.detail) {
+      return typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    }
+    if (typeof body?.error?.message === "string") return body.error.message;
+  } catch {
+    /* non-JSON body — fall through to the status line */
+  }
+  return `${res.status} ${res.statusText}`;
+}
+
 /**
  * Send a PDF to the backend extraction service. The backend calls Claude
  * Opus 4.7 with the PDF as a document content block and returns structured
@@ -58,14 +82,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...(init.headers ?? {}),
     },
   });
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
-    } catch { /* leave default */ }
-    throw new Error(detail);
-  }
+  if (!res.ok) throw new Error(await errorDetail(res));
   return (await res.json()) as T;
 }
 
@@ -209,74 +226,21 @@ export async function drillCategory(
   });
 }
 
-// ─────────── Analyze ───────────
-
-export async function analyzeRunOnBackend(
-  run: DailyRun,
-  fileName?: string,
-  rowCount?: number,
-  language: "en" = "en",
-  rows?: ClassifyRowsBody["rows"],
-  overrides?: BackendOverrides,
-): Promise<Analysis> {
-  const data = await call<Omit<Analysis, "generatedAt">>("/api/analyze", {
-    method: "POST",
-    body: JSON.stringify({
-      run,
-      file_name: fileName,
-      row_count: rowCount,
-      language,
-      rows,
-      period_months: 10,
-      overrides,
-    }),
-  });
-  return { ...data, generatedAt: new Date().toISOString() };
-}
-
-// ─────────── Server-side upload ───────────
-
-export interface UploadExcelResult {
-  file_name: string;
-  transaction_rows: number;
-  run: DailyRun;
-  skus: SkusResponse;
-  raw_rows: Array<{
-    category: string;
-    sku: string;
-    volume_tons: number;
-    revenue_kron: number;
-    gross_margin_pct: number;
-  }>;
-  analysis: Omit<Analysis, "generatedAt">;
-  /** Server-derived alerts from the alert engine. May be empty. */
-  alerts?: Alert[];
-  alert_summary?: AlertSummary;
-}
-
-/** Send the Excel file straight to the backend. Pandas parses it; the API
- *  returns the full DailyRun + SKU list + AI analysis in one round-trip. */
-export async function uploadExcelToBackend(
-  file: File,
-  periodMonths = 10,
-  overrides?: BackendOverrides,
-): Promise<UploadExcelResult> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const params = new URLSearchParams({ period_months: String(periodMonths) });
-  if (overrides) params.set("overrides_json", JSON.stringify(overrides));
-  const url = `${API_URL}/api/upload-excel?${params.toString()}`;
-  const res = await fetch(url, { method: "POST", body: fd });
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
-    } catch { /* leave default */ }
-    throw new Error(detail);
-  }
-  return (await res.json()) as UploadExcelResult;
-}
+// ─────────── Analyze / server-side upload — REMOVED 2026-09-09 ───────────
+//
+// `analyzeRunOnBackend` (POST /api/analyze) and `uploadExcelToBackend`
+// (POST /api/upload-excel) lived here with zero call sites. Both endpoints are
+// walled behind LEGACY_SKU_AI_ENABLED in src/engine/api/server.py — an
+// anonymous POST to either reached an Anthropic completion with no bearer and
+// no rate limit — so in production they answer a JSON 404 and nothing else.
+//
+// They are deleted rather than deprecated because an uncalled wrapper around a
+// walled endpoint is exactly how the onboarding dead end happened: the dialog
+// that called this was dead too, right up until the workspace wizard mounted
+// it. Product uploads go through uploadDocument({scope:"sku"}) (Products.tsx)
+// and financial documents through uploadDocument({scope:"financial"})
+// (FinancialStatements.tsx, Workspace.tsx). frontend/lib/__tests__/
+// noWalledEndpointCallers.test.ts keeps this true.
 
 // ─────────── Health ───────────
 

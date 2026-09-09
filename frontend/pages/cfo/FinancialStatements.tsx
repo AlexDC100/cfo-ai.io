@@ -24,6 +24,7 @@ import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 // SourceFilesRow/AddFileTile no longer used here (2026-08-04 source-line fix) — Products still uses them.
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { FINANCIAL_UPLOAD_ACCEPT } from "@/lib/uploadAccept";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
@@ -366,11 +367,11 @@ const DASHV2_RO: Record<keyof typeof DASHV2_EN, string> = {
 i18n.addResourceBundle("en", "translation", { dashV2: DASHV2_EN }, true, false);
 i18n.addResourceBundle("ro", "translation", { dashV2: DASHV2_RO }, true, false);
 
-/** What the dashboard accepts as a financial document. Shared by the hidden
- *  page input and the "Add file" tile in the Source-files row so the two can't
- *  drift. */
-const DASHBOARD_UPLOAD_ACCEPT =
-  ".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif,image/heic,image/heif,.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+/** What the dashboard accepts as a financial document. Defined in
+ *  `@/lib/uploadAccept` — the hidden page input, the "Add file" tile in the
+ *  Source-files row, and the workspace onboarding dropzone all read the same
+ *  constant so they can't drift (the wizard once did, and rejected .xls). */
+const DASHBOARD_UPLOAD_ACCEPT = FINANCIAL_UPLOAD_ACCEPT;
 
 export default function FinancialStatements() {
   const { t, i18n } = useTranslation();
