@@ -671,8 +671,12 @@ def assetage(spec: "DetectorSpec", series: "B.BookSeries",
         return [na(spec.id, "assetage",
                    "this book carries no gross asset account under %s"
                    % ", ".join(spec.prefixes("gross")), periods=(latest.label,))]
-    gross = sum(abs(r.closing_signed() or 0.0) for r in gross_group.rows)
-    accum = sum(abs(r.closing_signed() or 0.0) for r in accum_group.rows)
+    # LEAVES, for the reason `Group._leaf_sum` states: this book carries
+    # 213 AND 2131.01 AND 2133.01, and summing all three counted the
+    # machinery twice. Measured on agras: RON 22,011,353.08 of net book
+    # value against the served balance sheet's RON 11,005,676.54.
+    gross = sum(abs(r.closing_signed() or 0.0) for r in gross_group.leaves())
+    accum = sum(abs(r.closing_signed() or 0.0) for r in accum_group.leaves())
     if gross <= 0:
         return [na(spec.id, "assetage",
                    "gross assets under %s total zero in this book"
@@ -686,7 +690,7 @@ def assetage(spec: "DetectorSpec", series: "B.BookSeries",
     # to the result account at year end, so its net movement is zero and
     # reading it that way would report "no annual charge" on every book
     # that has one.
-    charge = sum(abs(r.movement_debit() or 0.0) for r in charge_group.rows)
+    charge = sum(abs(r.movement_debit() or 0.0) for r in charge_group.leaves())
     nbv = max(gross - accum, 0.0)
     accounts = SUP.accounts_of(gross_group.rows, limit=3)
     codes = ", ".join(c for c, _n in accounts)

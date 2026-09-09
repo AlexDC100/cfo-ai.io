@@ -1681,6 +1681,7 @@ def build_router():  # pragma: no cover — thin wiring, exercised by e2e
         """Build the read context from the caller's OWN client, so RLS
         scopes every row to their memberships."""
         with _supabase.per_user(jwt) as client:
+            caen = _org.caen_for_org(client, org_id)
             rows = client.select(
                 "financial_periods",
                 filters={"org_id": "eq.%s" % org_id},
@@ -1734,7 +1735,12 @@ def build_router():  # pragma: no cover — thin wiring, exercised by e2e
                     envelope=envelope if isinstance(envelope, dict) else None,
                     statements=statements,
                     accounts=accounts,
-                    caen=row.get("caen_code"),
+                    # FROM THE ORG, never from this row. `financial_periods`
+                    # has no `caen_code` column and this select is `select=*`,
+                    # so PostgREST answered 200 with the key absent and every
+                    # Capsule finding ever served ran `caen=None` — never
+                    # industry-qualified, on a router mounted unconditionally.
+                    caen=caen,
                     snapshot_id=str(row.get("source_document_id") or "") or None,
                 ))
         return CapsuleContext(entity_id=org_id, periods=tuple(periods))

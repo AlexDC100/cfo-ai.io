@@ -90,6 +90,9 @@ from engine.firm.suppress import Suppression, SuppressionIndex
 from pydantic import BaseModel, Field
 
 from . import _finding_rank as R
+# CAEN's one authority. `_org` imports only `_jwt` and `_supabase`,
+# so there is no cycle back to this module.
+from . import _org
 from ._paging import (IN_CHUNK, MAX_PAGES, PAGE_ROWS, PageWalkError, chunked, in_filter,
                       select_all)
 
@@ -122,9 +125,22 @@ PERIODS_PER_CLIENT = 12
 #: heavier. The two JSON-path aliases are what make the first pass cheap:
 #: the content hash the FactsGateway stamps on every Fact, and a
 #: non-null marker iff an envelope exists at all.
+# NO CAEN HERE, and the explanation lives ABOVE the tuple rather than
+# inside it: a comment between the string fragments is indistinguishable
+# from a column name to the text scan that guards this
+# (tests/engine/test_caen_one_authority.py), and it reds on its own
+# explanation. The same shape as a Python comment inside a frozenset that
+# a mirror test read as a member.
+#
+# `caen_code` is not a column on `financial_periods` — phase 7 put CAEN on
+# `organizations`. Unlike the two `select=*` readers that failed silently,
+# an EXPLICIT projection naming it is a PostgREST 400 `42703`, which
+# `classify_read_error` grades `bad_column` and `get_board` turns into a
+# 500 — the WHOLE attention board for every caller, not a degraded field,
+# the moment FIRM_COCKPIT_ENABLED flips. It is read from the org row
+# instead, which this board already holds.
 LIGHT_PERIOD_COLUMNS = (
     "id,org_id,period_start,period_end,currency,source_document_id,updated_at,"
-    "caen_code,"
     "snapshot_hash:assembled_canonical_v1->provenance->>content_hash,"
     "has_envelope:assembled_canonical_v1->>schema_version,"
     "jurisdiction:assembled_canonical_v1->pack_provenance->>jurisdiction"
@@ -429,7 +445,10 @@ def build_client_records(orgs: Sequence[Dict[str, Any]],
                 snapshot_hash=(str(row.get("snapshot_hash"))
                                if row.get("snapshot_hash") else None),
                 attached=attached,
-                caen=(str(row.get("caen_code")) if row.get("caen_code") else None),
+                # From the ORG row, which this board already holds — it
+                # reads `organizations` with `select=*` for every client,
+                # so a per-client round trip would re-fetch a value in hand.
+                caen=_org.caen_of_org_row(org),
                 label=str(row.get("period_end") or "")[:10]))
         jurisdiction = jurisdiction_of(org)
         if not jurisdiction:

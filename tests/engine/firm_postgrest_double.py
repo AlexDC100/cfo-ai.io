@@ -72,9 +72,21 @@ BASE_COLUMNS = {
     "organizations": ["id", "name", "industry_key", "industry_display_name",
                       "default_currency", "created_at", "updated_at", "archived_at",
                       "purge_after", "caen_code", "firm_id", "cui"],
+    # EXACTLY what `supabase/schema.sql:568` declares plus the four later
+    # `alter table` adds. Nothing else.
+    #
+    # This list used to carry `period_label`, `status` AND `caen_code`, none
+    # of which any migration adds. A double that invents a column answers
+    # 200 where production answers `400 42703`, which is the one thing a
+    # double must never do — it is the fake-store failure mode with a
+    # narrower blast radius. It cost exactly that: `_firm_attention`
+    # named `caen_code` in an explicit projection, the double served it,
+    # `test_firm_route.py` asserted the value came back, and the whole
+    # attention board would have 500'd on the first real request.
     "financial_periods": ["id", "org_id", "source_document_id", "period_start",
-                          "period_end", "currency", "period_label", "status",
-                          "extraction_confidence", "assembled_canonical_v1", "caen_code",
+                          "period_end", "currency", "extraction_confidence",
+                          "assembled_canonical_v1", "detection_envelope",
+                          "methodology_version", "pre_backfill_snapshot",
                           "created_at", "updated_at"],
     "statement_line_items": ["id", "period_id", "statement", "bucket",
                              "ro_account_code", "ro_account_name", "amount", "is_derived"],
@@ -473,7 +485,10 @@ def seed_client(double: PostgrestDouble, org_id: str, name: str, case: Dict[str,
         pid = "%s:%s" % (org_id, end)
         double.add("financial_periods", {
             "id": pid, "org_id": org_id, "period_start": end[:8] + "01", "period_end": end,
-            "currency": case["currency"], "period_label": end, "status": "ready",
+            # `financial_periods` declares no `period_label`, no `status`
+            # and no `caen_code`. Seeding them made the double answer
+            # 200 where production answers 400 42703.
+            "currency": case["currency"],
             "assembled_canonical_v1": (copy.deepcopy(case["envelope"]) if attached else None),
             "source_document_id": ("doc:%s" % pid if attached else None),
             "updated_at": updated_at,

@@ -179,30 +179,48 @@ class Group:
     def present(self) -> bool:
         return bool(self.rows)
 
-    def closing(self) -> Optional[float]:
-        vals = [r.closing_signed() for r in self.rows]
+    # ── THE AGGREGATES SUM LEAVES, NEVER `self.rows` ─────────────────────
+    #
+    # A synthetic account's figure IS the sum of its analytics, so a total
+    # over both counts the same money twice. `leaves()` twenty lines below
+    # has said so since it was written; these five accessors did not read
+    # it, and every family that reaches a figure through them — direction,
+    # magnitude, decouple, velocity, reversal, dormant, cutoff, and
+    # `assetage` through its own `.rows` sum — was doubling.
+    #
+    # MEASURED, and this is how it was found. `interco` computes its own
+    # total over `leaves()` and its related-party figure matched the served
+    # `ar_intercompany` row TO THE CENT (RON 7,692,202.74). `assetage`
+    # summed `.rows` and reported RON 22,011,353.08 of net book value where
+    # the served balance sheet carries RON 11,005,676.54 — EXACTLY twice.
+    # The share it fired on (70.5%) looked right the whole time, because a
+    # ratio of two doubled numbers is the same ratio. The money was the
+    # only thing that gave it away, which is the argument for citing money
+    # rather than only a percentage.
+    #
+    # This matters more on the spine than on a raw parse: `from_series`
+    # ADDS the synthetic roll-ups, so a spine-built book always carries
+    # both levels.
+
+    def _leaf_sum(self, measure: str) -> Optional[float]:
+        vals = [getattr(r, measure)() for r in self.leaves()]
         present = [v for v in vals if v is not None]
         return sum(present) if present else None
+
+    def closing(self) -> Optional[float]:
+        return self._leaf_sum("closing_signed")
 
     def movement(self) -> Optional[float]:
-        vals = [r.movement_signed() for r in self.rows]
-        present = [v for v in vals if v is not None]
-        return sum(present) if present else None
+        return self._leaf_sum("movement_signed")
 
     def movement_gross(self) -> Optional[float]:
-        vals = [r.movement_gross() for r in self.rows]
-        present = [v for v in vals if v is not None]
-        return sum(present) if present else None
+        return self._leaf_sum("movement_gross")
 
     def movement_debit(self) -> Optional[float]:
-        vals = [r.movement_debit() for r in self.rows]
-        present = [v for v in vals if v is not None]
-        return sum(present) if present else None
+        return self._leaf_sum("movement_debit")
 
     def movement_credit(self) -> Optional[float]:
-        vals = [r.movement_credit() for r in self.rows]
-        present = [v for v in vals if v is not None]
-        return sum(present) if present else None
+        return self._leaf_sum("movement_credit")
 
     def atom_ids(self) -> Tuple[str, ...]:
         return tuple(sorted(r.atom_id for r in self.rows))

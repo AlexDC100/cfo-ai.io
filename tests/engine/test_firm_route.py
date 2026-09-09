@@ -113,15 +113,15 @@ def _light_rows() -> List[Dict[str, Any]]:
     return [
         {"id": "p-1", "org_id": "org-a", "period_start": "2025-01-01",
          "period_end": "2025-12-31", "currency": "RON", "source_document_id": "d-1",
-         "updated_at": "2026-01-02T10:00:00+00:00", "caen_code": None,
+         "updated_at": "2026-01-02T10:00:00+00:00",
          "snapshot_hash": "sha256-abc", "has_envelope": "canonical_v1", "jurisdiction": "RO"},
         {"id": "p-0", "org_id": "org-a", "period_start": "2024-01-01",
          "period_end": "2024-12-31", "currency": "RON", "source_document_id": "d-0",
-         "updated_at": "2025-01-02T10:00:00+00:00", "caen_code": None,
+         "updated_at": "2025-01-02T10:00:00+00:00",
          "snapshot_hash": None, "has_envelope": None, "jurisdiction": None},
         {"id": "p-9", "org_id": "org-b", "period_start": "2025-01-01",
          "period_end": "2025-12-31", "currency": "RON", "source_document_id": "d-9",
-         "updated_at": "2026-01-02T10:00:00+00:00", "caen_code": "1011",
+         "updated_at": "2026-01-02T10:00:00+00:00",
          "snapshot_hash": "sha256-def", "has_envelope": "canonical_v1", "jurisdiction": "RO"},
     ]
 
@@ -143,8 +143,12 @@ def test_build_client_records_is_lazy_and_marks_attachment_from_the_light_column
         calls["stmts"].append(row["id"])
         return _case("saga_10_col_agras")["statements"]
 
+    # CAEN lives on the ORG. It used to be seeded on the period row and
+    # asserted from there — a green gate over a column
+    # `financial_periods` does not declare.
     orgs = [{"id": "org-a", "name": "Alpha SRL", "default_currency": "RON"},
-            {"id": "org-b", "name": "Beta SRL", "default_currency": "RON"}]
+            {"id": "org-b", "name": "Beta SRL", "default_currency": "RON",
+             "caen_code": "1011"}]
     records = RT.build_client_records(
         orgs, RT.group_periods(_light_rows()), {"org-b": {"cadence": "quarterly"}},
         {"org-a": [{"covenant_id": "c1", "label": "L", "metric": "equity",
@@ -162,7 +166,13 @@ def test_build_client_records_is_lazy_and_marks_attachment_from_the_light_column
     assert a.periods_desc()[0].snapshot_id() == "sha256-abc"
     assert a.covenants[0].limit == 1000.0 and a.covenants[0].test_date == "2026-03-31"
     assert records[1].cadence_row == {"cadence": "quarterly"}
+    # FROM THE ORG. This used to read a `caen_code` seeded on the PERIOD
+    # row — a green gate over a column `financial_periods` does not
+    # declare, which is what let `_firm_attention` name it in an explicit
+    # projection and go unnoticed until the Cockpit flag flips.
     assert records[1].periods[0].caen == "1011"
+    assert records[0].periods[0].caen is None, (
+        "org-a declares no CAEN, so its periods must carry none")
     # The loaders run only on a facts build (a cache miss).
     pack = FA.load_attention_pack()
     facts.build_client_facts(a, pack.cash_row_ids, pack.fingerprint())

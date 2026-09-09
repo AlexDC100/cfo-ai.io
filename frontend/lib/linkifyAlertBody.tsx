@@ -58,6 +58,23 @@ export const FACT_TO_SOURCE: Record<string, TraceableSource> = {
   net_profit:                 { statement: "pl", bucket: "netIncomeOperational",   hint: "Net profit — operational" },
   depreciation:               { statement: "pl", bucket: "depreciationAmortization", hint: "Depreciation & amortization (6811/6812)" },
   interest_expense:           { statement: "pl", bucket: "interestExpense",        hint: "Interest expense (666)" },
+
+  // ── Radar detector families (2026-09-09) ──────────────────────────────
+  // Without these three, every detector row rendered with NO "View
+  // evidence" button while the four engine rows had one — the same seven
+  // findings on one page, half of them traceable. `primaryTrace` walks a
+  // finding's figures and takes the first with an entry here, so a family
+  // that publishes only its own fact names is untraceable by construction.
+  //
+  // Each points at the statement row the figure actually reconciles to.
+  // `interco_balance` was measured against the served `ar_intercompany`
+  // row to the cent; `net_book_value` lands on the PP&E block, whose
+  // served aggregate differs from it only by construction in progress;
+  // `top_counterparty_balance` is one analytic under 4111, so it jumps to
+  // the receivables row that contains it.
+  interco_balance:            { statement: "bs", bucket: "accountsReceivable",     hint: "Related-party receivables (451 / 461)" },
+  net_book_value:             { statement: "bs", bucket: "totalAssets",            hint: "Tangible fixed assets, net (21x less 281x)" },
+  top_counterparty_balance:   { statement: "bs", bucket: "accountsReceivable",     hint: "Trade receivables (4111) — the largest counterparty inside it" },
 };
 
 /** AST node emitted by `parseLinkifiedBody`. Either inert text or a

@@ -645,10 +645,16 @@ BASE_COLUMNS = {
                       "default_currency", "created_at", "updated_at", "archived_at",
                       "purge_after", "caen_code", "firm_id", "cui"],
     "memberships": ["user_id", "org_id", "role", "created_at"],
+    # EXACTLY the declared set. This list is a SECOND hand-written copy of
+    # the one in firm_postgrest_double.py, and both invented the same three
+    # columns — which is how a double comes to disagree with the database
+    # twice over. Kept in sync by
+    # test_firm_tenancy::test_the_two_column_maps_agree_with_the_schema.
     "financial_periods": ["id", "org_id", "source_document_id", "period_start",
-                          "period_end", "currency", "period_label", "status",
-                          "assembled_canonical_v1", "caen_code", "created_at",
-                          "updated_at"],
+                          "period_end", "currency", "extraction_confidence",
+                          "assembled_canonical_v1", "detection_envelope",
+                          "methodology_version", "pre_backfill_snapshot",
+                          "created_at", "updated_at"],
     "documents": ["id", "org_id", "original_filename", "status", "created_at"],
     "statement_line_items": ["id", "period_id", "statement", "bucket",
                              "ro_account_code", "ro_account_name", "amount"],
@@ -1732,13 +1738,18 @@ def world(monkeypatch, served_envelope):
     w.add("client_assignments", {"firm_id": FIRM_A, "org_id": ORG_A2})
     w.add("client_assignments", {"firm_id": FIRM_B, "org_id": ORG_B1, "responsible_user_id": B_OWNER})
 
-    for pid, org, label, env in ((PERIOD_A1, ORG_A1, "December 2025", served_envelope),
-                                 (PERIOD_A2, ORG_A2, "December 2025", None),
-                                 (PERIOD_B1, ORG_B1, "December 2025", served_envelope),
-                                 (PERIOD_S, ORG_S, "December 2025", served_envelope)):
-        w.add("financial_periods", {"id": pid, "org_id": org, "period_label": label,
+    # A period's label IS its period_end: `financial_periods` declares no
+    # `period_label`, so `_capsule_tools` falls back to the date and every
+    # caller must ask for the period the way the product names it.
+    for pid, org, label, env in ((PERIOD_A1, ORG_A1, "2025-12-31", served_envelope),
+                                 (PERIOD_A2, ORG_A2, "2025-12-31", None),
+                                 (PERIOD_B1, ORG_B1, "2025-12-31", served_envelope),
+                                 (PERIOD_S, ORG_S, "2025-12-31", served_envelope)):
+        # No `period_label` / `status` / `caen_code`: the table declares
+        # none of them (schema.sql:568 + the four later alter-tables).
+        w.add("financial_periods", {"id": pid, "org_id": org,
                                     "period_start": "2025-01-01", "period_end": "2025-12-31",
-                                    "currency": "RON", "status": "ready",
+                                    "currency": "RON",
                                     "assembled_canonical_v1": copy.deepcopy(env) if env else None,
                                     "source_document_id": "doc-%s" % pid if env else None})
     w.add("documents", {"id": U(401), "org_id": ORG_A1, "original_filename": "a1.xlsx", "status": "analyzed"})
@@ -2374,7 +2385,7 @@ def test_fc1_positive_control_the_world_is_real(app, world, gateway_facts):
     assert "assembled_canonical_v1" not in json.dumps(r.json()), "the firm route must not ship the envelope"
 
     r = app.post("/api/capsule/tools/get_facts", headers=hdr(A_OWNER, ORG_A1),
-                 json={"args": {"metric": "total_assets", "period": "December 2025"}})
+                 json={"args": {"metric": "total_assets", "period": "2025-12-31"}})
     assert r.status_code == 200, r.text
     payload = r.json()
     assert payload.get("gaps") in (None, []), payload
@@ -2537,7 +2548,7 @@ def test_fc1_capsule_tool_refuses_a_firm_a_client_for_anyone_but_its_members(app
     firm route, through RLS, and nothing else."""
     for intruder in (B_OWNER, B_VIEWER, SOLO, A_VIEWER, A_ACCOUNTANT):
         r = app.post("/api/capsule/tools/get_facts", headers=hdr(intruder, ORG_A1),
-                     json={"args": {"metric": "total_assets", "period": "December 2025"}})
+                     json={"args": {"metric": "total_assets", "period": "2025-12-31"}})
         assert r.status_code == 403, (intruder, r.status_code, r.text)
         assert "12588619251" not in r.text and "values" not in r.text
 
@@ -2601,7 +2612,7 @@ def test_fc1_solo_workspace_is_untouched(app, world):
     r = app.get("/api/firm", headers=hdr(SOLO))
     assert r.status_code == 200 and r.json()["firms"] == []
     r = app.post("/api/capsule/tools/get_facts", headers=hdr(SOLO, ORG_S),
-                 json={"args": {"metric": "total_assets", "period": "December 2025"}})
+                 json={"args": {"metric": "total_assets", "period": "2025-12-31"}})
     assert r.status_code == 200 and r.json().get("values")
 
 

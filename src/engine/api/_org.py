@@ -56,6 +56,8 @@ from . import _jwt, _supabase
 
 logger = logging.getLogger(__name__)
 
+TABLE_ORGS = "organizations"
+
 
 def resolve_user_id(jwt: str) -> str:
     """The VERIFIED user id. 401 (`_jwt.InvalidToken`) when the bearer's
@@ -149,6 +151,60 @@ def default_org_for_user(user_id: str) -> Optional[str]:
             if org and org[0].get("archived_at") is None:
                 return row["org_id"]
     return None
+
+
+#: The columns an org-level CAEN read needs. Named, not `select=*`, so a
+#: reader can see what this touches.
+CAEN_COLUMNS = "id,caen_code"
+
+
+def caen_for_org(client: Any, org_id: str) -> Optional[str]:
+    """The workspace's CAEN industry code, or ABSENT.
+
+    ONE AUTHORITY, and it lives here because CAEN is a property of the
+    ORGANIZATION — `schema_phase7_benchmarks.sql:17` puts it there and
+    nowhere else. `financial_periods` has never carried the column.
+
+    Three surfaces read it off a `financial_periods` row instead, and each
+    failed differently:
+
+      · `_radar.light_input` — `select=*`, so PostgREST answered 200 with
+        the key simply absent. Every served radar finding ran with
+        `caen=None` and was industry-unqualified, silently, forever.
+      · `_capsule_tools._context` — the same shape, the same silence, on a
+        router mounted UNCONDITIONALLY. Every Capsule finding too.
+      · `_firm_attention.LIGHT_PERIOD_COLUMNS` — an EXPLICIT projection, so
+        PostgREST answers 400 `42703 undefined column`, which
+        `classify_read_error` grades `bad_column` and `get_board` turns
+        into a 500. The whole Firm Attention board, not one field. Latent
+        only because FIRM_COCKPIT_ENABLED is unset.
+
+    Fails OPEN, like `load_dismissals`: a missing column or an RLS refusal
+    yields None and the finding's own profile says it is unqualified.
+    Raising here would take a whole payload down over a classification.
+    """
+    try:
+        rows = client.select(TABLE_ORGS, filters={"id": "eq.%s" % org_id},
+                             columns=CAEN_COLUMNS, limit=1) or []
+    except Exception:  # noqa: BLE001 — a classification is not worth a 500
+        logger.exception("[org] CAEN lookup failed for %s", org_id)
+        return None
+    if not rows:
+        return None
+    value = str(rows[0].get("caen_code") or "").strip()
+    return value or None
+
+
+def caen_of_org_row(org: Any) -> Optional[str]:
+    """The same value, when the caller ALREADY holds the org row.
+
+    `_firm_attention` reads `organizations` with `select=*` for its whole
+    board, so a second round trip per client would be a query per client
+    for a value already in hand."""
+    if not isinstance(org, dict):
+        return None
+    value = str(org.get("caen_code") or "").strip()
+    return value or None
 
 
 def resolve_org(jwt: str, requested_org_id: Optional[str] = None) -> Tuple[str, str]:

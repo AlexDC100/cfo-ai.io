@@ -149,6 +149,31 @@ FACT_ACCESSORS = {
     "fx_cash": ("statement_line", ("cash_fx",)),
     "intercompany_loans": ("statement_line", ("ar_intercompany",)),
     "revaluation_reserves": ("statement_line", ("revaluation_reserves",)),
+    # ── Radar detector families (2026-09-09) ───────────────────────────
+    # MEASURED TO THE CENT on agras, which is what this registry demands
+    # and not a courtesy: the detector's own total over `leaves()` is
+    # RON 7,692,202.74 and the served `ar_intercompany` row is
+    # RON 7,692,202.74. Registering it moves the related-party row's money
+    # from WITHHELD to VERIFIED.
+    "interco_balance": ("statement_line", ("ar_intercompany",)),
+    # NOT REGISTERED, and each for a stated reason rather than an oversight:
+    #
+    #   `net_book_value` — the envelope carries a `ppe_net` AGGREGATE, and
+    #     it is not the same figure. Its leaves include
+    #     `ppe_under_construction` (RON 49,773.00 on agras); the detector
+    #     measures prefix `21` (land, buildings, equipment, furniture) and
+    #     construction in progress is `23`. Registering `ppe_net` would
+    #     make the provenance check pass on a figure 49,773 away from the
+    #     one the reader is shown, which is worse than withholding.
+    #
+    #   `top_counterparty_balance` — one ANALYTIC account (4111.01). The
+    #     gateway serves canonical_bs ROWS, which are aggregates; there is
+    #     no accessor for a single counterparty and inventing one here
+    #     would re-derive a composition this module is forbidden to touch.
+    #
+    # Both stay withheld with their reason on the row. The View-evidence
+    # jump is a different map (`frontend/lib/linkifyAlertBody.ts`'s
+    # FACT_TO_SOURCE) and all three are wired there.
 }  # type: Dict[str, Tuple[str, Tuple[str, ...]]]
 
 PROVENANCE_VERIFIED = "verified"

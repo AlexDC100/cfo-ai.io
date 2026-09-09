@@ -389,7 +389,14 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
     ),
     "forecast": _feature(
-        "active",
+        # STAGED, not hidden. `coming_soon` renders the row with its badge
+        # and no onClick — the reader learns the capability exists and is
+        # not handed a surface nobody has walked. The ROUTE stays mounted
+        # (`/api/forecast/*` answers 401, not 404): the engine is finished
+        # and the owner needs to walk it on their own book before an
+        # accounting firm does. Flip to `active` after that walk; nothing
+        # else changes.
+        "coming_soon",
         label="Forecast",
         description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
     ),

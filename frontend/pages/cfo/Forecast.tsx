@@ -261,7 +261,21 @@ function makeFormatter(currency: string, locale: string) {
     currency: currency || "RON",
     maximumFractionDigits: 0,
   });
-  return (minor: number) => fmt.format(minor / 100);
+  // THE VALUE ARRIVES IN MAJOR UNITS. `<ProjectedAmount>` calls
+  // `projectedDisplay`, whose docstring is explicit — "The single
+  // division, at the edge, exactly like `Fact.to_float()` on the actuals
+  // side" — and which has already done `minor / 100`.
+  //
+  // This function used to divide again. Every figure on the page rendered
+  // at ONE HUNDREDTH of its value, while the assumption schedule's basis
+  // prose beside it printed the same figures correctly (that text comes
+  // from the engine, not through this path). The page contradicted itself
+  // in two places on one screen: revenue FY as RON 4,137,276 against a
+  // basis sentence saying 413,727,560.16.
+  //
+  // The boundary was right and the page was wrong. Nothing in the
+  // producer or the serving lane needed changing.
+  return (value: number) => fmt.format(value);
 }
 
 function StatementBlock({

@@ -257,28 +257,11 @@ def period_label_of(row: Dict[str, Any]) -> str:
 
 
 def load_caen(client: Any, org_id: str) -> Optional[str]:
-    """The workspace's CAEN code, or ABSENT.
-
-    One select per serve, on the org — which is where phase 7 put it, and
-    which is the right grain: this product is one workspace per company
-    (root CLAUDE.md §16), so the industry is a property of the workspace
-    and not of a period inside it.
-
-    Fails OPEN, like `load_dismissals`: a missing column or an RLS refusal
-    yields None, and a finding whose profile could not be qualified says
-    so through the profile itself. Raising here would take the whole
-    payload down over a classification.
-    """
-    try:
-        rows = client.select(TABLE_ORGS, filters={"id": "eq.%s" % org_id},
-                             columns=ORG_COLUMNS, limit=1) or []
-    except Exception:  # noqa: BLE001 — a classification is not worth a 500
-        logger.exception("[radar] CAEN lookup failed for org %s", org_id)
-        return None
-    if not rows:
-        return None
-    value = str(rows[0].get("caen_code") or "").strip()
-    return value or None
+    """The workspace's CAEN code. Delegates to `_org.caen_for_org`, which
+    is the one authority — three surfaces read this off the wrong table
+    and each failed differently; the reasons are recorded there."""
+    from . import _org
+    return _org.caen_for_org(client, org_id)
 
 
 def _workspace_identity(org_id: Any) -> Optional[str]:
@@ -756,11 +739,20 @@ def build_router(clock: Callable[[], str] = utc_now_iso,
                         x_org_id: Optional[str] = Header(None)) -> Dict[str, Any]:
         jwt = _require_jwt(authorization)
         _user_id, org_id = _org.resolve_org(jwt, x_org_id)
-        notices = []  # type: List[str]
-        with _supabase.per_user(jwt) as client:
-            rows = load_dismissals(client, org_id, notices)
-        return {"period_id": period_id, "org_id": org_id,
-                "dismissals": rows, "notices": notices}
+
+        # `_guard`, like its three siblings. `load_dismissals` fails open
+        # today so nothing on this path raises a `RadarLoadError` — but
+        # "latent" is the state a route is in right up until it is not,
+        # and one route answering 500 where the other three answer the
+        # status they carry is a difference a caller has to learn by
+        # being surprised.
+        def _run() -> Dict[str, Any]:
+            notices = []  # type: List[str]
+            with _supabase.per_user(jwt) as client:
+                rows = load_dismissals(client, org_id, notices)
+            return {"period_id": period_id, "org_id": org_id,
+                    "dismissals": rows, "notices": notices}
+        return _guard(_run)
 
     @router.post("/{period_id}/dismiss")
     def dismiss(period_id: str, body: DismissBody,
