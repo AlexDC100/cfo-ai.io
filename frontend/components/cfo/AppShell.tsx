@@ -386,13 +386,13 @@ export function AppShell({ children }: Props) {
   const pullStartY = useRef<number | null>(null);
   const drawerScrollerRef = useRef<HTMLDivElement>(null);
   const onDrawerTouchStart = useCallback((e: React.TouchEvent) => {
-    const scroller = drawerScrollerRef.current?.parentElement;
+    const scroller = drawerScrollerRef.current?.querySelector<HTMLElement>("[data-drawer-scroller]");
     pullStartY.current =
       scroller && scroller.scrollTop <= 0 ? e.touches[0].clientY : null;
   }, []);
   const onDrawerTouchMove = useCallback((e: React.TouchEvent) => {
     if (pullStartY.current === null || drawerRefreshing) return;
-    const scroller = drawerScrollerRef.current?.parentElement;
+    const scroller = drawerScrollerRef.current?.querySelector<HTMLElement>("[data-drawer-scroller]");
     if (scroller && scroller.scrollTop > 0) { pullStartY.current = null; setDrawerPull(0); return; }
     const dy = e.touches[0].clientY - pullStartY.current;
     // Dead zone: a tap always carries a few px of travel; growing the
@@ -545,7 +545,7 @@ export function AppShell({ children }: Props) {
             bg-bg
             border-r border-rule
             [&>button.absolute]:hidden
-            overflow-y-auto overscroll-contain touch-pan-y
+            flex flex-col overflow-hidden overscroll-contain touch-pan-y
           "
           style={{
             paddingTop: "env(safe-area-inset-top)",
@@ -561,11 +561,12 @@ export function AppShell({ children }: Props) {
           {/* Header-height spacer — only where the fixed TopHeader exists;
               in the native shell the drawer content starts at the top. */}
           {!inNativeShell && <div className="h-14 border-b border-rule" />}
-          {/* Touch surface for pull-to-refresh (covers the drawer's whole
-              scrollable content). */}
+          {/* Touch surface for pull-to-refresh (covers header, nav and
+              footer; the nav inside is the scroller — see the
+              data-drawer-scroller lookup in the handlers). */}
           <div
             ref={drawerScrollerRef}
-            className="relative min-h-full flex flex-col"
+            className="relative flex-1 min-h-0 flex flex-col"
             onTouchStart={onDrawerTouchStart}
             onTouchMove={onDrawerTouchMove}
             onTouchEnd={onDrawerTouchEnd}

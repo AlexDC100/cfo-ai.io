@@ -300,25 +300,22 @@ export function Sidebar({
   return (
     <aside
       className={`
-        ${inDrawer ? "w-full flex-1" : `hidden lg:flex fixed left-0 top-14 bottom-0 z-30 border-r border-rule ${widthClass}`}
+        ${inDrawer ? "w-full flex-1 min-h-0" : `hidden lg:flex fixed left-0 top-14 bottom-0 z-30 border-r border-rule ${widthClass}`}
         bg-bg
         flex flex-col
-        ${inDrawer ? "overflow-visible" : "overflow-hidden"}
+        overflow-hidden
         transition-[width] duration-overlay ease-out
       `}
       data-collapsed={effectivelyCollapsed ? "true" : "false"}
     >
-      {/* Drawer (2026-09-08 per operator): the nav is NOT a scroller — the
-          sheet itself scrolls, so header, tabs, conversations and footer all
-          move as one. The desktop rail keeps its own scrolling nav. */}
-      <nav className={`flex-1 overflow-x-hidden space-y-4 ${inDrawer ? "pt-1 pb-4 drawer-stagger" : "py-4 overflow-y-auto"}`}>
-        {/* App identity — DRAWER ONLY (2026-09-08 per operator): mark +
-            wordmark with the app version beneath. Inside the native shell
-            there is no TopHeader, so this is the one place the app names
-            itself; the version is the native app's there, the web build's
-            in a mobile browser. */}
+      {/* App identity — DRAWER ONLY: mark + wordmark with the app version
+          beneath, and the close (X). Inside the native shell there is no
+          TopHeader, so this is the one place the app names itself; the
+          version is the native app's there, the web build's in a mobile
+          browser. A fixed HEADER (2026-09-09 per operator): only the nav
+          below scrolls, between this and the pinned footer. */}
         {inDrawer && (
-          <div className="pl-6 pr-3" data-testid="sidebar-app-identity">
+          <div className="shrink-0 pl-6 pr-3 pt-1" data-testid="sidebar-app-identity">
             {/* Wordmark with the version tucked under the text, and a close
                 (X) button on the right; a hairline that fades out to the
                 right closes the block (2026-09-08 per operator). */}
@@ -353,6 +350,12 @@ export function Sidebar({
             <div aria-hidden className="mt-3 -ml-6 -mr-3 border-t border-rule" />
           </div>
         )}
+      {/* Drawer: the ONE scroller, between the fixed header and footer
+          (2026-09-09 per operator). The desktop rail keeps its own. */}
+      <nav
+        className={`flex-1 min-h-0 overflow-x-hidden space-y-4 ${inDrawer ? "pt-3 pb-4 overflow-y-auto overscroll-contain drawer-stagger" : "py-4 overflow-y-auto"}`}
+        {...(inDrawer ? { "data-drawer-scroller": "" } : {})}
+      >
         {/* Currency — DRAWER ONLY (2026-08-18, native-shell pass): inside
             the shell the TopHeader (and its CurrencyMenu) isn't rendered,
             so the burger menu carries the display-currency toggle. */}
@@ -500,7 +503,7 @@ export function Sidebar({
           (2026-09-09 per operator): a local switch to watch the intro
           again; never rendered in a production bundle. */}
       {inDrawer && onboardingReplayAvailable && (
-        <div className="px-3 pb-2">
+        <div className="shrink-0 px-3 pb-2">
           <button
             type="button"
             data-testid="sidebar-replay-onboarding"
@@ -521,10 +524,9 @@ export function Sidebar({
           surface via `onOpenAccount`. */}
       {inDrawer && user && (
         <div
-          // Pinned to the BOTTOM of the drawer (2026-09-08 per operator),
-          // the same way the guest footer is: mt-auto takes the free space
-          // below the nav, sticky keeps it in view while the nav scrolls.
-          className="px-3 pt-2 border-t border-rule flex items-center gap-1 mt-auto sticky bottom-0 bg-bg"
+          // Pinned to the BOTTOM of the drawer: the nav above is the only
+          // scroller, so this never moves (2026-09-09 per operator).
+          className="shrink-0 px-3 pt-2 border-t border-rule flex items-center gap-1 bg-bg"
           // Carries the home-indicator inset itself (the sheet has none), so
           // the row sits flush with the bottom edge.
           style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
@@ -569,14 +571,12 @@ export function Sidebar({
           row above; Settings is reachable via the account row). */}
       {!(inDrawer && user) && (
       <div
-        // Drawer (2026-09-08 per operator): the footer — Sign in / theme —
-        // is pinned to the BOTTOM of the drawer: the aside
-        // fills the sheet (flex-1) so the nav pushes it down, and sticky
-        // keeps it in view while the rest scrolls.
+        // Drawer: the footer — Sign in / theme — is pinned to the BOTTOM;
+        // the nav above is the only scroller (2026-09-09 per operator).
         // Not rendered in the signed-in drawer: it has no visible rows there
         // (theme picker + Sign in are guest-only) and the account row above
         // is pinned to the bottom instead.
-        className={`pt-2 pb-3 border-t border-rule space-y-0.5 ${inDrawer ? "sticky bottom-0 bg-bg mt-auto" : ""}`}
+        className={`shrink-0 pt-2 pb-3 border-t border-rule space-y-0.5 ${inDrawer ? "bg-bg" : ""}`}
         // Drawer: carries the home-indicator inset itself (the sheet has
         // none) so the footer sits flush with the bottom edge.
         style={inDrawer ? { paddingBottom: "max(0.5rem, calc(env(safe-area-inset-bottom) - 0.25rem))" } : undefined}
