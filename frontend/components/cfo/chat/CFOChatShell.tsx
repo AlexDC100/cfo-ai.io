@@ -48,7 +48,8 @@ import { promptSignIn } from "@/lib/authPrompt";
 import { getActiveOrgId } from "@/lib/activeOrg";
 import { readPeriodVerdict } from "@/lib/dataPresence";
 import { usePublicCompanyChatContext } from "@/lib/publicCompanyChatStore";
-import { isNativeShell } from "@/lib/nativeShell";
+import { isNativeShell, setShellTrash, postNativeComposer, NATIVE_ACTION_EVENT } from "@/lib/nativeShell";
+import { readDraft, writeDraft } from "./chatDrafts";
 import type { ChatAttachment } from "./types";
 import type { Currency } from "@/lib/rates";
 
@@ -163,12 +164,18 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // The composer block floats OVER the bottom of the thread with no
   // background of its own (2026-09-10 per operator: content stays visible
   // under it), so the scrollers pad their bottom by its measured height.
+  // NATIVE composer (2026-09-10 per operator, page variant in the shell):
+  // the input is drawn by the shell in Liquid Glass; this page only tells
+  // it what to show and reserves its height at the bottom of the thread.
+  const nativeComposer = isNativeShell() && variant === "page";
+  const [nativeComposerHeight, setNativeComposerHeight] = useState(0);
+  const composerDraftKey = store.currentId ?? "new";
   const composerBlockRef = useRef<HTMLDivElement | null>(null);
   const composerBoxRef = useRef<HTMLDivElement | null>(null);
   const [composerBlockHeight, setComposerBlockHeight] = useState(0);
-  // Distance from the column's bottom edge to the top of the input box —
-  // the "scroll to newest" arrow sits just above the box itself, lower
-  // than the rows stacked over it (2026-09-10 per operator).
+  // Where the "scroll to newest" arrow sits: just above the whole
+  // composer block — the rows stacked over the input included
+  // (2026-09-10 per operator, after trying it directly on the box).
   const [arrowBottom, setArrowBottom] = useState(0);
   useEffect(() => {
     const el = composerBlockRef.current;
@@ -176,19 +183,35 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     const measure = () => {
       const block = el.getBoundingClientRect();
       setComposerBlockHeight(Math.round(block.height));
-      const box = composerBoxRef.current?.getBoundingClientRect();
-      if (box) setArrowBottom(Math.round(block.bottom - box.top) + 8);
+      setArrowBottom(Math.round(block.height) + 2);
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     if (composerBoxRef.current) ro.observe(composerBoxRef.current);
     return () => ro.disconnect();
   }, [variant]);
-  const scrollPadBottom = `${composerBlockHeight + 8}px`;
+  const scrollPadBottom = `${(nativeComposer ? composerBlockHeight + nativeComposerHeight : composerBlockHeight) + 8}px`;
   // Top-right delete disc on phones / in the shell (2026-09-10 per
   // operator) — the same 52px tinted disc as the shell's native burger,
   // mirrored to the other corner. Confirms before deleting.
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // In the shell the disc is NATIVE Liquid Glass (2026-09-10 per operator),
+  // drawn top-right by the shell while this page has a chat open; its tap
+  // arrives as native action "delete".
+  const chatOpen = variant === "page" && !!store.current && store.current.messages.length > 0;
+  useEffect(() => {
+    if (!isNativeShell()) return undefined;
+    setShellTrash(chatOpen);
+    return () => setShellTrash(false);
+  }, [chatOpen]);
+  useEffect(() => {
+    if (!isNativeShell() || !chatOpen) return undefined;
+    const onAction = (e: Event) => {
+      if ((e as CustomEvent<{ action?: string }>).detail?.action === "delete") setDeleteOpen(true);
+    };
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
+  }, [chatOpen]);
   const keyboardOpen = keyboardInset > 0 || (coarsePointer && composerFocused);
   // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
   // an entrance treatment for the first time you land on the tab; re-applying
@@ -409,8 +432,49 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   );
 
   function pickPrompt(prompt: string) {
+    if (nativeComposer) {
+      // The native input shows whatever the draft says for this key.
+      writeDraft(composerDraftKey, prompt);
+      setNativeDraftTick((n) => n + 1);
+      return;
+    }
     composerRef.current?.setText(prompt);
   }
+  const [nativeDraftTick, setNativeDraftTick] = useState(0);
+  const nativePlaceholder = expectGrounded ? t("chatX.askAboutPlaceholder", { name: companyName || t("chatX.yourCompany") }) : t("chatX.askAnythingPlaceholder");
+  useEffect(() => {
+    if (!nativeComposer) return undefined;
+    postNativeComposer({
+      show: true,
+      placeholder: capBlocked ? t("chatX.pausedPlaceholder") : nativePlaceholder,
+      pending,
+      disabled: !!capBlocked || !!degraded,
+      draft: readDraft(composerDraftKey),
+      key: `${composerDraftKey}:${nativeDraftTick}`,
+    });
+    return () => postNativeComposer({ show: false });
+    // nativeDraftTick re-sends a prompt-card pick as a fresh draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeComposer, nativePlaceholder, pending, capBlocked, degraded, composerDraftKey, nativeDraftTick, t]);
+  useEffect(() => {
+    if (!nativeComposer) return undefined;
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<{ action?: string; text?: string; height?: number }>).detail;
+      if (!d) return;
+      if (d.action === "composer-submit" && typeof d.text === "string") {
+        writeDraft(composerDraftKey, "");
+        send(d.text, []);
+      } else if (d.action === "composer-stop") {
+        stopCurrent();
+      } else if (d.action === "composer-draft" && typeof d.text === "string") {
+        writeDraft(composerDraftKey, d.text);
+      } else if (d.action === "composer-height" && typeof d.height === "number") {
+        setNativeComposerHeight(d.height);
+      }
+    };
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
+  }, [nativeComposer, composerDraftKey, send, stopCurrent]);
 
   // ── Disclosure + context line ───────────────────────────────────
   const disclosure = <>{t("chatX.disclosure")}</>;
@@ -557,6 +621,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       <div className="relative flex-1 min-w-0 flex flex-col h-full min-h-0">
         {store.current && store.current.messages.length > 0 && (
           <>
+            {!inShell && (
             <button
               type="button"
               onClick={() => setDeleteOpen(true)}
@@ -568,6 +633,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             >
               <Trash2 size={18} strokeWidth={1.75} />
             </button>
+            )}
             <DeleteChatDialog
               open={deleteOpen}
               onOpenChange={setDeleteOpen}
@@ -609,7 +675,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             groundedLabel={groundedLabel}
             padTop={scrollPadTop}
             padBottom={scrollPadBottom}
-            arrowBottom={arrowBottom}
+            arrowBottom={arrowBottom + (nativeComposer ? nativeComposerHeight : 0)}
             wideContent
             searchQuery={chatQuery}
             onClearSearch={() => setChatQuery("")}
@@ -629,7 +695,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
           className={`absolute inset-x-0 bottom-0 z-10 ${composerPadX} pt-2`}
           // Idle, the input sits low — just clear of the home indicator
           // (2026-09-10 per operator); with the keyboard up the env() is 0.
-          style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.875rem))", background: "transparent" }}
+          style={{ paddingBottom: nativeComposer ? nativeComposerHeight : "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.5rem))", background: "transparent" }}
           data-testid="chat-composer-block"
           // Only the textarea counts as "typing" — a tapped ⓘ/attach/send
           // button also takes focus on Android, and treating that as the
@@ -708,6 +774,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 </Chip>
               )}
             </div>
+            {!nativeComposer && (
             <div ref={composerBoxRef}>
               <CFOComposer
                 // Keyed by conversation so switching chats remounts the
@@ -723,6 +790,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 degradedReason={degradedTooltip}
               />
             </div>
+            )}
           </div>
           {/* Context pill + general-answer disclosure — in line, under the input.
               The pill renders only when a workspace is grounded. Hidden while

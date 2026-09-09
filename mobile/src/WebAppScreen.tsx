@@ -4,6 +4,7 @@
 // WebViews), offline/error recovery, and a first-load spinner.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActionSheetIOS, Alert } from "react-native";
 import {
   ActivityIndicator,
   BackHandler,
@@ -22,7 +23,7 @@ import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { WebView } from "react-native-webview";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
-import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from "react-native-svg";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
@@ -35,6 +36,7 @@ import { BRAND, PAPER_BG, TERMINAL_BG, palette } from "./theme";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
+import { NativeComposer, type NativeComposerState } from "./NativeComposer";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
 // Runs before the page's own scripts. `window.ReactNativeWebView` (injected by
@@ -77,12 +79,28 @@ type ShellMessage =
   // web-fixed button drifts during fling scrolls/overscroll (2026-08-18).
   // `back: true` (2026-09-08): an in-app preview sheet is open — show a
   // BACK chevron in the same spot instead; a tap dispatches action "back".
-  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean }
+  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean }
   // Native bottom sheet request (2026-09-08, iOS): present the account /
   // notifications page in a SwiftUI sheet (src/NativeSheet.tsx).
   | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean }
   // The web app's resolved theme — the shell's chrome follows it (2026-09-08).
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" }
+  // The chat composer, drawn natively (2026-09-10): the page hides its own
+  // input in the shell and drives src/NativeComposer.tsx with this.
+  | ({ source: "cfo-ai"; type: "composer" } & NativeComposerState)
+  // Native dialogs (2026-09-10): a real UIAlertController — action sheet or
+  // alert — answered with action "dialog" { id, index } (-1 = dismissed).
+  | {
+      source: "cfo-ai";
+      type: "dialog";
+      id: string;
+      kind: "actionSheet" | "alert";
+      title?: string;
+      message?: string;
+      options: string[];
+      destructiveIndex?: number;
+      cancelIndex?: number;
+    };
 
 type Props = {
   /** Stable key in the webviewRegistry (the tab name). */
@@ -165,6 +183,11 @@ export function WebAppScreen({ tabKey, path }: Props) {
   // preview sheet is open, "none" on pages without the shell (login,
   // landing) and while the drawer is open.
   const [chrome, setChrome] = useState<"none" | "menu" | "back">("none");
+  // Second disc, top-right (2026-09-10 per operator): delete the open chat.
+  // Requested by the page with the burger; a tap dispatches "delete".
+  const [trash, setTrash] = useState(false);
+  // Native composer state, as last reported by the chat page.
+  const [composer, setComposer] = useState<NativeComposerState>({ show: false });
   // Native bottom sheet currently presented (iOS only).
   const [sheet, setSheet] = useState<NativeSheetKind | null>(null);
   // Edge-swipe tracking (see the strip below).
@@ -278,6 +301,41 @@ export function WebAppScreen({ tabKey, path }: Props) {
         if (message.event === "SIGNED_OUT") reloadOtherWebViews(tabKey);
       } else if (message.type === "chrome") {
         setChrome(message.back === true ? "back" : message.burger === true ? "menu" : "none");
+        setTrash(message.trash === true && message.burger === true);
+      } else if (message.type === "composer") {
+        const { source: _s, type: _t, ...rest } = message;
+        setComposer(rest);
+      } else if (message.type === "dialog") {
+        const reply = (index: number) =>
+          webRef.current?.injectJavaScript(
+            'window.dispatchEvent(new CustomEvent("cfo:native-action",' +
+              `{ detail: { action: "dialog", id: ${JSON.stringify(message.id)}, index: ${index} } })); true;`,
+          );
+        const style = scheme === "dark" ? "dark" : "light";
+        if (message.kind === "actionSheet" && Platform.OS === "ios") {
+          ActionSheetIOS.showActionSheetWithOptions(
+            {
+              title: message.title,
+              message: message.message,
+              options: message.options,
+              destructiveButtonIndex: message.destructiveIndex,
+              cancelButtonIndex: message.cancelIndex,
+              userInterfaceStyle: style,
+            },
+            (index) => reply(index),
+          );
+        } else {
+          Alert.alert(
+            message.title ?? "",
+            message.message,
+            message.options.map((text, i) => ({
+              text,
+              style: i === message.destructiveIndex ? "destructive" : i === message.cancelIndex ? "cancel" : "default",
+              onPress: () => reply(i),
+            })),
+            { cancelable: true, onDismiss: () => reply(message.cancelIndex ?? -1), userInterfaceStyle: style },
+          );
+        }
       } else if (message.type === "sheet") {
         if (message.open === "account" || message.open === "notifications") setSheet(message.open);
         else if (message.close) setSheet(null);
@@ -302,10 +360,10 @@ export function WebAppScreen({ tabKey, path }: Props) {
 
   // Button tap → `cfo:native-action` CustomEvent; AppShell opens the drawer
   // ("menu") or closes the preview sheet ("back").
-  const dispatchAction = useCallback((action: "menu" | "back") => {
+  const dispatchAction = useCallback((action: string, payload: Record<string, unknown> = {}) => {
     webRef.current?.injectJavaScript(
       'window.dispatchEvent(new CustomEvent("cfo:native-action",' +
-        `{ detail: { action: ${JSON.stringify(action)} } })); true;`,
+        `{ detail: ${JSON.stringify({ action, ...payload })} })); true;`,
     );
   }, []);
 
@@ -368,7 +426,7 @@ export function WebAppScreen({ tabKey, path }: Props) {
           }}
           // Full page (re)load — hide the burger until the new page's AppShell
           // reports chrome again (a reload into /login must not keep it).
-          onLoadStart={() => setChrome("none")}
+          onLoadStart={() => { setChrome("none"); setTrash(false); setComposer({ show: false }); }}
           onLoadEnd={() => {
             setFirstLoadDone(true);
             // WKWebView must not add its own keyboard inset on top of the
@@ -403,6 +461,20 @@ export function WebAppScreen({ tabKey, path }: Props) {
           refreshControlLightMode={scheme === "dark"}
           setSupportMultipleWindows={false}
           allowsInlineMediaPlayback
+        />
+        {/* The chat composer in Liquid Glass (2026-09-10 per operator) —
+            inside the KeyboardAvoidingView so it rides the keyboard with
+            the WebView's bottom edge. */}
+        <NativeComposer
+          state={composer}
+          scheme={scheme}
+          palette={p}
+          accent={accent}
+          bottomInset={insets.bottom}
+          onSubmit={(text) => dispatchAction("composer-submit", { text })}
+          onStop={() => dispatchAction("composer-stop")}
+          onDraft={(text) => dispatchAction("composer-draft", { text })}
+          onHeight={(height) => dispatchAction("composer-height", { height })}
         />
       </KeyboardAvoidingView>
 
@@ -444,6 +516,42 @@ export function WebAppScreen({ tabKey, path }: Props) {
                 <View style={[styles.burgerBar, { backgroundColor: p.text }]} />
               </>
             )}
+          </GlassView>
+        </TouchableOpacity>
+      )}
+      {/* Delete-chat disc — the same Liquid Glass disc, top-RIGHT, while
+          the web chat page has a conversation open (2026-09-10 per
+          operator). Tapping asks the page to confirm the deletion. */}
+      {chrome === "menu" && trash && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Delete chat"
+          onPress={() => dispatchAction("delete")}
+          style={[styles.trashHit, { top: insets.top + 2 }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.85}
+        >
+          <GlassView
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={scheme === "dark" ? "dark" : "light"}
+            style={[
+              styles.burger,
+              !LIQUID_GLASS && {
+                backgroundColor: scheme === "dark" ? "rgba(16, 24, 22, 0.85)" : "rgba(249, 249, 245, 0.88)",
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: p.border,
+              },
+            ]}
+          >
+            {/* lucide "trash-2", stroked in the chrome's text colour */}
+            <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={p.text} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M3 6h18" />
+              <Path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <Path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <Path d="M10 11v6" />
+              <Path d="M14 11v6" />
+            </Svg>
           </GlassView>
         </TouchableOpacity>
       )}
@@ -539,6 +647,12 @@ const styles = StyleSheet.create({
   burgerHit: {
     position: "absolute",
     left: 12,
+    height: 52,
+    width: 52,
+  },
+  trashHit: {
+    position: "absolute",
+    right: 12,
     height: 52,
     width: 52,
   },

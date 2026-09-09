@@ -3,7 +3,9 @@
 // cannot be undone. Used by the chat page's top-right delete disc and by the
 // drawer's long-press action sheet.
 
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { isNativeShell, showNativeDialog } from "@/lib/nativeShell";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +25,28 @@ interface Props {
 
 export function DeleteChatDialog({ open, onOpenChange, onConfirm }: Props) {
   const { t } = useTranslation();
+  // Inside the shell the question is a NATIVE alert (2026-09-10 per
+  // operator); the web dialog below is the browser fallback.
+  const native = isNativeShell();
+  const latest = useRef({ onOpenChange, onConfirm });
+  latest.current = { onOpenChange, onConfirm };
+  useEffect(() => {
+    if (!native || !open) return;
+    let cancelled = false;
+    void showNativeDialog("alert", {
+      title: t("chatX.deleteChatTitle"),
+      message: t("chatX.deleteChatBody"),
+      options: [t("common.cancel"), t("chatX.deleteChatConfirm")],
+      cancelIndex: 0,
+      destructiveIndex: 1,
+    }).then((index) => {
+      if (cancelled) return;
+      latest.current.onOpenChange(false);
+      if (index === 1) latest.current.onConfirm();
+    });
+    return () => { cancelled = true; };
+  }, [native, open, t]);
+  if (native) return null;
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       {/* Same treatment as the sign-out confirm (AccountTab): no panel of

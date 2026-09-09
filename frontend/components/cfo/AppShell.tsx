@@ -59,6 +59,8 @@ import {
   postToNativeShell,
   NATIVE_ACTION_EVENT,
   openNativeSheet,
+  subscribeShellTrash,
+  getShellTrash,
 } from "@/lib/nativeShell";
 import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
@@ -180,18 +182,24 @@ export function AppShell({ children }: Props) {
   // open drawer) and off when AppShell unmounts (sign-out → /login). While
   // a preview sheet is open the same button shows as BACK instead
   // (2026-09-08 per operator).
+  // The chat page's native delete disc rides along with the burger
+  // (2026-09-10): shown only when the burger is, and only while /chat has a
+  // conversation open (CFOChatShell sets the flag).
+  const shellTrash = useSyncExternalStore(subscribeShellTrash, getShellTrash, () => false);
   useEffect(() => {
     if (!inNativeShell) return undefined;
+    const burger = !sidebarOpen && !previewOpen && !onboardingOpen;
     postToNativeShell({
       source: "cfo-ai",
       type: "chrome",
-      burger: !sidebarOpen && !previewOpen && !onboardingOpen,
+      burger,
       back: previewOpen && !onboardingOpen,
+      trash: burger && shellTrash,
     });
     return () => {
-      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false });
+      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false, trash: false });
     };
-  }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen]);
+  }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen, shellTrash]);
 
   // Shell: the Command Center bottom sheet rises OVER the open drawer, so a
   // jump launched from it (Workspace, Settings…) must also dismiss the

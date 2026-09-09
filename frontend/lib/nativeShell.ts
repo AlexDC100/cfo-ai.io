@@ -47,7 +47,9 @@ export const NATIVE_ACTION_EVENT = "cfo:native-action";
 type NativeShellMessage =
   | { source: "cfo-ai"; type: "oauth"; url: string }
   | { source: "cfo-ai"; type: "auth"; event: "SIGNED_IN" | "SIGNED_OUT" }
-  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean }
+  // `trash` (2026-09-10): a second native Liquid Glass disc, top-RIGHT,
+  // while a chat is open on /chat — tapping it dispatches action "delete".
+  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean }
   // Native bottom sheets (2026-09-08, iOS): `open` asks the shell to present
   // a SwiftUI sheet hosting a second WebView on /_native/sheet/<kind>; from
   // INSIDE that sheet, `close` dismisses it and `navigate` asks the shell to
@@ -66,7 +68,66 @@ type NativeShellMessage =
   // `mode` (2026-09-09): whether the theme is the user's explicit choice or
   // follows the system — the shell remembers an explicit choice so the NEXT
   // launch paints status-bar icons and chrome right before the page loads.
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" }
+  | ({ source: "cfo-ai"; type: "composer" } & NativeComposerState)
+  // Native dialogs (2026-09-10 per operator): the shell presents a real
+  // UIAlertController — an action sheet or an alert — and answers with a
+  // `cfo:native-action` event { action: "dialog", id, index } (-1 =
+  // dismissed without choosing).
+  | {
+      source: "cfo-ai";
+      type: "dialog";
+      id: string;
+      kind: "actionSheet" | "alert";
+      title?: string;
+      message?: string;
+      options: string[];
+      destructiveIndex?: number;
+      cancelIndex?: number;
+    };
+
+/** The chat composer is NATIVE inside the shell (2026-09-10): the page
+ *  reports what it should show; the shell answers with actions
+ *  composer-submit { text } / composer-stop / composer-draft { text } /
+ *  composer-height { height }. */
+export interface NativeComposerState {
+  show: boolean;
+  placeholder?: string;
+  pending?: boolean;
+  disabled?: boolean;
+  draft?: string;
+  key?: string;
+}
+export function postNativeComposer(state: NativeComposerState): void {
+  postToNativeShell({ source: "cfo-ai", type: "composer", ...state });
+}
+
+export interface NativeDialogSpec {
+  title?: string;
+  message?: string;
+  /** Button labels in order. */
+  options: string[];
+  destructiveIndex?: number;
+  cancelIndex?: number;
+}
+
+let dialogSeq = 0;
+/** Present a native action sheet or alert; resolves with the chosen
+ *  button's index, or -1 when dismissed. Only valid inside the shell
+ *  (callers keep their web fallback for browsers). */
+export function showNativeDialog(kind: "actionSheet" | "alert", spec: NativeDialogSpec): Promise<number> {
+  const id = `dlg-${Date.now().toString(36)}-${++dialogSeq}`;
+  return new Promise((resolve) => {
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<{ action?: string; id?: string; index?: number }>).detail;
+      if (d?.action !== "dialog" || d.id !== id) return;
+      window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
+      resolve(typeof d.index === "number" ? d.index : -1);
+    };
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction);
+    postToNativeShell({ source: "cfo-ai", type: "dialog", id, kind, ...spec });
+  });
+}
 
 type ShellWindow = Window & {
   ReactNativeWebView?: { postMessage: (data: string) => void };
@@ -77,6 +138,24 @@ type ShellWindow = Window & {
 
 function shellWindow(): ShellWindow | null {
   return typeof window !== "undefined" ? (window as ShellWindow) : null;
+}
+
+// ── Chrome extras the page can request ─────────────────────────────
+// The chat page asks for the native delete disc; AppShell (which owns the
+// `chrome` message) folds it into its next post.
+let shellTrash = false;
+const shellTrashListeners = new Set<() => void>();
+export function setShellTrash(on: boolean): void {
+  if (shellTrash === on) return;
+  shellTrash = on;
+  for (const l of shellTrashListeners) l();
+}
+export function getShellTrash(): boolean {
+  return shellTrash;
+}
+export function subscribeShellTrash(cb: () => void): () => void {
+  shellTrashListeners.add(cb);
+  return () => { shellTrashListeners.delete(cb); };
 }
 
 export function isNativeShell(): boolean {

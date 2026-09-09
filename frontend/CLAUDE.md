@@ -77,6 +77,11 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   locks document scroll), the message list scrolls inside it and the composer sits in
   flow at the bottom. Nothing on the page is `position: fixed` — in the iOS WebView a
   fixed composer over a scrolling document lagged and its caret drifted.
+- **Inside the native shell** the composer, the top-right delete disc, the drawer's
+  long-press action sheet and the delete confirm are all NATIVE (`lib/nativeShell.ts`:
+  `composer` / `chrome.trash` / `dialog` messages; replies arrive as
+  `cfo:native-action` events `composer-*`, `delete`, `dialog`). The page keeps the web
+  versions as the browser fallback and pads the thread by the reported native height.
 
 ## Design system (use tokens, not hex)
 - Colors are CSS vars in `index.css`, theme-aware (light/dark via `next-themes`) and
