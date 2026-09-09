@@ -1267,6 +1267,20 @@ html.native-shell body::before {
 .ob-a-fade { animation: ob-fade .3s both; }
 /* The chat lifts the shell's top fade while it glides to the composer. */
 html[data-chat-scroll-motion] .shell-top-fade { opacity: 0; }
+/* /chat owns the viewport (2026-09-10): its message list is the only
+   scroller, so the document itself is locked — no document scroll means
+   no fixed elements lagging behind it and no drifting caret in WKWebView. */
+html.chat-page-open,
+html.chat-page-open body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+/* The route-transition wrapper between AppShell's box and the chat column
+   has to pass the height down. */
+html.chat-page-open .page-enter {
+  height: 100%;
+}
 /* Touchable-opacity press feedback for the small text buttons. */
 .ob-touch { transition: opacity 120ms ease; -webkit-tap-highlight-color: transparent; }
 .ob-touch:active { opacity: .45; }

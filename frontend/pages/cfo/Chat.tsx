@@ -78,9 +78,9 @@ export default function Chat() {
   const workspaceSnapshot = useMemo(() => buildWorkspaceSnapshot(period), [period]);
   const companyName = period.statements?.companyName ?? null;
 
-  // The chat now renders like every other tab: it flows in AppShell's normal
-  // padded content area and scrolls at the DOCUMENT level (the shell owns a
-  // sticky sidebar + sticky composer). No full-bleed / inner-scroller wrapper.
+  // AppShell gives /chat the full viewport below the header with no padding
+  // (2026-09-10 redo); the shell fills it with a fixed-height column whose
+  // message list is the only scroller.
   return (
     <CFOChatShell
       ref={ref}

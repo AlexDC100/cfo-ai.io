@@ -1,8 +1,16 @@
 // CFOChatShell — the orchestrator that wires together the history
-// sidebar, the message stream, the empty state, and the sticky
-// composer. Both the full /chat page and the slide-over panel mount
-// it; they differ only in layout chrome (full-bleed three-column
-// vs. compact two-row slide-over).
+// sidebar, the message stream, the empty state, and the composer. Both
+// the full /chat page and the slide-over panel mount it; they differ only
+// in layout chrome (three-column page vs. compact two-row slide-over).
+//
+// Page layout (2026-09-10 redo): a fixed-height column — AppShell hands
+// /chat the full viewport below the header — whose message list is the
+// ONLY scroller and whose composer is a plain flow element at the bottom.
+// Nothing scrolls at the document level and nothing is position: fixed,
+// which is what makes it smooth inside the iOS WebView: the shell shrinks
+// the WebView for the keyboard, the column shrinks with it, the list
+// re-pins to its newest message every frame, and the composer (and its
+// caret) never move relative to the screen.
 //
 // State ownership:
 //   · The conversation STORE is owned here via `useChatStore`. The
@@ -21,7 +29,7 @@ import { useKeyboardInset } from "./useKeyboardInset";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trans, useTranslation } from "react-i18next";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
-import { CFOMessageList } from "./CFOMessageList";
+import { CFOMessageList, type CFOMessageListHandle } from "./CFOMessageList";
 import { CFOEmptyState, useWorkspacePrompts, useGeneralPrompts } from "./CFOEmptyState";
 import { useIndustryPrompts } from "./industryPrompts";
 import { useActiveOrg } from "@/lib/org";
@@ -113,13 +121,14 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // (2026-07-26 per operator).
   const [chatQuery, setChatQuery] = useState("");
   const interactedRef = useRef(false);
-  // On-screen keyboard handling (2026-08-18 per operator, full page only):
-  // `keyboardInset` lifts the composer above an OVERLAYING keyboard (and
-  // keeps it there while the conversation scrolls — the hook re-measures on
-  // visualViewport scroll). `composerFocused` hides the context-pill/
-  // disclosure row under the input while typing on touch devices, so the
-  // "CFO AI can answer general questions…" line sits under the keyboard
-  // instead of eating the little space above it.
+  // On-screen keyboard handling (full page only). Inside the native shell
+  // the WebView itself shrinks above the keyboard, so the fixed-height
+  // column simply gets shorter and `keyboardInset` is 0. In a mobile
+  // BROWSER the keyboard overlays the page instead; the measured inset
+  // becomes bottom padding on the column so the composer clears it.
+  // `composerFocused` hides the context-pill/disclosure row under the
+  // input while typing on touch devices, so the "CFO AI can answer general
+  // questions…" line doesn't eat the little space above the keyboard.
   const keyboardInset = useKeyboardInset();
   const [composerFocused, setComposerFocused] = useState(false);
   // Phone-only ⓘ pill over the composer — holds the disclosure bubble open.
@@ -147,26 +156,19 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const coarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia("(pointer: coarse)").matches;
-  // Tapping the composer while scrolled up glides the page to the bottom
-  // (2026-09-09 per operator) — and keeps gliding there as the keyboard
-  // shrinks the viewport over the next moments. While the motion runs the
-  // shell's top fade is lifted (html[data-chat-scroll-motion]) so passing
-  // content isn't faded under the status bar.
+  // Tapping the composer while scrolled up glides the thread to its newest
+  // message (2026-09-09 per operator); the list keeps gliding there as the
+  // keyboard shrinks it. While the motion runs the shell's top fade is
+  // lifted (html[data-chat-scroll-motion]) so passing content isn't faded
+  // under the status bar.
+  const listRef = useRef<CFOMessageListHandle | null>(null);
   const settleTimer = useRef<number>();
   const settleToComposer = useCallback(() => {
-    const doc = document.documentElement;
-    const toBottom = () => {
-      const max = doc.scrollHeight - window.innerHeight;
-      if (max - window.scrollY > 8) window.scrollTo({ top: max, behavior: "smooth" });
-    };
-    doc.dataset.chatScrollMotion = "1";
-    toBottom();
-    const onResize = () => toBottom();
-    window.addEventListener("resize", onResize);
+    listRef.current?.scrollToBottom(true);
+    document.documentElement.dataset.chatScrollMotion = "1";
     window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
-      window.removeEventListener("resize", onResize);
-      delete doc.dataset.chatScrollMotion;
+      delete document.documentElement.dataset.chatScrollMotion;
     }, 900);
   }, []);
   useEffect(() => () => {
@@ -458,11 +460,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     );
   }
 
-  // Full /chat page — history sidebar (lg+) + message column. The page
-  // scrolls at the DOCUMENT level (like every other tab): the conversation
-  // flows in the page and the standard document scrollbar (under the top bar)
-  // scrolls it. Nothing is sticky — the sidebar, messages and composer all
-  // scroll with the page.
+  // Full /chat page — history sidebar (lg+) + message column, inside the
+  // fixed-height box AppShell gives /chat (see AppShell `chatPage`). The
+  // message list is the only scroller; the composer block sits in flow
+  // under it. Nothing here is fixed or sticky.
   const noConversations = store.conversations.length === 0;
   // Sidebar entrance rule: a sidebar present from this shell's FIRST
   // render (entering the tab with history) must appear instantly, but
@@ -470,6 +471,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // panel should visibly slide open. Track "this mount has shown the
   // empty state" in a ref — render-phase write, no re-render needed.
   if (noConversations) sawEmptyRef.current = true;
+  const inShell = isNativeShell();
   // With the sidebar present, the message content hugs closer to it (tighter
   // left gap); with no sidebar (the empty no-chats screen) it keeps the wider
   // padding so the header still lines up with the dashboard.
@@ -481,44 +483,32 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // px-2 on phones (2026-08-18 per operator: the input should run nearly
   // edge-to-edge); sm+ keeps the message-list alignment described above.
   const composerPadX = noConversations ? "px-2 sm:px-8 lg:px-10" : "px-2 sm:px-6 lg:px-8";
+  // Inside the shell the page runs edge-to-edge under the status bar, so the
+  // scrollers start below the shell's top fade; browsers start under the
+  // header with the usual page top padding.
+  const scrollPadTop = inShell ? "calc(env(safe-area-inset-top) + 28px)" : "1.5rem";
+  const emptyPadTop = inShell ? "calc(env(safe-area-inset-top) + 28px)" : undefined;
   return (
-    // Cancel AppShell's large bottom padding for this page only (it lives on
-    // the shared content wrapper) so the composer sits near the bottom instead
-    // of leaving a tall empty gap below it.
     <div
-      // Fully cancel AppShell's content-wrapper padding (px-4/8/10) on BOTH
-      // sides so the chat's own inner padding (empty-state header, messages,
-      // composer — each px-4/8/10) lands at exactly the same edges as the
-      // dashboard header, rather than double-padding. Also pulls the
-      // conversation list flush to the app nav rail when the sidebar is
-      // shown. The right side used to keep the wrapper's padding, so the
-      // suggested-question grid sat 16px from the left edge and 32px from
-      // the right on phones (2026-09-08 per operator).
-      // No flex `gap` here — the space between the sidebar and the message
-      // column is an animated margin ON the sidebar instead, so it collapses
-      // smoothly with the width on exit (a static gap would snap away only
-      // when the sidebar unmounts, stuttering at the end of the animation).
-      className={`flex -mx-4 sm:-mx-8 lg:-mx-10 ${stillEntrance ? "chat-entrance-still" : ""}`}
-      style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
+      className={`flex h-full min-h-0 w-full ${stillEntrance ? "chat-entrance-still" : ""}`}
+      // A browser keyboard overlays the page: shorten the column by the
+      // measured inset so the composer rides above it (0 in the shell).
+      style={{ paddingBottom: keyboardInset || undefined }}
       data-testid="chat-page-shell"
       // Capture-phase so ANY interaction in the tab flips the flag before
       // the resulting state change renders (see entrance policy above).
       onPointerDownCapture={markInteracted}
       onKeyDownCapture={markInteracted}
     >
-      {/* History sidebar (lg+). Own internal list scroller for long histories.
-          `relative z-20` keeps it (and its slightly-outset scrollbar) painted
-          above the message column. The negative left margin on the row above
-          pulls the conversation list closer to the app's nav rail. Hidden
+      {/* History sidebar (lg+) — a full-height column beside the thread with
+          its own internal list scroller. `relative z-20` keeps it (and its
+          slightly-outset scrollbar) painted above the message column. Hidden
           entirely on the no-conversations screen — there's nothing to list or
-          search yet, so the empty-state header gets the full width. */}
-      {/* The conversation list appears only once there's at least one chat.
+          search yet, so the empty-state header gets the full width.
           `AnimatePresence initial={false}` skips the enter animation on page
           loads that already have chats, but when the user creates their FIRST
           chat (noConversations → false) the panel smoothly slides open from
-          the left (width reveal), emerging from alongside the main app nav
-          rail. It pins at 76px — level with the main nav sidebar's top edge —
-          with a matching resting top so it never settles on scroll. */}
+          the left (width reveal). */}
       <AnimatePresence initial={false}>
         {!noConversations && (
           <motion.div
@@ -530,15 +520,15 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             // stays instant. Exit always animates on delete (an in-tab act).
             initial={
               sawEmptyRef.current && interactedRef.current
-                ? { width: 0, opacity: 0, marginRight: 0 }
+                ? { width: 0, opacity: 0 }
                 : false
             }
-            animate={{ width: 280, opacity: 1, marginRight: 0 }}
-            exit={{ width: 0, opacity: 0, marginRight: 0 }}
+            animate={{ width: 280, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-20 hidden lg:block shrink-0 self-start sticky top-[68px] -mt-3 sm:-mt-7 lg:-mt-9 h-[calc(100dvh-68px)] overflow-hidden"
+            className="relative z-20 hidden lg:block shrink-0 h-full overflow-hidden"
           >
-            <div className="w-[280px] h-full">
+            <div className="w-[280px] h-full pt-3">
               <CFOHistorySidebar
                 store={store}
                 onAfterPick={onPickConversationFromHistory}
@@ -550,21 +540,21 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         )}
       </AnimatePresence>
 
-      <div className="relative flex-1 min-w-0 flex flex-col min-h-[calc(100dvh-7rem)]">
+      <div className="relative flex-1 min-w-0 flex flex-col h-full min-h-0">
         {/* Content swap is instant — no fade (2026-07-26 per operator:
             "remove the fade in content effect when changing chat items"). The
             empty-state ↔ conversation swap snaps rather than cross-fading. */}
         <AnimatePresence mode="wait" initial={false}>
         {!store.current || store.current.messages.length === 0 ? (
           // An empty conversation shows the SAME content as the no-chats
-          // screen: the dashboard-style header + prompt starters.
+          // screen: the dashboard-style header + prompt starters, in their
+          // own scroller above the composer.
           <motion.div
             key="chat-empty-content"
             transition={{ duration: 0 }}
-            // Below lg the composer is FIXED (out of flow), so the content
-            // needs enough bottom padding to scroll clear of it; on lg+ the
-            // sticky composer occupies flow space and pb-8 suffices.
-            className={`flex-1 ${contentPadX} pb-48 lg:pb-8`}
+            className={`chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain ${contentPadX} pt-6 sm:pt-10 lg:pt-12 pb-6`}
+            style={emptyPadTop ? { paddingTop: emptyPadTop } : undefined}
+            data-testid="chat-empty-scroller"
           >
             <PageHeader
               hero
@@ -576,34 +566,29 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} hideHeader />
           </motion.div>
         ) : (
-          <div key="chat-live-content" className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">
-            <CFOMessageList
-              messages={store.current.messages}
-              groundedLabel={groundedLabel}
-              bottomInset
-              wideContent
-              documentScroll
-              searchQuery={chatQuery}
-              onClearSearch={() => setChatQuery("")}
-              onRetryFailed={retryFailedTurn}
-            />
-          </div>
+          <CFOMessageList
+            key="chat-live-content"
+            ref={listRef}
+            messages={store.current.messages}
+            groundedLabel={groundedLabel}
+            padTop={scrollPadTop}
+            padBottom="0.75rem"
+            wideContent
+            searchQuery={chatQuery}
+            onClearSearch={() => setChatQuery("")}
+            onRetryFailed={retryFailedTurn}
+          />
         )}
         </AnimatePresence>
 
-        {/* Composer + context pill pinned to the bottom of the viewport.
-            FIXED below lg (2026-08-18 per operator: sticky visibly lagged
-            behind during touch scrolling — mobile compositors re-anchor
-            sticky per frame and repaint it late; fixed is viewport-anchored
-            and never moves). lg+ keeps sticky, which the multi-column
-            desktop layout needs. The gradient fades the conversation into
-            the input. The inline `bottom` lifts the block above an
-            overlaying on-screen keyboard (0 on desktop / when closed). */}
+        {/* Composer block — in flow at the bottom of the column. The
+            home-indicator inset is part of its own padding so its
+            background reaches the screen edge (the env() is 0 while the
+            keyboard covers that strip). */}
         <div
-          className={`fixed inset-x-0 lg:sticky lg:inset-x-auto z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg to-transparent pt-6 pb-1`}
-          // Safe-area bottom (home indicator) when no keyboard is up — the
-          // env() is 0 while the keyboard covers that strip.
-          style={{ bottom: keyboardInset, paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
+          className={`shrink-0 ${composerPadX} pt-2`}
+          style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
+          data-testid="chat-composer-block"
           // Only the textarea counts as "typing" — a tapped ⓘ/attach/send
           // button also takes focus on Android, and treating that as the
           // keyboard being up hid the context row before the ⓘ bubble
@@ -621,8 +606,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         >
           {/* Quick-prompt pills — only inside an active conversation (the empty
               state shows the full prompt cards). Hidden below sm: on a phone
-              the two pill rows ate half the space above the fixed composer
-              and the conversation bled through the gaps between them. */}
+              the two pill rows ate half the space above the composer. */}
           {store.current && store.current.messages.length > 0 && (
             <div className="max-w-[1760px] hidden sm:flex flex-col items-start gap-1.5 pb-2">
               {pyramidRows.map((row, r) => (

@@ -1,6 +1,7 @@
-// Sticky chat composer — flat hairline panel (THE INSTRUMENT), single
-// source of truth for input across both the /chat page and the
-// slide-over panel.
+// Chat composer — flat hairline panel (THE INSTRUMENT), single source of
+// truth for input across both the /chat page and the slide-over panel. It
+// sits in normal flow at the bottom of a fixed-height column (never
+// position: fixed — see CFOMessageList for why).
 //
 // Features:
 //   · multi-line textarea, two lines at rest, grows up to a sane cap
@@ -300,21 +301,6 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
-            onFocus={(e) => {
-              // iOS Safari: when the virtual keyboard opens, the composer can
-              // be pushed off-screen. Wait a tick for the keyboard animation
-              // to settle, then scroll the textarea into view. TOUCH DEVICES
-              // ONLY — on desktop there is no keyboard, and this smooth
-              // scroll fired on the programmatic focus that happens when the
-              // Ask CFO AI button opens the tab, visibly gliding the page on
-              // entry (2026-07-25 probe).
-              if (!window.matchMedia("(pointer: coarse)").matches) return;
-              const el = e.currentTarget;
-              window.setTimeout(() => {
-                try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
-                catch { /* older browsers — ignore */ }
-              }, 250);
-            }}
             placeholder={blockedReason ? t("chatX.pausedPlaceholder") : resolvedPlaceholder}
             rows={1}
             disabled={hardDisabled}

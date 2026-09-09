@@ -66,11 +66,15 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   (`cfoApi.chatLlm`) and mounts the store.
 - `useChatStore.ts` — localStorage-backed conversations (shape mirrors a future
   Supabase table). `deriveTitle()` makes concise titles from the first message.
-- `CFOMessageList` (scroller + `topInset`/`bottomInset`), `CFOMessageBubble`,
-  `CFOTypingIndicator`, `CFOComposer` (transparent overlay input), `CFOHistorySidebar`
+- `CFOMessageList` (the ONLY scroller; `padTop`/`padBottom`; ref handle
+  `scrollToBottom(smooth)`; re-pins on its own resize), `CFOMessageBubble`,
+  `CFOTypingIndicator`, `CFOComposer` (in-flow input, never fixed), `CFOHistorySidebar`
   (search + icon-only New chat + list with hover delete), `CFOEmptyState`.
-- On `/chat` the conversation is full-width and full-height, scrolling **under** the
-  translucent header and the bottom composer overlay.
+- `/chat` (2026-09-10) is a **fixed-height column**: AppShell gives it the viewport
+  below the header with no padding (`chatPage` in `AppShell.tsx`, `html.chat-page-open`
+  locks document scroll), the message list scrolls inside it and the composer sits in
+  flow at the bottom. Nothing on the page is `position: fixed` — in the iOS WebView a
+  fixed composer over a scrolling document lagged and its caret drifted.
 
 ## Design system (use tokens, not hex)
 - Colors are CSS vars in `index.css`, theme-aware (light/dark via `next-themes`) and

@@ -95,6 +95,13 @@ export function AppShell({ children }: Props) {
   // covering it would be a regression, not a fix.
   const activePeriod = useActivePeriod();
   const contentLoading = activePeriod.isLoading && location.pathname !== "/chat";
+  // /chat owns the viewport: the document must not scroll behind its
+  // fixed-height column (index.css `html.chat-page-open`).
+  const chatPage = location.pathname.startsWith("/chat");
+  useEffect(() => {
+    document.documentElement.classList.toggle("chat-page-open", chatPage);
+    return () => document.documentElement.classList.remove("chat-page-open");
+  }, [chatPage]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -669,8 +676,24 @@ export function AppShell({ children }: Props) {
         <div
           // Shell: content starts right under the status bar (2026-09-08 per
           // operator) — a 24px gap under the status-bar inset.
-          className={`px-4 sm:px-8 lg:px-10 ${inNativeShell ? "pt-6 pb-6" : "py-6"} sm:py-10 lg:py-12 relative isolate max-w-[1760px]`}
-          style={{ paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }}
+          // /chat (2026-09-10 redo): no padding and exactly the viewport
+          // below the header — the chat is a fixed-height column whose
+          // message list is the only scroller, so the document never
+          // scrolls and nothing on it needs to be fixed. In the shell the
+          // box also takes the status-bar strip (the thread scrolls under
+          // the shell's top fade).
+          className={
+            chatPage
+              ? "relative isolate w-full overflow-hidden"
+              : `px-4 sm:px-8 lg:px-10 ${inNativeShell ? "pt-6 pb-6" : "py-6"} sm:py-10 lg:py-12 relative isolate max-w-[1760px]`
+          }
+          style={
+            chatPage
+              ? inNativeShell
+                ? { height: "calc(100dvh - env(safe-area-inset-bottom))", marginTop: "calc(-1 * env(safe-area-inset-top))" }
+                : { height: "calc(100dvh - 3.5rem - env(safe-area-inset-bottom))" }
+              : { paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }
+          }
         >
           {/* Shared atmospheric brand glow behind every page's content — the
               "dashboard background" applied app-wide so all tabs read with the
