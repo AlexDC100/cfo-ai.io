@@ -631,6 +631,27 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",
              canaries=("dist/index.html",)),
+        # PLAYWRIGHT — the last suite outside the net until 2026-09-09, and
+        # it had already taken the battery down once by starving vitest of
+        # CPU. Baseline measured serially on a quiet machine with the dev
+        # server up: 339 ran, 29 skipped, 174 known failures. That ratio is
+        # not healthy, and the baseline is NOT a certificate that it is —
+        # design_review/PLAYWRIGHT_BASELINE.txt may only SHRINK, so the
+        # gate reds on a NEW failure and accepts a repaired one.
+        #
+        # Requires a dev server on :5173 (playwright.config.ts's webServer
+        # block is commented out — "locally we assume it's up"), so the gate
+        # reds rather than silently baselining an empty run: it floors the
+        # ran count and ceilings the skip rate. It also REFUSES any spec
+        # naming an absolute non-local origin, after
+        # learning-landing-onboarding.spec.ts was found fetching
+        # https://cfo-ai.io/ on every run.
+        Gate("playwright", ["node", "scripts/check_playwright.mjs"],
+             work_rx=r"GATE-WORK playwright units=(\d+)", floor=305,
+             units="e2e tests run",
+             canaries=("launch-route-cut.spec.ts",
+                       "golden-path.spec.ts",
+                       "currency-coverage.spec.ts")),
     ]
 
 

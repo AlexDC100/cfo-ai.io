@@ -44,17 +44,23 @@ test.describe("F5.0 Phase 9 — Landing + first-run packaging", () => {
   test("Landing bundle ships LearningLayerSection strings", async ({
     request,
   }) => {
-    // Read the prod index.html → extract the main bundle path → fetch the
-    // bundle → assert the section's headline strings shipped. The
-    // section's hash changes every build, so we resolve through the
-    // already-deployed index.html.
-    const indexHtml = await request.get("https://cfo-ai.io/").then((r) => r.text());
+    // Read index.html → extract the main bundle path → fetch the bundle →
+    // assert the section's headline strings shipped. The section's hash
+    // changes every build, so we resolve through the served index.html.
+    //
+    // These are RELATIVE so they resolve against the project's baseURL:
+    // localhost under --project=chromium, https://cfo-ai.io under
+    // --project=prod. They used to hardcode the production origin, which
+    // meant the default local run silently reached out to the live site —
+    // a live production URL in a test context, and one the battery would
+    // have executed on every green run.
+    const indexHtml = await request.get("/").then((r) => r.text());
     const match = indexHtml.match(/index-[A-Za-z0-9_-]+\.js/);
     expect(match, "index bundle reference must be present on /").not.toBeNull();
     const indexBundlePath = match![0];
 
     const bundle = await request
-      .get(`https://cfo-ai.io/assets/${indexBundlePath}`)
+      .get(`/assets/${indexBundlePath}`)
       .then((r) => r.text());
 
     // The canonical Phase 9 strings. If any of these vanish from the

@@ -1,0 +1,174 @@
+currency-coverage.spec.ts :: RON / EUR / USD propagate across every money surface
+currency-coverage.spec.ts :: subscription/billing prices DO NOT convert with the toggle
+design/axe-dark.spec.ts :: axe clean (dark): /
+design/axe-dark.spec.ts :: axe clean (dark): /benchmark
+design/axe-dark.spec.ts :: axe clean (dark): /chat
+design/axe-dark.spec.ts :: axe clean (dark): /dashboard
+design/axe-dark.spec.ts :: axe clean (dark): /dashboard/scenarios
+design/axe-dark.spec.ts :: axe clean (dark): /dashboard/variance
+design/axe-dark.spec.ts :: axe clean (dark): /products
+design/axe-dark.spec.ts :: axe clean (dark): /public-companies
+design/axe-dark.spec.ts :: axe clean (dark): /settings
+design/axe-dark.spec.ts :: axe clean (dark): /workspace
+design/axe.spec.ts :: axe clean: /
+design/axe.spec.ts :: axe clean: /benchmark
+design/axe.spec.ts :: axe clean: /chat
+design/axe.spec.ts :: axe clean: /dashboard
+design/axe.spec.ts :: axe clean: /dashboard/scenarios
+design/axe.spec.ts :: axe clean: /dashboard/variance
+design/axe.spec.ts :: axe clean: /products
+design/axe.spec.ts :: axe clean: /public-companies
+design/axe.spec.ts :: axe clean: /settings
+design/axe.spec.ts :: axe clean: /workspace
+design/capsule-brief.spec.ts :: N1 · no resting row restates a visible sidebar destination
+design/capsule-brief.spec.ts :: N2/N4 · every resting unit declares its basis, and every tile numeral its provenance
+design/capsule-brief.spec.ts :: N3 · opening the capsule and reading the tiles makes no model call
+design/capsule-brief.spec.ts :: N5 · an account code paints fast, and a fabricated code is not answered like a real one
+design/capsule-brief.spec.ts :: N6 · on /chat the handoff focuses the existing composer and starts no second thread
+design/capsule-brief.spec.ts :: N7 · <=3 tiles and <=3 chips at rest, <=8 rows in any typing state
+design/capsule-craft-surface.spec.ts :: no border, ring or outline encloses the input — while it is FOCUSED
+design/capsule-craft-surface.spec.ts :: the accent underline IS present, so focus is still visible
+design/capsule-craft.spec.ts :: G5.a — the observer registers a planted shift
+design/capsule-craft.spec.ts :: four top-level interactive elements, and the Capsule is one of them
+design/capsule-craft.spec.ts :: ink density, air, and the 70vh ceiling, in every state
+design/capsule-craft.spec.ts :: ink density, air, and the 70vh ceiling, in every state
+design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
+design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
+design/capsule-craft.spec.ts :: nothing is painted below the composer, in any state
+design/capsule-craft.spec.ts :: nothing is painted below the composer, in any state
+design/capsule.spec.ts :: live census on /chat
+design/capsule.spec.ts :: live census on /dashboard
+design/capsule.spec.ts :: the header lane's own sanctioned set agrees with this budget
+design/header.spec.ts :: Escape closes every header popover
+design/header.spec.ts :: Escape returns focus to the avatar trigger
+design/header.spec.ts :: theme: 1 interaction via the rail footer toggle
+design/keyboard.spec.ts :: cmd+K opens the command palette
+design/modes.spec.ts :: axe clean [simple/dark]: /
+design/modes.spec.ts :: axe clean [simple/dark]: /benchmark
+design/modes.spec.ts :: axe clean [simple/dark]: /chat
+design/modes.spec.ts :: axe clean [simple/dark]: /dashboard
+design/modes.spec.ts :: axe clean [simple/dark]: /dashboard/scenarios
+design/modes.spec.ts :: axe clean [simple/dark]: /dashboard/variance
+design/modes.spec.ts :: axe clean [simple/dark]: /products
+design/modes.spec.ts :: axe clean [simple/dark]: /public-companies
+design/modes.spec.ts :: axe clean [simple/dark]: /settings
+design/modes.spec.ts :: axe clean [simple/dark]: /workspace
+design/modes.spec.ts :: axe clean [simple/light]: /
+design/modes.spec.ts :: axe clean [simple/light]: /benchmark
+design/modes.spec.ts :: axe clean [simple/light]: /chat
+design/modes.spec.ts :: axe clean [simple/light]: /dashboard
+design/modes.spec.ts :: axe clean [simple/light]: /dashboard/scenarios
+design/modes.spec.ts :: axe clean [simple/light]: /dashboard/variance
+design/modes.spec.ts :: axe clean [simple/light]: /products
+design/modes.spec.ts :: axe clean [simple/light]: /public-companies
+design/modes.spec.ts :: axe clean [simple/light]: /settings
+design/modes.spec.ts :: axe clean [simple/light]: /workspace
+design/modes.spec.ts :: cmd+K opens the command palette (simple)
+design/modes.spec.ts :: renders [pro]: /benchmark
+design/modes.spec.ts :: renders [pro]: /chat
+design/modes.spec.ts :: renders [pro]: /dashboard
+design/modes.spec.ts :: renders [pro]: /dashboard/scenarios
+design/modes.spec.ts :: renders [pro]: /dashboard/variance
+design/modes.spec.ts :: renders [pro]: /products
+design/modes.spec.ts :: renders [pro]: /public-companies
+design/modes.spec.ts :: renders [pro]: /settings
+design/modes.spec.ts :: renders [pro]: /workspace
+design/modes.spec.ts :: renders [simple]: /benchmark
+design/modes.spec.ts :: renders [simple]: /chat
+design/modes.spec.ts :: renders [simple]: /dashboard
+design/modes.spec.ts :: renders [simple]: /dashboard/scenarios
+design/modes.spec.ts :: renders [simple]: /dashboard/variance
+design/modes.spec.ts :: renders [simple]: /products
+design/modes.spec.ts :: renders [simple]: /public-companies
+design/modes.spec.ts :: renders [simple]: /settings
+design/modes.spec.ts :: renders [simple]: /workspace
+design/provenance-screens.spec.ts :: dashboard · statements · findings · public companies
+design/provenance.spec.ts :: P4[markets-overview]
+design/provenance.spec.ts :: P4[public-companies]
+design/provenance.spec.ts :: P4[report]
+design/provenance.spec.ts :: P4[statements]
+design/provenance.spec.ts :: every anchor matches on the live surface; no real Supabase host; no engine mutation
+design/provenance.spec.ts :: markets-overview: every tile figure names the feed row's own source; no zero stands in for an absent change; no `computed` is the engine's process clock
+design/provenance.spec.ts :: public-companies: SEC concept and accession are the companyfacts document's own
+design/provenance.spec.ts :: report: every row names a field of the served statements and IS its value; no absent field wears a source
+design/provenance.spec.ts :: statements: every account-coded row of the served envelope wears it
+design/provenance.spec.ts :: statements: sheet, accounts, method and pack are the envelope's own
+f61-demo-variance.prod.spec.ts :: /dashboard/variance route is NOT orphaned — still loads
+f61-demo-variance.prod.spec.ts :: dashboard greets with the Meridian demo + Snapshot/Trend toggle
+f61-demo-variance.prod.spec.ts :: sidebar no longer has Budget vs Actual, but keeps Scenarios/Benchmark
+golden-path.spec.ts :: Dashboard is financial-first, not inventory-first
+launch-public-live.prod.spec.ts :: / loads clean
+launch-public-live.prod.spec.ts :: / loads clean
+launch-public-live.prod.spec.ts :: /contact-sales loads clean
+launch-public-live.prod.spec.ts :: /contact-sales loads clean
+launch-public-live.prod.spec.ts :: /login loads clean
+launch-public-live.prod.spec.ts :: /login loads clean
+launch-public-live.prod.spec.ts :: /pricing loads clean
+launch-public-live.prod.spec.ts :: /pricing loads clean
+launch-public-live.prod.spec.ts :: /signup loads clean
+launch-public-live.prod.spec.ts :: /signup loads clean
+launch-route-cut.spec.ts :: LR1/LR2 /benchmark — CUT
+launch-route-cut.spec.ts :: LR1/LR2 /products — CUT
+launch-route-cut.spec.ts :: LR3 — 'Coming soon' only where the registry says coming_soon
+launch-route-cut.spec.ts :: every <Route path> in App.tsx is covered by this file
+learning-balance-sheet-trace.spec.ts :: All 12 map chips are present and clickable
+learning-balance-sheet-trace.spec.ts :: BalanceSheetMap renders with 3 columns + affordance text
+learning-balance-sheet-trace.spec.ts :: Cash chip → plain English + 5121/5124/531 source accounts
+learning-balance-sheet-trace.spec.ts :: GUIDE ME pill renders on BS header
+learning-balance-sheet-trace.spec.ts :: Total Assets row label is a clickable button + opens formula
+learning-balance-sheet-trace.spec.ts :: Total Equity & Liabilities row label is clickable
+learning-glossary.spec.ts :: Browse glossary entry opens the drawer
+learning-glossary.spec.ts :: opens via TopHeader trigger + search + pick
+learning-glossary.spec.ts :: typing a concept name surfaces a concept result
+learning-guide-overlay.spec.ts :: Closing the guide persists across reload (no auto-open)
+learning-guide-overlay.spec.ts :: Esc closes the BS guide
+learning-guide-overlay.spec.ts :: Next advances the BS guide
+learning-guide-overlay.spec.ts :: Valuation guide overlay also responds to Esc
+learning-keyboard-accessibility.spec.ts :: Enter key on focused Cash chip opens popover
+learning-keyboard-accessibility.spec.ts :: Esc closes popover (single press pops one level)
+learning-keyboard-accessibility.spec.ts :: LearnableRowLabel buttons are keyboard-activatable
+learning-keyboard-accessibility.spec.ts :: Map chips are real buttons (keyboard-reachable)
+learning-keyboard-accessibility.spec.ts :: Popover close button is keyboard-reachable
+learning-landing-onboarding.spec.ts :: Landing bundle ships LearningLayerSection strings
+learning-landing-onboarding.spec.ts :: LearningCoach lights up on first-time dashboard load
+learning-landing-onboarding.spec.ts :: Maybe-later dismisses the coach + sticks across reload
+learning-mobile-bottom-sheet.spec.ts :: Cash chip → vaul bottom-sheet anchored to bottom of viewport
+learning-mobile-bottom-sheet.spec.ts :: Mobile popover renders the same content stack as desktop
+learning-page-guides.spec.ts :: Balance Sheet guide opens + Esc closes
+learning-page-guides.spec.ts :: Esc closes the guide
+learning-page-guides.spec.ts :: P&L guide reveals data-guide markers after Next
+learning-performance.spec.ts :: Cash chip click → popover mounted within 200ms
+learning-performance.spec.ts :: No longtask > 50ms during 3-level drill
+learning-plain-english.spec.ts :: guided mode: EBITDA shows In plain English block above Formally
+learning-plain-english.spec.ts :: off mode: plain-English block is hidden
+learning-popover-recursion.spec.ts :: Back button on depth 1 pops to depth 0
+learning-popover-recursion.spec.ts :: Esc on top of stack pops one level (not all)
+learning-popover-recursion.spec.ts :: depth-0 popover has formula + plain-English + Ask CFO AI footer
+learning-popover-recursion.spec.ts :: depth-1 popover (drill from formula) still renders formula or source
+learning-products.spec.ts :: Bucket KPI labels are LearnableRowLabel buttons
+learning-products.spec.ts :: Click Protect KPI label → protect_bucket_count concept popover
+learning-products.spec.ts :: Drawer KPI tile labels (NIV revenue / Category share) open their popovers
+learning-products.spec.ts :: Drawer Real margin label → real_margin concept popover
+learning-products.spec.ts :: Drawer breakdown labels (SG&A / Capital cost) open their popovers
+learning-products.spec.ts :: Drawer status badge → sku_classification concept popover
+learning-products.spec.ts :: SKU drawer opens from row click
+learning-public-companies.spec.ts :: AAPL drawer → Open full analysis → live dashboard (NOT toast)
+learning-public-companies.spec.ts :: All 4 headline KPI tiles render as LearnableMetricCard
+learning-public-companies.spec.ts :: Click EBITDA tile → popover with plain-English + formula + Ask CFO AI
+learning-public-companies.spec.ts :: Click Revenue tile → popover with revenue plain-English
+learning-public-companies.spec.ts :: GUIDE ME pill renders on AAPL dashboard
+learning-public-companies.spec.ts :: Source pill — Nasdaq Sharadar SF1 — renders in header
+learning-recommendations.spec.ts :: Ask CFO AI footer button is present on cards
+learning-recommendations.spec.ts :: Each fact label and value renders as text or LearnableRowLabel button
+learning-recommendations.spec.ts :: Recommendation_impact label opens its concept popover
+learning-recommendations.spec.ts :: Recommendations tab renders at least one card with Triggered by block
+learning-recommendations.spec.ts :: Severity pill clicks open alert_severity concept popover
+learning-valuation-bridge.spec.ts :: Click Cash → popover with 5121/5124/531 source accounts
+learning-valuation-bridge.spec.ts :: Click Gross Debt → popover with 162/167/519 source accounts
+public-companies-drawer.spec.ts :: /public-companies — a sector pill narrows the grid, and un-narrows
+public-companies-drawer.spec.ts :: /public-companies — search narrows the grid
+public-companies-drawer.spec.ts :: /public-companies — the company grid hydrates a full page of tiles
+public-companies-drawer.spec.ts :: ESC closes the drawer and clears the URL
+public-companies-drawer.spec.ts :: change range → chart re-renders
+public-companies-drawer.spec.ts :: click TLV tile → drawer opens with chart and deep-links the URL
+public-companies-drawer.spec.ts :: the drawer footer offers Ask CFO AI

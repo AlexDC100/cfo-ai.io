@@ -77,20 +77,68 @@ if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(base)) {
   process.exit(1);
 }
 
+// The E2E_BASE_URL check above only governs where RELATIVE navigations land.
+// A spec can still hardcode an absolute origin in its body and reach straight
+// past it — learning-landing-onboarding.spec.ts did exactly that, fetching
+// https://cfo-ai.io/ and an asset bundle from the live site on every run of
+// this gate. Refuse that statically, because the symptom is invisible: the
+// test passes, and nothing in the report says it left the machine.
+{
+  const specs = execFileSync(
+    "git", ["ls-files", "e2e/*.spec.ts", "e2e/**/*.spec.ts"],
+    { encoding: "utf-8" },
+  ).split("\n").filter(Boolean);
+  const offenders = [];
+  for (const spec of specs) {
+    const src = readFileSync(spec, "utf-8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")      // block comments
+      .replace(/^\s*(\/\/|\*).*$/gm, "");     // line comments and jsdoc bodies
+    for (const m of src.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)) {
+      const host = m[0];
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)/.test(host)) continue;
+      offenders.push(`${spec}: ${host}`);
+    }
+  }
+  if (offenders.length) {
+    console.log("PLAYWRIGHT GATE");
+    console.log("=".repeat(62));
+    console.log(
+      "REFUSED — these specs name an absolute non-local origin in code, so " +
+        "they reach it regardless of E2E_BASE_URL:\n  " +
+        offenders.join("\n  ") +
+        "\nMake the request relative so it resolves against the project's " +
+        "baseURL (--project=prod when you deliberately mean the live site).",
+    );
+    process.exit(1);
+  }
+}
+
 const dir = mkdtempSync(join(tmpdir(), "battery-pw-"));
-const out = join(dir, "pw.json");
+
+// THE JSON REPORTER WRITES TO STDOUT. `PLAYWRIGHT_JSON_OUTPUT_NAME` is
+// documented and did not take here — the first run of this gate spent
+// forty minutes and then reported "no JSON report", because it was
+// reading a file the runner never created. Capture stdout, which is
+// what the reporter actually produces, and give it room: a full report
+// over 41 spec files is several megabytes and the default 1 MB buffer
+// throws.
+let raw = "";
 try {
-  execFileSync(
+  raw = execFileSync(
     "npx",
     ["playwright", "test", "--project=chromium", "--reporter=json",
      `--output=${join(dir, "artifacts")}`, "--timeout=20000"],
-    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: out } },
+    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", maxBuffer: 256 * 1024 * 1024 },
   );
-} catch { /* failures are data; the report is what matters */ }
+} catch (err) {
+  // Failing tests exit non-zero AND still print the report. Failures are
+  // data here; only an absent report is a gate failure.
+  raw = typeof err.stdout === "string" ? err.stdout : "";
+}
 
 let report;
 try {
-  report = JSON.parse(readFileSync(out, "utf-8"));
+  report = JSON.parse(raw.slice(raw.indexOf("{")));
 } catch {
   console.log("PLAYWRIGHT GATE");
   console.log("=".repeat(62));
