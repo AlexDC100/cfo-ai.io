@@ -150,8 +150,21 @@ def test_the_lane_produces_ranked_findings_on_a_real_book():
         "the lane ran %d famil(ies) and produced %d ranked candidate(s)"
         % (len(lane["ran"]), lane["candidates"]))
 
+    # THREE detector families fire on agras and THREE become candidates.
+    # Two reach the page: `ro_related_party_exposure` is absorbed by the
+    # engine lane's `concentration_related_party`, which states the same
+    # RON 7,692,202.74 on the same synthetic accounts. That merge is the
+    # ship-blocker repair, not a loss — `test_radar_ship_blockers.py`
+    # owns it — so this asserts the SURVIVORS and the absorption
+    # together, rather than a count that would go quiet if the dedupe
+    # started eating real findings.
     rows = [r for r in payload["surfaced"] if r["lane"] == RS.LANE_DETECTORS]
-    assert len(rows) >= 3, [r["id"] for r in payload["surfaced"]]
+    assert len(rows) >= 2, [r["id"] for r in payload["surfaced"]]
+    absorbed = [c for c in payload["checks"] if c.get("merged_into")]
+    assert len(rows) + len(absorbed) >= lane["candidates"], (
+        "%d detector candidate(s) produced %d surfaced row(s) and %d "
+        "recorded merge(s) — something vanished with no record"
+        % (lane["candidates"], len(rows), len(absorbed)))
     for row in rows:
         assert row["rank"], row["id"]
         amount = (row.get("materiality") or {}).get("amount")

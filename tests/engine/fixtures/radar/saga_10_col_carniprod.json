@@ -5882,7 +5882,7 @@
     },
     "group_critical": false,
     "group_severity": "medium",
-    "id": "p-saga_10_col_carniprod|fx_exposure|5124+765+665",
+    "id": "p-saga_10_col_carniprod|fx_exposure|512+665+765",
     "lane": "single_period",
     "materiality": {
      "amount": 10124869.04,
@@ -5907,7 +5907,7 @@
     "profile_id": "asset_operator",
     "rank": 3,
     "recommendation": true,
-    "root_cause": "5124+765+665",
+    "root_cause": "512+665+765",
     "rule_key": "fx_exposure",
     "score": {
      "actionability": 0.7999999999999999,

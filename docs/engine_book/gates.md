@@ -3141,3 +3141,115 @@ nothing walks back to a gateway accessor. That is the honest behaviour — the
 affordance appears only where the evidence can actually be walked — but it is
 a real asymmetry between the two lanes and is written down rather than left
 to be rediscovered.
+
+### radar — three ship-blockers found by READING the output (2026-09-09)
+
+All three were green, plausible and wrong. None was found by a failing test;
+all three were found by printing the seven findings a real book produces and
+reading them.
+
+**1. The same exposure, twice.** Agras surfaced RON 7,692,202.74 of
+related-party balances at rank 3 (detector lane) and rank 4 (engine lane) —
+adjacent, under two names, two of a reader's seven slots. The ranker groups on
+`root_cause`, and the lanes spell the same accounts differently: the engine
+names the SYNTHETICS it scans (`461+451+452+455`), the detector the ANALYTICS
+that carry the balance (`4511.01+461.016+461.07`).
+
+`root_cause_of` now normalizes to synthetics — which also means a dismissal
+scoped to `461` covers a detector finding on `461.016`, as a reader expects.
+Normalizing alone is not enough (the engine names four synthetics, the
+detector two), so `dedupe_across_lanes` runs before the cap: two findings are
+one when their synthetic sets OVERLAP **and** they cite an identical subject
+figure to the cent.
+
+**The false merge that cost, measured.** The first form compared every cited
+money figure and absorbed `fx_exposure` into `liquidity_cash_tight`: both cite
+total cash of RON 1,168,047.04 — one as the balance whose cover is thin, the
+other as the denominator an FX share is taken of. Neither is ABOUT total cash.
+`CONTEXT_FACTS` excludes company totals, reusing the judgement
+`amount_at_stake` already makes rather than inventing a second one.
+
+**2. A template token in the prose.** `ro_asset_age` rendered "the remaining
+net book value carries **not computed** charge periods of life". The
+detector's own sentence branches correctly when there is no charge; the pack's
+`why` interpolates `{life}` unconditionally, and the absent form of that token
+was those two words. A template cannot branch — a clause can be empty, so the
+token is now `{life_clause}`.
+
+The gate for this is STRUCTURAL, not lexical, and an earlier lexical draft is
+why. Banning "undefined", "none" and "not computed" red on real books, on
+correct prose: *"multiples are undefined at non-positive EBITDA"* is a
+sentence the engine means. The lexical half now catches only what nobody types
+on purpose (`{`, `%s`, `[object`, a Python `None` repr); the structural half
+asserts no detector hands a template an absent-form as a token VALUE.
+
+**3. Every aggregate doubled.** All five of `Group`'s accessors summed
+`self.rows`, which on a spine-built book carries a synthetic AND its
+analytics. `assetage` published RON 22,011,353.08 of net book value where the
+served balance sheet carries RON 11,005,676.54. The 70.5% share it fired on
+was correct throughout — a ratio of two doubled numbers is the same ratio — so
+the gate asserts ABSOLUTE values against the served statement, never a share.
+
+Measured after the repair, on all four books: every money figure a detector
+publishes that has a served counterpart is EXACT to the cent
+(`interco_balance` == `ar_intercompany`; `net_book_value` == the four PP&E
+gross rows plus accumulated depreciation).
+
+**PLANT / RED / REVERT**, six plants, each red through its own message:
+
+```
+the cross-lane dedupe is removed
+  -> …|concentration_related_party|451+452+455+461 and
+     …|ro_related_party_exposure|451+461 both state 7,692,202.74 on 451+461
+context facts count as a subject figure again
+  -> the FX finding was absorbed by the liquidity one; they share a
+     denominator, not a subject
+the merge key stops normalising to synthetics
+  -> …|liquidity_cash_tight|5121+5124+531 keys on '5121', deeper than a synthetic
+the absent branch hands the template a phrase again
+  -> the absent branch handed the template a bare {life} again
+Group aggregates sum rows again
+  -> the parent restates its children; summing all three gives 600
+assetage sums rows again
+  -> agras publishes both figures; gate went quiet
+```
+
+Two of those went GREEN on their first form, both for reasons worth keeping:
+reverting `root_cause_of` left the DEDUPE green (it calls `synthetics_of`
+directly — defence in depth), so the key itself is now asserted on every
+served row; and the `{life}` plant could not fire because after the leaves
+repair every corpus book states a depreciation charge, so the absent branch is
+driven deliberately on a book built without one.
+
+### C9 — one metric name, one formula, across every surface
+
+The dashboard P&L and the Forecast stated two EBITDAs for one period:
+42,797,225.01 against 54,443,833.33 on Scandia, every EBITDA ratio 27% apart.
+
+The engine has ONE definition — `assembled_pl.ebitda` equals
+`revenue − cogs − opex + other_operating_income` to the cent on every corpus
+book, and the forecast reads that key. The frontend derived its own from
+`total_operating_revenue`, which excludes account 758. **On the retail book
+the two differ in SIGN**: the engine serves +220,162.84, the derivation gives
+−506,705.80.
+
+`buildPlStatement.ts` carried a comment asserting *"EBITDA downstream uses
+this exact figure"* — untrue, and it justified the derivation. It is deleted,
+and a test asserts it stays deleted: leaving it would tell the next reader the
+defect is the rule.
+
+The builder now renders the served figure; the fallback (for a payload with no
+`ebitda` key) uses the engine's own formula so the two cannot drift even then.
+What EBITDA includes is stated beside it rather than left to be inferred.
+Whether 758 belongs is deliberately unanswered — the earnings-quality detector
+already surfaces non-trading income inside EBITDA, which is where that
+analysis belongs. Three plants red.
+
+### A test double's schema must match the real table's
+
+Generalised from the `financial_periods` case: a double that invents a column
+answers 200 where PostgREST answers `400 42703`, and every test written
+against it pins the fabrication as the contract. That is how a 500 on the
+whole Firm Attention board sat green. `test_caen_one_authority.py` now parses
+the real SQL and checks EVERY table in every hand-written column map. Planted
+an invented column on `organizations` → RED naming it.

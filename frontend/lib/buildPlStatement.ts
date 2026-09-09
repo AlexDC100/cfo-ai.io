@@ -63,6 +63,9 @@ interface BuildArgs {
    * EBITDA Reconciliation panel (intentional dual-view surfaces).
    */
   canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
+  /** `assembled_pl.ebitda` — the engine's figure. See
+   *  EBITDA_COMPOSITION_NOTE: one metric name, one formula, everywhere. */
+  servedEbitda?: number | null;
 }
 
 // Account-to-label table used to render the per-line labels next to the
@@ -123,6 +126,41 @@ function periodMonthName(isoDate?: string): string {
                   "July","August","September","October","November","December"];
   const idx = parseInt(m[1], 10) - 1;
   return idx >= 0 && idx < 12 ? months[idx] : "the period";
+}
+
+/** ONE EBITDA, AND IT IS THE ENGINE'S.
+ *
+ *  `assembled_pl.ebitda` is the figure every other surface reads — the
+ *  forecast's `PlHistory`, the ratios, the credit composite, the
+ *  valuation. Measured on three real books, it equals
+ *  `revenue − cogs − opex + other_operating_income` to the cent.
+ *
+ *  This file used to derive its own, from `total_operating_revenue`,
+ *  which EXCLUDES account 758. So the dashboard P&L and the forecast
+ *  stated two EBITDAs for one period — 42,797,225.01 against
+ *  54,443,833.33 on Scandia, every EBITDA ratio 27% apart. On the retail
+ *  book the two differ in SIGN: the engine serves +220,162.84 and the
+ *  derivation gives −506,705.80.
+ *
+ *  The served figure wins. The derivation survives only as the fallback
+ *  for a payload that carries no `ebitda` key, and it now uses the SAME
+ *  formula, so the two cannot disagree even then.
+ *
+ *  Whether 758 BELONGS in EBITDA is a separate question, deliberately not
+ *  answered here: non-trading income inside EBITDA is already surfaced by
+ *  the earnings-quality detector, which is where that analysis belongs.
+ *  One definition first; the definition itself is revisited after launch.
+ */
+export const EBITDA_COMPOSITION_NOTE = "includes other operating income (758)";
+
+function oneEbitda(
+  served: number | null | undefined,
+  totalOperatingRevenue: number,
+  totalOpexCash: number,
+  otherOperatingIncome: number,
+): number {
+  if (typeof served === "number" && Number.isFinite(served)) return served;
+  return totalOperatingRevenue - totalOpexCash + otherOperatingIncome;
 }
 
 export function buildPLStatement(args: BuildArgs): PLStatement {
@@ -199,8 +237,9 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     subtotalAmount: totalOpexCash,
   };
 
-  // ── EBITDA (operating view: revenue includes 722 + 767) ──────────────
-  const ebitda = totalOperatingRevenue - totalOpexCash;
+  // ── EBITDA — the engine's figure, see EBITDA_COMPOSITION_NOTE ────────
+  const ebitda = oneEbitda(
+    args.servedEbitda, totalOperatingRevenue, totalOpexCash, revOtherOperating);
 
   // ── D&A → EBIT ───────────────────────────────────────────────────────
   const depreciation = sumByPrefix(items, "6811", "6812");
@@ -439,6 +478,7 @@ export function buildPLStatementFromAggregates(
   // F1.e — see BuildArgs.canonicalMargins for the full rationale. Mirrored
   // here so the aggregates-path caller can supply the same canonical pair.
   canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
+  servedEbitda?: number | null,
 ): PLStatement {
   const is = statements.incomeStatement as IncomeStatementCanonical;
   const revenue = is.revenue;
@@ -453,12 +493,14 @@ export function buildPLStatementFromAggregates(
   const capOwnWork = is.capitalizedOwnWork ?? 0;
 
   // ── OPERATING REVENUE ────────────────────────────────────────────────
-  // The engine's canonical `total_operating_revenue` includes account 706
-  // (and equivalents) + 722 capitalized-own-work, but EXCLUDES account
-  // 758 ("Alte venituri din exploatare"). EBITDA downstream uses this
-  // exact figure, so we must keep `totalOperatingRevenue = revenue +
-  // capOwnWork` UNCHANGED — adding 758 here would silently change the
-  // EBITDA the rest of the app and the user reads.
+  // `total_operating_revenue` includes 706 + 722 and EXCLUDES 758. That
+  // stays true and this subtotal stays as it is.
+  //
+  // What used to be written here — "EBITDA downstream uses this exact
+  // figure" — was NOT true: the engine's own `assembled_pl.ebitda`
+  // includes 758, so the sentence justified a derivation that disagreed
+  // with the engine on every book. EBITDA no longer comes from this
+  // subtotal at all; see EBITDA_COMPOSITION_NOTE.
   //
   // The previous bug rendered 758 visually INSIDE this section but
   // omitted it from the subtotal, producing a section whose listed
@@ -548,8 +590,10 @@ export function buildPLStatementFromAggregates(
     subtotalAmount: totalOpexCash,
   };
 
-  // ── EBITDA (operating view) ──────────────────────────────────────────
-  const ebitda = totalOperatingRevenue - totalOpexCash;
+  // ── EBITDA — the engine's figure, see EBITDA_COMPOSITION_NOTE ────────
+  const ebitda = oneEbitda(
+    servedEbitda ?? (is as { ebitda?: number | null }).ebitda,
+    totalOperatingRevenue, totalOpexCash, otherIncome);
 
   // ── D&A → EBIT ───────────────────────────────────────────────────────
   const depreciationSection: PLSection = {

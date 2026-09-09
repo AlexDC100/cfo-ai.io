@@ -768,7 +768,17 @@ def assetage(spec: "DetectorSpec", series: "B.BookSeries",
         basis_value=float(gross), basis_unit=F.UNIT_MONEY, reason=reason,
         caveats=caveats,
         tokens={"codes": codes, "depreciated": SUP.pct(depreciated),
-                "life": (SUP.num(life, 1) if life is not None else "not computed"),
+                # A WHOLE CLAUSE, not a value, and empty when there is no
+                # charge to divide by. The token used to be the number
+                # alone with "not computed" as its absent form, and the
+                # pack's `why` interpolates it unconditionally — so a
+                # surfaced finding on a real book read "the remaining net
+                # book value carries not computed charge periods of life".
+                # A template cannot branch; a clause can be empty.
+                "life_clause": (
+                    " and the remaining net book value carries %s charge "
+                    "periods of life at the charge this book states"
+                    % SUP.num(life, 1)) if life is not None else "",
                 "nbv_share": SUP.pct(nbv / gross)})]
 
 

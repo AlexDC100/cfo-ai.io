@@ -5185,7 +5185,7 @@
     },
     "group_critical": false,
     "group_severity": "high",
-    "id": "p-saga_10_col_agras|liquidity_cash_tight|5121+5124+531",
+    "id": "p-saga_10_col_agras|liquidity_cash_tight|512+531",
     "lane": "single_period",
     "materiality": {
      "amount": 13012976.77,
@@ -5210,7 +5210,7 @@
     "profile_id": "inventory_operator",
     "rank": 1,
     "recommendation": true,
-    "root_cause": "5121+5124+531",
+    "root_cause": "512+531",
     "rule_key": "liquidity_cash_tight",
     "score": {
      "actionability": 0.8999999999999999,
@@ -5429,7 +5429,7 @@
     },
     "group_critical": false,
     "group_severity": "medium",
-    "id": "p-saga_10_col_agras|concentration_related_party|461+451+452+455",
+    "id": "p-saga_10_col_agras|concentration_related_party|451+452+455+461",
     "lane": "single_period",
     "materiality": {
      "amount": 13012976.77,
@@ -5454,7 +5454,7 @@
     "profile_id": "inventory_operator",
     "rank": 2,
     "recommendation": true,
-    "root_cause": "461+451+452+455",
+    "root_cause": "451+452+455+461",
     "rule_key": "concentration_related_party",
     "score": {
      "actionability": 0.8999999999999999,
@@ -5877,7 +5877,7 @@
     },
     "group_critical": false,
     "group_severity": "medium",
-    "id": "p-saga_10_col_agras|fx_exposure|5124+765+665",
+    "id": "p-saga_10_col_agras|fx_exposure|512+665+765",
     "lane": "single_period",
     "materiality": {
      "amount": 1168047.04,
@@ -5902,7 +5902,7 @@
     "profile_id": "inventory_operator",
     "rank": 4,
     "recommendation": true,
-    "root_cause": "5124+765+665",
+    "root_cause": "512+665+765",
     "rule_key": "fx_exposure",
     "score": {
      "actionability": 0.7999999999999999,

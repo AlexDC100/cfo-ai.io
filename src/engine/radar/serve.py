@@ -556,12 +556,46 @@ def amount_at_stake(finding: F.Finding) -> Optional[AmountAtStake]:
     return best
 
 
+#: Romanian synthetic degree I is THREE digits. `4511.01` and `461.016`
+#: are analytics of `451` and `461`; `2131.01` is an analytic of `213`.
+SYNTHETIC_WIDTH = 3
+
+
+def synthetic_of(code: Any) -> str:
+    """One account code reduced to its synthetic root.
+
+    THE MERGE KEY HAS TO SEE THE SAME THING FROM BOTH LANES. The engine
+    families name the SYNTHETIC accounts they scan (`461`, `451`); the
+    pack-declared detectors name the ANALYTIC accounts that actually
+    carry the balance (`4511.01`, `461.016`). Keyed on the raw codes,
+    those are different strings, so nothing merged and the agras board
+    surfaced the SAME RON 7,692,202.74 of related-party exposure twice —
+    at ranks 3 and 4, adjacent, under two rule names.
+    """
+    text = str(code or "").strip()
+    if not text:
+        return ""
+    head = text.split(".", 1)[0]
+    return head[:SYNTHETIC_WIDTH] if len(head) > SYNTHETIC_WIDTH else head
+
+
+def synthetics_of(finding: F.Finding) -> Tuple[str, ...]:
+    """The finding's subject accounts as a sorted set of synthetics."""
+    accounts = finding.subject.accounts if finding.subject is not None else ()
+    return tuple(sorted(set(
+        s for s in (synthetic_of(a.code) for a in accounts) if s)))
+
+
 def root_cause_of(finding: F.Finding) -> str:
     """The ledger accounts the finding is about — the merge key, the
     dismissal scope and the persistence key, all at once. The same
-    convention the multi-period lane's ``LineSpec.scope_key`` uses."""
-    accounts = finding.subject.accounts if finding.subject is not None else ()
-    codes = [a.code for a in accounts if (a.code or "").strip()]
+    convention the multi-period lane's ``LineSpec.scope_key`` uses.
+
+    NORMALIZED TO SYNTHETICS, so the two lanes key on the same thing.
+    A dismissal scoped to `461` therefore also covers a detector finding
+    on `461.016`, which is what a reader means by "I have dealt with the
+    461 balance"."""
+    codes = synthetics_of(finding)
     return "+".join(codes) if codes else finding.rule_id
 
 
@@ -853,6 +887,90 @@ def _rank_inputs_and_provenance(
             persistence=consecutive_periods(finding.rule_id, root, prior_fired),
             scope_key=root, period_ordinal=period_ordinal))
     return inputs, refusals, amount_facts, provenance
+
+
+#: Company-wide figures a finding cites as CONTEXT, never as its subject.
+#: `BASIS_TOTALS` plus the cash aggregates — a liquidity finding and an FX
+#: finding both cite total cash, and neither is ABOUT total cash.
+CONTEXT_FACTS = BASIS_TOTALS | frozenset([
+    "cash", "total_cash", "cur_assets", "current_assets",
+    "cur_liab", "current_liabilities", "working_capital",
+    "ebitda", "ebitda_statutory", "net_income", "net_result", "expenses",
+])
+
+
+def _subject_money_set(finding: F.Finding) -> frozenset:
+    """The money figures a finding is ABOUT, in CENTS, as a set.
+
+    CONTEXT IS EXCLUDED, and getting that wrong was measured. The first
+    form of this compared every cited money figure, and it merged the FX
+    finding into the liquidity one: both cite total cash of
+    RON 1,168,047.04 — one as the balance whose cover is thin, the other
+    as the denominator the foreign-currency share is taken of. Neither is
+    about total cash. `amount_at_stake` already excludes these for the
+    same reason; this reuses that judgement rather than inventing a
+    second one.
+
+    Cents, not floats: two lanes reaching the same balance by different
+    arithmetic must compare equal, and 7692202.74 is not reliably equal
+    to 7692202.7400000004.
+    """
+    return frozenset(
+        _cents(v) for f, v in _money_facts_of(finding)
+        if f not in CONTEXT_FACTS and abs(float(v)) > 0.0)
+
+
+def dedupe_across_lanes(rows: Sequence[R.RankedFinding]
+                        ) -> Tuple[List[R.RankedFinding], List[Dict[str, Any]]]:
+    """One exposure is one finding, whichever lane found it.
+
+    THE DEFECT. The ranker groups on `root_cause`, and until synthetics
+    normalized it the engine lane's `461+451+452+455` and the detector
+    lane's `4511.01+461.016+461.07` were different strings. Even
+    normalized they differ — the engine names every account its rule
+    SCANS, the detector names the three that carry a balance — so string
+    equality alone still leaves the agras board stating the same
+    RON 7,692,202.74 of related-party exposure twice, at ranks 3 and 4,
+    adjacent, under two rule names.
+
+    TWO FINDINGS ARE ONE when their synthetic account sets OVERLAP and
+    they cite an identical money figure to the cent. Both halves are
+    required: overlap alone would merge the cash finding with the FX one
+    (both touch 512), and an equal figure alone would merge two unrelated
+    lines that happen to net the same.
+
+    The survivor is the row the ranker already put first; the loser
+    leaves a check row naming what absorbed it, so nothing vanishes
+    silently.
+    """
+    kept = []  # type: List[R.RankedFinding]
+    checks = []  # type: List[Dict[str, Any]]
+    for row in rows:
+        synths = set(synthetics_of(row.finding))
+        money = _subject_money_set(row.finding)
+        absorbed_by = None  # type: Optional[R.RankedFinding]
+        for earlier in kept:
+            if not (synths & set(synthetics_of(earlier.finding))):
+                continue
+            if not (money & _subject_money_set(earlier.finding)):
+                continue
+            absorbed_by = earlier
+            break
+        if absorbed_by is None:
+            kept.append(row)
+            continue
+        record = row.finding.check_record().to_payload()
+        note = record.get("note") or ""
+        record["note"] = "; ".join([bit for bit in (note, (
+            "the same exposure is already stated by %s on %s — one exposure "
+            "is one finding, and these cite the same figure on overlapping "
+            "accounts" % (absorbed_by.finding.rule_id,
+                          "+".join(sorted(synths & set(synthetics_of(
+                              absorbed_by.finding))))))) if bit])
+        record["disposition"] = R.DISPOSITION_CHECKS
+        record["merged_into"] = absorbed_by.finding.rule_id
+        checks.append(record)
+    return kept, checks
 
 
 def retain_dismissed_critical_groups(report: R.RankedReport,
@@ -1427,6 +1545,10 @@ def compose(request: RadarRequest) -> Served:
         surfaced_in.extend(detector_report.surfaced)
         info_in.extend(detector_report.info)
         demoted_in.extend(detector_report.demoted)
+    # ONE EXPOSURE IS ONE FINDING, and this runs BEFORE the cap so a
+    # duplicate cannot spend one of the seven slots a reader gets.
+    surfaced_in, duplicate_checks = dedupe_across_lanes(surfaced_in)
+
     critical_below_floor = len([
         rf for rf in info_in if CAP.is_critical(rf, severity_by_rule)]) + len([
         rf for rf in demoted_in
@@ -1469,7 +1591,7 @@ def compose(request: RadarRequest) -> Served:
     demoted.extend(row(rf) for rf in decision.held)
 
     checks = list(single.report.checks) + list(single.refusals) \
-        + list(multi.checks) + list(decision.checks)
+        + list(multi.checks) + list(decision.checks) + duplicate_checks
     if detectors is not None:
         checks.extend(detectors.checks)
 

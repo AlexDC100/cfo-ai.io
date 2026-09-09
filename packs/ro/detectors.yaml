@@ -477,8 +477,7 @@ detectors:
       min_depreciated_share: 0.55
     why: >-
       For a {profile_label}, {depreciated} of the gross base on {codes} is
-      already depreciated and the remaining net book value carries {life}
-      charge periods of life at the charge this book states.
+      already depreciated{life_clause}.
     actions:
       - imperative: "Pull the fixed-asset register with acquisition dates and remaining life"
         artefact: "the register for {codes} with each asset's net book value"

@@ -3473,7 +3473,7 @@
     },
     "group_critical": false,
     "group_severity": "high",
-    "id": "p-saga_10_col_realestate|liquidity_cash_tight|5121+5124+531",
+    "id": "p-saga_10_col_realestate|liquidity_cash_tight|512+531",
     "lane": "single_period",
     "materiality": {
      "amount": 28119256.47,
@@ -3498,7 +3498,7 @@
     "profile_id": "unclassified_operator",
     "rank": 1,
     "recommendation": true,
-    "root_cause": "5121+5124+531",
+    "root_cause": "512+531",
     "rule_key": "liquidity_cash_tight",
     "score": {
      "actionability": 0.8999999999999999,
@@ -4134,7 +4134,7 @@
     },
     "group_critical": false,
     "group_severity": "medium",
-    "id": "p-saga_10_col_realestate|fx_exposure|5124+765+665",
+    "id": "p-saga_10_col_realestate|fx_exposure|512+665+765",
     "lane": "single_period",
     "materiality": {
      "amount": 1184400.37,
@@ -4159,7 +4159,7 @@
     "profile_id": "unclassified_operator",
     "rank": 4,
     "recommendation": true,
-    "root_cause": "5124+765+665",
+    "root_cause": "512+665+765",
     "rule_key": "fx_exposure",
     "score": {
      "actionability": 0.7999999999999999,

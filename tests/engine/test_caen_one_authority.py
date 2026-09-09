@@ -181,6 +181,52 @@ DOUBLES = (
 )
 
 
+def _all_column_maps(path):
+    """Every `"table": [...]` entry in a hand-written column map."""
+    text = path.read_text(encoding="utf-8")
+    out = {}
+    for m in re.finditer(r'"([a-z_]+)":\s*\[((?:\s*"[^"]+",?)+)\s*\]', text):
+        table, body = m.group(1), m.group(2)
+        cols = set(re.findall(r'"([^"]+)"', body))
+        # Only entries that look like a column list for a real table.
+        if len(cols) >= 3 and all(re.match(r"^[a-z][a-z0-9_]*$", c) for c in cols):
+            out.setdefault(table, set()).update(cols)
+    return out
+
+
+#: Tables whose DDL this repo does not own (Supabase-managed, or declared
+#: in a migration that lives elsewhere). Named, so the exemption is a
+#: decision and not a silent gap.
+NOT_OURS = frozenset(["auth", "users", "objects", "buckets"])
+
+
+@pytest.mark.parametrize("rel", DOUBLES, ids=lambda p: p.name)
+def test_no_double_declares_a_column_any_table_does_not_have(rel):
+    """A TEST DOUBLE'S SCHEMA MUST MATCH THE REAL TABLE'S SCHEMA.
+
+    Generalised from the `financial_periods` case below, because the
+    failure mode is not specific to one table: a double that invents a
+    column answers 200 where PostgREST answers `400 42703`, and every
+    test written against it then pins the fabrication as the contract.
+    That is how a 500 on the whole Firm Attention board sat green.
+
+    RED ON: any column in any hand-written map that no migration declares.
+    """
+    offenders = []
+    for table, declared in sorted(_all_column_maps(REPO / rel).items()):
+        if table in NOT_OURS:
+            continue
+        real = _declared_columns(table)
+        if not real:
+            continue                      # not a table this repo declares
+        invented = sorted(declared - real)
+        if invented:
+            offenders.append("%s: %s" % (table, ", ".join(invented)))
+    assert offenders == [], (
+        "%s declares columns no migration adds, so it answers 200 where "
+        "PostgREST answers 400 42703:\n  %s" % (rel.name, "\n  ".join(offenders)))
+
+
 @pytest.mark.parametrize("rel", DOUBLES, ids=lambda p: p.name)
 def test_a_double_never_declares_a_column_the_table_does_not_have(rel, period_columns):
     """THE ROOT CAUSE. A double that invents a column answers 200 where

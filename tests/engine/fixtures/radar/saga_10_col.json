@@ -5530,7 +5530,7 @@
     },
     "group_critical": true,
     "group_severity": "critical",
-    "id": "p-saga_10_col|leverage_net_debt_ebitda|162+167+519+5121",
+    "id": "p-saga_10_col|leverage_net_debt_ebitda|162+167+512+519",
     "lane": "single_period",
     "materiality": {
      "amount": 31731439.58,
@@ -5555,7 +5555,7 @@
     "profile_id": "inventory_operator",
     "rank": 2,
     "recommendation": true,
-    "root_cause": "162+167+519+5121",
+    "root_cause": "162+167+512+519",
     "rule_key": "leverage_net_debt_ebitda",
     "score": {
      "actionability": 0.7999999999999999,
@@ -5752,7 +5752,7 @@
     },
     "group_critical": false,
     "group_severity": "high",
-    "id": "p-saga_10_col|liquidity_cash_tight|5121+5124+531",
+    "id": "p-saga_10_col|liquidity_cash_tight|512+531",
     "lane": "single_period",
     "materiality": {
      "amount": 28988636.56,
@@ -5777,7 +5777,7 @@
     "profile_id": "inventory_operator",
     "rank": 3,
     "recommendation": true,
-    "root_cause": "5121+5124+531",
+    "root_cause": "512+531",
     "rule_key": "liquidity_cash_tight",
     "score": {
      "actionability": 0.8999999999999999,
@@ -6423,7 +6423,7 @@
     },
     "group_critical": false,
     "group_severity": "medium",
-    "id": "p-saga_10_col|fx_exposure|5124+765+665",
+    "id": "p-saga_10_col|fx_exposure|512+665+765",
     "lane": "single_period",
     "materiality": {
      "amount": 1255039.17,
@@ -6448,7 +6448,7 @@
     "profile_id": "inventory_operator",
     "rank": 6,
     "recommendation": true,
-    "root_cause": "5124+765+665",
+    "root_cause": "512+665+765",
     "rule_key": "fx_exposure",
     "score": {
      "actionability": 0.7999999999999999,
