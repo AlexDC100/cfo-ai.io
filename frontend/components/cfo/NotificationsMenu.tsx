@@ -21,6 +21,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { isNativeShell, openNativeSheet } from "@/lib/nativeShell";
+import { tapHandlers } from "@/lib/tapHandlers";
 import { fetchAlerts, type AlertRow, type AlertSeverity } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { activeLocale } from "@/lib/locale";
@@ -46,12 +54,11 @@ function formatWhen(iso: string): string {
   return d.toLocaleString(activeLocale(), { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "row" } = {}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+/** The workspace's open alerts: once on mount, again whenever `refresh`
+ *  flips true (a panel opened an hour later mustn't show an hour-old list). */
+export function useAlertsFeed(refresh: boolean): { alerts: AlertRow[]; loading: boolean } {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState(true);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -60,70 +67,18 @@ export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "ro
       setLoading(false);
     }
   }, []);
-
-  // Once on mount for the badge count, and again on open so a panel
-  // opened an hour later isn't showing an hour-old list.
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (open) void load(); }, [open, load]);
+  useEffect(() => { if (refresh) void load(); }, [refresh, load]);
+  return { alerts, loading };
+}
 
-  const badgeCount = alerts.filter((a) => BADGED.includes(a.severity)).length;
-
+/** The list itself — shared by the dialog, the in-page bottom sheet and the
+ *  iOS native sheet page (/_native/sheet/notifications). */
+export function NotificationsList({ alerts, loading }: { alerts: AlertRow[]; loading: boolean }) {
+  const { t } = useTranslation();
   return (
     <>
-      {variant === "row" ? (
-        // Mobile drawer row (native-mobile pass 2026-08-04): the bell left
-        // the phone header; this full-width row inside the nav sheet is its
-        // home there. ≥44px tall, pressed state, same dialog.
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          data-testid="notifications-row"
-          className="w-full inline-flex items-center gap-3 px-2.5 min-h-[44px] rounded-lg text-left text-[13.5px] text-ink hover:bg-bg-2/60 active:bg-bg-2 transition-colors duration-150"
-        >
-          <Bell size={16} strokeWidth={1.75} className="shrink-0 text-ink-soft" />
-          <span className="flex-1">{t("topbar.notifications")}</span>
-          {badgeCount > 0 && (
-            <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-semibold leading-none tabular-nums">
-              {badgeCount > 9 ? "9+" : badgeCount}
-            </span>
-          )}
-        </button>
-      ) : (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        data-testid="notifications-button"
-        aria-label={
-          badgeCount > 0
-            ? t("panels.notificationsAttentionAria", { count: badgeCount })
-            : t("topbar.notifications")
-        }
-        className="relative inline-flex items-center justify-center h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/80 transition-colors"
-      >
-        <Bell size={16} strokeWidth={1.75} />
-        {badgeCount > 0 && (
-          <span
-            data-testid="notifications-badge"
-            className="absolute top-1.5 right-1.5 min-w-[15px] h-[15px] px-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[9.5px] font-semibold leading-none tabular-nums"
-          >
-            {badgeCount > 9 ? "9+" : badgeCount}
-          </span>
-        )}
-      </button>
-      )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[560px]" data-testid="notifications-dialog">
-          <DialogHeader>
-            <DialogTitle>{t("topbar.notifications")}</DialogTitle>
-            <DialogDescription>
-              {t("panels.notificationsDesc")}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Capped height so a noisy workspace scrolls inside the modal
-              instead of pushing the dialog past the viewport. */}
-          <div className="max-h-[60vh] overflow-y-auto chat-scroll -mx-1 px-1">
             {loading ? (
               <div className="py-10 flex items-center justify-center gap-2 text-[13px] text-ink-soft">
                 <Loader2 size={14} className="animate-spin" />
@@ -165,9 +120,114 @@ export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "ro
                 ))}
               </ul>
             )}
-          </div>
+    </>
+  );
+}
+
+export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "row" } = {}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const { alerts, loading } = useAlertsFeed(open);
+  // iOS shell (2026-09-08 per operator): a NATIVE sheet instead of the
+  // in-page one; everywhere else the in-page dialog/sheet below.
+  const openPanel = () => {
+    if (openNativeSheet("notifications")) return;
+    setOpen(true);
+  };
+
+  const badgeCount = alerts.filter((a) => BADGED.includes(a.severity)).length;
+
+  // Shared list body — rendered inside a bottom sheet in the native shell
+  // and inside the centred dialog everywhere else.
+  const body = <NotificationsList alerts={alerts} loading={loading} />;
+
+  return (
+    <>
+      {variant === "row" ? (
+        // Mobile drawer row (native-mobile pass 2026-08-04): the bell left
+        // the phone header; this full-width row inside the nav sheet is its
+        // home there. ≥44px tall, pressed state, same dialog.
+        <button
+          type="button"
+          onClick={openPanel}
+        {...tapHandlers(openPanel)}
+          data-testid="notifications-row"
+          className="w-full inline-flex items-center gap-3 px-2.5 min-h-[44px] rounded-lg text-left text-[13.5px] text-ink hover:bg-bg-2/60 active:bg-bg-2 transition-colors duration-150"
+        >
+          <Bell size={16} strokeWidth={1.75} className="shrink-0 text-ink-soft" />
+          <span className="flex-1">{t("topbar.notifications")}</span>
+          {badgeCount > 0 && (
+            <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-semibold leading-none tabular-nums">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+        </button>
+      ) : (
+      <button
+        type="button"
+        onClick={openPanel}
+        {...tapHandlers(openPanel)}
+        data-testid="notifications-button"
+        aria-label={
+          badgeCount > 0
+            ? t("panels.notificationsAttentionAria", { count: badgeCount })
+            : t("topbar.notifications")
+        }
+        className="relative inline-flex items-center justify-center h-9 w-9 rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/80 transition-colors"
+      >
+        <Bell size={16} strokeWidth={1.75} />
+        {badgeCount > 0 && (
+          <span
+            data-testid="notifications-badge"
+            className="absolute top-1.5 right-1.5 min-w-[15px] h-[15px] px-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[9.5px] font-semibold leading-none tabular-nums"
+          >
+            {badgeCount > 9 ? "9+" : badgeCount}
+          </span>
+        )}
+      </button>
+      )}
+
+      {isNativeShell() ? (
+        // Native shell (2026-09-08 per operator): a bottom sheet — it rises
+        // over whatever is open (the drawer included), with the home-
+        // indicator inset inside it so its edge is flush with the screen.
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="bottom"
+            data-testid="notifications-dialog"
+            className="p-0 rounded-t-3xl border-t border-x-0 border-b-0 border-rule-strong bg-surface dark:bg-bg-2 text-ink [&>button.absolute]:hidden flex flex-col"
+            style={{
+              paddingBottom: "env(safe-area-inset-bottom)",
+              maxHeight: "calc(100dvh - env(safe-area-inset-top) - 2.5rem)",
+            }}
+          >
+            <div aria-hidden className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-ink-mute/40" />
+            <div className="px-5 pt-4 pb-3">
+              <SheetTitle className="text-[15px] font-semibold text-ink">{t("topbar.notifications")}</SheetTitle>
+              <SheetDescription className="mt-0.5 text-[12.5px] text-ink-soft">
+                {t("panels.notificationsDesc")}
+              </SheetDescription>
+              <div className="mt-4 border-t border-rule" />
+            </div>
+            <div className="px-5 pb-5 overflow-y-auto chat-scroll min-h-0">{body}</div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[560px]" data-testid="notifications-dialog">
+          <DialogHeader>
+            <DialogTitle>{t("topbar.notifications")}</DialogTitle>
+            <DialogDescription>
+              {t("panels.notificationsDesc")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Capped height so a noisy workspace scrolls inside the modal
+              instead of pushing the dialog past the viewport. */}
+          <div className="max-h-[60vh] overflow-y-auto chat-scroll -mx-1 px-1">{body}</div>
         </DialogContent>
       </Dialog>
+      )}
     </>
   );
 }

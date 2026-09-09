@@ -14,7 +14,14 @@
 // Inject the returned snippet anywhere inside the generated <body>. It also
 // pads the top of the body so the fixed button never covers the heading.
 
+import { isNativeShell } from "@/lib/nativeShell";
+
 export function previewBackButtonHtml(fallbackHref = "/dashboard"): string {
+  // Inside the native shell the preview renders IN the app (lib/previewSheet
+  // + <PreviewSheet/>), whose header and the shell's native back button own
+  // navigation — an injected in-document button would be a dead duplicate
+  // inside the sandboxed iframe (2026-09-08).
+  if (isNativeShell()) return "";
   const onclick =
     "(function(){" +
     "if(window.opener&&window.opener!==window){window.close();return;}" +

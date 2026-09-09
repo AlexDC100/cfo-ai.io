@@ -24,6 +24,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Building2, Settings2, X, type LucideIcon } from "lucide-react";
+import { nativeSheetKind } from "@/lib/nativeShell";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -59,6 +60,10 @@ interface Props {
   onOpenAi: () => void;
   /** Open the upload flow. */
   onOpenUpload: () => void;
+  /** "side" (default): the right-anchored panel. "bottom" (2026-09-08
+   *  per operator, native shell): a bottom sheet that rises OVER the
+   *  open burger drawer — the drawer stays put underneath it. */
+  presentation?: "side" | "bottom" | "inline";
 }
 
 export function CommandCenter({
@@ -67,7 +72,13 @@ export function CommandCenter({
   // onOpenAi is still accepted (AppShell passes it) but no longer used
   // here — the Workspace section that hosted "Ask CFO AI" was removed.
   onOpenUpload,
+  presentation = "side",
 }: Props) {
+  const bottom = presentation === "bottom";
+  // "inline": no Sheet at all — the content fills its container. Used by the
+  // /_native/sheet/account page, which the iOS shell hosts inside a SwiftUI
+  // bottom sheet (2026-09-08 per operator).
+  const inline = presentation === "inline";
   const navigate = useNavigate();
   // Live data behind the quick-action subtitles.
   const workspaceName = useWorkspaceName();
@@ -87,45 +98,37 @@ export function CommandCenter({
   // Close the panel, then run the action once the exit animation has
   // mostly played — same 220ms convention the tabs use.
   const launch = (fn: () => void) => {
+    // Inside an iOS native sheet the page IS the sheet: closing first would
+    // tear this WebView down before the deferred action ran (the Settings
+    // button did nothing, 2026-09-08). Act now — the route watcher dismisses
+    // the sheet and routes the main page.
+    if (nativeSheetKind()) {
+      fn();
+      return;
+    }
     close();
     setTimeout(fn, 220);
   };
 
-  return (
+  const inner = (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        data-testid="command-center"
-        className="
-          w-[calc(100vw-16px)] sm:w-[440px] sm:max-w-[460px]
-          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
-          rounded-2xl sm:rounded-3xl
-          bg-surface dark:bg-bg-2
-          border border-rule-strong
-          text-ink
-          shadow-4
-          [&>button.absolute]:hidden
-          flex flex-col
-        "
-        style={{
-          marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
-          marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
-          marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
-          maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
-        }}
-      >
+        {bottom && (
+          // Grab handle — the bottom-sheet affordance.
+          <div aria-hidden className="mx-auto mt-2.5 h-1 w-9 shrink-0 rounded-full bg-ink-mute/40" />
+        )}
         {/* ── Header ──────────────────────────────────────────
             The close button is absolutely positioned (top-right) so it no
             longer occupies its own row — the account credentials below sit at
             the same vertical level as the X. */}
-        <SheetTitle className="sr-only">Command Center</SheetTitle>
+        {!inline && <SheetTitle className="sr-only">Command Center</SheetTitle>}
         {/* Wrapped in a div so the button is NOT a direct child button.absolute
             of SheetContent — that selector ([&>button.absolute]:hidden) hides
             Radix's default close, and would hide this one too if unwrapped.
             Hidden in the glossary view — GlossaryContent's header carries
             its own back + close controls in the same corner. */}
-        {view === "main" && (
+        {/* No X in the bottom-sheet presentations (2026-09-08 per operator)
+            — swipe-down / the backdrop dismiss those. */}
+        {view === "main" && !bottom && !inline && (
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
           <button
             type="button"
@@ -195,6 +198,66 @@ export function CommandCenter({
           </div>
         </div>
         )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <>
+        <div data-testid="command-center" className="relative flex flex-col text-ink pt-5">
+          {inner}
+        </div>
+        <DecisionRulesModal open={rulesOpen} onOpenChange={setRulesOpen} returnTo={null} />
+      </>
+    );
+  }
+
+  return (
+    <>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={bottom ? "bottom" : "right"}
+        data-testid="command-center"
+        className={
+          bottom
+            ? `
+          w-full p-0 m-0 h-auto
+          rounded-t-3xl border-t border-x-0 border-b-0 border-rule-strong
+          bg-surface dark:bg-bg-2
+          text-ink
+          shadow-4
+          [&>button.absolute]:hidden
+          flex flex-col
+        `
+            : `
+          w-[calc(100vw-16px)] sm:w-[440px] sm:max-w-[460px]
+          p-0 m-2 sm:m-3 h-[calc(100dvh-16px)] sm:h-[calc(100dvh-24px)]
+          rounded-2xl sm:rounded-3xl
+          bg-surface dark:bg-bg-2
+          border border-rule-strong
+          text-ink
+          shadow-4
+          [&>button.absolute]:hidden
+          flex flex-col
+        `
+        }
+        style={
+          bottom
+            ? {
+                // Rises over the drawer; the home-indicator inset is inside
+                // the sheet so its bottom edge is flush with the screen.
+                paddingBottom: "env(safe-area-inset-bottom)",
+                maxHeight: "calc(100dvh - env(safe-area-inset-top) - 2.5rem)",
+              }
+            : {
+                marginTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+                marginBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)",
+                marginRight: "calc(env(safe-area-inset-right) + 0.5rem)",
+                maxHeight: "calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem)",
+              }
+        }
+      >
+        {inner}
       </SheetContent>
     </Sheet>
     {/* Outside the Sheet so it stays mounted (and visible) after the
@@ -237,7 +300,9 @@ function QuickAction({
         hover:bg-bg-2/60 hover:border-rule-strong transition-colors
       "
     >
-      <Icon size={16} strokeWidth={1.75} className="shrink-0 text-brand-d" />
+      {/* Same treatment as the Settings · Log out icons (ink, 1.75 stroke),
+          a size up (2026-09-08 per operator). */}
+      <Icon size={20} strokeWidth={1.75} className="shrink-0 text-ink" />
       <span className="min-w-0">
         <span className="block truncate">{label}</span>
         {sub && (

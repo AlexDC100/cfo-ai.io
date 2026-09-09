@@ -352,6 +352,9 @@
      accountants keep open all day. Same token names, retuned.
      ═══════════════════════════════════════════════════════════ */
   .dark {
+    /* UA-drawn chrome (scrollbars, overscroll, form controls) follows the
+       explicit theme — pairs with the `color-scheme: light` on html. */
+    color-scheme: dark;
     --bg:           165 25% 4%;        /* green-black canvas */
     --bg-2:         163 18% 6%;
     --surface:      162 16% 7%;
@@ -474,6 +477,14 @@
   }
 
   html {
+    /* Paint the ROOT with the theme token too — body carries bg-background,
+       but overscroll rubber-banding (and any viewport area past the body)
+       reveals the html canvas, which defaulted to UA white: scrolling past
+       the top/bottom in Terminal (dark) flashed a white band (2026-09-04
+       operator report). color-scheme keeps UA-drawn chrome (scrollbars,
+       overscroll glow, form controls) in step with the active theme. */
+    background-color: hsl(var(--bg));
+    color-scheme: light;
     font-feature-settings: "tnum" 1, "ss03" 1, "cv11" 1;
     /* Disable the iOS 300ms tap delay on every element; pinch-zoom still
        works because we set touch-action on actionable elements only,
@@ -797,6 +808,24 @@
     0%, 18% { transform: translateX(0); }
     82%, 100% { transform: translateX(calc(-100% + 100cqw)); }
   }
+  /* Always-on variant (2026-09-08 per operator): the SELECTED conversation
+   * title in the sidebar drawer scrolls whether or not it is hovered —
+   * touch has no hover. Same mechanics; text that fits stays still. */
+  .marquee-active {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: clip;
+    container-type: inline-size;
+  }
+  .marquee-active > span {
+    display: inline-block;
+    min-width: 100%;
+    animation: hover-marquee-sweep 6s ease-in-out infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-active { text-overflow: ellipsis; }
+    .marquee-active > span { display: inline; animation: none; }
+  }
 
   /* Companion keyframes for the MEASURED marquee (HoverMarquee component
    * in MarketsOverview — used where the pure-CSS version can't work, see
@@ -940,6 +969,11 @@
   .chat-entrance-still-global *::after {
     animation: none !important;
     transition: none !important;
+  }
+  /* The burger drawer's rows are opacity 0 until their stagger animation
+     runs — with animations frozen they must simply be visible. */
+  .chat-entrance-still-global .drawer-stagger > * {
+    opacity: 1;
   }
 }
 
@@ -1142,4 +1176,32 @@
 @media (prefers-reduced-motion: reduce) {
   .cards-stagger > * { animation: none; opacity: 1; }
   .card-2026 { transition: none; }
+}
+
+/* iOS activity indicator (components/cfo/IosSpinner): each bar fades from
+   full to dim over one revolution; the per-bar negative delay staggers them
+   so the bright bar appears to travel clockwise. */
+@keyframes ios-spinner-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0.25; }
+}
+.ios-spinner-bar {
+  animation: ios-spinner-fade 1s linear infinite;
+}
+
+/* Inside the native mobile shell the page paints NO background: the
+   WebView's own theme-coloured backdrop (mobile/src/WebAppScreen) shows
+   through, so the iOS rubber-band / swipe-down refresh moves only the
+   content while the background stays fixed (2026-09-08 per operator).
+   The fixed mesh layer is dropped too — fixed elements ride along with the
+   bounce on iOS. */
+html.native-shell,
+html.native-shell body {
+  background-color: transparent;
+  /* No pinch-zoom (2026-09-08 per operator) — pan only; `manipulation` on
+     body already removes double-tap zoom. */
+  touch-action: pan-x pan-y;
+}
+html.native-shell body::before {
+  display: none;
 }

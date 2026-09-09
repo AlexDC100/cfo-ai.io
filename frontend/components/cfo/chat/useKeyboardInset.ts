@@ -10,11 +10,20 @@
 // user scrolls the conversation with the keyboard open.
 
 import { useEffect, useState } from "react";
+import { isNativeShell } from "@/lib/nativeShell";
 
 export function useKeyboardInset(): number {
   const [inset, setInset] = useState(0);
 
   useEffect(() => {
+    // Native shell (2026-09-08 per operator): the WebView itself is shrunk
+    // above the keyboard by the shell (KeyboardAvoidingView on iOS, the
+    // window resize on Android), so the layout viewport already ends at
+    // the keyboard and `fixed; bottom: 0` is exactly right. Measuring the
+    // visual viewport here only produced a lagging, drifting composer —
+    // fixed elements on iOS anchor to the layout viewport, which the
+    // keyboard never shrinks in a browser.
+    if (isNativeShell()) return undefined;
     const vv = window.visualViewport;
     if (!vv) return undefined;
     let raf = 0;

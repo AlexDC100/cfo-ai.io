@@ -12,6 +12,7 @@ import { Upload, Download, FileSpreadsheet, X, Loader2, Cloud, ArrowUp, Info, Ex
 import { useToast } from "@/hooks/use-toast";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
+import { openPreviewSheet } from "@/lib/previewSheet";
 import { VARIANCE_LINES, type ComparisonDataset } from "@/lib/comparison/types";
 
 interface Props {
@@ -62,7 +63,7 @@ function downloadTemplate() {
 // as the dashboard's example-trial-balance "View" (a plain CSV download can't
 // render inline, so we write an HTML preview of the exact template rows).
 function viewTemplate() {
-  const tab = window.open("", "_blank");
+  const tab = openPreviewSheet("cfo_ai_budget_template.csv");
   if (!tab) return;
   const rows = VARIANCE_LINES
     .map((l) => `<tr><td class="l">${l.label}</td><td></td><td></td></tr>`)
@@ -82,9 +83,7 @@ function viewTemplate() {
     `<table><thead><tr><th>Line</th><th>Budget</th><th>Last year</th></tr></thead><tbody>${rows}</tbody></table>` +
     `<p>Fill in the Budget column (required) and optionally Last year, then re-upload. Fictional/blank template.</p>` +
     `</body></html>`;
-  tab.document.open();
-  tab.document.write(doc);
-  tab.document.close();
+  tab.write(doc);
 }
 
 export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {

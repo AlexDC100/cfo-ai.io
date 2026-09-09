@@ -290,9 +290,9 @@ export default function Scenarios() {
               )
             }
             data-testid="scenarios-empty-ask-cfo-ai"
-            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 hover:border-rule-strong transition-colors duration-micro"
           >
-            <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+            <Sparkles size={14} strokeWidth={2} className="text-brand-dark dark:text-brand-light" />
             Ask CFO AI
           </button>
         </div>

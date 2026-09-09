@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { compression } from "vite-plugin-compression2";
@@ -27,6 +28,15 @@ export default defineConfig(({ mode }) => ({
   // hardcoding a base that would break whichever deploy it wasn't written for.
   base: process.env.VITE_BASE_PATH || "/",
 
+  // Web build version (package.json) — shown under the app name at the top
+  // of the mobile drawer when the page is NOT inside the native shell (the
+  // shell injects its own app version instead; see mobile/src/WebAppScreen).
+  define: {
+    __APP_VERSION__: JSON.stringify(
+      JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version,
+    ),
+  },
+
   server: {
     host: "::",
     port: 5173,
@@ -49,6 +59,15 @@ export default defineConfig(({ mode }) => ({
       // (TestModeSessionBoot is the main one) reach the local engine
       // instead of falling through to index.html.
       "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+      // The TopHeader backend-status dot polls `${API_URL}/health`; with an
+      // empty VITE_API_URL (LAN / mobile-shell dev) that is a relative
+      // /health, which must reach the engine and not the SPA fallback —
+      // otherwise index.html's 200 would paint the dot green with the
+      // engine down.
+      "/health": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },

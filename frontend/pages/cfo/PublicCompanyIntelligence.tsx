@@ -26,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Activity, LayoutGrid, Globe } from "lucide-react";
 import { PublicShell } from "@/components/cfo/PublicShell";
+import { isNativeShell } from "@/lib/nativeShell";
 import { Chip, PageHeader } from "@/components/instrument/Panel";
 import { useAuth } from "@/lib/auth";
 import { CompanySearchPanel, searchUniverse } from "@/components/public-companies/CompanySearchPanel";
@@ -390,8 +391,14 @@ export default function PublicCompanyIntelligence() {
   // Anonymous visitors (landing-page "Quick try" chips / Public Companies CTA)
   // hit the standalone route and get the slimmer PublicShell — Logo + Sign in +
   // Get started CTAs. Same page body either way; "no signup · 10s" stays true.
+  //
+  // Native shell (2026-09-04 per operator: "no navbars in the app, only the
+  // burger"): guests are routed under AppLayout too (App.tsx mirrors this
+  // condition), so the page renders content-only there — PublicShell's header
+  // would be the one navbar left in the app, and it carries no burger.
   const { isAuthenticated } = useAuth();
-  const Shell = isAuthenticated ? Fragment : PublicShell;
+  const underAppShell = isAuthenticated || isNativeShell();
+  const Shell = underAppShell ? Fragment : PublicShell;
 
   return (
     <Shell>
@@ -406,7 +413,7 @@ export default function PublicCompanyIntelligence() {
           // background strip on the right).
           // Anonymous: PublicShell gives no padding, so keep the self-contained
           // centered layout that the standalone marketing route needs.
-          isAuthenticated
+          underAppShell
             ? ""
             : "max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8"
         }

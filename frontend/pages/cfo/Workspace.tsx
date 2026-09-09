@@ -19,7 +19,10 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
+import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Mark } from "@/components/cfo/Mark";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -102,7 +105,49 @@ function writeDone(v: boolean) {
   } catch { /* private mode — fail soft */ }
 }
 
+// Sign-in gate (2026-09-08 per operator): the Workspaces tab stays fully
+// visible in the menu for a guest, but the page itself asks them to sign in
+// — workspaces are account data, so there is nothing to browse anonymously.
 export default function Workspace() {
+  const { user, status } = useAuth();
+  if (status !== "loading" && !user) return <WorkspaceGuestPrompt />;
+  return <WorkspaceInner />;
+}
+
+function WorkspaceGuestPrompt() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Same `next` contract Login/Signup read, so they come back here after.
+  const go = (path: string) =>
+    navigate(`${path}?next=${encodeURIComponent(location.pathname + location.search)}`);
+  return (
+    // Vertically centred in the tab, app mark + name on top (2026-09-08 per
+    // operator). min-height leaves room for the shell's top inset/header.
+    <div
+      data-testid="workspace-guest-prompt"
+      // Height = viewport − the shell's status-bar inset (main pads for it) − the
+      // content wrapper's 8rem bottom padding, so the page never scrolls.
+      className="mx-auto flex min-h-[calc(100dvh-8rem-env(safe-area-inset-top))] max-w-[520px] flex-col items-center justify-center px-6 py-10 text-center"
+    >
+      {/* Mark + a larger wordmark than <Logo/> renders (2026-09-08 per operator). */}
+      <div className="mb-6 flex items-center gap-3 select-none text-ink">
+        <Mark size={44} />
+        <span className="text-[28px] font-semibold tracking-[-0.01em] leading-none">
+          CFO <span className="text-brand">AI</span>
+        </span>
+      </div>
+      <h1 className="text-[20px] font-semibold tracking-[-0.005em] text-ink">{t("ws.guestTitle")}</h1>
+      <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{t("ws.guestBody")}</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Button onClick={() => go("/login")}>{t("authPrompt.signIn")}</Button>
+        <Button variant="outline" onClick={() => go("/signup")}>{t("authPrompt.createAccount")}</Button>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceInner() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [done, setDone] = useState<boolean>(readDone);

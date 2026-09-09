@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { promptSignIn } from "@/lib/authPrompt";
 import { clearActiveOrg, getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
 import { clearDataPresence } from "@/lib/dataPresence";
 import { clearWorkspaceScopedData } from "@/lib/clearWorkspaceData";
@@ -93,6 +94,28 @@ export function resetOrgCache(): void {
 interface OrgListResult {
   orgs: Organization[];
   error: boolean;
+}
+
+/** How long the first workspace-list fetch may hold the app loader. */
+const ORG_LIST_DEADLINE_MS = 15_000;
+
+/** Resolve to a load ERROR if the fetch doesn't settle in time. The
+ *  underlying promise keeps running; a late answer is simply ignored. */
+function withDeadline(p: Promise<OrgListResult>, ms: number): Promise<OrgListResult> {
+  return new Promise<OrgListResult>((resolve) => {
+    const timer = window.setTimeout(() => {
+      console.warn(`[org] list_workspaces unresolved after ${ms}ms — treating as a load error.`);
+      resolve({ orgs: [], error: true });
+    }, ms);
+    p.then(
+      (r) => { window.clearTimeout(timer); resolve(r); },
+      (e) => {
+        window.clearTimeout(timer);
+        console.warn("[org] list_workspaces threw:", e);
+        resolve({ orgs: [], error: true });
+      },
+    );
+  });
 }
 
 /** Every workspace the signed-in user belongs to, archived ones included. */
@@ -355,6 +378,14 @@ export async function createWorkspaceOrg(
 ): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
+  // Guest mode (2026-09-04): the Workspaces page is browsable anonymously,
+  // so creating a workspace is a feature wall — raise the sign-in prompt
+  // instead of letting the RPC fail with a generic error.
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session?.user) {
+    promptSignIn();
+    return null;
+  }
   lastCreateHitWorkspaceLimit = false;
   const { data, error } = await supabase.rpc("create_workspace", {
     p_name: name.trim(),
@@ -476,8 +507,22 @@ export function useActiveOrg(): ActiveOrgState {
       return;
     }
     if (firstLoadRef.current) setLoading(true);
+    try {
     if (!cachedOrgListPromise) cachedOrgListPromise = fetchOrgsForUser();
-    let { orgs: list, error: listError } = await cachedOrgListPromise;
+    // Bounded wait (2026-09-08, operator: "stuck in Loading your workspace
+    // after sign-in"). AuthGuard holds the whole app behind `loading`, so a
+    // list fetch that never settles — a hung session read in the WebView,
+    // a request that never returns — is an infinite loader with no way out.
+    // Past the deadline it becomes a load ERROR (the retry state consumers
+    // already render), and the memo is dropped so the next load re-fetches
+    // instead of re-awaiting the same dead promise.
+    const pending = cachedOrgListPromise;
+    let { orgs: list, error: listError } = await withDeadline(pending, ORG_LIST_DEADLINE_MS);
+    if (listError && cachedOrgListPromise === pending) {
+      // Only drop OUR promise (a sibling instance may already have replaced
+      // it); an error result is never worth memoising either way.
+      cachedOrgListPromise = null;
+    }
 
     // Ensure-default: a TRUE zero (no live, no archived, and the fetch
     // succeeded) means this account has no workspace at all — the signup
@@ -506,6 +551,17 @@ export function useActiveOrg(): ActiveOrgState {
     // and adopt a remote value only if another device set a different one.
     void hydrateUserPrefs();
     void hydrateOrgPrefs(chosen?.id ?? null);
+    } catch (e) {
+      // A throw anywhere above used to leave `loading` true forever — and
+      // AuthGuard holds the whole app behind it. Surface it as the retry
+      // state instead.
+      console.warn("[org] workspace load failed:", e);
+      cachedOrgListPromise = null;
+      setLoadError(true);
+    } finally {
+      firstLoadRef.current = false;
+      setLoading(false);
+    }
   }, [status, userId]);
 
   useEffect(() => {

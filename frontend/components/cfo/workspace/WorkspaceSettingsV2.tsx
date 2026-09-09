@@ -3,7 +3,7 @@
 //
 // Desktop (lg+): a sticky left anchor nav (General / Periods / Decision
 // rules / Financing / Danger zone) beside a column of `.card-2026` cards.
-// Mobile: stacked cards with sticky section headers. Smooth-scroll anchors;
+// Mobile: stacked cards with inline section headers. Smooth-scroll anchors;
 // the active section is highlighted via a cheap IntersectionObserver.
 //
 // This is a RESKIN plus display logic. Every data mutation stays on its
@@ -108,8 +108,11 @@ function SectionShell({
 }) {
   return (
     <section id={id} className="scroll-mt-24" data-testid={id}>
+      {/* Section headers scroll WITH the content (2026-09-04 per operator:
+          no sticky headers on mobile) — sticky/fixed elements also drift
+          during fling scrolls in mobile WebViews (see §20 in CLAUDE.md). */}
       <h2
-        className={`max-lg:sticky max-lg:top-16 max-lg:z-10 max-lg:bg-bg/90 max-lg:backdrop-blur-sm max-lg:-mx-1 max-lg:px-1 py-2 text-[11px] uppercase tracking-[0.14em] font-semibold ${
+        className={`py-2 text-[11px] uppercase tracking-[0.14em] font-semibold ${
           danger ? "text-alert" : "text-ink-mute"
         }`}
       >

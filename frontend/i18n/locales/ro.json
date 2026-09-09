@@ -14,6 +14,10 @@
     "scenarios": "Scenarii",
     "variance": "Buget vs Realizat vs LY",
     "chat": "Întreabă CFO AI",
+    "previewBackTo": "Înapoi la {{tab}}",
+    "previewBack": "Înapoi",
+    "version": "v{{v}}",
+    "conversations": "Conversații",
     "publicCompanies": "Companii publice",
     "settings": "Setări",
     "upload": "Centru de încărcare",
@@ -786,8 +790,11 @@
     "settings": "Setări",
     "signOut": "Deconectare",
     "theme": "Aspect",
-    "theme_dark": "Întunecat",
-    "theme_light": "Luminos",
+    "theme_dark": "Terminal",
+    "signOutConfirmTitle": "Te deconectezi?",
+    "signOutConfirmBody": "Vei fi deconectat din CFO AI pe acest dispozitiv. Spațiile de lucru și conversațiile rămân salvate.",
+    "signOutConfirmAction": "Deconectare",
+    "theme_light": "Paper",
     "theme_system": "Sistem"
   },
   "authX": {
@@ -1455,6 +1462,8 @@
     "hint_suffix": "încarcă o situație financiară sau un exemplu pentru a activa această vizualizare."
   },
   "ws": {
+    "guestTitle": "Autentifică-te pentru spațiile de lucru",
+    "guestBody": "Spațiile de lucru păstrează documentele, perioadele și setările companiilor tale. Autentifică-te pentru a crea unul sau a le deschide pe cele existente.",
     "settingsEyebrow": "Setările workspace-ului",
     "manageTitle": "Gestionează <grad>{{name}}</grad>.",
     "thisWorkspace": "acest workspace",
@@ -2806,5 +2815,12 @@
       "demo": "Sursă: date demonstrative incluse în aplicație — fluxul de piață live nu este configurat pe această instalare, deci cifrele pieței românești de aici sunt ilustrative. Cifrele companiilor deschise din raportări oficiale (SEC EDGAR, ESEF) sunt reale și poartă referința raportării.",
       "sources": "Surse: date de referință Bursa de Valori București plus raportările emitenților și bilanțurile statutare ANAF pentru {{bvb}} companii listate la BVB. Fundamentele sunt la închiderea zilei; prețurile se actualizează la 5 minute."
     }
+  },
+  "authPrompt": {
+    "title": "Autentifică-te pentru a continua",
+    "body": "Poți explora aplicația liber — pentru a încărca documente, a discuta cu CFO AI și a-ți salva munca ai nevoie de un cont.",
+    "signIn": "Autentificare",
+    "createAccount": "Creează cont",
+    "cancel": "Nu acum"
   }
 }

@@ -163,8 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
+    // Watchdog (2026-09-06): getSession() can hang indefinitely when the
+    // runtime's Web Locks implementation misbehaves (WKWebView is the
+    // documented offender — operator-reported "endless loading after
+    // sign-in"). The lock itself is bypassed in the native shell
+    // (lib/supabase.ts), and this is the belt for every other runtime:
+    // after 8s the app proceeds as signed-out (guest mode renders fine)
+    // and self-corrects the moment the real answer — or an auth event —
+    // lands. Never trades correctness, only removes the infinite wait.
+    const watchdog = window.setTimeout(() => {
+      if (cancelled) return;
+      console.warn("[auth] getSession() unresolved after 8s — proceeding as signed-out until it answers.");
+      setStatus((prev) => (prev === "loading" ? "signed_out" : prev));
+    }, 8000);
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return;
+      window.clearTimeout(watchdog);
       setSession(data.session);
       setStatus(data.session ? "signed_in" : "signed_out");
     });
@@ -224,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdog);
       sub.subscription.unsubscribe();
     };
   }, [supabase]);

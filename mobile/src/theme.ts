@@ -5,6 +5,10 @@
 import type { ColorSchemeName } from "react-native";
 
 export const BRAND = "#5CD3C5";
+/** The web app's light ("Paper") canvas — frontend/index.css `--bg: 60 23% 97%`. */
+export const PAPER_BG = "#F9F9F6";
+/** The web app's dark ("Terminal") canvas — `--bg: 165 25% 4%`. */
+export const TERMINAL_BG = "#080D0B";
 
 export type Palette = {
   background: string;

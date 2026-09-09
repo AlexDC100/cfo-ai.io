@@ -20,11 +20,12 @@
 // account row (drawer-only, opens the Command Center account surface),
 // notifications row in the footer, 44px touch targets, drawer-stagger.
 
-import { ReactNode, useEffect, useState } from "react";
-import { NavLink, useSearchParams } from "react-router-dom";
+import React, { ReactNode, useEffect, useState } from "react";
+import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { usePrefetchPeriod } from "@/lib/activePeriod";
 import { useChatReplyPending } from "@/lib/chatPendingStore";
+import { useChatStore } from "@/components/cfo/chat/useChatStore";
 import { isInFlight, useUploadStore } from "@/lib/uploadStore";
 import { DECISIONS_ALERTS_ENABLED } from "@/config/features";
 import {
@@ -43,13 +44,22 @@ import {
   PanelLeftOpen,
   Globe,
   Building2,
+  ChevronDown,
   Loader2,
+  LogIn,
+  MessageSquareText,
+  Monitor,
   Moon,
   SunMedium,
   User as UserIcon,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { NotificationsMenu } from "./NotificationsMenu";
+import { ThemePicker } from "./ThemePicker";
+import { tapHandlers } from "@/lib/tapHandlers";
+import { Mark } from "./Mark";
+import { nativeShellVersion } from "@/lib/nativeShell";
 import { CurrencyToggle } from "./CurrencyToggle";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/theme";
@@ -85,12 +95,24 @@ interface Props {
 // Routes that stay clickable even with no workspace — the ones that DON'T
 // depend on loaded workspace data. `/chat` is dual-mode (open-domain with
 // no workspace) and runs on a Supabase Edge Function, so it needs nothing
-// else loaded (2026-07-26 per operator).
-const ALWAYS_ENABLED = new Set(["/workspace", "/settings", "/", "/chat"]);
+// else loaded (2026-07-26 per operator). `/dashboard` joined with guest
+// mode (2026-09-04): it's the app's landing surface and renders its own
+// upload hero with no workspace — a guest standing ON the dashboard must
+// not see its tab greyed out.
+// `/public-companies` is the auth-optional public markets hub — no workspace
+// data involved at all.
+const ALWAYS_ENABLED = new Set([
+  "/workspace",
+  "/settings",
+  "/",
+  "/dashboard",
+  "/chat",
+  "/public-companies",
+]);
 
 // ── The shared nav model (rail + command palette) ──────────────────────
 
-export type ShellNavGroup = "overview" | "analyze" | "explore" | "ask";
+export type ShellNavGroup = "overview" | "analyze" | "explore";
 
 export interface ShellNavItem {
   to: string;
@@ -111,6 +133,11 @@ export interface ShellNavItem {
 // behind DECISIONS_ALERTS_ENABLED; Inventory/Invoices behind the registry.
 export const SHELL_NAV_ALL: ShellNavItem[] = [
   { to: "/dashboard",  labelKey: "sidebar.dashboard",  icon: LayoutDashboard, testId: "sidebar-dashboard",  group: "overview", end: true },
+  // Ask CFO AI — listed here for the ⌘K palette; the rail renders it as the
+  // one accent-filled promoted button at the top (restored 2026-09-06 per
+  // operator after a 2026-09-04 stint as a plain tab row), so the grouped
+  // loop below filters it out and it never renders twice.
+  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "overview", shortcutKey: "J" },
   { to: "/workspace",  labelKey: "sidebar.workspaces", icon: Building2,       testId: "sidebar-workspaces", group: "overview" },
   { to: "/dashboard/scenarios", labelKey: "sidebar.scenarios", icon: SlidersHorizontal, testId: "sidebar-scenarios", group: "analyze" },
   { to: "/benchmark",  labelKey: "sidebar.benchmark",  icon: BarChart3,       testId: "sidebar-benchmark",  group: "analyze" },
@@ -121,16 +148,14 @@ export const SHELL_NAV_ALL: ShellNavItem[] = [
   { to: "/decisions",  labelKey: "sidebar.decisions",  icon: ClipboardCheck,  testId: "sidebar-decisions",  group: "analyze" },
   { to: "/alerts",     labelKey: "sidebar.alerts",     icon: Bell,            testId: "sidebar-alerts",     group: "analyze" },
   { to: "/public-companies", labelKey: "sidebar.publicCompanies", icon: Globe, testId: "sidebar-public-companies", group: "explore" },
-  { to: "/chat",       labelKey: "sidebar.chat",       icon: Sparkles,        testId: "sidebar-chat",       group: "ask", shortcutKey: "J" },
 ];
 
-export const SHELL_GROUP_ORDER: ShellNavGroup[] = ["overview", "analyze", "explore", "ask"];
+export const SHELL_GROUP_ORDER: ShellNavGroup[] = ["overview", "analyze", "explore"];
 
 export const SHELL_GROUP_LABEL_KEYS: Record<ShellNavGroup, string> = {
   overview: "shell.nav.overview",
   analyze: "shell.nav.analyze",
   explore: "shell.nav.explore",
-  ask: "shell.nav.ask",
 };
 
 function filterByRegistry(
@@ -173,6 +198,15 @@ export function useShellNav(): ShellNavGroupResolved[] {
 // instance must not, or the two mounted Sidebars would cancel each other.
 export const SIDEBAR_COLLAPSED_KEY = "cfo-ai-sidebar-collapsed-v1";
 export const SIDEBAR_TOGGLE_EVENT = "cfo-ai-sidebar-toggle";
+// Drawer conversations-dropdown open/closed (device-local UI state).
+const SIDEBAR_CONVOS_OPEN_KEY = "cfo-ai-sidebar-convos-open-v1";
+
+// Version shown under the app name at the top of the drawer: the native
+// app's own version inside the shell, else the web build's package.json
+// version (a Vite `define`; absent under vitest, hence the typeof guard).
+const APP_VERSION: string =
+  nativeShellVersion() ??
+  (typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev");
 
 export function Sidebar({
   onSettings: _onSettings,
@@ -184,14 +218,43 @@ export function Sidebar({
 }: Props) {
   const { t } = useTranslation();
   const { user, displayName, initials } = useAuth();
-  const { resolvedTheme, setTheme, mounted: themeMounted } = useTheme();
+  const { theme, resolvedTheme, setTheme, mounted: themeMounted } = useTheme();
   // In-flight work surfaces on the item that owns it: a chat reply spins
   // the Ask CFO AI item, a running analysis spins Dashboard or Products.
   const chatReplyPending = useChatReplyPending();
-  // The promoted Ask row builds its own href (it renders outside
+  const navigate = useNavigate();
+  const location = useLocation();
+  // The promoted Ask button builds its own href (it renders outside
   // SidebarLink), so it needs the period param at this level too.
-  const [navParams] = useSearchParams();
-  const period = navParams.get("period");
+  const period = new URLSearchParams(location.search).get("period");
+  const askHref = period ? `/chat?period=${encodeURIComponent(period)}` : "/chat";
+  // Programmatic navigation (conversations, sign-in): close the drawer
+  // (onItemClick) and go. A slow tab shows its loader in the content area
+  // (App.tsx ContentFallback) — the drawer never waits (2026-09-08).
+  const go = (href: string) => {
+    onItemClick?.();
+    navigate(href);
+  };
+  const onLinkClick = (e: React.MouseEvent) => {
+    if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
+    onItemClick?.();
+  };
+  // Drawer-only conversations dropdown under the Ask CFO AI row (2026-09-04
+  // per operator). Same module store the chat page/panel mount, so the list
+  // is always in step with them. Open state persists across sessions.
+  const chat = useChatStore();
+  const [convosOpen, setConvosOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { return window.localStorage.getItem(SIDEBAR_CONVOS_OPEN_KEY) !== "0"; }
+    catch { return true; }
+  });
+  const toggleConvos = () => {
+    setConvosOpen((v) => {
+      try { window.localStorage.setItem(SIDEBAR_CONVOS_OPEN_KEY, v ? "0" : "1"); }
+      catch { /* private mode — fail soft */ }
+      return !v;
+    });
+  };
   const upload = useUploadStore();
   const uploadActive = !!upload.current && isInFlight(upload.current.status);
   const dashboardUploadActive = uploadActive && upload.current?.surface !== "products";
@@ -235,15 +298,59 @@ export function Sidebar({
   return (
     <aside
       className={`
-        ${inDrawer ? "w-full" : `hidden lg:flex fixed left-0 top-14 bottom-0 z-30 border-r border-rule ${widthClass}`}
+        ${inDrawer ? "w-full flex-1" : `hidden lg:flex fixed left-0 top-14 bottom-0 z-30 border-r border-rule ${widthClass}`}
         bg-bg
         flex flex-col
-        overflow-hidden
+        ${inDrawer ? "overflow-visible" : "overflow-hidden"}
         transition-[width] duration-overlay ease-out
       `}
       data-collapsed={effectivelyCollapsed ? "true" : "false"}
     >
-      <nav className={`flex-1 overflow-y-auto overflow-x-hidden py-4 space-y-4 ${inDrawer ? "drawer-stagger" : ""}`}>
+      {/* Drawer (2026-09-08 per operator): the nav is NOT a scroller — the
+          sheet itself scrolls, so header, tabs, conversations and footer all
+          move as one. The desktop rail keeps its own scrolling nav. */}
+      <nav className={`flex-1 overflow-x-hidden space-y-4 ${inDrawer ? "pt-1 pb-4 drawer-stagger" : "py-4 overflow-y-auto"}`}>
+        {/* App identity — DRAWER ONLY (2026-09-08 per operator): mark +
+            wordmark with the app version beneath. Inside the native shell
+            there is no TopHeader, so this is the one place the app names
+            itself; the version is the native app's there, the web build's
+            in a mobile browser. */}
+        {inDrawer && (
+          <div className="pl-6 pr-3" data-testid="sidebar-app-identity">
+            {/* Wordmark with the version tucked under the text, and a close
+                (X) button on the right; a hairline that fades out to the
+                right closes the block (2026-09-08 per operator). */}
+            <div className="flex items-start justify-between gap-3">
+              {/* Composed from the Mark + text (not <Logo/>) so the version can
+                  sit tight under the wordmark: Logo centres its text inside
+                  the mark's full height, which left a visible gap. */}
+              <div className="flex min-w-0 items-center gap-2.5 select-none text-ink">
+                <Mark size={36} />
+                <div className="min-w-0 leading-none">
+                  <div className="text-[20px] font-bold tracking-[-0.005em]">
+                    CFO <span className="text-brand font-medium">AI</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-ink-mute" data-testid="sidebar-app-version">
+                    {t("sidebar.version", { v: APP_VERSION })}
+                  </div>
+                </div>
+              </div>
+              <div className="-mt-1 flex shrink-0 items-center">
+                <button
+                  type="button"
+                  data-testid="sidebar-close"
+                  aria-label={t("common.close")}
+                  onClick={onItemClick}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/70 transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X size={18} strokeWidth={1.75} />
+                </button>
+              </div>
+            </div>
+            {/* Same rule as the footer's (border-t border-rule, full width). */}
+            <div aria-hidden className="mt-3 -ml-6 -mr-3 border-t border-rule" />
+          </div>
+        )}
         {/* Currency — DRAWER ONLY (2026-08-18, native-shell pass): inside
             the shell the TopHeader (and its CurrencyMenu) isn't rendered,
             so the burger menu carries the display-currency toggle. */}
@@ -254,19 +361,17 @@ export function Sidebar({
           </div>
         )}
         {/* Ask CFO AI — the product's headline capability, promoted to
-            the TOP of the rail as the one accent-filled row (operator
-            directive 2026-08-29: "main function, not at the bottom hard
-            to see"). It stays in SHELL_NAV_ALL for the ⌘K palette; the
-            grouped loop below skips the ask group so it never renders
+            the TOP of the rail as the one accent-filled button (operator
+            directive 2026-08-29, restored 2026-09-06 after a stint as a
+            plain tab row). It stays in SHELL_NAV_ALL for the ⌘K palette;
+            the grouped loop below filters it out so it never renders
             twice. */}
         <div className={effectivelyCollapsed ? "px-2 pb-1" : "px-3 pb-1"}>
           <NavLink
-            to={period ? `/chat?period=${encodeURIComponent(period)}` : "/chat"}
+            to={askHref}
             data-testid="sidebar-chat"
-            onClick={(e) => {
-              if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
-              onItemClick?.();
-            }}
+            onClick={onLinkClick}
+            {...(inDrawer ? tapHandlers(() => { if (confirmLeaveUnsaved()) go(askHref); }) : {})}
             title={effectivelyCollapsed ? t("sidebar.chat") : undefined}
             className={({ isActive }) =>
               `group flex items-center justify-center gap-2 rounded-md min-h-[44px] sm:min-h-0 sm:h-9 text-[13px] font-semibold transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
@@ -296,40 +401,95 @@ export function Sidebar({
             )}
           </NavLink>
         </div>
-        {groups.filter((g) => g.key !== "ask").map((g) => (
-          <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
-            {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey }) => (
-              <SidebarLink
-                key={to}
-                to={to}
-                testId={testId}
-                onClick={onItemClick}
-                icon={Icon}
-                label={t(labelKey)}
-                collapsed={effectivelyCollapsed}
-                end={end}
-                disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
-                shortcutKey={shortcutKey}
-                trailing={
-                  to === "/chat" && chatReplyPending ? (
-                    <Loader2
-                      size={13}
-                      strokeWidth={2}
-                      className="animate-spin text-brand-dark"
-                      aria-label="CFO AI is thinking"
-                    />
-                  ) : (to === "/dashboard" && dashboardUploadActive) ||
-                      (to === "/products" && productsUploadActive) ? (
-                    <Loader2
-                      size={13}
-                      strokeWidth={2}
-                      className="animate-spin text-brand-dark"
-                      aria-label="Analyzing your document"
-                    />
-                  ) : undefined
-                }
+        {/* Conversations dropdown — DRAWER ONLY (2026-09-04 per operator):
+            the user's chats nest under the Ask CFO AI button behind a
+            minimize/maximize chevron. Tapping one selects it in the shared
+            store and opens /chat. */}
+        {inDrawer && chat.conversations.length > 0 && (
+          <div className="px-3 pb-1">
+            <button
+              type="button"
+              data-testid="sidebar-conversations-toggle"
+              aria-expanded={convosOpen}
+              onClick={toggleConvos}
+              className="w-full flex items-center gap-2 min-h-[36px] px-3 text-[11px] uppercase tracking-[0.12em] text-ink-mute hover:text-ink-soft transition-colors duration-micro"
+            >
+              <span>{t("sidebar.conversations")}</span>
+              <ChevronDown
+                size={13}
+                strokeWidth={1.75}
+                className={`shrink-0 transition-transform duration-micro ${convosOpen ? "" : "-rotate-90"}`}
               />
-            ))}
+            </button>
+            {/* No inner scroller (2026-09-08 per operator): the list grows
+                with its items and the whole drawer scrolls. */}
+            {convosOpen && (
+              <div data-testid="sidebar-conversations">
+                {chat.conversations.map((c) => {
+                  const selected = c.id === chat.currentId && location.pathname === "/chat";
+                  return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      chat.select(c.id);
+                      go(askHref);
+                    }}
+                    {...tapHandlers(() => {
+                      chat.select(c.id);
+                      go(askHref);
+                    })}
+                    className={`w-full flex items-center gap-2 min-h-[40px] px-3 rounded-sm text-left text-[12.5px] transition-colors duration-micro ${
+                      selected
+                        ? "text-ink font-medium bg-bg-2"
+                        : "text-ink-soft hover:text-ink hover:bg-bg-2"
+                    }`}
+                  >
+                    <MessageSquareText size={13} strokeWidth={1.75} className="shrink-0 text-ink-mute" />
+                    {/* Selected title scrolls when it overflows (2026-09-08
+                        per operator); the others keep the ellipsis. */}
+                    {selected ? (
+                      <span className="min-w-0 flex-1 marquee-active"><span>{c.title}</span></span>
+                    ) : (
+                      <span className="truncate">{c.title}</span>
+                    )}
+                  </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        {groups.map((g) => (
+          <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
+            {g.items
+              .filter((item) => item.to !== "/chat")
+              .map(({ to, labelKey, icon: Icon, testId, end, shortcutKey }) => (
+                <SidebarLink
+                  key={to}
+                  to={to}
+                  testId={testId}
+                  onClick={onItemClick}
+                  onTap={inDrawer ? (href) => { if (confirmLeaveUnsaved()) go(href); } : undefined}
+                  icon={Icon}
+                  label={t(labelKey)}
+                  collapsed={effectivelyCollapsed}
+                  end={end}
+                  disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
+                  shortcutKey={shortcutKey}
+                  trailing={
+                    (to === "/dashboard" && dashboardUploadActive) ||
+                    (to === "/products" && productsUploadActive) ? (
+                      <Loader2
+                        size={13}
+                        strokeWidth={2}
+                        className="animate-spin text-brand-dark"
+                        aria-label="Analyzing your document"
+                      />
+                    ) : undefined
+                  }
+                />
+              ))}
           </Section>
         ))}
       </nav>
@@ -339,13 +499,22 @@ export function Sidebar({
           the account entry point; it opens the Command Center account
           surface via `onOpenAccount`. */}
       {inDrawer && user && (
-        <div className="px-3 pt-2 pb-2 border-t border-rule">
+        <div
+          // Pinned to the BOTTOM of the drawer (2026-09-08 per operator),
+          // the same way the guest footer is: mt-auto takes the free space
+          // below the nav, sticky keeps it in view while the nav scrolls.
+          className="px-3 pt-2 border-t border-rule flex items-center gap-1 mt-auto sticky bottom-0 bg-bg"
+          // Carries the home-indicator inset itself (the sheet has none), so
+          // the row sits flush with the bottom edge.
+          style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
+        >
           <button
             type="button"
             data-testid="sidebar-account"
             onClick={() => onOpenAccount?.()}
+            {...tapHandlers(() => onOpenAccount?.())}
             className="
-              w-full flex items-center gap-3 px-3 min-h-[52px]
+              min-w-0 flex-1 flex items-center gap-3 px-3 min-h-[52px]
               rounded-sm text-left
               hover:bg-bg-2 active:bg-bg-2/70 transition-colors duration-micro
             "
@@ -367,17 +536,69 @@ export function Sidebar({
               )}
             </span>
           </button>
+          {/* Notifications bell (2026-09-08 per operator): icon only, to the
+              right of the credentials — it needs a signed-in inbox, which
+              this row already guarantees. */}
+          <NotificationsMenu />
         </div>
       )}
 
       {/* Footer — desktop rail: Settings · theme (Paper/Terminal) ·
-          collapse. Drawer: notifications row only (the phone header has
-          no bell slot; Settings is reachable via the account row). */}
+          collapse. Drawer: Sign in / theme (the bell sits beside the account
+          row above; Settings is reachable via the account row). */}
+      {!(inDrawer && user) && (
       <div
-        className="pt-2 pb-3 border-t border-rule space-y-0.5"
-        style={inDrawer ? { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" } : undefined}
+        // Drawer (2026-09-08 per operator): the footer — Sign in / theme —
+        // is pinned to the BOTTOM of the drawer: the aside
+        // fills the sheet (flex-1) so the nav pushes it down, and sticky
+        // keeps it in view while the rest scrolls.
+        // Not rendered in the signed-in drawer: it has no visible rows there
+        // (theme picker + Sign in are guest-only) and the account row above
+        // is pinned to the bottom instead.
+        className={`pt-2 pb-3 border-t border-rule space-y-0.5 ${inDrawer ? "sticky bottom-0 bg-bg mt-auto" : ""}`}
+        // Drawer: carries the home-indicator inset itself (the sheet has
+        // none) so the footer sits flush with the bottom edge.
+        style={inDrawer ? { paddingBottom: "max(0.5rem, calc(env(safe-area-inset-bottom) - 0.25rem))" } : undefined}
       >
-        {inDrawer && <div className="px-3"><NotificationsMenu variant="row" /></div>}
+        {/* Drawer order (2026-09-08 per operator): divider · theme picker ·
+            Sign in last, at the very bottom. */}
+        {/* Guest theme picker (2026-09-04 per operator): System · Light ·
+            Dark as three explicit buttons — guests have no account menu (the
+            signed-in home of the three-way switcher), so the sidebar carries
+            it. Signed-in users keep their existing controls. */}
+        {!user && (
+          <div className={effectivelyCollapsed ? "px-2 pb-1" : "px-3 pb-1"}>
+            <ThemePicker collapsed={effectivelyCollapsed} testIdPrefix="sidebar-theme" />
+          </div>
+        )}
+        {/* Guest mode (2026-09-04 per operator): the rail's one accent
+            button is Sign in, pinned to the footer. Signed-in users never
+            see it. Carries the same sanitized `next` contract Login.tsx
+            reads, so the visitor returns to the page they were browsing. */}
+        {!user && (
+          <div className={effectivelyCollapsed ? "px-2 pb-1" : "px-3 pb-1"}>
+            <button
+              type="button"
+              data-testid="sidebar-sign-in"
+              title={effectivelyCollapsed ? t("topbar.signIn") : undefined}
+              onClick={() => {
+                const next = encodeURIComponent(location.pathname + location.search);
+                go(`/login?next=${next}`);
+              }}
+              {...(inDrawer ? tapHandlers(() => go(`/login?next=${encodeURIComponent(location.pathname + location.search)}`)) : {})}
+              className="w-full flex items-center justify-center gap-2 rounded-md min-h-[44px] sm:min-h-0 sm:h-9 text-[13px] font-semibold bg-brand text-paper hover:bg-brand-dark transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            >
+              <LogIn size={15} strokeWidth={2} className="shrink-0" />
+              <span
+                className={`whitespace-nowrap overflow-hidden ${
+                  effectivelyCollapsed ? "hidden" : ""
+                }`}
+              >
+                {t("topbar.signIn")}
+              </span>
+            </button>
+          </div>
+        )}
         {!inDrawer && (
           <>
             <SidebarLink
@@ -388,19 +609,23 @@ export function Sidebar({
               collapsed={effectivelyCollapsed}
               disabled={noWorkspace && !ALWAYS_ENABLED.has("/settings")}
             />
-            <SidebarAction
-              icon={isTerminal ? SunMedium : Moon}
-              label={
-                themeMounted
-                  ? isTerminal
-                    ? t("shell.theme.toPaper")
-                    : t("shell.theme.toTerminal")
-                  : t("shell.theme.label")
-              }
-              testId="sidebar-theme-toggle"
-              onClick={() => setTheme(isTerminal ? "light" : "dark")}
-              collapsed={effectivelyCollapsed}
-            />
+            {/* Signed-in keeps the one-tap Paper/Terminal flip; guests get
+                the three-way picker above instead. */}
+            {user && (
+              <SidebarAction
+                icon={isTerminal ? SunMedium : Moon}
+                label={
+                  themeMounted
+                    ? isTerminal
+                      ? t("shell.theme.toPaper")
+                      : t("shell.theme.toTerminal")
+                    : t("shell.theme.label")
+                }
+                testId="sidebar-theme-toggle"
+                onClick={() => setTheme(isTerminal ? "light" : "dark")}
+                collapsed={effectivelyCollapsed}
+              />
+            )}
             <SidebarAction
               icon={collapsed ? PanelLeftOpen : PanelLeftClose}
               label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
@@ -412,6 +637,7 @@ export function Sidebar({
           </>
         )}
       </div>
+      )}
     </aside>
   );
 }
@@ -423,6 +649,7 @@ function SidebarLink({
   to,
   testId,
   onClick,
+  onTap,
   icon: Icon,
   label,
   collapsed = false,
@@ -434,6 +661,8 @@ function SidebarLink({
   to: string;
   testId: string;
   onClick?: () => void;
+  /** Drawer: navigate on touch release (see tapHandlers). */
+  onTap?: (href: string) => void;
   icon: LucideIcon;
   label: string;
   collapsed?: boolean;
@@ -482,6 +711,7 @@ function SidebarLink({
       }}
       onMouseEnter={onHover}
       onFocus={onHover}
+      {...(onTap ? tapHandlers(() => onTap(href)) : {})}
       // Native title as the collapsed-rail tooltip — discoverable,
       // keyboard-accessible, AT-friendly, zero extra weight.
       title={collapsed ? label : undefined}

@@ -1,4 +1,5 @@
-// Open a file as a PREVIEW in a new browser tab.
+// Open a file as a PREVIEW — a new browser tab, or the in-app sheet inside
+// the native mobile shell (lib/previewSheet.ts decides).
 //
 // Two entry points:
 //   · openStagedFile(file)          — a local (not-yet-uploaded) File from a
@@ -13,6 +14,7 @@
 // images DO preview natively, so those open straight from a URL.
 
 import { previewBackButtonHtml } from "@/lib/previewChrome";
+import { openPreviewSheet, openPreviewUrl, type PreviewHandle } from "@/lib/previewSheet";
 
 function escapeHtml(s: string): string {
   return s
@@ -60,7 +62,7 @@ function subLabel(_title: string): string {
 }
 
 /** Parse `blob` (by filename extension) and render it as HTML into `win`. */
-async function renderBlobPreview(win: Window, name: string, blob: Blob): Promise<void> {
+async function renderBlobPreview(win: PreviewHandle, name: string, blob: Blob): Promise<void> {
   try {
     let body: string;
     const lower = name.toLowerCase();
@@ -78,15 +80,11 @@ async function renderBlobPreview(win: Window, name: string, blob: Blob): Promise
     } else {
       body = `<pre>${escapeHtml(await blob.text())}</pre>`;
     }
-    win.document.open();
-    win.document.write(previewDocument(name, body));
-    win.document.close();
+    win.write(previewDocument(name, body));
   } catch (e) {
-    win.document.open();
-    win.document.write(
+    win.write(
       previewDocument(name, `<p class="err">Couldn't render a preview (${escapeHtml(String(e))}).</p>`),
     );
-    win.document.close();
   }
 }
 
@@ -94,14 +92,13 @@ async function renderBlobPreview(win: Window, name: string, blob: Blob): Promise
 export async function openStagedFile(file: File): Promise<void> {
   if (isNativePreview(file.name)) {
     const url = URL.createObjectURL(file);
-    window.open(url, "_blank", "noopener");
+    openPreviewUrl(url, file.name);
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     return;
   }
-  const win = window.open("", "_blank");
+  const win = openPreviewSheet(file.name);
   if (!win) return;
-  win.document.write(previewDocument(file.name, `<p class="sub">Rendering preview…</p>`));
-  win.document.close();
+  win.write(previewDocument(file.name, `<p class="sub">Rendering preview…</p>`));
   await renderBlobPreview(win, file.name, file);
 }
 
@@ -115,26 +112,23 @@ export async function openUploadedFilePreview(
   name: string,
   getUrl: () => Promise<string | null>,
 ): Promise<void> {
-  const win = window.open("", "_blank");
+  const win = openPreviewSheet(name);
   if (!win) return;
-  win.document.write(previewDocument(name, `<p class="sub">Loading preview…</p>`));
-  win.document.close();
+  win.write(previewDocument(name, `<p class="sub">Loading preview…</p>`));
   try {
     const url = await getUrl();
     if (!url) throw new Error("no signed URL");
     // PDFs + images preview natively — just point the tab at the file.
     if (isNativePreview(name)) {
-      win.location.href = url;
+      win.navigate(url);
       return;
     }
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`fetch ${resp.status}`);
     await renderBlobPreview(win, name, await resp.blob());
   } catch (e) {
-    win.document.open();
-    win.document.write(
+    win.write(
       previewDocument(name, `<p class="err">Couldn't load a preview (${escapeHtml(String(e))}).</p>`),
     );
-    win.document.close();
   }
 }

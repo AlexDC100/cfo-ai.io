@@ -1,6 +1,14 @@
-// Wraps internal pages. Redirects unauthenticated visitors to /login with a
-// `next=` query param so post-auth navigation can return them to the page
-// they were trying to reach.
+// Wraps internal pages. Two postures (2026-09-03 per operator — "don't make
+// the user authenticate at the start of the app"):
+//
+//   · requireAuth (default) — the old behavior: unauthenticated visitors are
+//     redirected to /login with a `next=` param. Used by the standalone
+//     account surfaces (/onboarding, /account/settings).
+//   · requireAuth={false} — GUEST MODE, what AppLayout passes: anonymous
+//     visitors render the app and browse freely; feature use (upload, chat
+//     send) prompts for sign-in at the action instead (lib/authPrompt).
+//     Account/workspace-management pages listed in GUEST_BLOCKED_PATHS still
+//     redirect — they have no meaningful anonymous rendering.
 //
 // "Authenticated" means: signed in via Supabase. Demo mode was removed in
 // the demo-strip pass — there's only one path into the app now (real auth).
@@ -16,7 +24,20 @@ import { useActiveOrg } from "@/lib/org";
 import { isPublicTestMode } from "@/lib/testMode";
 import { AppLoader } from "@/components/cfo/AppLoader";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+// Pages that stay behind real auth even in guest mode. Since 2026-09-04
+// (per operator: "make all tabs accessible, keep actions guarded") every
+// sidebar tab renders for guests — /workspace and /settings included, with
+// their mutations gated at the action — leaving only the internal ops
+// surface walled.
+const GUEST_BLOCKED_PATHS = ["/ops"];
+
+export function AuthGuard({
+  children,
+  requireAuth = true,
+}: {
+  children: React.ReactNode;
+  requireAuth?: boolean;
+}) {
   // PUBLIC_TEST_MODE — open-access posture. Every gated route renders
   // for any visitor without checking session state. AuthProvider injects
   // a synthetic test user so downstream `useAuth()` consumers see a
@@ -38,13 +59,27 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Refresh / cold visit: hold the screen with the branded loader rather than
   // an empty page (2026-07-26 per operator). Both waits below gate every
   // authed route, so there is genuinely nothing to render until they land.
+  // Guest-mode routes drop the "Signing you in…" copy — during this wait we
+  // don't yet know whether the visitor even has a session, and telling an
+  // anonymous visitor they're being signed in is a lie.
   if (status === "loading") {
-    return <AppLoader label="Signing you in…" />;
+    return <AppLoader label={requireAuth ? "Signing you in…" : undefined} />;
   }
 
   if (!isAuthenticated) {
-    const next = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/login?next=${next}`} replace />;
+    const guestAllowed =
+      !requireAuth &&
+      !GUEST_BLOCKED_PATHS.some(
+        (p) => location.pathname === p || location.pathname.startsWith(`${p}/`),
+      );
+    if (!guestAllowed) {
+      const next = encodeURIComponent(location.pathname + location.search);
+      return <Navigate to={`/login?next=${next}`} replace />;
+    }
+    // Guest: render the app. There is no workspace to resolve, so the org
+    // checks below don't apply — pages read empty org/period state and show
+    // their own upload/empty heroes.
+    return <>{children}</>;
   }
 
   // /workspace hosts the setup wizard + restore shelf; /chat is exempt

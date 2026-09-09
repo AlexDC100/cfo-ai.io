@@ -24,6 +24,8 @@ import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 // SourceFilesRow/AddFileTile no longer used here (2026-08-04 source-line fix) — Products still uses them.
 import { openUploadedFilePreview } from "@/lib/stagedFilePreview";
+import { useAuth } from "@/lib/auth";
+import { promptSignIn } from "@/lib/authPrompt";
 import { useBudgetComparison } from "@/stores/budget";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { useTranslation } from "react-i18next";
@@ -33,6 +35,7 @@ import { FindingsPanel } from "@/components/cfo/findings";
 // (the example-workbook preview tab opened by previewExampleInNewTab).
 import i18n from "@/i18n";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
+import { openPreviewSheet } from "@/lib/previewSheet";
 import { formatDateTime } from "@/lib/locale";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { Money } from "@/components/ui/Money";
@@ -386,6 +389,8 @@ export default function FinancialStatements() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  // Guest mode — feature wall for uploads (see onFileChosen).
+  const { isAuthenticated } = useAuth();
   // F6.0.1c — a PowerPoint/CSV/XLSX budget deck dropped on the MAIN upload
   // is a budget, not a trial balance; intercept it (see onFileChosen) and
   // route it to the Budget vs Actual variance store instead of the engine.
@@ -1061,6 +1066,14 @@ export default function FinancialStatements() {
   // Stage one file (budget decks route straight to Variance; oversize is
   // rejected). Does NOT upload — that happens on Start scan via scanOneFile.
   async function onFileChosen(file: File): Promise<boolean> {
+    // Guest mode (2026-09-03): the dashboard renders for anonymous visitors,
+    // but analyzing a document is the feature wall — prompt for an account
+    // before the file is even staged, so the guest never walks the
+    // stage → confirm-period → scan flow just to fail at the upload.
+    if (!isAuthenticated) {
+      promptSignIn();
+      return false;
+    }
     // F6.0.1c — Budget-deck interception. A PowerPoint / budget workbook is
     // NOT a trial balance and must not go to the engine extraction pipeline.
     // Parse it client-side into the Budget vs Actual store and route there.
@@ -1560,7 +1573,10 @@ export default function FinancialStatements() {
             {/* 2-column hero (2026-07-24, mirrors /products): copy on the
                 left, the official-template card (with example trial
                 balances) on the right; stacks below lg. */}
-            <div className="relative grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6 items-start">
+            {/* Signed out (2026-09-08 per operator): the hero alone, no
+                template/examples column — the page must not scroll; those
+                appear once signed in. */}
+            <div className={`relative grid grid-cols-1 ${isAuthenticated ? "lg:grid-cols-[1.2fr_1fr]" : ""} gap-6 items-start`}>
               <div>
                 <div className="inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-semibold">
                   <Sparkles size={10} strokeWidth={2.25} className="text-brand-d" />
@@ -1598,22 +1614,35 @@ export default function FinancialStatements() {
                       openAskCfoAi(t("dash.askCfoAiPrompt"))
                     }
                     data-testid="dashboard-ask-cfo-ai"
-                    className="
-                      inline-flex items-center gap-2 h-10 px-4 rounded-lg
-                      border border-rule bg-surface/70 backdrop-blur
-                      text-[13px] font-medium text-ink
-                      hover:bg-bg-2/60 hover:border-rule-strong
-                      transition-colors
-                    "
+                    // Same style as the Budget vs Actual header action
+                    // (2026-09-08 per operator) — every tab's Ask CFO AI
+                    // button now shares it.
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 hover:border-rule-strong transition-colors duration-micro"
                   >
-                    <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+                    <Sparkles size={14} strokeWidth={2} className="text-brand-dark dark:text-brand-light" />
                     {t("topbar.ask")}
                   </button>
+                  {/* Signed out: a Sign in button beside Ask CFO AI, since
+                      the upload surface is hidden for guests (2026-09-08). */}
+                  {!isAuthenticated && (
+                    <button
+                      type="button"
+                      data-testid="hero-sign-in"
+                      onClick={() =>
+                        navigate(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+                      }
+                      className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand text-paper text-[16px] font-medium hover:bg-brand-dark transition-colors"
+                    >
+                      {t("topbar.signIn")}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="relative">
-                <DashboardTemplateCard />
-              </div>
+              {isAuthenticated && (
+                <div className="relative">
+                  <DashboardTemplateCard />
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1784,6 +1813,11 @@ export default function FinancialStatements() {
             // records upload as a Level-1 quick card (renders nothing when
             // there's no public-records data).
             <>
+              {/* Signed out (2026-09-08 per operator): no upload surface or
+                  format guide — the dashboard is the hero alone and must not
+                  scroll; uploading needs an account anyway. */}
+              {isAuthenticated && (
+              <>
               <PublicRecordsQuickCard />
               <UploadAndSamplePanel
                 statements={statements}
@@ -1803,7 +1837,9 @@ export default function FinancialStatements() {
                 scanning={scanning}
                 inflight={uploadInFlight}
                 onViewResults={viewResults}
-              />
+               />
+              </>
+              )}
             </>
           ) : isSimple && statements && totals && headline ? (
             // THE DIAL — Story Overview (Simple mode). Reading-order
@@ -3394,10 +3430,10 @@ function StateBOverview({
 // Module scope (2026-07-24) — used by BOTH the hero's template card
 // (example trial balances) and the upload panel.
 async function previewExampleInNewTab(file: string): Promise<void> {
-  const tab = window.open("", "_blank");
+  const tab = openPreviewSheet(file);
   const loadingLabel = i18n.t("dash.loadingPreview");
   if (tab) {
-    tab.document.write(
+    tab.write(
       `<!doctype html><title>${loadingLabel}</title>` +
       `<body style="font:14px system-ui;padding:24px">${loadingLabel}</body>`,
     );
@@ -3421,22 +3457,18 @@ async function previewExampleInNewTab(file: string): Promise<void> {
       "tr:first-child td{background:#0E7C6B;color:#FAFAF7;font-weight:600;text-align:left}" + // design-lint-allow-hex standalone document.write preview
       `</style></head><body>${previewBackButtonHtml()}<h1>${i18n.t("dash.previewSheetCaption", { file, sheet: sheetName })}</h1>${tableHtml}</body></html>`;
     if (tab) {
-      tab.document.open();
-      tab.document.write(doc);
-      tab.document.close();
+      tab.write(doc);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
     if (tab) {
-      tab.document.open();
-      tab.document.write(
+      tab.write(
         // design-lint-allow-hex standalone document.write preview (error state)
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">` +
         previewBackButtonHtml() +
         `${i18n.t("dash.previewLoadFailed", { msg })} ` +
         `<a href="/examples/${file}" download>${i18n.t("dash.downloadInstead")}</a>.</body>`,
       );
-      tab.document.close();
     }
   }
 }

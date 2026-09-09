@@ -146,10 +146,13 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
     if (!ta) return;
     ta.style.height = "auto";
     const next = Math.min(ta.scrollHeight, 7 * 22);  // ~7 lines @ 22px line-height
-    // Page composer rests at TWO lines (the input reads as a place to
-    // write, not a search field); the compact slide-over keeps the tighter
-    // 40px floor that matches its 36px buttons.
-    ta.style.height = `${Math.max(compact ? 40 : 62, next)}px`;
+    // Page composer rests at TWO lines on desktop (the input reads as a
+    // place to write, not a search field); phones (2026-09-04 per operator)
+    // and the compact slide-over keep the tighter 40px floor so attach ·
+    // input · send read as one slim line. Mirrors the responsive min-h
+    // classes below — this inline height would otherwise override them.
+    const phone = window.matchMedia("(max-width: 639px)").matches;
+    ta.style.height = `${Math.max(compact || phone ? 40 : 62, next)}px`;
   }, [text, compact]);
 
   function submit() {
@@ -247,9 +250,9 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
         title={lockTooltip}
         data-degraded={degradedReason ? "true" : undefined}
         className={`
-        relative rounded-md border border-rule bg-surface
+        relative rounded-[20px] sm:rounded-md border border-rule bg-surface
         transition-colors duration-micro focus-within:border-rule-strong
-        ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}
+        ${compact ? "px-2 py-1.5" : "px-2 py-1 sm:px-2.5 sm:py-2"}
         ${hardDisabled ? "opacity-70" : ""}
       `}>
         {/* Attachments row */}
@@ -323,7 +326,12 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               text-[16px] sm:text-[14.5px] leading-[1.55] text-ink
               placeholder:text-ink-soft focus:outline-none focus-visible:shadow-none
               disabled:opacity-60
-              ${compact ? "min-h-[40px]" : "min-h-[62px]"} max-h-[170px]
+              ${
+                // Phones get the compact height even on the page variant
+                // (2026-09-04 per operator): attach · input · send read as
+                // one slim line; the textarea still grows when typing wraps.
+                compact ? "min-h-[40px]" : "min-h-[40px] sm:min-h-[62px]"
+              } max-h-[170px]
             `}
           />
 
@@ -345,7 +353,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               aria-label={t("chatX.stopGenerating")}
               title={t("chatX.stopGenerating")}
               className="
-                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-full
                 bg-brand text-paper transition-colors duration-micro
               "
             >
@@ -360,7 +368,7 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
               aria-label={t("chatX.sendMessage")}
               title={lockTooltip}
               className="
-                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-sm
+                inline-flex items-center justify-center h-9 w-9 shrink-0 mb-0.5 rounded-full
                 bg-brand text-paper hover:bg-brand/90 transition-colors duration-micro
                 disabled:bg-bg-2 disabled:text-ink-soft disabled:cursor-not-allowed
               "

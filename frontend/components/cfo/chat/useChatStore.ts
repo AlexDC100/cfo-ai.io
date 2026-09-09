@@ -819,6 +819,9 @@ export interface ChatStore {
    *  API call throws so the input box re-populates and history isn't
    *  polluted with orphaned messages. */
   rollbackLastPair: (conversationId: string) => string | null;
+  /** Re-pull the authoritative server copy for the active workspace
+   *  (drawer pull-to-refresh, 2026-09-08). */
+  refresh: () => Promise<void>;
 }
 
 export function useChatStore(): ChatStore {
@@ -872,6 +875,7 @@ export function useChatStore(): ChatStore {
       appendUserTurn: (input) => chatAppendUserTurn(orgId, input),
       completeAssistantTurn: (params) => chatCompleteAssistantTurn(orgId, params),
       rollbackLastPair: (conversationId) => chatRollbackLastPair(orgId, conversationId),
+      refresh: () => hydrateOrg(orgId),
     }),
     [state, current, orgId],
   );

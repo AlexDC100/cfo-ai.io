@@ -15,6 +15,7 @@ import { ComponentProps, useCallback, useEffect, useRef } from "react";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 
 import { setPref, usePrefSync } from "@/lib/prefs";
+import { isNativeShell, postToNativeShell } from "@/lib/nativeShell";
 
 /**
  * Bridges next-themes to `user_prefs.prefs.theme` so the choice follows the
@@ -25,7 +26,44 @@ import { setPref, usePrefSync } from "@/lib/prefs";
  * Theme is PERSONAL — it stays the same whichever company you're looking at.
  */
 function ThemePrefSync() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
+  // Native shell: report the RESOLVED theme so the shell paints its chrome
+  // (root view, WebView backdrop, status-bar icons) to match (2026-09-08).
+  useEffect(() => {
+    if (!isNativeShell() || !resolvedTheme) return;
+    const dark = resolvedTheme === "dark";
+    // The `--bg` token is "h s% l%" (Tailwind hsl-var form); RN wants
+    // "hsl(h, s%, l%)".
+    const token = (name: string): string | undefined => {
+      const parts = getComputedStyle(document.documentElement).getPropertyValue(name).trim().split(/\s+/);
+      return parts.length === 3 ? `hsl(${parts[0]}, ${parts[1]}, ${parts[2]})` : undefined;
+    };
+    // This effect runs BEFORE the provider's own effect that puts the
+    // `dark` class on <html> (children's effects run first), so reading the
+    // tokens synchronously reported the OTHER theme's colours — the shell
+    // painted a light backdrop under a dark page (2026-09-08). Wait for the
+    // class to agree with the resolved theme (a few frames at most) before
+    // reading.
+    let raf = 0;
+    let tries = 0;
+    const send = () => {
+      const classDark = document.documentElement.classList.contains("dark");
+      if (classDark !== dark && tries++ < 10) {
+        raf = requestAnimationFrame(send);
+        return;
+      }
+      postToNativeShell({
+        source: "cfo-ai",
+        type: "theme",
+        theme: dark ? "dark" : "light",
+        bg: token("--bg"),
+        accent: token("--brand"),
+      });
+    };
+    raf = requestAnimationFrame(send);
+    return () => cancelAnimationFrame(raf);
+  }, [resolvedTheme]);
   // Suppress the write-back that would immediately echo an adopted value.
   const adopting = useRef(false);
 

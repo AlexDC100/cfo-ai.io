@@ -12,7 +12,11 @@
 // Sidebar collapses into a Sheet drawer below lg. The floating "Ask CFO AI"
 // pill sits bottom-right on every viewport.
 
-import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { IosSpinner } from "./IosSpinner";
+import { useChatStore } from "./chat/useChatStore";
+import { refreshFeatures } from "@/lib/features";
+import { queryClient } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -21,6 +25,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TopHeader } from "./TopHeader";
+import { PreviewSheet } from "./PreviewSheet";
+import { closePreviewSheet, getPreviewSheet, subscribePreviewSheet } from "@/lib/previewSheet";
 import { UploadResumeProvider } from "./UploadResumeProvider";
 import { Sidebar } from "./Sidebar";
 // FloatingAiButton import removed — see comment in JSX below.
@@ -51,6 +57,7 @@ import {
   isNativeShell,
   postToNativeShell,
   NATIVE_ACTION_EVENT,
+  openNativeSheet,
 } from "@/lib/nativeShell";
 import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
@@ -90,6 +97,16 @@ export function AppShell({ children }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Opening the drawer dismisses the on-screen keyboard (2026-09-08 per
+  // operator): blur whatever input has focus (the chat composer, a search
+  // field) before the sheet slides in, so the keyboard doesn't stay up
+  // behind it.
+  const openDrawer = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) active.blur();
+    setSidebarOpen(true);
+  }, []);
+
 
   // ── iOS/Android native shell integration (see frontend/lib/nativeShell.ts
   // and mobile/README.md). Inside the shell the TopHeader isn't rendered at
@@ -98,25 +115,47 @@ export function AppShell({ children }: Props) {
   // is stable for the page's lifetime — the WebView injects the marker
   // before any script runs.
   const inNativeShell = isNativeShell();
+  // An in-app preview sheet (lib/previewSheet.ts) is open — in the shell the
+  // native button becomes "back" for as long as it is.
+  const previewOpen = useSyncExternalStore(subscribePreviewSheet, getPreviewSheet, () => null) !== null;
 
   // Tell the shell when to show its burger: on while AppShell is mounted,
   // off while the drawer is open (the native button would float above the
-  // open drawer) and off when AppShell unmounts (sign-out → /login).
+  // open drawer) and off when AppShell unmounts (sign-out → /login). While
+  // a preview sheet is open the same button shows as BACK instead
+  // (2026-09-08 per operator).
   useEffect(() => {
     if (!inNativeShell) return undefined;
-    postToNativeShell({ source: "cfo-ai", type: "chrome", burger: !sidebarOpen });
+    postToNativeShell({
+      source: "cfo-ai",
+      type: "chrome",
+      burger: !sidebarOpen && !previewOpen,
+      back: previewOpen,
+    });
     return () => {
-      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false });
+      postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false });
     };
-  }, [inNativeShell, sidebarOpen]);
+  }, [inNativeShell, sidebarOpen, previewOpen]);
 
-  // A native burger tap arrives as a `cfo:native-action` CustomEvent.
+  // Shell: the Command Center bottom sheet rises OVER the open drawer, so a
+  // jump launched from it (Workspace, Settings…) must also dismiss the
+  // drawer underneath — close it whenever the route changes.
+  useEffect(() => {
+    if (inNativeShell) setSidebarOpen(false);
+  }, [inNativeShell, location.pathname]);
+
+  // A native button tap arrives as a `cfo:native-action` CustomEvent —
+  // "menu" opens the drawer, "back" closes the preview sheet.
   useEffect(() => {
     if (!inNativeShell) return undefined;
     function onAction(e: Event) {
-      if ((e as CustomEvent<{ action?: string }>).detail?.action === "menu") {
-        setSidebarOpen(true);
-      }
+      const detail = (e as CustomEvent<{ action?: string; path?: string }>).detail;
+      const action = detail?.action;
+      if (action === "menu") openDrawer();
+      else if (action === "back") closePreviewSheet();
+      // A jump launched inside a native sheet (Workspace, Settings…) — the
+      // shell dismissed the sheet and forwards the route here.
+      else if (action === "navigate" && typeof detail?.path === "string") navigate(detail.path);
     }
     window.addEventListener(NATIVE_ACTION_EVENT, onAction as EventListener);
     return () =>
@@ -275,14 +314,69 @@ export function AppShell({ children }: Props) {
   // (`data-testid="account-menu-sign-out"`). The handler is still wired
   // through to Sidebar so a future revert is one-line JSX restore, not
   // a propagating prop change.
-  const { signOut } = useAuth();
+  const { signOut, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   // No workspaces yet (fresh signup, or the user deleted them all) → the app
   // has nothing to navigate between, so the whole left nav is hidden and the
   // content runs full-width until they create one. Gated on !loading so the
   // sidebar doesn't flash out during the initial workspace resolve.
-  const { workspaces, loading: wsLoading } = useWorkspaces();
+  const { workspaces, loading: wsLoading, refresh: refreshWorkspaces } = useWorkspaces();
+
+  // Pull-to-refresh on the drawer (2026-09-08 per operator, replacing a
+  // refresh button): pulling the drawer's content down from its top
+  // reveals the indicator; releasing past the threshold refreshes the
+  // SIDEBAR's data only — conversations, workspaces, the feature registry
+  // and every cached query — never the open tab. The drawer is its own
+  // scroller, so the WebView's native pull-to-refresh (which watches the
+  // document) never fires inside it.
+  const PULL_THRESHOLD = 64;
+  const chatStore = useChatStore();
+  const [drawerPull, setDrawerPull] = useState(0);
+  const [drawerRefreshing, setDrawerRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const drawerScrollerRef = useRef<HTMLDivElement>(null);
+  const onDrawerTouchStart = useCallback((e: React.TouchEvent) => {
+    const scroller = drawerScrollerRef.current?.parentElement;
+    pullStartY.current =
+      scroller && scroller.scrollTop <= 0 ? e.touches[0].clientY : null;
+  }, []);
+  const onDrawerTouchMove = useCallback((e: React.TouchEvent) => {
+    if (pullStartY.current === null || drawerRefreshing) return;
+    const scroller = drawerScrollerRef.current?.parentElement;
+    if (scroller && scroller.scrollTop > 0) { pullStartY.current = null; setDrawerPull(0); return; }
+    const dy = e.touches[0].clientY - pullStartY.current;
+    // Dead zone: a tap always carries a few px of travel; growing the
+    // indicator for those shifted the top rows under the finger, so the
+    // first tap on Dashboard sometimes missed (2026-09-08 per operator).
+    // Beyond it: half the finger travel, capped a little past the threshold.
+    const PULL_SLACK = 12;
+    setDrawerPull(dy > PULL_SLACK ? Math.min((dy - PULL_SLACK) * 0.5, PULL_THRESHOLD + 24) : 0);
+  }, [drawerRefreshing]);
+  const onDrawerTouchEnd = useCallback(() => {
+    if (pullStartY.current === null) return;
+    pullStartY.current = null;
+    if (drawerPull < PULL_THRESHOLD) {
+      setDrawerPull(0);
+      return;
+    }
+    setDrawerRefreshing(true);
+    const started = Date.now();
+    void Promise.allSettled([
+      chatStore.refresh(),
+      refreshWorkspaces(),
+      refreshFeatures(),
+      queryClient.invalidateQueries(),
+    ]).then(() => {
+      // Keep the spinner up at least briefly so a fast refresh still reads
+      // as one.
+      const rest = Math.max(0, 600 - (Date.now() - started));
+      window.setTimeout(() => {
+        setDrawerRefreshing(false);
+        setDrawerPull(0);
+      }, rest);
+    });
+  }, [drawerPull, chatStore, refreshWorkspaces]);
   // Also true when a workspace EXISTS but hasn't been set up yet — the state
   // a brand-new account lands in, since signup auto-creates an org with no
   // industry_key. AuthGuard already bounces every data route back to
@@ -296,7 +390,11 @@ export function AppShell({ children }: Props) {
   // that re-walled the app the AuthGuard change just un-walled. Only a genuine
   // zero-live-workspace state dims navigation now (industry is optional and
   // set later from Workspace settings or the Benchmark picker).
-  const noWorkspaces = !wsLoading && workspaces.length === 0;
+  // 2026-09-04 (guest mode): signed-in only. A guest trivially has zero
+  // workspaces, but every tab must stay browsable for them (per operator:
+  // "all tabs accessible, actions guarded") — the sign-in gate lives at the
+  // action, not the navigation.
+  const noWorkspaces = isAuthenticated && !wsLoading && workspaces.length === 0;
   const sidebarHandlers = {
     onSettings: () => navigate("/settings"),
     onOpenCommandCenter: () => setDrawerOpen(true),
@@ -316,12 +414,42 @@ export function AppShell({ children }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
+    // Native shell (2026-09-08 per operator): NO canvas paint here — the
+    // shell draws the canvas + spotlight natively behind a transparent
+    // WebView, and this root must let it through so the page and the
+    // overscroll area share one continuous background. Browsers paint bg-bg.
+    <div className={`min-h-screen text-ink ${inNativeShell ? "" : "bg-bg"}`}>
       {/* Resumes polling on any persisted in-flight upload when the app
           shell mounts (page refresh during an analysis). Renders nothing. */}
       <UploadResumeProvider />
       {/* Full-screen veil while switching months from the tab-bar stepper. */}
       <MonthSwitchOverlay />
+      {/* In-app preview documents (native shell) — renders nothing until a
+          preview is opened; see lib/previewSheet.ts. */}
+      <PreviewSheet />
+      {/* Native shell only (2026-09-08 per operator): the page renders
+          edge-to-edge under the status bar, so content scrolling beneath
+          the clock fades out into the page background. Theme-aware via the
+          bg token; sits above content, below the drawer/preview sheet
+          (z-50); the native burger/back button is drawn by the shell on top. */}
+      {inNativeShell && (
+        <div
+          aria-hidden
+          data-testid="shell-top-fade"
+          className="pointer-events-none fixed inset-x-0 top-0 z-30"
+          style={{
+            height: "calc(env(safe-area-inset-top) + 28px)",
+            // Paints the SAME background the shell draws natively (canvas +
+            // spotlight at the same viewport spot), then masks it out
+            // towards the bottom — so content fades into the real
+            // background instead of into a flat colour edge.
+            background:
+              "radial-gradient(circle at 96px 96px, hsl(var(--brand) / 0.10), transparent 230px), hsl(var(--bg))",
+            WebkitMaskImage: "linear-gradient(to bottom, black 30%, transparent)",
+            maskImage: "linear-gradient(to bottom, black 30%, transparent)",
+          }}
+        />
+      )}
       {/* No TopHeader inside the native shell (2026-08-18 per operator) —
           the shell's native floating burger owns navigation and the drawer
           carries currency + account, so the header would only duplicate
@@ -329,7 +457,7 @@ export function AppShell({ children }: Props) {
       {!inNativeShell && (
         <TopHeader
           onOpenAi={openAskCfoAi}
-          onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenSidebar={openDrawer}
           onOpenPalette={() => setSearchOpen(true)}
           // onOpenAccount removed 2026-08-04 (header redesign): the avatar
           // opens the AccountMenu dropdown again — it now hosts the
@@ -348,6 +476,11 @@ export function AppShell({ children }: Props) {
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent
           side="left"
+          // No auto-focus on open (2026-09-08): Radix would focus the first
+          // control — now the drawer's close (X) button — and, opened from
+          // the native burger (no pointer event on the page), it rendered
+          // with a keyboard focus ring. Esc / the X / the backdrop still close.
+          onOpenAutoFocus={(e) => e.preventDefault()}
           className="
             w-[min(280px,calc(100vw-3rem))] p-0
             bg-bg
@@ -357,7 +490,11 @@ export function AppShell({ children }: Props) {
           "
           style={{
             paddingTop: "env(safe-area-inset-top)",
-            paddingBottom: "env(safe-area-inset-bottom)",
+            // No bottom inset HERE (2026-09-08 per operator, "push the
+            // account row lower"): the sheet's pinned bottom block (account
+            // row when signed in, theme/Sign in footer for guests) carries
+            // the home-indicator inset itself, so it sits flush with the
+            // bottom edge instead of floating a safe-area above it.
             paddingLeft: "env(safe-area-inset-left)",
           }}
         >
@@ -365,6 +502,34 @@ export function AppShell({ children }: Props) {
           {/* Header-height spacer — only where the fixed TopHeader exists;
               in the native shell the drawer content starts at the top. */}
           {!inNativeShell && <div className="h-14 border-b border-rule" />}
+          {/* Touch surface for pull-to-refresh (covers the drawer's whole
+              scrollable content). */}
+          <div
+            ref={drawerScrollerRef}
+            className="relative min-h-full flex flex-col"
+            onTouchStart={onDrawerTouchStart}
+            onTouchMove={onDrawerTouchMove}
+            onTouchEnd={onDrawerTouchEnd}
+            onTouchCancel={onDrawerTouchEnd}
+          >
+          {/* Pull-to-refresh indicator — the iOS activity indicator in the
+              theme's accent colour: its bars light up in order as the pull
+              grows and it spins once released past the threshold. */}
+          {(drawerPull > 0 || drawerRefreshing) && (
+            <div
+              aria-hidden={!drawerRefreshing}
+              role={drawerRefreshing ? "status" : undefined}
+              data-testid="drawer-pull-refresh"
+              className="flex items-end justify-center overflow-hidden text-brand"
+              style={{ height: drawerRefreshing ? PULL_THRESHOLD : drawerPull, transition: drawerRefreshing ? "height 120ms ease-out" : undefined }}
+            >
+              <IosSpinner
+                size={24}
+                className="mb-3"
+                progress={drawerRefreshing ? undefined : Math.min(1, drawerPull / PULL_THRESHOLD)}
+              />
+            </div>
+          )}
           <Sidebar
             {...sidebarHandlers}
             inDrawer
@@ -372,12 +537,17 @@ export function AppShell({ children }: Props) {
             onItemClick={() => setSidebarOpen(false)}
             // Drawer account row (2026-08-18) — no header inside the native
             // shell, so the drawer's credentials row opens the Command
-            // Center account surface, closing the drawer first.
+            // Center account surface. In the shell (2026-09-08 per operator)
+            // it rises as a BOTTOM SHEET over the still-open drawer; in a
+            // browser the right panel replaces the drawer as before.
             onOpenAccount={() => {
-              setSidebarOpen(false);
+              // iOS shell: a NATIVE sheet over the drawer (2026-09-08).
+              if (openNativeSheet("account")) return;
+              if (!inNativeShell) setSidebarOpen(false);
               setDrawerOpen(true);
             }}
           />
+          </div>
         </SheetContent>
       </Sheet>
 
@@ -404,8 +574,14 @@ export function AppShell({ children }: Props) {
         // Rail widths (THE INSTRUMENT): 232px expanded / 64px collapsed,
         // flush left — keep in sync with Sidebar's widthClass.
         className={`${inNativeShell ? "" : "pt-14"} ${sidebarCollapsed ? "lg:pl-[64px]" : "lg:pl-[232px]"} ${anySlideoutOpen ? "xl:pr-[360px]" : ""} transition-[padding] duration-200 ease-out`}
-        // Notch devices: keep content clear of the home indicator.
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        // Notch devices: keep content clear of the home indicator. In the
+        // native shell the page is edge-to-edge under the status bar, so the
+        // content starts below it plus a little breathing room (2026-09-08
+        // per operator: "more top padding on all pages").
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          ...(inNativeShell ? { paddingTop: "env(safe-area-inset-top)" } : {}),
+        }}
       >
         {/* WS1 — sticky usage warning when caller is at 80%+ of any
             cap. Renders null when under threshold, off, dismissed, or
@@ -420,16 +596,28 @@ export function AppShell({ children }: Props) {
             /chat renders here too now (document-level scroll, same as every
             other tab) — its shell cancels this wrapper's bottom padding. */}
         <div
-          className="px-4 sm:px-8 lg:px-10 py-6 sm:py-10 lg:py-12 relative isolate max-w-[1760px]"
+          // Shell: content starts right under the status bar (2026-09-08 per
+          // operator) — a 24px gap under the status-bar inset.
+          className={`px-4 sm:px-8 lg:px-10 ${inNativeShell ? "pt-6 pb-6" : "py-6"} sm:py-10 lg:py-12 relative isolate max-w-[1760px]`}
           style={{ paddingBottom: "max(8rem, calc(env(safe-area-inset-bottom) + 6rem))" }}
         >
           {/* Shared atmospheric brand glow behind every page's content — the
               "dashboard background" applied app-wide so all tabs read with the
-              exact same subtle backdrop. -z-10 keeps it behind content. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl z-[-10]"
-          />
+              exact same subtle backdrop. -z-10 keeps it behind content.
+              Native shell (2026-09-08 per operator): FIXED to the viewport so
+              the glow stays put while the page scrolls — it is part of the
+              background, not the content. Browsers keep it in flow. */}
+          {/* Not painted in the native shell (2026-09-08 per operator): the
+              shell draws this same spotlight NATIVELY behind a transparent
+              WebView, so it is the whole app's background and never moves
+              with a scroll or a pull. */}
+          {!inNativeShell && (
+            <div
+              aria-hidden
+              data-testid="shell-brand-glow"
+              className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl z-[-10]"
+            />
+          )}
           {children}
         </div>
 
@@ -455,6 +643,7 @@ export function AppShell({ children }: Props) {
       <CommandCenter
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        presentation={inNativeShell ? "bottom" : "side"}
         onOpenAi={openAskCfoAi}
         // 2026-08-02: routes to the Dashboard's upload flow instead of the
         // legacy UploadDialog. That dialog posted to /api/upload-excel — the

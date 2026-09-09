@@ -18,6 +18,7 @@ import "./settingsXI18n";
 import { debugSendMail, debugSendAllMail, type DebugMailKind } from "@/lib/newsletterApi";
 import { SUPPORTED_LANGUAGES, setLanguage } from "@/i18n";
 import { useAuth } from "@/lib/auth";
+import { promptSignIn } from "@/lib/authPrompt";
 import { useActiveOrg } from "@/lib/org";
 // useSubscription/isSubscriptionEntitled/planFor/trialDaysLeft + supabaseEnabled
 // were used by the removed `Subscription` section; <BillingSection /> now
@@ -419,7 +420,13 @@ function ProfileCard() {
 
   async function save() {
     const sb = getSupabase();
-    if (!sb || !user) return;
+    // Guest mode (2026-09-04): the page is browsable anonymously — saving
+    // a profile is the feature wall.
+    if (!user) {
+      promptSignIn();
+      return;
+    }
+    if (!sb) return;
     setBusy(true);
     // UPSERT, not UPDATE — first-time users won't have a profile row yet
     // because the auth-trigger that seeds it can lag behind signUp by a few

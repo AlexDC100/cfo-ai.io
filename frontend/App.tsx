@@ -102,11 +102,14 @@ const PublicCompanyDashboard = lazy(() => import("./pages/cfo/PublicCompanyDashb
 // Auth-optional (renders its own shell at runtime based on session state);
 // still lazy-loaded because it pulls in StockPriceChart + universe table.
 const PublicCompanyIntelligence = lazy(() => import("./pages/cfo/PublicCompanyIntelligence"));
+// iOS shell native bottom sheets (2026-09-08) — see pages/cfo/NativeSheetPage.
+const NativeSheetPage = lazy(() => import("./pages/cfo/NativeSheetPage"));
 
 import { PUBLIC_RECORDS_ENABLED, DECISIONS_ALERTS_ENABLED } from "./config/features";
 import { heartbeatIfIdentified } from "@/lib/identity";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { AuthGuard } from "@/components/cfo/AuthGuard";
+import { SignInPromptDialog } from "@/components/cfo/SignInPromptDialog";
 import { AppShell } from "@/components/cfo/AppShell";
 import { ErrorBoundary } from "@/components/cfo/ErrorBoundary";
 import { RouteErrorBoundary } from "@/components/cfo/RouteErrorBoundary";
@@ -114,10 +117,13 @@ import { LanguageSync } from "@/i18n/LanguageSync";
 import { TestModeBanner } from "@/components/cfo/TestModeBanner";
 import { TestModeSessionBoot } from "@/components/cfo/TestModeSessionBoot";
 import { isPublicTestMode } from "@/lib/testMode";
+import { nativeSheetKind, isNativeShell } from "@/lib/nativeShell";
+import { NativeSheetRouteWatcher } from "./components/cfo/NativeSheetRouteWatcher";
 // RouteFallback — the skeleton shown while a lazy chunk fetches. Mirrors
 // the AppShell silhouette so the transition feels instant rather than
 // a jarring flash of nothing.
 import { RouteFallback } from "@/components/cfo/RouteFallback";
+import { IosSpinner } from "@/components/cfo/IosSpinner";
 
 // The QueryClient lives in src/lib/queryClient.ts so non-component modules
 // (auth context, navigation helpers) can call `.clear()` directly without
@@ -184,10 +190,15 @@ function App() {
         pin is gone: the avatar menu carries a Light/Dark/System switcher,
         persisted via next-themes localStorage + user_prefs.theme sync. */}
     {/* THE INSTRUMENT: "Paper" (light) is the default theme;
-        "Terminal" (dark) is the persisted power-user mode. enableSystem
-        stays off so the default is deterministic — an accountant's OS
-        dark mode must not silently flip the ledger to Terminal. */}
-    <ThemeProvider defaultTheme="light" enableSystem={false}>
+        "Terminal" (dark) is the persisted power-user mode. The DEFAULT
+        stays deterministic (defaultTheme="light" — an accountant's OS
+        dark mode must not silently flip the ledger to Terminal), but
+        enableSystem is on (2026-09-04): the account menu and the guest
+        sidebar both offer an explicit "System" choice, and with
+        enableSystem off next-themes stamped a meaningless `system` class
+        instead of following the OS. Only an explicit System pick tracks
+        the OS; everyone else keeps light/dark exactly as before. */}
+    <ThemeProvider defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
         <CurrencyProvider>
@@ -318,12 +329,20 @@ function AppRoutes() {
   return (
     <RouteErrorBoundary>
       <ScrollToTopOnNavigate />
+      {/* Guest-mode sign-in prompt — any feature entry point can raise it
+          via lib/authPrompt's promptSignIn(). Mounted here (inside the
+          router, outside AppLayout) so it also covers the standalone
+          anonymous /public-companies route. */}
+      <SignInPromptDialog />
       {/* Outer Suspense: only for lazy routes that are NOT under the shared
           shell (today just PublicCompanyIntelligence, which picks its own
           shell). Authed pages suspend against the INNER boundary in AppLayout,
           so the shell never unmounts while the next page chunk loads. */}
       <Suspense fallback={<RouteFallback />}>
+        {nativeSheetKind() !== null && <NativeSheetRouteWatcher />}
         <Routes>
+          {/* iOS shell: the page hosted inside a native bottom sheet. */}
+          <Route path="/_native/sheet/:kind" element={<NativeSheetPage />} />
           {/* ── Public / unauthenticated routes ─────────────────────────── */}
           <Route
             path="/"
@@ -363,11 +382,15 @@ function AppRoutes() {
           {/* Settings without the app shell (landing account menu → Settings). */}
           <Route path="/account/settings" element={<AuthGuard><AccountSettings /></AuthGuard>} />
 
-          {/* Public Company Intelligence — auth-optional. Anonymous visitors
-              get the standalone route (the page renders PublicShell). Signed-in
-              visitors get it as a child of AppLayout below, so it shares the one
-              persistent AppShell (no refresh when navigating in-app). */}
-          {!isAuthenticated && (
+          {/* Public Company Intelligence — auth-optional. Anonymous BROWSER
+              visitors get the standalone route (the page renders PublicShell).
+              Signed-in visitors — and everyone inside the native shell
+              (2026-09-04: the app carries no navbars, only the burger, and
+              PublicShell's header has no burger) — get it as a child of
+              AppLayout below, so it shares the one persistent AppShell (no
+              refresh when navigating in-app). The page mirrors this exact
+              condition when picking its shell. */}
+          {!isAuthenticated && !isNativeShell() && (
             <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
           )}
 
@@ -404,8 +427,9 @@ function AppRoutes() {
               path="/multi-year-history"
               element={PUBLIC_RECORDS_ENABLED ? <MultiYearHistory /> : <Navigate to="/dashboard" replace />}
             />
-            {/* Signed-in: share the persistent shell (see anonymous route above). */}
-            {isAuthenticated && (
+            {/* Signed-in — or any native-shell visitor — shares the persistent
+                shell (see the anonymous browser route above). */}
+            {(isAuthenticated || isNativeShell()) && (
               <Route path="/public-companies" element={<PublicCompanyIntelligence />} />
             )}
           </Route>
@@ -442,17 +466,25 @@ function AppRoutes() {
 function AppLayout() {
   const { pathname } = useLocation();
   return (
-    <AuthGuard>
+    // requireAuth={false} — the shell routes browse in guest mode; only the
+    // GUEST_BLOCKED_PATHS inside AuthGuard still bounce to /login. Feature
+    // use prompts for sign-in at the action (lib/authPrompt).
+    <AuthGuard requireAuth={false}>
       <AppShell>
-        <RouteErrorBoundary key={pathname}>
-          <Suspense fallback={<ContentFallback pathname={pathname} />}>
+        {/* Suspense OUTSIDE the keyed error boundary (2026-09-08): one
+            persistent boundary across navigations (a keyed one remounted
+            per route). Errors still reset per pathname via the keyed
+            boundary; a chunk that fails to load throws inside it and is
+            caught as before. */}
+        <Suspense fallback={<ContentFallback pathname={pathname} />}>
+          <RouteErrorBoundary key={pathname}>
             {/* Keyed enter animation (native-mobile pass): each page rises
                 in over 200ms — transform/opacity only, 60fps-safe. */}
             <div key={pathname} className="page-enter">
               <Outlet />
             </div>
-          </Suspense>
-        </RouteErrorBoundary>
+          </RouteErrorBoundary>
+        </Suspense>
       </AppShell>
     </AuthGuard>
   );
@@ -468,12 +500,11 @@ function AppLayout() {
  */
 function ContentFallback(_props: { pathname?: string }) {
   return (
-    <div aria-hidden className="min-h-[30vh] px-6 sm:px-10 pt-10 space-y-4">
-      {/* Minimal shimmer (2026-08-04 perf pass) — abstract bars, not a
-          page-shaped silhouette; only visible on slow connections. */}
-      <div className="h-6 w-1/3 rounded-lg bg-bg-2/80 animate-pulse" />
-      <div className="h-4 w-2/3 rounded bg-bg-2/60 animate-pulse [animation-delay:120ms]" />
-      <div className="h-4 w-1/2 rounded bg-bg-2/60 animate-pulse [animation-delay:240ms]" />
+    // The same iOS-style activity indicator the drawer's pull-to-refresh
+    // uses, in the theme accent (2026-09-08 per operator). Only visible on
+    // slow connections.
+    <div role="status" aria-label="Loading" data-testid="tab-loading" className="min-h-[30vh] flex justify-center pt-16 text-brand">
+      <IosSpinner size={26} />
     </div>
   );
 }

@@ -24,11 +24,25 @@
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
+// Same-origin mode (2026-09-08): `VITE_API_URL=` is deliberately EMPTY in
+// LAN dev so every engine call is relative (`/api/*`, `/health`) and the
+// Vite proxy forwards it. An empty string is not nullish, so it used to fall
+// through to `apiOrigin = ""` — and `url.startsWith("")` is true for EVERY
+// URL. One failed fetch anywhere (the Edge Functions rejecting a LAN origin
+// via CORS, for instance) then tripped the breaker for ALL origins, and for
+// the next 4 s every Supabase auth/REST call was rejected instantly — a
+// sign-in that "fails to fetch", a workspace list that never arrives.
+// Backend requests in this mode are the proxied paths only.
+const SAME_ORIGIN = API_URL.trim() === "";
+const SAME_ORIGIN_PATHS = ["/api/", "/health"];
+
 let apiOrigin = API_URL;
-try {
-  apiOrigin = new URL(API_URL).origin;
-} catch {
-  /* keep the raw string — startsWith still matches `${API_URL}/api/...` */
+if (!SAME_ORIGIN) {
+  try {
+    apiOrigin = new URL(API_URL).origin;
+  } catch {
+    /* keep the raw string — startsWith still matches `${API_URL}/api/...` */
+  }
 }
 
 // Cooldown while the breaker is open. Short so recovery (backend started
@@ -44,6 +58,10 @@ function targetsBackend(input: RequestInfo | URL): boolean {
         : input instanceof URL
           ? input.href
           : input.url;
+    if (SAME_ORIGIN) {
+      const path = url.startsWith("/") ? url : new URL(url, window.location.href).origin === window.location.origin ? new URL(url, window.location.href).pathname : null;
+      return path !== null && SAME_ORIGIN_PATHS.some((p) => path === p.replace(/\/$/, "") || path.startsWith(p));
+    }
     return url.startsWith(apiOrigin);
   } catch {
     return false;

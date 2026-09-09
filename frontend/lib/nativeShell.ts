@@ -20,15 +20,17 @@
 //     native (overlaid on the WebView) so scrolling/overscroll can never
 //     move it — a web-fixed button visibly drifted during fling scrolls.
 //     AppShell posts true on mount, false while the drawer is open and on
-//     unmount (sign-out → /login).
+//     unmount (sign-out → /login). `back: true` (2026-09-08) swaps the
+//     burger for a BACK chevron while an in-app preview sheet is open
+//     (lib/previewSheet.ts); tapping it dispatches action "back".
 //
 // Native → web:
 //   · window.__cfoNativeAuthCallback(<redirect url>) with the OAuth redirect
 //     it captured (cfoai://auth-callback#access_token=…), installed below via
 //     installNativeAuthCallback().
-//   · a `cfo:native-action` CustomEvent ({ detail: { action: "menu" } })
-//     dispatched on window when the native burger is tapped — AppShell
-//     listens and opens the sidebar drawer.
+//   · a `cfo:native-action` CustomEvent ({ detail: { action: "menu" | "back" } })
+//     dispatched on window when the native button is tapped — AppShell
+//     opens the sidebar drawer ("menu") or closes the preview sheet ("back").
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -45,11 +47,29 @@ export const NATIVE_ACTION_EVENT = "cfo:native-action";
 type NativeShellMessage =
   | { source: "cfo-ai"; type: "oauth"; url: string }
   | { source: "cfo-ai"; type: "auth"; event: "SIGNED_IN" | "SIGNED_OUT" }
-  | { source: "cfo-ai"; type: "chrome"; burger: boolean };
+  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean }
+  // Native bottom sheets (2026-09-08, iOS): `open` asks the shell to present
+  // a SwiftUI sheet hosting a second WebView on /_native/sheet/<kind>; from
+  // INSIDE that sheet, `close` dismisses it and `navigate` asks the shell to
+  // dismiss it and route the MAIN WebView to `path`.
+  | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean; navigate?: string }
+  // The web app's RESOLVED theme (2026-09-08): the shell paints its own
+  // chrome (root view behind the page, WebView backdrop, status-bar icons)
+  // to match, so a Paper-themed page no longer sits on black chrome.
+  // `bg` (2026-09-08): the page's exact background colour (the `--bg`
+  // token as an `hsl(h, s%, l%)` string RN can parse) so the shell's
+  // backdrop matches to the unit — an approximated colour showed as a
+  // seam where the page's top fade met the backdrop during a pull.
+  // `accent` (2026-09-08): the `--brand` token, same form — the shell draws
+  // the app's spotlight glow NATIVELY behind a transparent WebView so the
+  // background never moves with a scroll or pull.
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string };
 
 type ShellWindow = Window & {
   ReactNativeWebView?: { postMessage: (data: string) => void };
   __cfoNativeAuthCallback?: (redirectUrl: string) => void;
+  /** Injected before any script runs (mobile/src/WebAppScreen BOOTSTRAP_JS). */
+  __CFO_NATIVE_SHELL?: { platform?: string; version?: string; sheet?: string };
 };
 
 function shellWindow(): ShellWindow | null {
@@ -58,6 +78,37 @@ function shellWindow(): ShellWindow | null {
 
 export function isNativeShell(): boolean {
   return typeof shellWindow()?.ReactNativeWebView?.postMessage === "function";
+}
+
+export type NativeSheetKind = "account" | "notifications";
+
+/** Which native sheet THIS WebView is rendering, or null in the main one. */
+export function nativeSheetKind(): NativeSheetKind | null {
+  const k = shellWindow()?.__CFO_NATIVE_SHELL?.sheet;
+  return k === "account" || k === "notifications" ? k : null;
+}
+
+/** The shell can present SwiftUI sheets — iOS only. */
+export function nativeSheetsSupported(): boolean {
+  return isNativeShell() && shellWindow()?.__CFO_NATIVE_SHELL?.platform === "ios";
+}
+
+/** Ask the shell for a native sheet. False (do it in-page) where unsupported. */
+export function openNativeSheet(kind: NativeSheetKind): boolean {
+  if (!nativeSheetsSupported()) return false;
+  postToNativeShell({ source: "cfo-ai", type: "sheet", open: kind });
+  return true;
+}
+
+export function closeNativeSheet(): void {
+  postToNativeShell({ source: "cfo-ai", type: "sheet", close: true });
+}
+
+/** The native app's version (mobile/app.json `expo.version`), or null
+ *  outside the shell / on a shell build that predates the field. */
+export function nativeShellVersion(): string | null {
+  const v = shellWindow()?.__CFO_NATIVE_SHELL?.version;
+  return typeof v === "string" && v ? v : null;
 }
 
 export function postToNativeShell(message: NativeShellMessage): void {

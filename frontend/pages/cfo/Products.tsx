@@ -3086,8 +3086,9 @@ function EmptyState({
        *  The wrapper card adds the gradient + ring so the hero reads as
        *  a single integrated surface rather than two loose blocks. */}
       <div className="relative overflow-x-clip">
-        {/* Decorative top-right brand glow — purely visual, no real data */}
-        <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
+        {/* The decorative top-right brand glow that sat here was removed
+            (2026-09-08 per operator) — the app-wide spotlight is the only
+            background treatment. */}
 
         {/* Column split matches the dashboard hero (1.2fr_1fr + gap-6) so
             the "Start from the official template" card is the same width
@@ -3141,16 +3142,10 @@ function EmptyState({
               <button
                 type="button"
                 onClick={() => openAskCfoAi(t("productsX.empty.askPrompt"))}
-                className="
-                  inline-flex items-center gap-2 h-10 px-4 rounded-lg
-                  border border-rule bg-surface/70 backdrop-blur
-                  text-[13px] font-medium text-ink
-                  hover:bg-bg-2/60 hover:border-rule-strong
-                  transition-colors
-                "
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-rule bg-surface text-[12.5px] font-medium text-ink hover:bg-bg-2 hover:border-rule-strong transition-colors duration-micro"
                 data-testid="products-ask-cfo-ai"
               >
-                <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
+                <Sparkles size={14} strokeWidth={2} className="text-brand-dark dark:text-brand-light" />
                 {t("topbar.ask")}
               </button>
             </div>

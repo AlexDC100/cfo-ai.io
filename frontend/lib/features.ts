@@ -130,6 +130,12 @@ async function loadOnce(force = false): Promise<FeatureRegistry> {
 // Public API
 // ──────────────────────────────────────────────────────────────────────
 
+/** Force a registry refresh from outside a hook (drawer pull-to-refresh);
+ *  every mounted `useFeatures*` hook picks the result up via `publish`. */
+export async function refreshFeatures(): Promise<void> {
+  await loadOnce(true);
+}
+
 /** Read the entire registry. Triggers a fetch on first call. */
 export function useFeatures(): {
   features: FeatureRegistry;

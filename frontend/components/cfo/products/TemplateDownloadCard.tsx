@@ -37,6 +37,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/instrument/Panel";
 // tree (it writes into a raw window.open tab), so it can't use the hook.
 import i18n from "@/i18n";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
+import { openPreviewSheet } from "@/lib/previewSheet";
 
 type Variant = "compact" | "prominent";
 
@@ -76,9 +77,9 @@ async function previewWorkbookInNewTab(
   subtitle: string,
 ): Promise<void> {
   const loadingText = i18n.t("tmpl.previewLoading");
-  const tab = window.open("", "_blank");
+  const tab = openPreviewSheet(filename);
   if (tab) {
-    tab.document.write(
+    tab.write(
       `<!doctype html><title>${loadingText}</title>` +
       `<body style="font:14px system-ui;padding:24px">${loadingText}</body>`,
     );
@@ -110,19 +111,15 @@ async function previewWorkbookInNewTab(
       "tr:first-child td{background:#1B7268;color:#fff;font-weight:600;text-align:left}" +
       `</style></head><body>${previewBackButtonHtml()}<h1>${filename} — ${subtitle}</h1>${sections}</body></html>`;
     if (tab) {
-      tab.document.open();
-      tab.document.write(doc);
-      tab.document.close();
+      tab.write(doc);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
     if (tab) {
-      tab.document.open();
-      tab.document.write(
+      tab.write(
         /* design-lint-allow-hex — generated standalone document, no CSS vars */
         `<!doctype html><body style="font:14px system-ui;padding:24px;color:#b91c1c">${previewBackButtonHtml()}${i18n.t("tmpl.previewError", { msg })}</body>`,
       );
-      tab.document.close();
     }
   }
 }

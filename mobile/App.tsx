@@ -4,7 +4,6 @@
 
 import React, { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
 
 import { HOME_PATH, OAUTH_REDIRECT } from "./src/config";
@@ -31,9 +30,8 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      {/* Light icons always — the shell chrome is black regardless of the
-          system scheme (the web app is dark-only). */}
-      <StatusBar style="light" />
+      {/* Status-bar style lives in WebAppScreen — it follows the theme the
+          web app reports (2026-09-08). */}
       <WebAppScreen tabKey="Main" path={HOME_PATH} />
     </SafeAreaProvider>
   );

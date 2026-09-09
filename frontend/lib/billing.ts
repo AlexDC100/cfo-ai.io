@@ -224,9 +224,17 @@ function useSubscriptionInternal(local: Subscription | null) {
     // Re-fetch on auth state change (sign in / out) so the cache reflects
     // the new user's subscription, or clears on sign-out.
     const sb = getSupabase();
-    const sub = sb?.auth.onAuthStateChange(async () => {
-      const fresh = await fetchSubscription();
-      setRemote(fresh);
+    // NOT async and NOT awaiting a Supabase call inside the callback: auth-js
+    // awaits every subscriber before it finishes emitting, and on boot that
+    // emit runs inside its own initialize() — a getSession() awaited from
+    // in here waits on that same initialize(), and the whole client
+    // deadlocks (the documented "endless loading" trap). Defer a tick so
+    // the emit returns first.
+    const sub = sb?.auth.onAuthStateChange(() => {
+      setTimeout(() => {
+        if (cancelled) return;
+        void fetchSubscription().then((fresh) => { if (!cancelled) setRemote(fresh); });
+      }, 0);
     });
     return () => { cancelled = true; sub?.data.subscription.unsubscribe(); };
   }, []);

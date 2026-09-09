@@ -31,9 +31,11 @@ import { useChatStore } from "./useChatStore";
 import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
 import { useAiDegraded } from "@/lib/aiDegraded";
 import { Chip } from "@/components/instrument/Panel";
+import { Info } from "lucide-react";
 import "./chatDegradedI18n";
 import { useCurrency } from "@/stores/currency";
 import { useAuth } from "@/lib/auth";
+import { promptSignIn } from "@/lib/authPrompt";
 import { getActiveOrgId } from "@/lib/activeOrg";
 import { readPeriodVerdict } from "@/lib/dataPresence";
 import { usePublicCompanyChatContext } from "@/lib/publicCompanyChatStore";
@@ -119,6 +121,28 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // instead of eating the little space above it.
   const keyboardInset = useKeyboardInset();
   const [composerFocused, setComposerFocused] = useState(false);
+  // Phone-only ⓘ pill over the composer — holds the disclosure bubble open.
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const disclosureRef = useRef<HTMLDivElement>(null);
+  // Dismiss the ⓘ bubble on any tap outside it or any scroll (2026-09-08 per
+  // operator) — it is a transient tooltip, not a dialog. Capture-phase
+  // scroll catches the conversation scroller (scroll doesn't bubble), and
+  // the visual-viewport scroll covers keyboard-driven viewport shifts.
+  useEffect(() => {
+    if (!disclosureOpen) return undefined;
+    const close = () => setDisclosureOpen(false);
+    const onPointerDown = (e: PointerEvent) => {
+      if (!disclosureRef.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("scroll", close, true);
+    window.visualViewport?.addEventListener("scroll", close);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("scroll", close, true);
+      window.visualViewport?.removeEventListener("scroll", close);
+    };
+  }, [disclosureOpen]);
   const coarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia("(pointer: coarse)").matches;
@@ -156,7 +180,12 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   useEffect(() => {
     if (variant !== "page") return;
     const root = document.documentElement;
-    if (stillEntrance) root.classList.add("chat-entrance-still-global");
+    // Not inside the native shell (2026-09-08 per operator): there is no
+    // TopHeader there to keep still, and the app-wide freeze reached the
+    // burger drawer — its staggered rows sit at opacity 0 until their
+    // animation runs, so tapping a conversation left a blank drawer that
+    // then took the whole freeze window to close.
+    if (stillEntrance && !isNativeShell()) root.classList.add("chat-entrance-still-global");
     else root.classList.remove("chat-entrance-still-global");
     return () => root.classList.remove("chat-entrance-still-global");
   }, [variant, stillEntrance]);
@@ -275,6 +304,13 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // request runs in the background from here on — this shell can unmount
   // (tab switch) without affecting the turn.
   const send = useCallback((text: string, attachments: ChatAttachment[]) => {
+    // Guest mode (2026-09-03): browsing the chat surface is open, but the
+    // first actual message asks for an account — the turn would otherwise
+    // run uncapped and its history would be unpersistable (no thread owner).
+    if (!user) {
+      promptSignIn();
+      return;
+    }
     startChatTurn({
       orgId: org?.id ?? null,
       text,
@@ -293,6 +329,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       publicCompany: publicCompanyContext ?? undefined,
     });
   }, [
+    user,
     org?.id,
     workspaceSnapshot,
     periodId,
@@ -422,16 +459,19 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     // the shared content wrapper) so the composer sits near the bottom instead
     // of leaving a tall empty gap below it.
     <div
-      // Fully cancel AppShell's content-wrapper left padding (px-4/8/10) so the
-      // chat's own inner padding (empty-state header, messages, composer — each
-      // px-4/8/10) lands at exactly the same left edge as the dashboard header,
-      // rather than double-padding. Also pulls the conversation list flush to
-      // the app nav rail when the sidebar is shown.
+      // Fully cancel AppShell's content-wrapper padding (px-4/8/10) on BOTH
+      // sides so the chat's own inner padding (empty-state header, messages,
+      // composer — each px-4/8/10) lands at exactly the same edges as the
+      // dashboard header, rather than double-padding. Also pulls the
+      // conversation list flush to the app nav rail when the sidebar is
+      // shown. The right side used to keep the wrapper's padding, so the
+      // suggested-question grid sat 16px from the left edge and 32px from
+      // the right on phones (2026-09-08 per operator).
       // No flex `gap` here — the space between the sidebar and the message
       // column is an animated margin ON the sidebar instead, so it collapses
       // smoothly with the width on exit (a static gap would snap away only
       // when the sidebar unmounts, stuttering at the end of the animation).
-      className={`flex -ml-4 sm:-ml-8 lg:-ml-10 ${stillEntrance ? "chat-entrance-still" : ""}`}
+      className={`flex -mx-4 sm:-mx-8 lg:-mx-10 ${stillEntrance ? "chat-entrance-still" : ""}`}
       style={{ marginBottom: "calc(-1 * max(8rem, calc(env(safe-area-inset-bottom) + 6rem)))" }}
       data-testid="chat-page-shell"
       // Capture-phase so ANY interaction in the tab flips the flag before
@@ -534,8 +574,16 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             overlaying on-screen keyboard (0 on desktop / when closed). */}
         <div
           className={`fixed inset-x-0 lg:sticky lg:inset-x-auto z-10 ${composerPadX} bg-gradient-to-t from-bg via-bg to-transparent pt-6 pb-1`}
-          style={{ bottom: keyboardInset }}
-          onFocusCapture={() => setComposerFocused(true)}
+          // Safe-area bottom (home indicator) when no keyboard is up — the
+          // env() is 0 while the keyboard covers that strip.
+          style={{ bottom: keyboardInset, paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
+          // Only the textarea counts as "typing" — a tapped ⓘ/attach/send
+          // button also takes focus on Android, and treating that as the
+          // keyboard being up hid the context row before the ⓘ bubble
+          // could open (2026-09-08).
+          onFocusCapture={(e) => {
+            if (e.target instanceof HTMLTextAreaElement) setComposerFocused(true);
+          }}
           onBlurCapture={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
               setComposerFocused(false);
@@ -567,7 +615,45 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               ))}
             </div>
           )}
-          <div className="max-w-[1760px]">
+          <div className="max-w-[1760px] relative">
+            {/* Phones (2026-09-06 per operator): one left-aligned row ABOVE
+                the composer — the ⓘ disclosure button first, then the
+                "No workspace selected" pill beside it. The ⓘ replaces the
+                disclosure sentence (tap to read it in a bubble); the pill
+                moved up here from the row under the input. ≥sm never
+                renders this row — it keeps the caption row below the
+                composer. Hidden while the on-screen keyboard is up, like
+                the row below (2026-08-18). */}
+            <div className={`${keyboardOpen ? "hidden" : "flex"} sm:hidden items-center gap-2 pb-1.5`}>
+              <div className="relative shrink-0" ref={disclosureRef}>
+                {disclosureOpen && (
+                  <div className="absolute bottom-full left-0 mb-1.5 w-64 rounded-md border border-rule bg-surface p-2.5 text-[11px] text-ink-soft leading-snug shadow-md">
+                    {disclosure}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  data-testid="chat-disclosure-pill"
+                  aria-label={t("chatX.disclosure")}
+                  aria-expanded={disclosureOpen}
+                  onClick={() => setDisclosureOpen((v) => !v)}
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-full border border-rule bg-surface text-ink-soft shadow-sm active:bg-bg-2 transition-colors duration-micro"
+                >
+                  <Info size={12} strokeWidth={2} />
+                </button>
+              </div>
+              {noWorkspace && (
+                <Chip
+                  tone="caution"
+                  dot
+                  data-testid="chat-no-workspace-pill-phone"
+                  title={t("chatX.noWorkspacePillTitle")}
+                  className="min-w-0 truncate"
+                >
+                  {t("chatX.noWorkspacePill")}
+                </Chip>
+              )}
+            </div>
             <CFOComposer
               // Keyed by conversation so switching chats remounts the
               // composer with that conversation's saved draft.
@@ -597,17 +683,21 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 {contextLine}
               </Chip>
             )}
-            {/* Honesty caption — quiet, caption-sized, unchanged meaning. */}
-            <span className="min-w-0 text-[11px] text-ink-soft leading-snug">
+            {/* Honesty caption — quiet, caption-sized, unchanged meaning.
+                Hidden on phones, where the ⓘ pill over the composer carries
+                the same text behind a tap. */}
+            <span className="hidden sm:inline min-w-0 text-[11px] text-ink-soft leading-snug">
               {disclosure}
             </span>
+            {/* ≥sm only — on phones the pill sits in the row above the
+                composer (2026-09-06). */}
             {noWorkspace && (
               <Chip
                 tone="caution"
                 dot
                 data-testid="chat-no-workspace-pill"
                 title={t("chatX.noWorkspacePillTitle")}
-                className="ml-auto shrink-0 whitespace-nowrap"
+                className="ml-auto shrink-0 whitespace-nowrap hidden sm:inline-flex"
               >
                 {t("chatX.noWorkspacePill")}
               </Chip>

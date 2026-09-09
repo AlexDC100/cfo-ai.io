@@ -14,6 +14,10 @@
     "scenarios": "Scenarios",
     "variance": "Budget vs Actual vs LY",
     "chat": "Ask CFO AI",
+    "previewBackTo": "Back to {{tab}}",
+    "previewBack": "Back",
+    "version": "v{{v}}",
+    "conversations": "Conversations",
     "publicCompanies": "Public Companies",
     "settings": "Settings",
     "upload": "Upload Center",
@@ -786,8 +790,11 @@
     "settings": "Settings",
     "signOut": "Sign out",
     "theme": "Appearance",
-    "theme_dark": "Dark",
-    "theme_light": "Light",
+    "theme_dark": "Terminal",
+    "signOutConfirmTitle": "Sign out?",
+    "signOutConfirmBody": "You will be signed out of CFO AI on this device. Your workspaces and conversations stay saved.",
+    "signOutConfirmAction": "Sign out",
+    "theme_light": "Paper",
     "theme_system": "System"
   },
   "authX": {
@@ -1447,6 +1454,8 @@
     "hint_suffix": "upload a financial statement or load a sample to enable this view."
   },
   "ws": {
+    "guestTitle": "Sign in to manage workspaces",
+    "guestBody": "Workspaces hold your companies' documents, periods and settings. Sign in to create one or open the ones you already have.",
     "settingsEyebrow": "Workspace settings",
     "manageTitle": "Manage <grad>{{name}}</grad>.",
     "thisWorkspace": "this workspace",
@@ -2781,5 +2790,12 @@
       "demo": "Source: bundled sample data — the live market feed isn't configured on this deployment, so every figure on this page is illustrative.",
       "sources": "Sources: Bursa de Valori București reference data plus issuer disclosures and ANAF statutory filings for {{bvb}} BVB listings. Fundamentals are end-of-day; prices refresh every 5 minutes."
     }
+  },
+  "authPrompt": {
+    "title": "Sign in to continue",
+    "body": "Browsing is open to everyone — uploading documents, chatting with CFO AI and saving your work need an account.",
+    "signIn": "Sign in",
+    "createAccount": "Create account",
+    "cancel": "Not now"
   }
 }

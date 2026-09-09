@@ -10,6 +10,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Alert, AlertStatus } from "@/lib/alerts";
 import { getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
+import { promptSignIn } from "@/lib/authPrompt";
+import { isNativeShell } from "@/lib/nativeShell";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -20,6 +22,17 @@ if (URL && ANON_KEY) {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      // Native shell (2026-09-06): bypass supabase-js's navigator-locks
+      // coordination inside the WKWebView. The lock exists to serialize
+      // token refresh across BROWSER TABS sharing one localStorage; the
+      // shell renders exactly one WebView, so it protects nothing there —
+      // while WKWebView's Web Locks implementation has documented hangs
+      // that leave getSession() (and with it the whole signed-in boot)
+      // waiting forever. Operator-reported as "endless loading after
+      // sign-in" in the iOS simulator. Browsers keep the default lock.
+      ...(isNativeShell()
+        ? { lock: async <R,>(_name: string, _timeout: number, fn: () => Promise<R>) => fn() }
+        : {}),
     },
   });
 } else {
@@ -724,7 +737,12 @@ export async function uploadDocument(
 
   const { data: session } = await client.auth.getSession();
   const userId = session.session?.user?.id ?? null;
-  if (!userId) return { row: null, error: "Sign in to upload documents." };
+  if (!userId) {
+    // Guest mode (2026-09-03): the belt behind every upload surface — raise
+    // the sign-in prompt instead of only failing with an error string.
+    promptSignIn();
+    return { row: null, error: "Sign in to upload documents." };
+  }
 
   const orgId = await currentOrgId();
   if (!orgId) {

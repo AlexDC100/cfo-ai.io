@@ -160,6 +160,10 @@ export async function createEmptyPeriod(
     .select("id")
     .single();
   if (error) return { error: error.message };
+  // RLS can answer an insert with no error AND no row (a guest, a workspace
+  // the caller isn't a member of) — that surfaced as an unhandled
+  // "reading 'id' of null" on every boot in the shell (2026-09-08).
+  if (!data) return { error: "Could not create the period." };
   return { id: data.id as string };
 }
 

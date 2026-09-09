@@ -14,7 +14,21 @@
 // second entry point added on request — labelled "Log out" (not "Sign out")
 // and using its own testid so it stays distinct.
 
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LogOut, Settings, User } from "lucide-react";
+import { ThemePicker } from "@/components/cfo/ThemePicker";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { isNativeShell, nativeSheetKind } from "@/lib/nativeShell";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/lib/auth";
@@ -30,23 +44,42 @@ interface Props {
 export function AccountTab({ onClose }: Props) {
   const navigate = useNavigate();
   const { user, displayName, initials, signOut } = useAuth();
+  const { t } = useTranslation();
   const { state: plan } = usePlanState();
   const { toast } = useToast();
 
   function launch(fn: () => void) {
+    // Inside an iOS native sheet the page IS the sheet: closing first would
+    // tear this WebView down before the deferred action ran (the Settings
+    // button did nothing, 2026-09-08). Act now — the route watcher dismisses
+    // the sheet and routes the main page.
+    if (nativeSheetKind()) {
+      fn();
+      return;
+    }
     onClose();
     setTimeout(fn, 220);
   }
 
+  // Sign-out asks first (2026-09-08 per operator) — the confirm dialog below.
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+
   async function handleSignOut() {
-    onClose();
+    setConfirmSignOut(false);
+    // Sign out BEFORE closing: inside the iOS native sheet, closing tears
+    // the sheet's WebView down, and a sign-out still in flight would be
+    // lost — the main page then reloads still signed in.
     const { error } = await signOut();
+    onClose();
     toast({
       title: error ? "Couldn't sign out" : "Signed out",
       description: error?.message,
       variant: error ? "destructive" : undefined,
     });
-    if (!error) navigate("/", { replace: true });
+    // Inside the native shell stay IN the app, signed out (guest mode on the
+    // dashboard) — "/" is the marketing site, which read as being thrown out
+    // to the web version (2026-09-08 per operator). Browsers keep "/".
+    if (!error) navigate(isNativeShell() ? "/dashboard" : "/", { replace: true });
   }
 
   return (
@@ -139,7 +172,7 @@ export function AccountTab({ onClose }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => void handleSignOut()}
+          onClick={() => setConfirmSignOut(true)}
           data-testid="cmd-account-logout"
           className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-rule bg-surface text-[13px] font-medium text-ink hover:bg-red-500/10 hover:text-red-700 hover:border-red-500/30 transition-colors"
         >
@@ -147,6 +180,40 @@ export function AccountTab({ onClose }: Props) {
           Log out
         </button>
       </div>
+      {/* Theme (2026-09-08 per operator): the same System · Paper · Terminal
+          picker guests get in the sidebar, here under Settings · Log out. */}
+      {/* Same 36px height as the Settings · Log out buttons (h-9): 1px
+          border + 34px segments. */}
+      <div className="mt-5 mb-2.5 text-[11px] uppercase tracking-[0.08em] text-ink-mute font-semibold">
+        {t("account.theme")}
+      </div>
+      <div className="rounded-lg border border-rule bg-surface overflow-hidden">
+        <ThemePicker testIdPrefix="cmd-account-theme" buttonHeight={34} />
+      </div>
+      <AlertDialog open={confirmSignOut} onOpenChange={setConfirmSignOut}>
+        {/* No panel of its own (2026-09-08 per operator): the backdrop blurs
+            the sheet beneath until it is barely legible and the question
+            floats on it. */}
+        <AlertDialogContent
+          data-testid="cmd-account-logout-confirm"
+          overlayClassName="bg-bg/70 backdrop-blur-2xl"
+          className="bg-transparent border-0 shadow-none"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("account.signOutConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("account.signOutConfirmBody")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="cmd-account-logout-confirm-yes"
+              onClick={() => void handleSignOut()}
+            >
+              {t("account.signOutConfirmAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
