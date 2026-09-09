@@ -132,7 +132,7 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
         glassEffectStyle="regular"
         isInteractive
         colorScheme={dark ? "dark" : "light"}
-        tintColor={dark ? "rgba(255,255,255,0.11)" : "rgba(255,255,255,0.55)"}
+        tintColor={dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.45)"}
         style={[styles.glass, fallback]}
       >
         {/* Row 1: the message on its own line. Row 2: attach · ⓘ on the
