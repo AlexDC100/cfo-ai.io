@@ -285,7 +285,7 @@ function FinalSlide({
         <Brand innerRef={brandRef} />
         {auth ? (
           <div className="ob-a-fade flex justify-center" style={fade(0.25)} data-testid="onboarding-auth">
-            <AuthCard initialMode="sign_in" tabsHidden={false} subtitle={t("authX.subtitle_sign_in_page")} onAuthenticated={onDone} />
+            <AuthCard bare initialMode="sign_in" tabsHidden oauthPlacement="below" subtitle={t("authX.subtitle_sign_in_page")} onAuthenticated={onDone} />
           </div>
         ) : (
           <div className={`flex flex-col gap-5 ${fadeCls}`}>

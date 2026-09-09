@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
 import { markNewsletterOptInPending } from "@/lib/newsletterOptIn";
 import { TermsDialog } from "./TermsDialog";
-import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 import {
   getPlan,
   formatPriceLabel,
@@ -67,6 +67,12 @@ interface Props {
   /** Callback fired after a successful sign-in or sign-up that returned a
       session immediately. Default: navigate("/dashboard"). */
   onAuthenticated?: () => void;
+  /** Where the OAuth providers sit relative to the email form. The
+      first-run onboarding puts them UNDER the fields (2026-09-09). */
+  oauthPlacement?: "above" | "below";
+  /** No panel chrome (border, fill, shadow, padding) and no heading — the
+      form sits directly on the host surface (first-run onboarding). */
+  bare?: boolean;
 }
 
 export function AuthCard({
@@ -74,6 +80,8 @@ export function AuthCard({
   tabsHidden = false,
   subtitle,
   onAuthenticated,
+  oauthPlacement = "above",
+  bare = false,
 }: Props) {
   // ─── Hooks (all unconditional, fixed order) ────────────────────────────
   // useAuth + useNavigate + useSearchParams must run on every render or React
@@ -302,7 +310,10 @@ export function AuthCard({
 
   return (
     <div
-      className="
+      className={
+        bare
+          ? "w-full max-w-[440px] text-ink"
+          : `
         w-full max-w-[440px]
         rounded-3xl
         border border-rule
@@ -311,12 +322,15 @@ export function AuthCard({
         shadow-[0_32px_80px_-20px_rgba(0,0,0,0.5)]
         p-7 sm:p-8
         text-ink
-      "
+      `
+      }
     >
       <div className="flex flex-col gap-1.5 mb-6">
-        <h2 className="font-serif text-[26px] sm:text-[28px] leading-[1.1] tracking-[-0.01em]">
-          {t("auth.welcome")}
-        </h2>
+        {!bare && (
+          <h2 className="font-serif text-[26px] sm:text-[28px] leading-[1.1] tracking-[-0.01em]">
+            {t("auth.welcome")}
+          </h2>
+        )}
         <p className="text-[13px] text-ink-soft leading-snug">
           {subtitle ??
             (mode === "sign_in"
@@ -469,7 +483,7 @@ export function AuthCard({
               Render only when Supabase is wired (test mode + disabled mode
               both hide these — the user is auto-signed-in in test mode, and
               there's no provider to redirect to in disabled mode). */}
-          {supabaseEnabled && (
+          {supabaseEnabled && oauthPlacement === "above" && (
             <>
               <div className="grid grid-cols-1 gap-2 mb-3">
                 <OAuthButton
@@ -664,6 +678,25 @@ export function AuthCard({
             </button>
           </form>
 
+          {supabaseEnabled && oauthPlacement === "below" && (
+            <>
+              <div className="flex items-center gap-3 my-4" aria-hidden>
+                <div className="flex-1 h-px bg-rule" />
+                <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft/70">
+                  {t("common.or", "or")}
+                </span>
+                <div className="flex-1 h-px bg-rule" />
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <OAuthButton
+                  provider="google"
+                  busy={busy}
+                  onClick={() => handleOAuth("google")}
+                />
+              </div>
+            </>
+          )}
+
           <p className="mt-5 text-[11px] text-ink-soft text-center leading-relaxed">
             {mode === "sign_in" ? (
               <>{t("authX.new_here")} <Link to="/signup" className="text-ink underline-offset-4 hover:underline" onClick={() => setMode("sign_up")}>{t("authX.create_an_account")}</Link></>
@@ -804,17 +837,21 @@ function Input({
   required?: boolean;
   minLength?: number;
 }) {
-  return (
+  const { t } = useTranslation();
+  // Password fields carry a show/hide toggle (2026-09-09 per operator).
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = type === "password";
+  const input = (
     <input
-      type={type}
+      type={isPassword && revealed ? "text" : type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       autoComplete={autoComplete}
       required={required}
       minLength={minLength}
-      className="
-        w-full h-11 px-3.5
+      className={`
+        w-full h-11 ${isPassword ? "pl-3.5 pr-11" : "px-3.5"}
         rounded-xl
         bg-bg-2/80
         border border-rule
@@ -825,7 +862,23 @@ function Input({
         focus:bg-bg-2/85
         focus:shadow-[0_0_0_3px_rgba(92,211,197,0.12)]
         transition-all
-      "
+      `}
     />
+  );
+  if (!isPassword) return input;
+  return (
+    <div className="relative">
+      {input}
+      <button
+        type="button"
+        onClick={() => setRevealed((r) => !r)}
+        aria-label={revealed ? t("authX.hide_password") : t("authX.show_password")}
+        aria-pressed={revealed}
+        data-testid="password-reveal"
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-soft hover:text-ink transition-colors"
+      >
+        {revealed ? <EyeOff size={16} strokeWidth={1.75} /> : <Eye size={16} strokeWidth={1.75} />}
+      </button>
+    </div>
   );
 }

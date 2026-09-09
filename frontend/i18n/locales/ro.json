@@ -845,7 +845,9 @@
     "new_here": "Sunteți nou aici?",
     "create_an_account": "Creați un cont",
     "already_have_account": "Aveți deja un cont?",
-    "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea conducerii."
+    "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea conducerii.",
+    "show_password": "Arată parola",
+    "hide_password": "Ascunde parola"
   },
   "notFound": {
     "title": "404",

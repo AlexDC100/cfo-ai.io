@@ -845,7 +845,9 @@
     "new_here": "New here?",
     "create_an_account": "Create an account",
     "already_have_account": "Already have one?",
-    "disclaimer": "AI-assisted financial recommendations only. Final decisions remain with management."
+    "disclaimer": "AI-assisted financial recommendations only. Final decisions remain with management.",
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "notFound": {
     "title": "404",
