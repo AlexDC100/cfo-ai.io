@@ -1237,6 +1237,8 @@ html.native-shell body::before {
 .ob-track { background: hsl(var(--bg-2)); }
 .ob-bar-on { background: hsl(var(--brand)); }
 .ob-bar-dim { background: hsl(var(--brand) / .45); }
+/* Progress segments already passed: the current colour, faded. */
+.ob-bar-done { background: hsl(var(--brand) / .35); }
 .ob-bar-off { background: hsl(var(--rule)); }
 .ob-bar-peer { background: hsl(var(--rule-strong)); }
 .ob-fill-accent { fill: hsl(var(--brand)); }
