@@ -882,7 +882,7 @@ function CheckBox({
       />
       <span
         aria-hidden
-        className={`pointer-events-none absolute inset-0 rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${
+        className={`pointer-events-none absolute inset-0 rounded-[4px] border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${
           invalid ? "border-alert bg-alert/15" : "border-rule bg-bg-2/80"
         } peer-checked:border-brand peer-checked:bg-brand`}
       />
