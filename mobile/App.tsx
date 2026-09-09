@@ -4,6 +4,7 @@
 
 import React, { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import * as Linking from "expo-linking";
 
 import { HOME_PATH, OAUTH_REDIRECT } from "./src/config";
@@ -30,9 +31,15 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      {/* Status-bar style lives in WebAppScreen — it follows the theme the
-          web app reports (2026-09-08). */}
-      <WebAppScreen tabKey="Main" path={HOME_PATH} />
+      {/* react-native-keyboard-controller (2026-09-09, per Expo's keyboard
+          guide): keyboard-synced layout driven natively, frame for frame
+          with the keyboard, instead of React Native's JS-scheduled
+          KeyboardAvoidingView. WebAppScreen shrinks the WebView with it. */}
+      <KeyboardProvider>
+        {/* Status-bar style lives in WebAppScreen — it follows the theme the
+            web app reports (2026-09-08). */}
+        <WebAppScreen tabKey="Main" path={HOME_PATH} />
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

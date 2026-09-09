@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
-  KeyboardAvoidingView,
   Linking,
   Platform,
   StyleSheet,
@@ -34,6 +33,7 @@ import type {
 import { INTERNAL_HOSTS, OAUTH_REDIRECT, WEB_APP_URL } from "./config";
 import { BRAND, PAPER_BG, TERMINAL_BG, palette } from "./theme";
 import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
@@ -339,12 +339,18 @@ export function WebAppScreen({ tabKey, path }: Props) {
       {/* iOS: shrink the WebView above the keyboard (2026-09-08 per
           operator) so the web app's `position: fixed; bottom: 0` chat
           composer sits exactly on top of it and stays there while the
-          conversation scrolls. Without this WKWebView keeps its full height
-          and fixed elements drift under/over the keyboard. Android resizes
-          the window itself (softwareKeyboardLayoutMode "resize" default). */}
+          conversation scrolls — the hybrid-app "native resize" model
+          (Capacitor's default). This is keyboard-controller's
+          KeyboardAvoidingView (2026-09-09): the padding follows the
+          keyboard's own animation natively, so the WebView's bottom edge
+          and the keyboard's top edge move as one; React Native's built-in
+          one scheduled the resize from JS and visibly lagged. WKWebView's
+          own keyboard inset is cancelled by modules/keyboard-insets.
+          Android resizes the window itself (softwareKeyboardLayoutMode
+          "resize" default). */}
       <KeyboardAvoidingView
         style={styles.keyboardHost}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
         enabled={Platform.OS === "ios"}
       >
         <WebView
