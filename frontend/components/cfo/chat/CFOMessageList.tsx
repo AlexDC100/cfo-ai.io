@@ -80,10 +80,15 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   const moreCb = useRef(onHasMoreBelowChange);
   moreCb.current = onHasMoreBelowChange;
   useEffect(() => { moreCb.current?.(hasMoreBelow); }, [hasMoreBelow]);
+  // The spacer under the thread that lets a just-sent message reach the
+  // top of the viewport (see "anchor on send" below). Sized straight on the
+  // DOM — it changes on every typed chunk and must never re-render the list.
+  const tailRef = useRef<HTMLDivElement | null>(null);
+  const tailHeight = () => tailRef.current?.offsetHeight ?? 0;
   const measureBelow = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    setHasMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 80);
+    setHasMoreBelow(el.scrollHeight - tailHeight() - el.scrollTop - el.clientHeight > 80);
   }, []);
 
   // ── Typewriter bookkeeping ──────────────────────────────────────
@@ -117,10 +122,48 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   const pin = useCallback((smooth: boolean) => {
     const el = ref.current;
     if (!el) return;
-    const top = el.scrollHeight - el.clientHeight;
+    // "Bottom" is the end of the thread itself, not of the tail spacer.
+    const top = Math.max(0, el.scrollHeight - tailHeight() - el.clientHeight);
     if (smooth) el.scrollTo({ top, behavior: "smooth" });
     else el.scrollTop = top;
   }, []);
+
+  // ── Anchor on send (2026-09-10 per operator) ─────────────────────
+  // A message the user has just sent glides to the TOP of the viewport and
+  // the answer types out beneath it. A short thread has no room for that,
+  // so the tail spacer grows by exactly what is missing; as the answer
+  // fills that room the spacer gives it back. The anchor is dropped on a
+  // conversation switch (the spacer with it) and replaced by the next send.
+  const anchorRef = useRef<{ id: string; top: number } | null>(null);
+  const lastUserIdRef = useRef<string | null | undefined>(undefined);
+  // Re-size the spacer so the anchored message can still sit at the top.
+  const fitTail = useCallback(() => {
+    const el = ref.current;
+    const tail = tailRef.current;
+    if (!el || !tail) return;
+    const a = anchorRef.current;
+    if (!a) {
+      if (tail.style.height) tail.style.height = "";
+      return;
+    }
+    const contentMax = el.scrollHeight - tail.offsetHeight - el.clientHeight;
+    const need = Math.max(0, Math.ceil(a.top - contentMax));
+    const cur = Math.round(tail.offsetHeight);
+    if (need !== cur) tail.style.height = need ? `${need}px` : "";
+  }, []);
+  const anchorMessage = useCallback((id: string) => {
+    const el = ref.current;
+    const node = contentRef.current?.querySelector<HTMLElement>(`[data-mid="${id}"]`);
+    if (!el || !node) return false;
+    const padTopPx = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const top = Math.max(0, node.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - padTopPx);
+    anchorRef.current = { id, top };
+    fitTail();
+    stickToBottom.current = false;
+    glideUntil.current = Date.now() + 900;
+    el.scrollTo({ top, behavior: "smooth" });
+    return true;
+  }, [fitTail]);
 
   // Keep the view pinned to the newest text as the typewriter reveals it
   // (messages array doesn't change during the reveal, so the effect below
@@ -162,18 +205,54 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
+      fitTail();
       if (stickToBottom.current) pin(Date.now() < glideUntil.current);
       measureBelow();
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pin, measureBelow]);
+  }, [pin, measureBelow, fitTail]);
 
-  // Auto-scroll on new messages while pinned to bottom.
+  // The thread's own growth — an answer typing out, an attachment chip, a
+  // late image — hands the tail spacer back and updates the arrow. The
+  // messages array doesn't change while an answer types, so the effect
+  // below can't see this; the content box's size can.
   useEffect(() => {
-    if (stickToBottom.current) pin(false);
+    const el = contentRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      fitTail();
+      measureBelow();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measureBelow, fitTail]);
+
+  // On a conversation switch the anchor (and its spacer) goes; the thread
+  // lands at its bottom like before.
+  useEffect(() => {
+    anchorRef.current = null;
+    lastUserIdRef.current = undefined;
+    fitTail();
+  }, [convKey, fitTail]);
+
+  // New messages: a message the user just sent is anchored at the top;
+  // otherwise, while pinned to the bottom, stay there.
+  useEffect(() => {
+    let lastUser: string | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") { lastUser = messages[i].id; break; }
+    }
+    const prev = lastUserIdRef.current;
+    lastUserIdRef.current = lastUser;
+    // `undefined` = first render of this conversation: nothing was sent.
+    const sent = prev !== undefined && lastUser !== null && lastUser !== prev;
+    if (!(sent && anchorMessage(lastUser as string))) {
+      fitTail();
+      if (stickToBottom.current) pin(false);
+    }
     measureBelow();
-  }, [messages, pin, measureBelow]);
+  }, [messages, pin, measureBelow, anchorMessage, fitTail]);
 
   const lastIsPendingAssistant =
     messages.length > 0 &&
@@ -203,8 +282,8 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   const body = (
     <div className={wideContent ? "w-full max-w-[1760px]" : "w-full"}>
       {visible.map((m) => (
+        <div key={m.id} data-mid={m.id}>
         <CFOMessageBubble
-          key={m.id}
           message={m}
           animate={m.id === animateId}
           onType={m.id === animateId ? scrollToBottom : undefined}
@@ -216,6 +295,7 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
               : undefined
           }
         />
+        </div>
       ))}
       {lastIsPendingAssistant && (
         <CFOTypingIndicator grounded={groundedLabel ?? null} />
@@ -277,7 +357,7 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
     <div className="relative flex-1 min-h-0 flex flex-col">
     <div
       ref={ref}
-      className={`chat-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain ${wideContent ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6"}`}
+      className={`chat-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain ${wideContent ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6"}`}
       style={{ paddingTop: padTop, paddingBottom: padBottom }}
       role="log"
       aria-live="polite"
@@ -287,6 +367,8 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
       <div ref={contentRef} className="min-h-full flex flex-col justify-end">
         {body}
       </div>
+      {/* Tail spacer — sized by fitTail() for the anchored message. */}
+      <div ref={tailRef} aria-hidden data-testid="chat-tail-space" />
     </div>
     {!hideArrow && (
     <button

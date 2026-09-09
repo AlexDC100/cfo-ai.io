@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:docker": "docker compose --profile dev up frontend-dev",
+    "dev:app": "bash scripts/frontend_app_preview.sh",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

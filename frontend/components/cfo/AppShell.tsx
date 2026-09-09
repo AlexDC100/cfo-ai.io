@@ -13,10 +13,6 @@
 // pill sits bottom-right on every viewport.
 
 import { ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { IosSpinner } from "./IosSpinner";
-import { useChatStore } from "./chat/useChatStore";
-import { refreshFeatures } from "@/lib/features";
-import { queryClient } from "@/lib/queryClient";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -385,69 +381,8 @@ export function AppShell({ children }: Props) {
   // has nothing to navigate between, so the whole left nav is hidden and the
   // content runs full-width until they create one. Gated on !loading so the
   // sidebar doesn't flash out during the initial workspace resolve.
-  const { workspaces, loading: wsLoading, refresh: refreshWorkspaces } = useWorkspaces();
+  const { workspaces, loading: wsLoading } = useWorkspaces();
 
-  // Pull-to-refresh on the drawer (2026-09-08 per operator, replacing a
-  // refresh button): pulling the drawer's content down from its top
-  // reveals the indicator; releasing past the threshold refreshes the
-  // SIDEBAR's data only — conversations, workspaces, the feature registry
-  // and every cached query — never the open tab. The drawer is its own
-  // scroller, so the WebView's native pull-to-refresh (which watches the
-  // document) never fires inside it.
-  const PULL_THRESHOLD = 64;
-  const chatStore = useChatStore();
-  const [drawerPull, setDrawerPull] = useState(0);
-  const [drawerRefreshing, setDrawerRefreshing] = useState(false);
-  // The indicator fades out when the refresh is done (2026-09-09 per
-  // operator) before its row collapses.
-  const [drawerFading, setDrawerFading] = useState(false);
-  const pullStartY = useRef<number | null>(null);
-  const drawerScrollerRef = useRef<HTMLDivElement>(null);
-  const onDrawerTouchStart = useCallback((e: React.TouchEvent) => {
-    const scroller = drawerScrollerRef.current?.querySelector<HTMLElement>("[data-drawer-scroller]");
-    pullStartY.current =
-      scroller && scroller.scrollTop <= 0 ? e.touches[0].clientY : null;
-  }, []);
-  const onDrawerTouchMove = useCallback((e: React.TouchEvent) => {
-    if (pullStartY.current === null || drawerRefreshing) return;
-    const scroller = drawerScrollerRef.current?.querySelector<HTMLElement>("[data-drawer-scroller]");
-    if (scroller && scroller.scrollTop > 0) { pullStartY.current = null; setDrawerPull(0); return; }
-    const dy = e.touches[0].clientY - pullStartY.current;
-    // Dead zone: a tap always carries a few px of travel; growing the
-    // indicator for those shifted the top rows under the finger, so the
-    // first tap on Dashboard sometimes missed (2026-09-08 per operator).
-    // Beyond it: half the finger travel, capped a little past the threshold.
-    const PULL_SLACK = 12;
-    setDrawerPull(dy > PULL_SLACK ? Math.min((dy - PULL_SLACK) * 0.5, PULL_THRESHOLD + 24) : 0);
-  }, [drawerRefreshing]);
-  const onDrawerTouchEnd = useCallback(() => {
-    if (pullStartY.current === null) return;
-    pullStartY.current = null;
-    if (drawerPull < PULL_THRESHOLD) {
-      setDrawerPull(0);
-      return;
-    }
-    setDrawerRefreshing(true);
-    const started = Date.now();
-    void Promise.allSettled([
-      chatStore.refresh(),
-      refreshWorkspaces(),
-      refreshFeatures(),
-      queryClient.invalidateQueries(),
-    ]).then(() => {
-      // Keep the spinner up at least briefly so a fast refresh still reads
-      // as one.
-      const rest = Math.max(0, 600 - (Date.now() - started));
-      window.setTimeout(() => {
-        setDrawerFading(true);
-        window.setTimeout(() => {
-          setDrawerRefreshing(false);
-          setDrawerPull(0);
-          setDrawerFading(false);
-        }, 260);
-      }, rest);
-    });
-  }, [drawerPull, chatStore, refreshWorkspaces]);
   // Also true when a workspace EXISTS but hasn't been set up yet — the state
   // a brand-new account lands in, since signup auto-creates an org with no
   // industry_key. AuthGuard already bounces every data route back to
@@ -583,42 +518,11 @@ export function AppShell({ children }: Props) {
           {/* Header-height spacer — only where the fixed TopHeader exists;
               in the native shell the drawer content starts at the top. */}
           {!inNativeShell && <div className="h-14 border-b border-rule" />}
-          {/* Touch surface for pull-to-refresh (covers header, nav and
-              footer; the nav inside is the scroller — see the
-              data-drawer-scroller lookup in the handlers). */}
-          <div
-            ref={drawerScrollerRef}
-            className="relative flex-1 min-h-0 flex flex-col"
-            onTouchStart={onDrawerTouchStart}
-            onTouchMove={onDrawerTouchMove}
-            onTouchEnd={onDrawerTouchEnd}
-            onTouchCancel={onDrawerTouchEnd}
-          >
+          {/* No pull-to-refresh in the drawer (2026-09-10 per operator). */}
+          <div className="relative flex-1 min-h-0 flex flex-col">
           <Sidebar
             {...sidebarHandlers}
             inDrawer
-            // Pull-to-refresh indicator — the iOS activity indicator in the
-            // theme's accent colour, nothing else (2026-09-09 per operator):
-            // it spins as it comes into view with the pull, and fades out
-            // once the refresh is done. Rendered at the top of the nav
-            // SCROLLER, under the fixed header.
-            navTop={
-              (drawerPull > 0 || drawerRefreshing) && (
-                <div
-                  aria-hidden={!drawerRefreshing}
-                  role={drawerRefreshing ? "status" : undefined}
-                  data-testid="drawer-pull-refresh"
-                  className="flex items-end justify-center overflow-hidden text-brand"
-                  style={{
-                    height: drawerRefreshing ? PULL_THRESHOLD : drawerPull,
-                    opacity: drawerFading ? 0 : drawerRefreshing ? 1 : Math.min(1, drawerPull / PULL_THRESHOLD),
-                    transition: drawerRefreshing ? "height 120ms ease-out, opacity 250ms ease" : undefined,
-                  }}
-                >
-                  <IosSpinner size={24} className="mb-3" />
-                </div>
-              )
-            }
             noWorkspace={noWorkspaces}
             onItemClick={() => setSidebarOpen(false)}
             // Drawer account row (2026-08-18) — no header inside the native

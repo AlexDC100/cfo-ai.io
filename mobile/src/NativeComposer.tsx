@@ -21,11 +21,12 @@ import type { Palette } from "./theme";
 const LIQUID_GLASS = isLiquidGlassAvailable();
 const LINE = 22;
 const MAX_LINES = 7;
-// Room above the glass for the "scroll to newest" disc: it sits so its
-// centre lines up with the page's ⓘ button just above the composer. Not
-// part of the height reported to the page.
+// Room above the glass for the "scroll to newest" disc, which floats a
+// clear gap above the composer (2026-09-10 per operator). Not part of the
+// height reported to the page.
 const ARROW = 36;
-const ARROW_ROOM = 40;
+const ARROW_GAP = 14;
+const ARROW_ROOM = ARROW + ARROW_GAP;
 
 export type NativeComposerState = {
   show: boolean;
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
   },
   arrowHit: {
     position: "absolute",
-    top: 4,
+    top: 0,
     left: "50%",
     marginLeft: -ARROW / 2,
     width: ARROW,

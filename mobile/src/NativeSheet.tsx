@@ -71,11 +71,20 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
   const webRefs = useRef<Record<NativeSheetKind, WebView | null>>({ account: null, notifications: null });
   const presented = kind !== null;
   const [loaded, setLoaded] = useState<Record<NativeSheetKind, boolean>>({ account: false, notifications: false });
-  // A sheet requested before the warm-up mounts its page right away.
-  const [mounted, setMounted] = useState(false);
+  // Which sheet pages are booted. The warm-up boots them ONE AT A TIME
+  // (2026-09-10): each is a full app page, and two booting together with
+  // the main page's own lazy chunks made the app feel slow right after
+  // launch. A sheet requested before its turn mounts right away.
+  const [mounted, setMounted] = useState<Record<NativeSheetKind, boolean>>({ account: false, notifications: false });
   useEffect(() => {
-    if (warm || kind) setMounted(true);
-  }, [warm, kind]);
+    if (kind) setMounted((m) => (m[kind] ? m : { ...m, [kind]: true }));
+  }, [kind]);
+  useEffect(() => {
+    if (!warm) return undefined;
+    setMounted((m) => (m.account ? m : { ...m, account: true }));
+    const t = setTimeout(() => setMounted((m) => (m.notifications ? m : { ...m, notifications: true })), 2500);
+    return () => clearTimeout(t);
+  }, [warm]);
   // Tell the presented page to refresh what it shows (plan, alerts…).
   useEffect(() => {
     if (!kind) return;
@@ -160,8 +169,7 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
         <Group modifiers={modifiers}>
           <RNHostView>
             <View style={[styles.body, { backgroundColor: fallbackBg }]}>
-              {mounted &&
-                KINDS.map((k) => (
+              {KINDS.filter((k) => mounted[k]).map((k) => (
                   <WebView
                     key={k}
                     ref={(r) => {

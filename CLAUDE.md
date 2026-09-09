@@ -914,6 +914,17 @@ network via `VITE_DEV_ENGINE_URL` (default stays `127.0.0.1:8000` for the
 bare `npm run dev`). Port 5173 is published, so the phone's WebView URL
 (`http://<mac-ip>:5173`) is unchanged.
 
+**Polling removed the same day.** `VITE_WATCH_POLL=1` had the container
+stat-ing the whole bind-mounted repo every 300 ms: ~80% CPU while idle
+and 5–34 s for `index.html` (0.02 s from a bare Vite). Docker Desktop's
+VirtioFS mount DOES deliver native file events (measured with `fs.watch`
+inside the container), so the service no longer sets it; the dev page
+went from ~5.9 s to ~0.6 s usable. The variable is still honoured for a
+host whose mount really drops events. For the phone, `npm run dev:app`
+(`scripts/frontend_app_preview.sh`) serves a production build rebuilt on
+change on the same port — ~77 requests a page instead of ~560, the
+difference a WebView over Wi-Fi feels most.
+
 **`frontend/lib/useBackendStatus.ts` + `components/cfo/BackendStatusIndicator.tsx`**
 (new) — an 8px dot in `TopHeader`, polling `${API_URL}/health` every 20s
 plus an immediate re-probe on window `focus`/`online`. The tooltip text

@@ -95,7 +95,11 @@ services:
     entrypoint: ["sh", "/app/scripts/docker_frontend_dev.sh"]
     environment:
       VITE_DEV_ENGINE_URL: "http://backend:8000"
-      VITE_WATCH_POLL: "1"
+      # No VITE_WATCH_POLL here (2026-09-10): Docker Desktop's VirtioFS
+      # mount delivers native file events (measured), and polling the
+      # whole repo through the mount pinned the container at ~80% CPU
+      # idle and made every page take 5-30 s. Set it to "1" only on a
+      # host whose mount really drops events.
     volumes:
       - .:/app
       - frontend_dev_node_modules:/app/node_modules

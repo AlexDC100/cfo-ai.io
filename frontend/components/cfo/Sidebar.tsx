@@ -87,8 +87,6 @@ interface Props {
   /** Drawer mode — closes the slide-over after a click on mobile. */
   inDrawer?: boolean;
   onItemClick?: () => void;
-  /** Drawer: rendered first inside the nav scroller (pull-to-refresh). */
-  navTop?: ReactNode;
   /** Drawer mode only — opens the account surface (Command Center).
    *  Inside the native mobile shell the TopHeader isn't rendered, so the
    *  drawer's credentials row is the account entry point (2026-08-18). */
@@ -219,7 +217,6 @@ export function Sidebar({
   onSignOut,
   inDrawer = false,
   onItemClick,
-  navTop,
   onOpenAccount,
   noWorkspace = false,
 }: Props) {
@@ -367,7 +364,6 @@ export function Sidebar({
         className={`flex-1 min-h-0 overflow-x-hidden space-y-4 ${inDrawer ? "pt-3 pb-4 overflow-y-auto overscroll-contain drawer-stagger" : "py-4 overflow-y-auto"}`}
         {...(inDrawer ? { "data-drawer-scroller": "" } : {})}
       >
-        {inDrawer && navTop}
         {/* Ask CFO AI — the product's headline capability, promoted to
             the TOP of the rail as the one accent-filled button (operator
             directive 2026-08-29, restored 2026-09-06 after a stint as a

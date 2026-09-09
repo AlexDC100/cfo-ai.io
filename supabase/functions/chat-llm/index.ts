@@ -41,8 +41,15 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
 ]);
 
+// LAN dev (2026-09-10): the iOS shell loads the Vite dev server by the Mac's
+// LAN address (http://10.x.x.x:5173 …), so a phone on the same network gets
+// an origin no allowlist can name in advance. Private-range hosts on the
+// Vite port are unroutable from the internet; CORS is a browser courtesy
+// either way, so this widens nothing for a non-browser caller.
+const LAN_DEV_ORIGIN = /^http:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):5173$/;
+
 function corsHeaders(origin: string | null): Record<string, string> {
-  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://cfo-ai.io";
+  const allow = origin && (ALLOWED_ORIGINS.has(origin) || LAN_DEV_ORIGIN.test(origin)) ? origin : "https://cfo-ai.io";
   return {
     "Access-Control-Allow-Origin": allow,
     "Vary": "Origin",

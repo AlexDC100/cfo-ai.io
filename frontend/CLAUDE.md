@@ -22,7 +22,10 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
 ## Commands (run from repo root)
 - `npm run dev` — Vite dev server · `npm run dev:docker` — the same server inside
   Docker (compose service `frontend-dev`, profile `dev`; proxies `/api` to the
-  `backend` container; port 5173 on the LAN) · `npm run build` — prod build
+  `backend` container; port 5173 on the LAN) · `npm run dev:app` — the
+  PRODUCTION build rebuilt on change and served on :5173 (~77 requests a
+  page instead of ~560; what to point the phone at when load time matters;
+  no HMR) · `npm run build` — prod build
 - `npm run lint` — eslint · `npm test` — vitest (unit) · `npm run test:e2e` — Playwright
 - Typecheck: `npx tsc --noEmit -p tsconfig.json` (run this after edits)
 - Deploy FE: `docker compose build frontend && docker compose up -d frontend`
@@ -77,6 +80,10 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   locks document scroll), the message list scrolls inside it and the composer sits in
   flow at the bottom. Nothing on the page is `position: fixed` — in the iOS WebView a
   fixed composer over a scrolling document lagged and its caret drifted.
+- **Anchor on send** (2026-09-10): a message the user just sent glides to the top
+  of the list and the answer types out under it; `CFOMessageList` grows a tail
+  spacer (`chat-tail-space`, sized on the DOM, never state) so a short thread has
+  the room, and gives it back as the answer fills it. Dropped on conversation switch.
 - **Inside the native shell** the composer, the top-right delete disc, the drawer's
   long-press action sheet and the delete confirm are all NATIVE (`lib/nativeShell.ts`:
   `composer` / `chrome.trash` / `dialog` messages; replies arrive as

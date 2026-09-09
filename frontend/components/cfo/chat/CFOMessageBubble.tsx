@@ -150,7 +150,10 @@ function UserBubble({ message }: Props) {
       data-role="user"
     >
       <div className="max-w-[88%] sm:max-w-[760px]">
-        <div className="rounded-md rounded-tr-sm border border-rule bg-brand-tint/60 dark:bg-brand-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap">
+        {/* [overflow-wrap:anywhere]: a pasted URL, a long number or a
+            word with no spaces wraps inside the bubble instead of running
+            out of it (2026-09-10 per operator). */}
+        <div className="rounded-md rounded-tr-sm border border-rule bg-brand-tint/60 dark:bg-brand-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink whitespace-pre-wrap [overflow-wrap:anywhere]">
           {message.content}
         </div>
         {message.attachments && message.attachments.length > 0 && (
@@ -256,7 +259,7 @@ function MiniMarkdown({ text }: { text: string }) {
         );
         // paragraph — preserve hard breaks inside a block
         return (
-          <p key={i} className="text-[14px] leading-[1.65] whitespace-pre-line">
+          <p key={i} className="text-[14px] leading-[1.65] whitespace-pre-line [overflow-wrap:anywhere]">
             {b.text.map((ln, j) => <span key={j}>{renderInline(ln)}{j < b.text.length - 1 ? "\n" : ""}</span>)}
           </p>
         );
