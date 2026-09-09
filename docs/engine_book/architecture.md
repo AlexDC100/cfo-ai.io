@@ -39,10 +39,11 @@ graph LR
     pkg_api["api (102 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
+    pkg_comparatives["comparatives (4 modules)"]
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
-    pkg_core["core (8 modules)"]
-    pkg_country_packs["country_packs (14 modules)"]
+    pkg_core["core (9 modules)"]
+    pkg_country_packs["country_packs (16 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -108,6 +109,7 @@ graph LR
     pkg_consensus -->|1| pkg_interp
     pkg_consensus -->|1| pkg_passes
     pkg_country_packs -->|2| pkg_canonical
+    pkg_country_packs -->|1| pkg_comparatives
     pkg_country_packs -->|1| pkg_confidence
     pkg_country_packs -->|1| pkg_consensus
     pkg_country_packs -->|3| pkg_core
