@@ -286,10 +286,7 @@ function FinalSlide({
 
       {!auth && (
         <div className={`flex flex-col gap-2.5 ${fadeCls}`}>
-          <button type="button" onClick={() => void goAuth()} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-signin">
-            <LogIn size={15} strokeWidth={2} className="shrink-0" />
-            {t("firstRun.btnSignIn")}
-          </button>
+          {/* Explore first, Sign in below it (2026-09-09 per operator). */}
           {isAuthenticated ? (
             <button type="button" onClick={onDone} className="ob-mute py-2 text-center font-mono text-[10.5px] uppercase tracking-[.08em] underline decoration-dotted underline-offset-4" data-testid="onboarding-continue">
               {t("firstRun.continueWithout")}
@@ -299,6 +296,10 @@ function FinalSlide({
               {t("firstRun.btnGuest")}
             </button>
           )}
+          <button type="button" onClick={() => void goAuth()} className="ob-cta flex items-center justify-center gap-2" data-testid="onboarding-signin">
+            <LogIn size={15} strokeWidth={2} className="shrink-0" />
+            {t("firstRun.btnSignIn")}
+          </button>
         </div>
       )}
     </>
