@@ -1635,6 +1635,29 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
         "parsed_tb_rows" if _statutory is not None else None,
         applied=_statutory is not None,
     )
+
+    # THE PRODUCT SEAM — structural impossibilities refuse here.
+    #
+    # This is where a document becomes something a person reads, so this
+    # is where a P&L that cannot be a true reading of its own trial
+    # balance must stop. Every real Romanian book in this repo is
+    # POST-CLOSING (class 6/7 closed to 121, both cumulative sides equal,
+    # closing zero), so a reader that nets the two sides or takes the
+    # closing column serves revenue = 0.00 against a billion of turnover
+    # — and nothing objected until now.
+    #
+    # Deliberately NOT raised inside `pack.assemble_parsed_tb`: that is a
+    # library entry point which test_metamorphic, the DST harness and the
+    # mutation kernel feed perturbed books on purpose, and every one of
+    # them is entitled to an answer to judge. The findings are attached
+    # there; the refusal is here.
+    _rows = parsed.get("tb_rows") or parsed.get("rows") or []
+    if _rows:
+        from engine.country_packs.ro_romania import pl_sanity as _pl_sanity
+
+        _pl_sanity.assert_servable(
+            (assembled.get("statements") or {}).get("assembled_pl") or {}, _rows
+        )
     return assembled
 
 

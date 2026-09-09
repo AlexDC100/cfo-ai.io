@@ -794,6 +794,39 @@ class RomaniaPack:
         self.merge_parser_exclusions(
             assembled, list(getattr(shaped, "excluded", None) or [])
         )
+
+        # STRUCTURAL IMPOSSIBILITIES — refuse rather than serve.
+        #
+        # Every real Romanian book this repo holds is POST-CLOSING: class
+        # 6/7 closed to account 121, so cumulative debit equals cumulative
+        # credit on every P&L account and the closing column is zero.
+        # Netting the two sides, or reading the closing balance, yields a
+        # revenue of 0.00 against a billion in turnover — a number a reader
+        # would believe. `pl_sanity` names the three shapes that cannot be
+        # a true reading and raises PlSanityRefused on them.
+        #
+# Attached to the envelope always (`pl_sanity`), so the post-closing
+        # signal and the class-70 identity are observable on a healthy book
+        # too, not only when something is wrong.
+        #
+        # ATTACHED HERE, REFUSED AT THE PRODUCT SEAM. This function is a
+        # LIBRARY entry point: test_metamorphic feeds it deliberately
+        # mirrored and sign-flipped books, the DST harness and the mutation
+        # kernel perturb it on purpose, and every one of those is supposed
+        # to get an answer back and judge it. Raising here made the
+        # assembler unable to process perturbed input at all — it turned a
+        # product guard into a testing outage (measured: 4 metamorphic
+        # transforms refused). The raise lives in `pipeline.stage_map`,
+        # where a document is being served to a person and a refusal is the
+        # right outcome; callers that want it explicitly can call
+        # `pl_sanity.assert_servable` themselves.
+        from . import pl_sanity as _pl_sanity
+
+        _pl = (assembled.get("statements") or {}).get("assembled_pl") or {}
+        assembled["pl_sanity"] = {
+            "movement": _pl_sanity.class_movement(tb_rows),
+            "findings": _pl_sanity.check(_pl, tb_rows),
+        }
         return tb_rows, shaped, assembled
 
     # ── 7. Industry classification ──────────────────────────
