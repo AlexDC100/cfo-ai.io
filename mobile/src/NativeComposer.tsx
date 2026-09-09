@@ -124,11 +124,10 @@ export function NativeComposer({ state, scheme, palette: p, accent, bottomInset,
           </GlassView>
         </TouchableOpacity>
       )}
-      {/* "clear" glass, not "regular" (2026-09-10 per operator: match the
-          burger's tint): iOS frosts regular glass more the larger the
-          surface, so this panel read heavier than the 44 pt discs. Clear
-          keeps the disc's lighter, see-through look at this size. */}
-      <GlassView glassEffectStyle="clear" isInteractive colorScheme={dark ? "dark" : "light"} style={[styles.glass, fallback]}>
+      {/* "regular" glass, the burger's material (2026-09-10 per operator:
+          "clear" read lighter than the discs). iOS adapts the frosting to
+          the surface size, so a panel and a disc never match to the pixel. */}
+      <GlassView glassEffectStyle="regular" isInteractive colorScheme={dark ? "dark" : "light"} style={[styles.glass, fallback]}>
         {/* Row 1: the message on its own line. Row 2: attach · ⓘ on the
             left, Send on the right (2026-09-10 per operator). The field
             auto-grows between one and MAX_LINES lines with NO explicit

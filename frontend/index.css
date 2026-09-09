@@ -1181,6 +1181,26 @@
 /* iOS activity indicator (components/cfo/IosSpinner): each bar fades from
    full to dim over one revolution; the per-bar negative delay staggers them
    so the bright bar appears to travel clockwise. */
+/* Drawer dividers (2026-09-10 per operator): inset from the edges and
+   fading out at both ends instead of a full-width rule. */
+.drawer-rule {
+  height: 1px;
+  margin-left: 16px;
+  margin-right: 16px;
+  background: linear-gradient(to right, transparent, hsl(var(--rule)) 18%, hsl(var(--rule)) 82%, transparent);
+}
+
+/* Chat item menu (2026-09-10): the lifted row and its menu pop in from
+   their top-left corner, like an iOS context menu. */
+@keyframes chat-item-menu-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.chat-item-menu-in {
+  transform-origin: top left;
+  animation: chat-item-menu-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 @keyframes ios-spinner-fade {
   0% { opacity: 1; }
   100% { opacity: 0.25; }

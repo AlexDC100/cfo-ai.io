@@ -60,7 +60,8 @@ import { NotificationsMenu } from "./NotificationsMenu";
 import { ThemePicker } from "./ThemePicker";
 import { tapHandlers } from "@/lib/tapHandlers";
 import type { ChatConversation } from "./chat/types";
-import { ChatItemActionSheet } from "@/components/cfo/chat/ChatItemActionSheet";
+import { ChatItemMenu, type ChatItemMenuAnchor } from "@/components/cfo/chat/ChatItemMenu";
+import { postHaptic } from "@/lib/nativeShell";
 import { onboardingReplayAvailable, openOnboarding } from "@/lib/onboarding";
 import { Mark } from "./Mark";
 import { nativeShellVersion } from "@/lib/nativeShell";
@@ -236,17 +237,20 @@ export function Sidebar({
   // (onItemClick) and go. A slow tab shows its loader in the content area
   // (App.tsx ContentFallback) — the drawer never waits (2026-09-08).
   const go = (href: string) => {
+    if (inDrawer) postHaptic("selection");
     onItemClick?.();
     navigate(href);
   };
   const onLinkClick = (e: React.MouseEvent) => {
     if (!confirmLeaveUnsaved()) { e.preventDefault(); return; }
+    if (inDrawer) postHaptic("selection");
     onItemClick?.();
   };
   // Long-press on a drawer chat item (2026-09-10 per operator): the held
   // conversation gets an iOS-style action sheet; the tap that ends the
   // hold is swallowed so it doesn't also open the chat.
-  const [actionSheetFor, setActionSheetFor] = useState<ChatConversation | null>(null);
+  // Held chat row → floating Rename / Delete menu (2026-09-10 per operator).
+  const [chatMenu, setChatMenu] = useState<{ conversation: ChatConversation; anchor: ChatItemMenuAnchor } | null>(null);
   const longPressTimer = useRef<number>();
   const longPressedRef = useRef(false);
   // Drawer-only conversations dropdown under the Ask CFO AI row (2026-09-04
@@ -354,16 +358,20 @@ export function Sidebar({
                 </button>
               </div>
             </div>
-            {/* Same rule as the footer's (border-t border-rule, full width). */}
-            <div aria-hidden className="mt-3 -ml-6 -mr-3 border-t border-rule" />
+            {/* Inset, edge-faded rule (2026-09-10 per operator). */}
+            <div aria-hidden className="mt-3 -ml-6 -mr-3 drawer-rule" />
           </div>
         )}
       {/* Drawer: the ONE scroller, between the fixed header and footer
           (2026-09-09 per operator). The desktop rail keeps its own. */}
       <nav
-        className={`flex-1 min-h-0 overflow-x-hidden space-y-4 ${inDrawer ? "pt-3 pb-4 overflow-y-auto overscroll-contain drawer-stagger" : "py-4 overflow-y-auto"}`}
+        // Drawer: `overflow-y-scroll` plus content at least 1px taller than
+        // the box, so the list ALWAYS scrolls (and bounces) even when it fits
+        // (2026-09-10 per operator).
+        className={`flex-1 min-h-0 overflow-x-hidden ${inDrawer ? "pt-3 pb-4 overflow-y-scroll overscroll-contain" : "py-4 overflow-y-auto"}`}
         {...(inDrawer ? { "data-drawer-scroller": "" } : {})}
       >
+      <div className={`space-y-4 ${inDrawer ? "min-h-[calc(100%+1px)] drawer-stagger" : ""}`}>
         {/* Ask CFO AI — the product's headline capability, promoted to
             the TOP of the rail as the one accent-filled button (operator
             directive 2026-08-29, restored 2026-09-06 after a stint as a
@@ -445,14 +453,15 @@ export function Sidebar({
                       open();
                     }}
                     // Long-press (2026-09-10 per operator): hold a chat to get
-                    // the action sheet with Delete; a hold never also opens
-                    // the chat when the finger lifts.
+                    // its Rename / Delete menu, lifted off the row; a hold
+                    // never also opens the chat when the finger lifts.
                     onTouchStart={(e) => {
                       tap.onTouchStart(e);
+                      const rowEl = e.currentTarget;
                       window.clearTimeout(longPressTimer.current);
                       longPressTimer.current = window.setTimeout(() => {
                         longPressedRef.current = true;
-                        setActionSheetFor(c);
+                        setChatMenu({ conversation: c, anchor: { kind: "row", rect: rowEl.getBoundingClientRect() } });
                       }, 500);
                     }}
                     onTouchMove={() => window.clearTimeout(longPressTimer.current)}
@@ -481,14 +490,20 @@ export function Sidebar({
                   </button>
                   );
                 })}
-                <ChatItemActionSheet
-                  conversation={actionSheetFor}
-                  onClose={() => { setActionSheetFor(null); longPressedRef.current = false; }}
-                  onDelete={(id) => chat.remove(id)}
-                />
               </div>
             )}
           </div>
+        )}
+        {/* The held chat's menu covers the whole drawer (the nav scrolls
+            under it), so it lives outside the nav scroller. */}
+        {inDrawer && (
+          <ChatItemMenu
+            conversation={chatMenu?.conversation ?? null}
+            anchor={chatMenu?.anchor ?? null}
+            onClose={() => { setChatMenu(null); longPressedRef.current = false; }}
+            onRename={(id, title) => chat.rename(id, title)}
+            onDelete={(id) => chat.remove(id)}
+          />
         )}
         {groups.map((g) => (
           <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
@@ -539,6 +554,7 @@ export function Sidebar({
             </button>
           </Section>
         )}
+      </div>
       </nav>
 
       {/* Account row — DRAWER ONLY (2026-08-18, native-shell pass): inside
@@ -549,11 +565,12 @@ export function Sidebar({
         <div
           // Pinned to the BOTTOM of the drawer: the nav above is the only
           // scroller, so this never moves (2026-09-09 per operator).
-          className="shrink-0 border-t border-rule bg-bg"
+          className="shrink-0 bg-bg"
           // Carries the home-indicator inset itself (the sheet has none), so
           // the row sits flush with the bottom edge.
           style={{ paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom) - 0.75rem))" }}
         >
+          <div aria-hidden className="drawer-rule" />
           {/* Currency — DRAWER ONLY (2026-08-18, native-shell pass): inside
               the shell the TopHeader (and its CurrencyMenu) isn't rendered,
               so the burger menu carries the display-currency toggle. Under
@@ -609,11 +626,12 @@ export function Sidebar({
         // Not rendered in the signed-in drawer: it has no visible rows there
         // (theme picker + Sign in are guest-only) and the account row above
         // is pinned to the bottom instead.
-        className={`shrink-0 pt-2 pb-3 border-t border-rule space-y-0.5 ${inDrawer ? "bg-bg" : ""}`}
+        className={`shrink-0 pt-2 pb-3 space-y-0.5 ${inDrawer ? "bg-bg" : "border-t border-rule"}`}
         // Drawer: carries the home-indicator inset itself (the sheet has
         // none) so the footer sits flush with the bottom edge.
         style={inDrawer ? { paddingBottom: "max(0.5rem, calc(env(safe-area-inset-bottom) - 0.25rem))" } : undefined}
       >
+        {inDrawer && <div aria-hidden className="drawer-rule -mt-2 mb-2" />}
         {/* Drawer order (2026-09-08 per operator): divider · theme picker ·
             Sign in last, at the very bottom. */}
         {/* Guest theme picker (2026-09-04 per operator): System · Light ·
@@ -770,6 +788,9 @@ function SidebarLink({
       // keyboard-accessible, AT-friendly, zero extra weight.
       title={collapsed ? label : undefined}
       end={end}
+      // No iOS link preview / callout on a held row (2026-09-10 per
+      // operator: only chat items react to a hold).
+      style={{ WebkitTouchCallout: "none" }}
       className={({ isActive }) =>
         // Full-bleed rows; pl-6 keeps the icon center on the rail's 32px
         // line in BOTH modes so nothing shifts while the width animates.

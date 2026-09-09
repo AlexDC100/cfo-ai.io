@@ -84,11 +84,16 @@ The root `CLAUDE.md` is the *financial-analysis methodology* + deploy protocols;
   of the list and the answer types out under it; `CFOMessageList` grows a tail
   spacer (`chat-tail-space`, sized on the DOM, never state) so a short thread has
   the room, and gives it back as the answer fills it. Dropped on conversation switch.
-- **Inside the native shell** the composer, the top-right delete disc, the drawer's
-  long-press action sheet and the delete confirm are all NATIVE (`lib/nativeShell.ts`:
-  `composer` / `chrome.trash` / `dialog` messages; replies arrive as
-  `cfo:native-action` events `composer-*`, `delete`, `dialog`). The page keeps the web
-  versions as the browser fallback and pads the thread by the reported native height.
+- **Inside the native shell** the composer, the top-right "…" disc (a SwiftUI Menu:
+  chat title, Rename, Delete chat), the drawer's held-chat menu (native action sheet
+  → native text prompt for Rename) and the delete confirm are all NATIVE
+  (`lib/nativeShell.ts`: `composer` / `chrome.trash` + `chatTitle` / `dialog` incl.
+  kind `prompt` / `haptic` / `notify` messages; replies arrive as `cfo:native-action`
+  events `composer-*`, `chat-rename`, `chat-delete`, `dialog`). The browser keeps
+  `ChatItemMenu` (hold a drawer row / the "…" disc → lifted row + Rename / Delete).
+  An answer that lands while the app is backgrounded becomes a local notification
+  (`chatTurns.ts` → `postNotify`). The drawer ticks a haptic on open/close and on
+  entering a tab, and its nav always scrolls (`overflow-y-scroll` + content ≥ 100%+1px).
 
 ## Design system (use tokens, not hex)
 - Colors are CSS vars in `index.css`, theme-aware (light/dark via `next-themes`) and

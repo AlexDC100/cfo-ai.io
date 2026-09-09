@@ -40,7 +40,8 @@ import { useChatStore } from "./useChatStore";
 import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
 import { useAiDegraded } from "@/lib/aiDegraded";
 import { Chip } from "@/components/instrument/Panel";
-import { Info, Trash2 } from "lucide-react";
+import { Info, MoreHorizontal } from "lucide-react";
+import { ChatItemMenu } from "./ChatItemMenu";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import "./chatDegradedI18n";
 import { useCurrency } from "@/stores/currency";
@@ -49,7 +50,7 @@ import { promptSignIn } from "@/lib/authPrompt";
 import { getActiveOrgId } from "@/lib/activeOrg";
 import { readPeriodVerdict } from "@/lib/dataPresence";
 import { usePublicCompanyChatContext } from "@/lib/publicCompanyChatStore";
-import { isNativeShell, setShellTrash, postNativeComposer, NATIVE_ACTION_EVENT } from "@/lib/nativeShell";
+import { isNativeShell, setShellTrash, setShellChatTitle, showNativePrompt, requestNotifyPermission, postNativeComposer, NATIVE_ACTION_EVENT } from "@/lib/nativeShell";
 import { readDraft, writeDraft } from "./chatDrafts";
 import type { ChatAttachment } from "./types";
 import type { Currency } from "@/lib/rates";
@@ -197,27 +198,40 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     return () => ro.disconnect();
   }, [variant]);
   const scrollPadBottom = `${(nativeComposer ? composerBlockHeight + nativeComposerHeight : composerBlockHeight) + 8}px`;
-  // Top-right delete disc on phones / in the shell (2026-09-10 per
-  // operator) — the same 52px tinted disc as the shell's native burger,
-  // mirrored to the other corner. Confirms before deleting.
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  // In the shell the disc is NATIVE Liquid Glass (2026-09-10 per operator),
-  // drawn top-right by the shell while this page has a chat open; its tap
-  // arrives as native action "delete".
+  // Top-right "…" disc on phones / in the shell (2026-09-10 per operator)
+  // — the same disc as the shell's burger, mirrored to the other corner.
+  // It opens the chat's Rename / Delete menu (ChatItemMenu).
+  const [menuOpen, setMenuOpen] = useState(false);
+  // In the shell the disc is NATIVE (2026-09-10 per operator): a SwiftUI
+  // Menu in Liquid Glass, drawn top-right by the shell while this page has
+  // a chat open, headed by the chat's title. Its items arrive as native
+  // actions "chat-rename" (→ native text prompt) and "chat-delete" (→ the
+  // native confirm).
   const chatOpen = variant === "page" && !!store.current && store.current.messages.length > 0;
+  const [nativeDeleteOpen, setNativeDeleteOpen] = useState(false);
+  const currentTitle = store.current?.title ?? "";
   useEffect(() => {
     if (!isNativeShell()) return undefined;
     setShellTrash(chatOpen);
-    return () => setShellTrash(false);
-  }, [chatOpen]);
+    setShellChatTitle(chatOpen ? currentTitle : "");
+    return () => { setShellTrash(false); setShellChatTitle(""); };
+  }, [chatOpen, currentTitle]);
   useEffect(() => {
     if (!isNativeShell() || !chatOpen) return undefined;
     const onAction = (e: Event) => {
-      if ((e as CustomEvent<{ action?: string }>).detail?.action === "delete") setDeleteOpen(true);
+      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
+      if (action === "chat-delete") setNativeDeleteOpen(true);
+      if (action === "chat-rename" && store.current) {
+        const conv = store.current;
+        void showNativePrompt({ title: t("chatX.rename"), defaultValue: conv.title, options: [t("common.cancel"), t("common.save")] }).then((text) => {
+          const title = (text ?? "").trim();
+          if (title && title !== conv.title) store.rename(conv.id, title);
+        });
+      }
     };
     window.addEventListener(NATIVE_ACTION_EVENT, onAction);
     return () => window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
-  }, [chatOpen]);
+  }, [chatOpen, store, t]);
   const keyboardOpen = keyboardInset > 0 || (coarsePointer && composerFocused);
   // Once per SESSION, not per mount (2026-07-26 per operator). The freeze is
   // an entrance treatment for the first time you land on the tab; re-applying
@@ -383,6 +397,9 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       promptSignIn();
       return;
     }
+    // Shell: the answer may land while the app is in the background — ask
+    // for the notification permission with the first message (2026-09-10).
+    requestNotifyPermission();
     startChatTurn({
       orgId: org?.id ?? null,
       text,
@@ -646,24 +663,37 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             {!inShell && (
             <button
               type="button"
-              onClick={() => setDeleteOpen(true)}
-              aria-label={t("chatX.deleteChat")}
-              title={t("chatX.deleteChat")}
-              data-testid="chat-delete-button"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label={t("chatX.chatOptions")}
+              title={t("chatX.chatOptions")}
+              data-testid="chat-more-button"
               className="lg:hidden absolute right-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-rule bg-surface/85 backdrop-blur-xl text-ink active:opacity-70 transition-opacity duration-micro"
-              style={{ top: inShell ? "calc(env(safe-area-inset-top) + 2px)" : "0.75rem" }}
+              style={{ top: "0.75rem" }}
             >
-              <Trash2 size={18} strokeWidth={1.75} />
+              <MoreHorizontal size={18} strokeWidth={1.75} />
             </button>
             )}
+            {/* Browser: the menu drops from under the web disc (12px + 44px). */}
+            {!inShell && (
+            <ChatItemMenu
+              conversation={menuOpen ? store.current : null}
+              anchor={{ kind: "corner", top: 64, right: 12 }}
+              onClose={() => setMenuOpen(false)}
+              onRename={(id, title) => store.rename(id, title)}
+              onDelete={(id) => store.remove(id)}
+            />
+            )}
+            {/* Shell: the native menu's Delete lands here for its confirm. */}
+            {inShell && (
             <DeleteChatDialog
-              open={deleteOpen}
-              onOpenChange={setDeleteOpen}
+              open={nativeDeleteOpen}
+              onOpenChange={setNativeDeleteOpen}
               onConfirm={() => {
-                setDeleteOpen(false);
+                setNativeDeleteOpen(false);
                 if (store.currentId) store.remove(store.currentId);
               }}
             />
+            )}
           </>
         )}
         {/* Content swap is instant — no fade (2026-07-26 per operator:

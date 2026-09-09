@@ -4,7 +4,11 @@
 // WebViews), offline/error recovery, and a first-load spinner.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActionSheetIOS, Alert } from "react-native";
+import { ActionSheetIOS, Alert, AppState } from "react-native";
+import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
+import { Button as UiButton, Host, Image as UiImage, Menu, Section } from "@expo/ui/swift-ui";
+import { buttonStyle, foregroundColor, frame, glassEffect } from "@expo/ui/swift-ui/modifiers";
 import {
   BackHandler,
   Linking,
@@ -64,6 +68,12 @@ function isDarkColor(color: string): boolean {
   return false;
 }
 
+// Local notifications (2026-09-10): shown as a banner with sound. They are
+// only ever scheduled while the app is in the background (see "notify").
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+});
+
 /** Left-edge strip width and the rightward travel that opens the drawer. */
 const EDGE_SWIPE_WIDTH = 22;
 const EDGE_SWIPE_TRIGGER = 36;
@@ -80,7 +90,11 @@ type ShellMessage =
   // web-fixed button drifts during fling scrolls/overscroll (2026-08-18).
   // `back: true` (2026-09-08): an in-app preview sheet is open — show a
   // BACK chevron in the same spot instead; a tap dispatches action "back".
-  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean }
+  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean; chatTitle?: string }
+  // Haptics and background-answer notifications (2026-09-10 per operator).
+  | { source: "cfo-ai"; type: "haptic"; kind: "light" | "medium" | "selection" }
+  | { source: "cfo-ai"; type: "notify"; title: string; body: string }
+  | { source: "cfo-ai"; type: "notify-permission" }
   // Native bottom sheet request (2026-09-08, iOS): present the account /
   // notifications page in a SwiftUI sheet (src/NativeSheet.tsx).
   | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean }
@@ -95,7 +109,8 @@ type ShellMessage =
       source: "cfo-ai";
       type: "dialog";
       id: string;
-      kind: "actionSheet" | "alert";
+      kind: "actionSheet" | "alert" | "prompt";
+      defaultValue?: string;
       title?: string;
       message?: string;
       options: string[];
@@ -187,6 +202,8 @@ export function WebAppScreen({ tabKey, path }: Props) {
   // Second disc, top-right (2026-09-10 per operator): delete the open chat.
   // Requested by the page with the burger; a tap dispatches "delete".
   const [trash, setTrash] = useState(false);
+  // The open chat's title — the header of the disc's native menu.
+  const [chatTitle, setChatTitle] = useState("");
   // Native composer state, as last reported by the chat page.
   const [composer, setComposer] = useState<NativeComposerState>({ show: false });
   // Native bottom sheet currently presented (iOS only).
@@ -303,17 +320,43 @@ export function WebAppScreen({ tabKey, path }: Props) {
       } else if (message.type === "chrome") {
         setChrome(message.back === true ? "back" : message.burger === true ? "menu" : "none");
         setTrash(message.trash === true && message.burger === true);
+        setChatTitle(message.chatTitle ?? "");
+      } else if (message.type === "haptic") {
+        if (message.kind === "selection") void Haptics.selectionAsync();
+        else void Haptics.impactAsync(message.kind === "medium" ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+      } else if (message.type === "notify-permission") {
+        void Notifications.requestPermissionsAsync().catch(() => {});
+      } else if (message.type === "notify") {
+        // Only while the app is NOT in the foreground — in the foreground
+        // the answer is already on screen.
+        if (AppState.currentState !== "active") {
+          void Notifications.scheduleNotificationAsync({ content: { title: message.title, body: message.body }, trigger: null }).catch(() => {});
+        }
       } else if (message.type === "composer") {
         const { source: _s, type: _t, ...rest } = message;
         setComposer(rest);
       } else if (message.type === "dialog") {
-        const reply = (index: number) =>
+        const reply = (index: number, text?: string) =>
           webRef.current?.injectJavaScript(
             'window.dispatchEvent(new CustomEvent("cfo:native-action",' +
-              `{ detail: { action: "dialog", id: ${JSON.stringify(message.id)}, index: ${index} } })); true;`,
+              `{ detail: { action: "dialog", id: ${JSON.stringify(message.id)}, index: ${index}, text: ${JSON.stringify(text ?? null)} } })); true;`,
           );
         const style = scheme === "dark" ? "dark" : "light";
-        if (message.kind === "actionSheet" && Platform.OS === "ios") {
+        if (message.kind === "prompt") {
+          // Native text-input alert: options = [cancel, confirm].
+          Alert.prompt(
+            message.title ?? "",
+            message.message,
+            [
+              { text: message.options[0], style: "cancel", onPress: () => reply(-1) },
+              { text: message.options[1], onPress: (text?: string) => reply(1, text ?? "") },
+            ],
+            "plain-text",
+            message.defaultValue,
+            undefined,
+            { userInterfaceStyle: style },
+          );
+        } else if (message.kind === "actionSheet" && Platform.OS === "ios") {
           ActionSheetIOS.showActionSheetWithOptions(
             {
               title: message.title,
@@ -440,6 +483,9 @@ export function WebAppScreen({ tabKey, path }: Props) {
           }}
           // No "< > Done" bar over the keyboard (2026-09-09 per operator).
           hideKeyboardAccessoryView
+          // No link preview on a held link (2026-09-10 per operator: only
+          // chat items react to a hold).
+          allowsLinkPreview={false}
           onError={() => setFailed(true)}
           // iOS can't render in-page downloads (report exports) — system browser.
           onFileDownload={({ nativeEvent }) => {
@@ -540,41 +586,33 @@ export function WebAppScreen({ tabKey, path }: Props) {
           </GlassView>
         </TouchableOpacity>
       )}
-      {/* Delete-chat disc — the same Liquid Glass disc, top-RIGHT, while
-          the web chat page has a conversation open (2026-09-10 per
-          operator). Tapping asks the page to confirm the deletion. */}
-      {chrome === "menu" && trash && (
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel="Delete chat"
-          onPress={() => dispatchAction("delete")}
-          style={[styles.trashHit, { top: insets.top + 6 }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.85}
-        >
-          <GlassView
-            glassEffectStyle="regular"
-            isInteractive
-            colorScheme={scheme === "dark" ? "dark" : "light"}
-            style={[
-              styles.burger,
-              !LIQUID_GLASS && {
-                backgroundColor: scheme === "dark" ? "rgba(16, 24, 22, 0.85)" : "rgba(249, 249, 245, 0.88)",
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: p.border,
-              },
-            ]}
+      {/* Chat-options "…" — a NATIVE SwiftUI Menu (2026-09-10 per operator:
+          "use the native iOS feature"), top-RIGHT while the web chat page
+          has a conversation open: the chat's title as the header, Rename and
+          Delete chat as items. Its label is the same 44 pt Liquid Glass disc
+          as the burger. Items reach the page as actions "chat-rename" /
+          "chat-delete". */}
+      {chrome === "menu" && trash && Platform.OS === "ios" && (
+        <Host style={[styles.trashHit, { top: insets.top + 6 }]} matchContents>
+          <Menu
+            label={
+              <UiImage
+                systemName="ellipsis"
+                modifiers={[
+                  frame({ width: 44, height: 44 }),
+                  glassEffect({ glass: { variant: "regular", interactive: true }, shape: "circle" }),
+                  foregroundColor(p.text),
+                ]}
+              />
+            }
+            modifiers={[buttonStyle("plain")]}
           >
-            {/* lucide "trash-2", stroked in the chrome's text colour */}
-            <Svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={p.text} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M3 6h18" />
-              <Path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-              <Path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <Path d="M10 11v6" />
-              <Path d="M14 11v6" />
-            </Svg>
-          </GlassView>
-        </TouchableOpacity>
+            <Section title={chatTitle || undefined}>
+              <UiButton label="Rename" systemImage="pencil" onPress={() => dispatchAction("chat-rename")} />
+              <UiButton label="Delete chat" systemImage="trash" role="destructive" onPress={() => dispatchAction("chat-delete")} />
+            </Section>
+          </Menu>
+        </Host>
       )}
 
       {/* First-load cover: the page's own loader, drawn natively, on the

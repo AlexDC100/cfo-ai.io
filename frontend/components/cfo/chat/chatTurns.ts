@@ -16,6 +16,7 @@
 //     cap survives tab switches instead of resetting with the shell.
 
 import { useSyncExternalStore } from "react";
+import { postNotify } from "@/lib/nativeShell";
 import i18n from "@/i18n";
 import { CfoApiError, cfoApi } from "@/lib/cfoApi";
 import {
@@ -191,6 +192,12 @@ export function startChatTurn(ctx: ChatTurnContext): void {
       });
       // A2 auto-recover — a successful turn releases the degraded lock.
       clearAiDegraded();
+      // Shell, app in the background (2026-09-10 per operator): a local
+      // notification carries the answer. The shell shows it only while the
+      // app is not in the foreground.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        postNotify("CFO AI", answer.length > 240 ? `${answer.slice(0, 237)}…` : answer);
+      }
     } catch (err) {
       if (controller.signal.aborted) {
         if (turn.stopRequested) {

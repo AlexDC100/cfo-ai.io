@@ -47,9 +47,18 @@ export const NATIVE_ACTION_EVENT = "cfo:native-action";
 type NativeShellMessage =
   | { source: "cfo-ai"; type: "oauth"; url: string }
   | { source: "cfo-ai"; type: "auth"; event: "SIGNED_IN" | "SIGNED_OUT" }
-  // `trash` (2026-09-10): a second native Liquid Glass disc, top-RIGHT,
-  // while a chat is open on /chat — tapping it dispatches action "delete".
-  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean }
+  // `trash` (2026-09-10): a second native Liquid Glass disc ("…"), top-RIGHT,
+  // while a chat is open on /chat — tapping it dispatches action "more",
+  // which opens the page's Rename / Delete menu.
+  // `chatTitle` names the open chat: the disc's native menu shows it as
+  // its header.
+  | { source: "cfo-ai"; type: "chrome"; burger: boolean; back?: boolean; trash?: boolean; chatTitle?: string }
+  // Haptics (2026-09-10 per operator): drawer open / close, entering a tab.
+  | { source: "cfo-ai"; type: "haptic"; kind: "light" | "medium" | "selection" }
+  // Background answer notification (2026-09-10 per operator): the shell
+  // posts a local notification when the app is not in the foreground.
+  | { source: "cfo-ai"; type: "notify"; title: string; body: string }
+  | { source: "cfo-ai"; type: "notify-permission" }
   // Native bottom sheets (2026-09-08, iOS): `open` asks the shell to present
   // a SwiftUI sheet hosting a second WebView on /_native/sheet/<kind>; from
   // INSIDE that sheet, `close` dismisses it and `navigate` asks the shell to
@@ -78,12 +87,15 @@ type NativeShellMessage =
       source: "cfo-ai";
       type: "dialog";
       id: string;
-      kind: "actionSheet" | "alert";
+      // "prompt" (2026-09-10): a text-input alert (Alert.prompt); the reply
+      // carries `text`. options = [cancel label, confirm label].
+      kind: "actionSheet" | "alert" | "prompt";
       title?: string;
       message?: string;
       options: string[];
       destructiveIndex?: number;
       cancelIndex?: number;
+      defaultValue?: string;
     };
 
 /** The chat composer is NATIVE inside the shell (2026-09-10): the page
@@ -121,6 +133,41 @@ let dialogSeq = 0;
 /** Present a native action sheet or alert; resolves with the chosen
  *  button's index, or -1 when dismissed. Only valid inside the shell
  *  (callers keep their web fallback for browsers). */
+/** A native text-input alert. Resolves the entered text, or null when
+ *  cancelled. `options` = [cancel label, confirm label]. */
+export function showNativePrompt(spec: { title: string; message?: string; defaultValue?: string; options: [string, string] }): Promise<string | null> {
+  const id = `dlg-${Date.now().toString(36)}-${++dialogSeq}`;
+  return new Promise((resolve) => {
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<{ action?: string; id?: string; index?: number; text?: string }>).detail;
+      if (d?.action !== "dialog" || d.id !== id) return;
+      window.removeEventListener(NATIVE_ACTION_EVENT, onAction);
+      resolve(d.index === 1 && typeof d.text === "string" ? d.text : null);
+    };
+    window.addEventListener(NATIVE_ACTION_EVENT, onAction);
+    postToNativeShell({ source: "cfo-ai", type: "dialog", id, kind: "prompt", title: spec.title, message: spec.message, defaultValue: spec.defaultValue, options: spec.options, cancelIndex: 0 });
+  });
+}
+
+/** Ask the shell for a haptic tick (no-op outside the shell). */
+export function postHaptic(kind: "light" | "medium" | "selection"): void {
+  if (isNativeShell()) postToNativeShell({ source: "cfo-ai", type: "haptic", kind });
+}
+
+/** Ask the shell to show a local notification if the app is backgrounded. */
+export function postNotify(title: string, body: string): void {
+  if (isNativeShell()) postToNativeShell({ source: "cfo-ai", type: "notify", title, body });
+}
+
+let notifyPermissionAsked = false;
+/** Ask the notification permission once per page load (the shell shows the
+ *  system prompt only the first time iOS allows it). */
+export function requestNotifyPermission(): void {
+  if (!isNativeShell() || notifyPermissionAsked) return;
+  notifyPermissionAsked = true;
+  postToNativeShell({ source: "cfo-ai", type: "notify-permission" });
+}
+
 export function showNativeDialog(kind: "actionSheet" | "alert", spec: NativeDialogSpec): Promise<number> {
   const id = `dlg-${Date.now().toString(36)}-${++dialogSeq}`;
   return new Promise((resolve) => {
@@ -151,6 +198,16 @@ function shellWindow(): ShellWindow | null {
 // `chrome` message) folds it into its next post.
 let shellTrash = false;
 const shellTrashListeners = new Set<() => void>();
+/** The open chat's title, shown as the header of the disc's native menu. */
+let shellChatTitle = "";
+export function setShellChatTitle(title: string): void {
+  if (shellChatTitle === title) return;
+  shellChatTitle = title;
+  for (const l of shellTrashListeners) l();
+}
+export function getShellChatTitle(): string {
+  return shellChatTitle;
+}
 export function setShellTrash(on: boolean): void {
   if (shellTrash === on) return;
   shellTrash = on;

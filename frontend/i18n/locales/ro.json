@@ -2097,6 +2097,8 @@
     },
     "scrollToNewest": "Derulează la cel mai nou mesaj",
     "deleteChat": "Șterge conversația",
+    "rename": "Redenumește",
+    "chatOptions": "Opțiuni conversație",
     "deleteChatTitle": "Ștergi această conversație?",
     "deleteChatBody": "Conversația și toate mesajele din ea sunt șterse definitiv. Acțiunea nu poate fi anulată.",
     "deleteChatConfirm": "Șterge"

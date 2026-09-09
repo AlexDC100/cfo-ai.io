@@ -183,6 +183,7 @@ export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Pro
                     scalesPageToFit={false}
                     setBuiltInZoomControls={false}
                     hideKeyboardAccessoryView
+                    allowsLinkPreview={false}
                     // No native cover while the page boots (2026-09-10 per
                     // operator: it kept drawing over the content): the page
                     // shows its own loader on the sheet's backdrop.

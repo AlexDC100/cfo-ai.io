@@ -57,6 +57,8 @@ import {
   openNativeSheet,
   subscribeShellTrash,
   getShellTrash,
+  getShellChatTitle,
+  postHaptic,
 } from "@/lib/nativeShell";
 import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
@@ -182,6 +184,7 @@ export function AppShell({ children }: Props) {
   // (2026-09-10): shown only when the burger is, and only while /chat has a
   // conversation open (CFOChatShell sets the flag).
   const shellTrash = useSyncExternalStore(subscribeShellTrash, getShellTrash, () => false);
+  const shellChatTitle = useSyncExternalStore(subscribeShellTrash, getShellChatTitle, () => "");
   useEffect(() => {
     if (!inNativeShell) return undefined;
     const burger = !sidebarOpen && !previewOpen && !onboardingOpen;
@@ -191,11 +194,19 @@ export function AppShell({ children }: Props) {
       burger,
       back: previewOpen && !onboardingOpen,
       trash: burger && shellTrash,
+      chatTitle: shellChatTitle || undefined,
     });
     return () => {
       postToNativeShell({ source: "cfo-ai", type: "chrome", burger: false, back: false, trash: false });
     };
-  }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen, shellTrash]);
+  }, [inNativeShell, sidebarOpen, previewOpen, onboardingOpen, shellTrash, shellChatTitle]);
+  // A haptic tick as the drawer opens and closes (2026-09-10 per operator).
+  const drawerWasOpen = useRef(false);
+  useEffect(() => {
+    if (drawerWasOpen.current === sidebarOpen) return;
+    drawerWasOpen.current = sidebarOpen;
+    postHaptic("light");
+  }, [sidebarOpen]);
 
   // Shell: the Command Center bottom sheet rises OVER the open drawer, so a
   // jump launched from it (Workspace, Settings…) must also dismiss the
@@ -500,7 +511,7 @@ export function AppShell({ children }: Props) {
           className="
             w-[min(280px,calc(100vw-3rem))] p-0
             bg-bg
-            border-r border-rule
+            border-r border-rule rounded-r-3xl
             [&>button.absolute]:hidden
             flex flex-col overflow-hidden overscroll-contain touch-pan-y
           "

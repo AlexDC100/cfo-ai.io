@@ -2085,6 +2085,8 @@
     },
     "scrollToNewest": "Scroll to newest message",
     "deleteChat": "Delete chat",
+    "rename": "Rename",
+    "chatOptions": "Chat options",
     "deleteChatTitle": "Delete this chat?",
     "deleteChatBody": "The conversation and every message in it are deleted permanently. This can't be undone.",
     "deleteChatConfirm": "Delete"
