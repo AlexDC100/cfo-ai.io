@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "io.cfoai.app"
+      "bundleIdentifier": "io.cfoai.app",
+      "appleTeamId": "9FPB67U7DJ"
     },
     "android": {
       "package": "io.cfoai.app",

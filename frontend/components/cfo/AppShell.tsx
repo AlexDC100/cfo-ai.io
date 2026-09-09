@@ -97,6 +97,52 @@ export function AppShell({ children }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerSwipe = useRef<{ x: number; y: number; dx: number; axis: "h" | "v" | null; t: number } | null>(null);
+  const onDrawerSwipeStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    drawerSwipe.current = { x: t.clientX, y: t.clientY, dx: 0, axis: null, t: Date.now() };
+  }, []);
+  const onDrawerSwipeMove = useCallback((e: React.TouchEvent) => {
+    const s = drawerSwipe.current;
+    const t = e.touches[0];
+    if (!s || !t) return;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (!s.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      s.axis = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    }
+    if (s.axis !== "h") return;
+    s.dx = Math.min(0, dx);
+    const el = drawerRef.current;
+    if (el) {
+      el.style.transition = "none";
+      el.style.transform = `translateX(${s.dx}px)`;
+    }
+  }, []);
+  const onDrawerSwipeEnd = useCallback(() => {
+    const s = drawerSwipe.current;
+    drawerSwipe.current = null;
+    if (!s || s.axis !== "h") return;
+    const el = drawerRef.current;
+    const width = el?.offsetWidth ?? 280;
+    const flick = Date.now() - s.t < 300 && s.dx < -40;
+    if (flick || -s.dx > width / 3) {
+      // Leave the inline offset in place: the exit animation only declares
+      // its end keyframe, so it slides out from where the finger left it.
+      setSidebarOpen(false);
+      return;
+    }
+    if (el) {
+      el.style.transition = "transform 180ms ease-out";
+      el.style.transform = "";
+      window.setTimeout(() => {
+        el.style.transition = "";
+      }, 200);
+    }
+  }, []);
   // Opening the drawer dismisses the on-screen keyboard (2026-09-08 per
   // operator): blur whatever input has focus (the chat composer, a search
   // field) before the sheet slides in, so the keyboard doesn't stay up
@@ -475,7 +521,17 @@ export function AppShell({ children }: Props) {
       {/* Mobile sidebar — slide-over drawer */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent
+          ref={drawerRef}
           side="left"
+          // Swipe left to close (2026-09-09 per operator): the drawer follows
+          // the finger once the gesture is clearly horizontal, then closes
+          // past a third of its width or on a quick flick; otherwise it
+          // springs back. `touch-pan-y` keeps vertical scrolling native and
+          // hands horizontal movement to these handlers.
+          onTouchStart={onDrawerSwipeStart}
+          onTouchMove={onDrawerSwipeMove}
+          onTouchEnd={onDrawerSwipeEnd}
+          onTouchCancel={onDrawerSwipeEnd}
           // No auto-focus on open (2026-09-08): Radix would focus the first
           // control — now the drawer's close (X) button — and, opened from
           // the native burger (no pointer event on the page), it rendered
@@ -486,7 +542,7 @@ export function AppShell({ children }: Props) {
             bg-bg
             border-r border-rule
             [&>button.absolute]:hidden
-            overflow-y-auto overscroll-contain
+            overflow-y-auto overscroll-contain touch-pan-y
           "
           style={{
             paddingTop: "env(safe-area-inset-top)",

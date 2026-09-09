@@ -63,7 +63,10 @@ type NativeShellMessage =
   // `accent` (2026-09-08): the `--brand` token, same form — the shell draws
   // the app's spotlight glow NATIVELY behind a transparent WebView so the
   // background never moves with a scroll or pull.
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string };
+  // `mode` (2026-09-09): whether the theme is the user's explicit choice or
+  // follows the system — the shell remembers an explicit choice so the NEXT
+  // launch paints status-bar icons and chrome right before the page loads.
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
 
 type ShellWindow = Window & {
   ReactNativeWebView?: { postMessage: (data: string) => void };

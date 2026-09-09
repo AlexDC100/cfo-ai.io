@@ -59,11 +59,12 @@ function ThemePrefSync() {
         theme: dark ? "dark" : "light",
         bg: token("--bg"),
         accent: token("--brand"),
+        mode: theme === "system" || !theme ? "system" : "explicit",
       });
     };
     raf = requestAnimationFrame(send);
     return () => cancelAnimationFrame(raf);
-  }, [resolvedTheme]);
+  }, [resolvedTheme, theme]);
   // Suppress the write-back that would immediately echo an adopted value.
   const adopting = useRef(false);
 

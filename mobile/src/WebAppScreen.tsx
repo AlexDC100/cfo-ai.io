@@ -25,6 +25,7 @@ import { WebView } from "react-native-webview";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
   ShouldStartLoadRequest,
   WebViewMessageEvent,
@@ -44,6 +45,9 @@ import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
 const LIQUID_GLASS = isLiquidGlassAvailable();
 
 /** Lightness < 50% → a dark surface (hsl(h, s%, l%) or #rrggbb). */
+const SHELL_THEME_KEY = "cfo:shell-theme:v1";
+type StoredTheme = { theme: "light" | "dark"; bg: string | null; accent: string | null };
+
 function isDarkColor(color: string): boolean {
   const hsl = /hsla?\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*([\d.]+)%/.exec(color);
   if (hsl) return parseFloat(hsl[1]) < 50;
@@ -77,7 +81,7 @@ type ShellMessage =
   // notifications page in a SwiftUI sheet (src/NativeSheet.tsx).
   | { source: "cfo-ai"; type: "sheet"; open?: NativeSheetKind; close?: boolean }
   // The web app's resolved theme — the shell's chrome follows it (2026-09-08).
-  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string };
+  | { source: "cfo-ai"; type: "theme"; theme: "light" | "dark"; bg?: string; accent?: string; mode?: "system" | "explicit" };
 
 type Props = {
   /** Stable key in the webviewRegistry (the tab name). */
@@ -97,6 +101,31 @@ export function WebAppScreen({ tabKey, path }: Props) {
   const [webBg, setWebBg] = useState<string | null>(null);
   // The app's accent (`--brand`), for the native spotlight glow.
   const [webAccent, setWebAccent] = useState<string | null>(null);
+  // First launch paints BEFORE the page can report (2026-09-09 per
+  // operator: status-bar icons were wrong until the app loaded). An
+  // explicit theme choice is remembered natively and applied at mount;
+  // a "follow the system" choice stores nothing, so the system wins.
+  const themeReportedRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(SHELL_THEME_KEY)
+      .then((raw) => {
+        if (cancelled || themeReportedRef.current || !raw) return;
+        try {
+          const s = JSON.parse(raw) as Partial<StoredTheme>;
+          if (s.theme !== "light" && s.theme !== "dark") return;
+          setWebTheme(s.theme);
+          setWebBg(typeof s.bg === "string" ? s.bg : null);
+          setWebAccent(typeof s.accent === "string" ? s.accent : null);
+        } catch {
+          /* corrupt entry — follow the system */
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const scheme = webTheme ?? systemScheme;
   const p = palette(scheme);
   // Root colour behind the page (status-bar strip, keyboard gap, overscroll).
@@ -244,9 +273,19 @@ export function WebAppScreen({ tabKey, path }: Props) {
         if (message.open === "account" || message.open === "notifications") setSheet(message.open);
         else if (message.close) setSheet(null);
       } else if (message.type === "theme") {
+        themeReportedRef.current = true;
+        const bg = typeof message.bg === "string" && message.bg ? message.bg : null;
+        const accent = typeof message.accent === "string" && message.accent ? message.accent : null;
         if (message.theme === "light" || message.theme === "dark") setWebTheme(message.theme);
-        setWebBg(typeof message.bg === "string" && message.bg ? message.bg : null);
-        setWebAccent(typeof message.accent === "string" && message.accent ? message.accent : null);
+        setWebBg(bg);
+        setWebAccent(accent);
+        if (message.theme === "light" || message.theme === "dark") {
+          const stored: StoredTheme = { theme: message.theme, bg, accent };
+          void (message.mode === "system"
+            ? AsyncStorage.removeItem(SHELL_THEME_KEY)
+            : AsyncStorage.setItem(SHELL_THEME_KEY, JSON.stringify(stored))
+          ).catch(() => {});
+        }
       }
     },
     [handleNativeOAuth, tabKey],
