@@ -80,7 +80,7 @@ export function AuthPanel({
             initialMode={initialMode}
             mode={mode}
             onModeChange={setMode}
-            subtitle={mode === "sign_up" ? t("authX.subtitle_sign_up_mobile") : t("authX.subtitle_sign_in_mobile")}
+            subtitle={mode === "sign_up" ? t("authX.subtitle_sign_up_mobile") : t("authX.subtitle_sign_in_page")}
             onAuthenticated={onAuthenticated}
           />
         </div>
