@@ -645,6 +645,46 @@ BASE_COLUMNS = {
                       "default_currency", "created_at", "updated_at", "archived_at",
                       "purge_after", "caen_code", "firm_id", "cui"],
     "memberships": ["user_id", "org_id", "role", "created_at"],
+    # ── period derivatives, added 2026-09-09 ─────────────────────────
+    # The double modelled 7 tables, and `GET /api/period/{id}` reads four
+    # it did not have — so the product's main read route could not be
+    # driven here at all, and no test drove a CROSS-ORG read against it.
+    # That absence is why the two tenant-boundary P0s were found by
+    # reading code rather than by a red gate. Columns are the schema's
+    # own: calculated_metrics + briefings from schema_phase3.sql:447/486,
+    # alerts from schema.sql:396, recommendations from schema.sql:53.
+    "calculated_metrics": ["id", "period_id", "org_id", "name", "value", "unit",
+                           "direction", "industry_p25", "industry_p50",
+                           "industry_p75", "percentile_band",
+                           "severity_vs_industry", "computed_at"],
+    "briefings": ["id", "period_id", "org_id", "body", "language", "model",
+                  "created_at"],
+    #  on both alerts and recommendations comes from
+    # schema_phase_notes_period_scope.sql:40/71, not from the base schema.
+    "alerts": ["id", "org_id", "alert_key", "severity", "category", "title",
+               "body", "document_id", "payload", "resolved_at", "created_at",
+               "updated_at", "period_id"],
+    # `valuations` and `user_valuation_assumptions` have NO create table and
+    # NO rls policy anywhere in supabase/ — they appear only inside
+    # schema_phase6_dedupe.sql's table LIST. The engine reads and writes
+    # both (pipeline.py:7431/8265/8965, _valuation.persist_valuation), and
+    # `valuations` is in _period_move._DERIVED_TABLES, so a period delete
+    # cascades to it. These column sets are therefore derived from what the
+    # ENGINE uses, not from a schema that exists — which is the finding, not
+    # a shortcut. Reconcile against the real table before trusting them.
+    "valuations": ["id", "period_id", "org_id", "primary_method", "ebitda_used",
+                   "revenue_used", "total_debt_used", "cash_used",
+                   "created_at", "updated_at"],
+    "user_valuation_assumptions": ["id", "period_id", "org_id", "user_id",
+                                   "ebitda_used", "multiple_used", "debt_used",
+                                   "cash_used", "ar", "inventory", "cash",
+                                   "created_at", "updated_at"],
+    "recommendations": ["id", "org_id", "source_alert_id", "target_type",
+                        "target_id", "title", "explanation", "bucket",
+                        "action_type", "expected_cash_impact_kron",
+                        "expected_margin_impact_pct", "urgency", "status",
+                        "owner", "due_date", "created_at", "updated_at",
+                        "closed_at", "period_id"],
     # EXACTLY the declared set. This list is a SECOND hand-written copy of
     # the one in firm_postgrest_double.py, and both invented the same three
     # columns — which is how a double comes to disagree with the database
