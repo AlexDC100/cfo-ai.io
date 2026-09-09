@@ -120,6 +120,9 @@ export function AuthCard({
   const [lastName, setLastName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [busy, setBusy] = useState(false);
+  // After a submit attempt, empty mandatory fields are tinted instead of
+  // the browser's "Fill out this field" bubble (2026-09-09 per operator).
+  const [showMissing, setShowMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
   // Resend cooldown — Supabase rate-limits OTP / signup resends server-side
@@ -278,6 +281,10 @@ export function AuthCard({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const missing =
+      !email.trim() || !password || (mode === "sign_up" && (!companyName.trim() || !confirmPassword));
+    setShowMissing(missing);
+    if (missing) return;
     if (mode === "sign_up" && !companyName.trim()) {
       setError(t("authX.err_company_required"));
       return;
@@ -515,7 +522,7 @@ export function AuthCard({
             </>
           )}
 
-          <form className="space-y-3" onSubmit={handleSubmit}>
+          <form className="space-y-3" noValidate onSubmit={handleSubmit}>
             {mode === "sign_up" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -543,6 +550,7 @@ export function AuthCard({
                     placeholder="Acme Romania SRL"
                     autoComplete="organization"
                     required
+                    invalid={showMissing && !companyName.trim()}
                   />
                 </Field>
               </>
@@ -556,6 +564,7 @@ export function AuthCard({
                 placeholder={t("authX.email_placeholder")}
                 autoComplete="email"
                 required
+                invalid={showMissing && !email.trim()}
               />
             </Field>
 
@@ -567,6 +576,7 @@ export function AuthCard({
                 placeholder={mode === "sign_up" ? t("authX.pw_check_length") : ""}
                 autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
                 required
+                invalid={showMissing && !password}
                 // 10 matches the advertised checklist; sign-IN stays
                 // unconstrained so existing accounts with shorter passwords
                 // aren't locked out at the browser-validation layer.
@@ -609,6 +619,7 @@ export function AuthCard({
                   placeholder={t("authX.repeat_password_placeholder")}
                   autoComplete="new-password"
                   required
+                  invalid={showMissing && !confirmPassword}
                   minLength={10}
                 />
               </Field>
@@ -866,6 +877,7 @@ function Input({
   value, onChange,
   placeholder, autoComplete,
   required = false, minLength,
+  invalid = false,
 }: {
   type?: string;
   value: string;
@@ -874,6 +886,8 @@ function Input({
   autoComplete?: string;
   required?: boolean;
   minLength?: number;
+  /** Mandatory and left empty on submit — tinted red. */
+  invalid?: boolean;
 }) {
   const { t } = useTranslation();
   // Password fields carry a show/hide toggle (2026-09-09 per operator).
@@ -888,11 +902,13 @@ function Input({
       autoComplete={autoComplete}
       required={required}
       minLength={minLength}
+      aria-invalid={invalid || undefined}
+      data-invalid={invalid ? "true" : undefined}
       className={`
         w-full h-11 ${isPassword ? "pl-3.5 pr-11" : "px-3.5"}
         rounded-xl
-        bg-bg-2/80
-        border border-rule
+        ${invalid ? "bg-alert/10 border-alert/70" : "bg-bg-2/80 border-rule"}
+        border
         text-[14px] text-ink
         placeholder:text-ink-soft/70
         outline-none
