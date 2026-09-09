@@ -30,6 +30,8 @@ import {
 import { isNativeShell, openNativeSheet } from "@/lib/nativeShell";
 import { tapHandlers } from "@/lib/tapHandlers";
 import { fetchAlerts, type AlertRow, type AlertSeverity } from "@/lib/supabase";
+import { getActiveOrgId } from "@/lib/activeOrg";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { activeLocale } from "@/lib/locale";
 
@@ -54,19 +56,58 @@ function formatWhen(iso: string): string {
   return d.toLocaleString(activeLocale(), { dateStyle: "medium", timeStyle: "short" });
 }
 
+/** Last-fetched alerts, per workspace, so a re-opened list paints at once
+ *  and revalidates behind it (2026-09-09 per operator: the iOS sheet must
+ *  be instant). Keyed by org id so a different workspace — or a different
+ *  user on the same device — never sees another's alerts. */
+const ALERTS_CACHE_KEY = "cfo-ai-alerts-cache-v1";
+
+function readAlertsCache(orgId: string | null): AlertRow[] | null {
+  if (!orgId) return null;
+  try {
+    const raw = localStorage.getItem(ALERTS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { orgId?: string; alerts?: AlertRow[] };
+    return parsed.orgId === orgId && Array.isArray(parsed.alerts) ? parsed.alerts : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAlertsCache(orgId: string | null, alerts: AlertRow[]): void {
+  if (!orgId) return;
+  try {
+    localStorage.setItem(ALERTS_CACHE_KEY, JSON.stringify({ orgId, alerts }));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 /** The workspace's open alerts: once on mount, again whenever `refresh`
- *  flips true (a panel opened an hour later mustn't show an hour-old list). */
-export function useAlertsFeed(refresh: boolean): { alerts: AlertRow[]; loading: boolean } {
-  const [alerts, setAlerts] = useState<AlertRow[]>([]);
-  const [loading, setLoading] = useState(true);
+ *  flips true or changes (a panel opened an hour later mustn't show an
+ *  hour-old list). Seeded from the per-workspace cache, so `loading` is
+ *  only true when there is nothing to show yet. */
+export function useAlertsFeed(refresh: boolean | number): { alerts: AlertRow[]; loading: boolean } {
+  const { user } = useAuth();
+  const orgId = getActiveOrgId(user?.id);
+  const [alerts, setAlerts] = useState<AlertRow[]>(() => readAlertsCache(orgId) ?? []);
+  const [loading, setLoading] = useState(() => readAlertsCache(orgId) === null);
   const load = useCallback(async () => {
-    setLoading(true);
+    if (readAlertsCache(orgId) === null) setLoading(true);
     try {
-      setAlerts(await fetchAlerts());
+      const next = await fetchAlerts();
+      setAlerts(next);
+      writeAlertsCache(orgId, next);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [orgId]);
+  // The session (and so the org) resolves a beat after first render: adopt
+  // the cache the moment the org is known, ahead of the network.
+  useEffect(() => {
+    const cached = readAlertsCache(orgId);
+    if (cached) { setAlerts(cached); setLoading(false); }
+  }, [orgId]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (refresh) void load(); }, [refresh, load]);
   return { alerts, loading };

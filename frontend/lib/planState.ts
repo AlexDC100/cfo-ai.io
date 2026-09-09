@@ -166,6 +166,13 @@ function loadPlanState(force = false): Promise<PlanState> {
   return inflight;
 }
 
+/** Re-fetch plan state for EVERY mounted consumer (they all listen). The
+ *  iOS sheet page calls this when the shell presents it again, so the plan
+ *  it kept from its last showing is revalidated behind what's on screen. */
+export function refreshPlanState(): Promise<void> {
+  return loadPlanState(true).then(() => undefined, () => undefined);
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Hook + one-shot helpers
 // ─────────────────────────────────────────────────────────────────────

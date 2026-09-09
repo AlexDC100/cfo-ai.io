@@ -5,6 +5,14 @@
 // @expo/ui. The two WebViews share localStorage, so the sheet sees the same
 // Supabase session as the main page.
 //
+// The sheet pages are kept WARM (2026-09-09 per operator, "instant"): both
+// WebViews are mounted once the main page has loaded and stay mounted while
+// the app lives, so presenting a sheet shows an already-booted page instead
+// of a cold boot of the web app (Vite dev serves hundreds of unbundled
+// modules — the spinner used to cover that on every open). On present the
+// page gets a `cfo:sheet-presented` event and revalidates its data from
+// the network behind what it already shows from cache.
+//
 // Messages from the sheet's page:
 //   · { type: "sheet", close }          — dismiss
 //   · { type: "sheet", navigate: path } — dismiss and route the MAIN WebView
@@ -30,6 +38,8 @@ type SheetMessage =
 type Props = {
   /** Which sheet to show; null = none presented. */
   kind: NativeSheetKind | null;
+  /** Boot the sheet pages in the background (after the main page loaded). */
+  warm: boolean;
   /** Backdrop until the sheet's page reports its own canvas colour. */
   fallbackBg: string;
   onClose: () => void;
@@ -38,6 +48,7 @@ type Props = {
 };
 
 const SHEET_KEY = "sheet";
+const KINDS: NativeSheetKind[] = ["account", "notifications"];
 
 /** The web app reports colours as `hsl(h, s%, l%)`; SwiftUI modifiers want
  *  hex. Anything unparseable falls back to the given default. */
@@ -55,12 +66,21 @@ function toHex(color: string, fallback: string): string {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-export function NativeSheet({ kind, fallbackBg, onClose, onNavigate }: Props) {
-  const webRef = useRef<WebView>(null);
+export function NativeSheet({ kind, warm, fallbackBg, onClose, onNavigate }: Props) {
+  const webRefs = useRef<Record<NativeSheetKind, WebView | null>>({ account: null, notifications: null });
   const presented = kind !== null;
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState<Record<NativeSheetKind, boolean>>({ account: false, notifications: false });
+  // A sheet requested before the warm-up mounts its page right away.
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    if (!kind) setLoaded(false);
+    if (warm || kind) setMounted(true);
+  }, [warm, kind]);
+  // Tell the presented page to refresh what it shows (plan, alerts…).
+  useEffect(() => {
+    if (!kind) return;
+    webRefs.current[kind]?.injectJavaScript(
+      'window.dispatchEvent(new CustomEvent("cfo:sheet-presented")); true;',
+    );
   }, [kind]);
   // SwiftUI modifiers are kept STABLE for a presentation — changing them
   // re-evaluates the sheet body and re-creates the hosted React Native
@@ -84,8 +104,8 @@ export function NativeSheet({ kind, fallbackBg, onClose, onNavigate }: Props) {
   useEffect(
     () =>
       registerWebView(SHEET_KEY, {
-        reload: () => webRef.current?.reload(),
-        injectJavaScript: (js) => webRef.current?.injectJavaScript(js),
+        reload: () => KINDS.forEach((k) => webRefs.current[k]?.reload()),
+        injectJavaScript: (js) => KINDS.forEach((k) => webRefs.current[k]?.injectJavaScript(js)),
       }),
     [],
   );
@@ -117,9 +137,10 @@ export function NativeSheet({ kind, fallbackBg, onClose, onNavigate }: Props) {
   );
 
   // Same marker the main WebView gets, plus which sheet this page is.
-  const bootstrap = `window.__CFO_NATIVE_SHELL = { platform: "ios", version: ${JSON.stringify(
-    Constants.expoConfig?.version ?? "",
-  )}, sheet: ${JSON.stringify(kind ?? "")} }; true;`;
+  const bootstrap = (k: NativeSheetKind) =>
+    `window.__CFO_NATIVE_SHELL = { platform: "ios", version: ${JSON.stringify(
+      Constants.expoConfig?.version ?? "",
+    )}, sheet: ${JSON.stringify(k)} }; true;`;
 
   return (
     // The Host only needs to be in the view hierarchy for the sheet to
@@ -138,29 +159,34 @@ export function NativeSheet({ kind, fallbackBg, onClose, onNavigate }: Props) {
         <Group modifiers={modifiers}>
           <RNHostView>
             <View style={[styles.body, { backgroundColor: fallbackBg }]}>
-              {kind && (
-                <WebView
-                  ref={webRef}
-                  source={{ uri: `${WEB_APP_URL}/_native/sheet/${kind}` }}
-                  style={styles.web}
-                  applicationNameForUserAgent="CFOAIApp/1.0"
-                  injectedJavaScriptBeforeContentLoaded={bootstrap}
-                  onMessage={handleMessage}
-                  domStorageEnabled
-                  sharedCookiesEnabled
-                  setSupportMultipleWindows={false}
-                  allowsBackForwardNavigationGestures={false}
-                  scalesPageToFit={false}
-                  setBuiltInZoomControls={false}
-                  onLoadStart={() => setLoaded(false)}
-                  onLoadEnd={() => setLoaded(true)}
-                />
-              )}
-              {kind && !loaded && (
-                // The page is a fresh boot of the web app each open; show a
-                // native spinner until it has painted rather than a blank
-                // sheet. (Vite dev serves unbundled modules — production
-                // builds load in a fraction of the time.)
+              {mounted &&
+                KINDS.map((k) => (
+                  <WebView
+                    key={k}
+                    ref={(r) => {
+                      webRefs.current[k] = r;
+                    }}
+                    source={{ uri: `${WEB_APP_URL}/_native/sheet/${k}` }}
+                    // The other sheet's page stays mounted (and booted) but
+                    // out of sight.
+                    style={[styles.web, k !== kind && styles.parked]}
+                    applicationNameForUserAgent="CFOAIApp/1.0"
+                    injectedJavaScriptBeforeContentLoaded={bootstrap(k)}
+                    onMessage={handleMessage}
+                    domStorageEnabled
+                    sharedCookiesEnabled
+                    setSupportMultipleWindows={false}
+                    allowsBackForwardNavigationGestures={false}
+                    scalesPageToFit={false}
+                    setBuiltInZoomControls={false}
+                    hideKeyboardAccessoryView
+                    onLoadStart={() => setLoaded((l) => ({ ...l, [k]: false }))}
+                    onLoadEnd={() => setLoaded((l) => ({ ...l, [k]: true }))}
+                  />
+                ))}
+              {kind && !loaded[kind] && (
+                // Only a sheet opened before its page finished booting
+                // shows a spinner; a warmed page presents as-is.
                 <View pointerEvents="none" style={styles.loading}>
                   <ActivityIndicator color={isDark(fallbackBg) ? "#ffffff" : "#000000"} />
                 </View>
@@ -184,5 +210,6 @@ const styles = StyleSheet.create({
   host: { position: "absolute", left: 0, top: 0, width: 1, height: 1, opacity: 0 },
   body: { flex: 1 },
   web: { flex: 1, backgroundColor: "transparent" },
+  parked: { position: "absolute", left: 0, top: 0, width: 1, height: 1, opacity: 0 },
   loading: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
 });

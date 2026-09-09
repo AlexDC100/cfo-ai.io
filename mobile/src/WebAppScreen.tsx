@@ -148,6 +148,14 @@ export function WebAppScreen({ tabKey, path }: Props) {
   const canGoBackRef = useRef(false);
   const oauthInFlightRef = useRef(false);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
+  // Boot the native sheet pages a moment after the main page is up, so
+  // they never compete with it for the network and present instantly.
+  const [warmSheets, setWarmSheets] = useState(false);
+  useEffect(() => {
+    if (!firstLoadDone || warmSheets) return;
+    const t = setTimeout(() => setWarmSheets(true), 1500);
+    return () => clearTimeout(t);
+  }, [firstLoadDone, warmSheets]);
   const [failed, setFailed] = useState(false);
   const failedRef = useRef(false);
   failedRef.current = failed;
@@ -355,6 +363,8 @@ export function WebAppScreen({ tabKey, path }: Props) {
           // reports chrome again (a reload into /login must not keep it).
           onLoadStart={() => setChrome("none")}
           onLoadEnd={() => setFirstLoadDone(true)}
+          // No "< > Done" bar over the keyboard (2026-09-09 per operator).
+          hideKeyboardAccessoryView
           onError={() => setFailed(true)}
           // iOS can't render in-page downloads (report exports) — system browser.
           onFileDownload={({ nativeEvent }) => {
@@ -482,6 +492,7 @@ export function WebAppScreen({ tabKey, path }: Props) {
       {Platform.OS === "ios" && (
         <NativeSheet
           kind={sheet}
+          warm={warmSheets}
           fallbackBg={chromeBg}
           onClose={() => setSheet(null)}
           onNavigate={(path) => {
