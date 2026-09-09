@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { LogIn } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { AuthPanel, Brand, Mark } from "./AuthScreen";
+import { AuthPanel, Brand } from "./AuthScreen";
 import {
   closeOnboarding,
   getOnboardingOpen,
@@ -353,8 +353,8 @@ function OnboardingScreen() {
       closeOnboarding();
     }, 320);
   }, [leaving]);
-  // Get started (last instruction slide): the centred mark and Skip fade
-  // out before the final slide replaces them (2026-09-09 per operator).
+  // Get started (last instruction slide): Skip fades out before the final
+  // slide replaces it (2026-09-09 per operator).
   const [headerFading, setHeaderFading] = useState(false);
   const headerTimer = useRef<number>();
   useEffect(() => () => window.clearTimeout(headerTimer.current), []);
@@ -390,25 +390,10 @@ function OnboardingScreen() {
       ) : (
         <>
           <div className="relative flex min-h-[24px] items-center justify-between">
-            {/* The mark sits top-left on the first slide and glides to the
-                centre when you continue (2026-09-09 per operator); one
-                element the whole way, so the move is a plain transition. */}
-            <div
-              className="absolute top-1/2 flex items-center"
-              data-testid="onboarding-mark"
-              style={{
-                left: step === 0 ? 0 : "50%",
-                transform: step === 0 ? "translate(0, -50%)" : "translate(-50%, -50%)",
-                opacity: headerFading ? 0 : 1,
-                transition: "left 850ms cubic-bezier(.16, 1, .3, 1), transform 850ms cubic-bezier(.16, 1, .3, 1), opacity 300ms ease",
-              }}
-            >
-              <Mark />
-            </div>
             {step === 0 ? (
               <span />
             ) : (
-              <button type="button" onClick={back} className="ob-mute ob-a-fade font-mono text-[11px] uppercase tracking-[.06em]" style={{ animationDelay: ".15s" }} data-testid="onboarding-back">
+              <button type="button" onClick={back} className="ob-mute font-mono text-[11px] uppercase tracking-[.06em]" data-testid="onboarding-back">
                 ← {t("firstRun.btnBack")}
               </button>
             )}
@@ -422,7 +407,7 @@ function OnboardingScreen() {
             </button>
           </div>
 
-          <div key={step} className="ob-a-slide flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
+          <div key={step} className="flex flex-1 flex-col justify-center gap-7 overflow-y-auto py-4" {...swipe}>
             {step === 0 && (<><UploadCard t={t} /><Copy kicker={t("firstRun.s1kicker")} title={t("firstRun.s1title")} body={t("firstRun.s1body")} /></>)}
             {step === 1 && (<><StatementsCard t={t} /><Copy kicker={t("firstRun.s2kicker")} title={t("firstRun.s2title")} body={t("firstRun.s2body")} /></>)}
             {step === 2 && (<><RatiosCard t={t} /><Copy kicker={t("firstRun.s3kicker")} title={t("firstRun.s3title")} body={t("firstRun.s3body")} /></>)}
