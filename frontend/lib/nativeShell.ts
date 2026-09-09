@@ -97,6 +97,10 @@ export interface NativeComposerState {
   disabled?: boolean;
   draft?: string;
   key?: string;
+  /** Show the native "scroll to newest" disc above the composer. */
+  arrow?: boolean;
+  /** The general-answer disclosure behind the composer's ⓘ. */
+  info?: string;
 }
 export function postNativeComposer(state: NativeComposerState): void {
   postToNativeShell({ source: "cfo-ai", type: "composer", ...state });

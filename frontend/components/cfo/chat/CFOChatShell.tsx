@@ -29,7 +29,8 @@ import { useKeyboardInset } from "./useKeyboardInset";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trans, useTranslation } from "react-i18next";
 import { CFOComposer, type CFOComposerHandle } from "./CFOComposer";
-import { CFOMessageList } from "./CFOMessageList";
+import { CFOMessageList, type CFOMessageListHandle } from "./CFOMessageList";
+import { CFOFilePreview } from "./CFOFilePreview";
 import { CFOEmptyState, useWorkspacePrompts, useGeneralPrompts } from "./CFOEmptyState";
 import { useIndustryPrompts } from "./industryPrompts";
 import { useActiveOrg } from "@/lib/org";
@@ -170,6 +171,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const nativeComposer = isNativeShell() && variant === "page";
   const [nativeComposerHeight, setNativeComposerHeight] = useState(0);
   const composerDraftKey = store.currentId ?? "new";
+  const listRef = useRef<CFOMessageListHandle | null>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+  // Files picked through the native paperclip; shown as chips above the
+  // native composer and sent with the next message.
+  const [nativeAttachments, setNativeAttachments] = useState<ChatAttachment[]>([]);
   const composerBlockRef = useRef<HTMLDivElement | null>(null);
   const composerBoxRef = useRef<HTMLDivElement | null>(null);
   const [composerBlockHeight, setComposerBlockHeight] = useState(0);
@@ -451,19 +457,35 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       disabled: !!capBlocked || !!degraded,
       draft: readDraft(composerDraftKey),
       key: `${composerDraftKey}:${nativeDraftTick}`,
+      arrow: moreBelow,
+      info: t("chatX.disclosure"),
     });
     return () => postNativeComposer({ show: false });
     // nativeDraftTick re-sends a prompt-card pick as a fresh draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeComposer, nativePlaceholder, pending, capBlocked, degraded, composerDraftKey, nativeDraftTick, t]);
+  }, [nativeComposer, nativePlaceholder, pending, capBlocked, degraded, composerDraftKey, nativeDraftTick, moreBelow, t]);
   useEffect(() => {
     if (!nativeComposer) return undefined;
     const onAction = (e: Event) => {
-      const d = (e as CustomEvent<{ action?: string; text?: string; height?: number }>).detail;
+      const d = (e as CustomEvent<{ action?: string; text?: string; height?: number; name?: string; size?: number; type?: string }>).detail;
       if (!d) return;
       if (d.action === "composer-submit" && typeof d.text === "string") {
         writeDraft(composerDraftKey, "");
-        send(d.text, []);
+        setNativeAttachments((cur) => {
+          send(d.text as string, cur);
+          return [];
+        });
+      } else if (d.action === "composer-scroll") {
+        listRef.current?.scrollToBottom(true);
+      } else if (d.action === "composer-attach" && typeof d.name === "string") {
+        // ONE attachment at a time, like the web composer.
+        setNativeAttachments([{
+          id: `att-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+          name: d.name,
+          size: typeof d.size === "number" ? d.size : 0,
+          type: d.type || "application/octet-stream",
+          status: "queued",
+        }]);
       } else if (d.action === "composer-stop") {
         stopCurrent();
       } else if (d.action === "composer-draft" && typeof d.text === "string") {
@@ -628,7 +650,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               aria-label={t("chatX.deleteChat")}
               title={t("chatX.deleteChat")}
               data-testid="chat-delete-button"
-              className="lg:hidden absolute right-3 z-30 inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-rule bg-surface/85 backdrop-blur-xl text-ink active:opacity-70 transition-opacity duration-micro"
+              className="lg:hidden absolute right-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-rule bg-surface/85 backdrop-blur-xl text-ink active:opacity-70 transition-opacity duration-micro"
               style={{ top: inShell ? "calc(env(safe-area-inset-top) + 2px)" : "0.75rem" }}
             >
               <Trash2 size={18} strokeWidth={1.75} />
@@ -675,7 +697,10 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
             groundedLabel={groundedLabel}
             padTop={scrollPadTop}
             padBottom={scrollPadBottom}
+            ref={listRef}
             arrowBottom={arrowBottom + (nativeComposer ? nativeComposerHeight : 0)}
+            hideArrow={nativeComposer}
+            onHasMoreBelowChange={setMoreBelow}
             wideContent
             searchQuery={chatQuery}
             onClearSearch={() => setChatQuery("")}
@@ -745,6 +770,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 composer. Hidden while the on-screen keyboard is up, like
                 the row below (2026-08-18). */}
             <div className={`${keyboardOpen ? "hidden" : "flex"} sm:hidden items-center gap-2 pb-1.5`}>
+              {!nativeComposer && (
               <div className="relative shrink-0" ref={disclosureRef}>
                 {disclosureOpen && (
                   <div className="absolute bottom-full left-0 mb-1.5 w-64 rounded-md border border-rule bg-surface p-2.5 text-[11px] text-ink-soft leading-snug shadow-md">
@@ -762,6 +788,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                   <Info size={12} strokeWidth={2} />
                 </button>
               </div>
+              )}
               {noWorkspace && (
                 <Chip
                   tone="caution"
@@ -774,6 +801,13 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
                 </Chip>
               )}
             </div>
+            {nativeComposer && nativeAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pb-2" data-testid="chat-native-attachments">
+                {nativeAttachments.map((a) => (
+                  <CFOFilePreview key={a.id} attachment={a} onRemove={() => setNativeAttachments((cur) => cur.filter((x) => x.id !== a.id))} />
+                ))}
+              </div>
+            )}
             {!nativeComposer && (
             <div ref={composerBoxRef}>
               <CFOComposer

@@ -40,6 +40,10 @@ interface Props {
   /** Where the "scroll to newest" arrow sits: px from the list's bottom
    *  edge. Default: just above `padBottom`. */
   arrowBottom?: number;
+  /** The shell draws the arrow natively — don't render the web one. */
+  hideArrow?: boolean;
+  /** Fires when "there is more below" flips; drives the native arrow. */
+  onHasMoreBelowChange?: (more: boolean) => void;
   /** When true, the CONTENT column follows the dashboard rendering rule
    *  (dashboard horizontal padding + left-anchored `max-w-[1760px]`) while the
    *  scroller stays full-bleed so the scrollbar keeps hugging the screen edge.
@@ -57,8 +61,8 @@ interface Props {
 }
 
 export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function CFOMessageList({
-  messages, groundedLabel, padTop = "1.5rem", padBottom = "1.5rem", arrowBottom, wideContent = false,
-  searchQuery = "", onClearSearch, onRetryFailed,
+  messages, groundedLabel, padTop = "1.5rem", padBottom = "1.5rem", arrowBottom, hideArrow = false,
+  onHasMoreBelowChange, wideContent = false, searchQuery = "", onClearSearch, onRetryFailed,
 }: Props, handleRef) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -73,6 +77,9 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
   // "scroll to newest" arrow (2026-09-10 per operator). Only ever set to
   // a different value, so it doesn't re-render on every scroll tick.
   const [hasMoreBelow, setHasMoreBelow] = useState(false);
+  const moreCb = useRef(onHasMoreBelowChange);
+  moreCb.current = onHasMoreBelowChange;
+  useEffect(() => { moreCb.current?.(hasMoreBelow); }, [hasMoreBelow]);
   const measureBelow = useCallback(() => {
     const el = ref.current;
     if (!el) return;
@@ -281,6 +288,7 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
         {body}
       </div>
     </div>
+    {!hideArrow && (
     <button
       type="button"
       // Scrolling only (2026-09-10 per operator): the press must not take
@@ -304,6 +312,7 @@ export const CFOMessageList = forwardRef<CFOMessageListHandle, Props>(function C
     >
       <ArrowDown size={16} strokeWidth={2} />
     </button>
+    )}
     </div>
   );
 });

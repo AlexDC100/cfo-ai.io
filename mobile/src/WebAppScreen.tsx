@@ -37,6 +37,7 @@ import { registerWebView, reloadOtherWebViews } from "./webviewRegistry";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { NativeSheet, type NativeSheetKind } from "./NativeSheet";
 import { NativeComposer, type NativeComposerState } from "./NativeComposer";
+import * as DocumentPicker from "expo-document-picker";
 import { enforceKeyboardInsets } from "../modules/keyboard-insets";
 
 // Runs before the page's own scripts. `window.ReactNativeWebView` (injected by
@@ -411,6 +412,10 @@ export function WebAppScreen({ tabKey, path }: Props) {
         behavior="padding"
         enabled={Platform.OS === "ios"}
       >
+        {/* Everything the keyboard pushes up lives in this view: the
+            padding the avoiding view animates shrinks it, so the native
+            composer pinned to ITS bottom edge rides on the keyboard. */}
+        <View style={styles.keyboardHost}>
         <WebView
           ref={webRef}
           source={{ uri: `${WEB_APP_URL}${path}` }}
@@ -474,8 +479,20 @@ export function WebAppScreen({ tabKey, path }: Props) {
           onSubmit={(text) => dispatchAction("composer-submit", { text })}
           onStop={() => dispatchAction("composer-stop")}
           onDraft={(text) => dispatchAction("composer-draft", { text })}
+          onScroll={() => dispatchAction("composer-scroll")}
+          onAttach={() => {
+            // Native document picker; the page adds the pick to the
+            // composer's attachment chips (its attachments are UI-only).
+            void DocumentPicker.getDocumentAsync({ multiple: false, copyToCacheDirectory: false })
+              .then((res) => {
+                const a = res.canceled ? null : res.assets?.[0];
+                if (a) dispatchAction("composer-attach", { name: a.name, size: a.size ?? 0, type: a.mimeType ?? "application/octet-stream" });
+              })
+              .catch(() => {});
+          }}
           onHeight={(height) => dispatchAction("composer-height", { height })}
         />
+        </View>
       </KeyboardAvoidingView>
 
       {/* NATIVE floating button — overlays the WebView top-left, so web
@@ -487,7 +504,7 @@ export function WebAppScreen({ tabKey, path }: Props) {
           accessibilityRole="button"
           accessibilityLabel={chrome === "back" ? "Back" : "Open navigation menu"}
           onPress={() => dispatchAction(chrome)}
-          style={[styles.burgerHit, { top: insets.top + 2 }]}
+          style={[styles.burgerHit, { top: insets.top + 6 }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.85}
         >
@@ -527,7 +544,7 @@ export function WebAppScreen({ tabKey, path }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Delete chat"
           onPress={() => dispatchAction("delete")}
-          style={[styles.trashHit, { top: insets.top + 2 }]}
+          style={[styles.trashHit, { top: insets.top + 6 }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.85}
         >
@@ -644,24 +661,25 @@ const styles = StyleSheet.create({
   // #1E2A26 / ink #E8F1EE) — the app is dark-only, so these are static.
   // Positioning of the floating button (`top` is set inline: safe-area
   // inset + 2). The look lives on the GlassView inside it.
+  // 44pt discs (2026-09-10 per operator: a little smaller than 52).
   burgerHit: {
     position: "absolute",
     left: 12,
-    height: 52,
-    width: 52,
+    height: 44,
+    width: 44,
   },
   trashHit: {
     position: "absolute",
     right: 12,
-    height: 52,
-    width: 52,
+    height: 44,
+    width: 44,
   },
   // The Liquid Glass disc: no background/border of its own on iOS 26 (the
   // glass IS the surface); the fallback tint/border is applied inline.
   burger: {
-    height: 52,
-    width: 52,
-    borderRadius: 26,
+    height: 44,
+    width: 44,
+    borderRadius: 22,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
