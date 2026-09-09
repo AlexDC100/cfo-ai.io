@@ -21,6 +21,7 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { clearDataPresence } from "@/lib/dataPresence";
 import { flushNewsletterOptIn } from "@/lib/newsletterOptIn";
+import { flushPendingOAuthProfile } from "@/lib/oauthProfile";
 import {
   NATIVE_OAUTH_REDIRECT,
   installNativeAuthCallback,
@@ -224,6 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // clicked the account-confirmation link. No-op when nothing is
       // pending, so the periodic TOKEN_REFRESHED ticks cost nothing.
       if (s?.user) void flushNewsletterOptIn(s.user.email);
+      // Google sign-up parked the profile fields; apply them to the new account.
+      if (event === "SIGNED_IN" && s?.user) void flushPendingOAuthProfile(s.user);
 
       // Native shell (mobile/): announce real auth transitions so the shell
       // reloads its other WebView tabs into the new session. INITIAL_SESSION

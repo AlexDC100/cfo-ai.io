@@ -847,7 +847,8 @@
     "already_have_account": "Aveți deja un cont?",
     "disclaimer": "Recomandări financiare asistate de AI. Deciziile finale rămân în responsabilitatea conducerii.",
     "show_password": "Arată parola",
-    "hide_password": "Ascunde parola"
+    "hide_password": "Ascunde parola",
+    "google_needs_details": "Completează numele și compania, apoi continuă cu Google."
   },
   "notFound": {
     "title": "404",

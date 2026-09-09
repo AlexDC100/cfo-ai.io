@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import { supabaseEnabled } from "@/lib/supabase";
 import { markNewsletterOptInPending } from "@/lib/newsletterOptIn";
+import { markPendingOAuthProfile } from "@/lib/oauthProfile";
 import { TermsDialog } from "./TermsDialog";
 import { Check, Eye, EyeOff, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 import {
@@ -139,6 +140,7 @@ export function AuthCard({
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
     [firstName, lastName],
   );
+  const signupDetailsComplete = firstName.trim().length > 0 && lastName.trim().length > 0 && companyName.trim().length > 0;
   const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
   const passwordChecks = useMemo(() => getPasswordChecks(password, t), [password, t]);
   const selectedPlan = useMemo(
@@ -544,6 +546,37 @@ export function AuthCard({
                     required
                   />
                 </Field>
+                {/* Google sign-UP (2026-09-09 per operator): above the email
+                    field, usable once name + company are filled — those
+                    are parked and applied to the new account, Google
+                    supplies the rest (lib/oauthProfile.ts). */}
+                {supabaseEnabled && oauthPlacement === "below" && (
+                  <div className="pt-1">
+                    <div className="grid grid-cols-1 gap-2">
+                      <OAuthButton
+                        provider="google"
+                        busy={busy}
+                        disabled={!signupDetailsComplete}
+                        onClick={() => {
+                          markPendingOAuthProfile({ firstName: firstName.trim(), lastName: lastName.trim(), companyName: companyName.trim() });
+                          void handleOAuth("google");
+                        }}
+                      />
+                    </div>
+                    {!signupDetailsComplete && (
+                      <p className="mt-1.5 text-[11px] text-ink-soft" data-testid="google-needs-details">
+                        {t("authX.google_needs_details")}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 mt-3" aria-hidden>
+                      <div className="flex-1 h-px bg-rule" />
+                      <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft/70">
+                        {t("authX.or_continue_email")}
+                      </span>
+                      <div className="flex-1 h-px bg-rule" />
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -690,7 +723,7 @@ export function AuthCard({
             </button>
           </form>
 
-          {supabaseEnabled && oauthPlacement === "below" && (
+          {supabaseEnabled && oauthPlacement === "below" && mode === "sign_in" && (
             <>
               <div className="flex items-center gap-3 my-4" aria-hidden>
                 <div className="flex-1 h-px bg-rule" />
@@ -750,10 +783,12 @@ export function AuthCard({
 function OAuthButton({
   provider,
   busy,
+  disabled = false,
   onClick,
 }: {
   provider: "google";
   busy: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   const { t } = useTranslation();
@@ -761,7 +796,7 @@ function OAuthButton({
     <button
       type="button"
       onClick={onClick}
-      disabled={busy}
+      disabled={busy || disabled}
       data-testid={`oauth-${provider}`}
       aria-label={t("authX.continue_with_google")}
       className="
