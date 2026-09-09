@@ -1164,9 +1164,10 @@ def compute_source_imbalance(tb_rows: List[Dict]) -> Dict[str, float]:
     }
 
 
-def compute_statutory_net_profit_anchor(tb_rows: List[Dict]) -> float:
+def compute_statutory_net_profit_anchor(tb_rows: List[Dict]) -> Optional[float]:
     """Return account 121's net closing balance (sf_c − sf_d) — the
-    LEGALLY FILED net profit on Romanian books.
+    LEGALLY FILED net profit on Romanian books — or None when the
+    document carries no 121 row at all.
 
     Account 121 (PROFIT SI PIERDERE) closes to the year-end statutory net
     profit. The COA mapping routes 121 to `ignore_control` so it's never
@@ -1183,13 +1184,25 @@ def compute_statutory_net_profit_anchor(tb_rows: List[Dict]) -> float:
         cites the same number the user sees on their account 121 balance.
     """
     total = 0.0
+    seen = False
     for r in tb_rows:
         code = (r.get("cont") or "").strip()
         if code.startswith("121"):
+            seen = True
             sf_d = float(r.get("sf_d") or 0)
             sf_c = float(r.get("sf_c") or 0)
             total += (sf_c - sf_d)
-    return total
+    # ABSENT IS NOT ZERO (2026-09-09). This returned 0.0 both for "121
+    # closed at zero" and for "this extract carries no 121 row at all" —
+    # two facts a caller must be able to tell apart. It was harmless only
+    # while the anchor was gated behind a 5% band with a 100K floor, which
+    # swallowed the 0.0. With the band removed and the anchor always
+    # applied, that conflation would force net income to 0.00 on every
+    # book that simply does not carry the row — corpus/saga_compact_6_col
+    # is one: 5 accounts, none of them 121, an equity result row of 500.00.
+    # None means "no filed figure in this document"; the caller then keeps
+    # the reconstruction and says so.
+    return total if seen else None
 
 
 # ─── Account list → canonical TSV (for Claude downstream stages) ────────────

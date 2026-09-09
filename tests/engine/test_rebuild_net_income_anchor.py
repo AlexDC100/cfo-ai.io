@@ -453,10 +453,30 @@ def test_a_light_projection_can_opt_back_in_with_one_scalar_column(
     _assert_anchored(case_id, "seam/light-row+p121-alias", pl, p121)
 
 
-def test_at_least_one_book_separates_the_row_from_the_anchor():
-    """The distinction above is only load-bearing if some book actually
-    exhibits it. Measured: saga_compact_6_col serves an equity result row
-    of 500.00 against an account 121 of 0.00."""
+def test_no_corpus_book_separates_the_row_from_the_anchor_and_that_is_recorded():
+    """MEASURED STATE, not an aspiration.
+
+    This test used to assert that at least one book separated the equity
+    result row from account 121, and cited saga_compact_6_col: "an equity
+    result row of 500.00 against an account 121 of 0.00". That 0.00 was
+    FICTIONAL. The book carries no 121 row at all — 5 accounts, none of
+    them 121 — and `compute_statutory_net_profit_anchor` returned 0.0 for
+    "absent" exactly as it did for "filed zero". The separation the test
+    relied on was the absent-as-zero defect wearing a corpus golden
+    (2026-09-09; the anchor now returns None and the golden says null).
+
+    Every book that genuinely HAS a 121 row agrees with its equity result
+    row to the cent. So the two sources cannot currently be told apart by
+    real data, and `_statutory_anchor_for`'s preference for the invariant
+    over the equity row is guaranteed by
+    `test_anchor_comes_from_the_invariant_not_the_equity_row` reading the
+    code path, not by any book exercising the difference.
+
+    This test now pins that state so it cannot drift silently: if a book
+    is ever added whose equity row and 121 disagree, this reds and the
+    real guarantee — a book-driven test of the source choice — becomes
+    available and should be written.
+    """
     separating = []
     for case_id, case_dir, p121 in ANCHOR_CASES:
         bk = _book(case_id, case_dir)
@@ -466,10 +486,13 @@ def test_at_least_one_book_separates_the_row_from_the_anchor():
         row_amount = float(rows[0]["amount"]) if rows else 0.0
         if abs(row_amount - p121) >= 0.005:
             separating.append((case_id, p121, row_amount))
-    assert separating, (
-        "no corpus book distinguishes the equity result row from account "
-        "121, so `_statutory_anchor_for`'s source choice is untested. "
-        "Books checked: %s" % CASE_IDS
+    # Non-vacuity (TC-3): the loop must actually have books to look at.
+    assert ANCHOR_CASES, "no corpus book carries an account 121 at all"
+    assert separating == [], (
+        "a corpus book now separates the equity result row from account 121: "
+        "%s. That is GOOD — it makes `_statutory_anchor_for`'s source choice "
+        "testable against real data. Write that test and delete this one."
+        % (separating,)
     )
 
 

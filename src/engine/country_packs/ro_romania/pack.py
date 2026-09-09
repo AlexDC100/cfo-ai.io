@@ -555,7 +555,7 @@ class RomaniaPack:
     def accounts_to_assemble_shape(self, raw_rows: List[Any]) -> List[Any]:
         return _legacy_tbp.accounts_to_assemble_shape(raw_rows)
 
-    def compute_statutory_net_profit_anchor(self, raw_rows: List[Any]) -> float:
+    def compute_statutory_net_profit_anchor(self, raw_rows: List[Any]) -> Optional[float]:
         return _legacy_tbp.compute_statutory_net_profit_anchor(raw_rows)
 
     def compute_source_imbalance(self, raw_rows: List[Any]) -> dict:

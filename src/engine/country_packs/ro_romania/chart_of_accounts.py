@@ -1105,12 +1105,28 @@ def assemble_statements(
     if account_121_anchor_override is not None:
         account_121_anchor = float(account_121_anchor_override)
 
+    # ALWAYS ANCHOR (2026-09-09). The 5% band above is gone. Account 121's
+    # closing balance IS the statutory net profit the company filed; the
+    # class-6/7 run-down is a build-up, not the result. The field is
+    # labelled "Net Income (account 121, as filed)" — under a band it
+    # served the RECONSTRUCTION on any book whose gap happened to fall
+    # under 5%, so the value contradicted its own name.
+    #
+    # It also made two periods of ONE company incomparable. Scandia
+    # FY2024's gap was 2,832,404.19 on a 1,605,402.98 threshold, so the
+    # override fired and the filed figure was served; FY2025's was
+    # 519,389.11 on 1,839,367.64, so it did not, and the reconstruction
+    # was served. Subtracting those two understated the year's move by
+    # 1.618pp — a comparison between two different definitions.
+    #
+    # The reconstruction does not disappear: `net_income_operational`
+    # stays on the statement, and the step between them is emitted below
+    # as `net_income_reconciliation_to_121`, split into the nameable part
+    # (722 capitalized own work) and an honestly-labelled remainder.
     anchor_override_applied = False
     if account_121_anchor is not None:
-        threshold = max(abs(account_121_anchor), 100_000) * 0.05
-        if abs(net_income_statutory - account_121_anchor) > threshold:
-            net_income_statutory = account_121_anchor
-            anchor_override_applied = True
+        anchor_override_applied = True
+        net_income_statutory = account_121_anchor
 
     # ── The bridge from the reconstruction to the filed figure ──────────
     # After the override above, `net_income_statutory` and
@@ -1138,8 +1154,25 @@ def assemble_statements(
     #     worse than an honest gap: see the `p121_cross_check` block
     #     below, whose `ok=false` is the same fact stated for diagnosis.
     net_income_reconciliation_to_121 = net_income_statutory - net_income_operational
+    # WHAT THIS FIELD MEANS, and what it used to mean (2026-09-09).
+    # It is the part of the step from the reconstruction to the filed
+    # figure that this data CANNOT attribute — the reconciliation less the
+    # one component the statement can name (722 capitalized own work).
+    #
+    # It used to read `... if anchor_override_applied else 0.0` under the
+    # 5% band, which inverted it against its own name: on Scandia FY2024
+    # the override fired and it reported 2,832,404.19 — a gap the anchor
+    # had just CLOSED — while on FY2025 the override did not fire and it
+    # reported 0.00, with 519,389.11 genuinely unexplained. It said
+    # "nothing unexplained" in exactly the case where something was.
+    #
+    # Now the anchor always applies, so the remainder is always the real
+    # one. The 0.0 branch survives only for a book with no account 121 at
+    # all (a BS-only extract), where there is no filed figure to bridge to
+    # and the reconstruction is all there is.
     net_income_unexplained_vs_121 = (
-        net_income_reconciliation_to_121 - capitalized if anchor_override_applied else 0.0
+        net_income_reconciliation_to_121 - capitalized
+        if account_121_anchor is not None else 0.0
     )
 
     # ── 121 cross-check emission (canonical_bs v2 invariant) ─────────────
