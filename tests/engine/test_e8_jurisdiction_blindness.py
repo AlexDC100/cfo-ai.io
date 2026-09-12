@@ -49,6 +49,15 @@ SCANNED_ROOTS = (
     # would mean one jurisdiction's rules had been welded into the
     # engine, which is the thing the pack file exists to prevent.
     ENGINE / "radar" / "detectors",
+    # The comparatives lane. Detail level, the comparability rule and the
+    # column model are double-entry ideas, not Romanian ones — synthetic
+    # vs analytic splits the same way in a Hungarian szamlatukor. WHERE
+    # the boundary falls (how many digits make a synthetic account) is a
+    # chart-of-accounts fact and lives in the country pack; the pack
+    # imports these names and this package never imports a pack. A
+    # jurisdiction token here would mean one country's chart had been
+    # welded into the comparison engine.
+    ENGINE / "comparatives",
 )
 SCANNED_FILES = (
     ENGINE / "frontends" / "map_guided.py",
