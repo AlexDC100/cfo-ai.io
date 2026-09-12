@@ -137,8 +137,11 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
          "interest_income")),
     _pl("financial_expense", "Financial expense", "financial_expense_total",
         ("financialExpense", "fx_loss", "interest_expense")),
+    _pl("net_financial_result", "Net financial result", "net_financial_result", ()),
     _pl("pretax", "Profit before tax", "pretax", ()),
     _pl("tax", "Income tax", "tax", ("taxExpense",)),
+    _pl("net_income_operational", "Net income — operational (excl. 722)",
+        "net_income_operational", ()),
     _pl("net_income", "Net income", "net_income_statutory", ()),
     # ── Balance sheet, the statement spine ───────────────────────────
     _bs("cash", "Cash & equivalents", "cash", ("cash", "cash_fx")),
