@@ -442,3 +442,6 @@
   }
   .cmp-col-header { display: none; }
 }
+/* Six columns need room: the single-period 820px column would wrap every
+   label word by word. */
+.pl-statement.pl-cmp { max-width: 1240px; }

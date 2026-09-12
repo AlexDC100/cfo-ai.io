@@ -169,7 +169,10 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
       </div>
 
       {/* Reconciliation footnote — surfaces 722/231/628 wash */}
-      {showFootnote && statement.capitalizedOwnWorkMemo && statement.capitalizedOwnWorkMemo > 0 && (
+      {/* `!!` — a capitalizedOwnWorkMemo of exactly 0 used to short-circuit
+          this chain with the NUMBER 0, which React paints as a stray "0"
+          under the key margins (visible on any book with no 722). */}
+      {showFootnote && !!statement.capitalizedOwnWorkMemo && statement.capitalizedOwnWorkMemo > 0 && (
         <PLFootnote statement={statement} />
       )}
     </div>

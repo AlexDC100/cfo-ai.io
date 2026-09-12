@@ -354,3 +354,4 @@
   .bs-statement.bs-cmp .bs-col-header { grid-template-columns: 1fr 1fr 0.7fr; }
   .bs-statement.bs-cmp .bs-col-header .cmp-cells { display: none; }
 }
+.bs-statement.bs-cmp { max-width: 1240px; }
