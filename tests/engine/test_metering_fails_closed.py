@@ -2,12 +2,22 @@
 
 MEASURED IN PRODUCTION, 2026-09-10. `USAGE_LIMITS_ENABLED=true`, all three
 `*_user_nonro_upload` RPCs absent, all three meter columns absent — because
-`supabase/schema_phase_plan_caps.sql` was never applied. Twenty-seven
-non-RO documents (detected_country=BE) were analysed between 2026-05-19
-and 2026-09-08 and none was metered: a 113-day window.
+`supabase/schema_phase_plan_caps.sql` was never applied.
 
-The code knew. `reserve_nonro_document` logged a warning naming the exact
-missing migration and then returned `allowed`:
+CORRECTION, 2026-09-12. The first version of this docstring said
+"twenty-seven non-RO documents (detected_country=BE) analysed unmetered
+over 113 days". That column is the coa_registries heuristic's stamp
+(`_detect.py`), not the jurisdiction resolver's verdict, and every one of
+those rows is a Romanian Scandia balanță (detected_language 'ro') that the
+heuristic mis-stamped `be_pcmn` — its `^[0-9]{6}$` code pattern matches
+analytic 6-digit RO codes while the RO registry's `^[1-7][0-9]{2,4}$` does
+not. They ran the RO path and were metered as RO documents; the non-RO
+branch below was never reached for them. The rule this file asserts does
+not depend on that window — a billing gate must not degrade open — but
+the window as first reported did not exist.
+
+The code would have degraded open. `reserve_nonro_document` logged a
+warning naming the exact missing migration and then returned `allowed`:
 
     logger.warning("... reserve_user_nonro_upload unavailable (migration
         schema_phase_plan_caps.sql not applied?) — degrading OPEN,
@@ -77,7 +87,7 @@ def test_an_unreachable_meter_refuses_rather_than_allowing(enforcing, monkeypatc
         return
     assert decision.kind != "allowed", (
         "the meter could not record and the document was allowed through "
-        "anyway — this is the 113-day unmetered window, reopened"
+        "anyway — the degrade-open branch, reopened"
     )
     assert decision.kind == "refused"
     assert decision.refusal == "metering_unavailable", (
@@ -126,7 +136,7 @@ def test_no_degrade_open_branch_survives_in_the_usage_gate():
 
 
 def test_the_unavailable_path_logs_at_error_not_warning(enforcing, monkeypatch, caplog):
-    """A warning is what nobody read for 113 days."""
+    """A warning is what nobody reads."""
     import logging
 
     _entitled(monkeypatch)

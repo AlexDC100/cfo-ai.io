@@ -347,9 +347,11 @@ def test_nonro_reserve_rpc_unavailable_refuses(monkeypatch):
 
     MEASURED before the reversal, in production: USAGE_LIMITS_ENABLED=true,
     all three `*_user_nonro_upload` RPCs absent and all three meter columns
-    absent, because schema_phase_plan_caps.sql was never applied. 27
-    non-RO documents analysed unmetered between 2026-05-19 and 2026-09-08
-    — a 113-day window, with a live Stripe key.
+    absent, because schema_phase_plan_caps.sql was never applied — with a
+    live Stripe key. (The "27 documents / 113 days" first reported here was
+    a misread of `documents.detected_country`, a coa_registries stamp on
+    Romanian books; see test_metering_fails_closed.py. The rule stands
+    without it.)
 
     The meter now refuses, with a TYPED code the frontend can tell apart
     from a plan limit, and a message that does not blame the user for our
@@ -363,7 +365,7 @@ def test_nonro_reserve_rpc_unavailable_refuses(monkeypatch):
             d = _usage_gate.reserve_nonro_document("u-x")
     assert d.kind == "refused", (
         "an unreachable meter allowed the document through — this is the "
-        "113-day unmetered window, reopened"
+        "degrade-open branch, reopened"
     )
     assert d.refusal == "metering_unavailable"
     assert d.was_extra is False

@@ -4116,11 +4116,13 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
             # done by the time the terminal commit runs — but a meter that
             # cannot read its own flags must SAY SO. Until 2026-09-10 this
             # was a bare `pass`, and with schema_phase_plan_caps.sql absent
-            # from production it meant every non-RO document settled as if
-            # it were an ordinary RO one, for 113 days. The reserve side now
-            # fails closed (see _usage_gate.reserve_nonro_document), so a
-            # document should never REACH here unmetered; if one does, this
-            # line is how anyone finds out.
+            # from production any non-RO document would have settled as if
+            # it were an ordinary RO one. (None is known to have: the
+            # "27 unmetered" count first reported here was the coa_registries
+            # `detected_country` stamp on Romanian books — see the
+            # CORRECTION in _usage_gate.reserve_nonro_document.) The reserve
+            # side now fails closed, so a document should never REACH here
+            # unmetered; if one does, this line is how anyone finds out.
             logger.error(
                 "[pipeline][billing] cannot read non-RO meter flags for "
                 "document=%s (%s: %s). Apply "

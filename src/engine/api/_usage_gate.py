@@ -437,13 +437,21 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
         #
         # Until 2026-09-10 this degraded OPEN: it logged a warning naming
         # the exact missing migration and then returned `allowed`, so the
-        # document was analysed and never metered. MEASURED in production
-        # on that date — with USAGE_LIMITS_ENABLED=true, all three
-        # `*_user_nonro_upload` RPCs absent and all three meter columns
-        # absent — 27 non-RO documents passed through unmetered between
-        # 2026-05-19 and 2026-09-08, a 113-day window. Nobody was
-        # overcharged; the company simply was not paid, silently, and the
-        # log line that said so was a warning nobody was reading.
+        # document would have been analysed and never metered. MEASURED in
+        # production on that date: USAGE_LIMITS_ENABLED=true, all three
+        # `*_user_nonro_upload` RPCs absent, all three meter columns absent.
+        #
+        # CORRECTION (2026-09-12). The first report said "27 non-RO documents
+        # unmetered over 113 days". That counted `documents.detected_country
+        # = 'BE'` — a stamp written by the coa_registries heuristic in
+        # _detect.py, NOT by the jurisdiction resolver that routes into this
+        # gate. Every one of those rows is a Romanian Scandia balanță (lang
+        # 'ro') that the heuristic mis-stamped `be_pcmn` because its
+        # `^[0-9]{6}$` code pattern matches analytic 6-digit RO codes and the
+        # RO registry's `^[1-7][0-9]{2,4}$` does not. They ran the RO path
+        # and were metered as RO documents. This branch was never reached
+        # for them, and the container log carries no degrade-open line.
+        # The fail-closed rule stands on its own; the window does not.
         #
         # A meter that cannot record is not a meter. The choice at this
         # seam is "refuse the work" or "do the work for free forever, and
