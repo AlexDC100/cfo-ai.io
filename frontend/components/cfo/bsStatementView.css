@@ -323,3 +323,34 @@
   .bs-col-header,
   .bs-total-row { border-color: black; }
 }
+
+/* ── Comparatives ─────────────────────────────────────────────────────
+   `.bs-cmp` adds [Δ %][% of total assets] after the existing
+   [opening][closing][Δ] columns. Same cell vocabulary as the P&L. */
+.bs-statement.bs-cmp .bs-col-header,
+.bs-statement.bs-cmp .bs-row,
+.bs-statement.bs-cmp .bs-total-row,
+.bs-statement.bs-cmp .bs-subtotal-rule {
+  grid-template-columns: minmax(0, 1fr) 150px 150px 110px var(--cmp-cols, 80px 96px);
+  gap: 10px;
+}
+.bs-statement .cmp-cells { display: contents; }
+@media (max-width: 639px) {
+  .bs-statement.bs-cmp .bs-row,
+  .bs-statement.bs-cmp .bs-total-row {
+    grid-template-columns: 1fr 1fr 0.7fr;
+    grid-template-areas:
+      "label label label"
+      "open close delta"
+      "cmp cmp cmp";
+  }
+  .bs-statement.bs-cmp .cmp-cells {
+    display: flex;
+    grid-area: cmp;
+    justify-content: flex-end;
+    gap: 10px;
+    font-size: 11px;
+  }
+  .bs-statement.bs-cmp .bs-col-header { grid-template-columns: 1fr 1fr 0.7fr; }
+  .bs-statement.bs-cmp .bs-col-header .cmp-cells { display: none; }
+}

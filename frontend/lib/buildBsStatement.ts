@@ -46,6 +46,7 @@ import {
   type CanonicalBsReconciliation,
   type CanonicalBsStatus,
 } from "./financialReport";
+import type { PriorCanonicalBsDto } from "./comparatives";
 
 interface BuildArgs {
   /** Per-account line items from the backend (BS entries used). */
@@ -85,6 +86,12 @@ interface BuildArgs {
    * below EXACTLY as before.
    */
   canonicalBs?: CanonicalBs;
+  /** COMPARATIVES — the prior period's canonical rows by id (from
+   *  `/api/period/{id}/comparatives`). On the canonical path each row's
+   *  `opening` becomes the prior period's closing for the SAME row id; a
+   *  row the prior period lacks keeps an absent opening. Never
+   *  account-code arithmetic across two books of different depth. */
+  priorCanonicalBs?: PriorCanonicalBsDto | null;
 }
 
 // ─── canonical_bs v2 pass-through ────────────────────────────────────────
@@ -225,6 +232,16 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
   const syntheticNote = syntheticNoteFrom(cbs.reconciliation);
   const rowsBySection = new Map<string, BSLine[]>();
   for (const row of cbs.rows) {
+    // COMPARATIVES — the prior period's closing for the SAME row id. The
+    // result row flips id with its sign (current_year_profit /
+    // current_year_loss); a pair that flipped is left absent rather than
+    // negated here, because the sign convention of a loss row belongs to
+    // the engine that emitted it.
+    const priorRow = args.priorCanonicalBs?.rows[row.id];
+    const priorOpening =
+      priorRow && typeof priorRow.amount === "number" && Number.isFinite(priorRow.amount)
+        ? priorRow.amount
+        : undefined;
     const line: BSLine = {
       accountCode: row.account_codes.length > 0 ? row.account_codes.join("+") : undefined,
       // Label comes from the object (label_key i18n is optional per the
@@ -243,12 +260,17 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       // ABSENT IS NOT MIRRORED, and it is not zero either. An absent
       // opening is simply omitted; `fmt` paints the gap glyph and
       // `BsAmountCell` refuses the card because `isAbsentFigure` is true.
-      ...(typeof row.opening === "number" && Number.isFinite(row.opening)
-        ? { opening: row.opening }
-        : {}),
+      ...(typeof priorOpening === "number"
+        ? { opening: priorOpening }
+        : typeof row.opening === "number" && Number.isFinite(row.opening)
+          ? { opening: row.opening }
+          : {}),
       closing: row.amount,
       // Δ over an absent opening is not 0 — it is unmeasured.
-      delta: bsDelta(row.opening, row.amount),
+      delta: bsDelta(
+        typeof priorOpening === "number" ? priorOpening : row.opening,
+        row.amount,
+      ),
       style: "item",
       // RECONCILIATION FLOW — the adjusting row carries a visible marker
       // + tooltip (rationale · origin · timestamp). Pass-through only:
@@ -268,6 +290,11 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
   const equityLiabSections: BSSection[] = [];
   for (const sec of cbs.sections) {
     const meta = canonicalBsSectionMeta(sec.id);
+    const priorSubtotalRaw = args.priorCanonicalBs?.sections[sec.id];
+    const priorSubtotal =
+      typeof priorSubtotalRaw === "number" && Number.isFinite(priorSubtotalRaw)
+        ? priorSubtotalRaw
+        : undefined;
     const lines = rowsBySection.get(sec.id) ?? [];
     if (lines.length === 0 && sec.subtotal === 0) continue; // empty section — nothing to show
     const section: BSSection = {
@@ -281,6 +308,8 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
       // a comparative date.
       subtotalClosing: sec.subtotal,
       subtotalBucket: meta.subtotalBucket,
+      // COMPARATIVES — the prior period's subtotal for the same section id.
+      ...(typeof priorSubtotal === "number" ? { subtotalOpening: priorSubtotal } : {}),
     };
     if (meta.side === "assets") assetSections.push(section);
     else equityLiabSections.push(section);
@@ -299,19 +328,36 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
   // normally no, and then the whole opening column is absent — including
   // its HEADER. A column headed "01.01.2025" over nothing is still a
   // claim that something was measured on 01.01.2025.
-  const anyOpening = cbs.rows.some(
-    (r) => typeof r.opening === "number" && Number.isFinite(r.opening),
-  );
+  // COMPARATIVES — the prior period's own grand totals, when a prior
+  // canonical object was supplied. Otherwise bs_v2 totals are
+  // closing-only: no opening total, therefore no Δ.
+  const priorTotals = args.priorCanonicalBs?.totals ?? null;
+  const priorNum = (k: string): number | undefined => {
+    const v = priorTotals?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  };
+  const priorTotalAssets = priorNum("assets");
+  const priorTotalEL = priorNum("equity_plus_liabilities");
+  const anyOpening =
+    cbs.rows.some((r) => typeof r.opening === "number" && Number.isFinite(r.opening))
+    || [...assetSections, ...equityLiabSections].some((s) =>
+      s.lines.some((l) => typeof l.opening === "number"))
+    || priorTotalAssets !== undefined;
   return {
     entity: args.entity,
     asOf: args.asOf,
     ...(anyOpening ? { comparativeDate: args.comparativeDate } : {}),
     currency: args.currency ?? "RON",
     assetSections,
-    // bs_v2 totals are closing-only. No opening total, therefore no Δ.
-    totalAssets: { closing: totalAssets },
+    totalAssets: {
+      ...(priorTotalAssets !== undefined ? { opening: priorTotalAssets } : {}),
+      closing: totalAssets,
+    },
     equityLiabSections,
-    totalEquityLiab: { closing: totalEL },
+    totalEquityLiab: {
+      ...(priorTotalEL !== undefined ? { opening: priorTotalEL } : {}),
+      closing: totalEL,
+    },
     // THE drift — assets − (equity + liabilities), straight from the
     // object. NULL when the envelope carried neither the field nor the
     // terms: `toDisplay(null)` was 0, i.e. a fabricated perfect balance.

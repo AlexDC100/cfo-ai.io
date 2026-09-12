@@ -372,3 +372,73 @@
   .pl-ebitda-box { border-color: black; }
   .pl-recon-bridge { break-inside: avoid; page-break-inside: avoid; }
 }
+
+/* ── Comparatives (two periods side by side) ──────────────────────────
+   `.pl-cmp` on the statement root widens every row grid to
+   [label][current][prior][Δ][Δ %][% of revenue]. The cells live in a
+   `.cmp-cells` wrapper that is `display: contents` on desktop (its
+   children are the grid items) and a compact flex sub-row on phones. A
+   cell that cannot be painted (absent, not disclosed at this level, a
+   row whose definition is not the engine's) renders the gap glyph or a
+   word — never a zero. */
+.pl-statement.pl-cmp .pl-row,
+.pl-statement.pl-cmp .pl-subtotal-rule,
+.pl-statement.pl-cmp .pl-recon-total {
+  /* --cmp-cols is set by the view from the columns the reader switched
+     on, so the grid never reserves space for a column that is not there. */
+  grid-template-columns: minmax(0, 1fr) 150px var(--cmp-cols, 150px 120px 84px 96px);
+  gap: 10px;
+}
+.cmp-cells { display: contents; }
+.cmp-cell {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+  white-space: nowrap;
+  color: hsl(var(--ink-soft));
+  font-size: 12.5px;
+}
+.cmp-cell--prior { color: hsl(var(--ink)); }
+.cmp-cell--pos { color: hsl(var(--success)); }
+.cmp-cell--neg { color: hsl(var(--alert)); }
+.cmp-cell--word {
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-mute));
+}
+.cmp-cell--gap { color: hsl(var(--ink-mute)); }
+.cmp-col-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px var(--cmp-cols, 150px 120px 84px 96px);
+  gap: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: right;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-soft));
+  border-bottom: 1px solid hsl(var(--rule-soft));
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.cmp-col-header span:first-child { text-align: left; }
+@media (max-width: 639px) {
+  .pl-statement.pl-cmp .pl-row,
+  .pl-statement.pl-cmp .pl-subtotal-rule,
+  .pl-statement.pl-cmp .pl-recon-total {
+    grid-template-columns: 1fr;
+    grid-template-areas: "label" "amount" "cmp";
+  }
+  .pl-statement.pl-cmp .cmp-cells {
+    display: flex;
+    grid-area: cmp;
+    justify-content: flex-end;
+    gap: 10px;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+  .cmp-col-header { display: none; }
+}

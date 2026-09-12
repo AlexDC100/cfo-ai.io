@@ -584,6 +584,9 @@ export function buildPLStatementFromAggregates(
       label: "Operating revenue (706/704/707 combined)",
       amount: revenue,
       style: "item",
+      // Comparatives key (lib/comparatives.ts PL_ROW_TO_KEY): this row IS
+      // the engine's net turnover — measured equal to the cent.
+      bucket: "revenue706",
     });
   }
   if (capOwnWork > 0) {
@@ -636,6 +639,7 @@ export function buildPLStatementFromAggregates(
       label: "Cost of goods sold (601/602/607)",
       amount: cogs,
       style: "item",
+      bucket: "cogs",
     });
   }
   if (opex > 0) {
@@ -644,6 +648,7 @@ export function buildPLStatementFromAggregates(
       label: "Operating expenses (62x/63x/64x — incl. 628 third-party services)",
       amount: opex,
       style: "item",
+      bucket: "opexTotal",
     });
   }
 
@@ -665,10 +670,11 @@ export function buildPLStatementFromAggregates(
   const depreciationSection: PLSection = {
     header: "",
     lines: dna > 0
-      ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item" }]
+      ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item", bucket: "depreciationAmortization" }]
       : [],
     subtotalLabel: "EBIT",
     subtotalAmount: ebitda - dna,
+    subtotalBucket: "ebit",
   };
 
   const ebit = ebitda - dna;
@@ -710,6 +716,7 @@ export function buildPLStatementFromAggregates(
     lines: financialLines,
     subtotalLabel: "Net financial result",
     subtotalAmount: netFinancialResult,
+    subtotalBucket: "netFinancialResult",
   };
 
   // ── PBT → NET PROFIT ─────────────────────────────────────────────────
@@ -725,13 +732,14 @@ export function buildPLStatementFromAggregates(
   const closingSection: PLSection = {
     header: "",
     lines: plLines([
-      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal" },
+      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },
       tax > 0
-        ? { accountCode: "691", label: "Income tax", amount: tax, style: "item" }
+        ? { accountCode: "691", label: "Income tax", amount: tax, style: "item", bucket: "taxExpense" }
         : null,
     ]),
     subtotalLabel: "Net profit — operational (excl. 722)",
     subtotalAmount: netProfit,
+    subtotalBucket: "netIncomeOperational",
   };
 
   // ── KEY MARGINS ──────────────────────────────────────────────────────

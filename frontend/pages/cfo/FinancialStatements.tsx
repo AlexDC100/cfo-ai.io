@@ -52,6 +52,20 @@ import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetr
 import { ConfigurableDashboard } from "@/components/dashboard/ConfigurableDashboard";
 import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
+// COMPARATIVES — two periods side by side (engine document, FE cells).
+import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
+import { bsOpeningFill, pickDefaultPrior, useComparatives, type ComparativesResponse } from "@/lib/comparatives";
+import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
+import {
+  ComparativesControls,
+  ComparativesRefusedNote,
+  ComparativesSummary,
+  RatioPriorCtx,
+  ratioPriorFromBundle,
+  useRatioPrior,
+} from "@/components/cfo/ComparativesPanel";
+import { usePeriodStepper } from "@/lib/usePeriodStepper";
+import { MONEY_MISSING } from "@/lib/money";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
 import { Amount } from "@/components/instrument/Amount";
 import { Chip, PageHeader, Panel, PanelBody, type ChipTone } from "@/components/instrument/Panel";
@@ -374,6 +388,17 @@ i18n.addResourceBundle("ro", "translation", { dashV2: DASHV2_RO }, true, false);
 const DASHBOARD_UPLOAD_ACCEPT = FINANCIAL_UPLOAD_ACCEPT;
 
 export default function FinancialStatements() {
+  // The comparatives view store (which prior, which columns) is company-
+  // scoped and read by hooks inside the page body, so the provider wraps
+  // the whole page rather than one region.
+  return (
+    <ComparativesViewProvider>
+      <FinancialStatementsInner />
+    </ComparativesViewProvider>
+  );
+}
+
+function FinancialStatementsInner() {
   const { t, i18n } = useTranslation();
   // Initial state — empty. The page starts as a sample picker / upload zone;
   // tab visibility evolves as the user picks a sample or uploads a document.
@@ -550,6 +575,28 @@ export default function FinancialStatements() {
   // adds no requests).
   const { org: activeOrgForPeriods } = useActiveOrg();
   const { data: enginePeriodsData } = useOrgPeriods();
+
+  // ── COMPARATIVES ────────────────────────────────────────────────────
+  // Which prior the reader chose (or AUTO = the previous fiscal year-end),
+  // resolved against the workspace's merged period list; then the engine's
+  // comparatives document for (current, prior). `cmpDoc` is null whenever
+  // there is no prior, the reader turned comparatives off, or the engine
+  // refused — and every statement view then renders its single-period
+  // markup unchanged.
+  const cmpView = useComparativesView();
+  const { periods: cmpPeriods } = usePeriodStepper();
+  const cmpAutoPick = useMemo(
+    () => pickDefaultPrior(cmpPeriods, remotePeriod.id, remotePeriod.periodEnd),
+    [cmpPeriods, remotePeriod.id, remotePeriod.periodEnd],
+  );
+  const cmpPriorId: string | null =
+    cmpView.view.priorPeriodId === "none"
+      ? null
+      : cmpView.view.priorPeriodId ?? cmpAutoPick?.period_id ?? null;
+  const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId);
+  const cmpDoc: ComparativesResponse | null =
+    cmpQuery.data?.kind === "ok" ? cmpQuery.data.data : null;
+  const cmpRefused = cmpQuery.data?.kind === "refused" ? cmpQuery.data : null;
   const { data: directPeriodsData } = useQuery({
     queryKey: ["org-periods", activeOrgForPeriods?.id],
     queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
@@ -660,6 +707,65 @@ export default function FinancialStatements() {
     }
     return out;
   }, [remotePeriod.metrics]);
+
+  // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
+  // Cash flow and ratios are FE-derived from a period's served statements;
+  // the prior column runs the SAME builder / the SAME computeRatios on the
+  // prior's own served block and metrics, so a prior figure is never a
+  // different arithmetic wearing the same label.
+  const priorStatements = useMemo<Statements | null>(() => {
+    if (!cmpDoc) return null;
+    const ps = cmpDoc.prior_statements as unknown as Statements;
+    return ps && ps.incomeStatement && ps.balanceSheet ? ps : null;
+  }, [cmpDoc]);
+  const priorCf = useMemo(() => {
+    if (!cmpDoc || !priorStatements) return null;
+    const ps = priorStatements as Statements & {
+      assembled_pl?: Record<string, number>;
+      assembled_bs?: Record<string, number>;
+      assembled_cf?: Record<string, number | boolean | string[] | undefined>;
+    };
+    return buildCashFlowStatement({
+      pl: ps.assembled_pl,
+      bs: ps.assembled_bs,
+      cf: ps.assembled_cf,
+      lineItems: cmpDoc.prior_line_items ?? [],
+      entity: ps.companyName ?? t("dash.entity"),
+      period: ps.periodLabel ?? cmpDoc.prior.label,
+      currency: ps.currency,
+      yearLabel: (() => {
+        const m = (ps.periodLabel ?? "").match(/\b(20\d{2})\b/);
+        return m ? m[1] : t("dash.thePeriod");
+      })(),
+    });
+  }, [cmpDoc, priorStatements, t]);
+  const priorRatios = useMemo(() => {
+    if (!cmpDoc || !priorStatements) return null;
+    const byName: Record<string, number | null> = {};
+    for (const mt of cmpDoc.prior_metrics ?? []) {
+      byName[mt.name] = typeof mt.value === "number" ? mt.value : null;
+    }
+    const margins = {
+      ebitdaMargin: typeof byName["ebitda_margin"] === "number" ? byName["ebitda_margin"] : null,
+      netMargin: typeof byName["net_margin"] === "number" ? byName["net_margin"] : null,
+    };
+    return computeRatios(priorStatements, margins, byName);
+  }, [cmpDoc, priorStatements]);
+  // The exports read `statements.prior` (reportComparatives.ts,
+  // financialExports.ts) — populated only when a prior is loaded, so a
+  // single-period report still says "no prior period" in words.
+  const statementsForExport = useMemo<Statements | null>(() => {
+    if (!statements) return null;
+    if (!cmpDoc || !priorStatements) return statements;
+    return {
+      ...statements,
+      prior: {
+        periodLabel: cmpDoc.prior.label,
+        balanceSheet: priorStatements.balanceSheet,
+        incomeStatement: priorStatements.incomeStatement,
+      },
+    };
+  }, [statements, cmpDoc, priorStatements]);
 
   // ── ONE PLACE DECIDES WHICH ENVELOPES THIS PERIOD HAS ───────────────
   // This selection used to be written out three times (hero card, Risks
@@ -1871,6 +1977,18 @@ export default function FinancialStatements() {
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
             </div>
+            {/* COMPARATIVES — which prior, which columns. Only on the
+                statement tabs; the picker lists every other period of
+                this workspace and AUTO names the year it resolves to. */}
+            {(activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
+              && cmpPeriods.length > 1 && statements && (
+              <ComparativesControls
+                periods={cmpPeriods}
+                currentId={remotePeriod.id}
+                autoPick={cmpAutoPick}
+                currency={statements.currency}
+              />
+            )}
           </div>
           )}
 
@@ -2124,22 +2242,25 @@ export default function FinancialStatements() {
         {/* P&L ──────────────────────────────────────────────────────────── */}
         {enabled.pl && statements && (
           <TabsContent value="pl" className="mt-6 space-y-8 min-h-[400px]">
-            <PLStatementView
-              hideGuide
-              statement={pickPLBuilder(
-                {
-                  lineItems: remotePeriod.lineItems,
-                  entity: statements.companyName ?? t("dash.entity"),
-                  period: statements.periodLabel,
-                  currency: statements.currency,
-                  // F1.e — Engine-canonical margin pair so the Key Margins
-                  // block on the P&L tab collapses to 2 rows matching the
-                  // dashboard tile and the Ratios tab.
-                  canonicalMargins: dashboardCanonicalMargins,
-                },
-                statements,
-              )}
-            />
+            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency}>
+              <PLStatementView
+                hideGuide
+                statement={pickPLBuilder(
+                  {
+                    lineItems: remotePeriod.lineItems,
+                    entity: statements.companyName ?? t("dash.entity"),
+                    period: statements.periodLabel,
+                    currency: statements.currency,
+                    // F1.e — Engine-canonical margin pair so the Key Margins
+                    // block on the P&L tab collapses to 2 rows matching the
+                    // dashboard tile and the Ratios tab.
+                    canonicalMargins: dashboardCanonicalMargins,
+                  },
+                  statements,
+                )}
+              />
+            </ComparativeProvider>
+            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} message={cmpRefused.message} />}
             {/* Server-emitted, period-keyed notes & recommendations
              *  rendered as part of the P&L tab. Honest empty-state when
              *  the engine produced none for this period — never filler. */}
@@ -2148,6 +2269,7 @@ export default function FinancialStatements() {
               alerts={remotePeriod.alerts}
               relevantTo="pl"
             />
+            {cmpDoc && <ComparativesSummary doc={cmpDoc} statement="PL" currency={statements.currency} />}
           </TabsContent>
         )}
 
@@ -2155,6 +2277,7 @@ export default function FinancialStatements() {
         {enabled.balance_sheet && statements && (
           <TabsContent value="balance_sheet" className="mt-6 space-y-8 min-h-[400px]">
             {remotePeriod.lineItems && remotePeriod.lineItems.length > 0 ? (
+              <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="BS" currency={statements.currency}>
               <BSStatementView
                 hideGuide
                 periodId={remotePeriod.id ?? searchParams.get("period")}
@@ -2162,7 +2285,10 @@ export default function FinancialStatements() {
                   lineItems: remotePeriod.lineItems,
                   entity: statements.companyName ?? t("dash.entity"),
                   asOf: statements.periodLabel ?? t("dash.periodEndFallback"),
-                  comparativeDate: t("dash.opening"),
+                  // COMPARATIVES — the column header names the prior period
+                  // when one is loaded; otherwise the builder's "Opening" and
+                  // the view's "not filed" wording, exactly as before.
+                  comparativeDate: cmpDoc ? cmpDoc.prior.label : t("dash.opening"),
                   currency: statements.currency,
                   // F1.n — Anchor "Current year net profit (121)" to the
                   // STATUTORY ct.121 closing balance, not the FE-recomputed
@@ -2191,24 +2317,33 @@ export default function FinancialStatements() {
                   // verbatim (incl. the reconcile status strip); legacy
                   // periods keep the assembledBs path above unchanged.
                   canonicalBs: (statements as Statements).canonical_bs,
+                  // COMPARATIVES — the prior period's canonical rows by id;
+                  // each current row's opening becomes the prior's closing
+                  // for the SAME row id (never account-code arithmetic).
+                  priorCanonicalBs: cmpDoc?.prior_canonical_bs ?? null,
                 })}
               />
+              </ComparativeProvider>
             ) : (
               <BalanceSheetTable statements={statements} />
             )}
+            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} message={cmpRefused.message} />}
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}
               relevantTo="bs"
             />
+            {cmpDoc && <ComparativesSummary doc={cmpDoc} statement="BS" currency={statements.currency} />}
           </TabsContent>
         )}
 
         {/* CASH FLOW ──────────────────────────────────────────────────── */}
         {enabled.cash_flow && statements && (
           <TabsContent value="cash_flow" className="mt-6 space-y-8 min-h-[400px]">
+            <ComparativeProvider doc={cmpDoc} columns={cmpView.view.columns} statement="PL" currency={statements.currency}>
             <CashFlowStatementView
               hideGuide
+              prior={priorCf}
               statement={buildCashFlowStatement({
                 pl: (statements as Statements & { assembled_pl?: Record<string, number> }).assembled_pl,
                 bs: (statements as Statements & { assembled_bs?: Record<string, number> }).assembled_bs,
@@ -2224,6 +2359,7 @@ export default function FinancialStatements() {
                 })(),
               })}
             />
+            </ComparativeProvider>
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}
@@ -2235,11 +2371,15 @@ export default function FinancialStatements() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
-            <RatiosTabContent
-              ratios={ratios}
-              statements={statements}
-              altman={heroCredit ? altmanRatio(heroCredit) : null}
-            />
+            <RatioPriorCtx.Provider
+              value={cmpDoc ? ratioPriorFromBundle(priorRatios as unknown as Record<string, unknown> | null, cmpDoc.prior.label) : null}
+            >
+              <RatiosTabContent
+                ratios={ratios}
+                statements={statements}
+                altman={heroCredit ? altmanRatio(heroCredit) : null}
+              />
+            </RatioPriorCtx.Provider>
           </TabsContent>
         )}
 
@@ -2525,7 +2665,7 @@ export default function FinancialStatements() {
                     // zone. Action required." while every screen and the
                     // workbook one card to the right said 0.22 / CC. It also
                     // carried no letter, no composite and no model at all.
-                    m.downloadHtmlReport(statements, creditEnvelopes),
+                    m.downloadHtmlReport(statementsForExport ?? statements, creditEnvelopes),
                   )
                 }
                 className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
@@ -2553,7 +2693,7 @@ export default function FinancialStatements() {
                     // the OTHER model: measured on the real Scandia
                     // period, the app showed CC / 24.4 and the forwarded
                     // workbook showed CCC / 36.
-                    m.downloadExcelReport(statements, creditEnvelopes),
+                    m.downloadExcelReport(statementsForExport ?? statements, creditEnvelopes),
                   )
                 }
                 className="inline-flex items-center gap-2 h-9 px-3.5 rounded-sm border border-rule text-ink text-[13px] font-medium hover:border-rule-strong hover:bg-bg-2 transition-colors duration-micro"
@@ -2625,7 +2765,7 @@ export default function FinancialStatements() {
                       import("@/lib/financialExports"),
                       import("@/lib/reportPdf"),
                     ]);
-                    const html = fx.buildReportHtml(statements, creditEnvelopes);
+                    const html = fx.buildReportHtml(statementsForExport ?? statements, creditEnvelopes);
                     const out = await pdf.requestReportPdf(
                       html,
                       { company: statements.companyName, period: statements.periodLabel },
@@ -4962,6 +5102,7 @@ function RatioTile({
 }) {
   const { t } = useTranslation();
   const clickable = typeof onPick === "function";
+  const ratioPrior = useRatioPrior();
   // The tile becomes a button when clickable, keeping keyboard focus,
   // Enter/Space activation, and an aria role for AT users. When the
   // Ratios tab isn't mounted with a `onPick` (legacy callers) it
@@ -5032,6 +5173,34 @@ function RatioTile({
         </div>
       )}
       <div className="text-[11px] text-ink-mute mt-1">{ratio.benchmark}</div>
+      {/* COMPARATIVES — the prior period's SAME ratio (same computeRatios
+          on its own served statements) and the change in the ratio's own
+          unit. Absent prior → the gap glyph, never "0". */}
+      {ratioPrior && ratio.value !== null && (() => {
+        const pv = ratioPrior.byKey.has(ratio.key) ? ratioPrior.byKey.get(ratio.key) ?? null : null;
+        const d = pv === null ? null : ratio.value! - pv;
+        const unit = ratio.unit === "x" ? "×" : ratio.unit === "%" ? " pp" : ratio.unit === "days" ? " days" : "";
+        const fmtV = (v: number) =>
+          ratio.unit === "%" ? `${v.toFixed(1)}%`
+          : ratio.unit === "days" ? `${v.toFixed(0)} days`
+          : ratio.unit === "x" ? `${v.toFixed(2)}×`
+          : v.toFixed(2);
+        return (
+          <div
+            className="mt-1 font-mono tabular-nums text-[11.5px] text-ink-soft"
+            data-testid="ratio-prior"
+            data-ratio-prior={pv === null ? "absent" : "present"}
+          >
+            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1">{ratioPrior.label}</span>
+            <span>{pv === null ? MONEY_MISSING : fmtV(pv)}</span>
+            {d !== null && Number.isFinite(d) && (
+              <span className="ml-2 text-ink-soft">
+                {d > 0 ? "+" : ""}{ratio.unit === "%" ? d.toFixed(1) : ratio.unit === "days" ? d.toFixed(0) : d.toFixed(2)}{unit}
+              </span>
+            )}
+          </div>
+        );
+      })()}
       {/* A REFUSAL IS RENDERED IN THE READER'S LANGUAGE. `ratio.commentary`
           for a refused ratio is `describeAbsence()`, which is hard-coded
           English — under a chip that says "Neraportat". The structured

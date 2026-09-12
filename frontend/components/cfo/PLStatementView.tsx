@@ -24,6 +24,13 @@ import { SimpleTermLabel } from "@/components/cfo/simple/SimpleTermLabel";
 import { termForRow } from "@/components/cfo/simple/termForRow";
 import { TRACEABLE_TARGET_ATTR } from "@/lib/traceableSource";
 import { useHighlightFromUrl } from "./useHighlightFromUrl";
+import {
+  CmpCells,
+  CmpColumnHeader,
+  activeColumnCount,
+  cmpColumnTemplate,
+  useComparativeContext,
+} from "./ComparativeCells";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { bucketToConcept } from "@/lib/learning/bucketToConcept";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
@@ -45,6 +52,15 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   const { t } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
+  // COMPARATIVES — present only when the dashboard wrapped this view in a
+  // <ComparativeProvider> with an engine document. The grid widens by the
+  // columns the reader switched on; every cell is painted by <CmpCells>,
+  // which refuses any row whose figure is not the engine's own line.
+  const cmp = useComparativeContext();
+  const cmpCount = cmp ? activeColumnCount(cmp.columns) : 0;
+  const cmpStyle = cmp && cmpCount > 0
+    ? ({ "--cmp-cols": cmpColumnTemplate(cmp.columns) } as React.CSSProperties)
+    : undefined;
   // THE DIAL — Simple opens totals-first; "Show all lines" expands to the
   // untouched full table. keyOnly hides only `style: "item"` rows —
   // subtotal/total/boxed rows (the builder-marked headline rows) always
@@ -57,7 +73,12 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
     statement.sections;
 
   return (
-    <div className="pl-statement" data-testid="pl-statement">
+    <div
+      className={`pl-statement${cmpCount > 0 ? " pl-cmp" : ""}`}
+      data-testid="pl-statement"
+      data-comparative={cmp ? cmp.doc.prior.period_id : undefined}
+      style={cmpStyle}
+    >
       <div className="pl-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h2>
@@ -77,6 +98,14 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         />
       )}
 
+      {cmp && cmpCount > 0 && (
+        <CmpColumnHeader
+          currentLabel={cmp.doc.current.label}
+          priorLabel={cmp.doc.prior.label}
+          shareLabel={t("statements.cmp.colShare")}
+          columns={cmp.columns}
+        />
+      )}
       <div className="pl-body">
         {/* OPERATING REVENUE */}
         <div data-guide="pl-revenue">
@@ -99,6 +128,7 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
             <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
               {fmt(statement.ebitda)}
             </LearnableNumber>
+            <CmpCells rowKey="ebitda" amount={statement.ebitda} />
           </div>
         </div>
 
@@ -199,6 +229,7 @@ function PLSectionView({
             ) : (
               <span className="pl-amount">{fmt(section.subtotalAmount)}</span>
             )}
+            <CmpCells rowKey={section.subtotalBucket} amount={section.subtotalAmount} />
           </div>
         </>
       )}
@@ -229,6 +260,7 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
         ) : (
           <span className="pl-amount">{fmt(line.amount)}</span>
         )}
+        <CmpCells rowKey={line.bucket} amount={line.amount} />
       </div>
     );
   }
@@ -281,6 +313,7 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
       ) : (
         <span className={`pl-amount ${amountClass}`}>{amount}</span>
       )}
+      <CmpCells rowKey={line.bucket} amount={line.amount} />
     </div>
   );
 }
@@ -332,6 +365,7 @@ function PLReconciliationBridge({
         <LearnableNumber conceptKey="net_profit" value={statutory} className="pl-amount" block>
           {fmt(statutory)}
         </LearnableNumber>
+        <CmpCells rowKey="netIncomeStatutory" amount={statutory} />
       </div>
       <div className="pl-recon-note">
         {t("tablesV2.pl.reconNote", {

@@ -11,6 +11,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { bsDelta } from "@/lib/bsStructure";
+import { BsCmpCells, cmpColumnTemplate, useComparativeContext } from "./ComparativeCells";
+
+/** COMPARATIVES — the two periods' total assets, the base every share
+ *  cell is struck against. Threaded as a prop through BSSectionView →
+ *  BSLineView; null outside a comparative render. */
+interface BsBases { cur: number | null; pri: number | null }
 import type { BSStatement, BSSection, BSLine } from "@/lib/bsStructure";
 import { MONEY_MISSING } from "@/lib/money";
 import { canonicalMetaFromBs, type BSCanonicalMeta } from "@/lib/buildBsStatement";
@@ -72,6 +78,18 @@ interface Props {
 export function BSStatementView({ statement, hideGuide = false, periodId }: Props) {
   useHighlightFromUrl();
   const { t } = useTranslation();
+  // COMPARATIVES — present when the dashboard wrapped this view with an
+  // engine document. The BS already carries [opening][closing][Δ]; the
+  // comparative adds Δ % and share cells, struck against total assets.
+  const cmp = useComparativeContext();
+  const cmpOn = !!cmp && (cmp.columns.deltaPct || cmp.columns.share);
+  const cmpStyle = cmpOn
+    ? ({ "--cmp-cols": cmpColumnTemplate(cmp!.columns, "bs") } as React.CSSProperties)
+    : undefined;
+  const bases = {
+    cur: typeof statement.totalAssets.closing === "number" ? statement.totalAssets.closing : null,
+    pri: typeof statement.totalAssets.opening === "number" ? statement.totalAssets.opening : null,
+  };
   // THE DIAL — Simple collapsed state. Status strips, badges, totals and
   // section subtotals always render (honesty surfaces + headline rows);
   // only item/contra detail rows hide behind the toggle.
@@ -88,7 +106,12 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
 
   return (
     <div className={statement.note ? "lg:grid lg:grid-cols-[minmax(0,820px)_minmax(340px,440px)] lg:gap-5 lg:items-start lg:justify-center" : ""}>
-      <div className="bs-statement" data-testid="bs-statement">
+      <div
+        className={`bs-statement${cmpOn ? " bs-cmp" : ""}`}
+        data-testid="bs-statement"
+        data-comparative={cmp ? cmp.doc.prior.period_id : undefined}
+        style={cmpStyle}
+      >
       <div className="bs-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span>{t("statements.bs.title")} — {statement.entity} ({display})</span>
@@ -158,6 +181,12 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
         </span>
         <span>{statement.asOf}</span>
         <span>Δ</span>
+        {cmpOn && (
+          <span className="cmp-cells">
+            {cmp!.columns.deltaPct && <span>{t("statements.cmp.colDeltaPct")}</span>}
+            {cmp!.columns.share && <span>{t("statements.cmp.colShareBs")}</span>}
+          </span>
+        )}
       </div>
 
       {/* ASSETS */}
@@ -169,6 +198,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           currency={statement.currency}
           keyOnly={keyOnly}
           canonical={statement.canonical}
+          bases={bases}
         />
       ))}
       <div
@@ -199,6 +229,14 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
             fmt,
           )}
         </span>
+        {cmpOn && (
+          <BsCmpCells
+            opening={statement.totalAssets.opening}
+            closing={statement.totalAssets.closing}
+            baseCurrent={bases.cur}
+            basePrior={bases.pri}
+          />
+        )}
       </div>
 
       {/* EQUITY & LIABILITIES */}
@@ -211,6 +249,7 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           currency={statement.currency}
           keyOnly={keyOnly}
           canonical={statement.canonical}
+          bases={bases}
         />
       ))}
       <div
@@ -240,6 +279,14 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
             fmt,
           )}
         </span>
+        {cmpOn && (
+          <BsCmpCells
+            opening={statement.totalEquityLiab.opening}
+            closing={statement.totalEquityLiab.closing}
+            baseCurrent={bases.cur}
+            basePrior={bases.pri}
+          />
+        )}
       </div>
 
       {/* Balance check — legacy path only. On canonical periods the engine
@@ -273,6 +320,7 @@ function BSSectionView({
   currency,
   keyOnly = false,
   canonical,
+  bases,
 }: {
   section: BSSection;
   currency: string;
@@ -284,7 +332,11 @@ function BSSectionView({
    *  rows render; item/contra/note detail hides. Synthetic reconciliation
    *  rows stay visible — an adjusting entry never hides from the reader. */
   keyOnly?: boolean;
+  /** COMPARATIVES — the two periods' total assets for the share cells. */
+  bases?: BsBases;
 }) {
+  const cmp = useComparativeContext();
+  const cmpOn = !!cmp && !!bases && (cmp.columns.deltaPct || cmp.columns.share);
   // Hook BEFORE the empty-section bail-out (2026-07-26): this used to sit
   // under it, so a re-render in which a section lost its lines ran one fewer
   // hook than the previous render and React threw "Rendered fewer hooks than
@@ -306,7 +358,7 @@ function BSSectionView({
     <div className="bs-section">
       {section.header && <div className="bs-section-header">{section.header}</div>}
       {visibleLines.map((line, i) => (
-        <BSLineView key={i} line={line} currency={currency} canonical={canonical} />
+        <BSLineView key={i} line={line} currency={currency} canonical={canonical} bases={bases} />
       ))}
       {section.subtotalLabel && (
         <>
@@ -364,6 +416,14 @@ function BSSectionView({
                 fmt,
               )}
             </span>
+            {cmpOn && (
+              <BsCmpCells
+                opening={section.subtotalOpening}
+                closing={section.subtotalClosing}
+                baseCurrent={bases!.cur}
+                basePrior={bases!.pri}
+              />
+            )}
           </div>
         </>
       )}
@@ -375,13 +435,22 @@ function BSLineView({
   line,
   currency,
   canonical,
+  bases,
 }: {
   line: BSLine;
   currency: string;
   canonical?: BSCanonicalMeta;
+  bases?: BsBases;
 }) {
   const fmt = useAmountFormatter(currency);
   const { t } = useTranslation();
+  const cmp = useComparativeContext();
+  const cmpOn = !!cmp && !!bases && (cmp.columns.deltaPct || cmp.columns.share);
+  // Under a comparative, an absent opening on a row that closes means the
+  // prior book has no such line — "new", never a zero.
+  const absentWord = cmpOn && typeof line.opening !== "number" && typeof line.closing === "number"
+    ? t("statements.cmp.new")
+    : undefined;
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
   const conceptKey = bucketToConcept(line.bucket);
 
@@ -425,6 +494,15 @@ function BSLineView({
           <span className="bs-delta">
             {formatDelta(line.delta ?? bsDelta(line.opening, line.closing), fmt)}
           </span>
+          {cmpOn && (
+            <BsCmpCells
+              opening={line.opening}
+              closing={line.closing}
+              baseCurrent={bases!.cur}
+              basePrior={bases!.pri}
+              absentWord={absentWord}
+            />
+          )}
         </div>
       </>
     );
@@ -520,6 +598,15 @@ function BSLineView({
         </>
       )}
       <span className="bs-delta">{formatDelta(deltaValue, fmt)}</span>
+      {cmpOn && (
+        <BsCmpCells
+          opening={line.opening}
+          closing={line.closing}
+          baseCurrent={bases!.cur}
+          basePrior={bases!.pri}
+          absentWord={absentWord}
+        />
+      )}
     </div>
   );
 }

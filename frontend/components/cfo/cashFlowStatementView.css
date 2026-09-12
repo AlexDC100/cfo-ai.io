@@ -292,3 +292,29 @@
   .cf-subtotal-rule::after,
   .cf-double-rule { border-color: black; }
 }
+
+/* ── Comparatives ─────────────────────────────────────────────────────
+   `.cf-cmp` widens each row to [label][current][prior][Δ]. Cash-flow
+   lines are like-for-like: both periods run the same indirect-method
+   builder on their own envelope, so there is no Δ % or share column
+   (an approximated flow has no honest percentage base). */
+.cf-statement.cf-cmp .cf-row,
+.cf-statement.cf-cmp .cf-subtotal-rule {
+  grid-template-columns: minmax(0, 1fr) 160px var(--cmp-cols, 160px 120px);
+  gap: 10px;
+}
+.cf-statement .cmp-cells { display: contents; }
+@media (max-width: 639px) {
+  .cf-statement.cf-cmp .cf-row,
+  .cf-statement.cf-cmp .cf-subtotal-rule {
+    grid-template-columns: 1fr;
+    grid-template-areas: "label" "amount" "cmp";
+  }
+  .cf-statement.cf-cmp .cmp-cells {
+    display: flex;
+    grid-area: cmp;
+    justify-content: flex-end;
+    gap: 10px;
+    font-size: 11px;
+  }
+}
