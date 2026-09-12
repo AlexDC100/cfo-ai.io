@@ -3883,7 +3883,11 @@ def test_token_and_scheduler_routes_are_unreachable_without_their_secret(app, wo
     r = app.post("/api/firm/requests/%s/upload" % forged, files={"file": ("x.csv", b"a;b\n", "text/csv")})
     assert r.status_code == 403 and "signature" in r.text, r.text
     assert SECRET_NOTE not in r.text
-    # the real link, minted under the suite's key, reaches its own request — and nothing else
+    # the real link, minted under the suite's key, reaches its own request — and nothing else.
+    # The route judges expiry on ITS clock (`_firm_requests._now`), not the
+    # double's; with the double frozen at 2026-09-03 and a 7-day token, this
+    # test went red on its own on 2026-09-10 (410 Gone). Inject the clock.
+    monkeypatch.setattr(_firm_requests, "_now", lambda: world.clock)
     key = _firm_requests.signing_key()
     claims = _firm_requests.TokenClaims(request_id=REQUEST_A1, client_org_id=ORG_A1,
                                         period_end="2026-01-31", nonce="n",
