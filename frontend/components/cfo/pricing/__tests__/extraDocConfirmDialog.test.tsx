@@ -101,8 +101,12 @@ describe("ExtraDocConfirmDialog", () => {
     await waitFor(() => {
       expect(planState.confirmExtraDoc).toHaveBeenCalledTimes(1);
       expect(onConfirmed).toHaveBeenCalledTimes(1);
-      expect(onClose).toHaveBeenCalledTimes(1);
     });
+    // This assertion used to be `onClose toHaveBeenCalledTimes(1)` — a gate
+    // that pinned the defect. onClose means "dismissed WITHOUT confirming";
+    // firing it after onConfirmed let the owner resolve a confirmed upload
+    // as cancelled (see useUploadEnqueue.test.tsx for the race itself).
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("surfaces the error inline + does NOT close on PlanApiError", async () => {

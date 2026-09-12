@@ -91,8 +91,13 @@ export function ExtraDocConfirmDialog({
         title: "Extra document confirmed",
         description: `${eurLabel} will be charged only after the analysis completes successfully.`,
       });
+      // onConfirmed ONLY. The owner closes the dialog by clearing its
+      // pending state; calling onClose() here as well told the owner
+      // "dismissed without confirming" in the same tick, and the owner
+      // resolved the upload as cancelled before the retry enqueue
+      // returned — "Analysis failed" on screen over a document that the
+      // backend then analysed (2026-09-12, live).
       onConfirmed();
-      onClose();
     } catch (e) {
       const msg =
         e instanceof PlanApiError

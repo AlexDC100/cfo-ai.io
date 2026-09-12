@@ -523,7 +523,11 @@ function Onboarding({
   // call on 2026-08-02 (onOpenUpload routes to the Dashboard, full stop); this
   // brings the wizard in line. SKU workbooks have their own uploader on
   // /products, which uses uploadDocument({scope:"sku"}) and is not walled.
-  async function routeToFinancialPipeline(file: File): Promise<void> {
+  /** Resolves true once the document is queued and the wizard has moved
+   *  on; false when the user dismissed the extra-document dialog (nothing
+   *  ran, nothing failed — the wizard just stays where it is). Throws on a
+   *  real failure. */
+  async function routeToFinancialPipeline(file: File): Promise<boolean> {
     const [{ uploadDocument }, { startUpload, patchUpload, clearUpload }] = await Promise.all([
       import("@/lib/supabase"),
       import("@/lib/uploadStore"),
@@ -536,6 +540,10 @@ function Onboarding({
     }
     startUpload({ docId: row.id, filename: file.name, status: "queued" });
     const enq = await uploadEnqueue.enqueue(row.id);
+    if (enq.kind === "extra_doc_cancelled") {
+      clearUpload();
+      return false;
+    }
     if (enq.kind !== "queued") {
       const reason =
         enq.kind === "quota_blocked" || enq.kind === "non_ro_blocked" || enq.kind === "transport_failed"
@@ -549,12 +557,14 @@ function Onboarding({
     });
     finish();
     navigate("/dashboard");
+    return true;
   }
 
   async function handleUpload(file: File) {
     setBusy(true);
     try {
-      await routeToFinancialPipeline(file);
+      const routed = await routeToFinancialPipeline(file);
+      if (!routed) setBusy(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("productsX.toast.uploadFailed");
       toast.error(t("productsX.toast.uploadFailed"), {

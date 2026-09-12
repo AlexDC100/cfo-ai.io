@@ -27,7 +27,7 @@
 // `await upload.enqueue(docId)` returns ONCE — after the user has
 // resolved any modal. So callers always see a final outcome.
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
@@ -68,6 +68,18 @@ export function useUploadEnqueue() {
   const navigate = useNavigate();
   const [pending, setPending] = useState<PendingExtra | null>(null);
   const [pendingNonRo, setPendingNonRo] = useState<PendingNonRo | null>(null);
+  // OWNERSHIP of the pending promise lives in a ref, not in `pending`
+  // state. MEASURED IN PRODUCTION (2026-09-12, 05:50 UTC): the dialog
+  // fired onConfirmed() and then onClose() in the same tick. handleConfirmed
+  // called setPending(null) and awaited the retry enqueue; handleClose ran
+  // next, read the STALE closure `pending` (state does not update inside a
+  // render's closures), and resolved the upload as extra_doc_cancelled
+  // first. The caller marked the document "failed" ("Analysis failed" at
+  // step 1 of 5) while the retry it never heard about went 202 → analyzed
+  // in the background. Every paid extra document hit this. The ref is
+  // read at call time, so whichever handler takes the promise first owns
+  // it and the other is a no-op.
+  const pendingRef = useRef<PendingExtra | null>(null);
 
   /** Enqueue a pipeline run for `documentId`. Returns once the flow
    *  has reached a terminal state (queued, cancelled, blocked, failed). */
@@ -117,7 +129,7 @@ export function useUploadEnqueue() {
       }
       // 402 extra_doc_required → modal
       return new Promise<UploadOutcome>((resolve) => {
-        setPending({
+        const next: PendingExtra = {
           documentId,
           planKey: result.planKey,
           docsUsed: result.docsUsed,
@@ -125,7 +137,9 @@ export function useUploadEnqueue() {
           extraDocEur: result.extraDocEur,
           serverMessage: result.message,
           resolve,
-        });
+        };
+        pendingRef.current = next;
+        setPending(next);
       });
     },
     [toast],
@@ -133,21 +147,28 @@ export function useUploadEnqueue() {
 
   // ── Dialog handlers ─────────────────────────────────────────
   const handleClose = useCallback(() => {
-    if (!pending) return;
-    pending.resolve({ kind: "extra_doc_cancelled" });
+    // Dismissed WITHOUT confirming. If handleConfirmed already took the
+    // promise (ref is null), a trailing close from the dialog unmounting
+    // is a no-op — it must not resolve a confirmed upload as cancelled.
+    const owned = pendingRef.current;
+    if (!owned) return;
+    pendingRef.current = null;
+    owned.resolve({ kind: "extra_doc_cancelled" });
     setPending(null);
-  }, [pending]);
+  }, []);
 
   const handleConfirmed = useCallback(async () => {
-    if (!pending) return;
-    const docId = pending.documentId;
-    const settle = pending.resolve;
+    // Take ownership SYNCHRONOUSLY, before the first await, so no close
+    // event racing this handler can settle the promise underneath it.
+    const owned = pendingRef.current;
+    if (!owned) return;
+    pendingRef.current = null;
     setPending(null);
     // After confirm, retry the enqueue. The server now sees the
     // reserved extra slot and should return 202.
-    const retry = await enqueuePipeline(docId);
-    settle(await _resolveEnqueueOutcome(retry, docId));
-  }, [pending, _resolveEnqueueOutcome]);
+    const retry = await enqueuePipeline(owned.documentId);
+    owned.resolve(await _resolveEnqueueOutcome(retry, owned.documentId));
+  }, [_resolveEnqueueOutcome]);
 
   const handleNonRoClose = useCallback(() => {
     if (!pendingNonRo) return;

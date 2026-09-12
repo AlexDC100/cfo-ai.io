@@ -1259,6 +1259,13 @@ export default function FinancialStatements() {
         }
         startUpload({ docId: row.id, filename: file.name, status: "queued" });
         const enq = await uploadEnqueue.enqueue(row.id);
+        if (enq.kind === "extra_doc_cancelled") {
+          // The user closed the extra-document dialog. Nothing ran and
+          // nothing failed — clear the card; "Analysis failed" is a lie here.
+          clearUpload();
+          resolve();
+          return;
+        }
         if (enq.kind !== "queued") {
           const reason =
             enq.kind === "quota_blocked" ? enq.message
