@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple, Union
 
+from engine.core import net_income_anchor as _net_income_anchor
 from engine.core.country_pack_registry import register_pack
 from engine.core.types import (
     AltmanThresholds,
@@ -778,6 +779,7 @@ class RomaniaPack:
         on measure_bs_drift_roundtrip.py.
         """
         shaped = self.accounts_to_assemble_shape(tb_rows)
+        statutory_anchor = self.compute_statutory_net_profit_anchor(tb_rows)
         assembled = self.assemble_statements(
             list(shaped),
             company_name=company_name,
@@ -785,7 +787,7 @@ class RomaniaPack:
             period_label=period_label,
             industry=industry,
             source_data_quality=self.compute_source_imbalance(tb_rows),
-            account_121_anchor_override=self.compute_statutory_net_profit_anchor(tb_rows),
+            account_121_anchor_override=statutory_anchor,
             source_anchor=getattr(tb_rows, "source_anchor", None),
             extraction_meta=getattr(tb_rows, "extraction", None),
             source_account_census=self.deterministic_source_census(shaped),
@@ -793,6 +795,24 @@ class RomaniaPack:
         )
         self.merge_parser_exclusions(
             assembled, list(getattr(shaped, "excluded", None) or [])
+        )
+
+        # ANCHOR PROVENANCE — the same four fields, stamped by the same
+        # code object, as `pipeline.stage_map`.
+        #
+        # This seam produces an `assembled_pl` that the determinism gate,
+        # the reprocessing tool, the BS-drift and error-budget harnesses
+        # and the corpus replay all read. Until 2026-09-09 it was the one
+        # `assembled_pl` producer that did NOT label its own
+        # `net_income_statutory`: the VALUE matched the served path to the
+        # cent on every corpus book, but `net_income_anchor_status` and
+        # its three siblings were simply absent, so none of those
+        # harnesses could see an anchor-labelling regression at all. The
+        # helper carries the `source`/`applied` derivation, so this call
+        # and stage_map's cannot drift apart.
+        # Gated by tests/engine/test_offline_served_parity.py.
+        _net_income_anchor.annotate_from_parsed_tb_rows(
+            assembled, statutory_anchor,
         )
 
         # STRUCTURAL IMPOSSIBILITIES — refuse rather than serve.
