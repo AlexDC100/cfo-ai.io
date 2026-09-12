@@ -187,4 +187,9 @@ def compare_payloads(
         # verbatim, and its line items.
         "prior_statements": prior_statements,
         "prior_line_items": list(prior_payload.get("line_items") or []),
+        # The prior period's calculated_metrics rows — the ratio tab reads
+        # ebitda_margin / net_margin / net_income_statutory off these for
+        # the current period, so the prior column must be built the same
+        # way or the two ratios are not the same ratio.
+        "prior_metrics": list(prior_payload.get("metrics") or []),
     }
