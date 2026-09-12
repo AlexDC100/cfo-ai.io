@@ -36,10 +36,10 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (102 modules)"]
+    pkg_api["api (103 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
-    pkg_comparatives["comparatives (4 modules)"]
+    pkg_comparatives["comparatives (5 modules)"]
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
@@ -84,9 +84,10 @@ graph LR
     pkg_api -->|6| pkg__root_
     pkg_api -->|5| pkg_ai
     pkg_api -->|2| pkg_ai_lane
+    pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
     pkg_api -->|4| pkg_core
-    pkg_api -->|3| pkg_country_packs
+    pkg_api -->|4| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
     pkg_api -->|1| pkg_forecast

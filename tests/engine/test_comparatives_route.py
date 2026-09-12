@@ -31,26 +31,15 @@ import pytest
 
 from engine.api import _comparatives as C
 
-REPO = Path(__file__).resolve().parents[2]
-BASELINES = (REPO / "src" / "engine" / "country_packs" / "ro_romania"
-             / "fixtures" / "regression_baselines")
+from _comparatives_fixtures import pick_pair, served_payload
 
 MINE = "11111111-1111-1111-1111-111111111111"
 THEIRS = "22222222-2222-2222-2222-222222222222"
 
 
-def _baseline(name):
-    with open(str(BASELINES / (name + ".json")), encoding="utf-8") as fh:
-        return json.load(fh)["assembled"]
-
-
 def _payload(env, period_id, period_end, org_id=MINE):
     """The `/api/period/{id}` shape: `statements` + `line_items` + `period`."""
-    return {
-        "statements": env["statements"],
-        "line_items": env["lineItems"],
-        "period": {"id": period_id, "period_end": period_end, "currency": "RON"},
-    }
+    return served_payload(env, period_id, period_end)
 
 
 def _row(period_id, period_end, org_id=MINE):
@@ -115,8 +104,12 @@ def test_org_id_is_required_by_signature():
 
 # ── the core, on real books ────────────────────────────────────────────
 
-ANALYTIC = _baseline("scandia_fy2025")
-SYNTHETIC = _baseline("eei_dec_2025")
+_AN, _SY = pick_pair()
+if _AN is None or _SY is None:
+    pytest.skip("the corpus no longer carries both an analytic and a synthetic "
+                "deterministic book", allow_module_level=True)
+ANALYTIC = _AN[1]
+SYNTHETIC = _SY[1]
 
 
 def test_the_core_is_json_ready_and_its_bridges_close():

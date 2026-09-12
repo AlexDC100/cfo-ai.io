@@ -28,20 +28,19 @@ Three readings of the same two envelopes, each with its own refusal.
 The identities the bridge relies on were MEASURED on the committed real
 baselines (scandia_fy2025, eei_dec_2025) before being written down here:
 
-    ebitda   = revenue + other_income_758 + other_income_781_reversals
-               - cogs - opex_total
+    ebitda   = revenue + other_operating_income - cogs - opex_total
+               (other_operating_income is the assembler's own term; on
+               the condensed real book it is NOT 758 + 781)
     ebit     = ebitda - depreciation
     pretax   = ebit + net_financial_result
     ni_op    = pretax - tax
     ni_stat  = ni_op + (ni_stat - ni_op)        # the statutory adjustment:
                                                 # capitalised own work (722)
                                                 # and the account-121 anchor
-    total_assets            = cash + ar_net + inventory + other_current_assets
-                            + ppe_net + intangibles_net + other_non_current_assets
-    liabilities + equity    = ap + st_debt + other_current_liabilities
-                            + lt_debt + other_non_current_liabilities
-                            + share_capital + retained_earnings + other_equity
-                            + current_year_pnl
+    canonical_bs.totals.assets                  = Σ rows in the asset sections
+    canonical_bs.totals.equity_plus_liabilities = Σ rows in the other sections
+    (the bs_v2 object the balance-sheet tab renders; rows are paired
+     across periods by their stable ids — see `bs_bridge`)
 
 Jurisdiction-blind: nothing here names a country or a chart. The sign
 conventions below are statement-line facts (revenue up is favourable in
@@ -321,10 +320,17 @@ def _walk(statement, from_label, to_label, cur_env, pri_env, total_field_key,
 
 
 #: The P&L walk, net income (statutory) to net income (statutory).
+#:
+#: `other_operating_income` is the assembler's OWN EBITDA term
+#: (chart_of_accounts.py: `ebitda = revenue - cogs - opex + other_inc`).
+#: The first version of this walk spelled it as 758 + 781, which happened
+#: to equal it on the analytic Scandia book and MISSED it by 326,903.15 on
+#: the condensed one — an identity assumed, not read. The walk now carries
+#: the assembler's term itself, so it closes wherever the assembler does.
 _PL_STEPS = (
     ("pl.revenue", "Net turnover", "assembled_pl", "revenue", +1),
-    ("pl.other_operating_income", "Other operating income (758)", "assembled_pl", "other_income_758", +1),
-    ("pl.provision_reversals", "Provision reversals (781)", "assembled_pl", "other_income_781_reversals", +1),
+    ("pl.other_operating_income_total", "Other operating income (EBITDA basis)",
+     "assembled_pl", "other_operating_income", +1),
     ("pl.cogs", "Cost of goods sold", "assembled_pl", "cogs", -1),
     ("pl.opex_total", "Operating expenses", "assembled_pl", "opex_total", -1),
     ("pl.depreciation", "Depreciation & amortisation", "assembled_pl", "depreciation", -1),
@@ -390,78 +396,116 @@ def pl_bridge(cur_env, pri_env, table=None):
                   steps=steps, residual=residual, closes=closes, reason=reason)
 
 
-_BS_ASSET_STEPS = (
-    ("bs.cash", "Cash & equivalents", "assembled_bs", "cash", +1),
-    ("bs.trade_receivables_net", "Trade receivables, net", "assembled_bs", "ar_net", +1),
-    ("bs.inventory", "Inventory", "assembled_bs", "inventory", +1),
-    ("bs.other_current_assets", "Other current assets", "assembled_bs", "other_current_assets", +1),
-    ("bs.ppe_net", "Property, plant & equipment, net", "assembled_bs", "ppe_net", +1),
-    ("bs.intangibles_net", "Intangibles, net", "assembled_bs", "intangibles_net", +1),
-    ("bs.other_non_current_assets", "Other non-current assets", "assembled_bs", "other_non_current_assets", +1),
-)
-
-_BS_LE_STEPS = (
-    ("bs.trade_payables", "Trade payables", "assembled_bs", "ap", +1),
-    ("bs.short_term_debt", "Short-term debt", "assembled_bs", "st_debt", +1),
-    ("bs.other_current_liabilities", "Other current liabilities", "assembled_bs", "other_current_liabilities", +1),
-    ("bs.long_term_debt", "Long-term debt", "assembled_bs", "lt_debt", +1),
-    ("bs.other_non_current_liabilities", "Other non-current liabilities", "assembled_bs", "other_non_current_liabilities", +1),
-    ("bs.share_capital", "Share capital", "assembled_bs", "share_capital", +1),
-    ("bs.retained_earnings", "Retained earnings", "assembled_bs", "retained_earnings", +1),
-    ("bs.other_equity", "Other equity", "assembled_bs", "other_equity", +1),
-    ("bs.current_year_pnl", "Current-year result", "assembled_bs", "current_year_pnl", +1),
-)
+#: THE BALANCE-SHEET WALKS READ THE CANONICAL OBJECT (bs_v2), row by row.
+#:
+#: MEASURED on four real books (saga_10_col, saga_compact_6_col and the
+#: two client years): `statements.canonical_bs` sums its rows to its
+#: section subtotals and its sections to its totals EXACTLY, and it is
+#: what the balance-sheet tab renders. The `assembled_bs` bucket chain
+#: does not — its `total_equity` is served from the canonical object
+#: while its components are the persistence buckets, so `share_capital +
+#: retained_earnings + other_equity` missed `total_equity` by 402,869.16
+#: on saga_10_col and by 64.7M on the analytic client year. One
+#: authority: the walk is over the canonical rows, paired across periods
+#: by their stable ids; a row only one period carries is a `new` / `gone`
+#: step for its whole amount. The section→side split is the bs_v2
+#: schema's own.
+_BS_ASSET_SECTIONS = frozenset({"non_current_assets", "current_assets", "prepaid_expenses"})
 
 
-def bs_bridge(cur_env, pri_env, table=None):
-    # type: (Mapping[str, Any], Mapping[str, Any], Optional[ComparativeTable]) -> Tuple[Bridge, Bridge]
-    """Two walks: total assets, and liabilities + equity. Each closes on its
-    own side; a book whose two sides disagree (bs_balance_delta) still gets
-    two honest bridges rather than one that hides the gap."""
-    assets = _walk("BS", "total assets", "total assets", cur_env, pri_env,
-                   ("assembled_bs", "total_assets"), _BS_ASSET_STEPS, table)
-    # liabilities + equity has no single engine field; the walk is struck
-    # against the sum of the two totals, both of which the engine serves.
-    cl, ce = _raw(cur_env, "assembled_bs", "total_liabilities"), _raw(cur_env, "assembled_bs", "total_equity")
-    pl_, pe = _raw(pri_env, "assembled_bs", "total_liabilities"), _raw(pri_env, "assembled_bs", "total_equity")
+def _canonical_rows(envelope):
+    # type: (Mapping[str, Any]) -> Optional[Tuple[Dict[str, Tuple[float, str, str]], Dict[str, float]]]
+    """({row_id: (amount, section, label)}, totals) or None without bs_v2."""
+    node = unwrap_envelope(envelope).get("statements") or {}
+    cbs = node.get("canonical_bs")
+    if not isinstance(cbs, Mapping):
+        return None
+    rows = {}  # type: Dict[str, Tuple[float, str, str]]
+    for row in cbs.get("rows") or []:
+        if not isinstance(row, Mapping) or not row.get("id"):
+            continue
+        amt = row.get("amount")
+        if isinstance(amt, bool) or not isinstance(amt, (int, float)):
+            continue
+        rows[str(row["id"])] = (float(amt), str(row.get("section") or ""), str(row.get("label") or row["id"]))
+    totals = {}  # type: Dict[str, float]
+    for k, v in (cbs.get("totals") or {}).items():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            totals[str(k)] = float(v)
+    return rows, totals
+
+
+def _row_walk(side_label, cur_rows, pri_rows, cur_total, pri_total, on_side):
+    # type: (str, Dict[str, Tuple[float, str, str]], Dict[str, Tuple[float, str, str]], Optional[float], Optional[float], Any) -> Bridge
+    # Current rows in the object's own order, then rows only the prior had.
+    ids = [rid for rid, (_a, sec, _l) in cur_rows.items() if on_side(sec)]
+    ids += [rid for rid, (_a, sec, _l) in pri_rows.items() if on_side(sec) and rid not in cur_rows]
     steps = []
-    missing = []
-    for key, label, blk, field, sign in _BS_LE_STEPS:
-        cur = _raw(cur_env, blk, field)
-        pri = _raw(pri_env, blk, field)
-        if cur is None:
-            missing.append("current.%s.%s" % (blk, field))
-        if pri is None:
-            missing.append("prior.%s.%s" % (blk, field))
-        steps.append(_step(key, label, cur, pri, sign,
-                           _disclosed(table, key, "current"),
-                           _disclosed(table, key, "prior")))
-    if None in (cl, ce, pl_, pe) or missing:
-        gaps = list(missing)
-        for nm, v in (("current.assembled_bs.total_liabilities", cl), ("current.assembled_bs.total_equity", ce),
-                      ("prior.assembled_bs.total_liabilities", pl_), ("prior.assembled_bs.total_equity", pe)):
-            if v is None:
-                gaps.append(nm)
-        le = Bridge(statement="BS", from_label="liabilities + equity", to_label="liabilities + equity",
-                    prior_total=None, current_total=None, steps=tuple(steps), residual=None,
-                    closes=False, reason="bridge refused: envelope field(s) missing — %s"
-                                         % ", ".join(sorted(set(gaps))))
-        return assets, le
-    cur_total = cl + ce
-    pri_total = pl_ + pe
+    for rid in ids:
+        cur = cur_rows.get(rid)
+        pri = pri_rows.get(rid)
+        label = (cur or pri)[2]
+        steps.append(_step("bs.row." + rid, label,
+                           None if cur is None else cur[0],
+                           None if pri is None else pri[0],
+                           +1, cur is not None, pri is not None))
+    if cur_total is None or pri_total is None:
+        gaps = []
+        if cur_total is None:
+            gaps.append("current.canonical_bs.totals")
+        if pri_total is None:
+            gaps.append("prior.canonical_bs.totals")
+        return Bridge(statement="BS", from_label=side_label, to_label=side_label,
+                      prior_total=None if pri_total is None else _r(pri_total),
+                      current_total=None if cur_total is None else _r(cur_total),
+                      steps=tuple(steps), residual=None, closes=False,
+                      reason="bridge refused: envelope field(s) missing — %s" % ", ".join(gaps))
     walked = pri_total + sum(s.amount for s in steps)
     residual = _r(cur_total - walked)
     closes = abs(residual) < ZERO_FLOOR
     reason = (
-        "prior liabilities + equity + %d steps == current to the cent" % len(steps)
+        "prior %s + %d rows == current %s to the cent" % (side_label, len(steps), side_label)
         if closes else
-        "bridge refused: prior + steps misses current by %.2f — the "
-        "assembler's identity does not hold on these envelopes, so no "
+        "bridge refused: prior + rows misses current by %.2f — the canonical "
+        "object's rows do not sum to its totals on these envelopes, so no "
         "step is plugged to make it" % residual
     )
-    le = Bridge(statement="BS", from_label="liabilities + equity", to_label="liabilities + equity",
-                prior_total=_r(pri_total), current_total=_r(cur_total), steps=tuple(steps),
-                residual=residual, closes=closes, reason=reason)
+    return Bridge(statement="BS", from_label=side_label, to_label=side_label,
+                  prior_total=_r(pri_total), current_total=_r(cur_total),
+                  steps=tuple(steps), residual=residual, closes=closes, reason=reason)
+
+
+def _no_canonical(side_label, which):
+    # type: (str, str) -> Bridge
+    return Bridge(statement="BS", from_label=side_label, to_label=side_label,
+                  prior_total=None, current_total=None, steps=(), residual=None,
+                  closes=False,
+                  reason="bridge refused: the %s period carries no canonical "
+                         "balance sheet (bs_v2); a legacy envelope has no row "
+                         "identities to walk" % which)
+
+
+def bs_bridge(cur_env, pri_env, table=None):
+    # type: (Mapping[str, Any], Mapping[str, Any], Optional[ComparativeTable]) -> Tuple[Bridge, Bridge]
+    """Two walks over the canonical rows: total assets, and liabilities +
+    equity. Each closes on its own side; a book whose two sides disagree
+    still gets two honest bridges rather than one that hides the gap.
+    `table` is accepted for signature symmetry with `pl_bridge`; the
+    canonical object carries its own presence (a row id is there or it
+    is not)."""
+    cur = _canonical_rows(cur_env)
+    pri = _canonical_rows(pri_env)
+    if cur is None or pri is None:
+        which = "current" if cur is None else "prior"
+        return _no_canonical("total assets", which), _no_canonical("liabilities + equity", which)
+    cur_rows, cur_tot = cur
+    pri_rows, pri_tot = pri
+    assets = _row_walk("total assets", cur_rows, pri_rows,
+                       cur_tot.get("assets"), pri_tot.get("assets"),
+                       lambda sec: sec in _BS_ASSET_SECTIONS)
+    le = _row_walk("liabilities + equity", cur_rows, pri_rows,
+                   cur_tot.get("equity_plus_liabilities"), pri_tot.get("equity_plus_liabilities"),
+                   lambda sec: sec not in _BS_ASSET_SECTIONS)
     return assets, le
 
 
