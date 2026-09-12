@@ -37,7 +37,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from . import _detect
@@ -7933,6 +7933,40 @@ def build_router() -> APIRouter:
             # should switch to the canonical replacements before sunset.
             "deprecated_fields": _deprecated_fields_for_response(),
         }
+
+    @router.get("/api/period/{period_id}/comparatives")
+    def get_period_comparatives(
+        period_id: str,
+        prior: str = Query(..., description="The comparison period's id — same workspace"),
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """Two periods of ONE workspace, side by side.
+
+        Both ids are browser-supplied. Each is loaded with the caller's
+        organization IN THE FILTER (`_comparatives.load_period_in_org`), so
+        a period in another workspace — or in another of the caller's own
+        workspaces — is not found. The envelopes are what `get_period`
+        serves, read through that very function, so the comparison is over
+        exactly what the dashboard renders.
+        """
+        from . import _comparatives as _cmp
+
+        jwt = _require_jwt(authorization)
+        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        if prior == period_id:
+            raise HTTPException(400, {"code": "same_period",
+                                      "message": "A period cannot be compared with itself."})
+        try:
+            with _supabase.per_user(jwt) as client:
+                cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
+                pri_row = _cmp.load_period_in_org(client, prior, org_id=org_id)
+            cur_payload = get_period(period_id, authorization)
+            pri_payload = get_period(prior, authorization)
+            return _cmp.compare_payloads(
+                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row)
+        except _cmp.ComparativesRefused as exc:
+            raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 
     @router.put("/api/period/{period_id}/valuation-assumptions")
     def save_valuation_assumptions(
