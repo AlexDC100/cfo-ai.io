@@ -603,6 +603,50 @@
       "refusedSame": "A period cannot be compared with itself.",
       "refusedNotInWorkspace": "The comparison period is not in this workspace."
     },
+    "ratioCmp": {
+      "unit": {
+        "x": "{{v}}×",
+        "pct": "{{v}}%",
+        "days": "{{v}} days",
+        "daysOne": "{{v}} day",
+        "z": "{{v}}",
+        "score": "{{v}}",
+        "grade": "{{v}}",
+        "turns": "{{v}}×",
+        "turnsPct": "{{v}}%",
+        "pp": "{{v}} pp",
+        "points": "{{v}} pts",
+        "pointsOne": "{{v}} pt",
+        "notches": "{{v}} notches",
+        "notchesOne": "{{v}} notch"
+      },
+      "pctNoBase": "no % change: the prior rounds to zero at display precision",
+      "band": {
+        "withheldSign": "Band withheld"
+      },
+      "movement": {
+        "crossed": "{{from}} → {{to}}",
+        "held": "Held {{band}}"
+      },
+      "reason": {
+        "operand_missing": "Not reported: the filing does not carry an input this ratio needs.",
+        "denominator_zero": "Undefined: the denominator is zero for this period.",
+        "denominator_negative": "Not meaningful: the denominator is negative for this period.",
+        "credit_inputs_missing": "Not computed: the credit model is missing an input for this period.",
+        "period_absent": "No figure: this period has no served ratio table.",
+        "sector_ungraded": "Not graded: this sector has no calibrated ladder for this ratio.",
+        "sign_withheld": "Band withheld: a negative input makes the ladder unreadable for this ratio.",
+        "current_refused": "No change shown: the current period has no value for this ratio.",
+        "prior_refused": "No change shown: the prior period has no value for this ratio.",
+        "both_refused": "No change shown: neither period has a value for this ratio.",
+        "band_not_graded": "No band movement: one of the two periods is not graded.",
+        "ladder_differs": "No band movement: the two periods were banded on different ladders.",
+        "credit_model_differs": "No movement: the two periods were scored under different credit model revisions.",
+        "unstated": "No figure, and no reason was served for its absence.",
+        "unlisted": "No figure: reason code {{code}} has no sentence yet.",
+        "malformed_value": "Not printed: the served figure is not a readable decimal."
+      }
+    },
     "cf": {
       "title": "CASH FLOW",
       "indirectMethod": "Indirect method",

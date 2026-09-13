@@ -603,6 +603,50 @@
       "refusedSame": "O perioadă nu poate fi comparată cu ea însăși.",
       "refusedNotInWorkspace": "Perioada de comparație nu este în acest spațiu de lucru."
     },
+    "ratioCmp": {
+      "unit": {
+        "x": "{{v}}×",
+        "pct": "{{v}}%",
+        "days": "{{v}} zile",
+        "daysOne": "{{v}} zi",
+        "z": "{{v}}",
+        "score": "{{v}}",
+        "grade": "{{v}}",
+        "turns": "{{v}}×",
+        "turnsPct": "{{v}}%",
+        "pp": "{{v}} p.p.",
+        "points": "{{v}} puncte",
+        "pointsOne": "{{v}} punct",
+        "notches": "{{v}} trepte",
+        "notchesOne": "{{v}} treaptă"
+      },
+      "pctNoBase": "fără variație %: perioada anterioară se rotunjește la zero la precizia afișată",
+      "band": {
+        "withheldSign": "Bandă reținută"
+      },
+      "movement": {
+        "crossed": "{{from}} → {{to}}",
+        "held": "A rămas {{band}}"
+      },
+      "reason": {
+        "operand_missing": "Neraportat: raportarea nu conține o valoare de care are nevoie acest indicator.",
+        "denominator_zero": "Nedefinit: numitorul este zero pentru această perioadă.",
+        "denominator_negative": "Fără sens: numitorul este negativ pentru această perioadă.",
+        "credit_inputs_missing": "Necalculat: modelului de credit îi lipsește o valoare pentru această perioadă.",
+        "period_absent": "Nicio valoare: această perioadă nu are un tabel de indicatori servit.",
+        "sector_ungraded": "Fără verdict: acest sector nu are o scară calibrată pentru acest indicator.",
+        "sign_withheld": "Bandă reținută: o valoare negativă face scara ilizibilă pentru acest indicator.",
+        "current_refused": "Nicio variație: perioada curentă nu are valoare pentru acest indicator.",
+        "prior_refused": "Nicio variație: perioada anterioară nu are valoare pentru acest indicator.",
+        "both_refused": "Nicio variație: niciuna dintre perioade nu are valoare pentru acest indicator.",
+        "band_not_graded": "Nicio mișcare de bandă: una dintre cele două perioade nu are verdict.",
+        "ladder_differs": "Nicio mișcare de bandă: cele două perioade au fost încadrate pe scări diferite.",
+        "credit_model_differs": "Nicio mișcare: cele două perioade au fost evaluate cu revizii diferite ale modelului de credit.",
+        "unstated": "Nicio valoare și niciun motiv servit pentru lipsa ei.",
+        "unlisted": "Nicio valoare: codul de motiv {{code}} nu are încă o propoziție.",
+        "malformed_value": "Neafișat: valoarea servită nu este un număr zecimal lizibil."
+      }
+    },
     "cf": {
       "title": "FLUX DE NUMERAR",
       "indirectMethod": "Metoda indirectă",
