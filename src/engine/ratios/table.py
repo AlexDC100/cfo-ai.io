@@ -28,7 +28,38 @@ quantized value equals the printed FE value on every shared key
     ``_PRECEDENCE`` below;
   · the account-121 anchored net income (``assembled_pl.
     net_income_statutory``, then the metric, then the reconstruction) for
-    ROA and ROE.
+    ROA, ROE and — on the no-metric path — net margin.
+
+── WHERE THE ENGINE DEPARTS FROM computeRatios, AND WHY ──────────────────
+
+Each departure is invisible on the metric-present payloads the parity gate
+reads, and each is gated on its own:
+
+  · ONE KEY, ONE FORMULA. When a period serves no metric row for a
+    ``mOr`` key (a prior period, or any ``GET /api/period`` body whose
+    ``calculated_metrics`` are absent), the FE fallback computes a
+    DIFFERENT formula under the same key: ``net_margin`` over the class-6/7
+    reconstruction while ROA/ROE beside it read account 121, and
+    ``interest_coverage`` on EBIT while the metric is EBITDA ÷ interest,
+    and ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
+    metric is statutory EBITDA. The engine's fallback is the metric's own
+    definition (``pipeline.stage_compute``): ``net_margin`` =
+    anchored net income ÷ revenue; ``interest_coverage`` = cash EBITDA ÷
+    interest; the two DSCRs = ``assembled_pl.ebitda_statutory`` (else the
+    metric, else cash EBITDA + ``incomeStatement.capitalizedOwnWork``) ÷
+    their debt service. ``test_ratio_table.py`` holds the no-metric route
+    body to the metric-present value on every ``mOr`` key.
+  · SECTOR WITHHOLDING reaches the three metric-only keys whose FE
+    sibling is sector-calibrated (``SECTOR_SIBLING_OF``): a margin over
+    revenue is withheld with ``ebitda_margin``, inventory turnover with
+    ``dio``. One document must not grade ``core_ebitda_margin`` on the
+    ladder it withholds for ``ebitda_margin``.
+  · A LEGACY PERIOD (no served ``canonical_bs``) reads the balance-sheet
+    totals from the served ``assembled_bs`` grand totals — the persisted
+    truth ``servedFacts.ts centsFromLegacy`` reads — and refuses them
+    (``operand_absent``) when that coherent triple is absent, where the FE
+    would fall back to bucket sums. It never reads the re-assembled
+    ``assembled_canonical_v1.methodology`` totals.
 
 Floats are combined in the SAME ORDER the FE's ``absentAware`` folds do
 (``add`` from 0, ``mul`` from 1, left to right), so both runtimes produce
@@ -48,7 +79,10 @@ verdicts that divergence changes rather than hiding them.
 
 ── WHAT A ROW CAN SAY ────────────────────────────────────────────────────
 
-``band_status`` is one of ``BAND_STATUSES``:
+``band_status`` is one of ``BAND_STATUSES``. ``ladder`` is served ONLY on a
+``graded`` row: a withheld or refused row carries ``ladder: null``, so no
+reader can print a cutoff beside a badge that was not decided by it
+(TC-10).
   graded           value present, a pack ladder applied;
   ungraded_sector  sector-calibrated key and the payload's industry signal
                    blocks sector content;
@@ -90,8 +124,14 @@ declares its own absences (``absentInputs`` / ``reportedTotals``, the
 FE-only public-company adapter shape) is not computed here: every row
 refuses with ``source_declares_absence`` rather than reading a declared
 absence as a value. A period whose served payload carries no canonical
-balance sheet and no methodology totals refuses the balance-sheet totals
-(``operand_absent``) where the FE would fall back to legacy bucket sums.
+balance sheet and no coherent ``assembled_bs`` grand-total triple refuses
+the balance-sheet totals (``operand_absent``) where the FE would fall back
+to legacy bucket sums.
+
+PURITY: the output is a function of the payload alone — no clock, no
+randomness. ``FactsGateway.from_envelope`` may append to the access log when
+access logging is enabled (a side effect with a timestamp); nothing it
+writes reaches the table.
 """
 from __future__ import annotations
 
@@ -137,6 +177,30 @@ REASON_CODES: Tuple[str, ...] = (
 #: this one grade differently on the disputed books.
 SECTOR_CALIBRATED_RATIOS = frozenset(
     {"gross_margin", "ebitda_margin", "net_margin", "dio", "dso", "asset_turnover"}
+)
+
+#: The six metric-only census keys have no FE row, so no FE set says
+#: whether their ladder is sector-calibrated. Each inherits the status of
+#: the FE row that measures the same thing on the same base — declared
+#: here as data and asserted by the sector gate, never inferred:
+#: operating and core-EBITDA margins are margins over revenue (the
+#: ``ebitda_margin`` ladder, rung for rung for core EBITDA), inventory
+#: turnover is DIO inverted, and the three leverage/coverage keys follow
+#: their sector-neutral FE siblings.
+SECTOR_SIBLING_OF: Mapping[str, str] = {
+    "operating_margin": "ebitda_margin",
+    "core_ebitda_margin": "ebitda_margin",
+    "inventory_turnover": "dio",
+    "net_debt_to_ebitda": "debt_to_ebitda",
+    "lt_debt_to_equity": "debt_to_equity",
+    "ebitda_to_interest": "interest_coverage",
+}
+
+#: Every census key withheld under a disputed sector: the FE set plus the
+#: metric-only keys whose sibling is in it.
+SECTOR_WITHHELD_KEYS = frozenset(
+    SECTOR_CALIBRATED_RATIOS
+    | {k for k, sib in SECTOR_SIBLING_OF.items() if sib in SECTOR_CALIBRATED_RATIOS}
 )
 
 BAND_RANK = {"critical": 0, "watch": 1, "healthy": 2, "strong": 3}
@@ -423,28 +487,51 @@ def _served_bands(statements: Mapping[str, Any]) -> Tuple[Dict[str, Dict[str, An
     return bands, stamp
 
 
-def _gateway_totals(statements: Mapping[str, Any]) -> Dict[str, Optional[float]]:
-    """The served BS totals through the one sanctioned reader."""
+#: Served BS totals, per tier: the concept, and the ``assembled_bs`` key the
+#: legacy tier reads for it.
+_TOTAL_CONCEPTS: Tuple[Tuple[str, str], ...] = (
+    ("current_assets", "total_current_assets"),
+    ("current_liabilities", "total_current_liabilities"),
+    ("total_assets", "total_assets"),
+    ("equity", "total_equity"),
+)
+
+
+def _gateway_totals(statements: Mapping[str, Any]) -> Dict[str, Tuple[Optional[float], str]]:
+    """The served BS totals, each with the source it was read from.
+
+    Tier 1 — a served ``canonical_bs``: through ``FactsGateway`` (the one
+    sanctioned reader) over that block ALONE, labelled ``canonical_bs.*``.
+    The methodology block is deliberately not offered to the gateway: in
+    ``get_period`` it is the serve-time RE-ASSEMBLED envelope, whose totals
+    drift from persisted truth.
+
+    Tier 2 — no ``canonical_bs``: the served ``assembled_bs`` grand totals
+    (the persisted truth ``centsFromLegacy`` reads), consumed only when the
+    assets / equity / liabilities triple is present together, labelled
+    ``assembled_bs.*``. Otherwise every total is absent (``operand_absent``).
+    """
     from engine.serving.facts import FactsGateway, MissingFactError
 
     served_cbs = statements.get("canonical_bs")
-    cv1 = _dict(statements.get("assembled_canonical_v1"))
-    source = {"canonical_bs": served_cbs, "methodology": _dict(cv1.get("methodology"))}
-    gateway = FactsGateway.from_envelope(source, currency=str(statements.get("currency") or "RON"))
-    out: Dict[str, Optional[float]] = {}
-    for concept, accessor in (
-        ("current_assets", "current_assets"),
-        ("current_liabilities", "current_liabilities"),
-        ("total_assets", "total_assets"),
-        ("equity", "equity"),
-    ):
-        if gateway is None:
-            out[concept] = None
-            continue
-        try:
-            out[concept] = getattr(gateway, accessor)().to_float()
-        except MissingFactError:
-            out[concept] = None
+    out: Dict[str, Tuple[Optional[float], str]] = {}
+    if isinstance(served_cbs, dict):
+        gateway = FactsGateway.from_envelope({"canonical_bs": served_cbs},
+                                             currency=str(statements.get("currency") or "RON"))
+        for concept, _legacy in _TOTAL_CONCEPTS:
+            value: Optional[float] = None
+            if gateway is not None and gateway.tier == FactsGateway.TIER_CANONICAL:
+                try:
+                    value = getattr(gateway, concept)().to_float()
+                except MissingFactError:
+                    value = None
+            out[concept] = (value, "canonical_bs." + concept)
+        return out
+    ab = _dict(statements.get("assembled_bs"))
+    coherent = all(_is_num(ab.get(k)) for k in ("total_assets", "total_equity", "total_liabilities"))
+    for concept, legacy in _TOTAL_CONCEPTS:
+        raw = ab.get(legacy) if coherent else None
+        out[concept] = (float(raw) if _is_num(raw) else None, "assembled_bs." + legacy)
     return out
 
 
@@ -483,7 +570,8 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
         return _leaf(k, "incomeStatement." + k, inc.get(k))
 
     def G(concept: str) -> _Fig:
-        return _leaf(concept, "canonical_bs." + concept, totals.get(concept))
+        value, source = totals[concept]
+        return _leaf(concept, source, value)
 
     def m(name: str) -> Optional[float]:
         return metrics.get(name)
@@ -522,14 +610,17 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     gross_profit = _sub(revenue, I("costOfGoodsSold"))
     ebitda = _add(gross_profit, _mul(I("operatingExpenses"), _known(-1.0)), I("otherIncome"))
     ebit = _sub(ebitda, I("depreciationAmortization"))
-    fin_in_raw = inc.get("financialIncome")
-    fin_ex_raw = inc.get("financialExpense")
-    fin_in = _Fig(float(fin_in_raw) if _is_num(fin_in_raw) else 0.0, None,
-                  (("financialIncome", float(fin_in_raw) if _is_num(fin_in_raw) else 0.0,
-                    "incomeStatement.financialIncome"),))
-    fin_ex = _Fig(float(fin_ex_raw) if _is_num(fin_ex_raw) else 0.0, None,
-                  (("financialExpense", float(fin_ex_raw) if _is_num(fin_ex_raw) else 0.0,
-                    "incomeStatement.financialExpense"),))
+
+    def optional_line(k: str, default_source: str) -> _Fig:
+        """The FE's ``?? 0`` for an optional P&L line — the value mirrors
+        it, the provenance says a default was used, not a read."""
+        raw = inc.get(k)
+        if _is_num(raw):
+            return _Fig(float(raw), None, ((k, float(raw), "incomeStatement." + k),))
+        return _Fig(0.0, None, ((k, 0.0, default_source),))
+
+    fin_in = optional_line("financialIncome", "constant.financial_income_default")
+    fin_ex = optional_line("financialExpense", "constant.financial_expense_default")
     interest = I("interestExpense")
     pbt = _sub(_add(ebit, fin_in), _add(interest, fin_ex))
     net_income = _sub(pbt, I("taxExpense"))
@@ -540,6 +631,16 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
                                                           "assembled_pl.net_income_statutory"),))
     else:
         anchored_net_income = mOr("net_income_statutory", net_income)
+
+    # The statutory EBITDA the served DSCR metrics divide
+    # (`stage_compute`: cash EBITDA + account 722): the assembled figure,
+    # then the served metric, then the metric's own arithmetic.
+    apl_ebitda = apl.get("ebitda_statutory")
+    if _is_num(apl_ebitda):
+        ebitda_statutory = _Fig(float(apl_ebitda), None, (("ebitda_statutory", float(apl_ebitda),
+                                                         "assembled_pl.ebitda_statutory"),))
+    else:
+        ebitda_statutory = mOr("ebitda_statutory", _add(ebitda, I("capitalizedOwnWork")))
 
     cost_of_sales = I("costOfGoodsSold")
     has_cost_base = cost_of_sales.value is not None and cost_of_sales.value != 0
@@ -553,7 +654,10 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
 
     figs["gross_margin"] = mPctOr("gross_margin", _pct_of(gross_profit, revenue, "revenue"))
     figs["ebitda_margin"] = mPctOr("ebitda_margin", _pct_of(ebitda, revenue, "revenue"))
-    figs["net_margin"] = mPctOr("net_margin", _pct_of(net_income, revenue, "revenue"))
+    # Fallback = the metric's definition: ANCHORED net income ÷ revenue —
+    # the same net income ROA and ROE below divide (never the class-6/7
+    # reconstruction the FE fallback reads).
+    figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
     figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
     figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
     invested_capital = _add(total_debt, total_equity)
@@ -565,9 +669,11 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
     figs["debt_to_assets"] = bsPctOr("debt_to_assets", _pct_of(total_debt, total_assets, "total assets"))
 
-    figs["interest_coverage"] = mOr("interest_coverage", _div(ebit, interest, "interest expense"))
+    # Fallback = the metric's definition: cash EBITDA ÷ interest (the FE
+    # fallback divides EBIT — a different ratio under the same key).
+    figs["interest_coverage"] = mOr("interest_coverage", _div(ebitda, interest, "interest expense"))
     debt_service = _add(interest, B("shortTermDebt"))
-    figs["dscr"] = mOr("dscr", _div(ebitda, debt_service, "interest + short-term debt"))
+    figs["dscr"] = mOr("dscr", _div(ebitda_statutory, debt_service, "interest + short-term debt"))
     lease = sup.get("annualLeaseExpense")
     if _is_num(lease) and lease != 0:
         lease_fig = _leaf("annualLeaseExpense", "supplementary.annualLeaseExpense", lease)
@@ -577,7 +683,7 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
         figs["adjusted_dscr"] = _Fig(None, ("missing", ("supplementary.annualLeaseExpense",)),
                                      (("annualLeaseExpense", None, "supplementary.annualLeaseExpense"),))
     figs["dscr_with_lt_principal"] = mOr("dscr_with_lt_principal", _div(
-        ebitda, _add(interest, _div(B("longTermDebt"), _known(8.0), "8")),
+        ebitda_statutory, _add(interest, _div(B("longTermDebt"), _known(8.0), "8")),
         "interest + LT principal proxy"))
 
     total_operating_expense = _add(I("costOfGoodsSold"), I("operatingExpenses"),
@@ -599,8 +705,6 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
         else:
             figs[key] = _Fig(v * 100 if pct else v, None, ((key, v, "metrics." + key),))
 
-    ebitda_statutory = _leaf("ebitda_statutory", "assembled_pl.ebitda_statutory",
-                             apl.get("ebitda_statutory"))
     apl_revenue = _leaf("revenue", "assembled_pl.revenue", apl.get("revenue"))
     # The denominator each ladder ASSUMES is positive — `positiveDenominator`
     # in computeRatios for its rows; the six metric-only rows join on the
@@ -628,7 +732,7 @@ def _operands(fig: _Fig) -> List[Dict[str, Any]]:
 
 
 def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
-    """The per-period ratio block for one served payload. Pure."""
+    """The per-period ratio block for one served payload (see PURITY)."""
     payload = served_payload if isinstance(served_payload, Mapping) else {}
     statements = _dict(payload.get("statements"))
     bands, band_stamp = _served_bands(statements)
@@ -664,7 +768,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
             "value_q": None,
             "band": None,
             "band_status": "refused",
-            "ladder": ladder,
+            "ladder": None,  # served only on the graded branch below (TC-10)
             "operands": [],
             "reason": None,
         }
@@ -685,7 +789,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         row["value"] = fig.value
         row["value_q"] = quantize_display(fig.value, spec.display_unit)
         denominator = sign.get(spec.key)
-        if spec.key in SECTOR_CALIBRATED_RATIOS and sector_disputed:
+        if spec.key in SECTOR_WITHHELD_KEYS and sector_disputed:
             row["band_status"] = "ungraded_sector"
             row["reason"] = {"code": "sector_unconfirmed", "inputs": ["industry_signal.block_sector_content"]}
         elif denominator is not None and denominator.value is not None and denominator.value < 0:
@@ -701,6 +805,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
             row["reason"] = {"code": "not_in_pack_bands", "inputs": [spec.band_key or spec.key]}
         else:
             row["band_status"] = "graded"
+            row["ladder"] = ladder
             row["band"] = _grade(fig.value, ladder, spec.higher_is_better)
         if row["band_status"] != "graded":
             withheld[spec.key] = row["reason"]["code"]
