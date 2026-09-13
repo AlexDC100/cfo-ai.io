@@ -22,6 +22,13 @@
 // book's own account mix disagrees with). The Python gate composes the
 // SAME three committed files the same way, so both sides read one input.
 //
+// The `perturbed` variant is the served payload with every served metric
+// multiplied by `METRIC_PERTURBATION` (1.37). On the unperturbed books the
+// metric and the division of the printed statements agree to the printed
+// digit on 16 of the 21 `mOr`/`bsOr` keys, so flipping which one wins is
+// invisible there; ×1.37 separates them on every key that has both, so
+// the engine gate can see every precedence choice.
+//
 // ── MODES ───────────────────────────────────────────────────────────
 //
 //   CAPTURE=1 npx vitest run --root . frontend/lib/__tests__/ratioParityCapture.test.ts
@@ -36,12 +43,15 @@
 //   · without CAPTURE: any key, value, printed string, verdict or
 //     direction in a committed capture that differs from computeRatios
 //     today, or a book / variant missing from the capture;
+//   · `printed` is `formatRatio(row)` with its unit suffix removed — the
+//     string the report prints — so a change to the digits the FE
+//     actually prints reds here, not only a change to the value;
 //   · a variant that grades nothing or withholds nothing (TC-3): the
 //     served variant must carry at least one graded row and the disputed
 //     variant at least one `ungraded` row, or the capture proves nothing
 //     about sector withholding.
 //
-// SCOPE (TC-13): the four firm books × {served, disputed}; the 22 keys
+// SCOPE (TC-13): the four firm books × {served, disputed, perturbed}; the 22 keys
 // `computeRatios` emits. The Altman row is not a `computeRatios` row and
 // is not captured here.
 
@@ -49,7 +59,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { computeRatios, type Ratio } from "@/lib/financialReport";
+import { computeRatios, formatRatio, type Ratio } from "@/lib/financialReport";
 import {
   BOOKS,
   metricsFor,
@@ -63,8 +73,28 @@ import {
 const OUT_DIR = resolve(__dirname, "../../../tests/engine/fixtures/ratio_parity");
 const CAPTURE = process.env.CAPTURE === "1";
 
-/** Display precision per unit — the digits `formatRatio` prints. */
-const DIGITS: Record<Ratio["unit"], number> = { x: 2, "%": 1, days: 0, ratio: 2 };
+/** Every served metric is multiplied by this in the `perturbed` variant.
+ *  `tests/engine/test_ratio_table.py` applies the same factor. */
+const METRIC_PERTURBATION = 1.37;
+
+/** The unit suffix `formatRatio` appends, removed to leave the digits. */
+const SUFFIX: Record<Ratio["unit"], string> = { x: "×", "%": "%", days: " days", ratio: "" };
+
+function printedDigits(row: Ratio): string | null {
+  if (row.value === null) return null;
+  const text = formatRatio(row);
+  const suffix = SUFFIX[row.unit];
+  if (!text.endsWith(suffix)) {
+    throw new Error(`formatRatio(${row.key}) printed ${JSON.stringify(text)}, expected a ${JSON.stringify(suffix)} suffix`);
+  }
+  return suffix === "" ? text : text.slice(0, -suffix.length);
+}
+
+function perturbed(metrics: Record<string, number | null>): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const [k, v] of Object.entries(metrics)) out[k] = v === null ? null : v * METRIC_PERTURBATION;
+  return out;
+}
 
 interface CapturedRow {
   value: number | null;
@@ -84,7 +114,7 @@ function capturedRows(s: BookStatements, metrics: Record<string, number | null>)
   for (const row of [r.liquidity, r.profitability, r.leverage, r.coverage, r.efficiency].flat()) {
     out[row.key] = {
       value: row.value,
-      printed: row.value === null ? null : row.value.toFixed(DIGITS[row.unit]),
+      printed: printedDigits(row),
       unit: row.unit,
       verdict: row.verdict,
       higher_is_better: row.ladder ? row.ladder.higherIsBetter : null,
@@ -104,13 +134,15 @@ function captureFor(book: Book): Record<string, unknown> {
       payload:
         "statements = tests/engine/fixtures/firm/saga_10_col_<book>.json .statements + .envelope.canonical_bs; " +
         "metrics = served_metrics.json[<book>]; disputed adds industry_signal.json[<book>][<disputes>]",
-      printed: "value.toFixed(display digits): x 2, % 1, days 0",
+      printed: "formatRatio(row) with the unit suffix removed",
+      perturbed: "the served variant with every served metric multiplied by METRIC_PERTURBATION = 1.37",
     },
     book,
     disputed_workspace_key: disputes,
     variants: {
       served: capturedRows(statementsFor(book), metricsFor(book)),
       disputed: capturedRows(servedAs(book, disputes), metricsFor(book)),
+      perturbed: capturedRows(statementsFor(book), perturbed(metricsFor(book))),
     },
   };
 }

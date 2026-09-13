@@ -3,7 +3,8 @@
     "what": "computeRatios(statements, undefined, metricsByName) over the served payload of one firm book",
     "written_by": "frontend/lib/__tests__/ratioParityCapture.test.ts (CAPTURE=1)",
     "payload": "statements = tests/engine/fixtures/firm/saga_10_col_<book>.json .statements + .envelope.canonical_bs; metrics = served_metrics.json[<book>]; disputed adds industry_signal.json[<book>][<disputes>]",
-    "printed": "value.toFixed(display digits): x 2, % 1, days 0"
+    "printed": "formatRatio(row) with the unit suffix removed",
+    "perturbed": "the served variant with every served metric multiplied by METRIC_PERTURBATION = 1.37"
   },
   "book": "realestate",
   "disputed_workspace_key": "manufacturing",
@@ -545,6 +546,286 @@
         "verdict": "ungraded",
         "higher_is_better": null,
         "ladder": null,
+        "absence": null
+      }
+    },
+    "perturbed": {
+      "current_ratio": {
+        "value": 2.721447475741168,
+        "printed": "2.72",
+        "unit": "x",
+        "verdict": "strong",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 2,
+          "healthy": 1.5,
+          "watch": 1
+        },
+        "absence": null
+      },
+      "quick_ratio": {
+        "value": 0.04308770828605057,
+        "printed": "0.04",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 1.5,
+          "healthy": 1,
+          "watch": 0.7
+        },
+        "absence": null
+      },
+      "cash_ratio": {
+        "value": 0.042120614791632864,
+        "printed": "0.04",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 0.5,
+          "healthy": 0.2,
+          "watch": 0.1
+        },
+        "absence": null
+      },
+      "gross_margin": {
+        "value": 137,
+        "printed": "137.0",
+        "unit": "%",
+        "verdict": "ungraded",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": null
+      },
+      "ebitda_margin": {
+        "value": -24502.258200000004,
+        "printed": "-24502.3",
+        "unit": "%",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 25,
+          "healthy": 15,
+          "watch": 8
+        },
+        "absence": null
+      },
+      "net_margin": {
+        "value": -676.3690000000001,
+        "printed": "-676.4",
+        "unit": "%",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 15,
+          "healthy": 8,
+          "watch": 3
+        },
+        "absence": null
+      },
+      "roa": {
+        "value": -0.9609526313856096,
+        "printed": "-1.0",
+        "unit": "%",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 10,
+          "healthy": 5,
+          "watch": 2
+        },
+        "absence": null
+      },
+      "roe": {
+        "value": -1.9898755313293037,
+        "printed": "-2.0",
+        "unit": "%",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 20,
+          "healthy": 12,
+          "watch": 6
+        },
+        "absence": null
+      },
+      "roic": {
+        "value": -56.923500000000004,
+        "printed": "-56.9",
+        "unit": "%",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 15,
+          "healthy": 10,
+          "watch": 5
+        },
+        "absence": null
+      },
+      "debt_to_ebitda": {
+        "value": -0.6388069788929972,
+        "printed": "-0.64",
+        "unit": "x",
+        "verdict": "ungraded",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": null
+      },
+      "debt_to_equity": {
+        "value": 0.4604843215407447,
+        "printed": "0.46",
+        "unit": "x",
+        "verdict": "strong",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 0.5,
+          "healthy": 1,
+          "watch": 2
+        },
+        "absence": null
+      },
+      "equity_ratio": {
+        "value": 48.29209748328635,
+        "printed": "48.3",
+        "unit": "%",
+        "verdict": "healthy",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 50,
+          "healthy": 30,
+          "watch": 15
+        },
+        "absence": null
+      },
+      "ltv": {
+        "value": 22.237753745370618,
+        "printed": "22.2",
+        "unit": "%",
+        "verdict": "strong",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 50,
+          "healthy": 65,
+          "watch": 80
+        },
+        "absence": null
+      },
+      "interest_coverage": {
+        "value": -34.358915,
+        "printed": "-34.36",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 6,
+          "healthy": 3,
+          "watch": 1.5
+        },
+        "absence": null
+      },
+      "dscr": {
+        "value": -8.030666,
+        "printed": "-8.03",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 1.5,
+          "healthy": 1.25,
+          "watch": 1
+        },
+        "absence": null
+      },
+      "adjusted_dscr": {
+        "value": null,
+        "printed": null,
+        "unit": "x",
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "missing",
+          "inputs": [
+            "annualLeaseExpense"
+          ]
+        }
+      },
+      "dscr_with_lt_principal": {
+        "value": -13.251599000000002,
+        "printed": "-13.25",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 1.5,
+          "healthy": 1.25,
+          "watch": 1
+        },
+        "absence": null
+      },
+      "dso": {
+        "value": 61.132409257486174,
+        "printed": "61",
+        "unit": "days",
+        "verdict": "watch",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 30,
+          "healthy": 45,
+          "watch": 75
+        },
+        "absence": null
+      },
+      "dio": {
+        "value": 1158.263212,
+        "printed": "1158",
+        "unit": "days",
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 30,
+          "healthy": 60,
+          "watch": 100
+        },
+        "absence": null
+      },
+      "dpo": {
+        "value": 45.432488,
+        "printed": "45",
+        "unit": "days",
+        "verdict": "healthy",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 60,
+          "healthy": 45
+        },
+        "absence": null
+      },
+      "ccc": {
+        "value": 1196.582249,
+        "printed": "1197",
+        "unit": "days",
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 30,
+          "healthy": 60,
+          "watch": 100
+        },
+        "absence": null
+      },
+      "asset_turnover": {
+        "value": 0.0019464160456199107,
+        "printed": "0.00",
+        "unit": "x",
+        "verdict": "critical",
+        "higher_is_better": true,
+        "ladder": {
+          "strong": 1.5,
+          "healthy": 0.8,
+          "watch": 0.4
+        },
         "absence": null
       }
     }
