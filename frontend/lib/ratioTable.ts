@@ -44,9 +44,12 @@ import type { ChipTone } from "@/components/instrument/Panel";
 
 export type RatioBand = "strong" | "healthy" | "watch" | "critical";
 
-/** CREDIT_LETTER_LADDER letters. For the letter_grade row the side's
- *  `band` is the letter itself, never re-banded into a ratio word. */
-export type CreditLetter = "AAA" | "AA" | "A" | "BBB" | "BB" | "B" | "CCC" | "CC";
+/** CREDIT_LETTER_LADDER letters (src/engine/ratios/credit_model.py, batch
+ *  B1). For the letter_grade row the side's `band` is the letter itself,
+ *  never re-banded into a ratio word. A served letter outside this set is
+ *  refused, not printed. */
+export const CREDIT_LETTERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC"] as const;
+export type CreditLetter = (typeof CREDIT_LETTERS)[number];
 
 export type RatioGroup =
   | "liquidity"
@@ -63,7 +66,18 @@ export type RatioDisplayUnit = (typeof RATIO_DISPLAY_UNITS)[number];
 export const RATIO_DELTA_UNITS = ["turns", "pp", "days", "z", "points", "notches"] as const;
 export type RatioDeltaUnit = (typeof RATIO_DELTA_UNITS)[number];
 
-export type RatioBandStatus = "graded" | "ungraded_sector" | "withheld_sign" | "refused";
+/** MIRROR of `BAND_STATUSES` in src/engine/ratios/table.py, same order.
+ *  The engine is the authority; ratioTableFormat.test.ts G5 reads the
+ *  Python tuple and reds when the two differ. */
+export const RATIO_BAND_STATUSES = [
+  "graded",
+  "ungraded_sector",
+  "withheld_sign",
+  "withheld_basis",
+  "not_banded",
+  "refused",
+] as const;
+export type RatioBandStatus = (typeof RATIO_BAND_STATUSES)[number];
 
 export type RatioFavourable = "improved" | "deteriorated" | "none";
 
@@ -303,38 +317,54 @@ export interface RatioComparisonV1 {
 
 // ─── Reason codes ───────────────────────────────────────────────────────
 //
-// The closed set of reason codes this reader has a sentence for, in both
-// languages (statements.ratioCmp.reason.<code>). The engine batches that
-// emit the codes must emit from this set; a code outside it still renders,
-// through the `unlisted` sentence that NAMES the code, so a new code shows
-// up as a visible gap rather than as a dash. `unstated` is the sentence for
-// a null where the contract requires a reason; `malformed_value` is this
-// reader's own refusal to print a served string that is not a decimal.
+// The ENGINE declares the reason codes; this reader mirrors them.
+// `RATIO_REASON_CODES` is an exact copy of `REASON_CODES` in
+// src/engine/ratios/table.py, same order, and ratioTableFormat.test.ts G5
+// parses that tuple and reds when the copy drifts or a code has no EN or
+// RO sentence. The two-period composer (src/engine/comparatives/
+// ratio_compare.py, batch B4) will declare the delta and movement codes;
+// until it does, those codes render through the `unlisted` sentence that
+// NAMES the code, and G5 goes live on that file the moment it exists.
+//
+// `RATIO_READER_REASONS` are this reader's own sentences, never served:
+// `period_absent` (no side at all), `unstated` (a null where the contract
+// requires a reason), `unlisted` (a code with no sentence), `malformed_value`
+// (a served string that is not printable in its unit), `unrecognised` (an
+// enum value outside the mirror, named in the sentence).
 
 export const RATIO_REASON_CODES = [
-  // side
-  "operand_missing",
-  "denominator_zero",
-  "denominator_negative",
-  "credit_inputs_missing",
-  "period_absent",
-  // band
-  "sector_ungraded",
-  "sign_withheld",
-  // delta
-  "current_refused",
-  "prior_refused",
-  "both_refused",
-  // movement
-  "band_not_graded",
-  "ladder_differs",
-  "credit_model_differs",
+  // refused (no value)
+  "operand_absent",
+  "zero_denominator",
+  "non_finite",
+  "engine_metric_absent",
+  "user_input_absent",
+  "source_declares_absence",
+  // band withheld (value kept)
+  "sector_unconfirmed",
+  "negative_denominator",
+  "no_cost_of_sales",
+  "not_in_pack_bands",
 ] as const;
 
 export type RatioReasonCode = (typeof RATIO_REASON_CODES)[number];
 
+/** The codes whose sentence names the served `reason.inputs`. */
+export const RATIO_REASON_CODES_WITH_INPUTS: ReadonlySet<string> = new Set([
+  "operand_absent",
+  "zero_denominator",
+  "negative_denominator",
+  "user_input_absent",
+]);
+
 /** Reader-side sentences that are not served codes. */
-export const RATIO_READER_REASONS = ["unstated", "unlisted", "malformed_value"] as const;
+export const RATIO_READER_REASONS = [
+  "period_absent",
+  "unstated",
+  "unlisted",
+  "malformed_value",
+  "unrecognised",
+] as const;
 
 const REASON_SET: ReadonlySet<string> = new Set(RATIO_REASON_CODES);
 
@@ -347,6 +377,57 @@ export function reasonKey(reasonCode: string | null | undefined): string {
     : "statements.ratioCmp.reason.unlisted";
 }
 
+// ─── Operand vocabulary ─────────────────────────────────────────────────
+//
+// `reason.inputs` carries engine names: a served leaf path
+// ("balanceSheet.cash", "canonical_bs.total_assets"), several leaf paths
+// joined by "+" when a withheld denominator is a sum, or the denominator
+// phrase the engine's division names ("current liabilities"). Each maps
+// to one EN/RO word under statements.ratioCmp.operand.*. A name with no
+// entry prints through `operandUnmapped`, which shows the raw name — the
+// input the reader has to go find is never dropped. G5 derives every name
+// table.py can emit and reds on one with no entry here.
+
+export const RATIO_OPERAND_WORD: Readonly<Record<string, string>> = {
+  "balanceSheet.cash": "cash",
+  "balanceSheet.accountsReceivable": "tradeReceivables",
+  "balanceSheet.inventory": "inventory",
+  "balanceSheet.accountsPayable": "tradePayables",
+  "balanceSheet.shortTermDebt": "shortTermDebt",
+  "balanceSheet.longTermDebt": "longTermDebt",
+  "incomeStatement.costOfGoodsSold": "costOfSales",
+  "incomeStatement.depreciationAmortization": "depreciation",
+  "incomeStatement.interestExpense": "interestExpense",
+  "incomeStatement.operatingExpenses": "operatingExpenses",
+  "incomeStatement.otherIncome": "otherIncome",
+  "incomeStatement.revenue": "revenue",
+  "incomeStatement.taxExpense": "taxExpense",
+  "incomeStatement.financialExpense": "financialExpense",
+  "incomeStatement.financialIncome": "financialIncome",
+  "canonical_bs.current_assets": "currentAssets",
+  "canonical_bs.current_liabilities": "currentLiabilities",
+  "canonical_bs.equity": "totalEquity",
+  "canonical_bs.total_assets": "totalAssets",
+  "assembled_pl.ebitda_statutory": "ebitdaStatutory",
+  "assembled_pl.net_income_statutory": "netIncomeStatutory",
+  "assembled_pl.revenue": "revenue",
+  "supplementary.annualLeaseExpense": "annualLeaseExpense",
+  "supplementary.periodDays": "periodDays",
+  "industry_signal.block_sector_content": "industrySignal",
+  // denominator phrases
+  "current liabilities": "currentLiabilities",
+  revenue: "revenue",
+  "total assets": "totalAssets",
+  "total equity": "totalEquity",
+  "invested capital": "investedCapital",
+  EBITDA: "ebitda",
+  "interest expense": "interestExpense",
+  "interest + short-term debt": "debtService",
+  "interest + short-term debt + lease": "debtServiceLease",
+  "interest + LT principal proxy": "debtServiceLtPrincipal",
+  "total operating expense": "totalOperatingExpense",
+};
+
 // ─── Locale plumbing ────────────────────────────────────────────────────
 
 export type RatioLocale = "en" | "ro";
@@ -355,17 +436,82 @@ export function ratioLocale(lang: string | null | undefined): RatioLocale {
   return lang?.startsWith("ro") ? "ro" : "en";
 }
 
-function tFor(locale: string | null | undefined) {
+type T = ReturnType<typeof i18n.getFixedT>;
+
+function tFor(locale: string | null | undefined): T {
   return i18n.getFixedT(ratioLocale(locale ?? i18n.language));
 }
 
-/** Text for a reason code in the given language. */
-export function reasonText(reasonCode: string | null | undefined, locale?: string): string {
-  return tFor(locale)(reasonKey(reasonCode), { code: reasonCode ?? "" });
+/** A served enum value this reader does not recognise, named. */
+function unrecognised(t: T, field: string, value: unknown): string {
+  return t("statements.ratioCmp.reason.unrecognised", {
+    field,
+    value: JSON.stringify(value) ?? "undefined",
+  });
+}
+
+/** "a, b and c" in the reader's language. */
+function joinList(t: T, words: readonly string[], joinKey: "listAnd" | "listPlus"): string {
+  if (words.length === 1) return words[0];
+  let head = words[0];
+  for (let i = 1; i < words.length - 1; i++) {
+    head =
+      joinKey === "listAnd"
+        ? t("statements.ratioCmp.listComma", { head, next: words[i] })
+        : t("statements.ratioCmp.listPlus", { head, next: words[i] });
+  }
+  const last = words[words.length - 1];
+  return joinKey === "listAnd"
+    ? t("statements.ratioCmp.listAnd", { head, last })
+    : t("statements.ratioCmp.listPlus", { head, next: last });
+}
+
+function operandWord(t: T, name: string): string {
+  const id = RATIO_OPERAND_WORD[name];
+  return id
+    ? t(`statements.ratioCmp.operand.${id}`)
+    : t("statements.ratioCmp.operandUnmapped", { name });
+}
+
+function operandWordsT(t: T, inputs: readonly string[] | null | undefined): string {
+  const names = (inputs ?? []).filter((n) => typeof n === "string" && n !== "");
+  if (names.length === 0) return t("statements.ratioCmp.operandUnnamed");
+  const words = names.map((name) =>
+    !name.includes(" ") && name.includes("+")
+      ? joinList(t, name.split("+").filter((p) => p !== "").map((p) => operandWord(t, p)), "listPlus")
+      : operandWord(t, name),
+  );
+  return joinList(t, words, "listAnd");
+}
+
+/** The served `reason.inputs` as reader words. A "+"-joined leaf list (no
+ *  spaces) is one summed input; a phrase with spaces is one name. */
+export function operandWords(inputs: readonly string[] | null | undefined, locale?: string): string {
+  return operandWordsT(tFor(locale), inputs);
+}
+
+function reasonSentence(t: T, code: string | null | undefined, inputs?: readonly string[] | null): string {
+  const vars: Record<string, string> = { code: code ?? "" };
+  if (code && RATIO_REASON_CODES_WITH_INPUTS.has(code)) {
+    vars.inputs = operandWordsT(t, inputs);
+  }
+  return t(reasonKey(code), vars);
+}
+
+/** Text for a reason code (and its served inputs) in the given language. */
+export function reasonText(
+  reasonCode: string | null | undefined,
+  locale?: string,
+  inputs?: readonly string[] | null,
+): string {
+  return reasonSentence(tFor(locale), reasonCode, inputs);
 }
 
 /** A plain quantized decimal: optional sign, digits, optional fraction. */
 const DECIMAL_SHAPE = /^[+-]?\d+(\.\d+)?$/;
+
+/** A served string that is a zero at any precision ("0", "-0.00"). */
+const ZERO_SHAPE = /^[+-]?0+(\.0+)?$/;
 
 /** Localise the decimal separator of a served decimal string. String
  *  replacement only: the digits are the engine's. */
@@ -373,43 +519,34 @@ export function localiseDecimal(served: string, locale: RatioLocale): string {
   return locale === "ro" ? served.replace(".", ",") : served;
 }
 
-/** "1", "+1", "-1" — the one string whose unit takes the singular form.
- *  A string comparison, not a numeric one: "1.0" stays plural. */
-function isUnitOne(served: string): boolean {
-  return served.replace(/^[+-]/, "") === "1";
-}
-
 // ─── Formatters ─────────────────────────────────────────────────────────
 
-const SIDE_UNIT_KEY: Record<RatioDisplayUnit, string> = {
-  x: "x",
-  pct: "pct",
-  days: "days",
-  z: "z",
-  score: "score",
-  grade: "grade",
-};
+const DISPLAY_UNIT_SET: ReadonlySet<string> = new Set(RATIO_DISPLAY_UNITS);
+const DELTA_UNIT_SET: ReadonlySet<string> = new Set(RATIO_DELTA_UNITS);
+const CREDIT_LETTER_SET: ReadonlySet<string> = new Set(CREDIT_LETTERS);
 
-const DELTA_UNIT_KEY: Record<RatioDeltaUnit, string> = {
-  turns: "turns",
-  pp: "pp",
-  days: "days",
-  z: "z",
-  points: "points",
-  notches: "notches",
-};
+/** Units whose i18n suffix has count forms (daysOne / daysMany, …). */
+export const RATIO_UNITS_WITH_COUNT_FORMS = ["days", "points", "notches"] as const;
+const HAS_COUNT_FORMS: ReadonlySet<string> = new Set(RATIO_UNITS_WITH_COUNT_FORMS);
 
-/** Units whose i18n suffix has a singular form (daysOne, pointsOne, …). */
-const HAS_ONE_FORM = new Set(["days", "points", "notches"]);
+/** Which suffix form a served string takes. String inspection only:
+ *  "One" for exactly "1" (so "1.0" stays plural); "Many" for an integer
+ *  string of two or more digits whose last two digits are "00" or from
+ *  "20" up — the Romanian "de" form ("20 de zile", "101 zile"). EN spells
+ *  Many the same as the plural. */
+function countForm(unitKey: string, served: string): "" | "One" | "Many" {
+  if (!HAS_COUNT_FORMS.has(unitKey)) return "";
+  const magnitude = served.replace(/^[+-]/, "");
+  if (magnitude === "1") return "One";
+  if (/^\d+$/.test(magnitude) && magnitude.length >= 2) {
+    const tail = magnitude.slice(-2);
+    if (tail === "00" || tail >= "20") return "Many";
+  }
+  return "";
+}
 
-function withUnit(
-  t: ReturnType<typeof tFor>,
-  unitKey: string,
-  served: string,
-  locale: RatioLocale,
-): string {
-  const one = HAS_ONE_FORM.has(unitKey) && isUnitOne(served);
-  const key = `statements.ratioCmp.unit.${unitKey}${one ? "One" : ""}`;
+function withUnit(t: T, unitKey: string, served: string, locale: RatioLocale): string {
+  const key = `statements.ratioCmp.unit.${unitKey}${countForm(unitKey, served)}`;
   return t(key, { v: localiseDecimal(served, locale) });
 }
 
@@ -421,18 +558,20 @@ export function formatRatioSide(
 ): string {
   const loc = ratioLocale(locale ?? i18n.language);
   const t = tFor(loc);
-  if (!side) return t(reasonKey("period_absent"));
-  const served = side.value_q;
+  if (!side) return t("statements.ratioCmp.reason.period_absent");
+  if (!DISPLAY_UNIT_SET.has(unit)) return unrecognised(t, "display_unit", unit);
+  const served: unknown = side.value_q;
   if (served === null || served === undefined) {
-    const code = side.reason?.code ?? null;
-    return t(reasonKey(code), { code: code ?? "" });
+    return reasonSentence(t, side.reason?.code ?? null, side.reason?.inputs);
   }
+  if (typeof served !== "string") return t("statements.ratioCmp.reason.malformed_value");
   if (unit === "grade") {
-    // A letter. No separator to localise, no suffix.
-    return t(`statements.ratioCmp.unit.${SIDE_UNIT_KEY.grade}`, { v: served });
+    // A letter from the one ladder. No separator to localise, no suffix.
+    if (!CREDIT_LETTER_SET.has(served)) return t("statements.ratioCmp.reason.malformed_value");
+    return t("statements.ratioCmp.unit.grade", { v: served });
   }
   if (!DECIMAL_SHAPE.test(served)) return t("statements.ratioCmp.reason.malformed_value");
-  return withUnit(t, SIDE_UNIT_KEY[unit], served, loc);
+  return withUnit(t, unit, served, loc);
 }
 
 export interface FormattedRatioDelta {
@@ -451,23 +590,23 @@ export function formatRatioDelta(
   const loc = ratioLocale(locale ?? i18n.language);
   const t = tFor(loc);
   if (!delta) return { primary: t(reasonKey(null)), secondary: null };
-  const served = delta.value;
-  if (served === null || served === undefined) {
-    return {
-      primary: t(reasonKey(delta.reason_code), { code: delta.reason_code ?? "" }),
-      secondary: null,
-    };
+  if (!DELTA_UNIT_SET.has(delta.unit)) {
+    return { primary: unrecognised(t, "delta.unit", delta.unit), secondary: null };
   }
-  if (!DECIMAL_SHAPE.test(served)) {
+  const served: unknown = delta.value;
+  if (served === null || served === undefined) {
+    return { primary: reasonSentence(t, delta.reason_code), secondary: null };
+  }
+  if (typeof served !== "string" || !DECIMAL_SHAPE.test(served)) {
     return { primary: t("statements.ratioCmp.reason.malformed_value"), secondary: null };
   }
-  const primary = withUnit(t, DELTA_UNIT_KEY[delta.unit], served, loc);
+  const primary = withUnit(t, delta.unit, served, loc);
   if (delta.unit !== "turns") return { primary, secondary: null };
-  const pct = delta.pct_change;
+  const pct: unknown = delta.pct_change;
   if (pct === null || pct === undefined) {
     return { primary, secondary: t("statements.ratioCmp.pctNoBase") };
   }
-  if (!DECIMAL_SHAPE.test(pct)) {
+  if (typeof pct !== "string" || !DECIMAL_SHAPE.test(pct)) {
     return { primary, secondary: t("statements.ratioCmp.reason.malformed_value") };
   }
   return {
@@ -478,22 +617,33 @@ export function formatRatioDelta(
 
 /** Delta colour from the served favourable verdict — never from the sign
  *  of the delta and never from higher_is_better: the engine already
- *  combined the two. */
-export function deltaTone(favourable: RatioFavourable | null | undefined): ChipTone {
+ *  combined the two. Pass the served `delta.value` too: a zero delta
+ *  marked improved or deteriorated is a contradiction (the authority rule
+ *  makes a zero delta "none") and is amber, neither praise nor alarm. An
+ *  unrecognised verdict is amber as well. */
+export function deltaTone(
+  favourable: RatioFavourable | null | undefined,
+  value?: string | null,
+): ChipTone {
+  const zero = typeof value === "string" && ZERO_SHAPE.test(value);
   switch (favourable) {
     case "improved":
-      return "success";
+      return zero ? "caution" : "success";
     case "deteriorated":
-      return "alert";
-    default:
+      return zero ? "caution" : "alert";
+    case "none":
+    case null:
+    case undefined:
       return "neutral";
+    default:
+      return "caution";
   }
 }
 
 /** Band-movement chip tone from the served movement status. "Up" is up the
  *  band ladder (critical → strong), as rungs_crossed counts it. When the
- *  served status and the sign of rungs_crossed disagree the engine sent a
- *  contradiction: the chip is amber, neither praise nor alarm. */
+ *  served status and the sign of rungs_crossed disagree, or the status is
+ *  not one this reader knows, the chip is amber. */
 export function movementTone(movement: RatioMovement | null | undefined): ChipTone {
   if (!movement) return "neutral";
   switch (movement.status) {
@@ -503,8 +653,10 @@ export function movementTone(movement: RatioMovement | null | undefined): ChipTo
       return movement.rungs_crossed < 0 ? "alert" : "caution";
     case "same_band":
       return movement.rungs_crossed === 0 ? "neutral" : "caution";
-    default:
+    case "not_comparable":
       return "neutral";
+    default:
+      return "caution";
   }
 }
 
@@ -516,60 +668,114 @@ const BAND_WORD_KEY: Record<RatioBand, string> = {
 };
 
 /** The one spelling of a band word (the same keys the tile uses). A null
- *  band is "not reported"; a credit letter has no word — it returns null
- *  and the letter is printed as served. */
-export function bandWordKey(band: RatioBand | CreditLetter | null | undefined): string | null {
+ *  band is "not reported"; a credit letter from the ladder has no word —
+ *  it returns null and the letter is printed as served; anything else
+ *  returns the `unrecognised` key. */
+export function bandWordKey(band: RatioBand | CreditLetter | null | undefined): string {
   if (band === null || band === undefined) return "dashV2.ratioVerdictUnknown";
-  return (BAND_WORD_KEY as Record<string, string>)[band] ?? null;
-}
-
-/** The word for a side whose band is not graded. */
-export function bandStatusKey(status: RatioBandStatus): string | null {
-  switch (status) {
-    case "graded":
-      return null;
-    case "ungraded_sector":
-      return "dashV2.ratioVerdictUngraded";
-    case "withheld_sign":
-      return "statements.ratioCmp.band.withheldSign";
-    case "refused":
-      return "dashV2.ratioVerdictUnknown";
+  if (Object.prototype.hasOwnProperty.call(BAND_WORD_KEY, band)) {
+    return BAND_WORD_KEY[band as RatioBand];
   }
+  return CREDIT_LETTER_SET.has(band) ? "" : "statements.ratioCmp.reason.unrecognised";
 }
 
-/** A side's band as printed text: the band word, the letter as served, or
- *  the word for why there is no band. */
+/** A band (or letter) that is present and recognised, as its word; null
+ *  when it is absent or outside the mirror. */
+function bandText(t: T, band: unknown): string | null {
+  if (typeof band !== "string") return null;
+  if (Object.prototype.hasOwnProperty.call(BAND_WORD_KEY, band)) {
+    return t(BAND_WORD_KEY[band as RatioBand]);
+  }
+  return CREDIT_LETTER_SET.has(band) ? band : null;
+}
+
+const BAND_STATUS_WORD_KEY: Record<Exclude<RatioBandStatus, "graded">, string> = {
+  ungraded_sector: "dashV2.ratioVerdictUngraded",
+  withheld_sign: "statements.ratioCmp.band.withheldSign",
+  withheld_basis: "statements.ratioCmp.band.withheldBasis",
+  not_banded: "statements.ratioCmp.band.notBanded",
+  refused: "dashV2.ratioVerdictUnknown",
+};
+
+/** A side's band as printed text: the band word, the letter as served, the
+ *  word for why there is no band, or the sentence naming a served value
+ *  this reader does not recognise. */
 export function formatRatioBand(side: RatioSide | null | undefined, locale?: string): string {
   const t = tFor(locale);
-  if (!side) return t("dashV2.ratioVerdictUnknown");
-  const statusKey = bandStatusKey(side.band_status);
-  if (statusKey) return t(statusKey);
-  const key = bandWordKey(side.band);
-  return key ? t(key) : String(side.band);
+  if (!side) return t("statements.ratioCmp.reason.period_absent");
+  const status: unknown = side.band_status;
+  if (status === "graded") {
+    return bandText(t, side.band) ?? unrecognised(t, "band", side.band);
+  }
+  if (typeof status === "string" && Object.prototype.hasOwnProperty.call(BAND_STATUS_WORD_KEY, status)) {
+    return t(BAND_STATUS_WORD_KEY[status as keyof typeof BAND_STATUS_WORD_KEY]);
+  }
+  return unrecognised(t, "band_status", status);
 }
 
-/** The band movement as printed text: "Healthy → Strong", "Held Watch", or
- *  the served reason when the two sides are not comparable. */
+/** The band movement as printed text: "Healthy → Strong", "Unchanged:
+ *  Watch", the served reason when the two sides are not comparable, or the
+ *  sentence naming a served value this reader does not recognise. */
 export function formatRatioMovement(
   movement: RatioMovement | null | undefined,
   locale?: string,
 ): string {
   const t = tFor(locale);
   if (!movement) return t(reasonKey(null));
-  const word = (b: RatioBand | CreditLetter | null) => {
-    const key = bandWordKey(b);
-    return key ? t(key) : String(b);
-  };
-  switch (movement.status) {
+  const status: unknown = movement.status;
+  switch (status) {
     case "crossed_up":
-    case "crossed_down":
-      return t("statements.ratioCmp.movement.crossed", {
-        from: word(movement.from),
-        to: word(movement.to),
-      });
-    case "same_band":
-      return t("statements.ratioCmp.movement.held", { band: word(movement.to) });
+    case "crossed_down": {
+      const from = bandText(t, movement.from);
+      if (from === null) return unrecognised(t, "movement.from", movement.from);
+      const to = bandText(t, movement.to);
+      if (to === null) return unrecognised(t, "movement.to", movement.to);
+      return t("statements.ratioCmp.movement.crossed", { from, to });
+    }
+    case "same_band": {
+      const band = bandText(t, movement.to);
+      if (band === null) return unrecognised(t, "movement.to", movement.to);
+      return t("statements.ratioCmp.movement.held", { band });
+    }
     case "not_comparable":
-      return t(reasonKey(movement.reason_code), { code: movement.reason_code ?? "" });
+      return reasonSentence(t, movement.reason_code);
+    default:
+      return unrecognised(t, "movement.status", status);
   }
+}
+
+// ─── Key census ─────────────────────────────────────────────────────────
+
+/** Every i18n key this module can resolve, built from the same tables the
+ *  formatters read. ratioTableFormat.test.ts asserts each is a non-empty
+ *  string in en.json AND ro.json (not through t(), which returns the key
+ *  itself for a missing one) and that every key literal in this file's
+ *  source is in the census. */
+export function ratioCmpKeyCensus(): string[] {
+  const keys = new Set<string>([
+    "statements.ratioCmp.pctNoBase",
+    "statements.ratioCmp.listAnd",
+    "statements.ratioCmp.listComma",
+    "statements.ratioCmp.listPlus",
+    "statements.ratioCmp.operandUnnamed",
+    "statements.ratioCmp.operandUnmapped",
+    "statements.ratioCmp.movement.crossed",
+    "statements.ratioCmp.movement.held",
+    "statements.ratioCmp.unit.turnsPct",
+  ]);
+  for (const u of [...RATIO_DISPLAY_UNITS, ...RATIO_DELTA_UNITS]) {
+    keys.add(`statements.ratioCmp.unit.${u}`);
+    if (HAS_COUNT_FORMS.has(u)) {
+      keys.add(`statements.ratioCmp.unit.${u}One`);
+      keys.add(`statements.ratioCmp.unit.${u}Many`);
+    }
+  }
+  for (const c of [...RATIO_REASON_CODES, ...RATIO_READER_REASONS]) {
+    keys.add(`statements.ratioCmp.reason.${c}`);
+  }
+  for (const id of Object.values(RATIO_OPERAND_WORD)) keys.add(`statements.ratioCmp.operand.${id}`);
+  for (const k of Object.values(BAND_WORD_KEY)) keys.add(k);
+  for (const k of Object.values(BAND_STATUS_WORD_KEY)) keys.add(k);
+  keys.add("dashV2.ratioVerdictUnknown");
+  return [...keys].sort();
 }
