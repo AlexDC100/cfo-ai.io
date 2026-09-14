@@ -12,9 +12,14 @@
 // The ENGINE says every number, band, change and band movement: the tile
 // headline, badge, ladder line and prior line read the served rows
 // through `printRatioRow` / `ladderText` (lib/ratioCompareView.ts), from
-// `RatioCompareCtx`. `computeRatios` still supplies the prose around them
-// (the formula the drawer explains and the commentary under the figure).
-// Its arithmetic prints only for a period the engine served no table for
+// `RatioCompareCtx`. The badge text, badge colour and ladder line all read
+// ONE side, `bandSideOf`: with a comparison loaded that is the
+// comparison's current side, so the badge states the same sector decision
+// as the band-now, band-prior and movement cells beside it.
+// `computeRatios` still supplies the prose around them (the formula the
+// drawer explains), and its commentary line prints beside a served row
+// only when it cannot contradict it (`commentaryAgreesWithServed`). Its
+// arithmetic prints only for a period the engine served no table for
 // (sample datasets, pre-table engines), where there is nothing else.
 //
 // The prior period's figures used to be recomputed here: the page ran
@@ -30,16 +35,19 @@ import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { BandMovementLists } from "@/components/cfo/ratios/BandMovementLists";
-import { RatioComparisonTable, toneText } from "@/components/cfo/ratios/RatioComparisonTable";
+import { BADGE_BY_TONE, RatioComparisonTable, toneText } from "@/components/cfo/ratios/RatioComparisonTable";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { formatRatio, type Ratio, type RatioBundle, type Statements } from "@/lib/financialReport";
 import {
+  bandSideOf,
   bandTone,
+  commentaryAgreesWithServed,
   currentSideOf,
   engineKeyOf,
   ladderText,
   printRatioRow,
   serializePrintedRow,
+  servedIdentityOf,
 } from "@/lib/ratioCompareView";
 
 // Wrapper around all 6 RatioGroupSections that owns the selected-ratio
@@ -127,12 +135,6 @@ export function RatioGroupSection({
   );
 }
 
-const BADGE_BY_TONE: Record<string, string> = {
-  success: "anim-fill-green border-brand/40",
-  caution: "anim-fill-amber border-amber-500/40",
-  alert: "anim-fill-red border-red-500/40",
-  neutral: "border-rule text-ink-mute",
-};
 
 function legacyBadgeClass(verdict: Ratio["verdict"]): string {
   return verdict === "unknown" || verdict === "ungraded"
@@ -158,10 +160,10 @@ export function RatioTile({
   // current period's served Side; `printed` is every string the tile shows.
   const side = currentSideOf(view, engineKey);
   const printed = side ? printRatioRow(view, engineKey, i18n.language) : null;
-  const identity =
-    view?.periodTable?.rows.find((r) => r.key === engineKey) ??
-    view?.comparison?.composites.find((r) => r.key === engineKey) ??
-    null;
+  // The side whose band the badge and ladder print: the same side
+  // `printed.bandNow` was formatted from.
+  const bandSide = bandSideOf(view, engineKey);
+  const identity = servedIdentityOf(view, engineKey);
   // The tile becomes a button when clickable, keeping keyboard focus,
   // Enter/Space activation, and an aria role for AT users.
   const Tag = (clickable ? "button" : "div") as "button" | "div";
@@ -191,7 +193,7 @@ export function RatioTile({
         <span
           data-testid="ratio-band-now"
           className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
-            printed ? BADGE_BY_TONE[bandTone(side)] ?? BADGE_BY_TONE.neutral : legacyBadgeClass(ratio.verdict)
+            printed ? BADGE_BY_TONE[bandTone(bandSide)] ?? BADGE_BY_TONE.neutral : legacyBadgeClass(ratio.verdict)
           }`}
         >
           {printed
@@ -240,7 +242,7 @@ export function RatioTile({
         </div>
       )}
       <div className="text-[11px] text-ink-mute mt-1" data-testid="ratio-ladder">
-        {side && identity ? ladderText(side, identity.higher_is_better, identity.display_unit, i18n.language) : ratio.benchmark}
+        {printed && identity ? ladderText(bandSide, identity.higher_is_better, identity.display_unit, i18n.language) : ratio.benchmark}
       </div>
       {/* COMPARATIVES — the served prior, change, prior band and band
           movement for this key. A prior the engine could not compute
@@ -273,8 +275,8 @@ export function RatioTile({
           the reason already sits where the figure would; the commentary
           prose is shown only beside a figure. */}
       {printed ? (
-        printed.currentStatus === "present" ? (
-          <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">{ratio.commentary}</p>
+        printed.currentStatus === "present" && commentaryAgreesWithServed(ratio.commentary, ratio.verdict, bandSide) ? (
+          <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3" data-testid="ratio-commentary">{ratio.commentary}</p>
         ) : null
       ) : (
         <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">

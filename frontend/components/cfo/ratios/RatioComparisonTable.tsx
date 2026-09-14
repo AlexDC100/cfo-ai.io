@@ -13,11 +13,21 @@ import { useTranslation } from "react-i18next";
 import type { ChipTone } from "@/components/instrument/Panel";
 import {
   printRatioRow,
+  ratioGroupLabel,
   ratioKeysInServedOrder,
   serializePrintedRow,
   type PrintedRatioRow,
   type RatioCompareView,
 } from "@/lib/ratioCompareView";
+
+/** A band badge's fill by served tone (`bandTone`): the tile and the
+ *  drawer badge read this one table. */
+export const BADGE_BY_TONE: Record<string, string> = {
+  success: "anim-fill-green border-brand/40",
+  caution: "anim-fill-amber border-amber-500/40",
+  alert: "anim-fill-red border-red-500/40",
+  neutral: "border-rule text-ink-mute",
+};
 
 export function toneText(tone: ChipTone): string {
   switch (tone) {
@@ -43,7 +53,13 @@ export function PriorStateNote({ view }: { view: RatioCompareView }) {
       ? t("statements.ratioCmp.ui.comparisonRefused", { message: p.message })
       : p.kind === "without_ratios"
         ? t("statements.ratioCmp.ui.comparisonWithoutRatios", { prior: p.priorLabel })
-        : t("statements.ratioCmp.ui.noComparison", { current: view.currentLabel });
+        : p.kind === "loading"
+          ? t("statements.ratioCmp.ui.comparisonLoading", { current: view.currentLabel })
+          : p.kind === "failed"
+            ? p.status > 0
+              ? t("statements.ratioCmp.ui.comparisonFailed", { status: p.status, current: view.currentLabel })
+              : t("statements.ratioCmp.ui.comparisonFailedNoResponse", { current: view.currentLabel })
+            : t("statements.ratioCmp.ui.noComparison", { current: view.currentLabel });
   return (
     <p className="text-[12px] text-ink-soft leading-snug" data-testid="ratio-prior-state" data-prior-state={p.kind}>
       {text}
@@ -52,6 +68,7 @@ export function PriorStateNote({ view }: { view: RatioCompareView }) {
 }
 
 function Row({ row, compared }: { row: PrintedRatioRow; compared: boolean }) {
+  const { i18n } = useTranslation();
   return (
     <tr
       className="border-t border-rule-soft align-top"
@@ -60,7 +77,19 @@ function Row({ row, compared }: { row: PrintedRatioRow; compared: boolean }) {
       data-movement={row.movementStatus ?? "none"}
       data-ratio-cmp-json={serializePrintedRow(row)}
     >
-      <th scope="row" className="py-1.5 pr-3 text-left font-normal text-ink">{row.label}</th>
+      <th scope="row" className="py-1.5 pr-3 text-left font-normal text-ink">
+        <div>{row.label}</div>
+        {/* The served group, in the reader's words. Census rows are served
+            in the engine's order, which is not grouped (net_debt_to_ebitda
+            follows the efficiency rows), so the group rides on each row
+            rather than as headings that would repeat. Listed rows naming a
+            key no row serves carry no group. */}
+        {row.group ? (
+          <div className="text-[10px] uppercase tracking-[0.06em] text-ink-mute" data-col="group">
+            {ratioGroupLabel(row.group, i18n.language)}
+          </div>
+        ) : null}
+      </th>
       <td className="py-1.5 px-3 text-right font-mono tabular-nums text-ink" data-col="current">{row.current}</td>
       {compared ? (
         <>

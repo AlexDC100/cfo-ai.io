@@ -20,10 +20,21 @@
 //
 // One reading is not a pass-through, and it is a refusal, not a repair:
 // the current figure exists on both documents. When the per-period table
-// and the comparison disagree about it (value, band or band status), the
-// served change and movement were computed from a current the tab is not
+// and the comparison disagree about the FIGURE (`value_q`), the served
+// change and movement were computed from a current the tab is not
 // printing, so they would not tie to the column beside them. Both cells
 // then state the two figures and print no change.
+//
+// A disagreement about the BAND alone is not that case and is not a
+// disagreement to report. The comparison grades both periods on ONE
+// sector decision (ratio_compare.py, SECTOR WITHHOLDING): when either
+// period's `industry_signal` blocks sector content, both sides withhold
+// the sector bands, while the current period's own table, which knows
+// nothing of the prior, still grades them. The figure ties, the served
+// change is printed, and band now, band prior and band movement are all
+// read from the comparison's sides (`bandSideOf`), so the three cells and
+// the badge state the one sector decision and a withheld movement prints
+// its served `sector_unconfirmed` reason.
 //
 // `PrintedRatioRow` is the printed form every ratio surface embeds
 // (`data-ratio-cmp-json`), so a surface that formats on its own can be
@@ -89,6 +100,11 @@ export type RatioPriorState =
   | { kind: "compared" }
   /** No prior was requested (comparatives off, or no earlier period). */
   | { kind: "no_comparison" }
+  /** A prior was requested and its document has not arrived yet. */
+  | { kind: "loading" }
+  /** A prior was requested and the request failed (`status` 0: no HTTP
+   *  response at all). Not a refusal: the engine said nothing. */
+  | { kind: "failed"; status: number }
   /** The engine refused the comparison; `message` is its words. */
   | { kind: "refused"; message: string }
   /** A comparatives document arrived without `ratios`. */
@@ -108,6 +124,12 @@ export function buildRatioCompareView(input: {
   comparativesDoc: unknown;
   /** The engine's refusal of the comparison, when it refused. */
   refusal?: { message: string } | null;
+  /** Whether a prior period was requested at all. A view without a
+   *  document, refusal or failure is `loading` when one was requested and
+   *  `no_comparison` only when none was. Omitted: not requested. */
+  requested?: boolean;
+  /** The request for the prior failed; its HTTP status, 0 for none. */
+  failure?: { status: number } | null;
   /** The current period's own label, used when no comparison names it. */
   currentLabel: string;
 }): RatioCompareView | null {
@@ -124,6 +146,10 @@ export function buildRatioCompareView(input: {
     prior = { kind: "without_ratios", priorLabel: priorLabel ?? "" };
   } else if (input.refusal) {
     prior = { kind: "refused", message: input.refusal.message };
+  } else if (input.failure) {
+    prior = { kind: "failed", status: input.failure.status };
+  } else if (input.requested === true) {
+    prior = { kind: "loading" };
   } else {
     prior = { kind: "no_comparison" };
   }
@@ -166,8 +192,39 @@ export function currentSideOf(view: RatioCompareView | null, key: string): Ratio
   return compareRowOf(view, key)?.current ?? null;
 }
 
-function sidesDiffer(a: RatioSide, b: RatioSide): boolean {
-  return a.value_q !== b.value_q || a.band !== b.band || a.band_status !== b.band_status;
+/** The two documents disagree about the current FIGURE. The band is not
+ *  compared: the comparison may withhold a sector band the per-period
+ *  table grades (see the header), and that is one decision, not a
+ *  disagreement. */
+function figuresDiffer(a: RatioSide, b: RatioSide): boolean {
+  return a.value_q !== b.value_q;
+}
+
+/**
+ * The current Side whose BAND a surface prints (badge text, badge colour,
+ * ladder line, band-now cell) for a key.
+ *
+ * With a comparison row whose current figure ties to the table: the
+ * comparison's current side, so band now, band prior and band movement
+ * read the same sector decision. Without a comparison, or when the two
+ * figures differ (the band must grade the figure printed beside it): the
+ * per-period table's row. Composites exist only on the comparison.
+ */
+export function bandSideOf(view: RatioCompareView | null, key: string): RatioSide | null {
+  if (!view) return null;
+  const tableRow = view.periodTable?.rows.find((r) => r.key === key) ?? null;
+  const cmp = compareRowOf(view, key);
+  if (cmp && (!tableRow || !figuresDiffer(tableRow, cmp.current))) return cmp.current;
+  return tableRow ?? null;
+}
+
+/** The served row's identity (unit, direction, group) for a key. */
+export function servedIdentityOf(
+  view: RatioCompareView | null,
+  key: string,
+): { display_unit: RatioDisplayUnit; higher_is_better: boolean; group: string } | null {
+  if (!view) return null;
+  return view.periodTable?.rows.find((r) => r.key === key) ?? compareRowOf(view, key) ?? null;
 }
 
 // ─── Printed form ───────────────────────────────────────────────────────
@@ -229,7 +286,7 @@ export function printRatioRow(
     label: ratioLabel(identity.label_key, key, loc),
     unit,
     current: formatRatioSide(current, unit, loc),
-    bandNow: formatRatioBand(current, loc),
+    bandNow: formatRatioBand(bandSideOf(view, key), loc),
     currentStatus: (current.value_q === null ? "refused" : "present") as PrintedRatioRow["currentStatus"],
   };
   if (!cmp) {
@@ -248,7 +305,7 @@ export function printRatioRow(
     };
   }
   const priorStatus: PrintedRatioRow["priorStatus"] = cmp.prior.value_q === null ? "refused" : "present";
-  if (tableRow && sidesDiffer(tableRow, cmp.current)) {
+  if (tableRow && figuresDiffer(tableRow, cmp.current)) {
     const sentence = t("statements.ratioCmp.ui.currentDiffers", {
       table: formatRatioSide(tableRow, unit, loc),
       compare: formatRatioSide(cmp.current, unit, loc),
@@ -321,6 +378,47 @@ export function bandTone(side: RatioSide | null | undefined): ChipTone {
   }
 }
 
+/** The served side's band as the verdict vocabulary the drawer's prose
+ *  is keyed by: the band when graded on the four-rung ladder, `unknown`
+ *  when no figure was served, `ungraded` for every other band status (a
+ *  withheld, not-banded or letter-graded side has no rung word). */
+export type ServedVerdict = "strong" | "healthy" | "watch" | "critical" | "ungraded" | "unknown";
+
+export function servedVerdictOf(side: RatioSide | null | undefined): ServedVerdict {
+  if (!side || side.value_q === null) return "unknown";
+  if (side.band_status === "graded") {
+    switch (side.band) {
+      case "strong":
+      case "healthy":
+      case "watch":
+      case "critical":
+        return side.band;
+    }
+  }
+  return "ungraded";
+}
+
+/**
+ * Whether a browser commentary line may sit beside a served figure.
+ *
+ * `computeRatios` commentary is prose chosen by the BROWSER's own cutoffs
+ * (`v >= 1.5 ? "Comfortable…" : …`) and sometimes prints the browser's own
+ * figure (`${v.toFixed(1)}% of assets funded by equity`). Beside a served
+ * row it is printed only when it can contradict neither: the served band
+ * is the verdict the line was chosen for, and the line carries no digit
+ * (no figure and no cutoff of its own, TC-10). Otherwise it is withheld;
+ * the served band and ladder beside it already say what it would.
+ */
+export function commentaryAgreesWithServed(
+  commentary: string | null | undefined,
+  browserVerdict: string,
+  side: RatioSide | null | undefined,
+): boolean {
+  if (typeof commentary !== "string" || commentary.trim() === "") return false;
+  if (/\d/.test(commentary)) return false;
+  return servedVerdictOf(side) === browserVerdict;
+}
+
 const LADDER_ORDER = ["strong", "healthy", "watch"] as const;
 const BAND_WORD: Record<string, string> = {
   strong: "dashV2.ratioVerdictStrong",
@@ -385,6 +483,7 @@ export interface PrintedBandMovements {
     deteriorated: number;
     unchanged: number;
     notComparable: number;
+    /** Entries refused in at least one period (prior, current or both). */
     refused: number;
     bothSides: number;
   };

@@ -50,13 +50,63 @@ import { TraceableNumber } from "./TraceableNumber";
 import { STATEMENT_TAB, HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
+import { BADGE_BY_TONE } from "@/components/cfo/ratios/RatioComparisonTable";
 import {
+  bandSideOf,
+  bandTone,
+  commentaryAgreesWithServed,
   currentSideOf,
   engineKeyOf,
+  ladderText,
   printRatioRow,
   serializePrintedRow,
+  servedIdentityOf,
+  servedVerdictOf,
   type PrintedRatioRow,
+  type RatioCompareView,
 } from "@/lib/ratioCompareView";
+
+// ── ONE ROW, ONE DRAWER (TC-10) ─────────────────────────────────────────
+//
+// When the engine served a row for the ratio, EVERY figure, band, ladder
+// and verdict-keyed sentence in the drawer reads that row: the headline,
+// the badge text and colour (the side `bandSideOf` picks, the tile's), the
+// formula's result, "What this value means", "What good looks like", "What
+// to focus on" and the related-metric chips. A drawer that took its
+// headline from the served row and its ladder from `computeRatios` graded
+// the same figure on two ladders one click apart (debt_to_assets: badge
+// Healthy on the served rungs, "strong ≤ 50%" in the body). The browser's
+// hand-typed range (`knowledge.goodRange`) is withheld wherever it states
+// a cutoff, and the browser commentary is printed only where it cannot
+// contradict the served band (`commentaryAgreesWithServed`).
+// `computeRatios` still drives this drawer, unchanged, for a period the
+// engine served no table for.
+
+interface ServedDrawerRow {
+  printed: PrintedRatioRow;
+  bandSide: ReturnType<typeof bandSideOf>;
+  ladder: string;
+  verdict: ReturnType<typeof servedVerdictOf>;
+}
+
+function servedDrawerRow(view: RatioCompareView | null, feKey: string, locale: string): ServedDrawerRow | null {
+  const key = engineKeyOf(feKey);
+  if (!currentSideOf(view, key)) return null;
+  const printed = printRatioRow(view, key, locale);
+  const identity = servedIdentityOf(view, key);
+  if (!printed || !identity) return null;
+  const bandSide = bandSideOf(view, key);
+  return {
+    printed,
+    bandSide,
+    ladder: ladderText(bandSide, identity.higher_is_better, identity.display_unit, locale),
+    verdict: servedVerdictOf(bandSide),
+  };
+}
+
+/** A hand-typed range that states a cutoff (any digit) is a second copy of
+ *  a ladder; beside a served ladder it is withheld. */
+const statesCutoff = (text: string | null | undefined): boolean => typeof text === "string" && /\d/.test(text);
 
 interface Props {
   /** The ratio to explain. `null` closes the drawer. */
@@ -148,14 +198,23 @@ function DrawerBody({
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const focusLine = focusForVerdict(ratio.verdict, ratio.label);
-  // THE SERVED ROW for this key, when the engine served one: the headline,
-  // the badge and the vs-prior block print its strings, so the drawer
-  // cannot state a figure or band the tile beside it did not.
+  // THE SERVED ROW for this key, when the engine served one: every figure,
+  // band and ladder below prints its strings, so the drawer cannot state a
+  // figure or band the tile beside it did not.
   const compareView = useRatioCompareView();
   const engineKey = engineKeyOf(ratio.key);
   const servedSide = currentSideOf(compareView, engineKey);
-  const printed: PrintedRatioRow | null = servedSide ? printRatioRow(compareView, engineKey, i18n.language) : null;
+  const served = servedDrawerRow(compareView, ratio.key, i18n.language);
+  const printed: PrintedRatioRow | null = served?.printed ?? null;
+  const label = printed?.label ?? ratio.label;
+  const focusLine = focusForVerdict(served ? served.verdict : ratio.verdict, label);
+  const showCommentary = served
+    ? printed?.currentStatus === "present" && commentaryAgreesWithServed(ratio.commentary, ratio.verdict, served.bandSide)
+    : true;
+  const relatedFigure = (r: Ratio): string =>
+    currentSideOf(compareView, engineKeyOf(r.key))
+      ? printRatioRow(compareView, engineKeyOf(r.key), i18n.language)?.current ?? formatRatio(r)
+      : formatRatio(r);
   // Default to SHOWING the explanation (2026-07-25) — the detail deep-dive
   // opens expanded; the toggle collapses it.
   const [explainOpen, setExplainOpen] = useState(true);
@@ -184,7 +243,7 @@ function DrawerBody({
         <div className="relative">
           {/* Category chip ("Liquidity" / "Profitability" / …) removed 2026-07-25. */}
           <h2 className="text-[22px] sm:text-[24px] leading-tight font-semibold tracking-[-0.01em] text-ink">
-            {ratio.label}
+            {label}
           </h2>
           <p className="mt-1.5 text-[13px] text-ink-soft leading-relaxed">
             {knowledge.definition}
@@ -236,8 +295,11 @@ function DrawerBody({
               )}
             </div>
             <span
+              data-testid="ratio-detail-band-now"
               className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict ${
-                ratio.verdict === "unknown" || ratio.verdict === "ungraded"
+                served
+                  ? `text-ink ${BADGE_BY_TONE[bandTone(served.bandSide)] ?? BADGE_BY_TONE.neutral}`
+                  : ratio.verdict === "unknown" || ratio.verdict === "ungraded"
                   ? "border-rule text-ink-mute"
                   : ratio.verdict === "critical"
                     ? "text-ink anim-fill-red border-red-500/40"
@@ -284,7 +346,7 @@ function DrawerBody({
 
         {/* Inline formula — primary surface */}
         <Section icon={Calculator} title="Formula · live numbers">
-          <FormulaDisplay ratio={ratio} knowledge={knowledge} statements={statements} />
+          <FormulaDisplay ratio={ratio} knowledge={knowledge} statements={statements} printed={printed} />
           {/* ── THE ARITHMETIC THAT PRODUCED THE NUMBER ABOVE ──────────
             *
             * `knowledge.formula` is the TEXTBOOK spelling, hand-written
@@ -312,13 +374,15 @@ function DrawerBody({
         {/* "What this value means" — the load-bearing line for the
          *  reader who's only going to scan one thing */}
         <Section icon={GaugeCircle} title="What this value means">
-          <div className="rounded-xl border border-rule bg-surface p-4">
-            <div className="text-[12px] text-ink-mute mb-1.5">
-              {ratio.benchmark}
+          <div className="rounded-xl border border-rule bg-surface p-4" data-testid="ratio-detail-meaning">
+            <div className="text-[12px] text-ink-mute mb-1.5" data-testid={served ? "ratio-detail-ladder" : undefined}>
+              {served ? served.ladder : ratio.benchmark}
             </div>
-            <p className="text-[13.5px] text-ink leading-relaxed">
-              {ratio.commentary}
-            </p>
+            {showCommentary ? (
+              <p className="text-[13.5px] text-ink leading-relaxed">
+                {ratio.commentary}
+              </p>
+            ) : null}
           </div>
         </Section>
 
@@ -385,7 +449,14 @@ function DrawerBody({
               * wrong instruction on that row, so the row's own
               * withholding sentence is the only thing printed. */}
             <Section icon={Target} title="What good looks like">
-              {ratio.verdict === "ungraded" ? (
+              {served ? (
+                <div data-testid="ratio-detail-good-range">
+                  <p className="text-[13.5px] text-ink-soft leading-relaxed">{served.ladder}</p>
+                  {knowledge.goodRange && !statesCutoff(knowledge.goodRange) ? (
+                    <p className="mt-1.5 text-[12.5px] text-ink-mute leading-relaxed">{knowledge.goodRange}</p>
+                  ) : null}
+                </div>
+              ) : ratio.verdict === "ungraded" ? (
                 <p className="text-[13.5px] text-ink-soft leading-relaxed">
                   {ratio.benchmark}
                 </p>
@@ -442,10 +513,11 @@ function DrawerBody({
                         transition-colors
                       "
                       data-testid="ratio-related-chip"
+                      data-ratio-key={k}
                     >
                       <span>{r.label}</span>
-                      <span className="text-ink-mute group-hover:text-brand-d tabular-nums">
-                        {formatRatio(r)}
+                      <span className="text-ink-mute group-hover:text-brand-d tabular-nums" data-col="current">
+                        {relatedFigure(r)}
                       </span>
                       <ArrowRight size={11} strokeWidth={1.75} className="text-ink-mute group-hover:text-brand-d transition-colors" />
                     </button>
@@ -462,11 +534,15 @@ function DrawerBody({
 
 // ─── Inline formula display ──────────────────────────────────────
 function FormulaDisplay({
-  ratio, knowledge, statements,
+  ratio, knowledge, statements, printed,
 }: {
   ratio: Ratio;
   knowledge: RatioKnowledge;
   statements: Statements | null;
+  /** The served row, when there is one: the result printed after "=" is
+   *  its figure, never `formatRatio` over the browser's computation. A
+   *  refused served figure prints no result (the reason is the headline). */
+  printed: PrintedRatioRow | null;
 }) {
   // Fallback: ratio doesn't yet have formulaParts, or we don't have
   // statements (e.g. during a tab switch while data reloads). Show
@@ -485,10 +561,23 @@ function FormulaDisplay({
         {knowledge.formulaParts.map((part, i) => (
           <FormulaPartView key={i} part={part} statements={statements} />
         ))}
-        <span className="text-ink-mute mx-1">=</span>
-        <span className="font-semibold tabular-nums text-ink">
-          {formatRatio(ratio)}
-        </span>
+        {printed ? (
+          printed.currentStatus === "present" ? (
+            <>
+              <span className="text-ink-mute mx-1">=</span>
+              <span className="font-semibold tabular-nums text-ink" data-testid="ratio-detail-formula-result">
+                {printed.current}
+              </span>
+            </>
+          ) : null
+        ) : (
+          <>
+            <span className="text-ink-mute mx-1">=</span>
+            <span className="font-semibold tabular-nums text-ink">
+              {formatRatio(ratio)}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -675,6 +764,25 @@ function focusForVerdict(verdict: RatioVerdict, label: string): string {
 }
 
 function FallbackBody({ ratio }: { ratio: Ratio }) {
+  const { i18n } = useTranslation();
+  const served = servedDrawerRow(useRatioCompareView(), ratio.key, i18n.language);
+  if (served) {
+    return (
+      <div className="px-6 py-8">
+        <h2 className="text-[22px] font-semibold text-ink leading-tight">{served.printed.label}</h2>
+        <span
+          data-testid="ratio-detail-band-now"
+          className={`mt-2 inline-flex items-center h-7 px-3 rounded-full border text-[10.5px] font-semibold uppercase tracking-[0.08em] anim-fill-verdict text-ink ${
+            BADGE_BY_TONE[bandTone(served.bandSide)] ?? BADGE_BY_TONE.neutral
+          }`}
+        >
+          {served.printed.bandNow}
+        </span>
+        <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed" data-testid="ratio-detail-current">{served.printed.current}</p>
+        <div className="mt-4 text-[12px] text-ink-mute" data-testid="ratio-detail-ladder">{served.ladder}</div>
+      </div>
+    );
+  }
   return (
     <div className="px-6 py-8">
       <h2 className="text-[22px] font-semibold text-ink leading-tight">{ratio.label}</h2>

@@ -54,7 +54,7 @@ import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // COMPARATIVES — two periods side by side (engine document, FE cells).
 import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
-import { bsOpeningFill, pickDefaultPrior, statementsForExportOf, useComparatives, type ComparativesResponse } from "@/lib/comparatives";
+import { bsOpeningFill, pickDefaultPrior, useComparatives } from "@/lib/comparatives";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
   ComparativesControls,
@@ -64,7 +64,7 @@ import {
 } from "@/components/cfo/ComparativesPanel";
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
-import { buildRatioCompareView, readRatioTable, servedCreditEnvelopes } from "@/lib/ratioCompareView";
+import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { MONEY_MISSING } from "@/lib/money";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
@@ -592,9 +592,6 @@ function FinancialStatementsInner() {
       ? null
       : cmpView.view.priorPeriodId ?? cmpAutoPick?.period_id ?? null;
   const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId);
-  const cmpDoc: ComparativesResponse | null =
-    cmpQuery.data?.kind === "ok" ? cmpQuery.data.data : null;
-  const cmpRefused = cmpQuery.data?.kind === "refused" ? cmpQuery.data : null;
   const { data: directPeriodsData } = useQuery({
     queryKey: ["org-periods", activeOrgForPeriods?.id],
     queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
@@ -706,6 +703,35 @@ function FinancialStatementsInner() {
     return out;
   }, [remotePeriod.metrics]);
 
+  // ── THE RATIO SURFACES' INPUTS, DECIDED IN ONE PLACE ────────────────
+  // `cmpDoc` / `cmpRefused` (the served comparatives fetch, sorted), the
+  // view every RatioCompareCtx provider below is handed, the export
+  // statements carrying the served comparatives document, and the credit
+  // envelopes the hero, the Risks tab and the exports read. See
+  // lib/useRatioSurfaces.ts; ratioCompareTab.test.tsx G9 runs it over the
+  // served fixture and holds this call and every provider to it.
+  //
+  // PRIOR RATIOS ARE THE ENGINE'S: the prior column, its change, both
+  // bands, the band movement and the prior Altman / credit score / letter
+  // come from the served comparatives `ratios` block; no computeRatios
+  // runs over the prior's statements.
+  //
+  // THE CREDIT IS THE SERVED TABLE'S: when GET /api/period served its
+  // credit from the serve-time model, the readers get
+  // `assembled_metrics.ratio_table.credit` and the credit-family metric
+  // rows are withheld (see `servedCreditEnvelopes`). One selection, passed
+  // to all three readers, so no two surfaces score a period with
+  // different models.
+  const { cmpDoc, cmpRefused, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
+    assembledMetrics: remotePeriod.assembled_metrics,
+    statements,
+    metricsByName,
+    currentLabel: statements?.periodLabel ?? remotePeriod.label ?? "",
+    periodId: remotePeriod.id,
+    priorId: cmpPriorId,
+    comparatives: cmpQuery,
+  });
+
   // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
   // Cash flow is FE-derived from a period's served statements; the prior
   // column runs the SAME builder on the prior's own served block, so a
@@ -737,54 +763,6 @@ function FinancialStatementsInner() {
       })(),
     });
   }, [cmpDoc, priorStatements, t]);
-  // ── PRIOR RATIOS ARE THE ENGINE'S ─────────────────────────────────
-  // The prior column of the Ratios tab, its change, both bands, the band
-  // movement and the prior Altman / credit score / letter all come from
-  // the served comparatives document's `ratios` block. There is no
-  // computeRatios call over the prior's statements any more: it produced
-  // a Map of key to number with no prior band, no ladder and no Altman,
-  // and the tile did the subtraction.
-  const ratioCompareView = useMemo(
-    () =>
-      buildRatioCompareView({
-        periodTable: readRatioTable(remotePeriod.assembled_metrics),
-        comparativesDoc: cmpDoc,
-        refusal: cmpRefused ? { message: cmpRefused.message } : null,
-        currentLabel: statements?.periodLabel ?? remotePeriod.label ?? "",
-      }),
-    [remotePeriod.assembled_metrics, cmpDoc, cmpRefused, statements?.periodLabel, remotePeriod.label],
-  );
-  // The exports read `statements.prior` (reportComparatives.ts,
-  // financialExports.ts) — populated only when a prior is loaded, so a
-  // single-period report still says "no prior period" in words — and
-  // `comparatives`, the SERVED comparatives document itself, so the report
-  // and the workbook print the same served ratio rows the tab prints
-  // rather than rebuilding a prior of their own.
-  const statementsForExport = useMemo(
-    () => statementsForExportOf(statements, cmpDoc),
-    [statements, cmpDoc],
-  );
-
-  // ── ONE PLACE DECIDES WHICH ENVELOPES THIS PERIOD HAS ───────────────
-  // This selection used to be written out three times (hero card, Risks
-  // tab, and not at all for the export). Three copies of a model
-  // selector are three chances for two surfaces to score the same period
-  // with different models; the export proved it, shipping the client
-  // fallback's CCC while the screen showed the engine's CC. One memo,
-  // passed to all three.
-  //
-  // ── AND THE CREDIT IT READS IS THE SERVED TABLE'S ──────────────────
-  // When GET /api/period served its credit from the serve-time model
-  // (`credit.basis === "serve"`), the hero, the Risks tab and the exports
-  // read `assembled_metrics.ratio_table.credit` — the same block the
-  // comparatives composites are built from — and the credit-family metric
-  // rows are withheld from the reader, whose precedence would otherwise
-  // let a row override the table. See `servedCreditEnvelopes`.
-  const creditEnvelopes = useMemo(
-    () => servedCreditEnvelopes(remotePeriod.assembled_metrics, statements, metricsByName),
-    [remotePeriod.assembled_metrics, statements, metricsByName],
-  );
-
   const ratios = useMemo(
     () => (statements ? computeRatios(statements, dashboardCanonicalMargins, metricsByName) : null),
     [statements, dashboardCanonicalMargins, metricsByName],
