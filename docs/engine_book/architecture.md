@@ -108,6 +108,7 @@ graph LR
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
     pkg_comparatives -->|1| pkg_ratios
+    pkg_comparatives -->|1| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
     pkg_consensus -->|1| pkg_interp
