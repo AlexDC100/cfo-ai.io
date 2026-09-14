@@ -648,3 +648,37 @@ def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():
         {"bucket": "ar", "ro_account_code": "4112", "ro_account_name": "Clienti interni", "amount": 50.0},
     ]
     assert [a.code for a in CB._accounts(opposite, ("ar",), 2, ())] == ["4111", "4112"]
+
+
+# ── 7. materiality ranks, it never filters (ruling Q9) ──────────────────────
+
+
+def test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served():
+    """Ruling Q9: `materiality_floor` stays null and nothing is hidden for
+    being small. Reds when any pair serves a floor, when any crossed row
+    (however small its share) is missing from improved / deteriorated or
+    from the findings, or when the smallest crossings stop surfacing.
+    Measured 2026-09-15: the smallest is realestate's dso, share 0.0001
+    (headroom 7,176.29 RON), on four pairs; 40 of 318 valued crossings sit
+    below a 1% share."""
+    smallest = []
+    for cur_name, pri_name in PAIRS:
+        out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+        bm = out["band_movements"]
+        assert bm["rank_basis"]["materiality_floor"] is None, (cur_name, pri_name)
+        listed = set(bm["improved"]) | set(bm["deteriorated"])
+        findings = {f["ratio_key"]: f for f in bm["findings"]}
+        for r in out["rows"] + out["composites"]:
+            mv = r["movement"]
+            if not mv["status"].startswith("crossed"):
+                continue
+            where = "%s|%s %s" % (cur_name, pri_name, r["key"])
+            assert r["key"] in listed and r["key"] in findings, where
+            share = (mv["materiality"] or {}).get("share")
+            if share is not None:
+                smallest.append((Decimal(share), where, findings[r["key"]]["surfaced"]))
+    smallest.sort()
+    assert smallest and smallest[0][0] < Decimal("0.001"), (
+        "non-vacuity: no crossing below a 0.1%% share (smallest %s)" % (smallest[:1],))
+    for share, where, surfaced in smallest[:4]:
+        assert surfaced, (where, share)
