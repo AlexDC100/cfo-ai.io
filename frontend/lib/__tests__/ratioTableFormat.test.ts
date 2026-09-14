@@ -628,7 +628,17 @@ describe("G5 the reader's enums are the engine's (src/engine/ratios/table.py)", 
     expect(src).toContain('"balanceSheet." + k');
     expect(src).toContain('"incomeStatement." + k');
     expect(src).toContain('"canonical_bs." + concept');
+    expect(src).toContain('"assembled_bs." + legacy');
     const names = new Set<string>();
+    // G reads the served totals through _gateway_totals, which labels each
+    // one canonical_bs.<concept> (tier 1) or assembled_bs.<legacy> (tier 2);
+    // both label sets come from the _TOTAL_CONCEPTS pairs.
+    for (const pair of src.matchAll(/\("(\w+)",\s*"(\w+)"\)/g)) {
+      if (src.indexOf(pair[0]) > src.indexOf("_TOTAL_CONCEPTS") && src.indexOf(pair[0]) < src.indexOf("def _gateway_totals")) {
+        names.add("canonical_bs." + pair[1]);
+        names.add("assembled_bs." + pair[2]);
+      }
+    }
     for (const [fn, prefix] of [["B", "balanceSheet."], ["I", "incomeStatement."], ["G", "canonical_bs."]] as const) {
       for (const body of callBodies(src, fn)) {
         const lit = body.match(/^\s*"(\w+)"\s*$/);
@@ -641,6 +651,7 @@ describe("G5 the reader's enums are the engine's (src/engine/ratios/table.py)", 
     for (const arg of leafSources) {
       const lit = arg.match(/^"([^"]+)"$/);
       if (lit) names.add(lit[1]);
+      else if (arg === "source") expect(src, "G's source must come from _gateway_totals").toContain("value, source = totals[concept]");
       else expect(arg, "a _leaf source outside the anchored forms").toMatch(/^"(balanceSheet|incomeStatement|canonical_bs)\." \+ \w+$/);
     }
     for (const m of src.matchAll(/"((?:supplementary|industry_signal|assembled_pl|incomeStatement|balanceSheet|canonical_bs)\.\w+)"/g)) {

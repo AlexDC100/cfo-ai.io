@@ -668,7 +668,8 @@
         "debtService": "interest plus short-term debt",
         "debtServiceLease": "interest plus short-term debt plus lease",
         "debtServiceLtPrincipal": "interest plus the long-term principal proxy",
-        "totalOperatingExpense": "total operating expense"
+        "totalOperatingExpense": "total operating expense",
+        "capitalizedOwnWork": "capitalised own work"
       },
       "reason": {
         "operand_absent": "Not reported: this filing does not carry {{inputs}}.",

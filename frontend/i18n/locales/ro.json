@@ -668,7 +668,8 @@
         "debtService": "dobânzile plus datoriile pe termen scurt",
         "debtServiceLease": "dobânzile plus datoriile pe termen scurt plus chiria",
         "debtServiceLtPrincipal": "dobânzile plus aproximarea ratelor pe termen lung",
-        "totalOperatingExpense": "totalul cheltuielilor de exploatare"
+        "totalOperatingExpense": "totalul cheltuielilor de exploatare",
+        "capitalizedOwnWork": "producția imobilizată"
       },
       "reason": {
         "operand_absent": "Neraportat: această raportare nu conține {{inputs}}.",
