@@ -53,6 +53,7 @@ import { MONEY_MISSING } from "@/lib/money";
 import {
   CREDIT_LETTERS,
   RATIO_BAND_STATUSES,
+  RATIO_COMPARE_REASON_CODES,
   RATIO_DELTA_UNITS,
   RATIO_DISPLAY_UNITS,
   RATIO_OPERAND_WORD,
@@ -371,7 +372,7 @@ describe("G3 a missing figure prints its served reason, never a dash", () => {
         expect(r, code).toContain("cifra de afaceri");
       }
     }
-    for (const code of RATIO_READER_REASONS) {
+    for (const code of [...RATIO_COMPARE_REASON_CODES, ...RATIO_READER_REASONS]) {
       if (bundle("en", `statements.ratioCmp.reason.${code}`) === bundle("ro", `statements.ratioCmp.reason.${code}`)) {
         same.push(code);
       }
@@ -390,9 +391,15 @@ describe("G3 a missing figure prints its served reason, never a dash", () => {
     const d = formatRatioDelta(delta({ unit: "days", value: null, reason_code: "non_finite" }), "ro");
     printable(d.primary);
     expect(d.primary).toBe(bundle("ro", "statements.ratioCmp.reason.non_finite"));
-    const unlisted = formatRatioDelta(delta({ unit: "days", value: null, reason_code: "prior_refused" }), "en");
+    // `prior_refused` WAS the unlisted example here until ratio_compare.py
+    // declared it (B4); it now prints its own sentence, and a code no
+    // engine tuple declares is the unlisted case.
+    const declared = formatRatioDelta(delta({ unit: "days", value: null, reason_code: "prior_refused" }), "en");
+    printable(declared.primary);
+    expect(declared.primary).toBe(bundle("en", "statements.ratioCmp.reason.prior_refused"));
+    const unlisted = formatRatioDelta(delta({ unit: "days", value: null, reason_code: "brand_new_delta_code" }), "en");
     printable(unlisted.primary);
-    expect(unlisted.primary).toContain("prior_refused");
+    expect(unlisted.primary).toContain("brand_new_delta_code");
   });
 
   it("a missing reason, a missing side and an unlisted reason are all visible sentences", () => {
@@ -685,5 +692,8 @@ describe("G5 the reader's enums are the engine's (src/engine/ratios/table.py)", 
     const declared = tuples.flatMap((name) => pyTuple(cmp, name).members);
     const noSentence = declared.filter((c) => reasonKey(c) === "statements.ratioCmp.reason.unlisted");
     expect(noSentence, `engine codes with no reader sentence: ${noSentence.join(", ")}`).toEqual([]);
+    // The mirror is the composer's declaration, de-duplicated in order —
+    // no reader-only code and no engine code left out.
+    expect([...RATIO_COMPARE_REASON_CODES]).toEqual([...new Set(declared)]);
   });
 });
