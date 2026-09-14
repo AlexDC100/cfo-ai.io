@@ -49,9 +49,12 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
   PARTITION  improved + deteriorated + unchanged + not_comparable !=
       coverage.both_sides; a movable entry valued on one side only missing
       from `refused`; a crossing without its finding row (a demoted row
-      dropped); the pair no longer carrying a DEMOTED row (without one the
-      gate could not see a dropped demotion); a demoted row not carrying its
-      missing elements and its check summary.
+      dropped); the PLANTED demotion (the top surfaced crossing with its
+      subject line items removed, every movement list otherwise unchanged)
+      missing from the findings or not demoted on `subject`; a demoted row
+      not carrying its missing elements and its check summary. The gate no
+      longer depends on a natural demotion (every one today is an impact-only
+      demotion on altman_z / letter_grade / ccc, held for the owner).
   DETERMINISM  two compositions over the same bodies serialising to
       different bytes.
 
@@ -360,10 +363,32 @@ def test_a_lower_is_better_crossing_is_classified_by_direction():
 # ── 4. the partition identity; demoted rows stay listed ────────────────────
 
 
+def _without_subject_lines(body: Dict[str, Any], key: str) -> Dict[str, Any]:
+    """`body` with every served line item in `key`'s subject buckets removed —
+    the ratio still computes (it reads the canonical totals), its finding
+    can name no account."""
+    numerator, denominator = CB.SUBJECT_BUCKETS[key]
+    drop = set(numerator) | set(denominator)
+    out = copy.deepcopy(body)
+    out["line_items"] = [li for li in out["line_items"] if li.get("bucket") not in drop]
+    return out
+
+
 @pytest.mark.parametrize("cur_name,pri_name", [("agras", "carniprod"), ("retail", "realestate")])
 def test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed(cur_name, pri_name):
-    out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+    natural = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+    surfaced = [f["ratio_key"] for f in natural["band_movements"]["findings"] if f["surfaced"]]
+    assert surfaced, "non-vacuity: %s|%s surfaces no crossing to demote" % (cur_name, pri_name)
+    # PLANT A DEMOTION rather than lean on a natural one (which rulings may
+    # remove): the top surfaced crossing loses its subject lines.
+    planted_key = surfaced[0]
+    cur_body = _without_subject_lines(SB.served_body(cur_name), planted_key)
+    out = _compose(cur_body, SB.served_body(pri_name), cur_name, pri_name)
     bm, cov = out["band_movements"], out["coverage"]
+    for bucket in ("improved", "deteriorated", "unchanged", "not_comparable", "refused"):
+        assert bm[bucket] == natural["band_movements"][bucket], (
+            "removing line items moved the %s list: the plant must touch the subject only" % bucket)
+
     movable = out["rows"] + [r for r in out["composites"] if r["key"] in RC.MOVABLE_COMPOSITES]
     assert cov["movable_composites"] == list(RC.MOVABLE_COMPOSITES)
     parts = len(bm["improved"]) + len(bm["deteriorated"]) + len(bm["unchanged"]) + len(bm["not_comparable"])
@@ -378,11 +403,15 @@ def test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_list
     assert len(bm["findings"]) == len(bm["improved"]) + len(bm["deteriorated"]), (
         "%d finding rows for %d crossings — a crossing lost its row"
         % (len(bm["findings"]), len(bm["improved"]) + len(bm["deteriorated"])))
-    demoted = [f for f in bm["findings"] if not f["surfaced"]]
-    assert demoted, "non-vacuity: the pair carries no demoted crossing, so a dropped demotion is invisible"
-    for f in demoted:
-        assert f["missing_elements"] and f["check_summary"]["rule_id"] == f["rule_key"], f
-        assert f["ratio_key"] in bm["improved"] + bm["deteriorated"]
+    by_key = {f["ratio_key"]: f for f in bm["findings"]}
+    assert planted_key in by_key, "the planted demotion %s was dropped from the findings" % planted_key
+    planted = by_key[planted_key]
+    assert not planted["surfaced"] and "subject" in planted["missing_elements"], (
+        planted_key, planted["missing_elements"])
+    for f in bm["findings"]:
+        if not f["surfaced"]:
+            assert f["missing_elements"] and f["check_summary"]["rule_id"] == f["rule_key"], f
+            assert f["ratio_key"] in bm["improved"] + bm["deteriorated"]
     assert [f["rank"] for f in bm["findings"]] == list(range(1, len(bm["findings"]) + 1))
 
 
