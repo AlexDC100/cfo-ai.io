@@ -190,8 +190,15 @@ def test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_
 #: Scandia baseline), both orders.
 PAIRS = [(c, p) for c in SB.ALL_BOOKS for p in SB.ALL_BOOKS if c != p]
 
-#: What `_finding._format_value` appends per served display unit.
+#: What `_finding._format_value` appends per served display unit. Days
+#: agree with the printed count (ruling Q8): "1 day", "2 days".
 _PRINTED_SUFFIX = {"x": "\u00d7", "z": "\u00d7", "pct": "%", "days": " days"}
+
+
+def _printed(value_q: str, unit: str) -> str:
+    if unit == "days" and value_q in ("1", "-1"):
+        return value_q + " day"
+    return value_q + _PRINTED_SUFFIX[unit]
 
 
 def _landing_severity(mv: Dict[str, Any]) -> str:
@@ -257,7 +264,7 @@ def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_an
                 # the letter is graded on the composite; the figure is that score
                 expected = T.quantize_display(r[side]["value"], "score")
             else:
-                expected = r[side]["value_q"] + _PRINTED_SUFFIX[unit]
+                expected = _printed(r[side]["value_q"], unit)
             assert printed == expected, (where, side, printed, expected)
             if f["surfaced"]:
                 assert "%s \u2014 %s" % (fg["label"], printed) in f["body"], (where, side)

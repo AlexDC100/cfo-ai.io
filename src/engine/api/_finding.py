@@ -481,7 +481,11 @@ def _format_value(value: float, unit: str, currency: str) -> str:
     if unit == UNIT_RATIO:
         return "%.2f×" % v
     if unit == UNIT_DAYS:
-        return "%.0f days" % v
+        # The noun agrees with the PRINTED count: "1 day", "2 days", and
+        # "0 days" (ruling Q8). Read off the printed text, never the float,
+        # so 0.6 (printed "1") is "1 day" and 1.4 (printed "1") is too.
+        text = "%.0f" % v
+        return "%s %s" % (text, "day" if text in ("1", "-1") else "days")
     if unit == UNIT_COUNT:
         return "%.0f" % v
     if unit == UNIT_SCORE:
