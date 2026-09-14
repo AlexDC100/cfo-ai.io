@@ -552,7 +552,14 @@ _GENERAL_SME_BAND_DEFINITIONS: Dict[str, Dict[str, object]] = {
     # Efficiency (days)
     "dso":            {"strong": 30,   "healthy": 45,   "watch": 75,   "direction": "lower"},
     "dio":            {"strong": 30,   "healthy": 60,   "watch": 100,  "direction": "lower"},
-    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher"},
+    # DPO carries a declared FLOOR: a value below the watch rung grades
+    # `watch`, never `critical` (owner ruling 2026-09-14, ratios B4 step 1).
+    # CLAUDE.md Appendix A section 5 gives DPO a benchmark range and names
+    # no failure threshold, so no rung here may call a short payables cycle
+    # a distress reading. The watch rung value stays: forecast band
+    # traversal walks to it. Read by `engine.ratios.table` (`floor`), and
+    # ignored by every reader that picks strong/healthy/watch by name.
+    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher", "floor": "watch"},
     "ccc":            {"strong": 30,   "healthy": 60,   "watch": 90,   "direction": "lower"},
     "asset_turnover": {"strong": 1.5,  "healthy": 1.0,  "watch": 0.5,  "direction": "higher"},
     "inventory_turnover": {"strong": 12, "healthy": 6,  "watch": 3,    "direction": "higher"},

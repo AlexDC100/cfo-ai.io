@@ -73,7 +73,10 @@ or ``_band_definitions()`` itself when a payload carries none. Rungs are
 served in the row's DISPLAY unit as strings (pct rows: the pack fraction
 × 100). Grading walks strong → healthy → watch with ``>=`` for
 higher-is-better and ``<=`` otherwise, on the full-precision value — the
-``verdictFromBands`` semantics. Four FE ladders diverge from the pack
+``verdictFromBands`` semantics. A value past the last rung takes the
+floor: the definition's declared ``floor`` when it carries one (DPO
+floors at ``watch``, owner ruling 2026-09-14), else ``critical``.
+Four FE ladders diverge from the pack
 (dpo, ccc, asset_turnover, ltv vs debt_to_assets); the gate declares the
 verdicts that divergence changes rather than hiding them.
 
@@ -426,9 +429,30 @@ def _rung_display(rung: Any, display_unit: str) -> str:
     return text
 
 
-def _grade(value: float, ladder: Mapping[str, str], higher_is_better: bool) -> str:
+#: The bands a declared ``floor`` may name (the band a value below the last
+#: rung takes). Anything else in a pack band definition is refused loudly.
+LADDER_FLOORS = ("watch", "critical")
+
+
+def ladder_floor(band_def: Optional[Mapping[str, Any]], ladder: Mapping[str, str]) -> str:
+    """The band a value past the last rung takes: the pack definition's
+    declared ``floor`` when it carries one (DPO: ``watch``), else
+    ``critical`` when the ladder has a watch rung and ``watch`` when it
+    does not. A floor outside ``LADDER_FLOORS`` raises — a pack table
+    error, never a silent default."""
+    declared = (band_def or {}).get("floor")
+    if declared is None:
+        return "critical" if "watch" in ladder else "watch"
+    if declared not in LADDER_FLOORS:
+        raise ValueError("pack band floor %r is not one of %r" % (declared, LADDER_FLOORS))
+    return str(declared)
+
+
+def _grade(value: float, ladder: Mapping[str, str], higher_is_better: bool,
+           floor: Optional[str] = None) -> str:
     rungs = {k: float(v) for k, v in ladder.items()}
-    floor = "critical" if "watch" in rungs else "watch"
+    if floor is None:
+        floor = "critical" if "watch" in rungs else "watch"
     for name in _LADDER_ORDER:
         if name not in rungs:
             continue
@@ -806,7 +830,8 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         else:
             row["band_status"] = "graded"
             row["ladder"] = ladder
-            row["band"] = _grade(fig.value, ladder, spec.higher_is_better)
+            row["band"] = _grade(fig.value, ladder, spec.higher_is_better,
+                                 ladder_floor(band_def, ladder))
         if row["band_status"] != "graded":
             withheld[spec.key] = row["reason"]["code"]
         rows.append(row)

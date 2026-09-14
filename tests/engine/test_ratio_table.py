@@ -118,11 +118,18 @@ DIVERGENT_LADDER_KEYS = frozenset({"dpo", "ccc", "asset_turnover", "debt_to_asse
 #: Every verdict the divergence changes on the committed books, MEASURED
 #: (book, variant, engine key) -> (engine verdict, FE verdict). Moving the
 #: badge to the pack changes exactly these, and nothing else.
+#:
+#: BAND RULING 2026-09-14 (ratios B4 step 1; CLAUDE.md Appendix A section 5).
+#: The pack table is the one band authority. debt_to_assets and
+#: asset_turnover keep the pack rungs (the methodology's "<40%" and
+#: "1.0-1.5x" support them); ccc keeps pack watch 90; dpo keeps its watch
+#: rung 30 but floors at `watch` (the methodology names no DPO failure
+#: threshold). So the agras (27 days) and retail (29 days) dpo rows, which
+#: graded critical on the pack before the floor, now agree with the FE, and
+#: the ONE verdict the switch still moves is retail debt_to_assets 39.7%,
+#: FE strong -> pack healthy. On the Scandia FY2025 book the switch moves
+#: no verdict (measured in ratios wave r1; no FE capture of it is committed).
 MEASURED_VERDICT_DIFFERENCES: Dict[Tuple[str, str, str], Tuple[str, str]] = {
-    ("agras", "served", "dpo"): ("critical", "watch"),
-    ("agras", "disputed", "dpo"): ("critical", "watch"),
-    ("retail", "served", "dpo"): ("critical", "watch"),
-    ("retail", "disputed", "dpo"): ("critical", "watch"),
     ("retail", "served", "debt_to_assets"): ("healthy", "strong"),
     ("retail", "disputed", "debt_to_assets"): ("healthy", "strong"),
 }
@@ -751,6 +758,34 @@ BOUNDARY_CASES = (
 @pytest.mark.parametrize("ladder,higher,value,band", BOUNDARY_CASES)
 def test_a_value_on_a_rung_takes_that_rung(ladder, higher, value, band):
     assert T._grade(value, ladder, higher) == band
+
+
+def test_the_dpo_floor_is_pack_data_and_the_grader_reads_it(tables):
+    """A DPO below the watch rung grades watch, never critical, because the
+    PACK DEFINITION says so — not because the grader special-cases a key.
+
+    Reds AFTER the ruling on: the floor leaving the dpo definition (the
+    agras 27-day and retail 29-day rows go critical here AND in the verdict
+    gate above), a second key declaring a floor nobody ruled, the grader
+    ignoring a declared floor, or a floor outside LADDER_FLOORS being
+    accepted silently."""
+    floors = {k: v["floor"] for k, v in _GENERAL_SME_BAND_DEFINITIONS.items() if "floor" in v}
+    assert floors == {"dpo": "watch"}, floors
+    assert _GENERAL_SME_BAND_DEFINITIONS["dpo"]["watch"] == 30, "the watch rung forecast traversal walks to moved"
+    ladder = {"strong": "60", "healthy": "45", "watch": "30"}
+    assert T._grade(27.0, ladder, True, T.ladder_floor({"floor": "watch"}, ladder)) == "watch"
+    assert T._grade(27.0, ladder, True, T.ladder_floor({}, ladder)) == "critical"
+    with pytest.raises(ValueError):
+        T.ladder_floor({"floor": "strong"}, ladder)
+    seen = 0
+    for book in ("agras", "retail"):
+        for variant in VERDICT_VARIANTS:
+            row = _rows(tables[(book, variant)])["dpo"]
+            assert row["band_status"] == "graded" and float(row["value"]) < 30, (book, variant, row)
+            assert row["band"] == "watch", "%s/%s dpo %s days grades %s below the floor" % (
+                book, variant, row["value_q"], row["band"])
+            seen += 1
+    assert seen == 4
 
 
 # ── the legacy tier ─────────────────────────────────────────────────────────
