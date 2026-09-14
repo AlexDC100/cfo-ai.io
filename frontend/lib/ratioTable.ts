@@ -100,14 +100,20 @@ export interface RatioReason {
 }
 
 /** Rungs in the value's DISPLAY unit (pct rows are percent, not fractions),
- *  quantized strings. `critical` is optional: a ladder without it floors at
- *  watch. */
+ *  quantized strings: the entry rung of each band the pack definition
+ *  declares, best first. No served ladder carries a `critical` rung. A value
+ *  that reaches no rung takes the side's `ladder_floor` — `critical` for
+ *  most keys (dso, dio, ...), `watch` where the pack declares that floor
+ *  (dpo: below watch 30 stays watch). The Altman ladder serves only
+ *  `healthy` (safe from) and `watch` (grey from). */
 export interface RatioLadder {
-  strong: string;
-  healthy: string;
-  watch: string;
-  critical?: string;
+  strong?: string;
+  healthy?: string;
+  watch?: string;
 }
+
+/** The band a value past the last served rung takes. */
+export type RatioLadderFloor = "watch" | "critical";
 
 export interface RatioSide {
   /** Full precision. Never printed; carried for charts and audits. */
@@ -117,6 +123,9 @@ export interface RatioSide {
   band: RatioBand | CreditLetter | null;
   band_status: RatioBandStatus;
   ladder: RatioLadder | null;
+  /** Served beside every band ladder; null on a letter ladder (its last
+   *  rung, min 0, is its own floor) and wherever no ladder is served. */
+  ladder_floor: RatioLadderFloor | null;
   operands: RatioOperand[];
   reason: RatioReason | null;
 }

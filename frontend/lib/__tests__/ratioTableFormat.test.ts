@@ -88,6 +88,7 @@ const side = (over: Partial<RatioSide> = {}): RatioSide => ({
   band: null,
   band_status: "graded",
   ladder: null,
+  ladder_floor: null,
   operands: [],
   reason: null,
   ...over,

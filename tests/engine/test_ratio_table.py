@@ -788,6 +788,67 @@ def test_the_dpo_floor_is_pack_data_and_the_grader_reads_it(tables):
     assert seen == 4
 
 
+def _regrade_from_the_served_row(row: Dict[str, Any]) -> str:
+    """The band a reader holding ONLY the served row would print: the first
+    rung (strong, healthy, watch — best first) the value reaches in the
+    row's direction, else the served `ladder_floor`. Spelled here, not
+    borrowed from the grader, so a grader and a row that agree by sharing a
+    mistake still meet a second reading."""
+    value = float(row["value"])
+    for name in ("strong", "healthy", "watch"):
+        if name not in row["ladder"]:
+            continue
+        rung = float(row["ladder"][name])
+        if (value >= rung) if row["higher_is_better"] else (value <= rung):
+            return name
+    return row["ladder_floor"]
+
+
+def _served_graded_rows(tables) -> List[Tuple[str, Dict[str, Any]]]:
+    import sys
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import _served_books as SB
+
+    out = [("%s/%s" % bv, r) for bv, t in tables.items() for r in t["rows"] if r["band_status"] == "graded"]
+    for name in SB.ALL_BOOKS:
+        table = SB.served_body(name)["assembled_metrics"]["ratio_table"]
+        out += [("%s/route" % name, r) for r in table["rows"] if r["band_status"] == "graded"]
+    return out
+
+
+def test_every_graded_row_regrades_from_its_served_ladder_and_floor_alone(tables):
+    """TC-10: the served document is enough to reproduce its own verdict.
+
+    Reds AFTER the repair on: a graded row serving no `ladder_floor` or one
+    outside LADDER_FLOORS; any graded row — firm fixtures in every variant,
+    and the REAL GET /api/period ratio_table of the four corpus books and
+    the Scandia baseline — whose served band is not what its served ladder
+    plus served floor give (the agras and retail dpo rows below watch 30 are
+    the rows a ladder-only reading gets wrong); the battery no longer
+    meeting a row that sits past its last rung on a declared floor (TC-3);
+    or a row that is not graded serving a floor."""
+    rows = _served_graded_rows(tables)
+    missing = sorted({(where, r["key"]) for where, r in rows if r.get("ladder_floor") not in T.LADDER_FLOORS})
+    assert not missing, "graded rows serving no floor: %s" % missing[:12]
+    wrong = sorted((where, r["key"], r["value_q"], r["band"], _regrade_from_the_served_row(r))
+                   for where, r in rows if _regrade_from_the_served_row(r) != r["band"])
+    assert not wrong, "served band is not the served ladder + floor (where, key, value, band, regrade): %s" % wrong
+    past_last_on_declared = sorted({(where, r["key"]) for where, r in rows
+                                    if r["ladder_floor"] == "watch" and r["band"] == "watch"
+                                    and "watch" in r["ladder"]
+                                    and not ((float(r["value"]) >= float(r["ladder"]["watch"]))
+                                             if r["higher_is_better"]
+                                             else (float(r["value"]) <= float(r["ladder"]["watch"])))})
+    assert {w.split("/")[0] for w, k in past_last_on_declared if k == "dpo"} >= {"agras", "retail"}, (
+        past_last_on_declared)
+    for table in tables.values():
+        for r in table["rows"]:
+            if r["band_status"] != "graded":
+                assert r["ladder_floor"] is None, (r["key"], r["band_status"], r["ladder_floor"])
+
+
 # ── the legacy tier ─────────────────────────────────────────────────────────
 
 

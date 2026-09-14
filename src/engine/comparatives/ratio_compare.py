@@ -190,7 +190,7 @@ def _dec(text: Optional[str]) -> Optional[Decimal]:
 # ── sides ────────────────────────────────────────────────────────────────────
 
 
-_SIDE_KEYS = ("value", "value_q", "band", "band_status", "ladder", "operands", "reason")
+_SIDE_KEYS = ("value", "value_q", "band", "band_status", "ladder", "ladder_floor", "operands", "reason")
 
 
 def _side(row: Mapping[str, Any]) -> Dict[str, Any]:
@@ -382,12 +382,12 @@ def _materiality(key: str, distance: Optional[Decimal], display_unit: str,
 
 
 def _movement(key: str, cur: Mapping[str, Any], pri: Mapping[str, Any], display_unit: str,
-              floor: str, denominators: Mapping[str, Any],
+              denominators: Mapping[str, Any],
               bases: Mapping[str, Any], period_days: float) -> Dict[str, Any]:
     code = _ungraded_code(cur, pri)
     if code is not None:
         return _not_comparable(code)
-    if cur.get("ladder") != pri.get("ladder"):
+    if cur.get("ladder") != pri.get("ladder") or cur.get("ladder_floor") != pri.get("ladder_floor"):
         return _not_comparable("ladder_differs")
     frm, to = pri["band"], cur["band"]
     rungs = T.BAND_RANK[to] - T.BAND_RANK[frm]
@@ -397,7 +397,7 @@ def _movement(key: str, cur: Mapping[str, Any], pri: Mapping[str, Any], display_
         out["status"] = "same_band"
         return out
     out["status"] = "crossed_up" if rungs > 0 else "crossed_down"
-    cross = _crossing(to, frm, float(cur["value"]), cur["ladder"], floor,
+    cross = _crossing(to, frm, float(cur["value"]), cur["ladder"], cur["ladder_floor"],
                       DISPLAY_DIGITS[display_unit])
     distance = cross.pop("_distance_exact")
     out.update(cross)
@@ -413,7 +413,7 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
     def refused(credit: Mapping[str, Any]) -> Dict[str, Any]:
         reason = credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
         return {"value": None, "value_q": None, "band": None, "band_status": "refused",
-                "ladder": None, "operands": [], "reason": copy.deepcopy(reason)}
+                "ladder": None, "ladder_floor": None, "operands": [], "reason": copy.deepcopy(reason)}
 
     def z_side(credit: Mapping[str, Any]) -> Dict[str, Any]:
         altman = credit.get("altman") or {}
@@ -426,6 +426,8 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
             "band": BAND_OF_ZONE[altman["zone"]], "band_status": "graded",
             "ladder": {"healthy": format(Decimal(repr(th["safe_from"])), "f"),
                        "watch": format(Decimal(repr(th["grey_from"])), "f")},
+            # below grey_from is the distress zone
+            "ladder_floor": "critical",
             "operands": [{"name": x, "value": altman.get(x), "source": "credit_model.altman_%s" % x}
                          for x in ("x1", "x2", "x3", "x4")],
             "reason": None,
@@ -435,7 +437,7 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         if value is None:
             return refused(credit)
         return {"value": value, "value_q": T.quantize_display(value, "score"), "band": None,
-                "band_status": "not_banded", "ladder": None,
+                "band_status": "not_banded", "ladder": None, "ladder_floor": None,
                 "operands": [{"name": source, "value": value, "source": "credit_model." + source}],
                 "reason": {"code": "graded_by_letter", "inputs": ["letter_grade"]}}
 
@@ -444,7 +446,8 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         if letter is None:
             return refused(credit)
         return {"value": credit.get("composite"), "value_q": letter, "band": letter,
-                "band_status": "graded", "ladder": CM.letter_grade_bands(),
+                # the letter ladder's last rung (min 0) is its own floor
+                "band_status": "graded", "ladder": CM.letter_grade_bands(), "ladder_floor": None,
                 "operands": [{"name": "credit_composite", "value": credit.get("composite"),
                               "source": "credit_model.credit_composite"}],
                 "reason": None}
@@ -468,7 +471,7 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
                    "status": "same_band" if rungs == 0 else ("crossed_up" if rungs > 0 else "crossed_down")})
         if rungs:
             cross = _crossing(to, frm, float(z_row["current"]["value"]), z_row["current"]["ladder"],
-                              "critical", DISPLAY_DIGITS["z"])
+                              z_row["current"]["ladder_floor"], DISPLAY_DIGITS["z"])
             cross.pop("_distance_exact")
             mv.update(cross)
         z_row["movement"] = mv
@@ -648,15 +651,12 @@ def compare_ratio_tables(
     denominators = T.ratio_denominators(cur_payload, serve_time_metrics=True)
     bases = _bases(denominators)
     days = _period_days(cur_st)
-    bands, _stamp = T._served_bands(cur_st)
 
     pri_rows = {r["key"]: r for r in pri_t["rows"]}
     rows: List[Dict[str, Any]] = []
     for cr in cur_t["rows"]:
         pr = pri_rows[cr["key"]]
         cur_s, pri_s = _side(cr), _side(pr)
-        band_def = bands.get(T._SPEC_BY_KEY[cr["key"]].band_key or "")
-        floor = T.ladder_floor(band_def, cr.get("ladder") or {}) if band_def is not None else "critical"
         rows.append({
             "key": cr["key"], "group": cr["group"], "label_key": cr["label_key"],
             "formula_key": cr["formula_key"], "display_unit": cr["display_unit"],
@@ -664,7 +664,7 @@ def compare_ratio_tables(
             "current": cur_s, "prior": pri_s,
             "delta": _delta(cur_s, pri_s, cr["display_unit"], cr["higher_is_better"]),
             "movement": _movement(cr["key"], cur_s, pri_s, cr["display_unit"],
-                                  floor, denominators, bases, days),
+                                  denominators, bases, days),
             "finding_id": None,
         })
 

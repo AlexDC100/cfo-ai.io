@@ -876,6 +876,10 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
             "band": None,
             "band_status": "refused",
             "ladder": None,  # served only on the graded branch below (TC-10)
+            # The band a value past the last rung takes, served beside the
+            # ladder it completes: the rungs alone do not say that a DPO
+            # below watch 30 stays watch (TC-10 — the verdict's own data).
+            "ladder_floor": None,
             "operands": [],
             "reason": None,
         }
@@ -913,8 +917,8 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
         else:
             row["band_status"] = "graded"
             row["ladder"] = ladder
-            row["band"] = _grade(fig.value, ladder, spec.higher_is_better,
-                                 ladder_floor(band_def, ladder))
+            row["ladder_floor"] = ladder_floor(band_def, ladder)
+            row["band"] = _grade(fig.value, ladder, spec.higher_is_better, row["ladder_floor"])
         if row["band_status"] != "graded":
             withheld[spec.key] = row["reason"]["code"]
         rows.append(row)
