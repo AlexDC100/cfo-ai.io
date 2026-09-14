@@ -69,9 +69,17 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       dropped); the PLANTED demotion (the top surfaced crossing with its
       subject line items removed, every movement list otherwise unchanged)
       missing from the findings or not demoted on `subject`; a demoted row
-      not carrying its missing elements and its check summary. The gate no
-      longer depends on a natural demotion (every one today is an impact-only
-      demotion on altman_z / letter_grade / ccc, held for the owner).
+      not carrying its missing elements and its check summary. The gate
+      plants its own demotion: since ruling Q3 no natural demotion remains on
+      the 20 pairs (the 48 impact-only ones on altman_z / letter_grade / ccc
+      now carry an impact).
+  OWN-UNIT IMPACT  (ruling Q3) on all 20 pairs: an altman_z or letter_grade
+      finding without a headroom impact in its own unit (index / notches),
+      or demoted; Z'' not measured from the served rung to the served value
+      (|delta| more than half a hundredth from `distance_past_rung`); the
+      letter's notches not the served `distance_fraction` (3dp) with the
+      sign of the crossing; a ccc finding not surfaced or not valued on the
+      revenue denominator dso divides.
   DETERMINISM  two compositions over the same bodies serialising to
       different bytes.
   CAVEAT  (ruling Q4) on all 20 pairs: any finding's confidence caveat or
@@ -281,6 +289,28 @@ def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_an
 
         # headroom money: the at-rung and held numerators on the served denominator
         imp = el["impact"]
+        if key in CB.NON_MONEY_IMPACT_KEYS:
+            # ruling Q3: the composites state headroom in their own unit
+            assert mv["materiality"] is None, (where, mv["materiality"])
+            assert imp is not None and imp["kind"] == "headroom", (where, imp)
+            assert imp["unit"] == CB.NON_MONEY_IMPACT_KEYS[key], (where, imp["unit"])
+            assert f["surfaced"], (where, f["demotion_reasons"])
+            if key == "altman_z":
+                assert Decimal(repr(imp["baseline"])) == Decimal(rung["value"]), (where, imp)
+                assert imp["adjusted"] == r["current"]["value"], (where, imp)
+                assert abs(Decimal(repr(abs(imp["delta"]))) - Decimal(mv["distance_past_rung"])) <= Decimal("0.005000001"), (
+                    where, imp["delta"], mv["distance_past_rung"])
+            else:
+                assert imp["baseline"] == 0.0, (where, imp)
+                printed = Decimal(repr(abs(imp["adjusted"]))).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                assert format(printed, "f") == mv["distance_fraction"], (where, imp["adjusted"], mv["distance_fraction"])
+                assert (imp["adjusted"] > 0) == (mv["rungs_crossed"] > 0), (where, imp["adjusted"], mv["rungs_crossed"])
+            continue
+        if key == "ccc":
+            # ruling Q3: working-capital money on revenue, the denominator dso divides
+            assert mv["materiality"] is not None, (where, "ccc crossed with no materiality")
+            assert denominators.get("ccc") == denominators["dso"], (where, denominators.get("ccc"), denominators["dso"])
+            assert f["surfaced"], (where, f["demotion_reasons"])
         if mv["materiality"] is None:
             assert imp is None, (where, imp)
             continue

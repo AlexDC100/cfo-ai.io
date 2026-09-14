@@ -756,9 +756,12 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
             sign[k] = fig
     # The MONEY denominator of each ratio (materiality reads it): the sign
     # denominators, plus the coverage denominators no ladder sign-guards.
-    # ccc (a sum of three day counts) and adjusted_dscr (user input) have
-    # none.
+    # ccc is a sum of three day counts with no single denominator of its
+    # own; its WORKING-CAPITAL money basis is revenue (ruling Q3,
+    # 2026-09-15): days past the rung x revenue / period days is the
+    # working capital those days tie up. adjusted_dscr (user input) has none.
     denominators: Dict[str, _Fig] = dict(sign)
+    denominators["ccc"] = revenue
     denominators["interest_coverage"] = interest
     denominators["ebitda_to_interest"] = interest
     denominators["dscr"] = debt_service
@@ -797,7 +800,7 @@ def ratio_denominators(served_payload: Mapping[str, Any], *,
                        serve_time_metrics: bool = False) -> Dict[str, Dict[str, Any]]:
     """The money denominator each census ratio divides, as the table
     computes it: `{key: {"value": float | None, "source": str}}`. Keys with
-    no single money denominator (ccc, adjusted_dscr, and every row of a
+    no single money denominator (adjusted_dscr, and every row of a
     source that declares its absences) are absent. Read by the two-period
     composer's materiality; never by the table's own grading."""
     payload = dict(served_payload) if isinstance(served_payload, Mapping) else {}

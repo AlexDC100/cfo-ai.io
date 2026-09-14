@@ -66,6 +66,7 @@ UNIT_DAYS = _ratio_units.UNIT_DAYS
 UNIT_COUNT = _ratio_units.UNIT_COUNT
 UNIT_SCORE = _ratio_units.UNIT_SCORE
 UNIT_INDEX = _ratio_units.UNIT_INDEX
+UNIT_NOTCHES = _ratio_units.UNIT_NOTCHES
 UNIT_UNKNOWN = _ratio_units.UNIT_UNKNOWN
 
 
@@ -493,6 +494,8 @@ def _format_value(value: float, unit: str, currency: str) -> str:
         return "%.1f" % v
     if unit == UNIT_INDEX:
         return "%.2f" % v
+    if unit == UNIT_NOTCHES:
+        return "%.2f notches" % v
     raise UnknownUnitError(
         "refusing to render %r: unit %r is not declared in _ratio_units"
         % (value, unit)
@@ -1273,5 +1276,5 @@ __all__ = [
     "ELEMENT_SUBJECT", "ELEMENT_EVIDENCE", "ELEMENT_THRESHOLD", "ELEMENT_IMPACT",
     "ELEMENT_WHY_HERE", "ELEMENT_ACTION", "ELEMENT_CONFIDENCE", "ELEMENT_PROSE",
     "UNIT_MONEY", "UNIT_RATIO", "UNIT_PERCENT", "UNIT_DAYS", "UNIT_COUNT",
-    "UNIT_SCORE", "UNIT_INDEX", "UNIT_UNKNOWN",
+    "UNIT_SCORE", "UNIT_INDEX", "UNIT_NOTCHES", "UNIT_UNKNOWN",
 ]

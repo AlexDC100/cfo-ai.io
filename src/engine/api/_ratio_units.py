@@ -80,9 +80,12 @@ UNIT_SCORE = "score"
 #: section 7), not "3.09x" — it is a weighted sum, not a multiple of
 #: anything (ruling Q7, 2026-09-15).
 UNIT_INDEX = "index"
+#: Notches of the credit letter ladder, as a fraction of the served band
+#: width the composite sits in (ruling Q3): the letter's own unit.
+UNIT_NOTCHES = "notches"
 UNIT_UNKNOWN = "unknown"    # a refusal, not a default
 
-_DIMENSIONLESS = (UNIT_RATIO, UNIT_PERCENT, UNIT_DAYS, UNIT_COUNT, UNIT_SCORE, UNIT_INDEX)
+_DIMENSIONLESS = (UNIT_RATIO, UNIT_PERCENT, UNIT_DAYS, UNIT_COUNT, UNIT_SCORE, UNIT_INDEX, UNIT_NOTCHES)
 
 
 # ── Typed refusals ───────────────────────────────────────────────────────

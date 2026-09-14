@@ -30,9 +30,16 @@ THE SEVEN, and where each comes from
   impact      HEADROOM MONEY on the per-key materiality basis the composer
               served (`ratio_compare.MATERIALITY_BASES`): the numerator at
               the rung against the numerator as held, holding the
-              denominator the ratio divides. A key with no money
-              denominator (ccc, the Altman Z'', the letter) has no impact
-              and DEMOTES — it is still listed
+              denominator the ratio divides (ccc on its working-capital
+              basis, revenue). The two composites have no money
+              denominator and state headroom in their OWN unit
+              (`NON_MONEY_IMPACT_KEYS`, ruling Q3): Altman Z'' from the rung
+              to the value held, in Z units; the letter as the credit
+              composite's distance from the rung in notches of the served
+              band width. `Finding.validate()` is unchanged: a headroom
+              impact in a declared dimensionless unit already satisfies it.
+              A crossing with no served rung distance still DEMOTES and is
+              still listed
   why_here    the current period's company profile (`_base.build_finding`)
   action      two imperative steps per direction
   confidence  the profile's position, lowered by the stated convention
@@ -232,6 +239,9 @@ SUBJECT_DENOMINATOR_ACCOUNTS = 1
 _UNIT_OF = {"x": F.UNIT_RATIO, "pct": F.UNIT_PERCENT, "days": F.UNIT_DAYS,
             "z": F.UNIT_INDEX, "grade": F.UNIT_SCORE}
 
+#: The keys whose impact is headroom in their own dimensionless unit.
+NON_MONEY_IMPACT_KEYS: Dict[str, str] = {"altman_z": F.UNIT_INDEX, "letter_grade": F.UNIT_NOTCHES}
+
 MONEY_AT_RUNG = "band_numerator_at_rung"
 MONEY_HELD = "band_numerator_held"
 
@@ -326,6 +336,8 @@ def _headroom(row: Mapping[str, Any], denominators: Mapping[str, Mapping[str, An
     materiality divided. None when the composer served no materiality for
     the row (no money denominator): the finding demotes, and says so."""
     mv = row["movement"]
+    if row["key"] in NON_MONEY_IMPACT_KEYS:
+        return _own_unit_headroom(row), {}
     if mv.get("materiality") is None or mv.get("rung_crossed") is None:
         return None, {}
     den = (denominators.get(row["key"]) or {}).get("value")
@@ -340,14 +352,51 @@ def _headroom(row: Mapping[str, Any], denominators: Mapping[str, Mapping[str, An
     at_rung = Decimal(mv["rung_crossed"]["value"]) * d / scale
     if held == at_rung:
         return None, {}
-    label = "the numerator of %s at the %s rung, versus as held" % (
-        LABELS[row["key"]], mv["rung_crossed"]["name"])
+    if row["key"] == "ccc":
+        # A sum of day counts has no numerator of its own; its money is the
+        # working capital those days tie up on revenue (ruling Q3).
+        label = "the working capital %s ties up at the %s rung, versus as held" % (
+            LABELS[row["key"]], mv["rung_crossed"]["name"])
+    else:
+        label = "the numerator of %s at the %s rung, versus as held" % (
+            LABELS[row["key"]], mv["rung_crossed"]["name"])
     impact = F.headroom_impact(
         rule_id_for(row["key"]), label,
         observed=reader.q(float(held), MONEY_HELD),
         limit=reader.q(float(at_rung), MONEY_AT_RUNG))
     impact = replace(impact, baseline_fact=MONEY_AT_RUNG, adjusted_fact=MONEY_HELD)
     return impact, {MONEY_AT_RUNG: float(at_rung), MONEY_HELD: float(held)}
+
+
+def _own_unit_headroom(row: Mapping[str, Any]) -> Optional[F.Impact]:
+    """Headroom for a composite, in its own unit, read off the served
+    movement: Altman Z'' at the rung versus as held; the letter as the
+    composite's signed distance from the rung in notches of the served
+    band width (at the rung = 0). None when the composer served no rung
+    (or, for the letter, no band width)."""
+    mv = row["movement"]
+    rung = mv.get("rung_crossed") or {}
+    if rung.get("value") is None or row["current"].get("value") is None:
+        return None
+    unit = NON_MONEY_IMPACT_KEYS[row["key"]]
+    if row["key"] == "altman_z":
+        label = "Altman Z'' at the %s rung, versus as held" % rung["name"]
+        limit = _ratio_units_quantity(float(Decimal(rung["value"])), unit)
+        observed = _ratio_units_quantity(float(row["current"]["value"]), unit)
+    else:
+        width = mv.get("band_width")
+        if width is None or Decimal(width) == 0:
+            return None
+        signed = (Decimal(row["current"]["value"]) - Decimal(rung["value"])) / Decimal(width)
+        label = ("the credit composite against the %s rung, in notches of the %s-point band"
+                 % (rung["name"], width))
+        limit = _ratio_units_quantity(0.0, unit)
+        observed = _ratio_units_quantity(float(signed), unit)
+    return F.headroom_impact(rule_id_for(row["key"]), label, observed=observed, limit=limit)
+
+
+def _ratio_units_quantity(value: float, unit: str) -> Any:
+    return F._ratio_units.Quantity(float(value), unit)
 
 
 # ── The finding ──────────────────────────────────────────────────────────
@@ -559,7 +608,7 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
 
 
 __all__ = [
-    "CONTRA_ACCOUNT_PREFIXES", "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
+    "CONTRA_ACCOUNT_PREFIXES", "NON_MONEY_IMPACT_KEYS", "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
     "TWO_PERIOD_CAVEATS",
     "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
     "lane_catalog", "rule_id_for",

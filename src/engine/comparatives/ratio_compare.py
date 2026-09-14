@@ -41,8 +41,10 @@ period's day count for days). `share` divides it by the base of the
 statement the NUMERATOR belongs to: total assets for a balance-sheet
 numerator (liquidity, leverage, working-capital days, net debt / EBITDA),
 revenue for a P&L numerator (margins, returns, coverage, turnover). ccc
-(a sum of three day counts) and adjusted_dscr (a user input) have no money
-denominator and carry no materiality. `MATERIALITY_BASES` is that table;
+(a sum of three day counts) is valued on its working-capital basis: days
+past the rung x revenue / period days, shared over total assets (ruling Q3).
+adjusted_dscr (a user input) has no money denominator and carries no
+materiality. `MATERIALITY_BASES` is that table;
 it is served as `band_movements.rank_basis.bases`. No floor is ruled:
 `materiality_floor` is served null, and nothing is hidden for being small.
 
@@ -178,7 +180,7 @@ MATERIALITY_BASES: Dict[str, Dict[str, str]] = {
         ("current_ratio", _BS), ("quick_ratio", _BS), ("cash_ratio", _BS),
         ("debt_to_ebitda", _BS), ("debt_to_equity", _BS), ("equity_ratio", _BS),
         ("debt_to_assets", _BS), ("net_debt_to_ebitda", _BS), ("lt_debt_to_equity", _BS),
-        ("dso", _BS), ("dio", _BS), ("dpo", _BS),
+        ("dso", _BS), ("dio", _BS), ("dpo", _BS), ("ccc", _BS),
         ("gross_margin", _PL), ("ebitda_margin", _PL), ("net_margin", _PL),
         ("operating_margin", _PL), ("core_ebitda_margin", _PL),
         ("roa", _PL), ("roe", _PL), ("roic", _PL),
