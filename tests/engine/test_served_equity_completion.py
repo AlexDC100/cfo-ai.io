@@ -39,16 +39,21 @@ WHAT THIS REDS ON, AFTER THE REPAIR (TC-11):
     retainedEarnings + otherEquity plus the net income reconstructed from
     the persisted P&L buckets with 711 excluded, to the cent.
 
-WHAT IT CANNOT SEE: `_rebuild_assembled_for_briefing` still builds
-`balanceSheet` without the completion. Its callers (grep, 2026-09-14):
-`_capsule_tools.py` (Capsule tools), `_radar.py` (Radar), `_firm_attention.py`
-(firm attention), `pipeline.py` briefing regenerate, and `_forecast_routes.py`
-(the forecast route, which returns that rebuild's `statements` to the page).
-Since the served GET /api/period equity is complete, those surfaces now
-serve a second, shorter equity for the same period. The seam is a recorded
-live defect held for the owner, not gated here — a gate that allowlisted it
-would pin it. When it is ruled, `_rebuild_assembled_for_briefing` calls
-`_complete_bucket_equity` and joins the call census below.
+  · THE BRIEFING SEAM (ruling Q1, 2026-09-15): `_rebuild_assembled_for_briefing`
+    — the rebuild the Capsule tools, Radar, the firm attention lane, briefing
+    regenerate and the forecast route read — serving bucket equity that
+    differs from the bucket equity GET /api/period serves for the same
+    period by half a cent or more, on any of the five books or on the
+    legacy no-envelope branch; or no longer calling the one completion.
+    Measured before the repair (the seam summed line items with no
+    completion): agras 16,390,407.70 against 23,924,083.72, carniprod
+    105,460,434.32 / 106,895,967.91, realestate 41,085,738.87 /
+    40,284,134.73, retail 22,018,963.98 / 25,224,176.60, Scandia baseline
+    113,364,198.01 / 149,632,161.65.
+
+WHAT IT CANNOT SEE: a caller that reads equity from somewhere other than
+these rebuilds (the served money facts go through the FactsGateway and are
+held by their own gates).
 """
 from __future__ import annotations
 
@@ -94,7 +99,7 @@ def _calls_in(func_name: str):
     raise AssertionError("pipeline.py has no function %s" % func_name)
 
 
-@pytest.mark.parametrize("func", ["get_period", "_rebuild_assembled"])
+@pytest.mark.parametrize("func", ["get_period", "_rebuild_assembled", "_rebuild_assembled_for_briefing"])
 def test_both_rebuilds_call_the_one_completion(func):
     assert "_complete_bucket_equity" in _calls_in(func), (
         "%s no longer calls _complete_bucket_equity" % func)
@@ -135,3 +140,38 @@ def test_a_period_with_no_envelope_completes_equity_from_its_own_pl_buckets(name
     assert abs(served - want) <= Decimal("0.01"), (
         "%s (no envelope): served bucket equity %s is not line-item equity %s + reconstructed net "
         "income %s (711 excluded: %s); gap %s" % (name, served, items, ni, excluded_711, served - want))
+
+
+def _bucket_equity(bs) -> Decimal:
+    return sum((_d(bs[k]) for k in _EQUITY_BUCKETS), Decimal(0))
+
+
+@pytest.mark.parametrize("name", SB.ALL_BOOKS)
+def test_the_briefing_seam_serves_the_equity_get_period_serves(name):
+    """The rebuild behind the Capsule tools, Radar, the firm attention lane,
+    briefing regenerate and the forecast route states the same equity as
+    GET /api/period for the same persisted rows, to the cent."""
+    from engine.api import pipeline as P
+
+    bk = SB.book(name)
+    served = _bucket_equity(SB.served_body(name)["statements"]["balanceSheet"])
+    rebuilt = _bucket_equity(P._rebuild_assembled_for_briefing(
+        [dict(li) for li in bk.line_items], dict(bk.period), bk.org)["statements"]["balanceSheet"])
+    assert abs(rebuilt - served) < Decimal("0.005"), (
+        "%s: _rebuild_assembled_for_briefing serves bucket equity %s, GET /api/period serves %s "
+        "(gap %s RON)" % (name, rebuilt, served, served - rebuilt))
+
+
+@pytest.mark.parametrize("name", ["agras", SB.SCANDIA])
+def test_the_briefing_seam_completes_a_period_with_no_envelope_like_get_period(name):
+    from engine.api import pipeline as P
+
+    bk = SB.book(name)
+    period = {k: v for k, v in bk.period.items() if k != "assembled_canonical_v1"}
+    legacy = types.SimpleNamespace(period=period, line_items=bk.line_items, org=bk.org,
+                                   period_id=bk.period_id)
+    served = _bucket_equity(SB.routed_body(legacy)["statements"]["balanceSheet"])
+    rebuilt = _bucket_equity(P._rebuild_assembled_for_briefing(
+        [dict(li) for li in bk.line_items], period, bk.org)["statements"]["balanceSheet"])
+    assert abs(rebuilt - served) < Decimal("0.005"), (
+        "%s (no envelope): briefing seam equity %s != GET /api/period equity %s" % (name, rebuilt, served))

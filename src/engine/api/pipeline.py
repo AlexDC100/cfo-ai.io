@@ -4765,8 +4765,11 @@ def _complete_bucket_equity(
     """Complete the bucket-summed equity of a rebuild from line items, in
     place, on `bs["retainedEarnings"]`. THE ONE COMPLETION: every seam
     that rebuilds `balanceSheet` from `statement_line_items` calls this —
-    `_rebuild_assembled` (valuation routes) and `get_period`
-    (GET /api/period/{id}, and through it the comparatives route).
+    `_rebuild_assembled` (valuation routes), `get_period`
+    (GET /api/period/{id}, and through it the comparatives route) and
+    `_rebuild_assembled_for_briefing` (the Capsule tools, Radar, the firm
+    attention lane, briefing regenerate and the forecast route; joined
+    2026-09-15, ruling Q1).
 
     `pl` is the P&L bucket dict of the same rebuild; `inv_var_711` is the
     account-711 production variation still INCLUDED in `pl["otherIncome"]`
@@ -4945,6 +4948,17 @@ def _rebuild_assembled_for_briefing(
                 inv_var_memo += amount
             else:
                 pl[pl_buckets[bucket]] += amount
+
+    # Equity completion — THE ONE COMPLETION (`_complete_bucket_equity`),
+    # exactly as `get_period` runs it: on the cent-rounded buckets, with
+    # 711 already carved out of `pl["otherIncome"]` (hence 0.0). Until
+    # 2026-09-15 (ratios R2b, ruling Q1) this seam summed the line items
+    # with no completion, so the Capsule tools, Radar, the firm attention
+    # lane, a regenerated briefing and the forecast route served a
+    # retainedEarnings short by the year's result beside the complete
+    # equity GET /api/period serves for the same period.
+    bs = {k: round(v, 2) for k, v in bs.items()}
+    _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
 
     statements: Dict[str, Any] = {
         "companyName": (org or {}).get("name") if org else None,
