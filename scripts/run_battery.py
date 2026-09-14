@@ -357,6 +357,45 @@ def _engine_gates() -> List[Gate]:
                        "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
                        "test_no_projected_figure_carries_actual_provenance",
                        "test_every_projected_line_names_a_driver_or_a_stated_convention")),
+        # ── plan/2 B0 (plan_contract_v2 28.3): forecast gate wiring ──────
+        # Existing, already-passing forecast suites that no named gate ran:
+        # they rode the whole-suite `pytest` gate, where a collapse of one
+        # file hides inside 1,500 tests. Registered by name so the plan/2
+        # batches extend gates that exist. Each is registration_only in
+        # docs/engine_book/plan_gates.json (contract 0.5). Floors are the
+        # counts measured at registration, rounded down. Later batches
+        # extend these entries under their own anchors.
+        Gate("forecast-model",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_model.py", "-q"],
+             work_junit=True, floor=220, units="tests",
+             canaries=("test_f1_every_projected_period_closes_to_zero",
+                       "test_f1_one_cent_is_enough_to_red_it",
+                       "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
+                       "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book")),
+        Gate("forecast-serving-boundary",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
+             work_junit=True, floor=60, units="tests",
+             canaries=("test_the_guard_is_silent_on_all_four_committed_books",
+                       "test_every_real_book_serves_a_whole_projection_at_every_horizon",
+                       "test_the_projected_balance_sheet_closes_to_the_cent_on_the_real_book")),
+        Gate("forecast-drivers",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_drivers.py", "-q"],
+             work_junit=True, floor=140, units="tests",
+             canaries=("test_b2_absent_is_none_and_never_zero",
+                       "test_f1_the_package_contains_no_model_call_and_no_place_for_one",
+                       "test_j8_an_absent_driver_never_becomes_a_number_in_the_handover")),
+        Gate("forecast-ai-write-path",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_no_ai_write_path.py", "-q"],
+             work_junit=True, floor=15, units="tests",
+             canaries=("test_the_scan_is_not_vacuous_and_names_what_it_covers",
+                       "test_importing_the_forecast_packages_loads_no_model_surface",
+                       "test_plant_a_forecast_module_that_imports_a_model_surface_and_it_reds")),
+        Gate("plan-gate-census", [PY, "scripts/check_plan_gates.py"],
+             work_rx=r"GATE-WORK plan-gate-census units=(\d+)", floor=6,
+             units="plan gate entries",
+             canaries=("PLAN-GATE CENSUS (plan_contract_v2 F10)",
+                       "coverage of the 18 contract rows")),
+        # ── end plan/2 B0 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -585,6 +624,17 @@ def _frontend_gates() -> List[Gate]:
         # frontend/lib/__tests__/narrativeUnitGates.test.tsx (in vitest).
         # Known violations are quarantined by name — a ratchet, not an
         # exemption. Contract + plant log: design_review/narrative/GATES.md
+        # ── plan/2 B0 (plan_contract_v2 28.3): forecast-boundary ─────────
+        # F2's static half, already written and never in the battery. Reds
+        # on a zero-file scan and prints, by name, the Scenarios files it
+        # does not yet hold (they join at B13). Floor 1000 = the measured
+        # 1,167 files (761 ts + 406 py), rounded down.
+        Gate("forecast-boundary", ["node", "scripts/check_forecast_boundary.mjs"],
+             work_rx=r"GATE-WORK forecast-boundary units=(\d+)", floor=1000,
+             units="ts+py files scanned",
+             canaries=("FORECAST BOUNDARY GATE (F2, static half)",
+                       "forecast-namespace consumers found")),
+        # ── end plan/2 B0 ────────────────────────────────────────────────
         Gate("narrative-units", ["node", "scripts/check_narrative_units.mjs"],
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,
              units="narrative producers",

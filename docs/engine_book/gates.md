@@ -3374,3 +3374,325 @@ left all five cross-org read tests GREEN — those routes are guarded by RLS
 in the per-user client, not by that call. A plant that does not red is not
 evidence the gate is weak; it is evidence the plant was aimed at the wrong
 thing. It was replaced with Plant D, which reds.
+
+<!-- ═══ plan/2 B0 (plan_contract_v2 28.3): forecast gate wiring ═══════════
+     Six gates registered by batch B0 of plan/2 (one engine for the forecast
+     cockpit and Scenarios). Each is registration_only in
+     docs/engine_book/plan_gates.json: an existing, already-passing test (or
+     the new census) registered with no repair in the same commit, so each
+     section records the plant red and, in place of the parent-commit red,
+     the line the contract requires (0.5). Later batches append their own
+     sections below their own anchors. -->
+
+## forecast-model
+
+`tests/engine/test_forecast_model.py` — the linked three-statement model in
+`engine.forecast`: every projected period closes assets to equity plus
+liabilities to the cent, the cash-flow statement articulates the balance
+sheet, and the calendar comes from the book, never a clock. It rode the
+whole-suite `pytest` gate, where a collapse of this one file hides inside
+1,500 tests; plan/2 extends it in B2 (`test_forecast_timeline_tax.py`) and B5
+(`test_forecast_wc_unwind.py`), so it is a named gate first.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_model.py -q` |
+| work count | junit-xml, floor **220** tests (measured 223 at registration, rounded down) |
+| canary | `test_f1_every_projected_period_closes_to_zero`, `test_f1_one_cent_is_enough_to_red_it`, `test_f1_the_cash_flow_statement_articulates_the_balance_sheet`, `test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book` |
+
+**SCOPE** — the four committed books (`tests/engine/fixtures/firm/saga_10_col_{agras,carniprod,realestate,retail}.json`), FY2025 anchors, year one monthly/quarterly/annual, horizons 1-5 as each test states; no SYNTHETIC pair (it lands in B7).
+
+**GREEN** — exit `0`: `223 passed in 3.06s`.
+
+**PLANT** — `src/engine/forecast/project.py`, one cent of closing PP&E in plan
+year 2 (contract F1's plant):
+
+```
+-            "ppe_net": closing_ppe,
++            "ppe_net": closing_ppe + (1 if period.year_offset == 2 else 0),
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s own runner, exit `1`,
+`165 failed, 58 passed`; the canary names the period and the cent:
+
+```
+FAIL forecast-model (exit 1, 7.4s)
+E   engine.forecast.errors.BalanceViolation: projected period FY2027 does not balance: assets 65,489,692.38 − (equity + liabilities) 65,489,692.37 = 0.01 (must be exactly 0)
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — file restored byte for byte (`git diff` empty); `PASS forecast-model (2.7s, 223 tests)`.
+
+**After the repair it reds on (TC-11):** any projected period of any book
+that does not close to the cent; a cash-flow statement that does not
+articulate the balance sheet; a clock read anywhere in `engine.forecast`.
+**It cannot see:** the served bytes (forecast-serving-boundary, forecast-route)
+or any lever run (forecast-balance, B5).
+
+## forecast-serving-boundary
+
+`tests/engine/test_forecast_serving_boundary.py` — the fp1 serving contract
+and its guard: a projected figure is not the type an actual is served as,
+carries no actual provenance (no snapshot id, line id or source cell on a
+figure), resolves to its drivers for its own period, and reads back through
+its own gateway byte for byte. Supporting gate of contract 26.3; B6 adds
+`test_no_actual_provenance_on_real_post_bytes` (3.13).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_serving_boundary.py -q` |
+| work count | junit-xml, floor **60** tests (measured 66, rounded down) |
+| canary | `test_the_guard_is_silent_on_all_four_committed_books`, `test_every_real_book_serves_a_whole_projection_at_every_horizon`, `test_the_projected_balance_sheet_closes_to_the_cent_on_the_real_book` |
+
+**SCOPE** — the four committed books at horizons 3 and 5, the committed fp1 fixtures `tests/engine/fixtures/forecast/fp1_agras*.json`, and hand-built contract fixtures inside the file.
+
+**GREEN** — exit `0`: `66 passed in 1.44s`.
+
+**PLANT** — `src/engine/forecast_serving/boundary.py`,
+`actual_provenance_on_projection` treats every node as the base-period
+pointer, so no source cell is ever found on a figure:
+
+```
+-    _walk(projection, "$", False)
++    _walk(projection, "$", True)
+```
+
+**RED (plant)** — exit `1`, `2 failed, 64 passed`:
+
+```
+FAIL forecast-serving-boundary (exit 1, 1.6s)
+E   AssertionError: []
+E   assert [] == ['$.periods[0].line_id']
+FAILED tests/engine/test_forecast_serving_boundary.py::test_plant_a_source_cell_onto_a_projected_figure_and_the_guard_reds
+FAILED tests/engine/test_forecast_serving_boundary.py::test_a_source_cell_on_a_producer_FIGURE_is_still_caught
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-serving-boundary (1.5s, 66 tests)`.
+
+**After the repair it reds on:** a projected figure carrying a source cell; a
+figure without the projected marker; a figure whose drivers do not resolve for
+its period; a wire form that does not read back through its gateway.
+**It cannot see:** what a page paints (forecast-boundary, vitest).
+
+## forecast-drivers
+
+`tests/engine/test_forecast_drivers.py` — `engine.forecast_drivers`: every
+driver carries a derivation and a basis generated from it, an absent driver
+is `None` and never `0`, a fallback never crosses into the model looking like
+a measurement, and the package holds no model call. Supporting gate of
+contract 26.3; B3 retires its `test_hx8` (listed in 28.3 B3).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_drivers.py -q` |
+| work count | junit-xml, floor **140** tests (measured 149 run + 1 skipped, rounded down) |
+| canary | `test_b2_absent_is_none_and_never_zero`, `test_f1_the_package_contains_no_model_call_and_no_place_for_one`, `test_j8_an_absent_driver_never_becomes_a_number_in_the_handover` |
+
+**SCOPE** — the four committed books, the forecast_drivers pack, and one-, two- and three-period histories built inside the file.
+
+**GREEN** — exit `0`: `149 passed, 1 skipped in 1.55s`.
+
+**PLANT** — `src/engine/forecast_drivers/derive.py`, `_absent` hands over a zero
+fallback instead of an absent driver (absent read as zero):
+
+```
+-        value=None, status="absent",
++        value=0.0, status="fallback",
+```
+
+**RED (plant)** — exit `1`, `17 failed, 132 passed, 1 skipped`:
+
+```
+FAIL forecast-drivers (exit 1, 1.8s)
+FAILED tests/engine/test_forecast_drivers.py::test_b2b_headcount_is_absent_on_the_real_book_not_zero
+E   AssertionError: assert 'fallback' == 'absent'
+FAILED tests/engine/test_forecast_drivers.py::test_hx7_the_pedigree_reaches_the_wire[agras]
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-drivers (1.6s, 149 tests)`.
+
+**After the repair it reds on:** a driver without a derivation or basis; an
+absent concept carrying a number; a fallback crossing into the model as a
+measurement; a model call in the package.
+**It cannot see:** the tier ladders of plan/2 section 3.4 (forecast-defaults, B3).
+
+## forecast-ai-write-path
+
+`tests/engine/test_forecast_no_ai_write_path.py` — contract F5, engine half:
+importing or exercising `engine.forecast`, `engine.forecast_drivers` and
+`engine.forecast_serving` loads no model surface, a model-authored numeral
+about a projection is refused, and the environment cannot disarm that
+channel. B18 and B19 raise its floor.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_no_ai_write_path.py -q` |
+| work count | junit-xml, floor **15** tests (measured 17, rounded down) |
+| canary | `test_the_scan_is_not_vacuous_and_names_what_it_covers`, `test_importing_the_forecast_packages_loads_no_model_surface`, `test_plant_a_forecast_module_that_imports_a_model_surface_and_it_reds` |
+
+**SCOPE** — the packages `engine.forecast`, `engine.forecast_drivers`, `engine.forecast_serving` (import walk in a fresh interpreter), the model-surface roster in `forecast_serving/boundary.py`, and agras for the end-to-end gateway run.
+
+**GREEN** — exit `0`: `17 passed in 0.73s`.
+
+**PLANT** — `src/engine/forecast/render.py` imports a model surface:
+
+```
+ from typing import Any, List
++import engine.ai_lane  # noqa: F401
+```
+
+**RED (plant)** — exit `1`, `1 failed, 16 passed`:
+
+```
+FAIL forecast-ai-write-path (exit 1, 1.1s)
+E   AssertionError: importing forecast, forecast_drivers, forecast_serving loaded a model surface: engine.ai_lane, engine.ai_lane._client, engine.ai_lane.classify, ... AI never produces a projected number — not a driver, not a result, not a rounding.
+FAILED tests/engine/test_forecast_no_ai_write_path.py::test_importing_the_forecast_packages_loads_no_model_surface
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-ai-write-path (1.1s, 17 tests)`.
+
+**After the repair it reds on:** any model import edge into the three packages;
+a model-authored numeral about a projection reaching a served block; an
+environment variable that disarms the guard.
+**It cannot see:** the proposal route of section 24 (B19) or `engine.forecast_findings` (B18), which do not exist yet.
+
+## forecast-boundary
+
+`node scripts/check_forecast_boundary.mjs` — contract F2, static half: a
+projected figure cannot be painted as a fact (no laundering cast, no raw wire
+read, no actuals primitive over a projection; the two serving namespaces never
+import each other). It existed with its own vacuity probe and was never in the
+battery. B0 adds the `units=` count the battery reads, an explicit red on a
+zero-file scan, and prints by name the Scenarios files it does not yet hold;
+its scope is unchanged. B6 extends it to `components/forecast/**`, B13 to the
+Scenarios page, B20 to the exports.
+
+| | |
+|---|---|
+| command | `node scripts/check_forecast_boundary.mjs` |
+| work count | `GATE-WORK forecast-boundary units=(\d+)`, floor **1000** ts+py files (measured 1,167 = 761 ts + 406 py, rounded down) |
+| canary | `FORECAST BOUNDARY GATE (F2, static half)`, `forecast-namespace consumers found` |
+
+**SCOPE** — every .ts/.tsx/.py under `frontend/` and `src/engine/`; the consumer rules hold the 4 files importing `frontend/lib/forecastFacts` and the two serving namespaces. Excluded until B13, printed by name on every run: 16 Scenarios files (`pages/cfo/Scenarios.tsx`, `stores/scenario.tsx`, `components/scenarios/**`, `lib/scenarios/**`), which compute their own cascade and do not import the forecast namespace.
+
+**GREEN** — exit `0`: `PASS — 4 forecast-namespace consumer(s); no laundering cast, ...`.
+
+**PLANT 1** — `frontend/components/forecast/ProjectedAmount.tsx` gains a laundering cast:
+
+```
+ import { type ReactNode } from "react";
++export const launder = (x: unknown) => x as unknown as number;
+```
+
+**RED (plant)** — exit `1`:
+
+```
+FAIL forecast-boundary (exit 1, 0.1s)
+FAIL — a projected figure can be painted as a fact:
+  · frontend/components/forecast/ProjectedAmount.tsx casts a projected amount into a plain number. The single documented door is unwrapProjected(), which hands over the marker in the same call.
+```
+
+**PLANT 2** — a zero-file scan: the script copied alone into an empty
+directory, so discovery finds nothing. **RED (plant)** — exit `1`, among ten
+failures:
+
+```
+GATE-WORK forecast-boundary units=0 ts=0 py=0 consumers=0 label=files-scanned
+  · ZERO FILES SCANNED — discovery found no .ts, .tsx or .py file under frontend/ or src/engine/. Nothing was checked, so nothing may pass.
+  · only 0 TypeScript file(s) scanned; discovery is broken (the tree carries far more)
+```
+
+`--probe-vacuity` agrees: `PROBE OK — emptied discovery produced 4 failure(s)`.
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — the cast removed (`git diff` empty); `PASS forecast-boundary (0.1s, 1167 ts+py files scanned)`.
+
+**After the repair it reds on:** a laundering cast or raw wire read in a
+forecast consumer; a projected value painted without `<ProjectedAmount>`; an
+actuals primitive in a file reaching a projected value; the serving namespaces
+importing each other or the producer; the two recognisers disagreeing; a
+zero-file scan.
+**It cannot see:** client arithmetic over projected values (F2's no-arithmetic
+check lands in B6), and the Scenarios files it lists as excluded.
+
+## plan-gate-census
+
+`python scripts/check_plan_gates.py` — contract F10: every entry of
+`docs/engine_book/plan_gates.json` maps to a battery gate with floor above
+zero and canaries (and, for vitest and playwright entries, the same literal in
+the runner's CANARIES array), and to a plant log here with PLANT, RED (plant),
+the parent-commit red or the registration_only line, REVERT and a SCOPE line.
+It prints the coverage of the eighteen F and S rows and reds on a required row
+with no gate. Each batch adds its entries and its `required_rows` key; B21
+requires every row.
+
+| | |
+|---|---|
+| command | `python scripts/check_plan_gates.py` |
+| work count | `GATE-WORK plan-gate-census units=(\d+)`, floor **6** entries (measured 6) |
+| canary | `PLAN-GATE CENSUS (plan_contract_v2 F10)`, `coverage of the 18 contract rows` |
+
+**SCOPE** — `docs/engine_book/plan_gates.json` (6 entries at B0; rows F1, F2, F5, F10 covered, 14 rows with no gate yet, required so far B0 = F5, F10) against the full battery (engine and frontend gates) and this file. Plants run on copies passed with `--battery`, `--gates-md`, `--plan-gates`.
+
+**GREEN** — exit `0`: `PASS — every listed plan gate is registered, planted and scoped.`
+
+**PLANT 1** — contract F10's first plant: a copy of this file with the
+`**PLANT**` block of `## forecast-drivers` deleted, passed with `--gates-md`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-drivers': plant log 'forecast-drivers' lacks PLANT
+```
+
+**PLANT 2** — F10's second plant: a copy of `scripts/run_battery.py` with
+`floor=15` set to `floor=0` (the substitution also hit `capsule-gates`, which
+no plan entry names), passed with `--battery`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-ai-write-path': battery gate 'forecast-ai-write-path' has floor 0; a floor of zero passes a run over nothing
+```
+
+**PLANT 3** — F10's third plant: a copy of `plan_gates.json` listing
+`forecast-ghost`, which `run_battery.py` does not register, passed with
+`--plan-gates`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 2 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-ghost': battery gate 'forecast-ghost' is not registered in scripts/run_battery.py
+  · plan_gates.json entry 'forecast-ghost': no plant log — gates.md has no heading 'forecast-ghost'
+```
+
+**PLANT 4** — TC-3: a copy of `plan_gates.json` with `gates: []`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 3 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json lists ZERO gates. A census over nothing is a broken census, not a clean one (TC-3).
+  · required_rows[B0]: row F5 has no registered gate
+  · required_rows[B0]: row F10 has no registered gate
+```
+
+Before any section of this B0 block existed, the real census run over the
+tree also went red (six `no plant log — gates.md has no heading ...` lines),
+which is how the sections above came to be written first.
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test (the census is new in B0 and the contract marks it registration_only, 0.5).
+
+**REVERT** — the copies discarded; the tree's files were never edited; `PASS plan-gate-census`.
+
+**After the repair it reds on:** an F or S entry without battery registration,
+floor, canary, plant log or scope line; a canary the battery gate or its
+runner does not carry; an unknown row; a required row with no entry; zero
+entries.
+**It cannot see:** whether a recorded red is true, or a contract gate no entry
+lists (closed at B21, when every row is required).

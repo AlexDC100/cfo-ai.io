@@ -1,0 +1,74 @@
+{
+ "schema": "plan_gates/1",
+ "contract": "plan_contract_v2 section 26; rulings in docs/engine_book/plan_rulings.md",
+ "checked_by": "scripts/check_plan_gates.py (battery gate plan-gate-census)",
+ "entry_fields": {
+  "id": "unique; defaults to gate. Shared runners (vitest, playwright) use <gate>:<batch>",
+  "gate": "the scripts/run_battery.py gate name",
+  "rows": "contract rows F1-F10 / S1-S8 this gate carries, or 'supporting' (26.3)",
+  "landed_in": "the batch that registered the entry",
+  "registration_only": "true when an existing, passing test was registered with no repair (0.5)",
+  "test_files": "what the gate runs",
+  "canaries": "optional; each must be a canary of the battery gate (and, for vitest/playwright, in the runner's CANARIES)",
+  "plant_log": "optional gates.md heading; defaults to the gate name"
+ },
+ "required_rows": {
+  "B0": ["F5", "F10"]
+ },
+ "gates": [
+  {
+   "id": "forecast-model",
+   "gate": "forecast-model",
+   "rows": ["F1"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["tests/engine/test_forecast_model.py"],
+   "canaries": [
+    "test_f1_every_projected_period_closes_to_zero",
+    "test_f1_one_cent_is_enough_to_red_it",
+    "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
+    "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book"
+   ]
+  },
+  {
+   "id": "forecast-serving-boundary",
+   "gate": "forecast-serving-boundary",
+   "rows": ["supporting"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["tests/engine/test_forecast_serving_boundary.py"]
+  },
+  {
+   "id": "forecast-drivers",
+   "gate": "forecast-drivers",
+   "rows": ["supporting"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["tests/engine/test_forecast_drivers.py"]
+  },
+  {
+   "id": "forecast-ai-write-path",
+   "gate": "forecast-ai-write-path",
+   "rows": ["F5"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["tests/engine/test_forecast_no_ai_write_path.py"]
+  },
+  {
+   "id": "forecast-boundary",
+   "gate": "forecast-boundary",
+   "rows": ["F2"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["scripts/check_forecast_boundary.mjs"]
+  },
+  {
+   "id": "plan-gate-census",
+   "gate": "plan-gate-census",
+   "rows": ["F10"],
+   "landed_in": "B0",
+   "registration_only": true,
+   "test_files": ["scripts/check_plan_gates.py", "docs/engine_book/plan_gates.json"]
+  }
+ ]
+}

@@ -431,10 +431,44 @@ for (const file of files) {
 
 console.log("FORECAST BOUNDARY GATE (F2, static half)");
 console.log("=".repeat(62));
+// `units=` is the count scripts/run_battery.py reads (plan/2 B0). The
+// per-runtime counts stay on the same line so a collapse of one runtime
+// cannot hide inside the total.
 console.log(
-  `GATE-WORK forecast-boundary ts=${tsChecked} py=${pyChecked} ` +
-    `consumers=${consumers} label=files-scanned`,
+  `GATE-WORK forecast-boundary units=${tsChecked + pyChecked} ts=${tsChecked} ` +
+    `py=${pyChecked} consumers=${consumers} label=files-scanned`,
 );
+// A scan over nothing is a broken gate, never a clean one (TC-3). The
+// floors below catch a partial collapse; this names the total one.
+if (tsChecked + pyChecked === 0) {
+  fail(
+    "ZERO FILES SCANNED — discovery found no .ts, .tsx or .py file under " +
+      "frontend/ or src/engine/. Nothing was checked, so nothing may pass.",
+  );
+}
+
+// SCOPE (TC-13), printed so the reader sees what this gate does NOT hold.
+// The Scenarios page computes its own cascade today (defect 0.5) and does
+// not import the forecast namespace, so none of the consumer rules above
+// apply to it. It joins this gate's scope at the Scenarios cut-over (plan/2
+// B13), which deletes the cascade. Listed by name so the exclusion can never
+// be mistaken for coverage.
+const SCENARIOS_SCOPE = [
+  /^frontend\/pages\/cfo\/Scenarios\.tsx$/,
+  /^frontend\/stores\/scenario\.tsx$/,
+  /^frontend\/components\/scenarios\//,
+  /^frontend\/lib\/scenarios\//,
+];
+const excludedScenarios = files
+  .map(rel)
+  .filter((p) => SCENARIOS_SCOPE.some((rx) => rx.test(p)))
+  .sort();
+console.log(
+  `  scope: forecast-namespace consumers in frontend/ and the two serving ` +
+    `namespaces in src/engine/; excluded until plan/2 B13, ` +
+    `${excludedScenarios.length} Scenarios file(s):`,
+);
+for (const p of excludedScenarios) console.log(`    excluded (Scenarios, B13): ${p}`);
 // The floors run in BOTH modes on purpose: emptying discovery has to break
 // something, and these are what it breaks. Floors derived from the measured
 // tree on 2026-09-08 (739 ts / 380 py) with generous headroom, so ordinary
