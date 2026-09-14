@@ -357,6 +357,43 @@ def _engine_gates() -> List[Gate]:
                        "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
                        "test_no_projected_figure_carries_actual_provenance",
                        "test_every_projected_line_names_a_driver_or_a_stated_convention")),
+        # RATIOS: the engine as the one authority for ratio values, bands,
+        # deltas, band movements and credit composites (critic
+        # authority_decision). Four gates, one per batch, named separately
+        # from `pytest` because each defect they cover prints a believable
+        # number rather than crashing: a credit weight moved with no
+        # revision, an engine ratio one digit off the printed FE value, a
+        # prior composite silently absent, a band crossing that demotes and
+        # vanishes from the list that should name it.
+        # Plant log: docs/engine_book/gates.md
+        Gate("ratio-credit-model",
+             [PY, "-m", "pytest",
+              "tests/engine/test_credit_model_pure.py",
+              "tests/engine/test_credit_ladder_single_source.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
+                       "test_stage_compute_inserts_exactly_the_pure_rows",
+                       "test_there_is_exactly_one_literal_ladder")),
+        Gate("ratio-table",
+             [PY, "-m", "pytest", "tests/engine/test_ratio_table.py", "-q"],
+             work_junit=True, floor=50, units="tests",
+             canaries=("test_census_is_every_fe_row_plus_every_pack_banded_key",
+                       "test_engine_value_is_the_printed_fe_value_on_every_shared_key",
+                       "test_a_legacy_period_reads_the_served_assembled_bs_totals",
+                       "test_a_value_on_a_rung_takes_that_rung")),
+        Gate("ratio-compare",
+             [PY, "-m", "pytest", "tests/engine/test_ratio_compare.py", "-q"],
+             work_junit=True, floor=30, units="tests",
+             canaries=("test_a_prior_with_no_persisted_metric_rows_still_carries_its_composite",
+                       "test_printed_prior_plus_printed_delta_is_printed_current_on_every_row",
+                       "test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair")),
+        Gate("ratio-band-findings",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_bands.py", "-q"],
+             work_junit=True, floor=8, units="tests",
+             canaries=("test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven",
+                       "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
+                       "test_a_lower_is_better_crossing_is_classified_by_direction",
+                       "test_a_ratio_that_did_not_cross_produces_no_finding")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

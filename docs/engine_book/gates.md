@@ -2512,6 +2512,219 @@ PydanticUserError: … is not fully defined   (test_the_full_openapi_schema_gene
 **REVERT** — exit `0`: `3 passed`; no `# PLANT` marker left. Verdict:
 proven RED.
 
+## ratio-credit-model
+
+The credit model is ONE pure function and ONE letter ladder
+(`engine.ratios.credit_model`, batch B1). `stage_compute` used to hold the
+arithmetic inline beside its database writes, and `get_period` served a
+second, literal copy of the letter ladder that happened to agree. A weight or
+rung moved in one copy and not the other prints a composite beside a letter
+from a different model, and nothing crashes.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py -q` |
+| work count | junit-xml, floor **20** tests (measured 22: 7 cases × the purity claims, plus the ladder scan) |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder` |
+
+**Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
+mapping, Altman coefficient, rounding, operand, unit, direction, order) on
+any of the seven cases differing from the golden captured from
+`stage_compute` BEFORE the extraction; an I/O call or client import in
+`credit_model.py`; `stage_compute` inserting anything but the pure rows; a
+second ladder literal in `pipeline.py` or `engine/ratios`. It proves no
+change against the pre-extraction commit, not that the numbers are right,
+and it does not pin the rung values (a rung moved with no revision bump
+stays green — recorded by the B1 verifier; not re-measured by this section).
+
+**GREEN** — exit `0`: `PASS ratio-credit-model (1.9s, 22 tests)`.
+
+**PLANT** — `src/engine/ratios/credit_model.py`: the Altman weight in the
+composite raised by 0.01
+(`(CREDIT_COMPOSITE_WEIGHTS["altman"] + 0.01) * altman_subscore`).
+
+**RED** — exit `1`, `10 failed, 12 passed`, battery record `FAIL`:
+
+```
+FAILED tests/engine/test_credit_model_pure.py::test_pure_rows_are_the_pre_extraction_rows_byte_for_byte[saga_10_col_agras]
+FAILED ...::test_pure_rows_are_the_pre_extraction_rows_byte_for_byte[scandia_fy2025_baseline]
+FAILED ...::test_stage_compute_inserts_exactly_the_pure_rows[saga_10_col_retail]
+======================== 10 failed, 12 passed in 1.04s =========================
+RECORD ratio-credit-model {'state': 'FAIL', 'exit_code': 1, 'work_units': 22}
+```
+
+**REVERT** — exit `0`: `PASS ratio-credit-model (1.9s, 22 tests)`. Verdict:
+proven RED.
+
+## ratio-table
+
+The per-period ratio table (`engine.ratios.table`, batch B2): every census
+ratio's value, printed digits, band, ladder and refusal, from the served
+payload, held to the digits `computeRatios` prints on four committed books.
+The defect class is a number one digit off: the engine rounding the repr
+instead of the binary value, a metric row winning where the FE reads the
+balance sheet, a withheld row still serving the ladder its badge hides.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_ratio_table.py -q` |
+| work count | junit-xml, floor **50** tests (measured 56) |
+| canary | `test_census_is_every_fe_row_plus_every_pack_banded_key`, `test_engine_value_is_the_printed_fe_value_on_every_shared_key`, `test_a_legacy_period_reads_the_served_assembled_bs_totals` (current_ratio's operands on a legacy period), `test_a_value_on_a_rung_takes_that_rung` |
+
+**Reds on, after the repair (TC-11):** any shared key on any book and
+variant (served, disputed, perturbed) whose `value_q` differs from what
+`formatRatio` prints, or whose refusal kind does not map; a display string
+that is not ROUND_HALF_UP of the exact binary value; a row of any status
+without a boolean `higher_is_better`; a non-graded row serving a ladder; a
+value exactly on a rung not taking that rung; a verdict difference against
+the FE not in the declared divergence set.
+
+**GREEN** — exit `0`: `PASS ratio-table (4.3s, 56 tests)`.
+
+**PLANT** — `src/engine/ratios/table.py` `quantize_display`: banker's
+rounding (`rounding="ROUND_HALF_EVEN"`).
+
+**RED** — exit `1`, `8 failed, 48 passed`, battery record `FAIL`:
+
+```
+FAILED tests/engine/test_ratio_table.py::test_quantization_is_half_up_on_the_exact_binary_value[0.125-x-0.13]
+FAILED ...::test_quantization_is_half_up_on_the_exact_binary_value[2.5-days-3]
+FAILED ...::test_quantization_is_half_up_on_the_exact_binary_value[1.125-z-1.13]
+========================= 8 failed, 48 passed in 3.56s =========================
+RECORD ratio-table {'state': 'FAIL', 'exit_code': 1, 'work_units': 56}
+```
+
+**REVERT** — exit `0`: `PASS ratio-table (4.3s, 56 tests)`. Verdict: proven
+RED.
+
+## ratio-compare
+
+The two-period ratio block (`engine.comparatives.ratio_compare`, batch B4):
+both periods' ratios, bands, deltas, movements and credit composites under
+one model revision, served by `GET /api/period/{id}/comparatives`. The
+defect class: a prior composite silently absent (the FE dropped to a second
+credit model), a printed prior plus printed delta that does not equal the
+printed current, a materiality or width computed on the wrong base.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_ratio_compare.py -q` |
+| work count | junit-xml, floor **30** tests (measured 34) |
+| canary | `test_a_prior_with_no_persisted_metric_rows_still_carries_its_composite` (altman_z prior present), `test_printed_prior_plus_printed_delta_is_printed_current_on_every_row`, `test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair` |
+
+**Reds on, after the repair (TC-11):** see the module docstring — a prior
+with `calculated_metrics: []` serving no Altman Z'', composite or letter;
+sector withholding not the declared set on both sides; a crossing whose
+status, rung, distance or colour disagrees with its ranks and direction;
+printed prior + printed delta != printed current on any row, or the pair
+losing its `.x5` case; the rows not being the census, `both_sides_census`
+not partitioning it, or an undeclared reason code; the hand-checked
+materiality or the floored DPO width serving anything else.
+
+**GREEN** — exit `0`: `PASS ratio-compare (6.9s, 34 tests)`.
+
+**PLANT** — `src/engine/comparatives/ratio_compare.py` `_delta`: the delta
+from full precision (`Decimal(repr(cur["value"])) - Decimal(repr(pri["value"]))`)
+instead of the quantized sides.
+
+**RED** — exit `1`, `1 failed, 33 passed`, battery record `FAIL`:
+
+```
+E   AssertionError: the document does not tie to itself:
+E       roa: printed 33.3 + -32.6 != 0.8
+E       asset_turnover: printed 0.53 + +0.38 != 0.92
+FAILED tests/engine/test_ratio_compare.py::test_printed_prior_plus_printed_delta_is_printed_current_on_every_row
+RECORD ratio-compare {'state': 'FAIL', 'exit_code': 1, 'work_units': 34}
+```
+
+**REVERT** — exit `0`: `PASS ratio-compare (6.9s, 34 tests)`. Verdict:
+proven RED.
+
+## ratio-band-findings
+
+Band crossings as seven-element findings (`engine.api.findings.c_bands`,
+batch B5). Every ratio (and the Altman zone and the letter) that changed band
+between two periods is a `Finding` built through `_base.build_finding` and
+serialised by `Finding.to_payload()`: surfaced when `validate()` finds all
+seven, otherwise the check row it demotes to, carrying its missing elements.
+The silent failure this exists for is a demoted crossing that simply
+vanishes, so the deteriorated list reads "nothing crossed" while a ratio fell
+two bands. On the real agras/carniprod pair 15 crossings serve 13 surfaced
+findings and 2 demoted check rows (letter_grade, ccc: no money denominator,
+so no headroom impact); retail/realestate serve 14 with 3 demoted
+(ccc, letter_grade, altman_z).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_comparatives_bands.py -q` |
+| work count | junit-xml, floor **8** tests (measured 9, all over REAL GET /api/period bodies) |
+| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
+
+**Reds on, after the repair (TC-11):** the planted current_ratio crossing
+(prior agras with its served current liabilities raised to a 1.30 ratio,
+current carniprod 1.84, across the 1.5 rung) not surfacing, or its
+`validate()` returning any missing element, or its threshold, evidence
+(prior and current value, basis `prior_period`), provenance (both period
+ids, both snapshot ids equal to `_radar.content_hash_of` of the rows) or
+headroom impact (|delta| == the served `materiality.headroom_money`)
+differing; `ratio_compare` calling into c_bands other than exactly once; a
+finding for a ratio that did not cross, or a company compared with itself
+producing one; a lower-is-better crossing listed against the direction its
+value moved, or a threshold comparator disagreeing with its list;
+`improved + deteriorated + unchanged + not_comparable != coverage.both_sides`,
+a one-sided entry missing from `refused`, a crossing without its finding
+row, or the pair no longer carrying a demoted row; two compositions
+serialising differently. It cannot see whether a surface renders the rows,
+or the CAEN (the route passes none; the profile is inferred from the account
+mix).
+
+**GREEN** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)`.
+
+**PLANT A** — `src/engine/api/findings/c_bands.py` `build_band_findings`:
+drop demoted rows (`if not payload["surfaced"]: continue`).
+
+**RED** — exit `1`, `5 failed, 4 passed`, battery record `FAIL`:
+
+```
+E   AssertionError: 11 finding rows for 14 crossings — a crossing lost its row
+E    +  and   6 = len(['current_ratio', 'debt_to_equity', 'lt_debt_to_equity', 'debt_to_assets', 'letter_grade', 'altman_z'])
+FAILED tests/engine/test_comparatives_bands.py::test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed[retail-realestate]
+FAILED ...::test_a_ratio_that_did_not_cross_produces_no_finding[agras-carniprod]
+FAILED ...::test_a_lower_is_better_crossing_is_classified_by_direction
+========================= 5 failed, 4 passed in 2.96s ==========================
+RECORD ratio-band-findings {'state': 'FAIL', 'exit_code': 1, 'work_units': 9}
+```
+
+**PLANT B** — `src/engine/comparatives/ratio_compare.py`: `not_comparable`
+counting entries refused on one side (the pre-B5 shape).
+
+**RED** — exit `1`, `2 failed, 7 passed`:
+
+```
+E   AssertionError: improved 8 + deteriorated 6 + unchanged 12 + not_comparable 5 != both_sides 30
+E   assert 31 == 30
+```
+
+**PLANT C** — `ratio_compare.py`: an extra call into the builder per improved
+row before the real call.
+
+**RED** — exit `1`, `1 failed, 8 passed`:
+
+```
+E   AssertionError: ratio_compare called into c_bands 6 times, not once
+```
+
+Also observed RED during authoring, each reverted (direct pytest runs):
+direction taken from the delta's sign (`('dso', 'deteriorated', 'improved')`),
+prior provenance dropped (`assert ('p-carniprod-cur', None) == ('p-carniprod...'p-agras-pri')`),
+same-band rows handed to c_bands (6 failed, including the self-comparison
+test), the threshold comparator ignoring `higher_is_better`
+(`('dso', '>=')`), and no headroom impact
+(`the planted crossing demotes: ['impact: no impact supplied']`).
+
+**REVERT** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)` after each
+plant; no `# PLANT` marker left. Verdict: proven RED.
+
 ## cron-auth
 
 Every scheduler-only route FAILS CLOSED without `ENGINE_API_TOKEN`, and
