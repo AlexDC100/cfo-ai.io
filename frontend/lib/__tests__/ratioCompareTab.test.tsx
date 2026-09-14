@@ -34,7 +34,26 @@
 //    or the as-filed disclosure shown without the engine's flag;
 // G6 the deleted prior arithmetic coming back (grep);
 // G7 a served label or FE key the reader has no word or mapping for;
-// G8 the export statements losing the served comparatives document.
+// G8 the export statements losing the served comparatives document;
+// G9 the page no longer feeding its surfaces the served documents: a
+//    RatioCompareCtx provider handed anything but the one view, the view
+//    built from anything but the served table and comparatives query, a
+//    hero or the Risks tab without its CreditComparison, an export handed
+//    anything but the served-document statements (useRatioSurfaces run
+//    over the fixture, plus a source gate over FinancialStatements.tsx);
+//    and a requested prior that is loading or failed printed as "no
+//    comparison period is loaded";
+// G10 a band-only disagreement between the two documents (the comparison
+//    withholding sector bands because the PRIOR's industry signal blocks)
+//    printed as "the figures differ" instead of the served change and the
+//    served sector_unconfirmed movement, or a badge graded on a band the
+//    comparison withheld for both periods (pair_prior_blocks.json, rebuilt
+//    and drift-checked by test_ratio_compare_fe_fixture.py);
+// G11 a band-now, band-prior or movement cell, badge colour, movement
+//    colour or ladder line on the tile or in the table that is not the
+//    served side through the one formatter;
+// G12 the drawer printing anything computeRatios decided beside a served
+//    row: a formula result, a ladder or range, a badge colour or text.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -47,24 +66,38 @@ import ro from "@/i18n/locales/ro.json";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { RatioCompareCtx } from "@/components/cfo/ComparativesPanel";
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
+import { BADGE_BY_TONE, toneText } from "@/components/cfo/ratios/RatioComparisonTable";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
 import { HeroVerdictCard, RisksPanel } from "@/pages/cfo/FinancialStatements";
-import { altmanRatio, computeRatios, type Statements } from "@/lib/financialReport";
+import { altmanRatio, computeRatios, formatRatio, ladderSentence, type Statements } from "@/lib/financialReport";
 import { computeCreditScore } from "@/lib/financialValuation";
 import { statementsForExportOf, type ComparativesResponse } from "@/lib/comparatives";
 import {
   ENGINE_KEY_OF_FE_KEY,
+  bandSideOf,
+  bandTone,
   buildRatioCompareView,
+  engineKeyOf,
+  ladderText,
   printRatioRow,
   readRatioTable,
   servedCreditEnvelopes,
   type RatioCompareView,
 } from "@/lib/ratioCompareView";
+import { ratioSurfacesOf } from "@/lib/useRatioSurfaces";
 import { RATIO_LABELLED_KEYS, ratioLabelI18nKey } from "@/lib/ratioCompareKeys";
 import { MONEY_MISSING } from "@/lib/money";
-import type { RatioComparisonV1, RatioTableV1 } from "@/lib/ratioTable";
+import {
+  formatRatioBand,
+  formatRatioDelta,
+  formatRatioMovement,
+  movementTone,
+  type RatioComparisonV1,
+  type RatioTableV1,
+} from "@/lib/ratioTable";
 
 import pairJson from "./fixtures/comparatives/pair_served.json";
+import priorBlocksJson from "./fixtures/comparatives/pair_prior_blocks.json";
 
 const REPO = resolve(__dirname, "../../..");
 
@@ -78,6 +111,28 @@ interface Pair {
 }
 
 const fresh = (): Pair => JSON.parse(JSON.stringify(pairJson)) as Pair;
+
+/** The same current body against the same prior whose served
+ *  industry_signal blocks sector content (pair_prior_blocks.json). */
+const priorBlocks = (): Pair => {
+  const p = fresh();
+  p.comparatives = JSON.parse(JSON.stringify((priorBlocksJson as { comparatives: unknown }).comparatives)) as Pair["comparatives"];
+  return p;
+};
+
+/** The badge tone the browser verdict would have painted (the deleted
+ *  legacy mapping), for counting the rows where it and the served band
+ *  part: the non-vacuity of the colour gates. */
+const browserTone = (v: string) =>
+  v === "unknown" || v === "ungraded" ? "neutral" : v === "critical" ? "alert" : v === "watch" ? "caution" : "success";
+
+/** The period served with no persisted metric rows: computeRatios then
+ *  falls back to its own arithmetic and ladders, which is where a browser
+ *  verdict and the served band part. */
+const withoutMetricRows = (p: Pair): Pair => {
+  p.current_body.metrics = [];
+  return p;
+};
 
 const bundle = (lang: "en" | "ro", key: string): string => {
   const v = key
@@ -205,6 +260,85 @@ describe("G1 the tile and the table print the served strings, not a browser comp
       );
     }
   });
+
+  it("G12 the drawer prints nothing computeRatios decided beside a served row", () => {
+    const p = fresh();
+    const { ratios } = pageInputs(p);
+    const fe = ratios.liquidity.find((r) => r.key === "current_ratio")!;
+    const planted = "9.99";
+    tableOf(p).rows.find((r) => r.key === "current_ratio")!.value_q = planted;
+    p.comparatives.ratios.rows.find((r) => r.key === "current_ratio")!.current.value_q = planted;
+    const browserFigure = formatRatio(fe);
+    expect(browserFigure).not.toBe(unit("x", planted)); // non-vacuity
+    renderTab(p);
+    const tl = tile("current_ratio");
+    fireEvent.click(tl);
+    const drawer = screen.getByTestId("ratio-detail-drawer");
+    expect(within(drawer).getByTestId("ratio-detail-formula-result").textContent).toBe(unit("x", planted));
+    expect(drawer.textContent).not.toContain(browserFigure);
+    const tileLadder = within(tl).getByTestId("ratio-ladder").textContent;
+    expect(within(drawer).getByTestId("ratio-detail-ladder").textContent).toBe(tileLadder);
+    expect(within(drawer).getByTestId("ratio-detail-good-range").querySelector("p")?.textContent).toBe(tileLadder);
+  });
+
+  const q = (root: ParentNode, id: string) => root.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+  for (const [name, make] of [["with persisted metric rows", fresh], ["without persisted metric rows", () => withoutMetricRows(fresh())]] as const) {
+    it(`G12 on every served tile ${name}, the drawer's badge, ladder, range and related figures are the tile's`, () => {
+      const p = make();
+      const { ratios } = pageInputs(p);
+      const all = [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency];
+      const view = viewOf(p);
+      const counters = { divergentLadders: 0, divergentBadges: 0, ranges: 0, chips: 0 };
+      for (const fe of all) {
+        const key = engineKeyOf(fe.key);
+        if (!view.periodTable?.rows.some((r) => r.key === key)) continue;
+        const r = renderTab(p, view);
+        const tl = tile(fe.key);
+        const side = bandSideOf(view, key);
+        fireEvent.click(tl);
+        const drawer = q(document, "ratio-detail-drawer")!;
+        const badge = q(drawer, "ratio-detail-band-now")!;
+        expect(badge, fe.key).not.toBeNull();
+        expect(badge.textContent, fe.key).toBe(q(tl, "ratio-band-now")!.textContent);
+        const tone = BADGE_BY_TONE[bandTone(side)];
+        expect(badge.className, fe.key).toContain(tone);
+        for (const other of Object.values(BADGE_BY_TONE)) {
+          if (other !== tone) expect(badge.className, `${fe.key} ${other}`).not.toContain(other.split(" ")[0]);
+        }
+        const tileLadder = q(tl, "ratio-ladder")!.textContent ?? "";
+        expect(q(drawer, "ratio-detail-ladder")!.textContent, fe.key).toBe(tileLadder);
+        if (fe.ladder) {
+          const browserLadder = ladderSentence(fe.ladder, fe.unit);
+          if (browserLadder !== "" && browserLadder !== tileLadder) {
+            counters.divergentLadders++;
+            expect(drawer.textContent, fe.key).not.toContain(browserLadder);
+          }
+        }
+        for (const chip of drawer.querySelectorAll<HTMLElement>('[data-testid="ratio-related-chip"]')) {
+          const rk = engineKeyOf(chip.getAttribute("data-ratio-key")!);
+          if (!view.periodTable?.rows.some((x) => x.key === rk)) continue;
+          counters.chips++;
+          expect(cell(chip, "current"), `${fe.key} -> ${rk}`).toBe(printRatioRow(view, rk, "en")!.current);
+        }
+        // a ratio with no knowledge entry opens the fallback body, which
+        // has no range section; every other drawer has one
+        const range = q(drawer, "ratio-detail-good-range");
+        if (range) {
+          counters.ranges++;
+          const knowledgeRange = range.textContent ?? "";
+          expect(knowledgeRange.startsWith(tileLadder), fe.key).toBe(true);
+          expect(knowledgeRange.slice(tileLadder.length), fe.key).not.toMatch(/\d/);
+        }
+        if (browserTone(fe.verdict) !== bandTone(side)) counters.divergentBadges++;
+        r.unmount();
+      }
+      // non-vacuity: the fixture carries the splits this gate exists for
+      expect(counters.divergentLadders).toBeGreaterThan(0);
+      expect(counters.ranges).toBeGreaterThan(15);
+      expect(counters.chips).toBeGreaterThan(10);
+      if (name === "without persisted metric rows") expect(counters.divergentBadges).toBeGreaterThan(0);
+    }, 30_000);
+  }
 
   it("G1b when the two documents disagree about the current figure, no change is printed", () => {
     const p = fresh();
@@ -518,6 +652,256 @@ describe("G7 every served label and key has a reader word and mapping", () => {
     const served = tableOf(p).rows.find((r) => r.key === "current_ratio")!.value_q!;
     expect(row.current).toBe(bundle("ro", "statements.ratioCmp.unit.x").replace("{{v}}", served.replace(".", ",")));
     expect(row.label).toBe(bundle("ro", "statements.ratioCmp.label.current_ratio"));
+  });
+});
+
+// ── G9 ────────────────────────────────────────────────────────────────
+
+describe("G9 the page feeds every ratio surface the served documents", () => {
+  const base = (p: Pair) => ({
+    assembledMetrics: p.current_body.assembled_metrics,
+    statements: p.current_body.statements,
+    metricsByName: metricsOf(p),
+    currentLabel: p.current_body.statements.periodLabel,
+    periodId: "period-agras-fy2025",
+    priorId: "period-carniprod-fy2024" as string | null,
+  });
+
+  it("useRatioSurfaces over the fixture: the view, the export and the credit are the served blocks", () => {
+    const p = fresh();
+    const s = ratioSurfacesOf({ ...base(p), comparatives: { data: { kind: "ok", data: p.comparatives } } });
+    expect(s.cmpDoc).toBe(p.comparatives);
+    expect(s.ratioCompareView?.periodTable).toBe(tableOf(p));
+    expect(s.ratioCompareView?.comparison).toBe(p.comparatives.ratios);
+    expect(s.ratioCompareView?.prior.kind).toBe("compared");
+    expect(s.statementsForExport?.comparatives).toBe(p.comparatives);
+    expect(s.creditEnvelopes.source).toBe("ratio_table");
+    expect(s.creditEnvelopes.credit?.composite_score).toBe(tableOf(p).credit.composite);
+  });
+
+  it("a refused, failed, pending or unrequested prior is each its own state", () => {
+    const p = fresh();
+    const kind = (over: Partial<Parameters<typeof ratioSurfacesOf>[0]>) =>
+      ratioSurfacesOf({ ...base(p), comparatives: {}, ...over }).ratioCompareView?.prior;
+    expect(kind({ comparatives: { data: { kind: "refused", code: "x", message: "period not in workspace" } } })).toEqual({
+      kind: "refused",
+      message: "period not in workspace",
+    });
+    expect(kind({ comparatives: { data: { kind: "error", status: 502 } } })).toEqual({ kind: "failed", status: 502 });
+    expect(kind({ comparatives: { isError: true } })).toEqual({ kind: "failed", status: 0 });
+    expect(kind({ comparatives: {} })).toEqual({ kind: "loading" });
+    expect(kind({ priorId: null, comparatives: {} })).toEqual({ kind: "no_comparison" });
+    expect(kind({ priorId: "period-agras-fy2025", comparatives: {} })).toEqual({ kind: "no_comparison" });
+  });
+
+  it("a loading or failed prior prints its own sentence, never 'no comparison period is loaded'", () => {
+    const p = fresh();
+    const cases: [Parameters<typeof ratioSurfacesOf>[0]["comparatives"], string][] = [
+      [{}, bundle("en", "statements.ratioCmp.ui.comparisonLoading").replace("{{current}}", "Dec 2025")],
+      [
+        { data: { kind: "error", status: 502 } },
+        bundle("en", "statements.ratioCmp.ui.comparisonFailed").replace("{{status}}", "502").replace("{{current}}", "Dec 2025"),
+      ],
+      [{ isError: true }, bundle("en", "statements.ratioCmp.ui.comparisonFailedNoResponse").replace("{{current}}", "Dec 2025")],
+    ];
+    for (const [comparatives, sentence] of cases) {
+      const view = ratioSurfacesOf({ ...base(p), comparatives }).ratioCompareView!;
+      const r = renderTab(p, view);
+      const table = screen.getByTestId("ratio-compare-table");
+      expect(within(table).getByTestId("ratio-prior-state").textContent).toBe(sentence);
+      expect(within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state").textContent).toBe(sentence);
+      r.unmount();
+    }
+  });
+
+  // THE JOIN. No gate above renders FinancialStatements itself (it needs
+  // the router, Supabase and the period queries), so the page's use of the
+  // one decision is held by reading its source: the one hook call and its
+  // served inputs, every provider handed its result, both heroes and the
+  // Risks tab given their CreditComparison, every export handed the
+  // served-document statements, and no second place building any of it.
+  describe("FinancialStatements.tsx uses the one decision everywhere", () => {
+    const raw = readFileSync(resolve(REPO, "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
+    const page = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const segments = (open: string) => {
+      const out: string[] = [];
+      let at = page.indexOf(open);
+      while (at >= 0) {
+        const close = page.indexOf("\n", page.indexOf("/>", page.indexOf("</RatioCompareCtx.Provider>", at)));
+        out.push(page.slice(at, close < 0 ? undefined : close));
+        at = page.indexOf(open, at + open.length);
+      }
+      return out;
+    };
+
+    it("one useRatioSurfaces call over the served table and the comparatives query", () => {
+      expect(page).toMatch(/const cmpQuery = useComparatives\(remotePeriod\.id, cmpPriorId\);/);
+      const calls = [...page.matchAll(/const \{([^}]*)\} = useRatioSurfaces\(\{([\s\S]*?)\}\);/g)];
+      expect(calls.length).toBe(1);
+      const names = calls[0][1].split(",").map((x) => x.trim());
+      for (const n of ["cmpDoc", "cmpRefused", "ratioCompareView", "statementsForExport", "creditEnvelopes"]) expect(names).toContain(n);
+      const args = calls[0][2];
+      expect(args).toMatch(/assembledMetrics: remotePeriod\.assembled_metrics,/);
+      expect(args).toMatch(/(^|\s)statements,/);
+      expect(args).toMatch(/(^|\s)metricsByName,/);
+      expect(args).toMatch(/periodId: remotePeriod\.id,/);
+      expect(args).toMatch(/priorId: cmpPriorId,/);
+      expect(args).toMatch(/comparatives: cmpQuery,/);
+      for (const second of [/buildRatioCompareView\(/, /statementsForExportOf\(/, /servedCreditEnvelopes\(/, /readRatioTable\(/, /const (ratioCompareView|statementsForExport|creditEnvelopes|cmpDoc)\b/]) {
+        expect(page).not.toMatch(second);
+      }
+    });
+
+    it("four providers, each handed the one view: the Ratios tab, both heroes, the Risks tab", () => {
+      const values = [...page.matchAll(/<RatioCompareCtx\.Provider value=\{([^}]*)\}>/g)].map((m) => m[1]);
+      expect(values).toEqual(["ratioCompareView", "ratioCompareView", "ratioCompareView", "ratioCompareView"]);
+      expect(page).toMatch(/<RatioCompareCtx\.Provider value=\{ratioCompareView\}>\s*<RatiosTabContent\b/);
+      const heroes = segments("<HeroVerdictCard");
+      expect(heroes.length).toBe(2);
+      for (const h of heroes) {
+        expect(h).toMatch(/footer=\{\s*<RatioCompareCtx\.Provider value=\{ratioCompareView\}>\s*<CreditComparison surface="hero" \/>/);
+      }
+      const risks = segments("<RisksPanel");
+      expect(risks.length).toBe(1);
+      expect(risks[0]).toMatch(/creditComparison=\{\s*<RatioCompareCtx\.Provider value=\{ratioCompareView\}>\s*<CreditComparison surface="risks" \/>/);
+      expect(risks[0]).toMatch(/creditEnvelope=\{creditEnvelopes\.credit\}/);
+    });
+
+    it("every export is handed the served-document statements and the served credit", () => {
+      const exportsCalls = [...page.matchAll(/\.(downloadHtmlReport|downloadExcelReport|buildReportHtml)\(([^)]*)\)/g)];
+      expect(exportsCalls.map((m) => m[1]).sort()).toEqual(["buildReportHtml", "downloadExcelReport", "downloadHtmlReport"]);
+      for (const m of exportsCalls) expect(m[2].replace(/\s+/g, " ").trim(), m[1]).toBe("statementsForExport ?? statements, creditEnvelopes");
+    });
+  });
+});
+
+// ── G10 ───────────────────────────────────────────────────────────────
+
+describe("G10 a band withheld by the comparison is not a disagreement about the figure", () => {
+  it("only the prior blocks: the served change and the served sector_unconfirmed movement print, one band decision everywhere", () => {
+    const p = priorBlocks();
+    const table = tableOf(p);
+    const view = viewOf(p);
+    const split = p.comparatives.ratios.rows.filter((r) => {
+      const t = table.rows.find((x) => x.key === r.key)!;
+      return t.band_status === "graded" && r.current.band_status === "ungraded_sector";
+    });
+    // non-vacuity: the case exists on this fixture, with a computable change
+    expect(split.map((r) => r.key)).toEqual(expect.arrayContaining(["dso", "ebitda_margin"]));
+    expect(p.comparatives.ratios.rows.find((r) => r.key === "dso")!.delta.value).toBe("-14");
+    const { ratios } = pageInputs(p);
+    const feKeys = new Map(
+      [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency].map((r) => [engineKeyOf(r.key), r.key]),
+    );
+    renderTab(p, view);
+    for (const r of split) {
+      const tr = tableRow(r.key);
+      expect(table.rows.find((x) => x.key === r.key)!.value_q).toBe(r.current.value_q);
+      expect(tr.getAttribute("data-movement"), r.key).toBe("not_comparable");
+      if (r.delta.value !== null) expect(cell(tr, "delta"), r.key).toBe(formatRatioDelta(r.delta, "en").primary);
+      expect(cell(tr, "movement"), r.key).toBe(formatRatioMovement(r.movement, "en"));
+      expect(cell(tr, "movement"), r.key).toBe(bundle("en", "statements.ratioCmp.reason.sector_unconfirmed"));
+      expect(cell(tr, "band_now"), r.key).toBe(formatRatioBand(r.current, "en"));
+      expect(cell(tr, "band_prior"), r.key).toBe(formatRatioBand(r.prior, "en"));
+      const fe = feKeys.get(r.key);
+      if (!fe) continue;
+      const tl = tile(fe);
+      expect(within(tl).getByTestId("ratio-band-now").textContent, r.key).toBe(formatRatioBand(r.current, "en"));
+      expect(within(tl).getByTestId("ratio-band-now").className, r.key).toContain(BADGE_BY_TONE.neutral);
+      expect(within(tl).getByTestId("ratio-ladder").textContent, r.key).toBe(
+        ladderText(r.current, r.higher_is_better, r.display_unit, "en"),
+      );
+      expect(cell(tl, "movement"), r.key).toBe(cell(tr, "movement"));
+      expect(cell(tl, "delta"), r.key).toBe(cell(tr, "delta"));
+    }
+    expect(document.querySelector('[data-movement="current_differs"]')).toBeNull();
+  });
+});
+
+// ── G11 ───────────────────────────────────────────────────────────────
+
+describe("G11 the band columns, badges, ladders and colours are the served sides, on the table and the tile", () => {
+  for (const [name, make] of [["with persisted metric rows", fresh], ["without persisted metric rows", () => withoutMetricRows(fresh())]] as const) {
+    it(`every census row and composite, ${name}`, () => {
+      const p = make();
+      const view = viewOf(p);
+      const r = p.comparatives.ratios;
+      renderTab(p, view);
+      for (const row of [...r.rows, ...r.composites]) {
+        const tr = tableRow(row.key);
+        expect(cell(tr, "band_now"), row.key).toBe(formatRatioBand(bandSideOf(view, row.key), "en"));
+        expect(cell(tr, "band_prior"), row.key).toBe(formatRatioBand(row.prior, "en"));
+        expect(cell(tr, "movement"), row.key).toBe(formatRatioMovement(row.movement, "en"));
+        expect(tr.querySelector('[data-col="movement"]')!.className, row.key).toContain(toneText(movementTone(row.movement)));
+      }
+      const tiles = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-tile"][data-source="served"]')];
+      expect(tiles.length).toBeGreaterThanOrEqual(23);
+      let toneSplits = 0;
+      const { ratios } = pageInputs(p);
+      const verdictOf = new Map(
+        [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency].map((x) => [x.key, x.verdict]),
+      );
+      for (const tl of tiles) {
+        const key = tl.getAttribute("data-engine-key")!;
+        const side = bandSideOf(view, key);
+        const served = r.rows.find((x) => x.key === key) ?? r.composites.find((x) => x.key === key)!;
+        const badge = within(tl).getByTestId("ratio-band-now");
+        expect(badge.textContent, key).toBe(formatRatioBand(side, "en"));
+        const tone = bandTone(side);
+        expect(badge.className, key).toContain(BADGE_BY_TONE[tone]);
+        const v = verdictOf.get(tl.getAttribute("data-ratio-key")!);
+        if (v && browserTone(v) !== tone) toneSplits++;
+        expect(within(tl).getByTestId("ratio-ladder").textContent, key).toBe(
+          ladderText(side, served.higher_is_better, served.display_unit, "en"),
+        );
+        expect(cell(tl, "band_prior"), key).toBe(formatRatioBand(served.prior, "en"));
+        expect(cell(tl, "movement"), key).toBe(formatRatioMovement(served.movement, "en"));
+        expect(tl.querySelector('[data-col="movement"]')!.className, key).toContain(toneText(movementTone(served.movement)));
+      }
+      if (name === "without persisted metric rows") expect(toneSplits).toBeGreaterThan(0);
+    });
+  }
+
+  it("a crossed_up row is green and a crossed_down row is red, in the table and on the tile", () => {
+    const p = fresh();
+    const rows = p.comparatives.ratios.rows;
+    const up = rows.find((r) => r.movement.status === "crossed_up" && r.key === "current_ratio")!;
+    const down = rows.find((r) => r.movement.status === "crossed_down" && r.key === "cash_ratio")!;
+    renderTab(p);
+    expect(tableRow(up.key).querySelector('[data-col="movement"]')!.className).toContain("text-success");
+    expect(tableRow(down.key).querySelector('[data-col="movement"]')!.className).toContain("text-alert");
+    expect(tile(up.key).querySelector('[data-col="movement"]')!.className).toContain("text-success");
+    expect(tile(down.key).querySelector('[data-col="movement"]')!.className).toContain("text-alert");
+  });
+
+  it("the divergent ltv / debt_to_assets tile prints the served rungs, not the browser's", () => {
+    const p = fresh();
+    const view = viewOf(p);
+    const { ratios } = pageInputs(p);
+    const fe = ratios.leverage.find((r) => r.key === "ltv")!;
+    renderTab(p, view);
+    const served = p.comparatives.ratios.rows.find((r) => r.key === "debt_to_assets")!;
+    const text = within(tile("ltv")).getByTestId("ratio-ladder").textContent;
+    expect(text).toBe(ladderText(bandSideOf(view, "debt_to_assets"), served.higher_is_better, served.display_unit, "en"));
+    expect(text).not.toBe(fe.benchmark);
+    expect(fe.ladder && ladderSentence(fe.ladder, fe.unit)).not.toBe(text);
+  });
+
+  it("the counts sentence says 'in at least one period' for the refused list, which holds both_refused", () => {
+    const p = fresh();
+    expect(p.comparatives.ratios.band_movements.refused.some((x) => x.reason_code === "both_refused")).toBe(true);
+    renderTab(p);
+    const counts = screen.getByTestId("band-movements-counts").textContent ?? "";
+    expect(counts).toContain(`Without a figure in at least one period: ${p.comparatives.ratios.band_movements.refused.length}.`);
+    expect(counts).not.toMatch(/in one period/);
+  });
+
+  it("each table row names its served group in the reader's words", () => {
+    const p = fresh();
+    renderTab(p);
+    for (const row of p.comparatives.ratios.rows) {
+      expect(cell(tableRow(row.key), "group"), row.key).toBe(bundle("en", `statements.ratioCmp.group.${row.group}`));
+    }
   });
 });
 
