@@ -260,6 +260,16 @@ class Provenance:
     snapshot_id: Optional[str] = None
     line_refs: Tuple[str, ...] = ()
     source: str = "assembled_canonical_v1"
+    #: The EARLIER period a two-period finding compares against (the
+    #: band-crossing lane, `findings/c_bands.py`). Both default to None,
+    #: and a None field neither renders nor serialises, so every
+    #: single-period render and payload stays byte-identical to before
+    #: these fields existed (the `ActionStep.lang` precedent).
+    prior_period_id: Optional[str] = None
+    prior_snapshot_id: Optional[str] = None
+
+    #: Fields `_as_dict` leaves out of a payload while they are None.
+    _PAYLOAD_OMIT_WHEN_NONE = ("prior_period_id", "prior_snapshot_id")
 
     def render(self) -> str:
         bits = ["period %s" % self.period_id]
@@ -268,6 +278,11 @@ class Provenance:
         if self.line_refs:
             bits.append("accounts %s" % ", ".join(self.line_refs))
         bits.append(self.source)
+        if self.prior_period_id:
+            prior = "vs period %s" % self.prior_period_id
+            if self.prior_snapshot_id:
+                prior += ", snapshot %s" % self.prior_snapshot_id
+            bits.append(prior)
         return "; ".join(bits)
 
 
@@ -1068,8 +1083,11 @@ def _as_dict(obj: Any) -> Optional[Dict[str, Any]]:
     if obj is None:
         return None
     out = {}  # type: Dict[str, Any]
+    omit_when_none = getattr(type(obj), "_PAYLOAD_OMIT_WHEN_NONE", ())
     for key in obj.__dataclass_fields__:  # type: ignore[attr-defined]
         value = getattr(obj, key)
+        if value is None and key in omit_when_none:
+            continue
         if isinstance(value, tuple):
             out[key] = [_as_dict(v) if hasattr(v, "__dataclass_fields__") else v
                         for v in value]
