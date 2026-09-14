@@ -38,6 +38,7 @@ import {
   printRatioCompareRow,
   priorRatioAbsence,
   ratioRankBasisSentence,
+  ratioRowAbsence,
   RATIO_CMP_EXPORT_LOCALE,
   servedMovableRows,
   servedRatioComparison,
@@ -465,7 +466,7 @@ export function buildExecutiveSummary(
           absence: row
             ? null
             : cmp
-              ? `the served two-period ratio table carries no row for ${ratioSpec.servedKey}`
+              ? ratioRowAbsence(ratioSpec.label)
               : priorRatioAbsence(s),
         },
       };

@@ -22,7 +22,7 @@ import type { Statements } from "@/lib/financialReport";
 import type { CreditEnvelope, PiotroskiEnvelope } from "@/lib/financialValuation";
 import type { RatioComparisonV1 } from "@/lib/ratioTable";
 
-import { metricsFor, statementsFor, type BookStatements } from "./exportBooks";
+import { metricsFor, statementsFor, type Book, type BookStatements } from "./exportBooks";
 
 const repoRoot = resolve(__dirname, "../../..");
 
@@ -75,4 +75,72 @@ export function pairEnvelopes(): CreditEnvelopes {
 /** A deep copy of the served block, for a plant. */
 export function servedRatiosCopy(): RatioComparisonV1 {
   return JSON.parse(JSON.stringify(servedRatioPair().ratios)) as RatioComparisonV1;
+}
+
+// ── EVERY ORDERED CORPUS PAIR ──────────────────────────────────────────
+//
+// `tests/engine/fixtures/firm/served_ratio_pairs.json` is the same block
+// for all twelve ordered pairs of the four committed books, captured by the
+// same script from the same composer (freshness:
+// `test_the_committed_corpus_pairs_are_todays_composer_output`). A reader
+// gate that holds on one pair can still be wrong on the pair where two
+// ladders disagree; the book-agnostic gates walk all twelve.
+
+export interface ServedCorpusPairs {
+  current_label: string;
+  prior_label: string;
+  books: Record<Book, { credit_envelope: CreditEnvelope | null; piotroski_envelope: PiotroskiEnvelope | null }>;
+  pairs: Record<string, RatioComparisonV1>;
+}
+
+let corpusCache: ServedCorpusPairs | null = null;
+
+export function servedCorpusPairs(): ServedCorpusPairs {
+  if (corpusCache === null) {
+    corpusCache = JSON.parse(
+      readFileSync(resolve(repoRoot, "tests/engine/fixtures/firm/served_ratio_pairs.json"), "utf-8"),
+    ) as ServedCorpusPairs;
+  }
+  return JSON.parse(JSON.stringify(corpusCache)) as ServedCorpusPairs;
+}
+
+/** Every ordered pair, as `[current, prior]`. */
+export function corpusPairKeys(): Array<[Book, Book]> {
+  return Object.keys(servedCorpusPairs().pairs).map((k) => k.split("|") as [Book, Book]);
+}
+
+/** What an exporter receives for one corpus pair. `ratios` defaults to the
+ *  served block for the pair. */
+export function corpusPairStatements(
+  current: Book,
+  prior: Book,
+  ratios?: RatioComparisonV1 | null,
+): BookStatements & Statements {
+  const fx = servedCorpusPairs();
+  const cur = statementsFor(current);
+  const pri = statementsFor(prior);
+  return {
+    ...cur,
+    periodLabel: fx.current_label,
+    prior: { periodLabel: fx.prior_label, balanceSheet: pri.balanceSheet, incomeStatement: pri.incomeStatement },
+    comparatives: { ratios: ratios === undefined ? fx.pairs[`${current}|${prior}`] : ratios },
+  };
+}
+
+export function corpusPairEnvelopes(current: Book): CreditEnvelopes {
+  const fx = servedCorpusPairs();
+  return {
+    metricsByName: metricsFor(current),
+    credit: fx.books[current].credit_envelope ?? undefined,
+    piotroski: fx.books[current].piotroski_envelope ?? undefined,
+  };
+}
+
+/** THE PRODUCTION PRE-B6 SHAPE: the caller attached `prior` and no
+ *  comparatives document at all (FinancialStatements.tsx statementsForExport
+ *  before B6's wiring lands). */
+export function pairStatementsWithoutComparatives(): BookStatements & Statements {
+  const s = pairStatements();
+  delete (s as { comparatives?: unknown }).comparatives;
+  return s;
 }

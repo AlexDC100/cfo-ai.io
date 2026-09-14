@@ -15,11 +15,11 @@
 import * as XLSX from "xlsx";
 import {
   canonicalBsSectionMeta,
-  computeRatios,
+  exportRatioBundle,
   deriveTotals,
   generateRecommendations,
   formatRatio,
-  verdictLabel,
+  ratioBadgeLabel,
   altmanRatio,
   renderReportHtml,
   reportChartBlocks,
@@ -29,6 +29,7 @@ import {
   printedRatioCells,
   printRatioCompareRow,
   priorRatioAbsence,
+  ratioRowAbsence,
   ratioCompareHeadings,
   servedMovableRows,
   servedRatioComparison,
@@ -123,7 +124,9 @@ export function buildExcelWorkbook(
   // A "Critical" interest-coverage verdict that exists only in the file
   // the user forwards. The map is threaded through, so the sheet quotes
   // the engine wherever the engine spoke — exactly as the screen does.
-  const ratios = computeRatios(s, undefined, envelopes?.metricsByName);
+  // …and, with a served two-period table, every row it carries is read off
+  // the served current side, as the document's cards are.
+  const ratios = exportRatioBundle(s, envelopes?.metricsByName);
   const recs = generateRecommendations(s, ratios);
   const cf = deriveCashFlow(s);
   const wacc = computeCostOfCapital(s);
@@ -400,9 +403,9 @@ export function buildExcelWorkbook(
   const sixCells = (key: string, label: string, figure: string | number, band: string): (string | number)[] => {
     const row = ratioCmpRows.get(key);
     if (row) return printedRatioCells(printRatioCompareRow(row, label));
-    const why = ratioCmp
-      ? `the served two-period ratio table carries no row for ${label}`
-      : (cmpAbsent ?? NO_COMPARATIVE_CELL);
+    // THE SAME SENTENCE THE REPORT CELL PRINTS (`ratioRowAbsence`,
+    // `priorRatioAbsence`), so the two documents are byte-identical here.
+    const why = ratioCmp ? ratioRowAbsence(label) : (cmpAbsent ?? NO_COMPARATIVE_CELL);
     return [figure, why, why, band, why, why];
   };
   const ratioRows: (string | number)[][] = [
@@ -447,7 +450,7 @@ export function buildExcelWorkbook(
       ratioRows.push([
         groupName,
         r.label,
-        ...sixCells(servedRatioKey(r.key), r.label, formatRatio(r), verdictLabel(r.verdict)),
+        ...sixCells(servedRatioKey(r.key), r.label, formatRatio(r), ratioBadgeLabel(r)),
         r.benchmark,
         r.commentary,
       ]);
@@ -792,18 +795,17 @@ function altmanRowFor(
   // the workbook cell, the on-screen card and the printed document are now
   // three renderings of ONE object rather than three descriptions of it.
   const r = altmanRatio(credit);
-  const zoneWord =
-    credit.altman.zone === "safe" ? "Safe"
-    : credit.altman.zone === "grey" ? "Grey"
-    : credit.altman.zone === "distress" ? "Distress"
-    : EXPORT_UNREPORTED;
   // With a served two-period table, the six cells are the served
-  // `altman_z` composite row (band read from the served zone); without
-  // one, the reader's value and zone word, as before.
+  // `altman_z` composite row; without one, the reader's value and the SAME
+  // band word the document's Altman card prints in its "Band now" cell
+  // (`ratioBadgeLabel`: safe zone → Healthy, grey → Watch, distress →
+  // Critical — the words the served Altman ladder uses). It used to print
+  // the zone word "Safe" here while the document printed "Healthy" in the
+  // same cell for the same state; the zones stay spelled in the benchmark.
   return [
     "Bankruptcy",
     r.label,
-    ...sixCells(ALTMAN_RATIO_KEY, r.label, fixedCell(r.value, 2), zoneWord),
+    ...sixCells(ALTMAN_RATIO_KEY, r.label, fixedCell(r.value, 2), ratioBadgeLabel(r)),
     r.benchmark,
     // Value and sentence agree about existence — a score the reader
     // refused has no verdict prose, and never the other model's.

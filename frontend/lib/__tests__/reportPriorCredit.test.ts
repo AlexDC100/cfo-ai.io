@@ -25,12 +25,18 @@
 //  §3  a planted served value that some surface (card, credit section,
 //      executive summary, workbook) does not print: the surface computed
 //      instead of reading.
-//  §4  a card whose headline figure and served current cell disagree on
-//      the committed pair — one ratio, two values, one card.
+//  §4  on ANY of the twelve ordered corpus pairs: a card whose headline
+//      figure is not its served current cell, whose badge is not its "Band
+//      now" cell, or whose benchmark does not print the served ladder — one
+//      ratio, two ladders, one card (the four declared ladder divergences
+//      bite on retail as the current period).
 //  §5  the credit section without the prior letter, composite and Altman,
 //      or with a movement the served composite row does not state.
 //  §6  a prior that cannot be computed printed as a dash, a blank, a zero
-//      or a number, on any surface, or without its reason.
+//      or a number, on any surface, or without its reason IN THE CELL; a
+//      report cell that differs from the workbook cell for the same state;
+//      "no prior period" under a heading that names the prior period (the
+//      production shape before B6: `prior` attached, no comparatives).
 //  §7  a document with no comparison that grows six-column tables or a
 //      band-movement block claiming a comparison nobody supplied.
 //  §8  the band-movement headline missing from the top of page one, out of
@@ -41,6 +47,12 @@
 //      different order than the document's lists.
 //  §10 `SERVED_RATIO_KEY_OF` drifting from the `fe_key` column of
 //      `src/engine/ratios/table.py`.
+//  §11 a delta or band-movement cell (card, served-only table, crossing
+//      line, credit movement, executive tile) whose tone is not the served
+//      verdict's, or a stylesheet that paints improvement and deterioration
+//      in the wrong colours.
+//  §12 a served block of partial shape that throws out of an export instead
+//      of degrading with a stated reason.
 //
 // ── WHAT IT CANNOT SEE ────────────────────────────────────────────────
 //  · whether the served figures are RIGHT — the engine gates
@@ -56,17 +68,33 @@ import * as XLSX from "xlsx";
 
 import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
 import {
+  computeRatios,
   printedRatioCells,
   printRatioCompareRow,
   priorRatioAbsence,
+  ratioRowAbsence,
   serializeRatioCompareRow,
+  servedLadderSentence,
+  servedRatioKey,
   SERVED_RATIO_KEY_OF,
+  verdictLabel,
+  type Statements,
 } from "@/lib/financialReport";
 import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "@/lib/reportComparatives";
-import { reasonText, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
+import { formatRatioBand, reasonText, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
 
 import { metricsFor, statementsFor } from "./exportBooks";
-import { pairEnvelopes, pairStatements, servedRatioPair, servedRatiosCopy } from "./servedRatioPair";
+import {
+  corpusPairEnvelopes,
+  corpusPairKeys,
+  corpusPairStatements,
+  pairEnvelopes,
+  pairStatements,
+  pairStatementsWithoutComparatives,
+  servedCorpusPairs,
+  servedRatioPair,
+  servedRatiosCopy,
+} from "./servedRatioPair";
 
 const DASHES = new Set(["—", "–", "-", "", "0", "0.00", "n/a", "N/A"]);
 const text = (el: Element | null | undefined): string => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -209,28 +237,110 @@ describe("§3 plant one served row: every export surface prints the plant", () =
     const wbRow = ratiosSheet(planted).find((r) => r[1] === "Current Ratio") as string[];
     expect(wbRow.slice(2, 5)).toEqual(["4.56×", "9.87×", "-5.31× (+15.4%)"]);
   });
+
+  it("the card HEADLINE prints the planted served string, not a figure of the statements", () => {
+    const doc = reportDoc(planted);
+    const card = doc.querySelector('.ratio-card table.ratio-cmp[data-ratio-cmp="current_ratio"]')?.closest(".ratio-card");
+    expect(text(card?.querySelector(".value"))).toBe("4.56×");
+  });
+
+  it("the two executive ratio tiles print the served strings EXACTLY — a figure full precision cannot round to", () => {
+    const tiles = servedRatiosCopy();
+    const equity = tiles.rows.find((r) => r.key === "equity_ratio") as RatioCompareRow;
+    const nde = tiles.rows.find((r) => r.key === "net_debt_to_ebitda") as RatioCompareRow;
+    // 60.85% and a sub-turn net debt / EBITDA round to neither plant.
+    expect(equity.current.value).not.toBeNull();
+    equity.current.value_q = "12.3";
+    equity.delta.value = "-72.6";
+    expect(nde.current.value).not.toBeNull();
+    nde.current.value_q = "7.77";
+    nde.delta.value = "+6.66";
+    const doc = reportDoc(tiles);
+    for (const [tile, row] of [["equity_ratio", equity], ["net_debt_ebitda", nde]] as const) {
+      const p = printRatioCompareRow(row, tile);
+      const cells = Array.from(doc.querySelectorAll(`tr[data-tile="${tile}"] td`)).map(text);
+      expect(cells[1], `${tile} current`).toBe(p.current);
+      expect(cells[2], `${tile} change`).toBe(p.delta);
+    }
+  });
 });
 
-// ── §4 the headline and the served current cell are one value ──────────
+// ── §4 one card, one ladder — on every corpus pair ─────────────────────
 
-describe("§4 a card never prints one figure in its headline and another in its table", () => {
-  it("every card with a six-column table, on the committed pair", () => {
-    const doc = reportDoc();
+/** Every six-column card of a rendered document, with what it prints. */
+function cardsOf(doc: Document): Array<{ row: RatioCompareRow; headline: string; badge: string; meta: string; current: string; bandNow: string }> {
+  const out = [];
+  for (const card of Array.from(doc.querySelectorAll(".ratio-card"))) {
+    const table = card.querySelector("table.ratio-cmp[data-ratio-cmp-json]");
+    if (!table) continue;
+    out.push({
+      row: JSON.parse(table.getAttribute("data-ratio-cmp-json") as string) as RatioCompareRow,
+      headline: text(card.querySelector(".value")).replace(/ \/ 100$/, ""),
+      badge: text(card.querySelector(".meta .badge")),
+      meta: text(card.querySelector(".meta")),
+      current: text(table.querySelector('td[data-cell="current"]')),
+      bandNow: text(table.querySelector('td[data-cell="band-now"]')),
+    });
+  }
+  return out;
+}
+
+describe("§4 a card never prints one figure, verdict or ladder in its headline and another in its table", () => {
+  const CENSUS_CARDS = 22;
+
+  it("every card on every ordered corpus pair: headline = current cell, badge = Band now, benchmark = served ladder", () => {
+    const pairs = corpusPairKeys();
+    expect(pairs.length).toBe(12);
     let checked = 0;
-    for (const card of Array.from(doc.querySelectorAll(".ratio-card"))) {
-      const table = card.querySelector("table.ratio-cmp[data-ratio-cmp-json]");
-      if (!table) continue;
-      const headline = text(card.querySelector(".value")).replace(/ \/ 100$/, "");
-      const current = text(table.querySelector('td[data-cell="current"]'));
-      const row = JSON.parse(table.getAttribute("data-ratio-cmp-json") as string) as RatioCompareRow;
-      if (row.current.value_q === null) {
-        expect(headline, `${row.key}: the served current is refused, the card prints a figure`).toBe("not reported");
-      } else {
-        expect(current, `${row.key}: card headline ${headline}, served current ${current}`).toBe(headline);
+    let laddersChecked = 0;
+    for (const [cur, pri] of pairs) {
+      const doc = new DOMParser().parseFromString(
+        buildReportHtml(corpusPairStatements(cur, pri), corpusPairEnvelopes(cur)),
+        "text/html",
+      );
+      const cards = cardsOf(doc);
+      expect(cards.length, `${cur}|${pri}`).toBe(CENSUS_CARDS + 3);
+      for (const c of cards) {
+        const where = `${cur}|${pri} ${c.row.key}`;
+        if (c.row.current.value_q === null) {
+          expect(c.headline, `${where}: served current refused, the card prints a figure`).toBe("not reported");
+        } else {
+          expect(c.headline, `${where}: headline ${c.headline}, served current ${c.current}`).toBe(c.current);
+        }
+        // The census cards carry a band badge; the credit cards carry none.
+        if (c.row.group !== "distress" && c.row.group !== "credit") {
+          expect(c.badge, `${where}: badge ${c.badge}, Band now ${c.bandNow}`).toBe(c.bandNow);
+          const sentence = servedLadderSentence(c.row);
+          if (sentence !== null) {
+            expect(c.meta, `${where}: the benchmark does not print the served ladder`).toContain(sentence);
+            laddersChecked += 1;
+          }
+        }
+        checked += 1;
       }
-      checked += 1;
     }
-    expect(checked).toBe(25); // 22 computeRatios cards + composite + letter + Altman
+    expect(checked).toBe(12 * (CENSUS_CARDS + 3));
+    expect(laddersChecked).toBeGreaterThan(12 * 10);
+  });
+
+  it("non-vacuity: the FE ladders really disagree with the served band on these pairs", () => {
+    // Without the served overlay the card's badge is computeRatios' verdict.
+    // Count the cards where that word differs from the served Band now — the
+    // cards this gate exists for. Retail as the current period is one.
+    const fx = servedCorpusPairs();
+    const disagreements: string[] = [];
+    for (const [cur, pri] of corpusPairKeys()) {
+      const rows = new Map(fx.pairs[`${cur}|${pri}`].rows.map((r) => [r.key, r]));
+      const b = computeRatios(statementsFor(cur), undefined, metricsFor(cur));
+      for (const rt of [b.liquidity, b.profitability, b.leverage, b.coverage, b.efficiency].flat()) {
+        const row = rows.get(servedRatioKey(rt.key));
+        if (row && verdictLabel(rt.verdict) !== formatRatioBand(row.current, "en")) {
+          disagreements.push(`${cur}|${pri} ${row.key}`);
+        }
+      }
+    }
+    expect(disagreements).toContain("retail|agras debt_to_assets");
+    expect(disagreements.length).toBeGreaterThan(3);
   });
 });
 
@@ -278,27 +388,81 @@ describe("§6 a prior that cannot be computed states why — never a dash", () =
     expect(cardCells(doc, "altman_z")[1]).toBe(reasonText("credit_inputs_absent", "en"));
   });
 
-  it("a comparison that reached the export without its table: every prior cell states the reason", () => {
-    const s = pairStatements(null);
+  /** The absent-table assertions, shared by the two production shapes. */
+  const assertStatedInEveryCell = (s: Statements, tablesAbsentAs: string) => {
     const reason = priorRatioAbsence(s);
-    expect(reason).toMatch(/without/);
     const doc = new DOMParser().parseFromString(buildReportHtml(s, pairEnvelopes()), "text/html");
-    const tables = Array.from(doc.querySelectorAll('table.ratio-cmp[data-ratio-cmp-absent="table"]'));
+    const wb = ratiosSheet(null, s);
+    const priorLabel = s.prior?.periodLabel as string;
+    const tables = Array.from(doc.querySelectorAll(`table.ratio-cmp[data-ratio-cmp-absent="${tablesAbsentAs}"]`));
     expect(tables.length).toBe(25);
     for (const t of tables) {
-      const cells = Array.from(t.querySelectorAll("td"));
+      const heads = Array.from(t.querySelectorAll("th")).map(text);
+      expect(heads[1], "the prior column names the prior period").toBe(priorLabel);
+      const cells = Array.from(t.querySelectorAll("td")).map(text);
       for (const i of [1, 2, 4, 5]) {
-        expect(text(cells[i])).toBe(NO_COMPARATIVE_CELL);
-        expect(cells[i].getAttribute("title")).toBe(reason);
+        expect(cells[i], `${t.getAttribute("data-ratio-cmp")} cell ${i}`).toBe(reason);
+        expect(cells[i]).not.toBe(NO_COMPARATIVE_CELL);
       }
-      expect(DASHES.has(text(cells[0]))).toBe(false);
+      expect(DASHES.has(cells[0])).toBe(false);
+      // THE SAME CELLS IN THE WORKBOOK, for the same row.
+      const card = t.closest(".ratio-card");
+      const label = text(card?.querySelector(".label"));
+      const wbRow = wb.find((r) => r[1] === label);
+      if (wbRow) expect(wbRow.slice(2, 8), `${label}: report and workbook differ`).toEqual(cells);
+    }
+    // Nowhere under a heading that names the prior period does the document
+    // say there is no prior period.
+    for (const td of Array.from(doc.querySelectorAll("table.ratio-cmp td"))) {
+      expect(text(td)).not.toBe(NO_COMPARATIVE_CELL);
     }
     expect(text(doc.querySelector('[data-report-credit-movement="absent"]'))).toContain(reason);
     expect(text(doc.querySelector('[data-band-movements="absent"]'))).toContain(reason);
     expect(doc.querySelector("[data-ratio-cmp-json]")).toBeNull();
-    for (const r of ratiosSheet(null, s).filter((row) => row[0] === "Liquidity")) {
+    for (const r of wb.filter((row) => row[0] === "Liquidity")) {
       expect([r[3], r[4], r[6], r[7]]).toEqual([reason, reason, reason, reason]);
     }
+    // THE EXECUTIVE RATIO TILES print the reason too, beside money tiles that
+    // print a real change against the same prior.
+    for (const tile of ["equity_ratio", "net_debt_ebitda"]) {
+      const cells = Array.from(doc.querySelectorAll(`tr[data-tile="${tile}"] td`)).map(text);
+      expect(cells.length).toBeGreaterThan(2);
+      for (const c of cells.slice(2)) {
+        expect(c, `${tile}: "no prior period" beside a prior the money tiles compare against`).not.toBe(NO_COMPARATIVE_CELL);
+        expect(c.length).toBeGreaterThan(20);
+      }
+      expect(cells[2], tile).toBe(reason);
+    }
+    const money = Array.from(doc.querySelectorAll('tr[data-tile="total_assets"] td')).map(text);
+    expect(money[2], "the money tile compares against the same prior").toMatch(/\d/);
+    return reason;
+  };
+
+  it("a comparison document that reached the export without its table: the reason IS every prior cell", () => {
+    const reason = assertStatedInEveryCell(pairStatements(null), "table");
+    expect(reason).toMatch(/comparison document reached this export without its two-period ratio table/);
+  });
+
+  it("THE PRODUCTION SHAPE BEFORE B6 — prior attached, no comparatives document: the reason IS every prior cell", () => {
+    const s = pairStatementsWithoutComparatives();
+    expect(s.comparatives).toBeUndefined();
+    const reason = assertStatedInEveryCell(s, "table");
+    expect(reason).toBe(
+      "the comparison period Dec 2024 reached this export without the served two-period ratio table, so no ratio's prior, change or band movement is stated",
+    );
+  });
+
+  it("a served table with no row for a card's ratio: the row sentence, in the report and the workbook", () => {
+    const planted = servedRatiosCopy();
+    planted.rows = planted.rows.filter((r) => r.key !== "quick_ratio");
+    planted.band_movements.unchanged = planted.band_movements.unchanged.filter((u) => u.key !== "quick_ratio");
+    const doc = reportDoc(planted);
+    const t = doc.querySelector('table.ratio-cmp[data-ratio-cmp="quick_ratio"][data-ratio-cmp-absent="row"]') as Element;
+    const cells = Array.from(t.querySelectorAll("td")).map(text);
+    const reason = ratioRowAbsence("Quick Ratio");
+    expect([cells[1], cells[2], cells[4], cells[5]]).toEqual([reason, reason, reason, reason]);
+    const wb = ratiosSheet(planted).find((r) => r[1] === "Quick Ratio") as string[];
+    expect(wb.slice(2, 8)).toEqual(cells);
   });
 });
 
@@ -438,4 +602,96 @@ describe("§10 SERVED_RATIO_KEY_OF mirrors the engine census", () => {
     for (const m of specs) if (m[3] && m[3] !== m[1]) differing[m[3]] = m[1];
     expect(SERVED_RATIO_KEY_OF).toEqual(differing);
   });
+});
+
+// ── §11 direction, painted from the served verdicts ───────────────────
+
+const DELTA_TONE: Record<string, string> = { improved: "success", deteriorated: "alert", none: "neutral" };
+
+function expectedDeltaTone(row: RatioCompareRow): string {
+  const fav = row.delta.favourable ?? "none";
+  const zero = typeof row.delta.value === "string" && /^[+-]?0+(\.0+)?$/.test(row.delta.value);
+  if (zero && fav !== "none") return "caution";
+  return DELTA_TONE[fav] ?? "caution";
+}
+
+function expectedMovementTone(row: RatioCompareRow): string {
+  const m = row.movement;
+  if (m.status === "crossed_up") return m.rungs_crossed > 0 ? "success" : "caution";
+  if (m.status === "crossed_down") return m.rungs_crossed < 0 ? "alert" : "caution";
+  if (m.status === "same_band") return m.rungs_crossed === 0 ? "neutral" : "caution";
+  return m.status === "not_comparable" ? "neutral" : "caution";
+}
+
+describe("§11 every delta and band-movement cell carries the served direction", () => {
+  it("cards, the served-only table, crossing lines, credit lines and executive tiles", () => {
+    const doc = reportDoc();
+    const tally: Record<string, number> = {};
+    let sameBandDeteriorated = 0;
+    for (const holder of Array.from(doc.querySelectorAll("[data-ratio-cmp-json]"))) {
+      const row = JSON.parse(holder.getAttribute("data-ratio-cmp-json") as string) as RatioCompareRow;
+      const cellsOf = (id: string) =>
+        holder.matches(`[data-cell="${id}"]`) ? [holder] : Array.from(holder.querySelectorAll(`[data-cell="${id}"]`));
+      const deltas = cellsOf("delta");
+      expect(deltas.length, `${row.key}: a delta with no tone holder`).toBeGreaterThan(0);
+      for (const d of deltas) {
+        expect(d.getAttribute("data-tone"), `${row.key} delta (${row.delta.favourable})`).toBe(expectedDeltaTone(row));
+        tally[`delta:${d.getAttribute("data-tone")}`] = (tally[`delta:${d.getAttribute("data-tone")}`] ?? 0) + 1;
+        if (row.movement.status === "same_band" && row.delta.favourable === "deteriorated") sameBandDeteriorated += 1;
+      }
+      for (const m of cellsOf("movement")) {
+        expect(m.getAttribute("data-tone"), `${row.key} movement (${row.movement.status})`).toBe(expectedMovementTone(row));
+        tally[`move:${m.getAttribute("data-tone")}`] = (tally[`move:${m.getAttribute("data-tone")}`] ?? 0) + 1;
+      }
+    }
+    expect(tally["delta:success"]).toBeGreaterThan(0);
+    expect(tally["delta:alert"]).toBeGreaterThan(0);
+    expect(tally["move:success"]).toBeGreaterThan(0);
+    expect(tally["move:alert"]).toBeGreaterThan(0);
+    expect(sameBandDeteriorated, "a same-band deterioration carries a direction").toBeGreaterThan(0);
+    const exec = doc.querySelector('tr[data-tile="equity_ratio"] td[data-cell="delta"]');
+    expect(exec?.getAttribute("data-tone")).toBe("alert");
+  });
+
+  it("the stylesheet paints success green, alert red and caution amber — and nothing keyed on a status alone", () => {
+    const html = buildReportHtml(pairStatements(), pairEnvelopes());
+    const css = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/g) ?? []).join("\n");
+    const colourOf = (tone: string) =>
+      css.match(new RegExp(`\\[data-tone="${tone}"\\]\\s*\\{\\s*color:\\s*(#[0-9A-Fa-f]{6})`))?.[1]?.toUpperCase();
+    expect(colourOf("success")).toBe("#0A6154");
+    expect(colourOf("alert")).toBe("#7A1F1F");
+    expect(colourOf("caution")).toBe("#8A5A00");
+    expect(css).not.toMatch(/data-movement="crossed_(up|down)"\][^{]*\{[^}]*color/);
+  });
+});
+
+// ── §12 a partial served block degrades with a reason, never throws ────
+
+describe("§12 a malformed served block is absent-with-a-reason on every surface", () => {
+  const shapes: Array<[string, (r: RatioComparisonV1) => void, RegExp]> = [
+    ["no composites", (r) => { delete (r as { composites?: unknown }).composites; }, /no list of composites/],
+    ["a row without its delta", (r) => { delete (r.rows[0] as { delta?: unknown }).delta; }, /the current_ratio row carries no delta/],
+    ["rows not a list", (r) => { (r as unknown as { rows: unknown }).rows = {}; }, /no list of rows/],
+    ["a band list not a list", (r) => { (r.band_movements as unknown as { improved: unknown }).improved = "roe"; }, /improved is not a list/],
+  ];
+  for (const [name, plant, why] of shapes) {
+    it(name, () => {
+      const planted = servedRatiosCopy();
+      plant(planted);
+      const s = pairStatements(planted);
+      const reason = priorRatioAbsence(s);
+      expect(reason).toMatch(/could not be read/);
+      expect(reason).toMatch(why);
+      let html = "";
+      expect(() => { html = buildReportHtml(s, pairEnvelopes()); }).not.toThrow();
+      expect(() => buildExcelWorkbook(s, undefined, pairEnvelopes())).not.toThrow();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      expect(doc.querySelector("[data-ratio-cmp-json]")).toBeNull();
+      const t = doc.querySelector('table.ratio-cmp[data-ratio-cmp="current_ratio"]') as Element;
+      expect(text(t.querySelectorAll("td")[1])).toBe(reason);
+      expect(text(doc.querySelector('[data-band-movements="absent"]'))).toContain(reason);
+      const wb = ratiosSheet(planted, s).find((r) => r[1] === "Current Ratio") as string[];
+      expect(wb[3]).toBe(reason);
+    });
+  }
 });
