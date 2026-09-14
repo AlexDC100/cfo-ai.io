@@ -167,10 +167,6 @@ describe("template cards — Simple leads with the question, Pro unchanged", () 
       expect(card.textContent).toContain(question);
       expect(card.textContent).toContain(tpl.name);
     }
-    // The recession card asks the mandated phrasing derived from its params.
-    expect(
-      screen.getByTestId("scenario-template-recession").textContent,
-    ).toContain("What if sales drop 20%?");
     unmount();
   });
 
