@@ -18,6 +18,20 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       `_radar.content_hash_of`), its impact not being headroom money whose
       |delta| is the composer's served `materiality.headroom_money`, or
       `ratio_compare` calling into c_bands other than exactly once.
+  EVERY FINDING  on all 20 ordered pairs of the five served books (Scandia
+      included), for every finding row, surfaced or demoted: a printed prior
+      or current figure (`_format_value` of the evidence figure) differing
+      from the served `value_q` in the row's unit (the letter: the composite
+      score), or absent from a surfaced body; the threshold limit, back in
+      display units, differing from `movement.rung_crossed.value`; a
+      severity other than the landing rule; an impact present where the
+      composer served no materiality (or absent where it did); the impact's
+      baseline / adjusted not being the at-rung / held numerator
+      (rung x |served denominator| / unit scale, days on the served period
+      length) to float precision, not cited under `band_numerator_at_rung` /
+      `band_numerator_held`, or |delta| more than half a cent from the served
+      `headroom_money`; the findings, the improved or the deteriorated list
+      out of the printed rank order (spelled here from `rank_basis.order`).
   SUBJECT CODES  with carniprod as the current period (against each other
       book), any finding naming a served code `is_ledger_code` rejects
       (`701.00'`), any finding demoting on "is not a ledger code", or a
@@ -50,6 +64,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Tuple
 
@@ -140,6 +155,117 @@ def test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_
     assert format(headroom, "f") == mv["materiality"]["headroom_money"], (imp.delta, mv["materiality"])
     assert all(step.lead_verb() in F.IMPERATIVE_VERBS for step in finding.action.steps)
     assert served["so_what"]["placeholders"]["rung_value"] == "1.5"
+
+
+# ── 1a. every finding on every real pair carries the served row's numbers ──
+
+#: Every ordered pair of the five served books (the four corpus books and the
+#: Scandia baseline), both orders.
+PAIRS = [(c, p) for c in SB.ALL_BOOKS for p in SB.ALL_BOOKS if c != p]
+
+#: What `_finding._format_value` appends per served display unit.
+_PRINTED_SUFFIX = {"x": "\u00d7", "z": "\u00d7", "pct": "%", "days": " days"}
+
+
+def _landing_severity(mv: Dict[str, Any]) -> str:
+    """The landing rule, as specified: any rung up is low; landing in
+    critical or crossing two or more rungs down is high; one rung down is
+    medium."""
+    if mv["rungs_crossed"] > 0:
+        return "low"
+    if mv["to"] == "critical" or mv["rungs_crossed"] <= -2:
+        return "high"
+    return "medium"
+
+
+def _printed_rank_key(row: Dict[str, Any]) -> Tuple[Any, ...]:
+    """`band_movements.rank_basis.order`, spelled from the served fields
+    here rather than imported, so the composer's own sort key is under test."""
+    mv = row["movement"]
+    frac = mv["distance_fraction"]
+    share = (mv["materiality"] or {}).get("share")
+    return (-abs(mv["rungs_crossed"]),
+            frac is None, -Decimal(frac) if frac is not None else Decimal(0),
+            share is None, -Decimal(share) if share is not None else Decimal(0),
+            row["key"])
+
+
+def _served_period_days(body: Dict[str, Any]) -> Decimal:
+    v = (body["statements"].get("supplementary") or {}).get("periodDays")
+    ok = isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+    return Decimal(repr(float(v))) if ok else Decimal(365)
+
+
+@pytest.mark.parametrize("cur_name,pri_name", PAIRS)
+def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank(cur_name, pri_name):
+    cur_body, pri_body = SB.served_body(cur_name), SB.served_body(pri_name)
+    out = _compose(cur_body, pri_body, cur_name, pri_name)
+    bm = out["band_movements"]
+    assert bm["rank_basis"]["order"] == list(RC.RANK_ORDER)
+    movable = {r["key"]: r for r in out["rows"] + out["composites"]}
+    findings = bm["findings"]
+
+    for bucket in ("improved", "deteriorated"):
+        rows = [movable[k] for k in bm[bucket]]
+        assert bm[bucket] == [r["key"] for r in sorted(rows, key=_printed_rank_key)], bucket
+    crossed = [movable[k] for k in bm["improved"] + bm["deteriorated"]]
+    assert [f["ratio_key"] for f in findings] == [r["key"] for r in sorted(crossed, key=_printed_rank_key)], (
+        "findings are not in the printed rank order")
+
+    denominators = T.ratio_denominators(cur_body, serve_time_metrics=True)
+    scale_of = {"x": Decimal(1), "pct": Decimal(100), "days": _served_period_days(cur_body)}
+    currency = findings[0]["source_currency"] if findings else "RON"
+    for f in findings:
+        key = f["ratio_key"]
+        r, mv, unit = movable[key], movable[key]["movement"], movable[key]["display_unit"]
+        el = f["contract_elements"]
+        where = "%s|%s %s" % (cur_name, pri_name, key)
+
+        # the printed prior and current figures are the served value_q
+        figures = {fg["fact"]: fg for fg in el["evidence"]["figures"]}
+        for side in ("prior", "current"):
+            fg = figures["%s__%s" % (key, side)]
+            printed = F._format_value(fg["value"], fg["unit"], currency)
+            if unit == "grade":
+                # the letter is graded on the composite; the figure is that score
+                expected = T.quantize_display(r[side]["value"], "score")
+            else:
+                expected = r[side]["value_q"] + _PRINTED_SUFFIX[unit]
+            assert printed == expected, (where, side, printed, expected)
+            if f["surfaced"]:
+                assert "%s \u2014 %s" % (fg["label"], printed) in f["body"], (where, side)
+
+        # the limit, back in display units, is the rung the composer crossed
+        thr, rung = el["threshold"], mv["rung_crossed"]
+        back = Decimal(repr(thr["limit"])) * (Decimal(100) if unit == "pct" else Decimal(1))
+        assert back == Decimal(rung["value"]) and thr["parameter"] == rung["name"], (where, thr, rung)
+        assert F._format_value(thr["observed"], thr["unit"], currency) == \
+            F._format_value(figures["%s__current" % key]["value"], thr["unit"], currency), where
+
+        assert f["severity"] == _landing_severity(mv), (where, f["severity"], mv)
+
+        # headroom money: the at-rung and held numerators on the served denominator
+        imp = el["impact"]
+        if mv["materiality"] is None:
+            assert imp is None, (where, imp)
+            continue
+        assert imp is not None and imp["kind"] == "headroom" and imp["unit"] == F.UNIT_MONEY, where
+        den = abs(Decimal(denominators[key]["value"]))
+        at_rung = Decimal(rung["value"]) * den / scale_of[unit]
+        held = Decimal(r["current"]["value"]) * den / scale_of[unit]
+        assert (imp["baseline_fact"], imp["adjusted_fact"]) == (CB.MONEY_AT_RUNG, CB.MONEY_HELD), where
+        # to float precision: both sides are the one exact Decimal, floated
+        assert math.isclose(imp["baseline"], float(at_rung), rel_tol=1e-12, abs_tol=1e-6) and \
+            math.isclose(imp["adjusted"], float(held), rel_tol=1e-12, abs_tol=1e-6), (
+                where, imp["baseline"], imp["adjusted"], at_rung, held)
+        assert f["facts_cited"][CB.MONEY_AT_RUNG] == imp["baseline"], where
+        assert f["facts_cited"][CB.MONEY_HELD] == imp["adjusted"], where
+        # headroom_money is the composer's 2dp ROUND_HALF_UP of the exact
+        # distance; the float delta may sit a binary hair either side of a
+        # half cent, so the bound is the half cent itself
+        served = Decimal(mv["materiality"]["headroom_money"])
+        assert abs(Decimal(repr(abs(imp["delta"]))) - served) <= Decimal("0.005000001"), (
+            where, imp["delta"], mv["materiality"])
 
 
 # ── 1b. a served code the contract rejects is never the subject ────────────
