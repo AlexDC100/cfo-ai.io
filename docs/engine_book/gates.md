@@ -2523,9 +2523,9 @@ from a different model, and nothing crashes.
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py -q` |
-| work count | junit-xml, floor **20** tests (measured 22: 7 cases × the purity claims, plus the ladder scan) |
-| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder` |
+| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py -q` |
+| work count | junit-xml, floor **24** tests (measured 26: 7 cases × the purity claims, the ladder scan, and the 4 revision-2 refusal gates) |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_x4_altman_and_liquidity_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_not_positive` |
 
 **Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
 mapping, Altman coefficient, rounding, operand, unit, direction, order) on
@@ -2555,6 +2555,40 @@ RECORD ratio-credit-model {'state': 'FAIL', 'exit_code': 1, 'work_units': 22}
 
 **REVERT** — exit `0`: `PASS ratio-credit-model (1.9s, 22 tests)`. Verdict:
 proven RED.
+
+**REVISION 2 (2026-09-15, ruling Q2: absent is never zero).** Added
+`tests/engine/test_credit_model_refusals.py`. Reds on, after the repair:
+`corpus/saga_compact_6_col` through the real GET /api/period route serving a
+number for X4, Z'' or the Altman or liquidity sub-score; a refused sub-score
+missing from `refused_subscores` or carrying another code; served `weights`
+that are not the computed sub-scores' weights renormalised; a composite that
+is not those weights times the served sub-scores; the envelope's
+composite_weights differing from the ratio table's; on every deterministic
+corpus book and the five served books, a refused set other than exactly
+{liquidity when current liabilities are not positive, altman when total
+liabilities are not positive} (census: 20 books, 7 with a refusal); the
+two-period block giving a refused row any reason but the model's own.
+
+**GREEN** — `PASS ratio-credit-model (19.6s, 26 tests)`.
+
+**PLANT A** — `credit_model.py`: X4 back on the revision-1 divisor
+(`x4 = total_equity / max(total_liab, 1)`). **RED** — exit `1`,
+`FAIL ratio-credit-model (exit 1, 9.7s)`, `3 failed, 23 passed`:
+
+```
+E   AssertionError: saga_compact_6_col: refused sub-scores {'liquidity': 'current_liabilities_not_positive'}, expected {'liquidity': 'current_liabilities_not_positive', 'altman': 'total_liabilities_not_positive'} from the liabilities
+```
+
+**PLANT B** — liquidity back to zero (`liq_subscore = 0.0` before the
+`current_liab > 0` branch): 4 failed. **PLANT C** — no renormalisation
+(`CREDIT_COMPOSITE_WEIGHTS[k]` without `/ total`): 3 failed,
+`AssertionError: ('saga_compact_6_col', {'coverage': 0.1, 'dscr': 0.1, 'equity': 0.05, 'leverage': 0.15, ...})`.
+**PLANT D** — `credit_block` serving the model table as `weights`: 3 failed.
+**PLANT E** — `ratio_compare._composite_rows.refused` ignoring the
+sub-score's own refusal: 1 failed,
+`AssertionError: ('altman_z', {'code': 'credit_inputs_absent', 'inputs': []})`.
+
+**REVERT** — `PASS ratio-credit-model (19.6s, 26 tests)`. Verdict: proven RED.
 
 ## ratio-table
 

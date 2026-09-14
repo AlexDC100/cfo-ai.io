@@ -27,6 +27,21 @@ as a `credit_model_revision` row so a persisted composite can be dated
 against the model that produced it. Change the weights, a sub-score
 mapping, the Altman coefficients or the ladder and the revision moves
 with them.
+
+ABSENT IS NEVER ZERO (revision 2, 2026-09-15, ruling Q2). Revision 1 read a
+book with no current liabilities as liquidity sub-score 0.0 (`if
+current_liab > 0 else 0` on all three ratios) and divided Altman X4 by
+`max(total_liabilities, 1)`: `saga_compact_6_col`, whose liabilities are all
+zero, served X4 1500.0, Z'' 1584.89, liquidity 0.0 and composite 88.5 AA.
+Revision 2 REFUSES instead: current liabilities not positive -> the
+liquidity sub-score refuses (`current_liabilities_not_positive`); total
+liabilities not positive -> X4 refuses, so Z'' and the Altman sub-score
+refuse (`total_liabilities_not_positive`). The composite is the weighted
+sum over the sub-scores that computed, with their weights renormalised to
+sum to one (`applied_composite_weights`); `credit_block` serves the refused
+sub-scores with their reasons and the weights the composite actually used.
+A book with no refusal is computed by the same expression as revision 1,
+byte for byte.
 """
 
 from __future__ import annotations
@@ -39,7 +54,7 @@ logger = logging.getLogger(__name__)
 #: The revision of the arithmetic below. Bump it on ANY change to what a
 #: row means: a weight, a sub-score mapping, an Altman coefficient, a
 #: ladder rung, a ratio's numerator or denominator.
-CREDIT_MODEL_REVISION = 1
+CREDIT_MODEL_REVISION = 2
 
 #: The calculated_metrics row name that carries `CREDIT_MODEL_REVISION`.
 CREDIT_MODEL_REVISION_METRIC = "credit_model_revision"
@@ -93,6 +108,44 @@ CREDIT_SUBSCORE_METRICS: Tuple[Tuple[str, str], ...] = (
 #: The reason a period carries no credit composite: the model names a
 #: missing operand (today: total assets not positive, so no Altman).
 CREDIT_INPUTS_ABSENT = "credit_inputs_absent"
+
+#: Why a single sub-score refuses while the composite is still computed.
+CURRENT_LIABILITIES_NOT_POSITIVE = "current_liabilities_not_positive"
+TOTAL_LIABILITIES_NOT_POSITIVE = "total_liabilities_not_positive"
+CREDIT_SUBSCORE_REFUSAL_CODES: Tuple[str, ...] = (
+    CURRENT_LIABILITIES_NOT_POSITIVE,
+    TOTAL_LIABILITIES_NOT_POSITIVE,
+)
+
+_CURRENT_LIABILITY_INPUTS = ("balanceSheet.accountsPayable", "balanceSheet.shortTermDebt",
+                             "balanceSheet.otherCurrentLiabilities")
+
+#: sub-score -> the refusal its row carries when it is absent beside a
+#: computed composite. These are the ONLY two ways a sub-score refuses in
+#: revision 2 (every other sub-score is computed whenever total assets are
+#: positive), so a None sub-score row names its reason without guessing.
+CREDIT_SUBSCORE_REFUSALS: Dict[str, Dict[str, Any]] = {
+    "liquidity": {"code": CURRENT_LIABILITIES_NOT_POSITIVE,
+                  "inputs": list(_CURRENT_LIABILITY_INPUTS)},
+    "altman": {"code": TOTAL_LIABILITIES_NOT_POSITIVE,
+               "inputs": list(_CURRENT_LIABILITY_INPUTS) + [
+                   "balanceSheet.longTermDebt", "balanceSheet.otherNonCurrentLiabilities"]},
+}
+
+
+def applied_composite_weights(computed: Any) -> Dict[str, float]:
+    """The weights the composite multiplies by, over the sub-scores that
+    `computed` names. All seven computed -> `CREDIT_COMPOSITE_WEIGHTS`
+    verbatim (no division, so a book with no refusal is byte-identical to
+    revision 1); otherwise each computed weight divided by the sum of the
+    computed weights, in the table's order."""
+    keys = [k for k in CREDIT_COMPOSITE_WEIGHTS if k in set(computed)]
+    if len(keys) == len(CREDIT_COMPOSITE_WEIGHTS):
+        return dict(CREDIT_COMPOSITE_WEIGHTS)
+    total = sum(CREDIT_COMPOSITE_WEIGHTS[k] for k in keys)
+    if total <= 0:
+        return {}
+    return {k: CREDIT_COMPOSITE_WEIGHTS[k] / total for k in keys}
 
 
 def altman_zone(z: Optional[float]) -> Optional[str]:
@@ -439,20 +492,25 @@ def compute_period_metrics(
         x1 = (current_assets - current_liab) / total_assets
         x2 = bs["retainedEarnings"] / total_assets
         x3 = operating_profit / total_assets
-        # X4 = book equity / total liabilities. max(1, ...) so we never
-        # divide by zero on an asset-only entity (no debt).
-        total_liab_safe = max(current_liab + non_current_liab, 1)
-        x4 = total_equity / total_liab_safe
-        altman_z = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
+        # X4 = book equity / total liabilities. Revision 2: no liabilities
+        # is ABSENT, not a divisor of 1 — X4, Z'' and the Altman sub-score
+        # refuse (`total_liabilities_not_positive`). Revision 1 divided by
+        # max(liabilities, 1) and served X4 1500.0 / Z'' 1584.89 on a book
+        # with no liabilities at all.
+        total_liab = current_liab + non_current_liab
+        x4 = (total_equity / total_liab) if total_liab > 0 else None
+        altman_subscore = None
+        if x4 is not None:
+            altman_z = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
 
-        # Map Z″ to a 0-100 sub-score with the same three-zone reading the
-        # methodology uses (>2.60 safe, 1.10-2.60 grey, <1.10 distress).
-        if altman_z >= ALTMAN_SAFE_FROM:
-            altman_subscore = min(100, 70 + (altman_z - ALTMAN_SAFE_FROM) * 15)
-        elif altman_z >= ALTMAN_GREY_FROM:
-            altman_subscore = 40 + (altman_z - ALTMAN_GREY_FROM) * 20
-        else:
-            altman_subscore = max(0, altman_z * 36)
+            # Map Z″ to a 0-100 sub-score with the same three-zone reading the
+            # methodology uses (>2.60 safe, 1.10-2.60 grey, <1.10 distress).
+            if altman_z >= ALTMAN_SAFE_FROM:
+                altman_subscore = min(100, 70 + (altman_z - ALTMAN_SAFE_FROM) * 15)
+            elif altman_z >= ALTMAN_GREY_FROM:
+                altman_subscore = 40 + (altman_z - ALTMAN_GREY_FROM) * 20
+            else:
+                altman_subscore = max(0, altman_z * 36)
 
         # Profitability sub-score: blend ROE + net margin. ROE weighted 0.5×
         # to keep margin-led growth companies from looking weak.
@@ -504,49 +562,62 @@ def compute_period_metrics(
             dscr_subscore = max(0, dscr * 50)
 
         # Liquidity sub-score: blend of current / quick / cash ratios.
-        cur_ratio = current_assets / current_liab if current_liab > 0 else 0
-        quick_ratio = (current_assets - bs["inventory"]) / current_liab if current_liab > 0 else 0
-        cash_ratio = bs["cash"] / current_liab if current_liab > 0 else 0
-        liq_subscore = (
-            min(100, cur_ratio * 50) + min(100, quick_ratio * 80) + min(100, cash_ratio * 250)
-        ) / 3
+        # Revision 2: with no current liabilities the three ratios have no
+        # base, so the sub-score REFUSES (`current_liabilities_not_positive`)
+        # — revision 1 read each ratio as 0 and scored liquidity 0.0.
+        liq_subscore = None
+        if current_liab > 0:
+            cur_ratio = current_assets / current_liab
+            quick_ratio = (current_assets - bs["inventory"]) / current_liab
+            cash_ratio = bs["cash"] / current_liab
+            liq_subscore = (
+                min(100, cur_ratio * 50) + min(100, quick_ratio * 80) + min(100, cash_ratio * 250)
+            ) / 3
 
         # Equity ratio sub-score.
         eq_subscore = min(100, (total_equity / total_assets) * 200) if total_assets > 0 else 0
 
-        # Composite — same weights as the methodology.
-        composite = (
-            CREDIT_COMPOSITE_WEIGHTS["altman"] * altman_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["profitability"] * prof_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["leverage"] * lev_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["coverage"] * ic_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["dscr"] * dscr_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["liquidity"] * liq_subscore
-            + CREDIT_COMPOSITE_WEIGHTS["equity"] * eq_subscore
-        )
+        # Composite — the methodology's weights over the sub-scores that
+        # computed, renormalised when one refused (`applied_composite_weights`).
+        # With all seven computed this is revision 1's sum, term for term.
+        subscore_values = {
+            "altman": altman_subscore, "profitability": prof_subscore,
+            "leverage": lev_subscore, "coverage": ic_subscore, "dscr": dscr_subscore,
+            "liquidity": liq_subscore, "equity": eq_subscore,
+        }
+        weights = applied_composite_weights(
+            [k for k, v in subscore_values.items() if v is not None])
+        composite = 0
+        for key, weight in weights.items():
+            composite = composite + weight * subscore_values[key]
 
         letter_grade = composite_to_letter_grade(composite)
 
         # Surface Altman + composite + sub-scores as calculated_metrics so the
         # CreditScoreCard renders without a separate DB query.
+        def _r(v: Optional[float], places: int) -> Optional[float]:
+            # A refused operand serves its row with value None: absent,
+            # never a stale figure and never zero.
+            return None if v is None else round(v, places)
+
         metrics.extend([
-            {"name": "altman_z_score",       "value": round(altman_z, 2),         "unit": "ratio", "direction": "higher"},
+            {"name": "altman_z_score",       "value": _r(altman_z, 2),            "unit": "ratio", "direction": "higher"},
             {"name": "altman_x1",            "value": round(x1, 4),               "unit": "ratio", "direction": "higher"},
             {"name": "altman_x2",            "value": round(x2, 4),               "unit": "ratio", "direction": "higher"},
             {"name": "altman_x3",            "value": round(x3, 4),               "unit": "ratio", "direction": "higher"},
-            {"name": "altman_x4",            "value": round(x4, 4),               "unit": "ratio", "direction": "higher"},
+            {"name": "altman_x4",            "value": _r(x4, 4),                  "unit": "ratio", "direction": "higher"},
             {"name": "credit_composite",     "value": round(composite, 1),        "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_altman",       "value": round(altman_subscore, 1),  "unit": "score", "direction": "higher"},
+            {"name": "credit_subscore_altman",       "value": _r(altman_subscore, 1),     "unit": "score", "direction": "higher"},
             {"name": "credit_subscore_profitability","value": round(prof_subscore, 1),    "unit": "score", "direction": "higher"},
             {"name": "credit_subscore_leverage",     "value": round(lev_subscore, 1),     "unit": "score", "direction": "higher"},
             {"name": "credit_subscore_coverage",     "value": round(ic_subscore, 1),      "unit": "score", "direction": "higher"},
             {"name": "credit_subscore_dscr",         "value": round(dscr_subscore, 1),    "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_liquidity",    "value": round(liq_subscore, 1),     "unit": "score", "direction": "higher"},
+            {"name": "credit_subscore_liquidity",    "value": _r(liq_subscore, 1),        "unit": "score", "direction": "higher"},
             {"name": "credit_subscore_equity",       "value": round(eq_subscore, 1),      "unit": "score", "direction": "higher"},
         ])
         logger.info(
-            "[pipeline] credit: Altman Z″=%.2f composite=%.0f → grade %s",
-            altman_z, composite, letter_grade,
+            "[pipeline] credit: Altman Z″=%s composite=%.0f → grade %s",
+            "refused" if altman_z is None else "%.2f" % altman_z, composite, letter_grade,
         )
 
     # ── The revision stamp (2026-09-13) ────────────────────────────────
@@ -636,6 +707,13 @@ def credit_block(
     Values are the model's stored rows (Z'' at 2dp, composite and
     sub-scores at 1dp); the zone and the letter are read off those same
     printed figures, so the zone beside a 2.60 never disagrees with it.
+
+    Revision 2: `refused_subscores` names every sub-score that refused
+    beside a computed composite, with its reason
+    (`CREDIT_SUBSCORE_REFUSALS`); `weights` are the weights the composite
+    multiplied by (`applied_composite_weights` over the sub-scores that
+    computed — the model table itself when none refused) and
+    `model_weights` the table they were renormalised from.
     `as_filed` is served ONLY when the persisted composite, Z'' or letter
     differs from the served one at that same precision (after a
     reanalyze, which never recomputes metrics, or for rows persisted
@@ -647,6 +725,14 @@ def credit_block(
     z = _num(m.get("altman_z_score"))
     composite = _num(m.get("credit_composite"))
     letter = None if composite is None else composite_to_letter_grade(composite)
+    subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
+    refused_subscores: Dict[str, Dict[str, Any]] = {}
+    if composite is not None:
+        for key, value in subscores.items():
+            if value is None:
+                refusal = CREDIT_SUBSCORE_REFUSALS.get(key) or {
+                    "code": CREDIT_INPUTS_ABSENT, "inputs": ["credit_model.%s" % key]}
+                refused_subscores[key] = {"code": refusal["code"], "inputs": list(refusal["inputs"])}
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {
@@ -658,8 +744,11 @@ def credit_block(
             "zone": altman_zone(z),
             "thresholds": {"grey_from": ALTMAN_GREY_FROM, "safe_from": ALTMAN_SAFE_FROM},
         },
-        "subscores": {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS},
-        "weights": dict(CREDIT_COMPOSITE_WEIGHTS),
+        "subscores": subscores,
+        "refused_subscores": refused_subscores,
+        "weights": (applied_composite_weights([k for k, v in subscores.items() if v is not None])
+                    if composite is not None else dict(CREDIT_COMPOSITE_WEIGHTS)),
+        "model_weights": dict(CREDIT_COMPOSITE_WEIGHTS),
         "composite": composite,
         "letter": letter,
         "ladder": letter_grade_bands(),

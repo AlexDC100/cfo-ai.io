@@ -226,11 +226,25 @@ export interface CreditAsFiled {
   credit_model_revision: number | "unknown";
 }
 
+/** A sub-score the credit model refused beside a computed composite
+ *  (credit_model.CREDIT_SUBSCORE_REFUSALS, revision 2). */
+export interface CreditSubscoreRefusal {
+  code: "current_liabilities_not_positive" | "total_liabilities_not_positive" | "credit_inputs_absent";
+  inputs: string[];
+}
+
 export interface CreditBlock {
   revision: number;
   altman: CreditAltman;
   subscores: Record<CreditSubscoreKey, number | null>;
-  weights: Record<CreditSubscoreKey, number>;
+  /** Sub-scores that refused while the composite was computed, with why. */
+  refused_subscores: Partial<Record<CreditSubscoreKey, CreditSubscoreRefusal>>;
+  /** The weights the served composite multiplied by: the model table when
+   *  nothing refused, else the computed sub-scores' weights renormalised to
+   *  sum to one (a refused sub-score has no entry). */
+  weights: Partial<Record<CreditSubscoreKey, number>>;
+  /** The model's weight table the applied weights were renormalised from. */
+  model_weights: Record<CreditSubscoreKey, number>;
   composite: number | null;
   letter: CreditLetter | null;
   ladder: CreditLadderRung[];
@@ -384,6 +398,8 @@ export const RATIO_COMPARE_REASON_CODES = [
   "graded_by_letter",
   "credit_inputs_absent",
   "piotroski_prior_capped",
+  "current_liabilities_not_positive",
+  "total_liabilities_not_positive",
 ] as const;
 
 export type RatioCompareReasonCode = (typeof RATIO_COMPARE_REASON_CODES)[number];

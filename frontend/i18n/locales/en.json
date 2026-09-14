@@ -691,6 +691,8 @@
         "graded_by_letter": "Not banded on its own: the credit letter grades this score.",
         "credit_inputs_absent": "Not scored: the credit model is missing an input it needs for this period.",
         "piotroski_prior_capped": "Capped: the prior period's own prior year is not loaded, so its year-over-year checks stay unevaluated and the two scores are not listed as a movement.",
+        "current_liabilities_not_positive": "Not scored: current liabilities are not positive for this period, so the liquidity ratios have no base; the composite is weighted over the sub-scores that did score.",
+        "total_liabilities_not_positive": "Not scored: total liabilities are not positive for this period, so the Altman component that divides equity by liabilities has no base and Z'' is not computed; the composite is weighted over the sub-scores that did score.",
         "period_absent": "No figure: this period has no served ratio table.",
         "unstated": "No figure, and no reason was served for its absence.",
         "unlisted": "No figure: reason code {{code}} has no sentence yet.",

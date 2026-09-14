@@ -141,11 +141,17 @@ MOVEMENT_REASON_CODES: Tuple[str, ...] = (
     "graded_by_letter",
 )
 
-#: Codes the composite rows and the Piotroski block carry.
+#: Codes the composite rows and the Piotroski block carry. The two
+#: `*_liabilities_not_positive` codes are the credit model's sub-score
+#: refusals (`credit_model.CREDIT_SUBSCORE_REFUSAL_CODES`, revision 2): a
+#: refused Altman or liquidity sub-score row carries its own reason, never
+#: `credit_inputs_absent` beside a composite that was computed.
 COMPOSITE_REASON_CODES: Tuple[str, ...] = (
     "credit_inputs_absent",
     "graded_by_letter",
     "piotroski_prior_capped",
+    "current_liabilities_not_positive",
+    "total_liabilities_not_positive",
 )
 
 DELTA_UNIT_OF = {"x": "turns", "pct": "pp", "days": "days", "z": "z", "score": "points",
@@ -432,8 +438,12 @@ def _movement(key: str, cur: Mapping[str, Any], pri: Mapping[str, Any], display_
 
 def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
                     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    def refused(credit: Mapping[str, Any]) -> Dict[str, Any]:
-        reason = credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
+    def refused(credit: Mapping[str, Any], subscore: Optional[str] = None) -> Dict[str, Any]:
+        # A sub-score the model refused beside a computed composite states
+        # its own reason; only a period with no composite at all falls to
+        # the block's reason.
+        own = (credit.get("refused_subscores") or {}).get(subscore) if subscore else None
+        reason = own or credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
         return {"value": None, "value_q": None, "band": None, "band_status": "refused",
                 "ladder": None, "ladder_floor": None, "operands": [], "reason": copy.deepcopy(reason)}
 
@@ -441,7 +451,7 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         altman = credit.get("altman") or {}
         z = altman.get("z")
         if z is None:
-            return refused(credit)
+            return refused(credit, "altman")
         th = altman.get("thresholds") or {}
         return {
             "value": z, "value_q": T.quantize_display(z, "z"),
@@ -455,9 +465,10 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
             "reason": None,
         }
 
-    def score_side(credit: Mapping[str, Any], value: Optional[float], source: str) -> Dict[str, Any]:
+    def score_side(credit: Mapping[str, Any], value: Optional[float], source: str,
+                   subscore: Optional[str] = None) -> Dict[str, Any]:
         if value is None:
-            return refused(credit)
+            return refused(credit, subscore)
         return {"value": value, "value_q": T.quantize_display(value, "score"), "band": None,
                 "band_status": "not_banded", "ladder": None, "ladder_floor": None,
                 "operands": [{"name": source, "value": value, "source": "credit_model." + source}],
@@ -529,8 +540,8 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         key = "credit_subscore_%s" % short
         cur_v = (cur_credit.get("subscores") or {}).get(short)
         pri_v = (pri_credit.get("subscores") or {}).get(short)
-        cur_s = score_side(cur_credit, cur_v, key)
-        pri_s = score_side(pri_credit, pri_v, key)
+        cur_s = score_side(cur_credit, cur_v, key, short)
+        pri_s = score_side(pri_credit, pri_v, key, short)
         for s_ in (cur_s, pri_s):
             if s_["band_status"] == "not_banded":
                 s_["reason"] = {"code": "not_in_pack_bands", "inputs": [key]}
