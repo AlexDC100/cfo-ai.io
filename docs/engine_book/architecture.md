@@ -163,6 +163,8 @@ graph LR
     pkg_radar -->|1| pkg_consensus
     pkg_radar -->|1| pkg_ir
     pkg_radar -->|1| pkg_serving
+    pkg_ratios -->|1| pkg_country_packs
+    pkg_ratios -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
     pkg_serving -->|1| pkg_consensus
