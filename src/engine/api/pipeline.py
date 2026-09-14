@@ -4755,47 +4755,36 @@ def _attach_insights_block(
         logger.exception("[insights] block build failed (non-fatal, key stays absent)")
 
 
-def _rebuild_assembled(
-    line_items: List[Dict[str, Any]],
-    period: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Reconstruct the `assembled.statements`-shaped dict the valuation
-    engine expects, given the persisted statement_line_items for a period.
-    Mirrors the bucket map used in /api/period/:id."""
-    bs_buckets = {
-        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
-        "otherCurrentAssets": "otherCurrentAssets",
-        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
-        "otherNonCurrentAssets": "otherNonCurrentAssets",
-        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
-        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
-        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
-    }
-    pl_buckets = {
-        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
-        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
-        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
-        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
-    }
-    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
-    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
-    # 711 production-variation lines persist under bucket `otherIncome`
-    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
-    # the net-income reconstruction below doesn't inflate equity by it.
-    # The returned `otherIncome` bucket keeps including 711 (unchanged
-    # legacy behavior for the valuation consumers of this shape).
-    inv_var_711 = 0.0
-    for item in line_items:
-        bucket = item["bucket"]
-        amount = float(item["amount"] or 0)
-        code = (item.get("ro_account_code") or "").strip()
-        if bucket in bs_buckets:
-            bs[bs_buckets[bucket]] += amount
-        elif bucket in pl_buckets:
-            if bucket == "otherIncome" and code.startswith("711"):
-                inv_var_711 += amount
-            pl[pl_buckets[bucket]] += amount
+def _complete_bucket_equity(
+    bs: Dict[str, float],
+    pl: Dict[str, float],
+    period: Optional[Dict[str, Any]],
+    *,
+    inv_var_711: float = 0.0,
+) -> None:
+    """Complete the bucket-summed equity of a rebuild from line items, in
+    place, on `bs["retainedEarnings"]`. THE ONE COMPLETION: every seam
+    that rebuilds `balanceSheet` from `statement_line_items` calls this —
+    `_rebuild_assembled` (valuation routes) and `get_period`
+    (GET /api/period/{id}, and through it the comparatives route).
 
+    `pl` is the P&L bucket dict of the same rebuild; `inv_var_711` is the
+    account-711 production variation still INCLUDED in `pl["otherIncome"]`
+    (0.0 when the caller already carved it out), subtracted from the
+    legacy net-income fallback only.
+
+    2026-09-14 (ratios B4, step 0): `get_period` summed the line items into
+    `statements.balanceSheet` WITHOUT this completion, so the served
+    `retainedEarnings` / bucket equity were short by exactly
+    `assembled_pl.net_income_statutory` (agras 7,533,676.02; carniprod
+    1,435,533.59; realestate -801,604.14; retail 3,205,212.62) beside a
+    served `canonical_bs` that carried the complete equity. Any reader of
+    the legacy view (the credit model's X2/X4, the equity sub-score, the
+    workbook's Retained earnings row) read a second equity. Now both
+    rebuilds share this code object;
+    `tests/engine/test_served_equity_completion.py` holds the served
+    bucket equity to the served canonical equity to the cent.
+    """
     # Equity completion (audit, persistence section): statement_line_items
     # never persist the current-year result — assemble_statements adds it
     # to retainedEarnings in-memory at write time only — so a rebuild from
@@ -4845,6 +4834,51 @@ def _rebuild_assembled(
             - pl["taxExpense"]
         )
         bs["retainedEarnings"] += round(_ni, 2)
+
+
+
+def _rebuild_assembled(
+    line_items: List[Dict[str, Any]],
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Reconstruct the `assembled.statements`-shaped dict the valuation
+    engine expects, given the persisted statement_line_items for a period.
+    Mirrors the bucket map used in /api/period/:id."""
+    bs_buckets = {
+        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
+        "otherCurrentAssets": "otherCurrentAssets",
+        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
+        "otherNonCurrentAssets": "otherNonCurrentAssets",
+        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
+        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
+        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
+    }
+    pl_buckets = {
+        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
+        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
+        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
+        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
+    }
+    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
+    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
+    # 711 production-variation lines persist under bucket `otherIncome`
+    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
+    # the net-income reconstruction below doesn't inflate equity by it.
+    # The returned `otherIncome` bucket keeps including 711 (unchanged
+    # legacy behavior for the valuation consumers of this shape).
+    inv_var_711 = 0.0
+    for item in line_items:
+        bucket = item["bucket"]
+        amount = float(item["amount"] or 0)
+        code = (item.get("ro_account_code") or "").strip()
+        if bucket in bs_buckets:
+            bs[bs_buckets[bucket]] += amount
+        elif bucket in pl_buckets:
+            if bucket == "otherIncome" and code.startswith("711"):
+                inv_var_711 += amount
+            pl[pl_buckets[bucket]] += amount
+
+    _complete_bucket_equity(bs, pl, period, inv_var_711=inv_var_711)
 
     return {"balanceSheet": bs, "incomeStatement": pl}
 
@@ -7048,6 +7082,14 @@ def build_router() -> APIRouter:
                     inv_var_memo += amount
                 else:
                     pl[pl_buckets[bucket]] += amount
+
+        # Equity completion — the SAME code object `_rebuild_assembled`
+        # runs (see `_complete_bucket_equity`). Applied to the cent-rounded
+        # buckets so the served bucket equity equals the served
+        # `canonical_bs` equity to the cent, not merely to the float.
+        # `pl["otherIncome"]` already excludes 711 here, hence 0.0.
+        bs = {k: round(v, 2) for k, v in bs.items()}
+        _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
 
         statements = {
             "companyName": (org or {}).get("name") if org else None,
