@@ -81,9 +81,10 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       own single-period caveat text changing (the lane edits a copy).
 
 WHAT IT CANNOT SEE: whether a surface renders the findings (B6/B7); the
-CAEN (the comparatives route passes none, so the profile is inferred from
-the account mix — the same inference the single-period lane makes without
-one); period length (every served period is 365 days).
+CAEN (these compositions pass none, so the profile is inferred from the
+account mix; the route reading the workspace's CAEN and passing it is held
+by test_comparatives_route.py, ruling Q6); period length (every served
+period is 365 days).
 """
 from __future__ import annotations
 

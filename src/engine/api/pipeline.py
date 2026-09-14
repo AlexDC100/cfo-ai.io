@@ -7680,10 +7680,17 @@ def build_router() -> APIRouter:
             with _supabase.per_user(jwt) as client:
                 cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
                 pri_row = _cmp.load_period_in_org(client, prior, org_id=org_id)
+                # The workspace's CAEN, from its ONE authority (ruling Q6):
+                # without it the band findings' company profile is inferred
+                # from the account mix alone, while the Capsule, Radar and
+                # the firm lane all qualify the same company by its code.
+                # Fails open to None, as `caen_for_org` documents.
+                caen = _org.caen_for_org(client, org_id)
             cur_payload = get_period(period_id, authorization)
             pri_payload = get_period(prior, authorization)
             return _cmp.compare_payloads(
-                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row)
+                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
+                caen=caen)
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 
