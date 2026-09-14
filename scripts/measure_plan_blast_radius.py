@@ -28,7 +28,10 @@ only, never committed), per plan year of the default GET (horizon 5):
   closing cash     bs.cash in the plan year's last period
   peak funding     the largest bs.revolver balance inside the plan year
   first shortfall  the first period of the plan year in which the funding
-                   line draws (cf.funding_line_movement > 0), else "none"
+                   line draws (cf.funding_line_movement > 0), else "none";
+                   "absent" when the movement is not served (or refused)
+                   in a period before any draw — absent never reads as
+                   "no shortfall" (--self-check proves the four cases)
 
 each beside the B0 baseline and the delta. Amounts are integer minor units
 rendered with thousands separators; nothing passes through a float.
@@ -64,6 +67,7 @@ Usage:
   python scripts/measure_plan_blast_radius.py --local-xlsx files/<book>.xlsx \\
       --local-baseline <scratch>/scandia_b0.json
   python scripts/measure_plan_blast_radius.py --record-baseline   # B0 only
+  python scripts/measure_plan_blast_radius.py --self-check        # reader only
 
 Python 3.9 — no ``match``, no ``X | Y`` unions.
 """
@@ -268,9 +272,17 @@ def _metrics_from_lines(labels: List[str], lines: Dict[str, List[Optional[int]]]
             row["peak_funding"] = None
         elif row["peak_funding"] is not None:
             row["peak_funding"] = max(row["peak_funding"], revolver)
+        # First shortfall: a period whose movement is absent (the line not
+        # served, or refused in that period) before any draw was seen makes
+        # the plan year's first shortfall UNKNOWN, rendered "absent" — never
+        # "none", and a later period's draw never overwrites it as "first".
+        # Once a draw is recorded, later periods cannot change it.
         move = lines.get("cf.funding_line_movement", [None] * len(labels))[i]
-        if row["first_shortfall"] == "none" and move is not None and move > 0:
-            row["first_shortfall"] = label
+        if row["first_shortfall"] == "none":
+            if move is None:
+                row["first_shortfall"] = None
+            elif move > 0:
+                row["first_shortfall"] = label
     for row in out.values():
         row.pop("_periods")
     return out
@@ -436,6 +448,27 @@ def render(entries: List[Dict[str, Any]], markdown: bool) -> str:
     return "\n".join(out)
 
 
+def self_check() -> int:
+    """The first-shortfall reader, on four hand-built plan years (no book,
+    no app). Absent before a draw is unknown, never "none"; a draw after an
+    absent period is never promoted to "first"; a draw once seen stands."""
+    labels = ["2026-01", "2026-02", "2026-03"]
+    cases = (
+        ("no movement served", {}, None),
+        ("absent then a draw", {"cf.funding_line_movement": [None, 5, 0]}, None),
+        ("a draw then absent", {"cf.funding_line_movement": [0, 5, None]}, "2026-02"),
+        ("served, never draws", {"cf.funding_line_movement": [0, 0, 0]}, "none"),
+    )
+    bad = 0
+    for name, lines, want in cases:
+        got = _metrics_from_lines(labels, lines, "2025-12-31")[1]["first_shortfall"]
+        ok = got == want
+        bad += 0 if ok else 1
+        print("%s first shortfall, %s: want %s, got %s"
+              % ("ok  " if ok else "FAIL", name, _fmt(want), _fmt(got)))
+    return 1 if bad else 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--markdown", action="store_true",
@@ -446,8 +479,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="a local trial balance (never committed); aggregates only")
     ap.add_argument("--local-baseline", type=Path, default=None,
                     help="where the local book's B0 record lives (written when absent)")
+    ap.add_argument("--self-check", action="store_true",
+                    help="check the first-shortfall reader on hand-built lines, then exit")
     args = ap.parse_args(argv)
 
+    if args.self_check:
+        return self_check()
     if args.record_baseline:
         record_baseline(BASELINE)
         return 0
