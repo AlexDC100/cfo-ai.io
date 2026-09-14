@@ -271,6 +271,42 @@ def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_an
             where, imp["delta"], mv["materiality"])
 
 
+@pytest.mark.parametrize("cur_name,pri_name", [("agras", "carniprod"), ("retail", "realestate")])
+def test_a_composite_crossing_cites_the_credit_model_and_a_ratio_the_band_table(cur_name, pri_name):
+    """The Altman zones and the letter ladder are credit-model constants, not
+    rows of the pack's band table: the threshold source must resolve, in
+    `engine.ratios.credit_model`, to the rung's served value; the basis must
+    name that ladder; the letter's figures must say they are the composite."""
+    from engine.ratios import credit_model as CM
+
+    out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+    movable = {r["key"]: r for r in out["rows"] + out["composites"]}
+    bands = out["stamps"]["current"]["bands"]
+    seen = set()
+    for f in out["band_movements"]["findings"]:
+        key = f["ratio_key"]
+        rung = movable[key]["movement"]["rung_crossed"]
+        el = f["contract_elements"]
+        source, basis = el["threshold"]["source"], el["evidence"]["comparison_basis"]["description"]
+        if key == "altman_z":
+            prefix, _, constant = source.partition("#")
+            assert prefix == "credit_model" and Decimal(repr(getattr(CM, constant))) == Decimal(rung["value"]), source
+            assert "Altman Z'' zones" in basis and bands["source"] not in basis, basis
+        elif key == "letter_grade":
+            ladder = {grade: floor for floor, grade in CM.CREDIT_LETTER_LADDER}
+            assert source == "credit_model#CREDIT_LETTER_LADDER.%s" % rung["name"], source
+            assert Decimal(str(ladder[rung["name"]])) == Decimal(rung["value"]), (source, rung)
+            assert "letter ladder" in basis and bands["source"] not in basis, basis
+            assert all(fg["label"].startswith("credit composite in ")
+                       for fg in el["evidence"]["figures"]), el["evidence"]["figures"]
+        else:
+            assert source == "%s#%s.%s" % (bands["source"], key, rung["name"]), source
+            assert bands["table_sha256"][:12] in basis, basis
+            continue
+        seen.add(key)
+    assert seen, "non-vacuity: %s|%s crosses no composite" % (cur_name, pri_name)
+
+
 # ── 1b. a served code the contract rejects is never the subject ────────────
 
 

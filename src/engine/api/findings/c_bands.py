@@ -67,6 +67,7 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from ...ratios import credit_model as CM
 from .. import _company_profile as CP
 from .. import _finding as F
 from . import _base
@@ -182,6 +183,20 @@ RESTATEMENT_CAVEAT = (
     "Both periods are graded on the current band table and credit model "
     "revision (restated comparatives), a convention rather than the bands "
     "in force when the earlier period was filed.")
+
+#: The two composites are not graded on the pack's band table: the Altman
+#: zones and the letter ladder are the serve-time credit model's constants.
+#: key -> (source prefix, rung name -> constant name or None for the ladder
+#: grade itself, the basis sentence's name for the ladder).
+COMPOSITE_LADDERS: Dict[str, Tuple[str, Dict[str, str], str]] = {
+    "altman_z": ("credit_model", {"healthy": "ALTMAN_SAFE_FROM", "watch": "ALTMAN_GREY_FROM"},
+                 "the credit model's Altman Z'' zones"),
+    "letter_grade": ("credit_model", {}, "the credit model's letter ladder (CREDIT_LETTER_LADDER)"),
+}
+
+#: The figure a row prints when it is not the ratio's own value: the letter
+#: is graded on the credit composite, and the figure is that score.
+FIGURE_LABELS: Dict[str, str] = {"letter_grade": "credit composite"}
 
 SUBJECT_NUMERATOR_ACCOUNTS = 2
 SUBJECT_DENOMINATOR_ACCOUNTS = 1
@@ -364,6 +379,25 @@ def _so_what(row: Mapping[str, Any], labels: Mapping[str, str]) -> Dict[str, Any
     }
 
 
+def _threshold_source(key: str, rung: str, bands_stamp: Mapping[str, Any]) -> str:
+    """Where the rung's value is defined: the served band table for a census
+    ratio, the credit model's constant for a composite."""
+    if key in COMPOSITE_LADDERS:
+        prefix, constants, _name = COMPOSITE_LADDERS[key]
+        if key == "letter_grade":
+            return "%s#CREDIT_LETTER_LADDER.%s" % (prefix, rung)
+        return "%s#%s" % (prefix, constants.get(rung, "altman_thresholds.%s" % rung))
+    return "%s#%s.%s" % (bands_stamp.get("source") or "served_bands", key, rung)
+
+
+def _graded_on(key: str, bands_stamp: Mapping[str, Any]) -> str:
+    if key in COMPOSITE_LADDERS:
+        return "%s under credit model revision %s" % (COMPOSITE_LADDERS[key][2],
+                                                       CM.CREDIT_MODEL_REVISION)
+    return "the %s band table (sha256 %s) under one credit model revision" % (
+        bands_stamp.get("source") or "served", str(bands_stamp.get("table_sha256") or "")[:12])
+
+
 def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, str],
              ids: Mapping[str, Optional[str]], bands_stamp: Mapping[str, Any],
              line_items: Sequence[Mapping[str, Any]], denominators: Mapping[str, Mapping[str, Any]],
@@ -379,9 +413,10 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
 
     prior_v = _figure_value(row["prior"]["value"], unit)
     current_v = _figure_value(row["current"]["value"], unit)
+    figure_label = FIGURE_LABELS.get(key, label)
     bag = (_base.Bag()
-           ._add("%s__prior" % key, prior_v, f_unit, "%s in %s" % (label, labels["prior"]))
-           ._add("%s__current" % key, current_v, f_unit, "%s in %s" % (label, labels["current"])))
+           ._add("%s__prior" % key, prior_v, f_unit, "%s in %s" % (figure_label, labels["prior"]))
+           ._add("%s__current" % key, current_v, f_unit, "%s in %s" % (figure_label, labels["current"])))
     impact, money = _headroom(row, denominators, period_days, ctx.reader)
     for name, value in money.items():
         bag.fact_only(name, value)
@@ -396,14 +431,12 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
             parameter_label="%s %s rung" % (label, rung.get("name") or ""),
             comparator=_comparator(row), limit=_figure_value(float(Decimal(rung["value"])), unit),
             observed=current_v, unit=f_unit,
-            source="%s#%s.%s" % (bands_stamp.get("source") or "credit_model", key, rung["name"]))
+            source=_threshold_source(key, str(rung["name"]), bands_stamp))
     comparison = F.ComparisonBasis(
         kind="prior_period",
-        description="the same company's %s (period %s) against %s (period %s), both graded on "
-                    "the %s band table (sha256 %s) under one credit model revision"
+        description="the same company's %s (period %s) against %s (period %s), both graded on %s"
                     % (labels["current"], ids.get("current_period_id"), labels["prior"],
-                       ids.get("prior_period_id"), bands_stamp.get("source") or "served",
-                       str(bands_stamp.get("table_sha256") or "")[:12]),
+                       ids.get("prior_period_id"), _graded_on(key, bands_stamp)),
         basis_value=prior_v, basis_unit=f_unit)
     finding = _base.build_finding(
         ctx, rid, _severity(row), accounts, scope=scope, bag=bag, comparison=comparison,
@@ -476,7 +509,7 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
 
 __all__ = [
     "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
-    "RULE_PREFIX", "SUBJECT_BUCKETS", "band_finding_objects", "build_band_findings",
+    "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
     "lane_catalog", "rule_id_for",
     "subject_coverage",
 ]
