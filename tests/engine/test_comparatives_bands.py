@@ -47,6 +47,13 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       (`701.00'`), any finding demoting on "is not a ledger code", or a
       revenue-bucket crossing not surfacing; selection keeping a nameless
       line instead of taking the next account.
+  CONTRA  (ruling Q5) on all 20 pairs: any finding naming a 28x / 29x / 39x
+      / 49x account (measured before: 22 findings named 491 or 2813.01), or
+      a subject whose numerator and denominator accounts are not the largest
+      SIGNED balances among the eligible served lines of their buckets
+      (measured before: carniprod's credit findings named 117.1, a negative
+      retained-earnings line, ahead of 4111.01); the planted bucket ranking
+      a provision or a debit-side line first.
   NO CROSSING, NO FINDING  any finding row whose ratio did not cross (same
       band, not comparable, refused), a finding set that is not exactly
       improved + deteriorated, or a company compared with itself producing
@@ -531,3 +538,68 @@ def test_a_two_period_finding_never_says_no_prior_period_was_supplied():
             if two_period.rstrip(".") in caveat:
                 carried += 1
     assert carried >= 20, "non-vacuity: only %d findings carry the approximated cash-flow caveat" % carried
+
+
+# ── 1c. contra accounts are never the subject; rank is by signed amount (Q5) ──
+
+
+def _eligible(line_items, buckets, taken):
+    out = []
+    for li in line_items:
+        code = str(li.get("ro_account_code") or "")
+        amount = li.get("amount")
+        if li.get("bucket") not in buckets or not code or code in taken:
+            continue
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            continue
+        if not F.is_ledger_code(code) or not str(li.get("ro_account_name") or "").strip():
+            continue
+        if code[:2] in ("28", "29", "39", "49"):
+            continue
+        out.append((-float(amount), code))
+    return [c for _a, c in sorted(out)]
+
+
+def test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount():
+    checked = 0
+    for cur_name, pri_name in PAIRS:
+        body = SB.served_body(cur_name)
+        out = _compose(body, SB.served_body(pri_name), cur_name, pri_name)
+        for f in out["band_movements"]["findings"]:
+            key = f["ratio_key"]
+            codes = [a["code"] for a in f["contract_elements"]["subject"]["accounts"]]
+            where = "%s|%s %s" % (cur_name, pri_name, key)
+            assert not [c for c in codes if c[:2] in ("28", "29", "39", "49")], (where, codes)
+            numerator, denominator = CB.SUBJECT_BUCKETS[key]
+            want = []
+            for c in _eligible(body["line_items"], set(numerator), ()):
+                if c not in want:
+                    want.append(c)
+                if len(want) == CB.SUBJECT_NUMERATOR_ACCOUNTS:
+                    break
+            den = _eligible(body["line_items"], set(denominator), want)[:CB.SUBJECT_DENOMINATOR_ACCOUNTS]
+            assert codes == want + den, (where, codes, want + den)
+            checked += 1
+    assert checked >= 300, "non-vacuity: %d findings checked" % checked
+
+
+def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():
+    """Planted, because on the real pairs signed ranking alone already keeps
+    every contra line out of the top slots (measured: removing the exclusion
+    leaves the census above green) — the exclusion is only visible where a
+    bucket has fewer natural-side lines than the subject takes."""
+    contra = [
+        {"bucket": "ar", "ro_account_code": "4111", "ro_account_name": "Clienti", "amount": 100.0},
+        {"bucket": "ar", "ro_account_code": "491", "ro_account_name": "Ajustari clienti", "amount": -900.0},
+        {"bucket": "ppe", "ro_account_code": "2131", "ro_account_name": "Echipamente", "amount": 700.0},
+        {"bucket": "ppe", "ro_account_code": "2813", "ro_account_name": "Amortizare", "amount": -5000.0},
+        {"bucket": "inventory", "ro_account_code": "397", "ro_account_name": "Ajustari marfuri", "amount": -60.0},
+        {"bucket": "ppe", "ro_account_code": "2911", "ro_account_name": "Ajustari terenuri", "amount": -10.0},
+    ]
+    assert [a.code for a in CB._accounts(contra, ("ar", "ppe", "inventory"), 4, ())] == ["2131", "4111"]
+    opposite = [
+        {"bucket": "ar", "ro_account_code": "4118", "ro_account_name": "Clienti incerti", "amount": -800.0},
+        {"bucket": "ar", "ro_account_code": "4111", "ro_account_name": "Clienti", "amount": 100.0},
+        {"bucket": "ar", "ro_account_code": "4112", "ro_account_name": "Clienti interni", "amount": 50.0},
+    ]
+    assert [a.code for a in CB._accounts(opposite, ("ar",), 2, ())] == ["4111", "4112"]

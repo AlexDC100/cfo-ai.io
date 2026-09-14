@@ -18,7 +18,9 @@ THE SEVEN, and where each comes from
 
   subject     the ledger accounts behind the ratio: the current period's
               served line items in the numerator's and the denominator's
-              buckets (`SUBJECT_BUCKETS`), largest balances first
+              buckets (`SUBJECT_BUCKETS`), contra accounts excluded
+              (`CONTRA_ACCOUNT_PREFIXES`), ranked by signed amount on the
+              bucket's natural side (largest first)
   evidence    the prior and the current value, as served; comparison
               basis kind ``prior_period``; provenance naming BOTH periods
               and BOTH snapshots
@@ -214,6 +216,14 @@ COMPOSITE_LADDERS: Dict[str, Tuple[str, Dict[str, str], str]] = {
 #: is graded on the credit composite, and the figure is that score.
 FIGURE_LABELS: Dict[str, str] = {"letter_grade": "credit composite"}
 
+#: Contra accounts — accumulated depreciation and amortisation (28x),
+#: impairment adjustments on fixed assets (29x), inventory provisions (39x)
+#: and receivable provisions (49x). They sit in an asset bucket with a
+#: negative balance and are never what a ratio is ABOUT: ranked by absolute
+#: balance, retail's current ratio named 491 (a provision) and a PP&E-heavy
+#: book's return on assets named 2813 (depreciation). Ruling Q5, 2026-09-15.
+CONTRA_ACCOUNT_PREFIXES: Tuple[str, ...] = ("28", "29", "39", "49")
+
 SUBJECT_NUMERATOR_ACCOUNTS = 2
 SUBJECT_DENOMINATOR_ACCOUNTS = 1
 
@@ -278,7 +288,13 @@ def _accounts(line_items: Sequence[Mapping[str, Any]], buckets: Sequence[str],
         # same bucket stands next in line.
         if not F.is_ledger_code(code) or not str(li.get("ro_account_name") or "").strip():
             continue
-        candidates.append((-abs(float(amount)), code, li))
+        if code.startswith(CONTRA_ACCOUNT_PREFIXES):
+            continue
+        # Served line items are signed on their bucket's natural side
+        # (positive = the side the bucket is named for), so the largest
+        # SIGNED amount is the largest contribution to the bucket; a line
+        # on the opposite side ranks after every line on the natural side.
+        candidates.append((-float(amount), code, li))
     candidates.sort(key=lambda c: (c[0], c[1]))
     out = []  # type: List[F.Account]
     for _neg, code, li in candidates:
@@ -541,7 +557,7 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
 
 
 __all__ = [
-    "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
+    "CONTRA_ACCOUNT_PREFIXES", "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
     "TWO_PERIOD_CAVEATS",
     "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
     "lane_catalog", "rule_id_for",
