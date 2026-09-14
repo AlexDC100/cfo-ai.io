@@ -47,6 +47,21 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       under `credit_metrics_as_filed`; or the comparatives block, rebuilt
       from that body, no longer disclosing the stale composite as filed.
 
+  MATERIALITY AND FLOORED WIDTHS (served pair: agras current, carniprod
+      prior, both REAL GET /api/period bodies)  the hand-checked headroom,
+      share and basis of one row per unit — current_ratio (x: current
+      liabilities, scale 1), ebitda_margin (pct: revenue, scale 100), dso
+      (days: revenue, scale 365, share over total assets) — or the DPO
+      healthy -> watch crossing on the floored ladder (rung 45, distance
+      18, width 15 ADJACENT, fraction 1.224) serving anything else.
+  STAMPS  a period's comparatives side stamps differing from the
+      ratio_table stamps its own get_period body serves (methodology
+      version seeded on both rows so a dropped stamp is visible).
+  PIOTROSKI OPERANDS  the comparatives current checks 1-4 differing, detail
+      sentences included, from the same period's served
+      `assembled_piotroski` checks 1-4, or the score not counting the nine
+      checks it serves.
+
 WHAT IT CANNOT SEE: whether any surface renders the block (B6/B7), the
 seven-element crossing findings (B5), and period length (every served
 period is 365 days, so days deltas between a partial and a full year are
@@ -56,6 +71,7 @@ from __future__ import annotations
 
 import copy
 import json
+import types
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -524,3 +540,82 @@ def test_the_serve_time_rows_replace_in_place_drop_absent_and_append_nothing():
     assert served == [persisted[0], dict(persisted[1], value=71.9)]
     assert CM.serve_credit_rows([], serve) == ([], [])
     assert filed == persisted[1:]
+
+
+# ── 8. materiality, floored widths, stamps, Piotroski operands (real pair) ──
+
+
+def _real_pair_ratios(cur_body=None, pri_body=None):
+    cur = cur_body if cur_body is not None else SB.served_body("agras")
+    pri = pri_body if pri_body is not None else SB.served_body("carniprod")
+    return C.compare_payloads(cur, pri,
+                              current_row={"id": cur["period"]["id"], "period_end": "2025-12-31"},
+                              prior_row={"id": pri["period"]["id"], "period_end": "2024-12-31"})["ratios"]
+
+
+#: Hand-checked on the served agras (current) / carniprod (prior) pair.
+#:   current_ratio  2.1033878684 - 2 = 0.1033878684; x 13,012,976.77 current
+#:                  liabilities / 1 = 1,345,383.93; / 39,319,114.09 total
+#:                  assets = 0.0342
+#:   ebitda_margin  15.53 - 15 = 0.53 pp; x 118,576,819.64 revenue / 100 =
+#:                  628,457.14; / revenue = 0.0053
+#:   dso            30 - 26.2056742611 = 3.7943257389 days; x 118,576,819.64
+#:                  revenue / 365 = 1,232,655.01; / total assets = 0.0314
+HAND_MATERIALITY = {
+    "current_ratio": ("0.10", {"basis_key": "total_assets", "basis_value": "39319114.09",
+                               "headroom_money": "1345383.93", "share": "0.0342"}),
+    "ebitda_margin": ("0.5", {"basis_key": "revenue", "basis_value": "118576819.64",
+                              "headroom_money": "628457.14", "share": "0.0053"}),
+    "dso": ("4", {"basis_key": "total_assets", "basis_value": "39319114.09",
+                  "headroom_money": "1232655.01", "share": "0.0314"}),
+}
+
+
+def test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair():
+    rows = {r["key"]: r for r in _real_pair_ratios()["rows"]}
+    for key, (distance, materiality) in HAND_MATERIALITY.items():
+        mv = rows[key]["movement"]
+        assert mv["status"] in ("crossed_up", "crossed_down"), (key, mv)
+        assert mv["distance_past_rung"] == distance, (key, mv["distance_past_rung"])
+        assert mv["materiality"] == materiality, (
+            "%s (%s): served materiality %s, hand-checked %s"
+            % (key, rows[key]["display_unit"], mv["materiality"], materiality))
+
+
+def test_the_dpo_crossing_on_its_floored_ladder_is_the_hand_checked_one():
+    """dpo 51 -> 27 days: healthy -> watch past rung 45. Its watch band is the
+    FLOOR (below watch 30 stays watch), so watch 30 bounds nothing: the
+    watch band has no closed width and the fraction divides by the adjacent
+    healthy band, 60 - 45 = 15. 45 - 26.6422 = 18.3578; / 15 = 1.224."""
+    row = {r["key"]: r for r in _real_pair_ratios()["rows"]}["dpo"]
+    assert row["current"]["ladder_floor"] == "watch" and row["prior"]["ladder_floor"] == "watch"
+    mv = row["movement"]
+    assert (mv["from"], mv["to"], mv["status"], mv["rungs_crossed"]) == ("healthy", "watch", "crossed_down", -1), mv
+    assert mv["rung_crossed"] == {"name": "healthy", "value": "45"}
+    assert (mv["distance_past_rung"], mv["band_width"], mv["band_width_basis"], mv["distance_fraction"]) == (
+        "18", "15", "adjacent", "1.224"), mv
+
+
+def test_each_sides_stamps_are_its_own_get_period_ratio_table_stamps():
+    bodies = {}
+    for name, version in (("agras", "ro_ras_2025_v1"), ("carniprod", "ro_ras_2024_v0")):
+        bk = SB.book(name)
+        seeded = types.SimpleNamespace(period=dict(bk.period, methodology_version=version),
+                                       line_items=bk.line_items, org=bk.org, period_id=bk.period_id)
+        bodies[name] = SB.routed_body(seeded)
+        assert bodies[name]["assembled_metrics"]["ratio_table"]["stamps"]["methodology_version"] == version
+    out = _real_pair_ratios(bodies["agras"], bodies["carniprod"])
+    for side, name in (("current", "agras"), ("prior", "carniprod")):
+        assert out["stamps"][side] == bodies[name]["assembled_metrics"]["ratio_table"]["stamps"], (
+            side, out["stamps"][side], bodies[name]["assembled_metrics"]["ratio_table"]["stamps"])
+    assert "methodology_version" in out["stamps"]["differences"]
+
+
+def test_the_current_piotroski_checks_1_to_4_are_the_served_blocks_verbatim():
+    cur = SB.served_body("agras")
+    pio = _real_pair_ratios(cur)["piotroski"]
+    served = cur["statements"]["assembled_piotroski"]["checks"][:4]
+    assert pio["current"]["checks"][:4] == served, (pio["current"]["checks"][:4], served)
+    assert pio["current_checks_1_4_source"] == "served_assembled_piotroski"
+    assert pio["current"]["score"] == sum(1 for c in pio["current"]["checks"] if c["result"] == "pass")
+    assert len(pio["current"]["checks"]) == 9

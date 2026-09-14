@@ -552,6 +552,7 @@ def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
         "reason_code": "piotroski_prior_capped",
         "excluded_from_band_movements": True,
         "current_reason": None,
+        "current_checks_1_4_source": None,
     }
     cur = _piotroski_views(cur_st)
     pri = _piotroski_views(pri_st)
@@ -564,7 +565,7 @@ def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
         block["current_reason"] = {"code": "operand_absent", "inputs": ["assembled.%s" % k for k in missing]}
         return block
     currency = cur_st.get("currency") if isinstance(cur_st.get("currency"), str) else ""
-    block["current"] = checks(
+    evaluated = checks(
         net_income_statutory=cur["net_income_statutory"],
         total_assets=cur["total_assets"],
         cash_from_operating=cur["cash_from_operating"],
@@ -573,6 +574,23 @@ def _piotroski_block(cur_st: Mapping[str, Any], pri_st: Mapping[str, Any],
         current={k: cur[k] for k in ("revenue", "long_term_debt", "share_capital", "operating_ebit")
                  if cur[k] is not None},
     )
+    # Checks 1-4 need no prior, and the period's own served
+    # `assembled_piotroski` already printed them. Serve THOSE, verbatim:
+    # re-evaluating them here on the served (gateway-adjusted)
+    # `assembled_bs.total_assets` printed "19.16% on 39,319,114 RON total
+    # assets" on agras beside the dashboard's "19.18% on 39,272,501" — one
+    # check, two sentences. Only checks 5-9 are this composer's to add.
+    served = cur_st.get("assembled_piotroski")
+    served_checks = served.get("checks") if isinstance(served, dict) else None
+    if isinstance(served_checks, list) and len(served_checks) >= 4 and \
+            [c.get("key") for c in served_checks[:4] if isinstance(c, dict)] == \
+            [c["key"] for c in evaluated["checks"][:4]]:
+        evaluated["checks"] = [copy.deepcopy(c) for c in served_checks[:4]] + evaluated["checks"][4:]
+        evaluated["score"] = sum(1 for c in evaluated["checks"] if c.get("result") == "pass")
+        block["current_checks_1_4_source"] = "served_assembled_piotroski"
+    else:
+        block["current_checks_1_4_source"] = "composer"
+    block["current"] = evaluated
     return block
 
 

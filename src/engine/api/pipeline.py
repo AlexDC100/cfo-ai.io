@@ -7516,6 +7516,10 @@ def build_router() -> APIRouter:
                 "period_end": period["period_end"],
                 "currency": period["currency"],
                 "extraction_confidence": period.get("extraction_confidence"),
+                # The stamp `assembled_metrics.ratio_table` carries; served
+                # here so a table rebuilt from this body (the comparatives
+                # block) stamps the same period the same way.
+                "methodology_version": period.get("methodology_version"),
                 "source_document": doc and {
                     "id": doc["id"],
                     "filename": doc["original_filename"],
