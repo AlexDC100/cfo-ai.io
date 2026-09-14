@@ -69,7 +69,7 @@ graph LR
     pkg_ratios["ratios (3 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
-    pkg_serving["serving (7 modules)"]
+    pkg_serving["serving (8 modules)"]
     pkg_storage["storage (3 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
@@ -107,6 +107,7 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_comparatives -->|2| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
     pkg_consensus -->|1| pkg_interp
@@ -236,6 +237,7 @@ graph LR
         engine_serving["serving"]
         engine_serving__internal_guard["_internal_guard"]
         engine_serving_access_log["access_log"]
+        engine_serving_change_kind["change_kind"]
         engine_serving_facts["facts"]
         engine_serving_public_market["public_market"]
         engine_serving_public_summary["public_summary"]
@@ -366,4 +368,5 @@ declaration is the supply-chain lock's job to reject).
 | `public_market` | anthropic (anthropic), fastapi (fastapi), yaml (pyyaml) |
 | `public_ro` | fastapi (fastapi), pydantic (pydantic) |
 | `radar` | yaml (pyyaml) |
+| `serving` | yaml (pyyaml) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |
