@@ -62,10 +62,10 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       `assembled_piotroski` checks 1-4, or the score not counting the nine
       checks it serves.
 
-WHAT IT CANNOT SEE: whether any surface renders the block (B6/B7), the
-seven-element crossing findings (B5), and period length (every served
-period is 365 days, so days deltas between a partial and a full year are
-not modelled).
+WHAT IT CANNOT SEE: whether any surface renders the block (B6/B7), and
+period length (every served period is 365 days, so days deltas between a
+partial and a full year are not modelled). The seven-element crossing
+findings are held by test_comparatives_bands.py.
 """
 from __future__ import annotations
 
@@ -293,8 +293,15 @@ def test_the_rows_are_the_census_and_coverage_partitions_it(capsys):
     cov = out["coverage"]
     assert cov["census"] == list(T.CENSUS) and cov["census_count"] == len(T.CENSUS)
     both = {r["key"] for r in out["rows"] if r["current"]["value_q"] is not None and r["prior"]["value_q"] is not None}
-    assert cov["both_sides"] == len(both)
+    assert cov["both_sides_census"] == len(both)
     assert both | set(cov["current_refused"]) | set(cov["prior_refused"]) == set(T.CENSUS)
+    # both_sides counts every MOVABLE entry (census rows plus the declared
+    # composites) valued on both sides — the count the movement lists
+    # partition (test_comparatives_bands.py holds the identity).
+    movable = out["rows"] + [r for r in out["composites"] if r["key"] in cov["movable_composites"]]
+    assert cov["movable_composites"] == list(RC.MOVABLE_COMPOSITES)
+    assert cov["both_sides"] == sum(1 for r in movable if r["current"]["value_q"] is not None
+                                    and r["prior"]["value_q"] is not None)
     declared = set(T.REASON_CODES) | set(RC.DELTA_REASON_CODES) | set(RC.MOVEMENT_REASON_CODES) \
         | set(RC.COMPOSITE_REASON_CODES)
     served = set()
