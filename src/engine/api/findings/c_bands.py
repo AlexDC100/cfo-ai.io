@@ -227,8 +227,10 @@ CONTRA_ACCOUNT_PREFIXES: Tuple[str, ...] = ("28", "29", "39", "49")
 SUBJECT_NUMERATOR_ACCOUNTS = 2
 SUBJECT_DENOMINATOR_ACCOUNTS = 1
 
+#: Altman Z'' prints as a plain two-decimal index, as the methodology
+#: writes it ("Altman Z'' = 3.09"), never with the ratio marker (ruling Q7).
 _UNIT_OF = {"x": F.UNIT_RATIO, "pct": F.UNIT_PERCENT, "days": F.UNIT_DAYS,
-            "z": F.UNIT_RATIO, "grade": F.UNIT_SCORE}
+            "z": F.UNIT_INDEX, "grade": F.UNIT_SCORE}
 
 MONEY_AT_RUNG = "band_numerator_at_rung"
 MONEY_HELD = "band_numerator_held"

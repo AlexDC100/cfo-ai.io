@@ -191,8 +191,9 @@ def test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_
 PAIRS = [(c, p) for c in SB.ALL_BOOKS for p in SB.ALL_BOOKS if c != p]
 
 #: What `_finding._format_value` appends per served display unit. Days
-#: agree with the printed count (ruling Q8): "1 day", "2 days".
-_PRINTED_SUFFIX = {"x": "\u00d7", "z": "\u00d7", "pct": "%", "days": " days"}
+#: agree with the printed count (ruling Q8): "1 day", "2 days". Altman Z''
+#: is a plain two-decimal figure with no marker (ruling Q7).
+_PRINTED_SUFFIX = {"x": "\u00d7", "z": "", "pct": "%", "days": " days"}
 
 
 def _printed(value_q: str, unit: str) -> str:
@@ -320,6 +321,12 @@ def test_a_composite_crossing_cites_the_credit_model_and_a_ratio_the_band_table(
         el = f["contract_elements"]
         source, basis = el["threshold"]["source"], el["evidence"]["comparison_basis"]["description"]
         if key == "altman_z":
+            # Ruling Q7: Z'' is a plain two-decimal index, never "3.09\u00d7".
+            assert {fg["unit"] for fg in el["evidence"]["figures"]} == {F.UNIT_INDEX}, el["evidence"]["figures"]
+            assert el["threshold"]["unit"] == F.UNIT_INDEX, el["threshold"]
+            if f["surfaced"]:
+                for fg in el["evidence"]["figures"]:
+                    assert ("%.2f\u00d7" % fg["value"]) not in f["body"] + f["title"], (fg, f["title"])
             prefix, _, constant = source.partition("#")
             assert prefix == "credit_model" and Decimal(repr(getattr(CM, constant))) == Decimal(rung["value"]), source
             assert "Altman Z'' zones" in basis and bands["source"] not in basis, basis

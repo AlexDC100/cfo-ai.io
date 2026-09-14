@@ -466,6 +466,14 @@ def test_render_is_deterministic():
            json.dumps(_complete_finding().to_payload(), sort_keys=True)
 
 
+def test_an_index_prints_as_a_plain_two_decimal_figure():
+    """Ruling Q7: Altman Z'' is written "3.09", not "3.09x"."""
+    assert F._format_value(3.0912, F.UNIT_INDEX, "RON") == "3.09"
+    assert F._format_value(-0.5, F.UNIT_INDEX, "RON") == "-0.50"
+    assert F._format_signed(-0.29, F.UNIT_INDEX, "RON") == "-0.29"
+    assert F.UNIT_INDEX in F._ratio_units._DIMENSIONLESS
+
+
 def test_a_day_count_agrees_with_its_printed_number():
     """Ruling Q8. Reds on "1 days" / "-1 days", on a singular for any other
     printed count, or on the noun following the float instead of the
