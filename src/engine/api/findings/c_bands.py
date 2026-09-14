@@ -142,40 +142,43 @@ LABELS: Dict[str, str] = {
 
 #: group -> (alert category the storage CHECK accepts, why-here copy).
 GROUP_POLICY: Dict[str, Tuple[str, str]] = {
+    # No template puts {financing_audience} before a verb: an audience may be
+    # one reader ("the shareholder") or two ("the group treasury and the
+    # statutory auditor"), and no single verb form agrees with both.
     "liquidity": (
         "liquidity",
-        "Short-term cover is what {financing_audience} reads first on a "
+        "Short-term cover is the first read for {financing_audience} on a "
         "{profile_label}: {scope} changing band between the two periods "
         "changes that conversation before any covenant is tested."),
     "profitability": (
         "margin",
-        "For a {profile_label}, {scope} is the earnings line "
-        "{financing_audience} sizes everything else from, so a change of band "
-        "year on year moves the valuation and the credit view together."),
+        "For a {profile_label}, {scope} is the earnings line everything else "
+        "is sized from by {financing_audience}, so a change of band year on "
+        "year moves the valuation and the credit view together."),
     "leverage": (
         "leverage",
-        "{financing_audience} underwrites a {profile_label} on the debt it "
-        "carries against what it earns and owns; {scope} moving band between "
-        "the two periods changes that answer."),
+        "A {profile_label} is underwritten by {financing_audience} on the debt "
+        "it carries against what it earns and owns; {scope} moving band "
+        "between the two periods changes that answer."),
     "coverage": (
         "leverage",
-        "{financing_audience} tests a {profile_label} on whether earnings pay "
-        "the interest and the principal; {scope} changing band year on year "
-        "changes the headroom on that test."),
+        "A {profile_label} is tested by {financing_audience} on whether "
+        "earnings pay the interest and the principal; {scope} changing band "
+        "year on year changes the headroom on that test."),
     "efficiency": (
         "working_capital",
         "Working-capital days decide how much cash a {profile_label} ties up "
         "to trade; {scope} moving band between the two periods changes the "
-        "funding {financing_audience} is asked for."),
+        "funding asked of {financing_audience}."),
     "distress": (
         "leverage",
-        "The Altman zone is the one-line distress read {financing_audience} "
-        "takes on a {profile_label}; {scope} moving zone changes it before "
-        "any single ratio is read."),
+        "The Altman zone is the one-line distress read taken by "
+        "{financing_audience} on a {profile_label}; {scope} moving zone "
+        "changes it before any single ratio is read."),
     "credit": (
         "leverage",
-        "The letter is how {financing_audience} grades a {profile_label} in "
-        "one word; {scope} moving a notch changes that grade."),
+        "The letter is how a {profile_label} is graded in one word by "
+        "{financing_audience}; {scope} moving a notch changes that grade."),
 }
 
 #: The convention every band finding carries in its confidence position.
@@ -315,6 +318,12 @@ def _headroom(row: Mapping[str, Any], denominators: Mapping[str, Mapping[str, An
 # ── The finding ──────────────────────────────────────────────────────────
 
 
+def _sentence_case(text: str) -> str:
+    """First character upper, the rest as written ("EBITDA", "Altman" and
+    ledger codes keep their case)."""
+    return text[:1].upper() + text[1:]
+
+
 def _figure_value(value: float, unit: str) -> float:
     return float(value) / 100.0 if unit == "pct" else float(value)
 
@@ -409,7 +418,9 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
     label = LABELS[key]
     accounts = _subject(key, line_items)
     codes = [a.code for a in accounts]
-    scope = "%s on %s" % (label[:1].upper() + label[1:], " / ".join(codes)) if codes else label
+    # The scope as a sentence embeds it (why-here) and as a title opens with it.
+    embedded_scope = "%s on %s" % (label, " / ".join(codes)) if codes else label
+    scope = _sentence_case(embedded_scope)
 
     prior_v = _figure_value(row["prior"]["value"], unit)
     current_v = _figure_value(row["current"]["value"], unit)
@@ -428,7 +439,10 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
         # than carrying a NaN limit no JSON reader accepts.
         threshold = F.Threshold(
             rule_id=rid, parameter=str(rung.get("name") or ""),
-            parameter_label="%s %s rung" % (label, rung.get("name") or ""),
+            # "<rung> rung of <label>": the title prints the limit right
+            # before this label, and "30 days days sales outstanding" is what
+            # "<label> <rung> rung" read like on every days row.
+            parameter_label="%s rung of %s" % (rung.get("name") or "", figure_label),
             comparator=_comparator(row), limit=_figure_value(float(Decimal(rung["value"])), unit),
             observed=current_v, unit=f_unit,
             source=_threshold_source(key, str(rung["name"]), bands_stamp))
@@ -445,7 +459,9 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
     evidence = finding.evidence
     provenance = replace(evidence.provenance, prior_period_id=ids.get("prior_period_id"),
                          prior_snapshot_id=ids.get("prior_snapshot_id"))
-    return replace(finding, evidence=replace(evidence, provenance=provenance))
+    why = ctx.profile.why_here(rid, scope=embedded_scope)
+    why = replace(why, rationale=_sentence_case(why.rationale))
+    return replace(finding, evidence=replace(evidence, provenance=provenance), why_here=why)
 
 
 def band_finding_objects(crossed: Sequence[Mapping[str, Any]], *,

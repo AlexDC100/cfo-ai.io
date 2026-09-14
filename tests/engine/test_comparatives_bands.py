@@ -32,6 +32,16 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       `band_numerator_held`, or |delta| more than half a cent from the served
       `headroom_money`; the findings, the improved or the deteriorated list
       out of the printed rank order (spelled here from `rank_basis.order`).
+  COMPOSITE SOURCE  an altman_z or letter_grade finding citing the band
+      table instead of a credit-model constant that resolves to the served
+      rung value, a basis sentence not naming that ladder, or the letter's
+      figures not labelled as the credit composite; a census ratio not citing
+      `<bands source>#<key>.<rung>` with the table sha in its basis.
+  PROSE  on all 20 pairs: a why-here rationale not opening in a capital, an
+      audience followed by a verb (no form agrees with one reader and two),
+      the capitalised label embedded mid-sentence, a surfaced title with a
+      doubled word ("30 days days sales outstanding"), or the why-here not
+      opening its own sentence in the body.
   SUBJECT CODES  with carniprod as the current period (against each other
       book), any finding naming a served code `is_ledger_code` rejects
       (`701.00'`), any finding demoting on "is not a ledger code", or a
@@ -68,6 +78,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import re
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Tuple
 
@@ -305,6 +316,31 @@ def test_a_composite_crossing_cites_the_credit_model_and_a_ratio_the_band_table(
             continue
         seen.add(key)
     assert seen, "non-vacuity: %s|%s crosses no composite" % (cur_name, pri_name)
+
+
+#: A verb straight after a financing audience cannot agree with both a single
+#: reader ("the shareholder") and a pair ("... and the statutory auditor").
+_AUDIENCE_VERB = re.compile(r"(auditor|lender|shareholder|committee|treasury) "
+                            r"(reads|sizes|underwrites|tests|takes|grades|read|size|underwrite|test|take|grade)\b")
+
+
+@pytest.mark.parametrize("cur_name,pri_name", PAIRS)
+def test_band_finding_prose_starts_sentences_in_capitals_and_never_doubles_a_unit(cur_name, pri_name):
+    out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+    for f in out["band_movements"]["findings"]:
+        key, label = f["ratio_key"], CB.LABELS[f["ratio_key"]]
+        where = "%s|%s %s" % (cur_name, pri_name, key)
+        why = f["contract_elements"]["why_here"]["rationale"]
+        assert why[:1].isupper(), (where, why)
+        assert not _AUDIENCE_VERB.search(why), (where, why)
+        capitalised = label[:1].upper() + label[1:]
+        if capitalised != label:
+            assert (capitalised + " on ") not in why and (" %s " % capitalised) not in why, (where, why)
+        if not f["surfaced"]:
+            continue
+        assert not re.search(r"\b(\w+) \1\b", f["title"]), (where, f["title"])
+        # the why-here paragraph opens its own sentence in the body
+        assert (". " + why.rstrip(".") + ". ") in f["body"], (where, f["body"])
 
 
 # ── 1b. a served code the contract rejects is never the subject ────────────
