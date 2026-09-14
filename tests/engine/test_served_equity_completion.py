@@ -39,10 +39,16 @@ WHAT THIS REDS ON, AFTER THE REPAIR (TC-11):
     retainedEarnings + otherEquity plus the net income reconstructed from
     the persisted P&L buckets with 711 excluded, to the cent.
 
-WHAT IT CANNOT SEE: `_rebuild_assembled_for_briefing` (the Capsule /
-Radar / briefing seam) still builds `balanceSheet` without the completion;
-that seam is a recorded live defect held for the owner, not gated here —
-a gate that allowlisted it would pin it.
+WHAT IT CANNOT SEE: `_rebuild_assembled_for_briefing` still builds
+`balanceSheet` without the completion. Its callers (grep, 2026-09-14):
+`_capsule_tools.py` (Capsule tools), `_radar.py` (Radar), `_firm_attention.py`
+(firm attention), `pipeline.py` briefing regenerate, and `_forecast_routes.py`
+(the forecast route, which returns that rebuild's `statements` to the page).
+Since the served GET /api/period equity is complete, those surfaces now
+serve a second, shorter equity for the same period. The seam is a recorded
+live defect held for the owner, not gated here — a gate that allowlisted it
+would pin it. When it is ruled, `_rebuild_assembled_for_briefing` calls
+`_complete_bucket_equity` and joins the call census below.
 """
 from __future__ import annotations
 
