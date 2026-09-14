@@ -33,6 +33,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { OrgPeriod } from "@/lib/orgPeriods";
+import type { Statements } from "@/lib/financialReport";
+import type { RatioComparisonV1 } from "@/lib/ratioTable";
 import { currentOrgId, getSupabase } from "@/lib/supabase";
 
 // ── Engine document (mirrors src/engine/api/_comparatives.py) ─────────
@@ -168,6 +170,12 @@ export interface ComparativesResponse {
   prior_statements: Record<string, unknown>;
   prior_line_items: PeriodLineItem[];
   prior_metrics: { name: string; value: number | null }[];
+  /** The two-period ratio block (src/engine/comparatives/ratio_compare.py):
+   *  both periods' ratios, bands, changes, band movements and credit
+   *  composites. Optional at this boundary because an engine that predates
+   *  the block serves none; `readRatioComparison` (ratioCompareView.ts)
+   *  shape-checks it and the Ratios tab states its absence. */
+  ratios?: RatioComparisonV1 | null;
 }
 
 export type ComparativesFetch =
@@ -216,6 +224,40 @@ export function useComparatives(periodId: string | null, priorId: string | null)
     enabled: !!periodId && !!priorId && periodId !== priorId,
     staleTime: 5 * 60_000,
   });
+}
+
+// ── What the exports receive ─────────────────────────────────────────
+
+/** The statements the Export tab hands the report and the workbook. */
+export type StatementsForExport = Statements & {
+  /** The SERVED comparatives document, verbatim (null without a
+   *  comparison): the exports print its ratio rows instead of rebuilding a
+   *  prior of their own. */
+  comparatives: ComparativesResponse | null;
+};
+
+/**
+ * `statements.prior` (the prior's statements, read by reportComparatives
+ * and financialExports) is set only when a comparison is loaded, so a
+ * single-period report still says "no prior period" in words; the served
+ * document rides along as `comparatives` either way (null without one).
+ */
+export function statementsForExportOf(
+  statements: Statements | null,
+  doc: ComparativesResponse | null,
+): StatementsForExport | null {
+  if (!statements) return null;
+  const ps = doc?.prior_statements as unknown as Statements | undefined;
+  if (!doc || !ps || !ps.incomeStatement || !ps.balanceSheet) return { ...statements, comparatives: null };
+  return {
+    ...statements,
+    prior: {
+      periodLabel: doc.prior.label,
+      balanceSheet: ps.balanceSheet,
+      incomeStatement: ps.incomeStatement,
+    },
+    comparatives: doc,
+  };
 }
 
 // ── Default prior: the previous fiscal year-end ──────────────────────

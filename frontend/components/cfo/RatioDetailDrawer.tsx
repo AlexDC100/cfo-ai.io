@@ -49,6 +49,14 @@ import { resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { TraceableNumber } from "./TraceableNumber";
 import { STATEMENT_TAB, HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
+import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
+import {
+  currentSideOf,
+  engineKeyOf,
+  printRatioRow,
+  serializePrintedRow,
+  type PrintedRatioRow,
+} from "@/lib/ratioCompareView";
 
 interface Props {
   /** The ratio to explain. `null` closes the drawer. */
@@ -139,8 +147,15 @@ function DrawerBody({
   onPickRelated: (key: string) => void;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const focusLine = focusForVerdict(ratio.verdict, ratio.label);
+  // THE SERVED ROW for this key, when the engine served one: the headline,
+  // the badge and the vs-prior block print its strings, so the drawer
+  // cannot state a figure or band the tile beside it did not.
+  const compareView = useRatioCompareView();
+  const engineKey = engineKeyOf(ratio.key);
+  const servedSide = currentSideOf(compareView, engineKey);
+  const printed: PrintedRatioRow | null = servedSide ? printRatioRow(compareView, engineKey, i18n.language) : null;
   // Default to SHOWING the explanation (2026-07-25) — the detail deep-dive
   // opens expanded; the toggle collapses it.
   const [explainOpen, setExplainOpen] = useState(true);
@@ -184,7 +199,25 @@ function DrawerBody({
                   figure and nothing to explain: `<LearnableNumber>`'s
                   popover would open on a value nobody computed. The
                   reason is stated at reading size instead. */}
-              {ratio.value === null ? (
+              {printed ? (
+                printed.currentStatus === "refused" ? (
+                  <div
+                    className="mt-0.5 text-[15px] leading-snug text-ink-soft max-w-[34ch]"
+                    data-testid="ratio-detail-unavailable"
+                  >
+                    {printed.current}
+                  </div>
+                ) : (
+                  <div
+                    className="mt-0.5 text-[34px] sm:text-[38px] leading-none font-semibold tabular-nums text-ink"
+                    data-testid="ratio-detail-current"
+                  >
+                    <LearnableNumber conceptKey={ratio.key} value={servedSide?.value ?? null}>
+                      {printed.current}
+                    </LearnableNumber>
+                  </div>
+                )
+              ) : ratio.value === null ? (
                 <div
                   className="mt-0.5 text-[15px] leading-snug text-ink-soft max-w-[34ch]"
                   data-testid="ratio-detail-unavailable"
@@ -213,9 +246,36 @@ function DrawerBody({
                       : "text-ink anim-fill-green border-brand/40"
               }`}
             >
-              {verdictLabel(ratio.verdict)}
+              {printed ? printed.bandNow : verdictLabel(ratio.verdict)}
             </span>
           </div>
+          {printed && printed.priorStatus !== "no_comparison" ? (
+            <div
+              className="mt-4 rounded-lg border border-rule bg-surface px-3.5 py-2.5 text-[12.5px]"
+              data-testid="ratio-detail-vs-prior"
+              data-ratio-prior={printed.priorStatus}
+              data-movement={printed.movementStatus ?? "none"}
+              data-ratio-cmp-json={serializePrintedRow(printed)}
+            >
+              <div className="text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+                {t("statements.ratioCmp.ui.vsPriorTitle", { prior: compareView?.priorLabel ?? "" })}
+              </div>
+              <div className="mt-1 font-mono tabular-nums text-ink">
+                <span data-col="prior">{printed.prior}</span>
+                <span aria-hidden className="mx-1 text-ink-mute">→</span>
+                <span data-col="current">{printed.current}</span>
+              </div>
+              <div className="mt-0.5 font-mono tabular-nums text-ink-soft">
+                <span data-col="delta">{printed.delta}</span>
+                {printed.deltaSecondary ? <span className="ml-1 text-ink-mute" data-col="delta_secondary">{printed.deltaSecondary}</span> : null}
+              </div>
+              <div className="mt-0.5 text-ink-soft">
+                <span data-col="band_prior">{printed.bandPrior}</span>
+                <span aria-hidden className="mx-1 text-ink-mute">·</span>
+                <span data-col="movement">{printed.movement}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
 

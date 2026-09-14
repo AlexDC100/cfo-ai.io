@@ -39,6 +39,7 @@
 
 import i18n from "@/i18n";
 import type { ChipTone } from "@/components/instrument/Panel";
+import { RATIO_CMP_SURFACE_KEYS } from "@/lib/ratioCompareKeys";
 
 // ─── Enumerations (closed, mirrored from the served schema) ─────────────
 
@@ -822,5 +823,7 @@ export function ratioCmpKeyCensus(): string[] {
   for (const k of Object.values(BAND_WORD_KEY)) keys.add(k);
   for (const k of Object.values(BAND_STATUS_WORD_KEY)) keys.add(k);
   keys.add("dashV2.ratioVerdictUnknown");
+  // The surfaces' own words (labels, groups, headers): see ratioCompareKeys.ts.
+  for (const k of RATIO_CMP_SURFACE_KEYS) keys.add(k);
   return [...keys].sort();
 }
