@@ -3,9 +3,11 @@
 The engine is the one authority for ratio values, bands and band status
 (critic authority_decision). This module is the per-period half: given the
 payload ``GET /api/period/{id}`` serves, it returns the block that will be
-served as ``assembled_metrics.ratio_table``. It is NOT wired into
-``get_period`` yet (batch B4 does that), and its ``credit`` block is
-``None`` until B4 joins the serve-time credit model (B1).
+served as ``assembled_metrics.ratio_table`` (``get_period`` builds it with
+``serve_time_metrics=True``). Its ``credit`` block is the serve-time
+credit model (``engine.ratios.credit_model.credit_block`` over
+``compute_period_metrics`` of the served statements), with the payload's
+persisted ``metrics`` rows as the as-filed evidence.
 
 ── WHERE EACH VALUE COMES FROM ───────────────────────────────────────────
 
@@ -540,8 +542,12 @@ def _gateway_totals(statements: Mapping[str, Any]) -> Dict[str, Tuple[Optional[f
     served_cbs = statements.get("canonical_bs")
     out: Dict[str, Tuple[Optional[float], str]] = {}
     if isinstance(served_cbs, dict):
-        gateway = FactsGateway.from_envelope({"canonical_bs": served_cbs},
-                                             currency=str(statements.get("currency") or "RON"))
+        # The currency is the served statements' own; an absent one stays
+        # absent (no RON default) — the table reads amounts, never labels.
+        raw_currency = statements.get("currency")
+        gateway = FactsGateway.from_envelope(
+            {"canonical_bs": served_cbs},
+            currency=raw_currency if isinstance(raw_currency, str) and raw_currency else None)
         for concept, _legacy in _TOTAL_CONCEPTS:
             value: Optional[float] = None
             if gateway is not None and gateway.tier == FactsGateway.TIER_CANONICAL:
@@ -577,9 +583,9 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
 
 
 def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
-                  ) -> Tuple[Dict[str, _Fig], Dict[str, _Fig], bool]:
+                  ) -> Tuple[Dict[str, _Fig], Dict[str, _Fig], bool, Dict[str, _Fig]]:
     """(value figure per census key, sign-denominator figure per key,
-    gross-margin-has-cost-base)."""
+    gross-margin-has-cost-base, money denominator per key)."""
     bs = _dict(statements.get("balanceSheet"))
     inc = _dict(statements.get("incomeStatement"))
     sup = _dict(statements.get("supplementary"))
@@ -748,17 +754,88 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     ):
         for k in keys:
             sign[k] = fig
-    return figs, sign, has_cost_base
+    # The MONEY denominator of each ratio (materiality reads it): the sign
+    # denominators, plus the coverage denominators no ladder sign-guards.
+    # ccc (a sum of three day counts) and adjusted_dscr (user input) have
+    # none.
+    denominators: Dict[str, _Fig] = dict(sign)
+    denominators["interest_coverage"] = interest
+    denominators["ebitda_to_interest"] = interest
+    denominators["dscr"] = debt_service
+    denominators["dscr_with_lt_principal"] = _add(
+        interest, _div(B("longTermDebt"), _known(8.0), "8"))
+    return figs, sign, has_cost_base, denominators
 
 
 def _operands(fig: _Fig) -> List[Dict[str, Any]]:
     return [{"name": n, "value": v, "source": s} for (n, v, s) in fig.ops]
 
 
-def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
-    """The per-period ratio block for one served payload (see PURITY)."""
+#: Which metric rows a table's metric-backed keys read.
+METRICS_BASES = ("payload", "serve")
+
+
+def _serve_time_metric_rows(statements: Mapping[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """`compute_period_metrics` over the served statements block — the
+    credit model and every metric row, recomputed from what is served.
+    None when the block carries no legacy view to compute from (the model
+    names the missing operand; nothing is approximated)."""
+    from engine.ratios.credit_model import compute_period_metrics
+
+    bs, inc = statements.get("balanceSheet"), statements.get("incomeStatement")
+    if not isinstance(bs, dict) or not isinstance(inc, dict):
+        return None
+    if bool(statements.get("absentInputs")) or "reportedTotals" in statements:
+        return None
+    try:
+        return compute_period_metrics(dict(statements))
+    except (KeyError, TypeError):
+        return None
+
+
+def ratio_denominators(served_payload: Mapping[str, Any], *,
+                       serve_time_metrics: bool = False) -> Dict[str, Dict[str, Any]]:
+    """The money denominator each census ratio divides, as the table
+    computes it: `{key: {"value": float | None, "source": str}}`. Keys with
+    no single money denominator (ccc, adjusted_dscr, and every row of a
+    source that declares its absences) are absent. Read by the two-period
+    composer's materiality; never by the table's own grading."""
+    payload = dict(served_payload) if isinstance(served_payload, Mapping) else {}
+    statements = _dict(payload.get("statements"))
+    if bool(statements.get("absentInputs")) or "reportedTotals" in statements:
+        return {}
+    if serve_time_metrics:
+        payload["metrics"] = _serve_time_metric_rows(statements) or []
+    _figs, _sign, _cost, denominators = _compute_figs(payload, statements)
+    return {k: {"value": f.value, "source": "+".join(op[2] for op in f.ops)}
+            for k, f in denominators.items()}
+
+
+def build_ratio_table(served_payload: Mapping[str, Any], *,
+                      serve_time_metrics: bool = False) -> Dict[str, Any]:
+    """The per-period ratio block for one served payload (see PURITY).
+
+    `serve_time_metrics=False` (the parity basis): metric-backed keys read
+    the payload's `metrics` rows as served — what `computeRatios` reads.
+    `serve_time_metrics=True` (what `get_period` and the comparatives
+    composer serve): they read `compute_period_metrics` over the served
+    statements, so a period whose persisted rows are absent (a prior) or
+    stale (a reanalyze never recomputes metrics) is still computed from
+    what is served. Either way `credit` is the serve-time model, with the
+    payload's persisted rows as its as-filed evidence."""
+    from engine.ratios import credit_model as _cm
+
     payload = served_payload if isinstance(served_payload, Mapping) else {}
     statements = _dict(payload.get("statements"))
+    serve_rows = _serve_time_metric_rows(statements)
+    persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
+    if serve_time_metrics:
+        payload = dict(payload)
+        payload["metrics"] = list(serve_rows or [])
+    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows)
+    if serve_rows is None:
+        credit["reason"] = {"code": _cm.CREDIT_INPUTS_ABSENT,
+                            "inputs": ["statements.balanceSheet", "statements.incomeStatement"]}
     bands, band_stamp = _served_bands(statements)
     signal = _industry_signal(payload, statements)
     sector_disputed = signal.get("block_sector_content") is True
@@ -769,7 +846,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         sign: Dict[str, _Fig] = {}
         has_cost_base = True
     else:
-        figs, sign, has_cost_base = _compute_figs(payload, statements)
+        figs, sign, has_cost_base, _denoms = _compute_figs(payload, statements)
 
     rows: List[Dict[str, Any]] = []
     refused: Dict[str, str] = {}
@@ -837,19 +914,26 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         rows.append(row)
 
     cv1 = _dict(statements.get("assembled_canonical_v1"))
-    if isinstance(payload.get("pack_provenance"), dict):
-        pack_provenance, pack_source = payload.get("pack_provenance"), "payload"
+    if "pack_provenance" in payload:
+        # The payload SAYS what the persisted envelope carries — including
+        # that it carries none (a period persisted before the stamp). Never
+        # fall through to the serve-time re-assembly's provenance then.
+        pack_provenance = payload.get("pack_provenance") if isinstance(payload.get("pack_provenance"), dict) else None
+        pack_source = "payload" if pack_provenance is not None else None
     elif isinstance(cv1.get("pack_provenance"), dict):
         pack_provenance, pack_source = cv1.get("pack_provenance"), "statements.assembled_canonical_v1"
     else:
         pack_provenance, pack_source = None, None
     period = _dict(payload.get("period"))
 
+    raw_currency = statements.get("currency")
     return {
         "table_version": TABLE_VERSION,
         "stamps": {
             "ratio_table_version": TABLE_VERSION,
-            "credit_model_revision": None,
+            "credit_model_revision": _cm.CREDIT_MODEL_REVISION,
+            "metrics_basis": "serve" if serve_time_metrics else "payload",
+            "currency": raw_currency if isinstance(raw_currency, str) and raw_currency else None,
             "bands": band_stamp,
             "pack_provenance": pack_provenance,
             "pack_provenance_source": pack_source,
@@ -864,7 +948,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
             "band_withheld": withheld,
         },
         "rows": rows,
-        "credit": None,
+        "credit": credit,
     }
 
 
