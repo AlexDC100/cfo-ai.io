@@ -1,5 +1,5 @@
 {
- "schema": "plan_gates/1",
+ "schema": "plan_gates/2",
  "contract": "plan_contract_v2 section 26; rulings in docs/engine_book/plan_rulings.md",
  "checked_by": "scripts/check_plan_gates.py (battery gate plan-gate-census)",
  "entry_fields": {
@@ -10,10 +10,16 @@
   "registration_only": "true when an existing, passing test was registered with no repair (0.5)",
   "test_files": "what the gate runs",
   "canaries": "optional; each must be a canary of the battery gate (and, for vitest/playwright, in the runner's CANARIES)",
-  "plant_log": "optional gates.md heading; defaults to the gate name"
+  "plant_log": "optional gates.md heading; defaults to the gate name",
+  "retired_in": "optional; only for a retirement contract 28.3 names (forecast-get-b4-parity, B6); the entry and its plant log stay, the battery checks stop",
+  "required_rows": "keyed by batch: the rows whose 26.1 Lands column is that batch, each met only by an entry landed in that batch (B21: any)",
+  "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
  },
  "required_rows": {
   "B0": ["F5", "F10"]
+ },
+ "required_gates": {
+  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"]
  },
  "gates": [
   {

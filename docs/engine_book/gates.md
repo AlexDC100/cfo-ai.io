@@ -3558,10 +3558,41 @@ FAILED tests/engine/test_forecast_no_ai_write_path.py::test_importing_the_foreca
 
 **REVERT** — restored; `PASS forecast-ai-write-path (1.1s, 17 tests)`.
 
-**After the repair it reds on:** any model import edge into the three packages;
-a model-authored numeral about a projection reaching a served block; an
-environment variable that disarms the guard.
-**It cannot see:** the proposal route of section 24 (B19) or `engine.forecast_findings` (B18), which do not exist yet.
+**After the repair it reds on:** a module of the model-surface roster
+(`MODEL_SURFACE_MODULES` in `forecast_serving/boundary.py`) that is LOADED when
+a fresh interpreter imports `engine.forecast`, `engine.forecast_drivers` and
+`engine.forecast_serving`, or when the gateway runs end to end on agras; a
+model-authored numeral about a projection reaching a served block; an
+environment variable that disarms the guard. It measures modules loaded, not
+import statements.
+**It cannot see:** an import placed inside a function (never executed by the
+import walk); a submodule the packages do not themselves import (a new
+`engine/forecast/breakeven.py` is invisible until something imports it);
+`import engine.ai` or `from engine.ai import advisory` when that loads only
+`engine.ai` and `engine.ai.registry`, which the roster leaves out on purpose.
+So contract 26.2 F5's own plant ("import engine.ai in
+engine.forecast.breakeven") does NOT red at B0. Measured on this tree, each
+applied to `src/engine/forecast/` and reverted (`git status` clean after):
+
+```
+top-level `import engine.ai` in render.py                        -> 17 passed
+new breakeven.py with top-level `from engine.ai import advisory`  -> 17 passed
+function-local `from engine.ai import advisory` in render.py      -> 17 passed
+control: top-level `import engine.ai_lane` in render.py           -> 1 failed, 16 passed
+```
+
+`import engine.ai` loads `['engine.ai', 'engine.ai.registry']` only. A
+function-local `import anthropic` in `forecast_drivers/derive.py` is caught,
+but by forecast-drivers, not by this gate. The extension that closes this
+(an AST scan of every import statement, function-local included, in every
+module under `src/engine/forecast*`, forbidding the prefixes `engine.ai` and
+`engine.ai_lane` apart from the guard's own sanctioned imports) belongs to the
+batch that owns `tests/engine/test_forecast_no_ai_write_path.py` (B18). B11
+creates `breakeven.py` before B18 runs, so the contract's plant shape stays
+open from B11 to B18 unless the owner rules that B11 extends the test
+(as-built B0-14).
+It also cannot see the proposal route of section 24 (B19) or
+`engine.forecast_findings` (B18), which do not exist yet.
 
 ## forecast-boundary
 
@@ -3630,9 +3661,14 @@ check lands in B6), and the Scenarios files it lists as excluded.
 zero and canaries (and, for vitest and playwright entries, the same literal in
 the runner's CANARIES array), and to a plant log here with PLANT, RED (plant),
 the parent-commit red or the registration_only line, REVERT and a SCOPE line.
-It prints the coverage of the eighteen F and S rows and reds on a required row
-with no gate. Each batch adds its entries and its `required_rows` key; B21
-requires every row.
+It prints the coverage of the eighteen F and S rows. Per batch it reds when the
+batch's `required_gates` omits a battery gate contract 28.3 says that batch
+first registers (`CONTRACT_LANDS` in the script), when its `required_rows`
+omits a row whose 26.1 Lands column is that batch, and when a required gate or
+row is met only by another batch's entry. Each batch adds its entries and both
+keys; B21's keys must name every 26.1 battery gate and every row, and are the
+only ones any batch's entry can meet. Only B0's six registrations may be
+`registration_only` (0.5). Schema `plan_gates/2` (as-built B0-13).
 
 | | |
 |---|---|
@@ -3640,7 +3676,7 @@ requires every row.
 | work count | `GATE-WORK plan-gate-census units=(\d+)`, floor **6** entries (measured 6) |
 | canary | `PLAN-GATE CENSUS (plan_contract_v2 F10)`, `coverage of the 18 contract rows` |
 
-**SCOPE** — `docs/engine_book/plan_gates.json` (6 entries at B0; rows F1, F2, F5, F10 covered, 14 rows with no gate yet, required so far B0 = F5, F10) against the full battery (engine and frontend gates) and this file. Plants run on copies passed with `--battery`, `--gates-md`, `--plan-gates`.
+**SCOPE** — `docs/engine_book/plan_gates.json` (6 entries at B0; rows F1, F2, F5, F10 covered, 14 rows with no gate yet; batches enforced: B0, with required gates forecast-model, forecast-serving-boundary, forecast-drivers, forecast-ai-write-path, forecast-boundary, plan-gate-census and required rows F5, F10) against the full battery (engine and frontend gates) and this file. Plants run on copies passed with `--battery`, `--gates-md`, `--plan-gates`. Printed as `GATE-WORK plan-gate-census units=6 rows=4 batches=1`.
 
 **GREEN** — exit `0`: `PASS — every listed plan gate is registered, planted and scoped.`
 
@@ -3676,10 +3712,78 @@ FAIL — 2 plan gate claim(s) not backed by the battery and its plant log:
 **RED (plant)** — exit `1`:
 
 ```
-FAIL — 3 plan gate claim(s) not backed by the battery and its plant log:
+FAIL — 9 plan gate claim(s) not backed by the battery and its plant log:
   · plan_gates.json lists ZERO gates. A census over nothing is a broken census, not a clean one (TC-3).
-  · required_rows[B0]: row F5 has no registered gate
-  · required_rows[B0]: row F10 has no registered gate
+  · required_gates[B0]: gate 'forecast-model' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-serving-boundary' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-drivers' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-ai-write-path' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-boundary' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'plan-gate-census' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_rows[B0]: row F5 has no registered gate landed in B0 (an earlier batch's entry does not count)
+  · required_rows[B0]: row F10 has no registered gate landed in B0 (an earlier batch's entry does not count)
+```
+
+(Re-run after the B0 repair round; the first recording showed the ZERO GATES
+line and the two row lines only.)
+
+**PLANT 5** — the repair round's defect, on a copy of `plan_gates.json`:
+`required_rows` gains `B5: [F1]`, `B6: [F2]`, `B21: [F1, F2, F5, F10]`, with no
+forecast-balance or forecast-server-side gate anywhere. Before the repair the
+census printed `PASS — every listed plan gate is registered, planted and
+scoped.` (B5's F1 was met by B0's forecast-model entry, B6's F2 by B0's
+forecast-boundary). **RED (plant)** — exit `1`:
+
+```
+FAIL — 63 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B5] omits 'forecast-balance', which contract 28.3 says B5 registers
+  · required_rows[B5]: row F1 has no registered gate landed in B5 (an earlier batch's entry does not count)
+  · required_gates[B6] omits 'forecast-server-side', which contract 28.3 says B6 registers
+  · required_rows[B6]: row F2 has no registered gate landed in B6 (an earlier batch's entry does not count)
+  · required_gates[B21] omits 'forecast-balance', which contract 26.1 says the final census registers
+  · ... (58 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 6** — a required gate with no entry: a copy of `plan_gates.json` with
+the `forecast-drivers` entry deleted while `required_gates[B0]` still names it.
+Before the repair: `PASS`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B0]: gate 'forecast-drivers' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+```
+
+**PLANT 7** — `registration_only` outside 0.5: a copy adding
+`{id forecast-route, gate forecast-route, rows [S4, F9], landed_in B6,
+registration_only true, plant_log "forecast-route B6"}` and a copy of this file
+whose `## forecast-route B6` section holds only the marker words and the
+registration_only line. Before the repair: `PASS`, `units=7 rows=6`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 16 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-route': registration_only (landed_in 'B6') — contract 0.5 allows it only for the six B0 registrations forecast-model, forecast-serving-boundary, forecast-drivers, forecast-ai-write-path, forecast-boundary, plan-gate-census; every other gate lands with its repair and records RED (parent commit)
+  · ... (15 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 8** — B21 listing every row and no gate. **RED (plant)** — exit `1`:
+
+```
+FAIL — 37 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B21] omits 'forecast-balance', which contract 26.1 says the final census registers
+  · required_rows[B21]: row F3 has no registered gate (any batch)
+  · ... (35 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 9** — an earlier batch's entry offered for a later batch's gate: a
+battery copy registering B5's seven gates, a `plan_gates.json` copy with every
+B5 key and entry correct (this passes: `PASS`, `batches=2`), then the one change
+`forecast-balance` `landed_in: B0`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 2 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B5]: gate 'forecast-balance' has no plan_gates.json entry landed in B5 (an earlier batch's entry does not count)
+  · required_rows[B5]: row F1 has no registered gate landed in B5 (an earlier batch's entry does not count)
 ```
 
 Before any section of this B0 block existed, the real census run over the
@@ -3692,7 +3796,16 @@ which is how the sections above came to be written first.
 
 **After the repair it reds on:** an F or S entry without battery registration,
 floor, canary, plant log or scope line; a canary the battery gate or its
-runner does not carry; an unknown row; a required row with no entry; zero
-entries.
-**It cannot see:** whether a recorded red is true, or a contract gate no entry
-lists (closed at B21, when every row is required).
+runner does not carry; an unknown row or batch; `registration_only` on any
+entry but B0's six; a `retired_in` other than forecast-get-b4-parity at B6; a
+landed batch whose `required_gates` omits a gate 28.3 says it first registers
+or whose `required_rows` omits a row 26.1 lands there; a required gate or row
+met only by another batch's entry; a B21 key short of every 26.1 battery gate
+and every row; zero entries.
+**It cannot see:** whether a recorded red is true; a batch that registers
+nothing and writes no key (nothing marks it landed, so its 28.3 gates are
+checked only at B21, and only the 26.1 battery gates are, not the 26.3
+supporting ones); an extension (command extended, floor raised, canary
+added) of a gate an earlier batch registered; drift between the literal
+`CONTRACT_LANDS` / `ROW_BATTERY_GATES` reading and a later contract edit (the
+script checks only that the two agree with each other).
