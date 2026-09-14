@@ -11,7 +11,9 @@
 // a share and its change in POINTS; or a word — "new", "no longer
 // present", "not disclosed at this detail level", "no base" — for the
 // case the engine refused. Never a zero standing in for an absence, never
-// a percentage the FE divided itself.
+// a percentage the FE divided itself. A move from zero, to zero or across
+// sign carries the one classifier's words ("turned negative") in the Δ %
+// column, never a percent (plan_contract_v2 section 7, defect 0.4).
 import { createContext, useContext, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +29,12 @@ import {
 import type { ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
+import {
+  ROUNDED_MONEY_ZERO_FLOOR,
+  changeKindWordKey,
+  classifyChange,
+  isWordKind,
+} from "@/lib/changeKind";
 
 export interface ComparativeContextValue {
   doc: ComparativesResponse;
@@ -180,7 +188,11 @@ export function CmpCells({
             </span>
       )}
       {cols.deltaPct && (
-        deltaPctText === null
+        c.changeKind != null && isWordKind(c.changeKind)
+          ? <span className="cmp-cell cmp-cell--word" title={c.note} data-change-kind={c.changeKind}>
+              {t(changeKindWordKey(c.changeKind))}
+            </span>
+          : deltaPctText === null
           ? (c.status === "compared_no_base"
               ? word(t("statements.cmp.noBase"), c.note)
               : refused ? word(refused, c.note) : gap(c.note))
@@ -232,9 +244,15 @@ export function BsCmpCells({
 
   let pctNode: ReactNode = gap();
   if (isNum(opening) && isNum(closing)) {
-    if (Math.abs(opening) < 0.005) pctNode = word(t("statements.cmp.noBase"));
-    else {
-      const ratio = (closing - opening) / Math.abs(opening);
+    // The one classifier (plan_contract_v2 section 7): a percent only for a
+    // same-sign move off a non-zero opening; words for every other kind.
+    const change = classifyChange(opening, closing, ROUNDED_MONEY_ZERO_FLOOR);
+    if (change.kind === "from_zero" || (change.kind === "compared" && change.deltaPct === null)) {
+      pctNode = word(t("statements.cmp.noBase"));
+    } else if (isWordKind(change.kind)) {
+      pctNode = word(t(changeKindWordKey(change.kind)));
+    } else {
+      const ratio = Number(change.deltaPct);
       const text = formatDeltaPct(ratio);
       pctNode = text === null ? gap() : <span className={`cmp-cell ${signClass(ratio)}`}>{text}</span>;
     }

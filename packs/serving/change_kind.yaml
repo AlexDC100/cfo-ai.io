@@ -1,0 +1,20 @@
+# packs/serving/change_kind.yaml — the one sign-flip classifier's data
+# (plan_contract_v2 section 7, R21; batch B1).
+#
+# Read by src/engine/serving/change_kind.py. frontend/lib/changeKindPack.json
+# carries the same values for the TypeScript classifier
+# (frontend/lib/changeKind.ts); tests/engine/test_change_kind.py reds when
+# the two differ.
+schema: change_kind/1
+
+# delta_pct = (plan - base) / |base|, served as a decimal string with this
+# many places, rounded once, half away from zero. Only the kind "compared"
+# with a non-zero base carries one.
+delta_pct_places: 6
+
+# The zero floor for values that are already rounded money in major units
+# (comparatives' columns, the dashboard's float figures): a magnitude below
+# this is a zero. It mirrors engine.comparatives.columns.PCT_BASE_FLOOR,
+# which stays the Python authority; the test reds if they differ. Integer
+# minor units use a floor of 0 and never read this key.
+rounded_money_zero_floor: "0.005"

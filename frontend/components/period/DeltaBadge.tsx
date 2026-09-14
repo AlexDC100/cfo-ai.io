@@ -17,8 +17,11 @@
 // direction (↑ ↓ ·). Background tint follows sentiment via accent/danger
 // design tokens that already exist in the theme.
 
+import { useTranslation } from "react-i18next";
+
 import { cn } from "@/lib/utils";
 import type { Delta, DeltaSentiment } from "@/lib/learning/computeDeltas";
+import { CHANGE_KIND_NO_CHANGE_KEY, changeKindWordKey, isWordKind } from "@/lib/changeKind";
 import { Money } from "@/components/ui/Money";
 import type { Currency } from "@/lib/rates";
 
@@ -60,13 +63,29 @@ export function DeltaBadge({
   currency = "RON",
   className,
 }: DeltaBadgeProps) {
-  const isRatio = delta.pct === null;
-  const useAbsolute = showAbsolute || (isRatio && delta.pct === null);
+  const { t } = useTranslation();
+  // A RATIO delta is never classified (change === null) and renders in
+  // percentage POINTS. A MONEY delta carries the one classifier's verdict
+  // (plan_contract_v2 section 7): from zero, to zero or across sign it has
+  // no percentage and renders its WORDS beside the absolute change.
+  const isRatio = delta.change === null;
+  const change = delta.change;
+  const words = change !== null && (isWordKind(change.kind) || delta.pct === null);
+  const absolute = (
+    <Money
+      value={Math.abs(delta.absolute)}
+      fromCurrency={currency}
+      compact
+      signed={false}
+      className="text-[10px]"
+    />
+  );
 
   return (
     <span
       data-testid="delta-badge"
       data-delta-sign={delta.absolute > 0 ? "pos" : delta.absolute < 0 ? "neg" : "zero"}
+      data-change-kind={change?.kind}
       className={cn(
         "inline-flex items-center gap-0.5",
         "px-1.5 py-0.5 rounded-md",
@@ -78,27 +97,26 @@ export function DeltaBadge({
       <span aria-hidden>{arrow(delta)}</span>
       {isRatio ? (
         // Ratio delta — render in percentage POINTS. Format: "+2.0pp" / "-2.0pp".
-        // Compile-time discipline: pct is null here, can't accidentally show %.
         <span>
           {delta.absolute > 0 ? "+" : ""}
           {(delta.absolute * 100).toFixed(1)}pp
         </span>
-      ) : useAbsolute ? (
+      ) : words ? (
+        <>
+          {absolute}
+          <span className="ml-1">
+            {isWordKind(change!.kind) ? t(changeKindWordKey(change!.kind)) : t(CHANGE_KIND_NO_CHANGE_KEY)}
+          </span>
+        </>
+      ) : showAbsolute ? (
         // Absolute mode — render the currency change via Money primitive
         // so the FX + compact formatting stays consistent with the rest
         // of the app.
-        <Money
-          value={Math.abs(delta.absolute)}
-          fromCurrency={currency}
-          compact
-          signed={false}
-          className="text-[10px]"
-        />
+        absolute
       ) : (
-        // Default — relative percentage. `pct` is non-null here per the
-        // isRatio branch above.
+        // Default — the classifier's percentage (same sign, non-zero base).
         <span>
-          {delta.pct! > 0 ? "+" : delta.pct! < 0 ? "" : ""}
+          {delta.pct! > 0 ? "+" : ""}
           {(Math.abs(delta.pct!) * 100).toFixed(1)}%
         </span>
       )}

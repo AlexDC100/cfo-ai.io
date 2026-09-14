@@ -16,10 +16,12 @@
   "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
  },
  "required_rows": {
-  "B0": ["F5", "F10"]
+  "B0": ["F5", "F10"],
+  "B1": ["S7"]
  },
  "required_gates": {
-  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"]
+  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"],
+  "B1": ["sign-flip", "vitest"]
  },
  "gates": [
   {
@@ -75,6 +77,29 @@
    "landed_in": "B0",
    "registration_only": true,
    "test_files": ["scripts/check_plan_gates.py", "docs/engine_book/plan_gates.json"]
+  },
+  {
+   "id": "sign-flip",
+   "gate": "sign-flip",
+   "rows": ["S7"],
+   "landed_in": "B1",
+   "test_files": ["tests/engine/test_change_kind.py", "tests/engine/test_comparatives.py", "tests/fixtures/contracts/change_kind_truth_table.json"],
+   "canaries": [
+    "test_the_python_classifier_matches_every_truth_table_row",
+    "test_a_cross_sign_column_carries_its_kind_and_no_percentage"
+   ]
+  },
+  {
+   "id": "vitest:B1",
+   "gate": "vitest",
+   "rows": ["S7"],
+   "landed_in": "B1",
+   "test_files": ["frontend/lib/__tests__/changeKind.test.ts", "frontend/components/scenarios/__tests__/signFlip.test.tsx"],
+   "canaries": [
+    "frontend/lib/__tests__/changeKind.test.ts",
+    "frontend/components/scenarios/__tests__/signFlip.test.tsx"
+   ],
+   "plant_log": "vitest — sign-flip canaries (plan/2 B1)"
   }
  ]
 }

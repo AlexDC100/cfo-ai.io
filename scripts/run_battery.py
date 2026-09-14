@@ -396,6 +396,23 @@ def _engine_gates() -> List[Gate]:
              canaries=("PLAN-GATE CENSUS (plan_contract_v2 F10)",
                        "coverage of the 18 contract rows")),
         # ── end plan/2 B0 ────────────────────────────────────────────────
+        # ── plan/2 B1 (plan_contract_v2 28.3, section 7, S7): sign-flip ──
+        # One sign-flip classifier per runtime (engine.serving.change_kind,
+        # frontend/lib/changeKind.ts) held to one truth table; comparatives
+        # columns carry change_kind and no cross-sign percentage. Work is
+        # the SUM of the GATE-WORK lines the tests print (truth-table rows,
+        # converted consumers, comparative columns swept). Floor 300 = the
+        # measured 339 (70 + 14 + 255), rounded down. The rendered half is
+        # the vitest canaries changeKind.test.ts and signFlip.test.tsx.
+        Gate("sign-flip",
+             [PY, "-m", "pytest", "tests/engine/test_change_kind.py",
+              "tests/engine/test_comparatives.py", "-v", "-s"],
+             work_rx=r"GATE-WORK sign-flip units=(\d+)", work_sum=True,
+             floor=300, units="truth-table rows + consumers + columns",
+             canaries=("test_the_python_classifier_matches_every_truth_table_row",
+                       "test_a_cross_sign_column_carries_its_kind_and_no_percentage",
+                       "SIGN-FLIP truth table (python)")),
+        # ── end plan/2 B1 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -700,7 +717,12 @@ def _frontend_gates() -> List[Gate]:
              units="frontend unit tests",
              canaries=("capsuleFactIndex.test.ts",
                        "forecastPage.test.tsx",
-                       "socialLinksFromConfig.test.ts")),
+                       "socialLinksFromConfig.test.ts",
+                       # plan/2 B1 (S7, section 7): the TS classifier
+                       # against the shared truth table, and the rendered
+                       # sign flips on every converted consumer.
+                       "frontend/lib/__tests__/changeKind.test.ts",
+                       "frontend/components/scenarios/__tests__/signFlip.test.tsx")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

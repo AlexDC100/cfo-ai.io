@@ -263,6 +263,14 @@ const FORMATTERS = {
   formatCitedFact: "frontend/lib/narrativeMoney.tsx",
   formatEur: "frontend/lib/pricingConfig.ts",
   formatTokens: "frontend/lib/tokenUsage.ts",
+  // ── plan/2 B1 (plan_contract_v2 section 7) ──────────────────────────
+  // The comparatives Δ % / share / pp spellers (named unrostered in
+  // plan_as_built B0-12; B1 owns comparatives.ts), and the classified
+  // percent: a change the one sign-flip classifier calls "compared".
+  formatDeltaPct: "frontend/lib/comparatives.ts",
+  formatShare: "frontend/lib/comparatives.ts",
+  formatPts: "frontend/lib/comparatives.ts",
+  formatChangePercent: "frontend/lib/amountFormat.ts",
 };
 
 /** Exported, figure-shaped NAME, spells something — but not a FIGURE. Each
@@ -462,6 +470,9 @@ const SURFACES = {
       // their balances as its evidence. Registered HAS_MISSING: the origin
       // is in the payload, the affordance is not yet painted.
       "frontend/components/cfo/IndustryConfirmBanner.tsx",
+      // plan/2 B1 (2026-09-15): the comparative cells every statement view
+      // mounts beside its rows (LACKS_SILENT; no bearing site).
+      "frontend/components/cfo/ComparativeCells.tsx",
     ],
   },
   findings: {

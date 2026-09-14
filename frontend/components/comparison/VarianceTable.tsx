@@ -8,9 +8,12 @@
 // Instrument pass (2026-08): one AmountGroup spans every money cell so the
 // whole table shares a scale; the currency code lives once in the header
 // strip instead of six times per row; deltas flow through <Amount
-// kind="percent"> so an exploding % (near-zero base) renders as a signed
-// multiplier, not "↓10834.3%". Rows are 32px on hairline rules; total
-// lines (emphasis) carry a double hairline above.
+// kind="percent" change> so the one classifier (lib/changeKind.ts,
+// plan_contract_v2 section 7) decides: a same-sign change renders its
+// percent (a large one as a signed multiplier), and a change from zero,
+// to zero or across sign renders WORDS beside the absolute change — never
+// a percent, never a multiplier (defect 0.4). Rows are 32px on hairline
+// rules; total lines (emphasis) carry a double hairline above.
 
 import { Amount } from "@/components/instrument/Amount";
 import {
@@ -20,6 +23,7 @@ import {
 } from "@/components/comparison/MoneyAmount";
 import type { Currency } from "@/lib/rates";
 import type { Delta, DeltaSentiment } from "@/lib/learning/computeDeltas";
+import { isWordKind } from "@/lib/changeKind";
 import type { VarianceRow } from "@/lib/comparison/buildVariance";
 import { cn } from "@/lib/utils";
 
@@ -56,9 +60,9 @@ function DeltaCell({
       <span className="text-[12px] font-medium">
         <MoneyAmount value={d.absolute} fromCurrency={currency as Currency} unit={false} signed />
       </span>
-      {d.pct !== null && (
+      {(d.pct !== null || (d.change !== null && isWordKind(d.change.kind))) && (
         <span className="text-[10.5px]">
-          <Amount kind="percent" value={d.pct} />
+          <Amount kind="percent" value={d.pct} change={d.change} />
         </span>
       )}
     </span>
