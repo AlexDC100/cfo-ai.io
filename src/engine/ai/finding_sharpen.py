@@ -546,8 +546,18 @@ def _freeze(value: Any, depth: int = 0) -> Any:
         return [_freeze(v, depth + 1) for v in value]
     fields = getattr(type(value), "__dataclass_fields__", None)
     if fields:
-        return dict((name, _freeze(getattr(value, name, None), depth + 1))
-                    for name in fields)
+        # The type's declared omit-when-None fields (`Provenance`'s prior
+        # period and snapshot) are left out while None, exactly as the
+        # contract's own `_as_dict` does, so a single-period view and its
+        # fingerprint are what they were before those fields existed.
+        omit = getattr(type(value), "_PAYLOAD_OMIT_WHEN_NONE", ())
+        out = {}  # type: Dict[str, Any]
+        for name in fields:
+            field_value = getattr(value, name, None)
+            if field_value is None and name in omit:
+                continue
+            out[name] = _freeze(field_value, depth + 1)
+        return out
     return OBJECT_WITHHELD % type(value).__name__
 
 

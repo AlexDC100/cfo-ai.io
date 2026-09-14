@@ -337,6 +337,25 @@ def test_s1_the_view_is_json_primitives_only(finding, profile, gateway):
     assert json.loads(json.dumps(view.payload, sort_keys=True)) == view.payload
 
 
+#: The 461 finding's view fingerprint (no gateway), captured from c436e39's
+#: `src/` (git archive) — BEFORE `Provenance` gained its prior-period fields.
+PRE_PRIOR_FIELDS_VIEW_FINGERPRINT = "148d4b14e71213a4c5f62348eba3cdfa55245d069ac0c2b7e81af9217be787e9"
+
+
+def test_s1_a_single_period_view_omits_the_unset_prior_fields_and_keeps_its_fingerprint(finding, profile):
+    """`_freeze` walks dataclass fields; it must honour the contract's
+    omit-when-None declaration, or every single-period view (and its
+    fingerprint, echoed into the journal) grows `prior_period_id: null`."""
+    view = FS.build_view(finding, profile)
+    assert sorted(view.payload["finding"]["provenance"]) == [
+        "line_refs", "period_id", "snapshot_id", "source"], view.payload["finding"]["provenance"]
+    assert view.fingerprint() == PRE_PRIOR_FIELDS_VIEW_FINGERPRINT
+    prov = replace(finding.evidence.provenance, prior_period_id="p-2024", prior_snapshot_id="snap-2024")
+    two = replace(finding, evidence=replace(finding.evidence, provenance=prov))
+    frozen = FS.build_view(two, profile).payload["finding"]["provenance"]
+    assert (frozen["prior_period_id"], frozen["prior_snapshot_id"]) == ("p-2024", "snap-2024")
+
+
 def test_s1_only_whitelisted_gateway_accessors_are_touched(finding, profile):
     class TripwireGateway(object):
         def __init__(self):
