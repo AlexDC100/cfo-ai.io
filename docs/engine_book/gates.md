@@ -2694,8 +2694,8 @@ named it.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_bands.py -q` |
-| work count | junit-xml, floor **50** tests (measured 56, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
-| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
+| work count | junit-xml, floor **55** tests (measured 60 after R2b, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
+| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding`, `test_a_two_period_finding_never_says_no_prior_period_was_supplied`, `test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount`, `test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served` |
 
 **Reds on, after the repair (TC-11):** the planted current_ratio crossing
 (prior agras with its served current liabilities raised to a 1.30 ratio,
@@ -2805,6 +2805,47 @@ test), the threshold comparator ignoring `higher_is_better`
 
 **REVERT** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)` after each
 plant; no `# PLANT` marker left. Verdict: proven RED.
+
+**R2b (2026-09-15, rulings Q3 Q4 Q5 Q7 Q8 Q9).** The 48 impact-only
+demotions described above are gone: ccc carries working-capital money
+(days past the rung x revenue / period days), Altman Z'' headroom in Z units
+and the letter in notches of the served band width; 350 of 350 crossings
+surface. Added reds: a composite finding without its own-unit impact or
+demoted; a ccc crossing without materiality on the dso revenue denominator;
+"no prior period was supplied" in any two-period finding (Q4); a contra
+account (28x/29x/39x/49x) in any subject, or a subject not ranked by signed
+amount (Q5); a Z'' figure printed with the ratio marker, or not UNIT_INDEX
+(Q7 — the previous `"z": "\u00d7"` expectation was the defect written into
+the gate); a day count not agreeing with its printed number (Q8); a served
+materiality floor, or a crossing of any share missing from its list or
+findings (Q9).
+
+**GREEN** — `PASS ratio-band-findings (16.2s, 60 tests)`.
+
+**PLANT** — `c_bands._headroom`: the `NON_MONEY_IMPACT_KEYS` branch removed.
+**RED** — `FAIL ratio-band-findings (exit 1, 13.9s)`, `18 failed, 42 passed`:
+
+```
+E   AssertionError: ('agras|carniprod letter_grade', None)
+```
+
+Also observed RED (direct pytest, each reverted): `denominators["ccc"]`
+removed (`('agras|carniprod ccc', 'ccc crossed with no materiality')`);
+notches unsigned (`('carniprod|agras letter_grade', 0.07000000000000028, -1)`);
+notches not divided by the width (`('agras|carniprod letter_grade',
+0.7000000000000028, '0.070')`); the two-period caveat override dropped
+(`('agras|carniprod roic', 'Cash-flow lines are indirect-method
+approximations because no prior period was supplied; ...')`); abs()
+ranking back (`('carniprod|agras letter_grade', ['117.1', '4111.01',
+'401.01'], ['4111.01', '5124.9.8', '401.01'])`); the contra exclusion
+removed (planted bucket only — on the real pairs signed ranking already
+keeps contra lines out of the top slots, measured); "z" back to UNIT_RATIO
+(`('agras|realestate altman_z', 'prior', '2.43\u00d7', '2.43')`); the days
+printer back to "days" (`('carniprod|retail dso', 'prior', '1 days',
+'1 day')`); findings filtered below a 1% share (`agras|carniprod
+cash_ratio`); materiality_floor "0.01" (`('agras', 'carniprod')`).
+
+**REVERT** — `PASS ratio-band-findings (16.2s, 60 tests)`. Verdict: proven RED.
 
 ## cron-auth
 
