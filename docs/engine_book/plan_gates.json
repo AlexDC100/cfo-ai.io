@@ -16,10 +16,12 @@
   "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
  },
  "required_rows": {
-  "B0": ["F5", "F10"]
+  "B0": ["F5", "F10"],
+  "B2": []
  },
  "required_gates": {
-  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"]
+  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"],
+  "B2": ["forecast-base-parity"]
  },
  "gates": [
   {
@@ -75,6 +77,18 @@
    "landed_in": "B0",
    "registration_only": true,
    "test_files": ["scripts/check_plan_gates.py", "docs/engine_book/plan_gates.json"]
+  },
+  {
+   "id": "forecast-base-parity",
+   "gate": "forecast-base-parity",
+   "rows": ["supporting"],
+   "landed_in": "B2",
+   "registration_only": false,
+   "test_files": ["tests/engine/test_forecast_base_parity.py", "tests/engine/fixtures/forecast/base_get_b0.json"],
+   "canaries": [
+    "SCOPE forecast-base-parity (delta mode)",
+    "366-day plan year per book"
+   ]
   }
  ]
 }

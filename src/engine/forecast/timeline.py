@@ -5,10 +5,14 @@ projected — never ``date.today()``. A forecast produced in March and the
 same forecast produced in November must be byte-identical, so no clock
 is consulted anywhere in this package (F3).
 
-GRANULARITY: cash timing matters in year one and stops mattering after
-it, so year one is monthly or quarterly (configurable) and every later
-year is annual. That is the shape a Romanian bank's credit file and an
-EU grant application both ask for.
+GRANULARITY: cash timing matters in the near term and stops mattering
+after it, so the first ``monthly_months`` months (12 or 24) are monthly
+and every later plan year is one annual period (plan_contract_v2 6.1).
+Monthly periods carry ``year_offset = (k - 1) // 12 + 1`` so per-year
+schedules, dividends and year-to-date tax key on the plan year, never on
+the period's granularity. Quarterly periods no longer exist: the monthly
+window is what the funding line and the runway read, and a quarter hides
+the month a shortfall falls in.
 
 Python 3.9 — no ``match``, no ``X | Y``.
 """
@@ -21,15 +25,11 @@ from typing import List, Tuple
 
 from .errors import AssumptionError
 
-__all__ = ["Period", "GRANULARITIES", "build_timeline", "add_months"]
+__all__ = ["Period", "MONTHLY_MONTHS", "build_timeline", "add_months"]
 
-#: Year-one granularities. Annual is allowed (a grant annex that only
-#: wants years), but monthly is the default because the funding-gap line
-#: is invisible at annual resolution — a company can be cash-negative in
-#: March and cash-positive on 31 December.
-GRANULARITIES = ("monthly", "quarterly", "annual")
-
-_MONTHS_PER = {"monthly": 1, "quarterly": 3, "annual": 12}
+#: The monthly windows a plan may carry (contract 2.2). A whole number of
+#: plan years, so a monthly period never straddles two of them.
+MONTHLY_MONTHS = (12, 24)
 
 
 def add_months(anchor: date, months: int) -> date:
@@ -78,41 +78,55 @@ class Period(object):
 def _label(granularity: str, start: date, end: date) -> str:
     if granularity == "monthly":
         return "%04d-%02d" % (end.year, end.month)
-    if granularity == "quarterly":
-        return "%04d-Q%d" % (end.year, (end.month - 1) // 3 + 1)
     return "FY%04d" % end.year
 
 
-def build_timeline(anchor_period_end: date, horizon_years: int,
-                   year_one_granularity: str = "monthly") -> Tuple[Period, ...]:
-    """Periods covering ``horizon_years`` years after ``anchor_period_end``.
+def _whole(name: str, value) -> int:
+    """A whole, non-boolean count, or a refusal naming the field. A float
+    that happens to be integral is still refused: the request carries
+    these as integers, and a silent floor is a different plan."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AssumptionError(
+            name, "is a whole count, and %r is not one" % (value,))
+    return value
 
-    Year one is split per ``year_one_granularity``; every subsequent year
-    is one annual period. The first period starts the day after the
-    anchor, and periods tile the horizon with no gap and no overlap —
+
+def build_timeline(anchor_period_end: date, total_years: int,
+                   monthly_months: int) -> Tuple[Period, ...]:
+    """Periods covering ``total_years`` plan years after the anchor.
+
+    Months ``k = 1 .. monthly_months`` are monthly periods with
+    ``year_offset = (k - 1) // 12 + 1``; each plan year after the monthly
+    window is one annual period. The first period starts the day after
+    the anchor, and periods tile the horizon with no gap and no overlap —
     asserted by :func:`assert_contiguous`, which the projector runs.
     """
-    if horizon_years < 1:
-        raise AssumptionError("horizon_years", "must be at least 1, got %r"
-                              % (horizon_years,))
-    if year_one_granularity not in GRANULARITIES:
+    total_years = _whole("total_years", total_years)
+    monthly_months = _whole("monthly_months", monthly_months)
+    if total_years < 1:
+        raise AssumptionError("total_years", "must be at least 1, got %r"
+                              % (total_years,))
+    if monthly_months not in MONTHLY_MONTHS:
         raise AssumptionError(
-            "year_one_granularity",
-            "must be one of %s, got %r" % (", ".join(GRANULARITIES),
-                                           year_one_granularity),
-        )
-    step = _MONTHS_PER[year_one_granularity]
+            "monthly_months",
+            "must be one of %s, got %r"
+            % (", ".join(str(m) for m in MONTHLY_MONTHS), monthly_months))
+    if total_years * 12 < monthly_months:
+        raise AssumptionError(
+            "monthly_months",
+            "%d monthly months do not fit inside %d plan year(s) of %d "
+            "months" % (monthly_months, total_years, total_years * 12))
     periods = []  # type: List[Period]
     cursor = anchor_period_end
     index = 0
-    for k in range(12 // step):
+    for k in range(1, monthly_months + 1):
         start = cursor + timedelta(days=1)
-        end = add_months(anchor_period_end, (k + 1) * step)
-        periods.append(Period(index, _label(year_one_granularity, start, end),
-                              start, end, year_one_granularity, 1))
+        end = add_months(anchor_period_end, k)
+        periods.append(Period(index, _label("monthly", start, end),
+                              start, end, "monthly", (k - 1) // 12 + 1))
         cursor = end
         index += 1
-    for year in range(2, horizon_years + 1):
+    for year in range(monthly_months // 12 + 1, total_years + 1):
         start = cursor + timedelta(days=1)
         end = add_months(anchor_period_end, year * 12)
         periods.append(Period(index, _label("annual", start, end), start, end,

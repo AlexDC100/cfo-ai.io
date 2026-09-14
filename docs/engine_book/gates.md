@@ -3809,3 +3809,205 @@ supporting ones); an extension (command extended, floor raised, canary
 added) of a gate an earlier batch registered; drift between the literal
 `CONTRACT_LANDS` / `ROW_BATTERY_GATES` reading and a later contract edit (the
 script checks only that the two agree with each other).
+
+<!-- ═══ plan/2 B2 (plan_contract_v2 28.3): timeline and year-to-date tax ═══
+     B2 lands one new gate (forecast-base-parity, contract 5.3 delta mode)
+     and extends forecast-model with tests/engine/test_forecast_timeline_tax.py
+     (6.1, 6.3). Both land in the commit that changes the tax rule and moves
+     the horizon out of KEYS, so each records the plant red and the gate run
+     against the parent commit (0.5). -->
+
+## forecast-base-parity
+
+`tests/engine/test_forecast_base_parity.py` — contract 5.3, **delta mode**.
+Today's engine is run on the four committed books at total_years 5 and a
+twelve-month window, and every (line, period) and plan-year total (sum of the
+year's periods for a flow, the closing period for a balance) is compared with
+`tests/engine/fixtures/forecast/base_get_b0.json`, the B0 reference. Every
+difference is printed. A difference is legal only on a line inside the
+downstream closure of the test's `CHANGED` set — the lines whose static
+attribution (`LINE_ASSUMPTIONS`, the inverse of consumed_by) names a CHANGED
+driver or convention; the reference's `checks.*` series are attributed through
+the served line each measures (declared in the test and printed). B2's CHANGED
+entries: `tax_accrued_year_to_date`, `tax_no_loss_carry_forward`, and the keys
+B2 removed from KEYS, `year_one_granularity` and `horizon_years` (their closure
+is empty: a horizon that became an argument may move no base figure). B3
+appends under its anchor; B4 re-points the gate to parity mode.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_base_parity.py -q` |
+| work count | `GATE-WORK forecast-base-parity units=(\d+)`, floor **4700** cells (measured 4788 at registration, rounded down) |
+| canary | `SCOPE forecast-base-parity (delta mode)`, `366-day plan year per book` |
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed
+`saga_10_col` fixtures, FY2025 anchors); total_years 5; monthly_months 12 only
+(delta mode's one window, contract 5.3); reference `base_get_b0.json`
+(recorded on 1944109); the 366-day plan year each book's scope covers is
+printed (plan year 3, FY2028, on all four) and a book with none reds (TC-3); no
+SYNTHETIC pair. Printed: `SCOPE forecast-base-parity (delta mode): books agras,
+carniprod, realestate, retail; total_years 5; monthly_months 12 (delta mode's
+only window); reference base_get_b0.json; 366-day plan year per book: agras
+plan year 3; carniprod plan year 3; realestate plan year 3; retail plan year 3`.
+
+**GREEN** — exit `0`, `4 passed`; `differences: 135 (0 outside closure)` —
+135 monthly cells moved by one minor unit (agras 55, carniprod 25, retail 55;
+75 by -1, 60 by +1) on `pl.income_tax`, `pl.net_income`, `cf.net_income`,
+`cf.cash_from_operating`, `cf.net_change_in_cash`, the cash roll,
+`bs.equity_retained` and `checks.cash_before_funding_line_cents`, months
+2026-02 to 2026-11 only; no plan-year total moved.
+`PASS forecast-base-parity (2.2s, 4788 (line, period) and plan-year cells compared)`.
+
+**PLANT 1** — contract 5.3's plant, in `src/engine/forecast/project.py`: one
+minor unit of other financial expense in plan year 1 (while CHANGED holds only
+B2's entries):
+
+```
+-        other_financial_expense = other_fin_expense_of[period.index]
++        other_financial_expense = other_fin_expense_of[period.index] + (1 if period.index == 0 else 0)
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s own runner, exit `1`; the
+red names book, line and period (month and plan year), and the pre-tax result
+it moves, which no B2 entry attributes either:
+
+```
+FAIL forecast-base-parity (exit 1, 1.6s)
+E     retail pl.other_financial_expense 2026-01: -5701174 -> -5701175 (delta -1 minor) [OUTSIDE CLOSURE]
+E     retail pl.other_financial_expense plan year 1: -67126728 -> -67126729 (delta -1 minor) [OUTSIDE CLOSURE]
+E     retail pl.pretax_result 2026-01: 9868651 -> 9868650 (delta -1 minor) [OUTSIDE CLOSURE]
+E   assert not ['agras pl.other_financial_expense 2026-01: -560095 -> -560096 (delta -1 minor) [OUTSIDE CLOSURE]', ...]
+```
+
+**PLANT 2** — contract 5.3's second plant (logged in B2 on delta mode, again in
+B4 on parity mode): revenue sliced by each period's days over the days basis
+instead of cumulatively over the plan year's own days:
+
+```
+-                _slice_by_days(running_revenue, periods),
++                [mul_div(running_revenue, p.days, days_basis) for p in periods],
+```
+
+**RED (plant)** — exit `1`; the 366-day plan year reds with its delta, on agras
+exactly the contract's measured +324,868.00, and the twelve monthly slices of
+the 365-day year are off by the per-period rounding:
+
+```
+FAIL forecast-base-parity (exit 1, 1.7s)
+E     agras pl.revenue FY2028: 11857681964 -> 11890168764 (delta +32486800 minor) [OUTSIDE CLOSURE]
+E     agras pl.revenue plan year 3: 11857681964 -> 11890168764 (delta +32486800 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue 2026-04: 653509024 -> 653509025 (delta +1 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue FY2028: 7951026465 -> 7972810099 (delta +21783634 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue plan year 1: 7951026465 -> 7951026469 (delta +4 minor) [OUTSIDE CLOSURE]
+```
+
+**RED (parent commit)** — the gate file copied onto a detached worktree of the
+parent `eb2ff8f` (`wave/plan-b0`), exit `1`, `3 failed, 1 passed`: the parent
+engine knows neither tax convention the CHANGED set names (it still charges
+tax per period, the defect B2 repairs), so the closure is empty and the
+in-closure check reds too:
+
+```
+E   AssertionError: CHANGED names ids the engine does not know (neither a driver, a convention nor a declared removed key): ['tax_accrued_year_to_date', 'tax_no_loss_carry_forward']
+E   AssertionError: assert ('pl.income_tax' in set())
+```
+
+**REVERT** — `project.py` restored from a byte copy after each plant (sha1
+143ae735a7e3d9e24f5faf55afdf0d22a1f04cc6 before and after);
+`PASS forecast-base-parity (1.5s, 4788 (line, period) and plan-year cells compared)`.
+
+**After the repair it reds on (TC-11):** any base figure that moves on a line no
+CHANGED driver or convention reaches; a revenue slice not exact to its plan
+year; a line the engine stops producing; a moved period axis; a CHANGED entry
+naming nothing the engine knows; a scope with no 366-day plan year or no
+compared cell.
+**It cannot see:** whether a move inside the closure is the intended one (the
+batch's own gates and the blast radius judge that); the served GET bytes
+(`scripts/measure_plan_blast_radius.py` measures those, and never asserts); a
+twenty-four-month window (parity mode, B4).
+
+### forecast-model — plan/2 B2 extension: the calendar and year-to-date tax
+
+B2 extends the `forecast-model` command with
+`tests/engine/test_forecast_timeline_tax.py` (contract 6.1, 6.3, 2.2) and
+raises the floor from **220** to **240** tests (measured 246: 203 in
+`test_forecast_model.py`, whose F1 matrix axis became monthly_months {12, 24}
+in place of monthly/quarterly/annual, plus 43 in the new file). Canaries added:
+`test_a_loss_month_then_profit_months_is_taxed_on_the_years_result`,
+`test_every_period_is_charged_the_tax_on_its_year_to_date_result`,
+`test_the_calendar_is_monthly_months_then_one_period_per_plan_year`. The work
+source stays junit-xml over both files (as-built B2): switching it to the new
+file's printed line would lose the collapse detection over
+`test_forecast_model.py` and the test-name canaries; the new file prints its
+own SCOPE and coverage lines instead.
+
+Retired in the same commit (contract 28.3 B2), each with its new assertion:
+`test_forecast_model.py:505` (the F1 axis monthly/quarterly/annual becomes
+monthly_months {12, 24}); the calendar and label tests around `:736` (labels
+asserted as twelve (or twenty-four) monthly periods then FY periods, with
+year_offset (k - 1) // 12 + 1); `:904` (the tax convention texts are now the
+pack's `tax_accrued_year_to_date` and `tax_no_loss_carry_forward`, served under
+those ids and on the face of the plan). Every other `year_one_granularity=`
+call is rewritten to the twelve-month window, and calls passing `horizon_years`
+to `project()` or `derive_assumptions` are rewritten to the arguments.
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed
+`saga_10_col` fixtures, FY2025 anchors); calendar over total_years 1-5 x
+monthly_months 12/24; the year-to-date law over the four books x
+monthly_months 12/24 x total_years 3/5; CONSTRUCTED on agras and labelled:
+a loss month then profit months, an in-year reversal, a loss plan year then a
+profit year; no SYNTHETIC pair. Printed: `SCOPE forecast-model/timeline-tax:
+books agras, carniprod, realestate, retail (committed saga_10_col fixtures,
+FY2025 anchors); monthly_months 12/24; total_years 1-5 (calendar), 3 and 5
+(tax sweep); ...` and `timeline-tax coverage: 574 periods checked, 17 loss plan
+years, 1 in-year reversals`.
+
+**PLANT** — contract 6.3's plant, in `src/engine/forecast/project.py`:
+per-period positive-only tax:
+
+```
+-        year_pretax += pretax
+-        year_tax_due = max(0, apply_rate(year_pretax, tax_rate))
+-        income_tax = year_tax_due - year_tax_charged
+-        year_tax_charged = year_tax_due
++        income_tax = apply_rate(pretax, tax_rate) if pretax > 0 else 0
+```
+
+**RED (plant)** — through the battery runner, exit `1`,
+`18 failed, 228 passed`; the loss-then-profit year names the over-charge, the
+reversal case finds no credit, and the year-to-date walk names each period:
+
+```
+FAIL forecast-model (exit 1, 6.7s)
+E   AssertionError: the year's tax 231269229 is not the tax on the year's pre-tax 1313128742 at 160000 micros (210100599); the loss month was not shielded
+E   AssertionError: agras: ['2026-02: cumulative tax 40288669, due on year-to-date pre-tax 251804178 at 160000 micros is 40288668', ...]
+E   assert [] == ['2026-12']
+```
+
+**RED (parent commit)** — the new file copied onto a detached worktree of the
+parent `eb2ff8f`: collection error (`ModuleNotFoundError: No module named
+'engine.forecast.levers_pack'`; the parent's `project()` has no `total_years`
+argument either). The defect itself, measured on the parent engine through its
+own API with the same construction (agras, opening debt repaid in month one at
+the rate the test renders, 8.635060):
+
+```
+PARENT eb2ff8f agras loss-then-profit year (rate 8.635060): month-1 pre-tax -132303927, year pre-tax 1313128742, charged 231269229, law max(0, tax on year) 210100599, over-charge 21168630
+```
+
+**REVERT** — `project.py` restored from a byte copy (sha1
+143ae735a7e3d9e24f5faf55afdf0d22a1f04cc6 before and after);
+`PASS forecast-model (5.7s, 246 tests)`.
+
+**After the repair it reds on (TC-11):** a plan year whose periods' tax differs
+from max(0, tax on the year's pre-tax result) to the minor unit; a period whose
+cumulative tax differs from the tax on its year-to-date result; a loss carried
+into the next plan year; a monthly period whose year_offset is not
+(k - 1) // 12 + 1; a calendar gap or overlap; `horizon_years` or
+`year_one_granularity` accepted as a driver; a horizon refusal that does not
+render the numbers it compared; a sweep that met no loss plan year, no in-year
+reversal or no period.
+**It cannot see:** whether the tax rate is right (forecast-defaults, B3);
+cost-of-sales plan-year totals across windows (a per-period share of revenue
+until the pools of B4); the served figures (forecast-route,
+forecast-serving-boundary).

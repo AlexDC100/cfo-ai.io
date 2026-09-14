@@ -110,7 +110,6 @@ from .errors import AssumptionError
 from .money import (MICRO, MICRO_DAY, cents_from, days_fmt, days_to_float,
                     micro_days_from, micros_from, mul_div, rate_to_float,
                     to_float)
-from .timeline import GRANULARITIES
 
 __all__ = [
     "Assumption",
@@ -195,19 +194,17 @@ class Assumption(object):
         _DAYS: "days",
         _MONEY: "money_minor",
         _COUNT: "count",
-        # A stated rule with no quantity. `year_one_granularity` is one:
-        # it is a shape choice a reader of the projection genuinely needs
-        # ("year one is monthly"), and it used to be dropped from the
-        # served payload entirely because the contract knew only numbers.
-        # It now travels as what it is instead of not travelling.
+        # A stated rule with no quantity. No driver carries one since
+        # `year_one_granularity` left KEYS (plan/2 B2: the horizon is a
+        # request field, never a driver); the mapping stays so a word is
+        # never served dressed as a number if one is added.
         _TEXT: "convention",
     }
 
     def as_fp1(self, period_labels: Sequence[str]) -> Optional[Dict[str, Any]]:
         """This driver in the shape ``engine.forecast_serving`` serves.
 
-        None for a driver with no fp1 unit — ``year_one_granularity`` is
-        a shape choice, not a quantity, and a contract that only knows
+        None for a driver with no fp1 unit — a contract that only knows
         numbers should not be handed a word dressed as one.
         """
         unit = self.FP1_UNITS.get(self.unit)
@@ -348,14 +345,18 @@ _DEFAULTS = (
      "plan may run the account to nil but never below it"),
     ("days_basis", _COUNT, 365,
      "days in a year for every rate-to-period conversion"),
-    ("horizon_years", _COUNT, 5, "length of the projection"),
 )
 
 _RATIO_KEYS = tuple(k for k, u, _d, _b in _DEFAULTS if u == _RATIO)
 _DAYS_KEYS = tuple(k for k, u, _d, _b in _DEFAULTS if u == _DAYS)
 _MONEY_KEYS = tuple(k for k, u, _d, _b in _DEFAULTS if u == _MONEY)
 _COUNT_KEYS = tuple(k for k, u, _d, _b in _DEFAULTS if u == _COUNT)
-KEYS = tuple(k for k, _u, _d, _b in _DEFAULTS) + ("year_one_granularity",)
+#: Every driver. The horizon is NOT one: ``total_years`` and
+#: ``monthly_months`` are request fields that ``project()`` takes as
+#: arguments (plan_contract_v2 2.2), so no override can move them and no
+#: lever-reach nudge can reach them. ``days_basis`` stays only as the
+#: source of the days_basis convention (3.5).
+KEYS = tuple(k for k, _u, _d, _b in _DEFAULTS)
 
 
 class AssumptionSet(object):
@@ -535,14 +536,6 @@ def _build(base: Dict[str, Assumption], overrides: Dict[str, Any],
         current = base[key]
         if key in overrides and overrides[key] is not None:
             value = overrides[key]
-            if key == "year_one_granularity":
-                if value not in GRANULARITIES:
-                    raise AssumptionError(
-                        key, "must be one of %s, got %r"
-                        % (", ".join(GRANULARITIES), value))
-                out.append(Assumption(key, _TEXT, None, "caller",
-                                      "supplied by the caller", text=str(value)))
-                continue
             exact, text = _coerce(key, current.unit, value)
             # THE PEDIGREE RIDES THE VALUE ACROSS THE AUTHORITY BOUNDARY.
             #
@@ -1038,11 +1031,5 @@ def derive_assumptions(opening: Any, history: Any,
         exact, _text = _coerce(key, unit, default)
         source = "engine_default"
         derived[key] = Assumption(key, unit, exact, source, why)
-
-    derived["year_one_granularity"] = Assumption(
-        "year_one_granularity", _TEXT, None, "engine_default",
-        "cash timing matters in year one and stops mattering after it, so "
-        "year one is projected monthly and later years annually",
-        text="monthly")
 
     return _build(derived, overrides, overrides.get("debt_schedule"))

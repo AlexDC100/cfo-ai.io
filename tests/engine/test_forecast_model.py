@@ -213,14 +213,31 @@ def can_price_the_funding_line(name):
     return _CAN_PRICE_THE_LINE[name]
 
 
-def plan(name, **drivers):
+def plan(name, horizon_years=5, monthly_months=12, **drivers):
     """One projection of one book, with a caller rate supplied only where
     the book cannot price its own line. Every matrix below runs through
     here so the matrices keep exercising the BALANCE guarantee rather
-    than re-testing the refusal, which has its own gate."""
+    than re-testing the refusal, which has its own gate.
+
+    The horizon is the request's two fields (plan_contract_v2 2.2), never
+    a driver: at a twelve-month window it goes through ``project_payload``
+    (whose ``horizon_years`` keyword is ``total_years``), and at any other
+    window straight to ``project()``, which takes both as arguments."""
     if "revolver_rate" not in drivers and not can_price_the_funding_line(name):
         drivers = dict(drivers, revolver_rate=_CALLER_REVOLVER_RATE)
-    return project_payload(load(name), **drivers)
+    payload = load(name)
+    if monthly_months == 12:
+        return project_payload(payload, horizon_years=horizon_years, **drivers)
+    return project(opening_for(payload), pl_history_from_payload(payload),
+                   total_years=horizon_years, monthly_months=monthly_months,
+                   **drivers)
+
+
+def plan_year_total(projection, statement, line, year):
+    """A flow line's plan-year total: the sum of the year's periods (the FY
+    aggregate of contract 3.6), computed by the test from the periods."""
+    return sum(getattr(p, statement)[line] for p in projection.periods
+               if p.period.year_offset == year)
 
 
 def _forecast_sources():
@@ -260,7 +277,7 @@ def test_a_rate_never_passes_through_binary_floating_point():
 
 def test_slicing_an_annual_amount_over_a_year_loses_nothing():
     timeline = build_timeline(__import__("datetime").date(2025, 12, 31), 1,
-                              "monthly")
+                              12)
     for total in (118_576_819_64, 1, -7, 999_999_99, 0):
         slices = _slice_by_days(total, timeline)
         assert sum(slices) == total, (total, slices)
@@ -268,8 +285,13 @@ def test_slicing_an_annual_amount_over_a_year_loses_nothing():
 
 def test_a_leap_day_is_counted_and_not_invented():
     from datetime import date
-    timeline = build_timeline(date(2027, 12, 31), 2, "annual")
-    assert [p.days for p in timeline] == [366, 365]  # 2028 is a leap year
+    timeline = build_timeline(date(2027, 12, 31), 2, 12)
+    # 2028 is a leap year: its twelve months hold 366 days, February 29 of
+    # them, and the annual period after the monthly window holds 365.
+    assert sum(p.days for p in timeline if p.year_offset == 1) == 366
+    assert [p.days for p in timeline][1] == 29
+    assert [(p.label, p.days) for p in timeline if p.granularity == "annual"] \
+        == [("FY2029", 365)]
     assert add_months(date(2028, 1, 31), 1) == date(2028, 2, 29)
 
 
@@ -500,11 +522,11 @@ _DRIVER_SETS = (
 
 
 @pytest.mark.parametrize("name", BOOKS)
-@pytest.mark.parametrize("granularity", ("monthly", "quarterly", "annual"))
+@pytest.mark.parametrize("monthly_months", (12, 24))
 @pytest.mark.parametrize("drivers", _DRIVER_SETS)
-def test_f1_every_projected_period_closes_to_zero(name, granularity, drivers):
-    projection = plan(name, horizon_years=5,
-                      year_one_granularity=granularity, **drivers)
+def test_f1_every_projected_period_closes_to_zero(name, monthly_months, drivers):
+    projection = plan(name, horizon_years=5, monthly_months=monthly_months,
+                      **drivers)
     assert projection.periods, "a 5-year projection produced no periods"
     for period in projection.periods:
         delta = period.total_assets_cents() - period.total_el_cents()
@@ -568,10 +590,10 @@ def test_f1_plant_the_legacy_opening_and_every_period_reds():
     assert planted.total_assets_cents() - planted.total_el_cents() == -gap
 
     with pytest.raises(BalanceViolation) as excinfo:
-        project(planted, pl_history_from_payload(payload), horizon_years=1,
-                year_one_granularity="annual")
+        project(planted, pl_history_from_payload(payload), total_years=1,
+                monthly_months=12)
     violation = excinfo.value
-    assert violation.period_label == "FY2026"
+    assert violation.period_label == "2026-01"
     assert violation.delta_cents == -gap
     assert "does not balance" in str(violation)
     assert fmt(-gap) in str(violation)
@@ -591,8 +613,8 @@ def test_f1_one_cent_is_enough_to_red_it():
         currency=honest.currency, period_end=honest.period_end,
         snapshot_id=honest.snapshot_id, totals=honest.totals)
     with pytest.raises(BalanceViolation) as excinfo:
-        project(planted, pl_history_from_payload(payload), horizon_years=1,
-                year_one_granularity="annual")
+        project(planted, pl_history_from_payload(payload), total_years=1,
+                monthly_months=12)
     assert excinfo.value.delta_cents == 1
     assert "0.01" in str(excinfo.value)
 
@@ -602,8 +624,9 @@ def test_f1_the_honest_opening_does_not_red_reverting_the_plant():
     green. The gate fails on the defect, not on the product."""
     payload = load("agras")
     projection = project(opening_for(payload), pl_history_from_payload(payload),
-                         horizon_years=1, year_one_granularity="annual")
-    assert [p.checks["balance_delta_cents"] for p in projection.periods] == [0]
+                         total_years=1, monthly_months=12)
+    assert [p.checks["balance_delta_cents"] for p in projection.periods] \
+        == [0] * 12
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -640,7 +663,6 @@ def test_f8_cash_never_closes_below_the_floor(name, drivers):
 
 def test_f8_the_funding_line_appears_named_and_priced():
     projection = project_payload(load("agras"), horizon_years=5,
-                                 year_one_granularity="monthly",
                                  debt_schedule=_expansion_schedule(),
                                  **_EXPANSION)
     drawn = projection.funding_periods()
@@ -673,7 +695,6 @@ def test_f8_the_funding_line_is_repaid_when_the_cash_comes_back():
     schedule = DebtSchedule([DebtMove(
         0, st_repay=opening.cents("st_debt"), lt_repay=opening.cents("lt_debt"))])
     projection = project_payload(payload, horizon_years=1,
-                                 year_one_granularity="monthly",
                                  revenue_growth=0.0,
                                  min_cash=500_000.0,
                                  debt_schedule=schedule)
@@ -705,7 +726,7 @@ payload = json.load(open(%(book)r))
 projection = project_payload(payload, revenue_growth=0.08,
                              capex_pct_of_revenue=0.11,
                              dividend_payout_pct=0.4, min_cash=750000.0,
-                             horizon_years=5, year_one_granularity="monthly")
+                             horizon_years=5)
 sys.stdout.write(json.dumps(projection.as_dict(), sort_keys=False))
 """
 
@@ -734,11 +755,17 @@ def test_f3_the_same_assumptions_produce_byte_identical_output():
 
 
 def test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book():
-    projection = project_payload(load("agras"), horizon_years=3,
-                                 year_one_granularity="annual")
+    projection = project_payload(load("agras"), horizon_years=3)
     assert projection.opening.period_end == "2025-12-31"
-    assert [p.label for p in projection.periods] == ["FY2026", "FY2027",
-                                                     "FY2028"]
+    months_2026 = ["2026-%02d" % m for m in range(1, 13)]
+    assert [p.label for p in projection.periods] == months_2026 + [
+        "FY2027", "FY2028"]
+    wide = plan("agras", horizon_years=3, monthly_months=24)
+    assert [p.label for p in wide.periods] == months_2026 + [
+        "2027-%02d" % m for m in range(1, 13)] + ["FY2028"]
+    # year_offset keys the plan year, never the granularity (contract 6.1)
+    assert [p.period.year_offset for p in wide.periods] \
+        == [1] * 12 + [2] * 12 + [3]
     # AST, not grep: this file's own prose says the words "hash()" and
     # "clock", and a substring scan that reds on a docstring is a gate
     # that reds on the explanation of the rule it enforces.
@@ -808,8 +835,7 @@ def test_a_book_with_no_cost_of_sales_holds_inventory_instead_of_zeroing_it():
     assert assumptions["dio_days"].exact is None
     assert "HELD" in assumptions["dio_days"].basis
 
-    projection = project_payload(payload, horizon_years=3,
-                                 year_one_granularity="annual")
+    projection = project_payload(payload, horizon_years=3)
     held = opening.cents("inventory")
     assert held > 0
     for period in projection.periods:
@@ -841,8 +867,7 @@ def test_the_serving_contracts_units_are_the_ones_this_model_emits():
     from engine.forecast_serving.contract import UNITS
     from engine.forecast.assumptions import Assumption
     assert set(Assumption.FP1_UNITS.values()) <= set(UNITS)
-    projection = project_payload(load("agras"), horizon_years=2,
-                                 year_one_granularity="annual")
+    projection = project_payload(load("agras"), horizon_years=2)
     shaped = projection.fp1_assumptions()
     assert shaped
     labels = {p.label for p in projection.periods}
@@ -858,8 +883,7 @@ def test_the_serving_contracts_units_are_the_ones_this_model_emits():
 
 
 def test_the_projection_serializes_to_a_json_round_trippable_shape():
-    projection = project_payload(load("agras"), horizon_years=3,
-                                 year_one_granularity="quarterly")
+    projection = plan("agras", horizon_years=3, monthly_months=24)
     payload = projection.as_dict()
     assert json.loads(json.dumps(payload)) == payload
     assert payload["summary"]["balances_every_period"] is True
@@ -876,7 +900,6 @@ def test_the_cents_and_units_vocabularies_never_share_a_name():
     confidently — so the two vocabularies are asserted disjoint."""
     from engine.forecast.project import CHECK_KEYS
     projection = project_payload(load("agras"), horizon_years=1,
-                                 year_one_granularity="annual",
                                  min_cash=100.0)
     period = projection.periods[0]
     assert set(period.checks) == set(CHECK_KEYS)
@@ -905,12 +928,24 @@ def test_the_models_own_conventions_are_stated_on_every_projection():
     """A convention a reader has to reverse-engineer from the arithmetic
     is a convention that is not disclosed. Each one must reach the face
     of the plan, not just this module's docstring."""
+    from engine.forecast.levers_pack import tax_conventions
     from engine.forecast.project import MODEL_CONVENTIONS
-    projection = project_payload(load("agras"), horizon_years=1,
-                                 year_one_granularity="annual")
+    projection = project_payload(load("agras"), horizon_years=1)
     notes = projection.as_dict()["notes"]
     for convention in MODEL_CONVENTIONS:
         assert any(convention in note for note in notes), convention
+    # the tax conventions are the pack's (levers.yaml#tax), served under
+    # their renamed ids beside the figures they produce, with the same
+    # sentence on the face of the plan
+    served = dict((a["id"], a["basis"]) for a in projection.fp1_assumptions())
+    ids = [c.convention_id for c in tax_conventions()]
+    assert ids == ["tax_accrued_year_to_date", "tax_no_loss_carry_forward"]
+    assert "tax_charged_when_it_arises" not in served
+    for convention in tax_conventions():
+        assert convention.sentence in served[convention.convention_id]
+        assert convention.sentence in MODEL_CONVENTIONS
+        assert convention.convention_id in projection.as_dict()[
+            "line_assumptions"]["pl.income_tax"]
     # ...and the tax convention is not merely claimed: the tax payable
     # balance really is held, so the claim and the arithmetic agree.
     held = projection.opening.cents("other_current_liabilities")
@@ -982,7 +1017,7 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_own_ebitda(nam
     re-earns the book's own EBITDA, which it cannot do while an operating
     income line the same statement names is missing from the P&L."""
     book = _book_pl(name)
-    projection = plan(name, horizon_years=1, year_one_granularity="monthly")
+    projection = plan(name, horizon_years=1)
     modelled = _year_one(projection, "ebitda")
     reported = cents_from(book["ebitda"])
     # Three micro-rounded rates stand between revenue and EBITDA — cost
@@ -1004,7 +1039,7 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_pretax_result(
     the plan, not of the history — so it is added back explicitly rather
     than absorbed into a tolerance."""
     book = _book_pl(name)
-    projection = plan(name, horizon_years=1, year_one_granularity="monthly")
+    projection = plan(name, horizon_years=1)
     modelled = _year_one(projection, "pretax_result")
     funding_charge = -_year_one(projection, "interest_expense_funding_line")
     reported = cents_from(book["pretax"])
@@ -1040,7 +1075,7 @@ def test_every_named_income_the_payload_carries_reaches_a_projected_line(name):
     assert history.financial_expense_total == cents_from(
         book["financial_expense_total"])
     # and each one owns a driver whose basis names where it came from
-    projection = plan(name, horizon_years=1, year_one_granularity="annual")
+    projection = plan(name, horizon_years=1)
     for key, field in (
             ("other_operating_income_pct_of_revenue",
              "assembled_pl.other_operating_income"),
@@ -1055,9 +1090,8 @@ def test_every_named_income_the_payload_carries_reaches_a_projected_line(name):
 def test_the_held_financial_lines_are_held_and_not_grown():
     """They are HELD, which is a claim about arithmetic. Growing revenue
     50% must move nothing on those two lines."""
-    flat = plan("agras", horizon_years=3, year_one_granularity="annual")
-    grown = plan("agras", horizon_years=3, year_one_granularity="annual",
-                 revenue_growth=0.50)
+    flat = plan("agras", horizon_years=3)
+    grown = plan("agras", horizon_years=3, revenue_growth=0.50)
     assert grown.periods[0].pl["revenue"] > flat.periods[0].pl["revenue"]
     for line in ("other_financial_income", "other_financial_expense",
                  "interest_income"):
@@ -1067,8 +1101,9 @@ def test_the_held_financial_lines_are_held_and_not_grown():
     book = _book_pl("agras")
     carried = (cents_from(book["financial_income"])
                - cents_from(book["interest_income"]))
-    for period in flat.periods:
-        assert period.pl["other_financial_income"] == carried
+    for year in (1, 2, 3):
+        assert plan_year_total(flat, "pl", "other_financial_income",
+                               year) == carried
 
 
 def test_interest_income_is_carried_or_priced_but_never_both_and_never_neither():
@@ -1076,17 +1111,18 @@ def test_interest_income_is_carried_or_priced_but_never_both_and_never_neither()
     when no rate is available, and REPLACED — not supplemented — when a
     caller supplies one."""
     book = _book_pl("agras")
-    carried = plan("agras", horizon_years=1, year_one_granularity="annual")
+    carried = plan("agras", horizon_years=1)
     assert carried.assumptions["interest_income_rate"].source == "unavailable"
-    assert (carried.periods[0].pl["interest_income"]
+    assert (plan_year_total(carried, "pl", "interest_income", 1)
             == cents_from(book["interest_income"]))
 
-    priced = plan("agras", horizon_years=1, year_one_granularity="annual",
-                  interest_income_rate=0.02)
+    priced = plan("agras", horizon_years=1, interest_income_rate=0.02)
     assert priced.assumptions["interest_income_rate"].source == "caller"
     opening_cash = priced.opening.cents("cash")
-    assert priced.periods[0].pl["interest_income"] == apply_rate(
-        opening_cash, micros_from(0.02))
+    first = priced.periods[0]
+    assert first.pl["interest_income"] == mul_div(
+        apply_rate(opening_cash, micros_from(0.02)), first.period.days,
+        priced.assumptions.count("days_basis"))
     assert (priced.periods[0].pl["interest_income"]
             != carried.periods[0].pl["interest_income"])
 
@@ -1095,7 +1131,7 @@ def test_the_rate_a_closing_cash_balance_would_have_implied_is_shown_not_spent()
     """TC-10: the number that justifies the refusal is rendered from the
     same integers, not retyped. agras' closing cash implies a rate on
     cash that no reader would accept, and the driver says what it is."""
-    projection = plan("agras", horizon_years=1, year_one_granularity="annual")
+    projection = plan("agras", horizon_years=1)
     driver = projection.assumptions["interest_income_rate"]
     implied = mul_div(cents_from(_book_pl("agras")["interest_income"]),
                       1_000_000, projection.opening.cents("cash"))
@@ -1154,8 +1190,7 @@ def test_the_gap_the_model_measures_is_the_engines_own_unexplained_step(name):
 def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
     book = _book_pl(name)
     history = pl_history_from_payload(load(name))
-    driver = plan(name, horizon_years=1,
-                  year_one_granularity="annual").assumptions["tax_rate"]
+    driver = plan(name, horizon_years=1).assumptions["tax_rate"]
     charged = cents_from(book["income_tax"])
     pretax = cents_from(book["pretax"])
     gap = history.unexplained_vs_filed()
@@ -1181,8 +1216,7 @@ def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     """TC-10: both numbers in the sentence are rendered from the same
     integers the decision used, never retyped."""
     history = pl_history_from_payload(load(name))
-    driver = plan(name, horizon_years=1,
-                  year_one_granularity="annual").assumptions["tax_rate"]
+    driver = plan(name, horizon_years=1).assumptions["tax_rate"]
     assert driver.source == "engine_default"
     assert fmt(history.unexplained_vs_filed()) in driver.basis
     assert fmt(history.net_income) in driver.basis
@@ -1277,7 +1311,7 @@ def test_a_day_driver_states_the_value_the_model_actually_spent(name):
     """The basis sentence and the stored value are the same number. A
     driver whose stated derivation contradicts its value is worse than
     no basis at all."""
-    projection = plan(name, horizon_years=1, year_one_granularity="annual")
+    projection = plan(name, horizon_years=1)
     for key in ("dso_days", "dio_days", "dpo_days"):
         driver = projection.assumptions[key]
         if driver.source == "unavailable":
@@ -1292,7 +1326,7 @@ def test_the_derived_day_count_is_exact_to_a_millionth_of_a_day(name):
     resolution — so the working-capital balance the driver reproduces is
     the book's own, not one moved by a rounding rule."""
     book = _book_pl(name)
-    projection = plan(name, horizon_years=1, year_one_granularity="annual")
+    projection = plan(name, horizon_years=1)
     for key, line, flow in (("dso_days", "ar", "revenue"),
                             ("dio_days", "inventory", "cogs"),
                             ("dpo_days", "ap", "cogs")):
@@ -1316,15 +1350,12 @@ def test_a_caller_override_and_the_derivation_round_by_the_SAME_rule():
     two meanings depending on who supplied it."""
     for supplied in (26.9, 26.4, 71.2057, 0.9, 0.5):
         driver = plan("agras", horizon_years=1,
-                      year_one_granularity="annual",
                       dso_days=supplied).assumptions["dso_days"]
         assert driver.exact == micro_days_from(supplied)
         assert driver.value() == supplied
     # 26.9 and 26.4 are now different plans, which they always were
-    high = plan("agras", horizon_years=1, year_one_granularity="annual",
-                dso_days=26.9).periods[0].bs["ar"]
-    low = plan("agras", horizon_years=1, year_one_granularity="annual",
-               dso_days=26.4).periods[0].bs["ar"]
+    high = plan("agras", horizon_years=1, dso_days=26.9).periods[0].bs["ar"]
+    low = plan("agras", horizon_years=1, dso_days=26.4).periods[0].bs["ar"]
     assert high > low
 
 
@@ -1332,11 +1363,9 @@ def test_a_sub_day_driver_cannot_round_into_the_refusal_value_zero():
     """`None` holds the line; `0` liquidates it. Truncation turned one
     into the other: dso_days=0.5 emptied 8.5m of receivables into cash
     and posted the result as operating cash flow."""
-    opening_ar = plan("agras", horizon_years=1,
-                      year_one_granularity="annual").opening.cents("ar")
+    opening_ar = plan("agras", horizon_years=1).opening.cents("ar")
     assert opening_ar > 0
-    projection = plan("agras", horizon_years=1,
-                      year_one_granularity="annual", dso_days=0.5)
+    projection = plan("agras", horizon_years=1, dso_days=0.5)
     assert projection.assumptions["dso_days"].exact == MICRO_DAY // 2
     assert projection.periods[0].bs["ar"] > 0
     # half a day of receivables, not none of them
@@ -1349,21 +1378,27 @@ def test_a_sub_day_driver_cannot_round_into_the_refusal_value_zero():
 
 
 def test_a_whole_count_refuses_the_truncation_a_day_count_now_allows():
-    """`horizon_years` really is a whole count, so a fractional one is a
-    caller error rather than a silent floor to 5."""
+    """The horizon's `total_years` really is a whole count, so a fractional
+    one is a caller error rather than a silent floor to 5. It is a request
+    field, never a driver (contract 2.2), so it is refused by that name."""
     with pytest.raises(AssumptionError) as excinfo:
         plan("agras", horizon_years=5.7)
     assert "whole count" in str(excinfo.value)
-    assert "horizon_years" in str(excinfo.value)
+    assert "total_years" in str(excinfo.value)
+    # ...and a count driver that remains is still refused a fraction
+    with pytest.raises(AssumptionError) as excinfo:
+        plan("agras", horizon_years=1, days_basis=365.5)
+    assert "whole count" in str(excinfo.value)
+    assert "days_basis" in str(excinfo.value)
 
 
 def test_a_day_count_is_never_spendable_as_a_whole_number():
     """The two vocabularies must not meet under one name: `count()` is
     the whole-number accessor and it refuses a micro-day driver."""
-    projection = plan("agras", horizon_years=1, year_one_granularity="annual")
+    projection = plan("agras", horizon_years=1)
     with pytest.raises(AssumptionError):
         projection.assumptions.count("dso_days")
-    assert projection.assumptions.count("horizon_years") == 1
+    assert projection.assumptions.count("days_basis") == 365
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1377,8 +1412,7 @@ def test_a_day_count_is_never_spendable_as_a_whole_number():
 
 def test_growth_below_minus_one_hundred_percent_is_refused():
     with pytest.raises(AssumptionError) as excinfo:
-        plan("agras", horizon_years=2, year_one_granularity="annual",
-             revenue_growth=-1.5)
+        plan("agras", horizon_years=2, revenue_growth=-1.5)
     message = str(excinfo.value)
     assert "revenue_growth" in message
     assert "-150.0000%" in message, message   # TC-10: from the same integer
@@ -1388,8 +1422,7 @@ def test_growth_below_minus_one_hundred_percent_is_refused():
 def test_minus_one_hundred_percent_exactly_is_a_plan_not_a_refusal():
     """The floor is where revenue STOPS, not where it reverses. A business
     that sells nothing is a projection a reader can mean."""
-    projection = plan("agras", horizon_years=2, year_one_granularity="annual",
-                      revenue_growth=-1.0)
+    projection = plan("agras", horizon_years=2, revenue_growth=-1.0)
     for period in projection.periods:
         assert period.pl["revenue"] == 0
         assert period.checks["balance_delta_cents"] == 0
@@ -1403,13 +1436,12 @@ def test_the_balance_check_alone_cannot_see_negative_revenue():
     payload = load("agras")
     history = pl_history_from_payload(payload)
     opening = opening_for(payload)
-    assumptions = derive_assumptions(opening, history, horizon_years=2,
-                                     year_one_granularity="annual")
+    assumptions = derive_assumptions(opening, history)
     # Reach past the guard the way nothing else can: hand the model an
     # assumption set already built, with the growth stamped on it.
     hostile = assumptions.with_overrides(revenue_growth=-1.5)
     with pytest.raises(AssumptionError):
-        _project(opening, history, hostile)
+        _project(opening, history, hostile, total_years=2, monthly_months=12)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1529,8 +1561,7 @@ _UNMEASURABLE = (
 @pytest.mark.parametrize("name", BOOKS)
 def test_no_unavailable_rate_carries_a_value_the_model_could_spend(name):
     """Structural, on every real book: a refusal carries nothing."""
-    assumptions = plan(name, horizon_years=1,
-                       year_one_granularity="annual").assumptions
+    assumptions = plan(name, horizon_years=1).assumptions
     for driver in assumptions.items():
         if driver.source != "unavailable" or driver.unit != "ratio":
             continue
@@ -1622,8 +1653,7 @@ def test_an_absent_line_projects_rather_than_refusing():
     refused this plan would be the gate that is wrong."""
     payload = load("agras")
     del payload["statements"]["assembled_pl"]["other_operating_income"]
-    projection = project_payload(payload, horizon_years=1,
-                                 year_one_granularity="annual")
+    projection = project_payload(payload, horizon_years=1)
     driver = projection.assumptions["other_operating_income_pct_of_revenue"]
     assert driver.source == "engine_default"
     assert driver.exact == 0
@@ -1658,8 +1688,7 @@ def test_a_nil_balance_costs_nothing_but_is_not_a_priced_zero():
     assert not assumptions.is_available("revolver_rate")
     # and the plan that leaves the balance nil still projects, charging
     # nothing — the refusal above costs a well-defined plan nothing
-    projection = plan("carniprod", horizon_years=5,
-                      year_one_granularity="annual")
+    projection = plan("carniprod", horizon_years=5)
     assert sum(p.bs["st_debt"] + p.bs["lt_debt"] for p in projection.periods) == 0
     assert sum(p.pl["interest_expense_debt"] for p in projection.periods) == 0
 
@@ -1836,7 +1865,7 @@ def test_a_plan_that_creates_the_balance_is_refused_not_charged_nothing(
     payload, levers, key, bs_lines, _pl_line, rate = case()
     with pytest.raises(AssumptionError) as caught:
         project_payload(payload, horizon_years=5,
-                        year_one_granularity="annual", **levers)
+                        **levers)
     message = str(caught.value)
     assert key in message, message
     assert "supply %s" % key in message.lower(), message
@@ -1844,7 +1873,6 @@ def test_a_plan_that_creates_the_balance_is_refused_not_charged_nothing(
     # carries — read out of the projection the supplied rate produces,
     # never typed here
     priced = project_payload(dict(payload), horizon_years=5,
-                             year_one_granularity="annual",
                              **dict(levers, **{key: rate}))
     carried = [sum(p.bs[line] for line in bs_lines) for p in priced.periods]
     assert fmt(max(carried)) in message or fmt(carried[0]) in message, (
@@ -1859,7 +1887,6 @@ def test_the_same_plan_charges_once_the_rate_is_supplied(label, case):
     hiding is the whole charge, sized here off the two projections."""
     payload, levers, key, _bs_lines, pl_line, rate = case()
     priced = project_payload(payload, horizon_years=5,
-                             year_one_granularity="annual",
                              **dict(levers, **{key: rate}))
     charged = -sum(p.pl[pl_line] for p in priced.periods)
     assert charged > 0, (
@@ -1868,7 +1895,6 @@ def test_the_same_plan_charges_once_the_rate_is_supplied(label, case):
     # the caller may still ask for 0% IN THOSE WORDS, and gets it: that is
     # a rate somebody chose, not one nobody measured
     free = project_payload(payload, horizon_years=5,
-                           year_one_granularity="annual",
                            **dict(levers, **{key: 0.0}))
     assert sum(p.pl[pl_line] for p in free.periods) == 0
     net_priced = sum(p.pl["net_income"] for p in priced.periods)
@@ -1887,7 +1913,6 @@ def test_a_plan_that_leaves_the_balance_nil_still_projects(label, case):
     would be the gate that is wrong."""
     payload, _levers, key, bs_lines, pl_line, _rate = case()
     projection = project_payload(payload, horizon_years=5,
-                                 year_one_granularity="annual",
                                  revolver_rate=_CALLER_REVOLVER_RATE)
     assert not projection.assumptions.is_available(key)
     assert sum(p.bs[line]
@@ -1910,7 +1935,6 @@ def test_no_accepted_projection_carries_a_balance_its_rate_could_not_price(
     """
     payload, levers, key, bs_lines, _pl_line, _rate = case()
     projection = project_payload(payload, horizon_years=5,
-                                 year_one_granularity="annual",
                                  revolver_rate=_CALLER_REVOLVER_RATE)
     assert not projection.assumptions.is_available(key)
     note = [n for n in projection.notes if n.startswith("%s:" % key)]
@@ -1923,7 +1947,7 @@ def test_no_accepted_projection_carries_a_balance_its_rate_could_not_price(
     # and the plan that DOES create it never reaches a printed period
     with pytest.raises(AssumptionError):
         project_payload(payload, horizon_years=5,
-                        year_one_granularity="annual", **levers)
+                        **levers)
 
 
 #: driver -> a plan that creates the balance ONLY in the period it is
@@ -1934,7 +1958,7 @@ _CREATED_IN_THE_LAST_PERIOD = (
     ("interest_rate_debt", "lt_debt",
      lambda: (load("carniprod"),
               dict(horizon_years=5, debt_schedule=DebtSchedule(
-                  [DebtMove(4, lt_draw=5_000_000_00)])))),
+                  [DebtMove(15, lt_draw=5_000_000_00)])))),
     ("depreciation_rate", "ppe_net",
      lambda: (_no_fixed_assets(load("agras")),
               dict(horizon_years=1, capex_pct_of_revenue=0.11))),
@@ -1960,13 +1984,13 @@ def test_a_balance_created_in_the_period_it_is_published_in_is_refused_too(
     """
     payload, levers = case()
     with pytest.raises(AssumptionError) as caught:
-        project_payload(payload, year_one_granularity="annual",
+        project_payload(payload,
                         revolver_rate=_CALLER_REVOLVER_RATE, **levers)
     message = str(caught.value)
     assert key in message and "supply %s" % key in message.lower(), message
     # the period it names is the one that would have published the
     # balance — read off the projection the supplied rate produces
-    priced = project_payload(case()[0], year_one_granularity="annual",
+    priced = project_payload(case()[0],
                              revolver_rate=_CALLER_REVOLVER_RATE,
                              **dict(levers, **{key: 0.09}))
     carrying = [p.label for p in priced.periods if p.bs[line] > 0]
@@ -2141,14 +2165,13 @@ def test_a_default_that_no_lever_can_falsify_keeps_its_zero(
         if other == key:
             continue  # the driver under test keeps the book's own answer
         levers[other] = {
-            "year_one_granularity": "annual",
-            "horizon_years": 3,
             "days_basis": 365,
             "dso_days": 12, "dio_days": 12, "dpo_days": 12,
             "min_cash": 1000.0,
         }.get(other, 0.11)
     projection = project_payload(
-        payload, debt_schedule=DebtSchedule([DebtMove(0, lt_draw=9_000_000_00)]),
+        payload, horizon_years=3,
+        debt_schedule=DebtSchedule([DebtMove(0, lt_draw=9_000_000_00)]),
         **levers)
     assert projection.assumptions[key].source == "engine_default"
     assert projection.assumptions[key].exact == 0

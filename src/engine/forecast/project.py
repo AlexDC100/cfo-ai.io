@@ -57,6 +57,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from .assumptions import AssumptionSet, derive_assumptions
 from .errors import AssumptionError, BalanceViolation
 from .history import PlHistory, pl_history_from_payload
+from .levers_pack import tax_conventions
 from .money import MICRO, MICRO_DAY, apply_rate, fmt, mul_div, to_float
 from .opening import (ASSET_LINES, CURRENT_ASSET_LINES,
                       CURRENT_LIABILITY_LINES, EL_LINES, EQUITY_LINES, LINES,
@@ -109,23 +110,24 @@ CF_LINES = (
 )
 
 
+#: The two tax conventions (plan_contract_v2 6.3), read from
+#: packs/forecast/levers.yaml#tax — pack data, never prose typed here
+#: (TC-10). One authority serves both the notes below and the fp1
+#: conventions, so the sentence on the face of the plan and the sentence
+#: beside a tax figure cannot disagree.
+_TAX_CONVENTIONS = tax_conventions()
+
 #: What the model itself does that a reader would otherwise have to
 #: reverse-engineer from the arithmetic. These are the model's
 #: conventions, not the book's facts, so they are rendered on the face of
 #: every projection alongside the drivers that could not be measured.
-MODEL_CONVENTIONS = (
-    "income tax is charged and paid in the period it arises: the tax "
-    "payable balance is held at its opening amount rather than rolled, so "
-    "the plan shows no tax-timing benefit.",
+MODEL_CONVENTIONS = tuple(c.sentence for c in _TAX_CONVENTIONS) + (
     "interest is charged and paid in the period it accrues, on the "
     "balance at the START of that period. Charging on the opening "
     "balance is what lets the funding line be sized in one pass instead "
     "of by an iterative solve, whose convergence tolerance would put a "
     "residual back into a balance sheet that is required to close "
     "exactly.",
-    "a loss is not carried forward: tax is charged on a positive pre-tax "
-    "result only, and a loss year yields no future shield. Romanian loss "
-    "carry-forward is a policy this model does not yet implement.",
     "balance-sheet lines with no driver (other receivables and payables, "
     "prepayments, deferred income, provisions, contributed capital and "
     "reserves) are HELD at their opening balance. They neither grow with "
@@ -175,12 +177,7 @@ FP1_CONVENTIONS = (
      "funding line be sized in one pass instead of by an iterative "
      "solve whose convergence tolerance would leave a residual in a "
      "balance sheet required to close exactly."),
-    ("tax_charged_when_it_arises",
-     "income tax is charged and paid in the period it arises, on a "
-     "positive pre-tax result only. The tax payable balance is held "
-     "rather than rolled, so the plan shows no tax-timing benefit, and "
-     "a loss is not carried forward."),
-)
+) + tuple((c.convention_id, c.sentence) for c in _TAX_CONVENTIONS)
 
 #: line id -> the drivers and conventions that produced it.
 #:
@@ -209,7 +206,8 @@ _OTHER_FIN_INC = ("other_financial_income_annual",)
 _OTHER_FIN_EXP = ("other_financial_expense_annual",)
 _PRETAX = (_EBIT + _INT_DEBT + _INT_FUNDING + _INT_INCOME
            + _OTHER_FIN_INC + _OTHER_FIN_EXP)
-_TAX = _PRETAX + ("tax_rate", "tax_charged_when_it_arises")
+_TAX = _PRETAX + ("tax_rate", "tax_accrued_year_to_date",
+                  "tax_no_loss_carry_forward")
 _NET_INCOME = _PRETAX + _TAX
 _AR = _REVENUE + ("dso_days", "days_basis")
 _INVENTORY = _COGS + ("dio_days", "days_basis")
@@ -538,12 +536,16 @@ class Projection(object):
 
 
 def project(opening: OpeningPosition, history: PlHistory,
-            assumptions: Optional[AssumptionSet] = None,
+            assumptions: Optional[AssumptionSet] = None, *,
+            total_years: int, monthly_months: int,
             **overrides: Any) -> Projection:
     """Roll the opening position forward. Refuses rather than approximates.
 
     ``assumptions`` defaults to :func:`derive_assumptions` over this
     book; ``overrides`` are applied on top and stamped ``source='caller'``.
+    ``total_years`` and ``monthly_months`` are the horizon (plan_contract_v2
+    2.2, 6.1): request fields, never drivers, so they are arguments and no
+    override can name them.
     """
     if assumptions is None:
         assumptions = derive_assumptions(opening, history, **overrides)
@@ -553,8 +555,6 @@ def project(opening: OpeningPosition, history: PlHistory,
     days_basis = assumptions.count("days_basis")
     if days_basis <= 0:
         raise AssumptionError("days_basis", "must be positive")
-    horizon = assumptions.count("horizon_years")
-    granularity = assumptions.text("year_one_granularity")
     min_cash = assumptions.cents("min_cash")
     if min_cash < 0:
         raise AssumptionError(
@@ -564,7 +564,7 @@ def project(opening: OpeningPosition, history: PlHistory,
             "exactly the silent overdraft it prevents")
 
     anchor = _parse_date(opening.period_end)
-    timeline = build_timeline(anchor, horizon, granularity)
+    timeline = build_timeline(anchor, total_years, monthly_months)
 
     # ``micros`` REFUSES an unavailable rate rather than handing back 0.
     # Each of these governs a P&L flow or a programme the model creates
@@ -665,12 +665,21 @@ def project(opening: OpeningPosition, history: PlHistory,
     balances = opening.balances()
     projected = []  # type: List[ProjectedPeriod]
     year_net_income = 0
+    #: Year-to-date pre-tax result and the tax already charged in the
+    #: current plan year (levers.yaml#tax.accrued_year_to_date). Both reset
+    #: at each plan-year start, which is the no-loss-carry-forward
+    #: convention (levers.yaml#tax.no_loss_carry_forward): nothing about a
+    #: loss year reaches the next one.
+    year_pretax = 0
+    year_tax_charged = 0
     current_year = None  # type: Optional[int]
 
     for period in timeline:
         if current_year != period.year_offset:
             current_year = period.year_offset
             year_net_income = 0
+            year_pretax = 0
+            year_tax_charged = 0
 
         opening_cash = balances["cash"]
         opening_ppe = balances["ppe_net"]
@@ -788,7 +797,17 @@ def project(opening: OpeningPosition, history: PlHistory,
         other_financial_expense = other_fin_expense_of[period.index]
         pretax = (ebit - interest_debt - interest_funding + interest_income
                   + other_financial_income - other_financial_expense)
-        income_tax = apply_rate(pretax, tax_rate) if pretax > 0 else 0
+        # Year-to-date accrual (contract 6.3): the tax on the result so far
+        # this plan year, never below zero, less what earlier periods of
+        # the same year were already charged. A loss period after profit
+        # periods reverses tax (a negative charge); the year's total is
+        # exactly max(0, tax on the year's own result), one rounding. An
+        # annual period is its own year to date, so it is charged
+        # max(0, pre-tax x rate).
+        year_pretax += pretax
+        year_tax_due = max(0, apply_rate(year_pretax, tax_rate))
+        income_tax = year_tax_due - year_tax_charged
+        year_tax_charged = year_tax_due
         net_income = pretax - income_tax
         year_net_income += net_income
 
@@ -1014,11 +1033,16 @@ def _parse_date(text: str) -> date:
     return date(int(parts[0]), int(parts[1]), int(parts[2]))
 
 
-def project_payload(payload: Dict[str, Any], **overrides: Any) -> Projection:
+def project_payload(payload: Dict[str, Any], horizon_years: int = 5,
+                    **overrides: Any) -> Projection:
     """Project one captured/served period payload end to end.
 
     The opening position is taken from the CANONICAL balance sheet
     through the facts gateway; the P&L history from the assembled P&L.
+
+    ``horizon_years`` is kept only as ``total_years`` with a monthly window
+    of twelve months (plan_contract_v2 2.2) — the one shape the route
+    serves today — and is never an assumption override.
     """
     from engine.serving.facts import FactsGateway
 
@@ -1034,4 +1058,5 @@ def project_payload(payload: Dict[str, Any], **overrides: Any) -> Projection:
     period_end = str(payload.get("period_end") or "")
     opening = OpeningPosition.from_gateway(gateway, period_end)
     history = pl_history_from_payload(payload)
-    return project(opening, history, **overrides)
+    return project(opening, history, total_years=horizon_years,
+                   monthly_months=12, **overrides)

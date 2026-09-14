@@ -366,12 +366,21 @@ def _engine_gates() -> List[Gate]:
         # counts measured at registration, rounded down. Later batches
         # extend these entries under their own anchors.
         Gate("forecast-model",
-             [PY, "-m", "pytest", "tests/engine/test_forecast_model.py", "-q"],
-             work_junit=True, floor=220, units="tests",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_model.py",
+              # plan/2 B2: the calendar and year-to-date tax (contract 6.1,
+              # 6.3) join this gate; floor re-measured over both files (the
+              # F1 matrix axis became monthly_months {12, 24}, so the model
+              # file itself holds 20 fewer parametrised cases than at B0).
+              "tests/engine/test_forecast_timeline_tax.py", "-q"],
+             work_junit=True, floor=240, units="tests",
              canaries=("test_f1_every_projected_period_closes_to_zero",
                        "test_f1_one_cent_is_enough_to_red_it",
                        "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
-                       "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book")),
+                       "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book",
+                       # plan/2 B2
+                       "test_a_loss_month_then_profit_months_is_taxed_on_the_years_result",
+                       "test_every_period_is_charged_the_tax_on_its_year_to_date_result",
+                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year")),
         Gate("forecast-serving-boundary",
              [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
              work_junit=True, floor=60, units="tests",
@@ -396,6 +405,18 @@ def _engine_gates() -> List[Gate]:
              canaries=("PLAN-GATE CENSUS (plan_contract_v2 F10)",
                        "coverage of the 18 contract rows")),
         # ── end plan/2 B0 ────────────────────────────────────────────────
+        # ── plan/2 B2 (plan_contract_v2 28.3): forecast-base-parity ──────
+        # Delta mode (contract 5.3): today's engine against the B0 reference
+        # base_get_b0.json on the four books at total_years 5; a difference
+        # outside the downstream closure of the test's CHANGED set reds.
+        # B3 extends CHANGED; B4 re-points the gate to parity mode.
+        Gate("forecast-base-parity",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_base_parity.py", "-q"],
+             work_rx=r"GATE-WORK forecast-base-parity units=(\d+)", floor=4700,
+             units="(line, period) and plan-year cells compared",
+             canaries=("SCOPE forecast-base-parity (delta mode)",
+                       "366-day plan year per book")),
+        # ── end plan/2 B2 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

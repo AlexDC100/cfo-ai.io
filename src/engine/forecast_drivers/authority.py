@@ -25,10 +25,11 @@ COMPANY: anything measured from its book, or defaulted from a named
 external anchor when its book cannot answer.
 
 ``engine.forecast.assumptions`` owns the concepts that describe the
-PROJECTION and not the company: the horizon, the year-one granularity,
-the days basis, the cash floor below which the funding line draws, the
-debt schedule. A company has no opinion about how many years you choose
-to project it for.
+PROJECTION and not the company: the days basis, the cash floor below
+which the funding line draws, the debt schedule. (The horizon is not a
+driver at all since plan/2 B2: ``total_years`` and ``monthly_months`` are
+request fields ``project()`` takes as arguments, so no concept rules on
+them.)
 
 The mechanism is the model's own override channel:
 ``derive_assumptions(opening, history, **overrides)`` already re-stamps
@@ -407,16 +408,6 @@ CONCEPTS = (
         None, ("days_basis",), None,
         """The day count every rate-to-period conversion uses. An
         arithmetic convention of the model."""),
-    Concept(
-        "horizon_years", OWNER_MODEL, "model_only",
-        None, ("horizon_years",), None,
-        """How far the plan runs. The company has no opinion about it."""),
-    Concept(
-        "year_one_granularity", OWNER_MODEL, "model_only",
-        None, ("year_one_granularity",), None,
-        """Whether year one is projected monthly or annually. A shape
-        choice, and the only model key that is a word rather than a
-        quantity."""),
 )
 
 

@@ -1,0 +1,40 @@
+# THE LEVER REGISTRY OF THE ONE FORECAST ENGINE (plan_contract_v2 3a).
+#
+# Pack data, never code (TC-10): every rule id, sentence, cutoff, step,
+# bound and budget the projection and its surfaces use lives here and is
+# read through src/engine/forecast/levers_pack.py. Each section is added
+# by the batch that first reads it (contract 3a.4) and appended under that
+# batch's anchor comment (contract 0.6); a key nothing reads is a red at
+# closure (S8 pack-key liveness).
+#
+# Addresses: a rule id is written packs/forecast/levers.yaml#<section>.<key>
+# and a served convention carries the id named by its convention_id.
+
+schema_version: "forecast_levers/1"
+pack_id: "forecast-levers"
+
+# ── plan/2 B2: tax (contract 6.3, 3.5) ─────────────────────────────────
+# The two model conventions that decide how income tax is charged. Both
+# are conventions, not measurements: nothing in a single trial balance
+# states when tax is charged within a year or whether a loss is carried.
+# The sentences are served verbatim beside every tax figure (conventions,
+# 3.5) and on the face of the projection (notes); they carry no numeral.
+tax:
+  accrued_year_to_date:
+    convention_id: "tax_accrued_year_to_date"
+    sentence: >-
+      income tax accrues on the year-to-date pre-tax result of each plan
+      year: a period is charged the tax on the result so far this year less
+      the tax already charged earlier in the same year, so a loss period
+      reverses tax charged before it and the year as a whole is charged the
+      tax on the year's own result. Tax is settled in cash in the period it
+      accrues; the tax payable balance is held at its opening amount, so
+      the plan shows no tax-timing benefit.
+  no_loss_carry_forward:
+    convention_id: "tax_no_loss_carry_forward"
+    sentence: >-
+      a loss is not carried across plan years: a plan year whose pre-tax
+      result is negative is charged no tax and shields no later year's
+      profit. This is a model convention held until a sourced carry-forward
+      rule is packed, not a statement of Romanian law.
+# ── end plan/2 B2 ───────────────────────────────────────────────────────

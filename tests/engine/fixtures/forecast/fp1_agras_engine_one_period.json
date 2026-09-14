@@ -244,26 +244,6 @@
    }
   },
   {
-   "basis": "supplied by the caller [caller]",
-   "derived_from": [],
-   "id": "horizon_years",
-   "label": "horizon years",
-   "unit": "count",
-   "values": {
-    "FY2028": 3
-   }
-  },
-  {
-   "basis": "cash timing matters in year one and stops mattering after it, so year one is projected monthly and later years annually: monthly [engine_default]",
-   "derived_from": [],
-   "id": "year_one_granularity",
-   "label": "year one granularity",
-   "unit": "convention",
-   "values": {
-    "FY2028": null
-   }
-  },
-  {
    "basis": "balance-sheet lines this model does not drive are HELD at their opening balance: they neither grow with the business nor decay. Nothing in a single trial balance implies a rate at which they move, and inventing one would move a total no assumption stated. [engine_default]",
    "derived_from": [],
    "id": "held_at_opening_balance",
@@ -284,10 +264,20 @@
    }
   },
   {
-   "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+   "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
    "derived_from": [],
-   "id": "tax_charged_when_it_arises",
-   "label": "tax charged when it arises",
+   "id": "tax_accrued_year_to_date",
+   "label": "tax accrued year to date",
+   "unit": "convention",
+   "values": {
+    "FY2028": null
+   }
+  },
+  {
+   "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+   "derived_from": [],
+   "id": "tax_no_loss_carry_forward",
+   "label": "tax no loss carry forward",
    "unit": "convention",
    "values": {
     "FY2028": null
@@ -636,7 +626,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises"
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward"
    ],
    "basis": [
     {
@@ -810,10 +801,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     }
@@ -999,7 +998,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises"
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward"
    ],
    "basis": [
     {
@@ -1173,10 +1173,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     }
@@ -1646,7 +1654,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -1824,10 +1833,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -1970,7 +1987,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dividend_payout_pct"
    ],
    "basis": [
@@ -2145,10 +2163,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -2516,7 +2542,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -2694,10 +2721,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -2905,7 +2940,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dividend_payout_pct",
     "dso_days",
     "dio_days",
@@ -3083,10 +3119,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -3204,7 +3248,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days"
@@ -3381,10 +3426,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -3606,7 +3659,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -3784,10 +3838,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -4008,7 +4070,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dividend_payout_pct"
    ],
    "basis": [
@@ -4183,10 +4246,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -4227,7 +4298,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -4405,10 +4477,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -4514,7 +4594,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -4692,10 +4773,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -4769,7 +4858,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises"
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward"
    ],
    "basis": [
     {
@@ -4943,10 +5033,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     }
@@ -4979,7 +5077,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -5157,10 +5256,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -5234,7 +5341,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -5413,10 +5521,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -5498,7 +5614,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dso_days",
     "dio_days",
     "dpo_days",
@@ -5677,10 +5794,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -5871,7 +5996,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dividend_payout_pct",
     "held_at_opening_balance"
    ],
@@ -6047,10 +6173,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
@@ -6100,7 +6234,8 @@
     "other_financial_income_annual",
     "other_financial_expense_annual",
     "tax_rate",
-    "tax_charged_when_it_arises",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
     "dividend_payout_pct",
     "held_at_opening_balance"
    ],
@@ -6287,10 +6422,18 @@
      "value": 0.16
     },
     {
-     "basis": "income tax is charged and paid in the period it arises, on a positive pre-tax result only. The tax payable balance is held rather than rolled, so the plan shows no tax-timing benefit, and a loss is not carried forward. [engine_default]",
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
      "derived_from": [],
-     "id": "tax_charged_when_it_arises",
-     "label": "tax charged when it arises",
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
      "unit": "convention",
      "value": null
     },
