@@ -775,7 +775,7 @@ def _operands(fig: _Fig) -> List[Dict[str, Any]]:
 METRICS_BASES = ("payload", "serve")
 
 
-def _serve_time_metric_rows(statements: Mapping[str, Any]) -> Optional[List[Dict[str, Any]]]:
+def serve_time_metric_rows(statements: Mapping[str, Any]) -> Optional[List[Dict[str, Any]]]:
     """`compute_period_metrics` over the served statements block — the
     credit model and every metric row, recomputed from what is served.
     None when the block carries no legacy view to compute from (the model
@@ -805,7 +805,7 @@ def ratio_denominators(served_payload: Mapping[str, Any], *,
     if bool(statements.get("absentInputs")) or "reportedTotals" in statements:
         return {}
     if serve_time_metrics:
-        payload["metrics"] = _serve_time_metric_rows(statements) or []
+        payload["metrics"] = serve_time_metric_rows(statements) or []
     _figs, _sign, _cost, denominators = _compute_figs(payload, statements)
     return {k: {"value": f.value, "source": "+".join(op[2] for op in f.ops)}
             for k, f in denominators.items()}
@@ -827,8 +827,14 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
 
     payload = served_payload if isinstance(served_payload, Mapping) else {}
     statements = _dict(payload.get("statements"))
-    serve_rows = _serve_time_metric_rows(statements)
-    persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
+    serve_rows = serve_time_metric_rows(statements)
+    # The as-filed evidence: a get_period body whose credit rows were
+    # served from the serve-time model carries the persisted ones under
+    # `credit_metrics_as_filed`; any other payload's rows ARE persisted.
+    if isinstance(payload.get("credit_metrics_as_filed"), list):
+        persisted_rows = payload.get("credit_metrics_as_filed")
+    else:
+        persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
     if serve_time_metrics:
         payload = dict(payload)
         payload["metrics"] = list(serve_rows or [])

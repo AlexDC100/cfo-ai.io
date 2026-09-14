@@ -37,6 +37,15 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       letter / zone disagreeing with the served ratio table, or — the
       precondition of the switch — any Altman zone or letter differing
       from the persisted rows on the five books.
+  ONE CREDIT MODEL PER RESPONSE  on a served body whose persisted rows
+      differ from the serve-time model (the Scandia baseline with its
+      rows; the same with a stale composite planted), any figure a credit
+      card reads — the `metrics` row first, the envelope only where the row
+      is absent (financialValuation.ts mergeEngineEnvelope) — differing from
+      the envelope, or the envelope letter not being the letter of the
+      composite that card reads; the persisted rows not served verbatim
+      under `credit_metrics_as_filed`; or the comparatives block, rebuilt
+      from that body, no longer disclosing the stale composite as filed.
 
 WHAT IT CANNOT SEE: whether any surface renders the block (B6/B7), the
 seven-element crossing findings (B5), and period length (every served
@@ -417,3 +426,101 @@ def test_the_scandia_baseline_discloses_its_as_filed_composite():
     assert credit["as_filed_differs"] is True, credit
     assert credit["as_filed"]["letter"] == credit["letter_grade"] == "A"
     assert credit["as_filed"]["composite"] != credit["composite_score"]
+
+
+# ── 7. one credit model per response ───────────────────────────────────────
+
+
+def _card_reads(body: Dict[str, Any]) -> Dict[str, Any]:
+    """What a credit card reads off a served body: the `metrics` row when
+    one is served, else the envelope (financialValuation.ts
+    `mergeEngineEnvelope` / `altmanFromEngine`, the one precedence every FE
+    credit reader goes through)."""
+    rows = {r["name"]: r["value"] for r in body["metrics"]}
+    env = body["assembled_metrics"]["credit"]
+
+    def pick(metric, from_env):
+        v = rows.get(metric)
+        return v if v is not None else from_env
+
+    comps = env.get("altman_components") or {}
+    subs = env.get("subscores") or {}
+    return {
+        "composite": pick("credit_composite", env.get("composite_score")),
+        "altman_z": pick("altman_z_score", env.get("altman_z_score")),
+        **{x: pick("altman_%s" % x, comps.get(x)) for x in ("x1", "x2", "x3", "x4")},
+        **{"sub_" + k: pick(name, subs.get(k)) for k, name in CM.CREDIT_SUBSCORE_METRICS},
+    }
+
+
+def _envelope_figures(body: Dict[str, Any]) -> Dict[str, Any]:
+    env = body["assembled_metrics"]["credit"]
+    comps = env.get("altman_components") or {}
+    subs = env.get("subscores") or {}
+    return {
+        "composite": env.get("composite_score"),
+        "altman_z": env.get("altman_z_score"),
+        **{x: comps.get(x) for x in ("x1", "x2", "x3", "x4")},
+        **{"sub_" + k: subs.get(k) for k, _name in CM.CREDIT_SUBSCORE_METRICS},
+    }
+
+
+def _scandia_with_rows(stale_composite=None):
+    bk = SB.book(SB.SCANDIA)
+    persisted = CM.compute_period_metrics(copy.deepcopy(bk.persist_assembled["statements"]))
+    if stale_composite is not None:
+        for r in persisted:
+            if r["name"] == "credit_composite":
+                r["value"] = stale_composite
+    return persisted, SB.routed_body(bk, metrics=persisted)
+
+
+@pytest.mark.parametrize("stale", [None, 69.9])
+def test_a_credit_card_reads_one_model_from_the_served_body(stale):
+    persisted, body = _scandia_with_rows(stale)
+    env = body["assembled_metrics"]["credit"]
+    assert env["basis"] == "serve", env
+    read, served = _card_reads(body), _envelope_figures(body)
+    mixed = {k: (read[k], served[k]) for k in read if read[k] != served[k]}
+    assert not mixed, (
+        "scandia_baseline (persisted composite %s): the card reads %s from the metrics rows "
+        "while the envelope serves the serve-time model" % (stale, mixed))
+    assert read["composite"] is not None
+    assert env["letter_grade"] == CM.composite_to_letter_grade(read["composite"]), (
+        "the card prints composite %s beside letter %s" % (read["composite"], env["letter_grade"]))
+    family = set(CM.CREDIT_FAMILY_METRICS)
+    want_filed = [{"name": r["name"], "value": r["value"], "unit": r["unit"], "direction": r.get("direction")}
+                  for r in persisted if r["name"] in family]
+    assert body["credit_metrics_as_filed"] == want_filed
+    # every other row is the persisted row, untouched and in order
+    assert [r for r in body["metrics"] if r["name"] not in family] == [
+        {"name": r["name"], "value": r["value"], "unit": r["unit"], "direction": r.get("direction")}
+        for r in persisted if r["name"] not in family]
+    if stale is not None:
+        assert env["as_filed_differs"] is True and env["as_filed"]["composite"] == stale
+        assert env["as_filed"]["letter"] == "BBB" and env["letter_grade"] == "A"
+
+
+def test_the_comparatives_rebuild_still_discloses_the_as_filed_composite():
+    _persisted, body = _scandia_with_rows(69.9)
+    prior = SB.served_body("agras")
+    out = C.compare_payloads(body, prior,
+                             current_row={"id": body["period"]["id"], "period_end": "2025-12-31"},
+                             prior_row={"id": "p-pri", "period_end": "2024-12-31"})
+    credit = out["ratios"]["credit"]["current"]
+    assert credit["as_filed_differs"] is True, credit
+    assert credit["as_filed"]["composite"] == 69.9 and credit["as_filed"]["letter"] == "BBB"
+    assert credit["composite"] == body["assembled_metrics"]["credit"]["composite_score"]
+
+
+def test_the_serve_time_rows_replace_in_place_drop_absent_and_append_nothing():
+    persisted = [{"name": "current_ratio", "value": 1.5, "unit": "ratio", "direction": "higher"},
+                 {"name": "credit_composite", "value": 69.9, "unit": "score", "direction": "higher"},
+                 {"name": "altman_x4", "value": 3.0, "unit": "ratio", "direction": "higher"}]
+    serve = [{"name": "credit_composite", "value": 71.9, "unit": "score", "direction": "higher"},
+             {"name": "altman_z_score", "value": 3.11, "unit": "ratio", "direction": "higher"},
+             {"name": "roe", "value": 0.2, "unit": "pct", "direction": "higher"}]
+    served, filed = CM.serve_credit_rows(persisted, serve)
+    assert served == [persisted[0], dict(persisted[1], value=71.9)]
+    assert CM.serve_credit_rows([], serve) == ([], [])
+    assert filed == persisted[1:]

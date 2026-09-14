@@ -7427,13 +7427,21 @@ def build_router() -> APIRouter:
             logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
 
         # ── The served ratio table + the serve-time credit model ─────────
-        # (ratios B4). ONE computation over what this response serves:
-        # `build_ratio_table(..., serve_time_metrics=True)` runs the credit
-        # model on these statements, so the hero card, the Risks tab, the
-        # table's current column, the report and the workbook read one
-        # composite. The persisted `calculated_metrics` rows become the
-        # as-filed evidence, disclosed only where they differ (a reanalyze
-        # never recomputes them). Switched ON by measurement: on the four
+        # (ratios B4). `build_ratio_table(..., serve_time_metrics=True)`
+        # runs the credit model on these statements. The credit envelope
+        # AND the credit-family rows of `metrics` are then served from that
+        # one serve-time result: every FE credit reader (dashboard hero and
+        # Risks tab via computeCreditScore, /report CreditScoreCard, the
+        # workbook) takes composite, Altman and sub-scores from the metrics
+        # rows first and the letter from the envelope, so switching only the
+        # envelope printed a persisted composite beside a letter banded from
+        # a different one. The persisted rows move, verbatim, to
+        # `credit_metrics_as_filed` — the as-filed evidence, disclosed in
+        # `credit.as_filed` only where it differs (a reanalyze never
+        # recomputes them). When the serve-time model cannot run on these
+        # statements (a source that declares its absences) nothing is
+        # switched: the persisted block stays, labelled `basis: as_filed`,
+        # beside its own rows. Switched ON by measurement: on the four
         # corpus books and the Scandia FY2025 baseline, once the served
         # balance sheet carries complete equity, no Altman zone and no
         # letter moves against the persisted rows (Scandia baseline
@@ -7447,8 +7455,14 @@ def build_router() -> APIRouter:
             else None
         )
         ratio_table_block = None
+        served_metric_rows = list(metrics or [])
+        credit_metrics_as_filed = None
+        _serve_rows = None
         try:
             from engine.ratios.table import build_ratio_table as _build_ratio_table
+            from engine.ratios.table import serve_time_metric_rows as _serve_time_metric_rows
+
+            _serve_rows = _serve_time_metric_rows(statements)
 
             ratio_table_block = _build_ratio_table({
                 "statements": statements,
@@ -7461,7 +7475,10 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[/api/period] ratio table failed for period %s (non-fatal)", period.get("id"))
         assembled_metrics_envelope["ratio_table"] = ratio_table_block
-        if isinstance(ratio_table_block, dict) and isinstance(ratio_table_block.get("credit"), dict):
+        if (isinstance(ratio_table_block, dict) and isinstance(ratio_table_block.get("credit"), dict)
+                and _serve_rows is not None):
+            served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
+                metrics or [], _serve_rows)
             _cb = ratio_table_block["credit"]
             _alt = _cb.get("altman") or {}
             assembled_metrics_envelope["credit"] = {
@@ -7541,6 +7558,8 @@ def build_router() -> APIRouter:
                 }
                 for li in (line_items or [])
             ],
+            # Credit-family rows are the serve-time model's whenever
+            # `assembled_metrics.credit.basis` is "serve" (see above).
             "metrics": [
                 {
                     "name": m["name"],
@@ -7548,7 +7567,18 @@ def build_router() -> APIRouter:
                     "unit": m["unit"],
                     "direction": m.get("direction"),
                 }
-                for m in metrics
+                for m in served_metric_rows
+            ],
+            # The persisted credit-family rows those replaced, verbatim
+            # (null when nothing was replaced): the as-filed evidence.
+            "credit_metrics_as_filed": None if credit_metrics_as_filed is None else [
+                {
+                    "name": m["name"],
+                    "value": m["value"],
+                    "unit": m["unit"],
+                    "direction": m.get("direction"),
+                }
+                for m in credit_metrics_as_filed
             ],
             "briefing": briefing and {
                 "body": briefing["body"],

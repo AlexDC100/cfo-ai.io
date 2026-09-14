@@ -576,6 +576,55 @@ def _num(v: Any) -> Optional[float]:
     return float(v)
 
 
+#: Every `calculated_metrics` row the credit model owns: what a served
+#: credit card reads (financialValuation.ts `mergeEngineEnvelope` takes
+#: these rows FIRST and the credit envelope only where a row is absent).
+CREDIT_FAMILY_METRICS: Tuple[str, ...] = (
+    "altman_z_score", "altman_x1", "altman_x2", "altman_x3", "altman_x4",
+    "credit_composite",
+) + tuple(name for _k, name in CREDIT_SUBSCORE_METRICS) + (CREDIT_MODEL_REVISION_METRIC,)
+
+
+def serve_credit_rows(
+    persisted_rows: Optional[List[Dict[str, Any]]],
+    serve_rows: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """`(served_rows, as_filed_rows)` for a response whose credit envelope
+    is the serve-time model.
+
+    A card that read the persisted composite beside a letter banded from
+    the serve-time composite would print two models as one verdict, so
+    the credit-family rows are served from `serve_rows` too: a persisted
+    row keeps its position and takes the serve-time value; a persisted
+    row the serve-time model does not emit is DROPPED (absent stays
+    absent, never the stale figure). Nothing is appended: a period with no
+    persisted credit row serves none, and every card then reads the
+    envelope, which is the same serve-time result (and a period with no
+    persisted rows at all keeps serving `metrics: []`, which the ratio
+    fallbacks are keyed on). Every other row is untouched.
+    `as_filed_rows` are the persisted credit-family rows, verbatim — the
+    as-filed evidence `credit_block` discloses from."""
+    family = set(CREDIT_FAMILY_METRICS)
+    serve_by_name = {r["name"]: r for r in serve_rows
+                     if isinstance(r, dict) and r.get("name") in family}
+    served: List[Dict[str, Any]] = []
+    as_filed: List[Dict[str, Any]] = []
+    seen = set()
+    for row in persisted_rows or []:
+        name = row.get("name") if isinstance(row, dict) else None
+        if name not in family:
+            served.append(row)
+            continue
+        as_filed.append(dict(row))
+        replacement = serve_by_name.get(name)
+        if replacement is None or name in seen:
+            continue
+        seen.add(name)
+        served.append(dict(row, value=replacement.get("value"), unit=replacement.get("unit"),
+                           direction=replacement.get("direction")))
+    return served, as_filed
+
+
 def credit_block(
     rows: List[Dict[str, Any]],
     as_filed_rows: Optional[List[Dict[str, Any]]] = None,
