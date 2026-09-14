@@ -26,6 +26,15 @@ document names two distinguishable periods ("Dec 2025" / "Dec 2024") instead
 of the corpus default "2025-12-31" on both sides. Every figure, band, delta,
 movement and finding is the composer's output.
 
+THE CORPUS PAIRS. ``served_ratio_pairs.json`` carries the same block for
+EVERY ordered pair of the four committed corpus books (12 pairs), so a
+reader gate can be book-agnostic: a card that prints its headline, badge or
+benchmark from a second ladder is caught on whichever book the two ladders
+disagree on, not only on the one pair the gate happened to pick (the
+agras / carniprod pair hides the four declared ladder divergences; retail as
+the current period does not). Same labels, same composer, same router; per
+book the served credit and Piotroski envelopes of the current period.
+
 Output: ``served_ratio_pair.json`` — ``{"current_label", "prior_label",
 "current_book", "prior_book", "current_credit_envelope",
 "current_piotroski_envelope", "ratios"}``. ``--check`` recomputes and exits 1
@@ -46,18 +55,22 @@ sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "tests" / "engine"))
 
 OUT = HERE / "served_ratio_pair.json"
+OUT_ALL = HERE / "served_ratio_pairs.json"
+CORPUS_BOOKS = ("agras", "carniprod", "realestate", "retail")
 CURRENT_BOOK, PRIOR_BOOK = "agras", "carniprod"
 CURRENT_LABEL, PRIOR_LABEL = "Dec 2025", "Dec 2024"
 
 
-def build() -> Dict[str, Any]:
+def compose(current_book: str, prior_book: str) -> Dict[str, Any]:
+    """``compare_payloads`` over two served corpus bodies, labelled as two
+    distinguishable periods. Only labels, ids and period ends are set."""
     import _served_books as SB
     from engine.api import _comparatives as C
 
-    cur = SB.served_body(CURRENT_BOOK)
-    pri = SB.served_body(PRIOR_BOOK)
-    for body, label, pid, end in ((cur, CURRENT_LABEL, "period-agras-dec2025", "2025-12-31"),
-                                  (pri, PRIOR_LABEL, "period-carniprod-dec2024", "2024-12-31")):
+    cur = SB.served_body(current_book)
+    pri = SB.served_body(prior_book)
+    for body, label, pid, end in ((cur, CURRENT_LABEL, "period-%s-dec2025" % current_book, "2025-12-31"),
+                                  (pri, PRIOR_LABEL, "period-%s-dec2024" % prior_book, "2024-12-31")):
         body["statements"]["periodLabel"] = label
         body["period"]["id"] = pid
         body["period"]["period_end"] = end
@@ -66,6 +79,31 @@ def build() -> Dict[str, Any]:
         current_row={"id": cur["period"]["id"], "period_end": "2025-12-31"},
         prior_row={"id": pri["period"]["id"], "period_end": "2024-12-31"},
     )
+    return {"cur": cur, "doc": doc}
+
+
+def build_all() -> Dict[str, Any]:
+    """Every ordered pair of the four corpus books, plus each book's served
+    credit and Piotroski envelopes (the current period's, by book)."""
+    import _served_books as SB
+
+    books: Dict[str, Any] = {}
+    for bk in CORPUS_BOOKS:
+        body = SB.served_body(bk)
+        am = body.get("assembled_metrics") or {}
+        books[bk] = {"credit_envelope": am.get("credit"), "piotroski_envelope": am.get("piotroski")}
+    pairs: Dict[str, Any] = {}
+    for cur in CORPUS_BOOKS:
+        for pri in CORPUS_BOOKS:
+            if cur == pri:
+                continue
+            pairs["%s|%s" % (cur, pri)] = compose(cur, pri)["doc"]["ratios"]
+    return {"current_label": CURRENT_LABEL, "prior_label": PRIOR_LABEL, "books": books, "pairs": pairs}
+
+
+def build() -> Dict[str, Any]:
+    composed = compose(CURRENT_BOOK, PRIOR_BOOK)
+    cur, doc = composed["cur"], composed["doc"]
     return {
         "current_book": CURRENT_BOOK,
         "prior_book": PRIOR_BOOK,
@@ -85,15 +123,23 @@ def serialise(doc: Dict[str, Any]) -> str:
     return json.dumps(doc, sort_keys=True, indent=1, ensure_ascii=False) + "\n"
 
 
+def serialise_compact(doc: Dict[str, Any]) -> str:
+    """The twelve-pair file, compact (it is read by gates, not by people;
+    the one-pair file above stays indented for review)."""
+    return json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
+
+
 def main(argv) -> int:
-    text = serialise(build())
+    outputs = ((OUT, serialise(build())), (OUT_ALL, serialise_compact(build_all())))
     if "--check" in argv:
-        committed = OUT.read_text(encoding="utf-8") if OUT.is_file() else ""
-        if committed != text:
-            print("served_ratio_pair.json is stale: re-run capture_served_ratio_pair.py", file=sys.stderr)
+        stale = [p.name for p, text in outputs
+                 if (p.read_text(encoding="utf-8") if p.is_file() else "") != text]
+        if stale:
+            print("%s stale: re-run capture_served_ratio_pair.py" % ", ".join(stale), file=sys.stderr)
             return 1
         return 0
-    OUT.write_text(text, encoding="utf-8")
+    for p, text in outputs:
+        p.write_text(text, encoding="utf-8")
     return 0
 
 

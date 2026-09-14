@@ -48,6 +48,31 @@ def test_the_committed_pair_is_todays_composer_output():
     )
 
 
+def test_the_committed_corpus_pairs_are_todays_composer_output():
+    """The twelve ordered corpus pairs the book-agnostic export gates render
+    over (``reportPriorCredit.test.ts`` §4). Reds on any served change to any
+    pair's ``ratios`` block, or to a book's credit / Piotroski envelope, not
+    recaptured."""
+    cap = _capture_module()
+    if not cap.OUT_ALL.is_file():
+        pytest.fail("served_ratio_pairs.json is not committed; run capture_served_ratio_pair.py")
+    fresh = cap.serialise_compact(cap.build_all())
+    committed = cap.OUT_ALL.read_text(encoding="utf-8")
+    assert committed == fresh, (
+        "served_ratio_pairs.json is stale against the composer: re-run "
+        "tests/engine/fixtures/firm/capture_served_ratio_pair.py and review the diff"
+    )
+    doc = cap.build_all()
+    assert len(doc["pairs"]) == 12, sorted(doc["pairs"])
+    # Non-vacuity for the ladder-divergence gate: at least one pair where a
+    # declared divergent key is graded on the served ladder.
+    graded = [k for k, r in doc["pairs"].items()
+              for row in r["rows"]
+              if row["key"] in ("debt_to_assets", "dpo", "ccc", "asset_turnover")
+              and row["current"]["band_status"] == "graded"]
+    assert graded, "no pair grades a declared divergent key"
+
+
 def test_the_pair_is_not_vacuous():
     doc = _capture_module().build()
     bm = doc["ratios"]["band_movements"]
