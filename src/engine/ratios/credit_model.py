@@ -59,6 +59,53 @@ CREDIT_LETTER_LADDER: Tuple[Tuple[int, str], ...] = (
 )
 
 
+#: Composite weights, by sub-score. The ONE statement: the composite below
+#: multiplies by these and `GET /api/period` serves them
+#: (`assembled_metrics.credit.composite_weights`). Before 2026-09-14 the
+#: served weights were a second literal dict in `get_period`.
+CREDIT_COMPOSITE_WEIGHTS: Dict[str, float] = {
+    "altman": 0.30,
+    "profitability": 0.20,
+    "leverage": 0.15,
+    "coverage": 0.10,
+    "dscr": 0.10,
+    "liquidity": 0.10,
+    "equity": 0.05,
+}
+
+#: Altman Z'' zones (CLAUDE.md Appendix A section 7): safe from 2.60, grey
+#: from 1.10, distress below. The sub-score mapping and `altman_zone` both
+#: read these.
+ALTMAN_SAFE_FROM = 2.60
+ALTMAN_GREY_FROM = 1.10
+
+#: The sub-score rows, keyed as the served `subscores` block keys them.
+CREDIT_SUBSCORE_METRICS: Tuple[Tuple[str, str], ...] = (
+    ("altman", "credit_subscore_altman"),
+    ("profitability", "credit_subscore_profitability"),
+    ("leverage", "credit_subscore_leverage"),
+    ("coverage", "credit_subscore_coverage"),
+    ("dscr", "credit_subscore_dscr"),
+    ("liquidity", "credit_subscore_liquidity"),
+    ("equity", "credit_subscore_equity"),
+)
+
+#: The reason a period carries no credit composite: the model names a
+#: missing operand (today: total assets not positive, so no Altman).
+CREDIT_INPUTS_ABSENT = "credit_inputs_absent"
+
+
+def altman_zone(z: Optional[float]) -> Optional[str]:
+    """`safe` / `grey` / `distress` for a served Z'' (None stays None)."""
+    if z is None:
+        return None
+    if z >= ALTMAN_SAFE_FROM:
+        return "safe"
+    if z >= ALTMAN_GREY_FROM:
+        return "grey"
+    return "distress"
+
+
 def composite_to_letter_grade(composite: float) -> str:
     """The letter for a composite score, read off `CREDIT_LETTER_LADDER`.
 
@@ -400,10 +447,10 @@ def compute_period_metrics(
 
         # Map Z″ to a 0-100 sub-score with the same three-zone reading the
         # methodology uses (>2.60 safe, 1.10-2.60 grey, <1.10 distress).
-        if altman_z >= 2.60:
-            altman_subscore = min(100, 70 + (altman_z - 2.60) * 15)
-        elif altman_z >= 1.10:
-            altman_subscore = 40 + (altman_z - 1.10) * 20
+        if altman_z >= ALTMAN_SAFE_FROM:
+            altman_subscore = min(100, 70 + (altman_z - ALTMAN_SAFE_FROM) * 15)
+        elif altman_z >= ALTMAN_GREY_FROM:
+            altman_subscore = 40 + (altman_z - ALTMAN_GREY_FROM) * 20
         else:
             altman_subscore = max(0, altman_z * 36)
 
@@ -469,13 +516,13 @@ def compute_period_metrics(
 
         # Composite — same weights as the methodology.
         composite = (
-            0.30 * altman_subscore
-            + 0.20 * prof_subscore
-            + 0.15 * lev_subscore
-            + 0.10 * ic_subscore
-            + 0.10 * dscr_subscore
-            + 0.10 * liq_subscore
-            + 0.05 * eq_subscore
+            CREDIT_COMPOSITE_WEIGHTS["altman"] * altman_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["profitability"] * prof_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["leverage"] * lev_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["coverage"] * ic_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["dscr"] * dscr_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["liquidity"] * liq_subscore
+            + CREDIT_COMPOSITE_WEIGHTS["equity"] * eq_subscore
         )
 
         letter_grade = composite_to_letter_grade(composite)
@@ -513,3 +560,132 @@ def compute_period_metrics(
          "unit": "revision", "direction": "neutral"}
     )
     return metrics
+
+
+def _rows_by_name(rows: Any) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for row in rows or []:
+        if isinstance(row, dict) and isinstance(row.get("name"), str):
+            out[row["name"]] = row.get("value")
+    return out
+
+
+def _num(v: Any) -> Optional[float]:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v)
+
+
+#: Every `calculated_metrics` row the credit model owns: what a served
+#: credit card reads (financialValuation.ts `mergeEngineEnvelope` takes
+#: these rows FIRST and the credit envelope only where a row is absent).
+CREDIT_FAMILY_METRICS: Tuple[str, ...] = (
+    "altman_z_score", "altman_x1", "altman_x2", "altman_x3", "altman_x4",
+    "credit_composite",
+) + tuple(name for _k, name in CREDIT_SUBSCORE_METRICS) + (CREDIT_MODEL_REVISION_METRIC,)
+
+
+def serve_credit_rows(
+    persisted_rows: Optional[List[Dict[str, Any]]],
+    serve_rows: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """`(served_rows, as_filed_rows)` for a response whose credit envelope
+    is the serve-time model.
+
+    A card that read the persisted composite beside a letter banded from
+    the serve-time composite would print two models as one verdict, so
+    the credit-family rows are served from `serve_rows` too: a persisted
+    row keeps its position and takes the serve-time value; a persisted
+    row the serve-time model does not emit is DROPPED (absent stays
+    absent, never the stale figure). Nothing is appended: a period with no
+    persisted credit row serves none, and every card then reads the
+    envelope, which is the same serve-time result (and a period with no
+    persisted rows at all keeps serving `metrics: []`, which the ratio
+    fallbacks are keyed on). Every other row is untouched.
+    `as_filed_rows` are the persisted credit-family rows, verbatim — the
+    as-filed evidence `credit_block` discloses from."""
+    family = set(CREDIT_FAMILY_METRICS)
+    serve_by_name = {r["name"]: r for r in serve_rows
+                     if isinstance(r, dict) and r.get("name") in family}
+    served: List[Dict[str, Any]] = []
+    as_filed: List[Dict[str, Any]] = []
+    seen = set()
+    for row in persisted_rows or []:
+        name = row.get("name") if isinstance(row, dict) else None
+        if name not in family:
+            served.append(row)
+            continue
+        as_filed.append(dict(row))
+        replacement = serve_by_name.get(name)
+        if replacement is None or name in seen:
+            continue
+        seen.add(name)
+        served.append(dict(row, value=replacement.get("value"), unit=replacement.get("unit"),
+                           direction=replacement.get("direction")))
+    return served, as_filed
+
+
+def credit_block(
+    rows: List[Dict[str, Any]],
+    as_filed_rows: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """The served CreditBlock for one period, read off ITS OWN
+    `compute_period_metrics` rows (the serve-time model), with the
+    persisted `calculated_metrics` rows as the as-filed evidence.
+
+    Values are the model's stored rows (Z'' at 2dp, composite and
+    sub-scores at 1dp); the zone and the letter are read off those same
+    printed figures, so the zone beside a 2.60 never disagrees with it.
+    `as_filed` is served ONLY when the persisted composite, Z'' or letter
+    differs from the served one at that same precision (after a
+    reanalyze, which never recomputes metrics, or for rows persisted
+    before a model change); persisted rows with no revision stamp print
+    revision "unknown". No persisted rows at all -> `as_filed` null and
+    `as_filed_differs` false: nothing was filed to differ from.
+    """
+    m = _rows_by_name(rows)
+    z = _num(m.get("altman_z_score"))
+    composite = _num(m.get("credit_composite"))
+    letter = None if composite is None else composite_to_letter_grade(composite)
+    block: Dict[str, Any] = {
+        "revision": CREDIT_MODEL_REVISION,
+        "altman": {
+            "z": z,
+            "x1": _num(m.get("altman_x1")),
+            "x2": _num(m.get("altman_x2")),
+            "x3": _num(m.get("altman_x3")),
+            "x4": _num(m.get("altman_x4")),
+            "zone": altman_zone(z),
+            "thresholds": {"grey_from": ALTMAN_GREY_FROM, "safe_from": ALTMAN_SAFE_FROM},
+        },
+        "subscores": {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS},
+        "weights": dict(CREDIT_COMPOSITE_WEIGHTS),
+        "composite": composite,
+        "letter": letter,
+        "ladder": letter_grade_bands(),
+        "reason": None if composite is not None else {
+            "code": CREDIT_INPUTS_ABSENT, "inputs": ["balanceSheet.total_assets"]},
+        "as_filed": None,
+        "as_filed_differs": False,
+    }
+    filed = _rows_by_name(as_filed_rows)
+    if not filed:
+        return block
+    f_z = _num(filed.get("altman_z_score"))
+    f_c = _num(filed.get("credit_composite"))
+    f_l = None if f_c is None else composite_to_letter_grade(f_c)
+    f_rev = _num(filed.get(CREDIT_MODEL_REVISION_METRIC))
+
+    def _q(v: Optional[float], places: int) -> Optional[str]:
+        return None if v is None else "%.*f" % (places, round(v, places))
+
+    differs = (_q(f_z, 2) != _q(z, 2)) or (_q(f_c, 1) != _q(composite, 1)) or (f_l != letter)
+    block["as_filed_differs"] = bool(differs)
+    if differs:
+        block["as_filed"] = {
+            "composite": f_c,
+            "altman_z": f_z,
+            "letter": f_l,
+            "credit_model_revision": int(f_rev) if f_rev is not None else "unknown",
+        }
+    return block

@@ -4755,47 +4755,36 @@ def _attach_insights_block(
         logger.exception("[insights] block build failed (non-fatal, key stays absent)")
 
 
-def _rebuild_assembled(
-    line_items: List[Dict[str, Any]],
-    period: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Reconstruct the `assembled.statements`-shaped dict the valuation
-    engine expects, given the persisted statement_line_items for a period.
-    Mirrors the bucket map used in /api/period/:id."""
-    bs_buckets = {
-        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
-        "otherCurrentAssets": "otherCurrentAssets",
-        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
-        "otherNonCurrentAssets": "otherNonCurrentAssets",
-        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
-        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
-        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
-    }
-    pl_buckets = {
-        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
-        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
-        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
-        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
-    }
-    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
-    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
-    # 711 production-variation lines persist under bucket `otherIncome`
-    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
-    # the net-income reconstruction below doesn't inflate equity by it.
-    # The returned `otherIncome` bucket keeps including 711 (unchanged
-    # legacy behavior for the valuation consumers of this shape).
-    inv_var_711 = 0.0
-    for item in line_items:
-        bucket = item["bucket"]
-        amount = float(item["amount"] or 0)
-        code = (item.get("ro_account_code") or "").strip()
-        if bucket in bs_buckets:
-            bs[bs_buckets[bucket]] += amount
-        elif bucket in pl_buckets:
-            if bucket == "otherIncome" and code.startswith("711"):
-                inv_var_711 += amount
-            pl[pl_buckets[bucket]] += amount
+def _complete_bucket_equity(
+    bs: Dict[str, float],
+    pl: Dict[str, float],
+    period: Optional[Dict[str, Any]],
+    *,
+    inv_var_711: float = 0.0,
+) -> None:
+    """Complete the bucket-summed equity of a rebuild from line items, in
+    place, on `bs["retainedEarnings"]`. THE ONE COMPLETION: every seam
+    that rebuilds `balanceSheet` from `statement_line_items` calls this —
+    `_rebuild_assembled` (valuation routes) and `get_period`
+    (GET /api/period/{id}, and through it the comparatives route).
 
+    `pl` is the P&L bucket dict of the same rebuild; `inv_var_711` is the
+    account-711 production variation still INCLUDED in `pl["otherIncome"]`
+    (0.0 when the caller already carved it out), subtracted from the
+    legacy net-income fallback only.
+
+    2026-09-14 (ratios B4, step 0): `get_period` summed the line items into
+    `statements.balanceSheet` WITHOUT this completion, so the served
+    `retainedEarnings` / bucket equity were short by exactly
+    `assembled_pl.net_income_statutory` (agras 7,533,676.02; carniprod
+    1,435,533.59; realestate -801,604.14; retail 3,205,212.62) beside a
+    served `canonical_bs` that carried the complete equity. Any reader of
+    the legacy view (the credit model's X2/X4, the equity sub-score, the
+    workbook's Retained earnings row) read a second equity. Now both
+    rebuilds share this code object;
+    `tests/engine/test_served_equity_completion.py` holds the served
+    bucket equity to the served canonical equity to the cent.
+    """
     # Equity completion (audit, persistence section): statement_line_items
     # never persist the current-year result — assemble_statements adds it
     # to retainedEarnings in-memory at write time only — so a rebuild from
@@ -4845,6 +4834,51 @@ def _rebuild_assembled(
             - pl["taxExpense"]
         )
         bs["retainedEarnings"] += round(_ni, 2)
+
+
+
+def _rebuild_assembled(
+    line_items: List[Dict[str, Any]],
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Reconstruct the `assembled.statements`-shaped dict the valuation
+    engine expects, given the persisted statement_line_items for a period.
+    Mirrors the bucket map used in /api/period/:id."""
+    bs_buckets = {
+        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
+        "otherCurrentAssets": "otherCurrentAssets",
+        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
+        "otherNonCurrentAssets": "otherNonCurrentAssets",
+        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
+        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
+        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
+    }
+    pl_buckets = {
+        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
+        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
+        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
+        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
+    }
+    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
+    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
+    # 711 production-variation lines persist under bucket `otherIncome`
+    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
+    # the net-income reconstruction below doesn't inflate equity by it.
+    # The returned `otherIncome` bucket keeps including 711 (unchanged
+    # legacy behavior for the valuation consumers of this shape).
+    inv_var_711 = 0.0
+    for item in line_items:
+        bucket = item["bucket"]
+        amount = float(item["amount"] or 0)
+        code = (item.get("ro_account_code") or "").strip()
+        if bucket in bs_buckets:
+            bs[bs_buckets[bucket]] += amount
+        elif bucket in pl_buckets:
+            if bucket == "otherIncome" and code.startswith("711"):
+                inv_var_711 += amount
+            pl[pl_buckets[bucket]] += amount
+
+    _complete_bucket_equity(bs, pl, period, inv_var_711=inv_var_711)
 
     return {"balanceSheet": bs, "incomeStatement": pl}
 
@@ -7049,6 +7083,14 @@ def build_router() -> APIRouter:
                 else:
                     pl[pl_buckets[bucket]] += amount
 
+        # Equity completion — the SAME code object `_rebuild_assembled`
+        # runs (see `_complete_bucket_equity`). Applied to the cent-rounded
+        # buckets so the served bucket equity equals the served
+        # `canonical_bs` equity to the cent, not merely to the float.
+        # `pl["otherIncome"]` already excludes 711 here, hence 0.0.
+        bs = {k: round(v, 2) for k, v in bs.items()}
+        _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
+
         statements = {
             "companyName": (org or {}).get("name") if org else None,
             "industry": (org or {}).get("industry_display_name") if org else None,
@@ -7330,15 +7372,11 @@ def build_router() -> APIRouter:
                 # The rungs the letter above was read off — the same
                 # `CREDIT_LETTER_LADDER`, served, never a second copy.
                 "letter_grade_bands": _credit_model.letter_grade_bands(),
-                "composite_weights": {
-                    "altman":        0.30,
-                    "profitability": 0.20,
-                    "leverage":      0.15,
-                    "coverage":      0.10,
-                    "dscr":          0.10,
-                    "liquidity":     0.10,
-                    "equity":        0.05,
-                },
+                # The one weights table the composite multiplies by.
+                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
+                # Until the serve-time model below replaces this block,
+                # these are the PERSISTED rows, and say so.
+                "basis": "as_filed",
                 "subscores": {
                     "altman":        _m("credit_subscore_altman"),
                     "profitability": _m("credit_subscore_profitability"),
@@ -7388,6 +7426,78 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
 
+        # ── The served ratio table + the serve-time credit model ─────────
+        # (ratios B4). `build_ratio_table(..., serve_time_metrics=True)`
+        # runs the credit model on these statements. The credit envelope
+        # AND the credit-family rows of `metrics` are then served from that
+        # one serve-time result: every FE credit reader (dashboard hero and
+        # Risks tab via computeCreditScore, /report CreditScoreCard, the
+        # workbook) takes composite, Altman and sub-scores from the metrics
+        # rows first and the letter from the envelope, so switching only the
+        # envelope printed a persisted composite beside a letter banded from
+        # a different one. The persisted rows move, verbatim, to
+        # `credit_metrics_as_filed` — the as-filed evidence, disclosed in
+        # `credit.as_filed` only where it differs (a reanalyze never
+        # recomputes them). When the serve-time model cannot run on these
+        # statements (a source that declares its absences) nothing is
+        # switched: the persisted block stays, labelled `basis: as_filed`,
+        # beside its own rows. Switched ON by measurement: on the four
+        # corpus books and the Scandia FY2025 baseline, once the served
+        # balance sheet carries complete equity, no Altman zone and no
+        # letter moves against the persisted rows (Scandia baseline
+        # composite 71.7 as filed -> 71.9 served: the account-121 anchor
+        # the capture predates; letter A both). Non-fatal: a failure keeps
+        # the as-filed block above, labelled `basis: as_filed`.
+        _persisted_env = period.get("assembled_canonical_v1")
+        _persisted_pack_provenance = (
+            _persisted_env.get("pack_provenance")
+            if isinstance(_persisted_env, dict) and isinstance(_persisted_env.get("pack_provenance"), dict)
+            else None
+        )
+        ratio_table_block = None
+        served_metric_rows = list(metrics or [])
+        credit_metrics_as_filed = None
+        _serve_rows = None
+        try:
+            from engine.ratios.table import build_ratio_table as _build_ratio_table
+            from engine.ratios.table import serve_time_metric_rows as _serve_time_metric_rows
+
+            _serve_rows = _serve_time_metric_rows(statements)
+
+            ratio_table_block = _build_ratio_table({
+                "statements": statements,
+                "metrics": metrics or [],
+                "industry_signal": industry_signal_block,
+                "period": {"id": period.get("id"),
+                           "methodology_version": period.get("methodology_version")},
+                "pack_provenance": _persisted_pack_provenance,
+            }, serve_time_metrics=True)
+        except Exception:  # noqa: BLE001
+            logger.exception("[/api/period] ratio table failed for period %s (non-fatal)", period.get("id"))
+        assembled_metrics_envelope["ratio_table"] = ratio_table_block
+        if (isinstance(ratio_table_block, dict) and isinstance(ratio_table_block.get("credit"), dict)
+                and _serve_rows is not None):
+            served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
+                metrics or [], _serve_rows)
+            _cb = ratio_table_block["credit"]
+            _alt = _cb.get("altman") or {}
+            assembled_metrics_envelope["credit"] = {
+                "altman_z_score": _alt.get("z"),
+                "altman_variant": "Z\"",
+                "altman_components": {x: _alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+                "altman_zone": _alt.get("zone"),
+                "composite_score": _cb.get("composite"),
+                "letter_grade": _cb.get("letter"),
+                "letter_grade_bands": _cb.get("ladder"),
+                "composite_weights": _cb.get("weights"),
+                "subscores": _cb.get("subscores"),
+                "credit_model_revision": _cb.get("revision"),
+                "basis": "serve",
+                "reason": _cb.get("reason"),
+                "as_filed": _cb.get("as_filed"),
+                "as_filed_differs": _cb.get("as_filed_differs"),
+            }
+
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
@@ -7406,6 +7516,10 @@ def build_router() -> APIRouter:
                 "period_end": period["period_end"],
                 "currency": period["currency"],
                 "extraction_confidence": period.get("extraction_confidence"),
+                # The stamp `assembled_metrics.ratio_table` carries; served
+                # here so a table rebuilt from this body (the comparatives
+                # block) stamps the same period the same way.
+                "methodology_version": period.get("methodology_version"),
                 "source_document": doc and {
                     "id": doc["id"],
                     "filename": doc["original_filename"],
@@ -7428,6 +7542,9 @@ def build_router() -> APIRouter:
             # `block_sector_content` is the one authority the report reads
             # before rendering anything calibrated by sector.
             "industry_signal": industry_signal_block,
+            # The PERSISTED envelope's pack provenance (never the serve-time
+            # re-assembly's): what the ratio table stamps, per period.
+            "pack_provenance": _persisted_pack_provenance,
             "statements": statements,
             # Per-account line items — drives the reference-format P&L
             # renderer (account codes + per-line drill-down). Each entry
@@ -7445,6 +7562,8 @@ def build_router() -> APIRouter:
                 }
                 for li in (line_items or [])
             ],
+            # Credit-family rows are the serve-time model's whenever
+            # `assembled_metrics.credit.basis` is "serve" (see above).
             "metrics": [
                 {
                     "name": m["name"],
@@ -7452,7 +7571,18 @@ def build_router() -> APIRouter:
                     "unit": m["unit"],
                     "direction": m.get("direction"),
                 }
-                for m in metrics
+                for m in served_metric_rows
+            ],
+            # The persisted credit-family rows those replaced, verbatim
+            # (null when nothing was replaced): the as-filed evidence.
+            "credit_metrics_as_filed": None if credit_metrics_as_filed is None else [
+                {
+                    "name": m["name"],
+                    "value": m["value"],
+                    "unit": m["unit"],
+                    "direction": m.get("direction"),
+                }
+                for m in credit_metrics_as_filed
             ],
             "briefing": briefing and {
                 "body": briefing["body"],

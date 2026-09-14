@@ -552,7 +552,14 @@ _GENERAL_SME_BAND_DEFINITIONS: Dict[str, Dict[str, object]] = {
     # Efficiency (days)
     "dso":            {"strong": 30,   "healthy": 45,   "watch": 75,   "direction": "lower"},
     "dio":            {"strong": 30,   "healthy": 60,   "watch": 100,  "direction": "lower"},
-    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher"},
+    # DPO carries a declared FLOOR: a value below the watch rung grades
+    # `watch`, never `critical` (owner ruling 2026-09-14, ratios B4 step 1).
+    # CLAUDE.md Appendix A section 5 gives DPO a benchmark range and names
+    # no failure threshold, so no rung here may call a short payables cycle
+    # a distress reading. The watch rung value stays: forecast band
+    # traversal walks to it. Read by `engine.ratios.table` (`floor`), and
+    # ignored by every reader that picks strong/healthy/watch by name.
+    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher", "floor": "watch"},
     "ccc":            {"strong": 30,   "healthy": 60,   "watch": 90,   "direction": "lower"},
     "asset_turnover": {"strong": 1.5,  "healthy": 1.0,  "watch": 0.5,  "direction": "higher"},
     "inventory_turnover": {"strong": 12, "healthy": 6,  "watch": 3,    "direction": "higher"},
@@ -566,6 +573,7 @@ def _piotroski_checks(
     cash_from_operating: float,
     prior: Optional[Dict[str, float]],
     currency: str,
+    current: Optional[Dict[str, float]] = None,
 ) -> Dict[str, object]:
     """F1.g — emit the Piotroski 9-check bundle.
 
@@ -578,9 +586,18 @@ def _piotroski_checks(
     The `prior` dict, when provided, should carry the prior-period
     equivalents: {net_income_statutory, total_assets, revenue,
     long_term_debt, share_capital, operating_ebit, asset_turnover}.
-    Plumbing prior-period lookup is a separate follow-up; today every
-    call site passes `None` so the FE renders the honest "5 checks
-    pending prior-period" state.
+    The assembler passes `None` (it never holds a prior), so the served
+    `assembled_piotroski` stays at the honest cap of 4.
+
+    2026-09-14 (ratios B4): the comparatives composer
+    (`engine.comparatives.ratio_compare`) HOLDS the prior and passes it,
+    with `current` carrying this period's
+    {revenue, long_term_debt, share_capital, operating_ebit}. Checks 5-9
+    then evaluate: ROA (net income / total assets) higher than the
+    prior's; long-term debt lower; share capital not higher; operating
+    margin (operating EBIT / revenue) higher; asset turnover (revenue /
+    total assets) higher. A check whose operand is absent on either side,
+    or whose base is not positive, is `uncertain`, never a pass or a fail.
     """
     checks: List[Dict[str, object]] = []
     has_prior = prior is not None
@@ -637,12 +654,59 @@ def _piotroski_checks(
     }
     yoy_pass_count = 0
     if has_prior:
-        # When prior data plumbing lands, replace this branch with the
-        # actual comparisons (current vs prior on each metric). The
-        # spec already specifies inputs and pass conditions in §9.
-        for key in prior_required_keys:
-            _add(key, prior_labels[key], "uncertain",
-                 "Prior-period plumbing scheduled; check disabled.")
+        cur = current or {}
+        pri = prior or {}
+
+        def _n(bag: Dict[str, float], key: str) -> Optional[float]:
+            v = bag.get(key)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return None
+            return float(v)
+
+        def _ratio(num: Optional[float], den: Optional[float]) -> Optional[float]:
+            if num is None or den is None or den <= 0:
+                return None
+            return num / den
+
+        def _yoy(key: str, now: Optional[float], then: Optional[float],
+                 passes: bool, detail: str) -> None:
+            nonlocal yoy_pass_count
+            if now is None or then is None:
+                _add(key, prior_labels[key], "uncertain",
+                     "An operand is not reported for one of the two periods.")
+                return
+            if passes:
+                yoy_pass_count += 1
+            _add(key, prior_labels[key], "pass" if passes else "fail", detail)
+
+        roa_now = _ratio(net_income_statutory, total_assets)
+        roa_then = _ratio(_n(pri, "net_income_statutory"), _n(pri, "total_assets"))
+        _yoy("roa_improving", roa_now, roa_then,
+             roa_now is not None and roa_then is not None and roa_now > roa_then,
+             "" if roa_now is None or roa_then is None
+             else f"{roa_then * 100:.2f}% -> {roa_now * 100:.2f}%")
+        ltd_now, ltd_then = _n(cur, "long_term_debt"), _n(pri, "long_term_debt")
+        _yoy("debt_declining", ltd_now, ltd_then,
+             ltd_now is not None and ltd_then is not None and ltd_now < ltd_then,
+             "" if ltd_now is None or ltd_then is None
+             else f"{ltd_then:,.0f} -> {ltd_now:,.0f} {currency}")
+        sc_now, sc_then = _n(cur, "share_capital"), _n(pri, "share_capital")
+        _yoy("no_share_issuance", sc_now, sc_then,
+             sc_now is not None and sc_then is not None and sc_now <= sc_then,
+             "" if sc_now is None or sc_then is None
+             else f"{sc_then:,.0f} -> {sc_now:,.0f} {currency}")
+        om_now = _ratio(_n(cur, "operating_ebit"), _n(cur, "revenue"))
+        om_then = _ratio(_n(pri, "operating_ebit"), _n(pri, "revenue"))
+        _yoy("margin_improving", om_now, om_then,
+             om_now is not None and om_then is not None and om_now > om_then,
+             "" if om_now is None or om_then is None
+             else f"{om_then * 100:.2f}% -> {om_now * 100:.2f}%")
+        at_now = _ratio(_n(cur, "revenue"), total_assets)
+        at_then = _ratio(_n(pri, "revenue"), _n(pri, "total_assets"))
+        _yoy("asset_turnover_improving", at_now, at_then,
+             at_now is not None and at_then is not None and at_now > at_then,
+             "" if at_now is None or at_then is None
+             else f"{at_then:.3f}x -> {at_now:.3f}x")
     else:
         for key in prior_required_keys:
             _add(key, prior_labels[key], "uncertain",

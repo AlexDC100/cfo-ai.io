@@ -279,6 +279,12 @@ _MONEY_FACTS = frozenset([
     # covenant limit (packs/firm/attention.yaml COVENANT_RISK). Listed so
     # the evidence resolves to money at render rather than to a refusal.
     "covenant_limit",
+    # ── Band-crossing findings (2026-09-14) ────────────────────────────
+    # findings/c_bands.py states a crossing's impact as HEADROOM MONEY:
+    # the ratio's numerator at the rung crossed against the numerator as
+    # held, on the denominator the ratio divides. Both endpoints are cited
+    # facts, and a money fact must be declared or it never templatizes.
+    "band_numerator_at_rung", "band_numerator_held",
 ])
 
 _RATIO_FACTS = frozenset([

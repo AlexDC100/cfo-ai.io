@@ -100,14 +100,20 @@ export interface RatioReason {
 }
 
 /** Rungs in the value's DISPLAY unit (pct rows are percent, not fractions),
- *  quantized strings. `critical` is optional: a ladder without it floors at
- *  watch. */
+ *  quantized strings: the entry rung of each band the pack definition
+ *  declares, best first. No served ladder carries a `critical` rung. A value
+ *  that reaches no rung takes the side's `ladder_floor` — `critical` for
+ *  most keys (dso, dio, ...), `watch` where the pack declares that floor
+ *  (dpo: below watch 30 stays watch). The Altman ladder serves only
+ *  `healthy` (safe from) and `watch` (grey from). */
 export interface RatioLadder {
-  strong: string;
-  healthy: string;
-  watch: string;
-  critical?: string;
+  strong?: string;
+  healthy?: string;
+  watch?: string;
 }
+
+/** The band a value past the last served rung takes. */
+export type RatioLadderFloor = "watch" | "critical";
 
 export interface RatioSide {
   /** Full precision. Never printed; carried for charts and audits. */
@@ -117,6 +123,9 @@ export interface RatioSide {
   band: RatioBand | CreditLetter | null;
   band_status: RatioBandStatus;
   ladder: RatioLadder | null;
+  /** Served beside every band ladder; null on a letter ladder (its last
+   *  rung, min 0, is its own floor) and wherever no ladder is served. */
+  ladder_floor: RatioLadderFloor | null;
   operands: RatioOperand[];
   reason: RatioReason | null;
 }
@@ -281,9 +290,14 @@ export interface RatioBandMovements {
   improved: string[];
   deteriorated: string[];
   unchanged: { key: string; band: RatioBand | CreditLetter | null }[];
+  /** Valued on both sides and not comparable. With improved, deteriorated
+   *  and unchanged it partitions `coverage.both_sides`. */
   not_comparable: { key: string; reason_code: string }[];
-  /** Finding.to_payload() rows, or check rows when demoted, in rank order.
-   *  Typed loosely here: the findings contract owns that shape. */
+  /** Movable entries refused on either side (never dropped). */
+  refused: { key: string; reason_code: string }[];
+  /** ONE row per crossing (improved + deteriorated), in rank order:
+   *  Finding.to_payload() when surfaced, the check row it demotes to
+   *  otherwise. Typed loosely here: the findings contract owns that shape. */
   findings: Record<string, unknown>[];
 }
 
@@ -296,7 +310,12 @@ export interface RatioComparisonStamps {
 
 export interface RatioComparisonCoverage {
   census_count: number;
+  /** The composites the movement partition covers beside the census. */
+  movable_composites: string[];
+  /** Census rows plus `movable_composites`, valued on both sides. */
   both_sides: number;
+  /** Census rows alone, valued on both sides. */
+  both_sides_census: number;
   prior_refused: Record<string, string>;
   current_refused: Record<string, string>;
 }
@@ -322,9 +341,9 @@ export interface RatioComparisonV1 {
 // src/engine/ratios/table.py, same order, and ratioTableFormat.test.ts G5
 // parses that tuple and reds when the copy drifts or a code has no EN or
 // RO sentence. The two-period composer (src/engine/comparatives/
-// ratio_compare.py, batch B4) will declare the delta and movement codes;
-// until it does, those codes render through the `unlisted` sentence that
-// NAMES the code, and G5 goes live on that file the moment it exists.
+// ratio_compare.py, batch B4) declares the delta, movement and composite
+// codes; `RATIO_COMPARE_REASON_CODES` mirrors them and G5 reds when that
+// file declares a code this reader has no sentence for.
 //
 // `RATIO_READER_REASONS` are this reader's own sentences, never served:
 // `period_absent` (no side at all), `unstated` (a null where the contract
@@ -349,6 +368,26 @@ export const RATIO_REASON_CODES = [
 
 export type RatioReasonCode = (typeof RATIO_REASON_CODES)[number];
 
+/** MIRROR of the two-period composer's declared codes
+ *  (src/engine/comparatives/ratio_compare.py DELTA_REASON_CODES,
+ *  MOVEMENT_REASON_CODES, COMPOSITE_REASON_CODES), de-duplicated in first
+ *  appearance order. A delta without a value or a direction, a movement
+ *  that is not comparable, a composite that is not scored, and the
+ *  Piotroski cap each carry one. ratioTableFormat.test.ts G5 reds when the
+ *  composer declares a code with no sentence here. */
+export const RATIO_COMPARE_REASON_CODES = [
+  "current_refused",
+  "prior_refused",
+  "both_refused",
+  "direction_withheld",
+  "ladder_differs",
+  "graded_by_letter",
+  "credit_inputs_absent",
+  "piotroski_prior_capped",
+] as const;
+
+export type RatioCompareReasonCode = (typeof RATIO_COMPARE_REASON_CODES)[number];
+
 /** The codes whose sentence names the served `reason.inputs`. */
 export const RATIO_REASON_CODES_WITH_INPUTS: ReadonlySet<string> = new Set([
   "operand_absent",
@@ -366,7 +405,7 @@ export const RATIO_READER_REASONS = [
   "unrecognised",
 ] as const;
 
-const REASON_SET: ReadonlySet<string> = new Set(RATIO_REASON_CODES);
+const REASON_SET: ReadonlySet<string> = new Set([...RATIO_REASON_CODES, ...RATIO_COMPARE_REASON_CODES]);
 
 export function reasonKey(reasonCode: string | null | undefined): string {
   if (reasonCode === null || reasonCode === undefined || reasonCode === "") {
@@ -759,6 +798,7 @@ export function formatRatioMovement(
 export function ratioCmpKeyCensus(): string[] {
   const keys = new Set<string>([
     "statements.ratioCmp.pctNoBase",
+    "statements.ratioCmp.rankBasis",
     "statements.ratioCmp.listAnd",
     "statements.ratioCmp.listComma",
     "statements.ratioCmp.listPlus",
@@ -775,7 +815,7 @@ export function ratioCmpKeyCensus(): string[] {
       keys.add(`statements.ratioCmp.unit.${u}Many`);
     }
   }
-  for (const c of [...RATIO_REASON_CODES, ...RATIO_READER_REASONS]) {
+  for (const c of [...RATIO_REASON_CODES, ...RATIO_COMPARE_REASON_CODES, ...RATIO_READER_REASONS]) {
     keys.add(`statements.ratioCmp.reason.${c}`);
   }
   for (const id of Object.values(RATIO_OPERAND_WORD)) keys.add(`statements.ratioCmp.operand.${id}`);
