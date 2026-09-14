@@ -331,9 +331,11 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
   // COMPARATIVES — the prior period's own grand totals, when a prior
   // canonical object was supplied. Otherwise bs_v2 totals are
   // closing-only: no opening total, therefore no Δ.
-  const priorTotals = args.priorCanonicalBs?.totals ?? null;
-  const priorNum = (k: string): number | undefined => {
-    const v = priorTotals?.[k];
+  // Served through the engine's serving gateway (prior_canonical_bs.facts),
+  // never the prior snapshot's raw totals.
+  const priorFacts = args.priorCanonicalBs?.facts ?? null;
+  const priorNum = (k: "assets" | "equity_plus_liabilities"): number | undefined => {
+    const v = priorFacts?.[k];
     return typeof v === "number" && Number.isFinite(v) ? v : undefined;
   };
   const priorTotalAssets = priorNum("assets");

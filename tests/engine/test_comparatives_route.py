@@ -163,7 +163,8 @@ def test_prior_canonical_rows_are_keyed_by_id_when_present():
                  {"id": "trade_receivables", "section": "current_assets", "label": "AR",
                   "amount": 100.0, "account_codes": ["411"], "opening": None}],
         "sections": [{"id": "current_assets", "subtotal": 112.5}],
-        "totals": {"assets": 112.5},
+        "totals": {"assets": 112.5, "equity_plus_liabilities": 112.5},
+        "difference": 0.0,
         "status": "BALANCED",
     }
     out = C.compare_payloads(_payload(ANALYTIC, "p-cur", "2025-12-31"),
@@ -174,7 +175,9 @@ def test_prior_canonical_rows_are_keyed_by_id_when_present():
     assert pcb["rows"]["cash"]["amount"] == 12.5
     assert pcb["rows"]["trade_receivables"]["section"] == "current_assets"
     assert pcb["sections"]["current_assets"] == 112.5
-    assert pcb["totals"]["assets"] == 112.5
+    # Totals come through the serving gateway, never the raw snapshot.
+    assert "totals" not in pcb
+    assert pcb["facts"] == {"assets": 112.5, "equity_plus_liabilities": 112.5}
 
 
 def test_a_payload_without_statements_is_refused_not_compared():

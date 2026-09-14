@@ -26,7 +26,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Mapping, Optional
 
 from engine.comparatives import build_comparative_columns
-from engine.comparatives.analysis import bs_bridge, common_size, movers, pl_bridge
+from engine.comparatives.analysis import bs_bridge, canonical_totals, common_size, movers, pl_bridge
 # The synthetic/analytic boundary is a chart-of-accounts fact and lives in
 # the pack. Today every served period is a Romanian book; when a second
 # pack lands it exposes its own detector and this import becomes a
@@ -128,7 +128,8 @@ def _canonical_bs_rows(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     return {
         "rows": rows,
         "sections": sections,
-        "totals": dict(cbs.get("totals") or {}),
+        # Through the serving gateway, never the raw snapshot totals.
+        "facts": canonical_totals(cbs, (payload.get("statements") or {}).get("currency")),
         "status": cbs.get("status"),
     }
 

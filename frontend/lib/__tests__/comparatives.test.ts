@@ -209,7 +209,7 @@ describe("bsOpeningFill", () => {
       prior_canonical_bs: {
         rows: { cash: { amount: 1.5, section: "current_assets", label: "Cash" }, x: { amount: null, section: null, label: null } },
         sections: { current_assets: 1.5 },
-        totals: { assets: 1.5, equity_plus_liabilities: 1.5 },
+        facts: { assets: 1.5, equity_plus_liabilities: 1.5 },
         status: "BALANCED",
       },
     } as unknown as ComparativesResponse;

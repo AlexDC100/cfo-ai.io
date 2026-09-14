@@ -141,7 +141,8 @@ export interface MoversDto {
 export interface PriorCanonicalBsDto {
   rows: Record<string, { amount: number | null; section: string | null; label: string | null }>;
   sections: Record<string, number | null>;
-  totals: Record<string, number>;
+  /** Totals as the engine's serving gateway serves them (never raw canonical_bs totals). */
+  facts: { assets?: number; equity_plus_liabilities?: number };
   status: string | null;
 }
 
@@ -371,8 +372,8 @@ export function bsOpeningFill(doc: ComparativesResponse): BsOpeningFill | null {
   return {
     rows,
     sections,
-    totalAssets: num(pcb.totals.assets),
-    totalEquityLiab: num(pcb.totals.equity_plus_liabilities),
+    totalAssets: num(pcb.facts.assets),
+    totalEquityLiab: num(pcb.facts.equity_plus_liabilities),
     priorLabel: doc.prior.label,
   };
 }

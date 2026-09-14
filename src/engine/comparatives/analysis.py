@@ -428,11 +428,28 @@ def _canonical_rows(envelope):
         if isinstance(amt, bool) or not isinstance(amt, (int, float)):
             continue
         rows[str(row["id"])] = (float(amt), str(row.get("section") or ""), str(row.get("label") or row["id"]))
-    totals = {}  # type: Dict[str, float]
-    for k, v in (cbs.get("totals") or {}).items():
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
-            totals[str(k)] = float(v)
-    return rows, totals
+    return rows, canonical_totals(cbs, node.get("currency"))
+
+
+def canonical_totals(cbs, currency):
+    # type: (Mapping[str, Any], Any) -> Dict[str, float]
+    """The two balance-sheet totals the bridges close against, read through
+    the serving gateway (the one sanctioned reader of canonical_bs facts,
+    docs/CANONICAL_BS_V2_CONTRACT.md) — never off the raw snapshot. A total
+    the gateway cannot serve is omitted, so the bridge refuses by name."""
+    from engine.serving.facts import FactsGateway, MissingFactError
+
+    gateway = FactsGateway.from_envelope({"canonical_bs": dict(cbs)}, currency=currency)
+    out = {}  # type: Dict[str, float]
+    if gateway is None or gateway.tier != FactsGateway.TIER_CANONICAL:
+        return out
+    for key, accessor in (("assets", gateway.total_assets),
+                          ("equity_plus_liabilities", gateway.equity_plus_liabilities)):
+        try:
+            out[key] = accessor().to_float()
+        except MissingFactError:
+            continue
+    return out
 
 
 def _row_walk(side_label, cur_rows, pri_rows, cur_total, pri_total, on_side):
