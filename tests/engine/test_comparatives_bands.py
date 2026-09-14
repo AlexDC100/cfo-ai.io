@@ -67,6 +67,11 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       demotion on altman_z / letter_grade / ccc, held for the owner).
   DETERMINISM  two compositions over the same bodies serialising to
       different bytes.
+  CAVEAT  (ruling Q4) on all 20 pairs: any finding's confidence caveat or
+      body saying "no prior period was supplied" (a prior WAS supplied);
+      a finding whose profile carries the approximated-cash-flow caveat not
+      naming what is approximated (`c_bands.TWO_PERIOD_CAVEATS`); the pack's
+      own single-period caveat text changing (the lane edits a copy).
 
 WHAT IT CANNOT SEE: whether a surface renders the findings (B6/B7); the
 CAEN (the comparatives route passes none, so the profile is inferred from
@@ -505,3 +510,24 @@ def test_band_findings_are_deterministic_json():
                  "agras", "carniprod")
     ja = json.dumps(a["band_movements"], sort_keys=True, allow_nan=False)
     assert ja == json.dumps(b["band_movements"], sort_keys=True, allow_nan=False)
+
+
+# ── 6. the two-period caveat names what is approximated (ruling Q4) ───────
+
+
+def test_a_two_period_finding_never_says_no_prior_period_was_supplied():
+    from engine.api import _company_profile as CP
+
+    pack_text = CP.load_catalog().caveat_text(CP.CAVEAT_APPROX_CF)
+    assert "no prior" in pack_text, "the single-period pack caveat changed: %r" % pack_text
+    two_period = CB.TWO_PERIOD_CAVEATS[CP.CAVEAT_APPROX_CF]
+    carried = 0
+    for cur_name, pri_name in PAIRS:
+        out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+        for f in out["band_movements"]["findings"]:
+            where = "%s|%s %s" % (cur_name, pri_name, f["ratio_key"])
+            caveat = f["contract_elements"]["confidence"]["caveat"] or ""
+            assert "no prior period" not in caveat and "no prior period" not in (f.get("body") or ""), (where, caveat)
+            if two_period.rstrip(".") in caveat:
+                carried += 1
+    assert carried >= 20, "non-vacuity: only %d findings carry the approximated cash-flow caveat" % carried

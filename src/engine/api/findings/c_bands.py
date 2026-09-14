@@ -187,6 +187,19 @@ RESTATEMENT_CAVEAT = (
     "revision (restated comparatives), a convention rather than the bands "
     "in force when the earlier period was filed.")
 
+#: Caveat copy this lane states in place of the pack's single-period text.
+#: The pack's `approximated_cash_flow` caveat says the cash-flow lines are
+#: approximated "because no prior period was supplied" — true of a
+#: single-period finding, false inside a finding that compares two loaded
+#: periods. What IS approximated is each period's cash-flow lines, built at
+#: persist time from that one period's balances (ruling Q4, 2026-09-15).
+TWO_PERIOD_CAVEATS: Dict[str, str] = {
+    CP.CAVEAT_APPROX_CF: (
+        "Cash-flow lines are indirect-method approximations built from a "
+        "single period's balances; working-capital movements carry a wide "
+        "band."),
+}
+
 #: The two composites are not graded on the pack's band table: the Altman
 #: zones and the letter ladder are the serve-time credit model's constants.
 #: key -> (source prefix, rung name -> constant name or None for the ladder
@@ -226,8 +239,9 @@ def subject_coverage(keys: Sequence[str]) -> Dict[str, Any]:
 
 
 def lane_catalog(base: "CP.ProfileCatalog", rows: Sequence[Mapping[str, Any]]) -> "CP.ProfileCatalog":
-    """A COPY of `base` with one detector spec per crossed row's rule id.
-    The pack file and the cached catalogue are left untouched."""
+    """A COPY of `base` with one detector spec per crossed row's rule id and
+    the two-period caveat copy (`TWO_PERIOD_CAVEATS`). The pack file and the
+    cached catalogue are left untouched."""
     cat = copy.copy(base)
     detectors = dict(base.detectors)
     for row in rows:
@@ -238,6 +252,9 @@ def lane_catalog(base: "CP.ProfileCatalog", rows: Sequence[Mapping[str, Any]]) -
             units={}, labels={}, default={}, by_profile={},
             why_here_default=why, why_here_by_profile={})
     cat.detectors = detectors
+    caveats = dict(base.confidence_caveats)
+    caveats.update(TWO_PERIOD_CAVEATS)
+    cat.confidence_caveats = caveats
     return cat
 
 
@@ -525,6 +542,7 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
 
 __all__ = [
     "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
+    "TWO_PERIOD_CAVEATS",
     "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
     "lane_catalog", "rule_id_for",
     "subject_coverage",
