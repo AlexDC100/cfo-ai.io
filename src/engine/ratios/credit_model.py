@@ -696,6 +696,44 @@ def serve_credit_rows(
     return served, as_filed
 
 
+def _refused_subscores(subscores: Dict[str, Optional[float]]) -> Dict[str, Dict[str, Any]]:
+    """Every absent sub-score beside a computed composite, with the reason
+    `CREDIT_SUBSCORE_REFUSALS` names for it (`credit_inputs_absent` for a
+    sub-score the model has no refusal rule for)."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for key, value in subscores.items():
+        if value is None:
+            refusal = CREDIT_SUBSCORE_REFUSALS.get(key) or {
+                "code": CREDIT_INPUTS_ABSENT, "inputs": ["credit_model.%s" % key]}
+            out[key] = {"code": refusal["code"], "inputs": list(refusal["inputs"])}
+    return out
+
+
+def as_filed_applied_weights(
+    rows: Optional[List[Dict[str, Any]]],
+) -> Tuple[Dict[str, float], Dict[str, Dict[str, Any]]]:
+    """The weights a PERSISTED composite was multiplied by, and the
+    sub-scores it was scored without — read off the persisted rows, for the
+    `basis: as_filed` credit envelope (served when the serve-time model
+    cannot run).
+
+    Revision 2 or later with a composite: `applied_composite_weights` over
+    the persisted sub-score rows that carry a value, and the absent ones as
+    refused with their model reason — the same two fields `credit_block`
+    serves. A composite persisted before revision 2 (stamp 1 or no stamp)
+    was multiplied by the model table whatever its rows carry, so it serves
+    the model table and no refusal: renormalising it here would state a
+    weighting that composite never had. No composite -> the model table."""
+    m = _rows_by_name(rows)
+    composite = _num(m.get("credit_composite"))
+    revision = _num(m.get(CREDIT_MODEL_REVISION_METRIC))
+    if composite is None or revision is None or revision < 2:
+        return dict(CREDIT_COMPOSITE_WEIGHTS), {}
+    subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
+    return (applied_composite_weights([k for k, v in subscores.items() if v is not None]),
+            _refused_subscores(subscores))
+
+
 def credit_block(
     rows: List[Dict[str, Any]],
     as_filed_rows: Optional[List[Dict[str, Any]]] = None,
@@ -726,13 +764,8 @@ def credit_block(
     composite = _num(m.get("credit_composite"))
     letter = None if composite is None else composite_to_letter_grade(composite)
     subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
-    refused_subscores: Dict[str, Dict[str, Any]] = {}
-    if composite is not None:
-        for key, value in subscores.items():
-            if value is None:
-                refusal = CREDIT_SUBSCORE_REFUSALS.get(key) or {
-                    "code": CREDIT_INPUTS_ABSENT, "inputs": ["credit_model.%s" % key]}
-                refused_subscores[key] = {"code": refusal["code"], "inputs": list(refusal["inputs"])}
+    refused_subscores: Dict[str, Dict[str, Any]] = (
+        _refused_subscores(subscores) if composite is not None else {})
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {

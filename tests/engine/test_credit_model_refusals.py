@@ -214,3 +214,73 @@ def test_a_refused_subscore_row_in_the_two_period_block_states_its_own_reason():
         assert rows[key]["prior"]["value_q"] is not None, key
     assert rows["credit_composite"]["current"]["value_q"] is not None
     assert out["credit"]["current"]["refused_subscores"].keys() == {"altman", "liquidity"}
+
+
+# ── 4. the GET /api/period credit envelope carries the reasons and the model table ──
+#
+# THE DEFECT (R2b critic, 2026-09-15): the serve branch passed renormalised
+# `composite_weights` and null sub-scores WITHOUT `refused_subscores` or
+# `model_weights`, so the one FE credit reader could not say why a row was
+# absent; and the as_filed branch served the model table as
+# `composite_weights` beside a revision-2 persisted composite that had been
+# renormalised — a weight vector that composite never multiplied by.
+#
+# WHAT THIS REDS ON, AFTER THE REPAIR (TC-11): either envelope branch
+# omitting `refused_subscores` / `model_weights`; the serve envelope's
+# reasons differing from the ratio table's; the as_filed envelope over
+# revision-2 zero-liability rows serving any weights but the renormalised
+# ones, or any refused set but {altman, liquidity}; the same envelope over
+# rows stamped revision 1 (or unstamped) serving anything but the model
+# table and no refusal.
+
+
+def test_the_serve_envelope_passes_the_refusals_and_the_model_table_through():
+    _bk, body = _compact()
+    credit = body["assembled_metrics"]["ratio_table"]["credit"]
+    env = body["assembled_metrics"]["credit"]
+    assert env["basis"] == "serve"
+    assert env.get("refused_subscores") == credit["refused_subscores"], env.get("refused_subscores")
+    assert set(env["refused_subscores"]) == {"altman", "liquidity"}
+    assert env.get("model_weights") == CM.CREDIT_COMPOSITE_WEIGHTS
+
+
+def _as_filed_body(monkeypatch, rows):
+    """The route with the serve-time model unable to run, so the persisted
+    rows are what the envelope reads (`basis: as_filed`)."""
+    import engine.ratios.table as T
+
+    def _cannot_run(_statements):
+        raise RuntimeError("planted: the serve-time model cannot run on these statements")
+
+    monkeypatch.setattr(T, "serve_time_metric_rows", _cannot_run)
+    bk, _body = _compact()
+    return SB.routed_body(bk, metrics=rows)
+
+
+def test_the_as_filed_envelope_states_the_weights_a_revision_2_composite_was_multiplied_by(monkeypatch):
+    _bk, body = _compact()
+    rows = CM.compute_period_metrics(copy.deepcopy(body["statements"]))
+    env = _as_filed_body(monkeypatch, rows)["assembled_metrics"]["credit"]
+    assert env["basis"] == "as_filed", env["basis"]
+    computed = [k for k, v in env["subscores"].items() if v is not None]
+    assert env["composite_weights"] == pytest.approx(_expected_weights(computed), abs=1e-15), env["composite_weights"]
+    assert set(env["composite_weights"]) == set(computed)
+    assert {k: v["code"] for k, v in env["refused_subscores"].items()} == {
+        "altman": CM.TOTAL_LIABILITIES_NOT_POSITIVE, "liquidity": CM.CURRENT_LIABILITIES_NOT_POSITIVE}
+    assert env["model_weights"] == CM.CREDIT_COMPOSITE_WEIGHTS
+    recomposed = sum(env["composite_weights"][k] * env["subscores"][k] for k in computed)
+    assert abs(recomposed - env["composite_score"]) <= 0.1, (recomposed, env["composite_score"])
+
+
+@pytest.mark.parametrize("stamp", [1, None])
+def test_a_composite_persisted_before_revision_2_keeps_the_model_table(monkeypatch, stamp):
+    _bk, body = _compact()
+    rows = [r for r in CM.compute_period_metrics(copy.deepcopy(body["statements"]))
+            if r["name"] != CM.CREDIT_MODEL_REVISION_METRIC]
+    if stamp is not None:
+        rows.append({"name": CM.CREDIT_MODEL_REVISION_METRIC, "value": stamp,
+                     "unit": "revision", "direction": "neutral"})
+    env = _as_filed_body(monkeypatch, rows)["assembled_metrics"]["credit"]
+    assert env["basis"] == "as_filed"
+    assert env["composite_weights"] == CM.CREDIT_COMPOSITE_WEIGHTS
+    assert env["refused_subscores"] == {}

@@ -7316,6 +7316,7 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
+        _as_filed_weights, _as_filed_refused = _credit_model.as_filed_applied_weights(metrics or [])
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7386,8 +7387,16 @@ def build_router() -> APIRouter:
                 # The rungs the letter above was read off — the same
                 # `CREDIT_LETTER_LADDER`, served, never a second copy.
                 "letter_grade_bands": _credit_model.letter_grade_bands(),
-                # The one weights table the composite multiplies by.
-                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
+                # The weights the PERSISTED composite was multiplied by —
+                # renormalised over the persisted sub-scores that carry a
+                # value when the rows are revision 2 or later, the model
+                # table otherwise (`as_filed_applied_weights`) — with the
+                # sub-scores it was scored without and the model table
+                # they were renormalised from, the same three fields the
+                # serve branch below passes through.
+                "composite_weights": _as_filed_weights,
+                "refused_subscores": _as_filed_refused,
+                "model_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",
@@ -7504,6 +7513,12 @@ def build_router() -> APIRouter:
                 "letter_grade": _cb.get("letter"),
                 "letter_grade_bands": _cb.get("ladder"),
                 "composite_weights": _cb.get("weights"),
+                # Why each absent sub-score is absent, and the model table
+                # the weights above were renormalised from — without these
+                # the FE could only print a bare "not reported" beside a
+                # refused row, or reach for a model weight it never carried.
+                "refused_subscores": _cb.get("refused_subscores"),
+                "model_weights": _cb.get("model_weights"),
                 "subscores": _cb.get("subscores"),
                 "credit_model_revision": _cb.get("revision"),
                 "basis": "serve",
