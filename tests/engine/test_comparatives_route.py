@@ -183,3 +183,33 @@ def test_a_payload_without_statements_is_refused_not_compared():
                            current_row=_row("p-cur", "2025-12-31"),
                            prior_row=_row("p", "2024-12-31"))
     assert e.value.code == "period_not_servable" and e.value.status == 409
+
+
+# ── the two-period ratio block rides the core (ratios B4) ──────────────
+
+def test_the_core_serves_the_ratio_block_over_two_real_get_period_bodies():
+    """The route calls get_period for both ids and hands both bodies to the
+    core. Two REAL GET /api/period bodies (agras as the current year,
+    retail as the prior; their persisted calculated_metrics are empty, as
+    for any period the double has no rows for) — the served prior still
+    carries its composite, scored from its own served statements.
+
+    Reds AFTER the repair on: `ratios` missing from the core's output, the
+    prior composite or letter missing although the prior's statements
+    score, or the served prior composite differing from
+    compute_period_metrics over the prior's served statements."""
+    import _served_books as SB
+    from engine.ratios.credit_model import compute_period_metrics
+
+    cur, pri = SB.served_body("agras"), SB.served_body("retail")
+    assert cur["metrics"] == [] and pri["metrics"] == []
+    out = C.compare_payloads(cur, pri, current_row=_row("p-cur", "2025-12-31"),
+                             prior_row=_row("p-pri", "2024-12-31"))
+    ratios = out["ratios"]
+    comps = {r["key"]: r for r in ratios["composites"]}
+    want = {r["name"]: r["value"] for r in compute_period_metrics(copy.deepcopy(pri["statements"]))}
+    assert comps["credit_composite"]["prior"]["value"] == want["credit_composite"]
+    assert comps["letter_grade"]["prior"]["value_q"] is not None
+    assert comps["altman_z"]["prior"]["value"] == want["altman_z_score"]
+    assert ratios["stamps"]["prior"]["pack_provenance"] == pri["pack_provenance"]
+    json.dumps(ratios, allow_nan=False)

@@ -111,11 +111,38 @@ def condense(envelope: Dict[str, Any], revenue_factor: float = 0.97) -> Dict[str
     return out
 
 
-def served_payload(env: Dict[str, Any], period_id: str, period_end: str) -> Dict[str, Any]:
-    """The `/api/period/{id}` shape the route core reads."""
-    return {
+#: A served `industry_signal` that blocks sector content — the shape
+#: `engine.industry.build_industry_signal` serves when the account mix
+#: disputes the workspace industry. Planted on ONE side by the sector
+#: withholding gate.
+BLOCKING_INDUSTRY_SIGNAL: Dict[str, Any] = {
+    "agreement": "disputed",
+    "verdict": "the account mix does not read as the workspace industry",
+    "block_sector_content": True,
+}
+
+
+def served_payload(env: Dict[str, Any], period_id: str, period_end: str, *,
+                   metrics: Optional[List[Dict[str, Any]]] = None,
+                   industry_signal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """The `/api/period/{id}` shape the route core reads.
+
+    `metrics` defaults to the rows `stage_compute` persists for this book
+    (`compute_period_metrics` over its statements) — what a period analysed
+    by the pipeline carries. Pass `metrics=[]` for a period with no
+    persisted rows (a prior persisted before the metrics existed)."""
+    from engine.ratios.credit_model import compute_period_metrics
+
+    if metrics is None:
+        metrics = compute_period_metrics(copy.deepcopy(env["statements"]))
+    payload = {
         "statements": env["statements"],
         "line_items": env["lineItems"],
-        "metrics": [],
+        "metrics": metrics,
         "period": {"id": period_id, "period_end": period_end, "currency": "RON"},
+        "industry_signal": industry_signal,
     }
+    cv1 = env["statements"].get("assembled_canonical_v1")
+    if isinstance(cv1, dict) and isinstance(cv1.get("pack_provenance"), dict):
+        payload["pack_provenance"] = cv1["pack_provenance"]
+    return payload

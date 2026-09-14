@@ -7372,15 +7372,11 @@ def build_router() -> APIRouter:
                 # The rungs the letter above was read off — the same
                 # `CREDIT_LETTER_LADDER`, served, never a second copy.
                 "letter_grade_bands": _credit_model.letter_grade_bands(),
-                "composite_weights": {
-                    "altman":        0.30,
-                    "profitability": 0.20,
-                    "leverage":      0.15,
-                    "coverage":      0.10,
-                    "dscr":          0.10,
-                    "liquidity":     0.10,
-                    "equity":        0.05,
-                },
+                # The one weights table the composite multiplies by.
+                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
+                # Until the serve-time model below replaces this block,
+                # these are the PERSISTED rows, and say so.
+                "basis": "as_filed",
                 "subscores": {
                     "altman":        _m("credit_subscore_altman"),
                     "profitability": _m("credit_subscore_profitability"),
@@ -7430,6 +7426,61 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
 
+        # ── The served ratio table + the serve-time credit model ─────────
+        # (ratios B4). ONE computation over what this response serves:
+        # `build_ratio_table(..., serve_time_metrics=True)` runs the credit
+        # model on these statements, so the hero card, the Risks tab, the
+        # table's current column, the report and the workbook read one
+        # composite. The persisted `calculated_metrics` rows become the
+        # as-filed evidence, disclosed only where they differ (a reanalyze
+        # never recomputes them). Switched ON by measurement: on the four
+        # corpus books and the Scandia FY2025 baseline, once the served
+        # balance sheet carries complete equity, no Altman zone and no
+        # letter moves against the persisted rows (Scandia baseline
+        # composite 71.7 as filed -> 71.9 served: the account-121 anchor
+        # the capture predates; letter A both). Non-fatal: a failure keeps
+        # the as-filed block above, labelled `basis: as_filed`.
+        _persisted_env = period.get("assembled_canonical_v1")
+        _persisted_pack_provenance = (
+            _persisted_env.get("pack_provenance")
+            if isinstance(_persisted_env, dict) and isinstance(_persisted_env.get("pack_provenance"), dict)
+            else None
+        )
+        ratio_table_block = None
+        try:
+            from engine.ratios.table import build_ratio_table as _build_ratio_table
+
+            ratio_table_block = _build_ratio_table({
+                "statements": statements,
+                "metrics": metrics or [],
+                "industry_signal": industry_signal_block,
+                "period": {"id": period.get("id"),
+                           "methodology_version": period.get("methodology_version")},
+                "pack_provenance": _persisted_pack_provenance,
+            }, serve_time_metrics=True)
+        except Exception:  # noqa: BLE001
+            logger.exception("[/api/period] ratio table failed for period %s (non-fatal)", period.get("id"))
+        assembled_metrics_envelope["ratio_table"] = ratio_table_block
+        if isinstance(ratio_table_block, dict) and isinstance(ratio_table_block.get("credit"), dict):
+            _cb = ratio_table_block["credit"]
+            _alt = _cb.get("altman") or {}
+            assembled_metrics_envelope["credit"] = {
+                "altman_z_score": _alt.get("z"),
+                "altman_variant": "Z\"",
+                "altman_components": {x: _alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+                "altman_zone": _alt.get("zone"),
+                "composite_score": _cb.get("composite"),
+                "letter_grade": _cb.get("letter"),
+                "letter_grade_bands": _cb.get("ladder"),
+                "composite_weights": _cb.get("weights"),
+                "subscores": _cb.get("subscores"),
+                "credit_model_revision": _cb.get("revision"),
+                "basis": "serve",
+                "reason": _cb.get("reason"),
+                "as_filed": _cb.get("as_filed"),
+                "as_filed_differs": _cb.get("as_filed_differs"),
+            }
+
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
@@ -7470,6 +7521,9 @@ def build_router() -> APIRouter:
             # `block_sector_content` is the one authority the report reads
             # before rendering anything calibrated by sector.
             "industry_signal": industry_signal_block,
+            # The PERSISTED envelope's pack provenance (never the serve-time
+            # re-assembly's): what the ratio table stamps, per period.
+            "pack_provenance": _persisted_pack_provenance,
             "statements": statements,
             # Per-account line items — drives the reference-format P&L
             # renderer (account codes + per-line drill-down). Each entry

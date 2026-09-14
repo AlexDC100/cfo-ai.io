@@ -32,6 +32,10 @@ from engine.comparatives.analysis import bs_bridge, common_size, movers, pl_brid
 # pack lands it exposes its own detector and this import becomes a
 # pack lookup.
 from engine.country_packs.ro_romania.detail_level import classify_detail_level
+# The Piotroski checks are the pack's; the jurisdiction-blind composer takes
+# them as an argument rather than importing a pack.
+from engine.country_packs.ro_romania.chart_of_accounts import _piotroski_checks
+from engine.comparatives.ratio_compare import compare_ratio_tables
 
 __all__ = [
     "ComparativesRefused",
@@ -162,7 +166,16 @@ def compare_payloads(
     cs = common_size(table)
 
     prior_statements = prior_payload.get("statements") or {}
+    # The two-period ratio block (engine.comparatives.ratio_compare): both
+    # periods' ratios, bands, deltas, movements and credit composites,
+    # computed from these two served payloads under one model revision.
+    ratios = compare_ratio_tables(
+        current_payload, prior_payload,
+        current_label=str(cur_block["label"]), prior_label=str(pri_block["label"]),
+        piotroski_checks=_piotroski_checks,
+    )
     return {
+        "ratios": ratios,
         "current": cur_block,
         "prior": pri_block,
         "comparability": asdict(table.comparability),

@@ -39,7 +39,7 @@ graph LR
     pkg_api["api (103 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
-    pkg_comparatives["comparatives (5 modules)"]
+    pkg_comparatives["comparatives (6 modules)"]
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
@@ -107,6 +107,7 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_comparatives -->|1| pkg_ratios
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
     pkg_consensus -->|1| pkg_interp
