@@ -31,7 +31,13 @@ WHAT THIS REDS ON, AFTER THE REPAIR (TC-11):
   · a served body with no `canonical_bs` or no equity total (the gate
     would otherwise pass over nothing);
   · `get_period` or `_rebuild_assembled` no longer calling the one
-    completion helper (a re-spelled completion is a second authority).
+    completion helper (a re-spelled completion is a second authority);
+  · THE LEGACY BRANCH: a period persisted with no write-time envelope
+    (`assembled_canonical_v1` absent from its row — agras and the Scandia
+    baseline, both carrying account-711 production variation) serving
+    bucket equity that is not the line items' shareCapital +
+    retainedEarnings + otherEquity plus the net income reconstructed from
+    the persisted P&L buckets with 711 excluded, to the cent.
 
 WHAT IT CANNOT SEE: `_rebuild_assembled_for_briefing` (the Capsule /
 Radar / briefing seam) still builds `balanceSheet` without the completion;
@@ -41,6 +47,7 @@ a gate that allowlisted it would pin it.
 from __future__ import annotations
 
 import ast
+import types
 from decimal import Decimal
 from pathlib import Path
 
@@ -85,3 +92,40 @@ def _calls_in(func_name: str):
 def test_both_rebuilds_call_the_one_completion(func):
     assert "_complete_bucket_equity" in _calls_in(func), (
         "%s no longer calls _complete_bucket_equity" % func)
+
+
+#: Persisted bucket -> its sign in the legacy net-income reconstruction.
+_PL_SIGN = {"revenue": 1, "otherIncome": 1, "financialIncome": 1, "cogs": -1, "operatingExpenses": -1,
+            "depreciation": -1, "interestExpense": -1, "financialExpense": -1, "taxExpense": -1}
+_EQUITY_BUCKETS = ("shareCapital", "retainedEarnings", "otherEquity")
+
+
+@pytest.mark.parametrize("name", ["agras", SB.SCANDIA])
+def test_a_period_with_no_envelope_completes_equity_from_its_own_pl_buckets(name):
+    bk = SB.book(name)
+    period = {k: v for k, v in bk.period.items() if k != "assembled_canonical_v1"}
+    legacy = types.SimpleNamespace(period=period, line_items=bk.line_items, org=bk.org,
+                                   period_id=bk.period_id)
+    body = SB.routed_body(legacy)
+    bs = body["statements"]["balanceSheet"]
+    served = sum(_d(bs[k]) for k in _EQUITY_BUCKETS)
+
+    items = Decimal(0)
+    for bucket in _EQUITY_BUCKETS:
+        items += sum((_d(li["amount"] or 0) for li in bk.line_items if li["bucket"] == bucket),
+                     Decimal(0)).quantize(Decimal("0.01"))
+    excluded_711 = Decimal(0)
+    ni = Decimal(0)
+    for li in bk.line_items:
+        sign = _PL_SIGN.get(li["bucket"])
+        if sign is None:
+            continue
+        if li["bucket"] == "otherIncome" and (li.get("ro_account_code") or "").strip().startswith("711"):
+            excluded_711 += _d(li["amount"] or 0)
+            continue
+        ni += sign * _d(li["amount"] or 0)
+    assert excluded_711 != 0, "%s carries no 711 line — the exclusion is untested" % name
+    want = items + ni.quantize(Decimal("0.01"))
+    assert abs(served - want) <= Decimal("0.01"), (
+        "%s (no envelope): served bucket equity %s is not line-item equity %s + reconstructed net "
+        "income %s (711 excluded: %s); gap %s" % (name, served, items, ni, excluded_711, served - want))
