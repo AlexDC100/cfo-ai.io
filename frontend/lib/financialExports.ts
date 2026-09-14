@@ -25,8 +25,22 @@ import {
   reportChartBlocks,
   VERDICT_UNAVAILABLE_NOTE,
   saveHtmlReport,
+  ALTMAN_RATIO_KEY,
+  printedRatioCells,
+  printRatioCompareRow,
+  priorRatioAbsence,
+  ratioCompareHeadings,
+  servedMovableRows,
+  servedRatioComparison,
+  servedRatioKey,
+  servedRatioLabel,
   type Statements,
 } from "./financialReport";
+// The band-movement headline, read off the served two-period table — the
+// SAME model the report's executive summary renders, so the workbook's
+// improved / deteriorated lists cannot differ from the document's.
+import { buildBandMovements } from "./executiveSummary";
+import type { RatioCompareRow } from "./ratioTable";
 // servedFacts gateway — BS totals + the balance-status wording. The Excel
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
@@ -362,8 +376,37 @@ export function buildExcelWorkbook(
   }
 
   // ─ Ratios ────────────────────────────────────────────────────────────────
+  //
+  // THE SIX COLUMNS — [current] [prior] [Δ] [band now] [band prior] [band
+  // movement] — read off the served two-period table and printed by the one
+  // formatter, the same cells the report's cards print. The value column is
+  // still the one right after the ratio's name, so every reader that takes
+  // "the figure after the label" reads the current figure, as before.
+  //
+  // With no served table: current and band from the row the sheet has
+  // always printed, and the four prior-dependent cells state why there is
+  // nothing to print ("no prior period", or the reason a comparison reached
+  // this export without its table). Never a dash, never a blank.
+  const ratioCmp = servedRatioComparison(s);
+  const ratioCmpRows = new Map<string, RatioCompareRow>(
+    ratioCmp ? servedMovableRows(ratioCmp).map((row) => [row.key, row]) : [],
+  );
+  const cmpHeadings = ratioCmp
+    ? ratioCompareHeadings(ratioCmp)
+    : [s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ", "Band now", "Band prior", "Band movement"];
+  const cmpAbsent = ratioCmp === null && (s.prior !== undefined || (s.comparatives ?? null) !== null)
+    ? priorRatioAbsence(s)
+    : null;
+  const sixCells = (key: string, label: string, figure: string | number, band: string): (string | number)[] => {
+    const row = ratioCmpRows.get(key);
+    if (row) return printedRatioCells(printRatioCompareRow(row, label));
+    const why = ratioCmp
+      ? `the served two-period ratio table carries no row for ${label}`
+      : (cmpAbsent ?? NO_COMPARATIVE_CELL);
+    return [figure, why, why, band, why, why];
+  };
   const ratioRows: (string | number)[][] = [
-    ["Group", "Ratio", "Value", "Verdict", "Benchmark", "Commentary"],
+    ["Group", "Ratio", ...cmpHeadings, "Benchmark", "Commentary"],
   ];
   // ── `ratios.bankruptcy` IS NOT IN THIS LIST, AND THAT IS THE FIX ───
   //
@@ -401,10 +444,92 @@ export function buildExcelWorkbook(
   ];
   for (const [groupName, group] of groups) {
     for (const r of group) {
-      ratioRows.push([groupName, r.label, formatRatio(r), verdictLabel(r.verdict), r.benchmark, r.commentary]);
+      ratioRows.push([
+        groupName,
+        r.label,
+        ...sixCells(servedRatioKey(r.key), r.label, formatRatio(r), verdictLabel(r.verdict)),
+        r.benchmark,
+        r.commentary,
+      ]);
     }
   }
-  ratioRows.push(altmanRowFor(credit));
+  // The census rows the engine serves with no `computeRatios` row: they
+  // exist only in the served table, so they are listed only when one was
+  // served — with the same six columns.
+  if (ratioCmp) {
+    const carded = new Set(groups.flatMap(([, g]) => g.map((r) => servedRatioKey(r.key))));
+    for (const row of ratioCmp.rows) {
+      if (carded.has(row.key)) continue;
+      const label = servedRatioLabel(row.key, ratios, null);
+      ratioRows.push([
+        GROUP_WORD[row.group] ?? row.group,
+        label,
+        ...printedRatioCells(printRatioCompareRow(row, label)),
+        "served by the engine from its metric rows; no card in the document",
+        "",
+      ]);
+    }
+  }
+  ratioRows.push(altmanRowFor(credit, sixCells));
+  // THE TWO CREDIT COMPOSITES, beside the Altman, when a table was served:
+  // their prior, change and movement are the engine's (points, notches).
+  if (ratioCmp) {
+    for (const key of ["credit_composite", "letter_grade"]) {
+      const row = ratioCmpRows.get(key);
+      if (!row) continue;
+      const label = servedRatioLabel(key, ratios, null);
+      ratioRows.push(["Credit", label, ...printedRatioCells(printRatioCompareRow(row, label)), credit.model, credit.modelLabel]);
+    }
+  }
+
+  // ── BAND MOVEMENTS — the headline, the same model the document prints ─
+  const altmanLabel = altmanRatio(credit).label;
+  const bands = buildBandMovements(s, ratios, altmanLabel);
+  ratioRows.push([], ["Band movements"]);
+  if (!bands.available) {
+    ratioRows.push([bands.absence ?? NO_COMPARATIVE_CELL]);
+  } else {
+    ratioRows.push([`${bands.priorLabel} → ${bands.currentLabel}`], [bands.basis ?? ""]);
+    const counts =
+      `${bands.bothSides === null ? "The served table states no count of" : bands.bothSides} ratios and composites valued in both periods: ` +
+      `moved up a band ${bands.improved.length}, moved down ${bands.deteriorated.length}, ` +
+      `held their band ${bands.unchanged.length}, not comparable ${bands.notComparable.length}`;
+    ratioRows.push([counts]);
+    // Column order keeps the current figure right after the name, as in
+    // the table above: [list, ratio, current, prior, Δ, movement, rung,
+    // finding].
+    ratioRows.push(["List", "Ratio", cmpHeadings[0], cmpHeadings[1], "Δ", "Band movement", "Rung crossed", "Finding"]);
+    for (const [title, entries, absence] of [
+      ["Improved", bands.improved, bands.improvedAbsence],
+      ["Deteriorated", bands.deteriorated, bands.deterioratedAbsence],
+    ] as const) {
+      if (entries.length === 0) {
+        ratioRows.push([title, absence ?? ""]);
+        continue;
+      }
+      for (const e of entries) {
+        ratioRows.push([
+          title,
+          e.label,
+          e.printed.current,
+          e.printed.prior,
+          e.printed.delta,
+          e.printed.movement,
+          e.rung ?? "no rung named",
+          e.findingStatus === "surfaced"
+            ? (e.findingTitle ?? "")
+            : e.findingStatus === "demoted"
+              ? `listed as a check: the finding is missing ${e.findingMissing.join(", ") || "an element it does not name"}`
+              : "no finding row was served for this crossing",
+        ]);
+      }
+    }
+    for (const n of bands.notComparable) ratioRows.push(["Not comparable", n.label, n.reason]);
+    for (const n of bands.refused) ratioRows.push(["Not compared", n.label, n.reason]);
+    if (bands.unlisted.length > 0) {
+      ratioRows.push(["Unlisted", `the served lists name ${bands.unlisted.join(", ")}, which the served table carries no row for`]);
+    }
+  }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "Ratios");
 
   // ─ Cash flow ─────────────────────────────────────────────────────────────
@@ -644,7 +769,21 @@ const EXPORT_PIOTROSKI_UNRESOLVED_NOTE =
  *  verdict. The model rides along, because the value differs BY MODEL
  *  (engine 0.22 vs client fallback 0.20131 on this same period) and a
  *  forwarded workbook cannot ask which one ran. */
-function altmanRowFor(credit: CreditScoreResult): (string | number)[] {
+/** The served group word for a census row with no `computeRatios` row. */
+const GROUP_WORD: Readonly<Record<string, string>> = {
+  liquidity: "Liquidity",
+  profitability: "Profitability",
+  leverage: "Leverage",
+  coverage: "Coverage",
+  efficiency: "Efficiency",
+  distress: "Bankruptcy",
+  credit: "Credit",
+};
+
+function altmanRowFor(
+  credit: CreditScoreResult,
+  sixCells: (key: string, label: string, figure: string | number, band: string) => (string | number)[],
+): (string | number)[] {
   // ⚠ THIS USED TO SPELL THE ROW ITSELF — label, zone word, threshold
   // string and sentence, all assembled here from `credit.altman`. That was
   // correct and it still produced a SECOND SPELLING of one row, because
@@ -658,11 +797,13 @@ function altmanRowFor(credit: CreditScoreResult): (string | number)[] {
     : credit.altman.zone === "grey" ? "Grey"
     : credit.altman.zone === "distress" ? "Distress"
     : EXPORT_UNREPORTED;
+  // With a served two-period table, the six cells are the served
+  // `altman_z` composite row (band read from the served zone); without
+  // one, the reader's value and zone word, as before.
   return [
     "Bankruptcy",
     r.label,
-    fixedCell(r.value, 2),
-    zoneWord,
+    ...sixCells(ALTMAN_RATIO_KEY, r.label, fixedCell(r.value, 2), zoneWord),
     r.benchmark,
     // Value and sentence agree about existence — a score the reader
     // refused has no verdict prose, and never the other model's.

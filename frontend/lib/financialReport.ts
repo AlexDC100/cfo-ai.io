@@ -108,10 +108,28 @@ import { buildExecutiveSummary, type ExecutiveSummary } from "./executiveSummary
 import {
   formatVariance,
   NO_COMPARATIVE_CELL,
+  NO_COMPARATIVES_NOTE,
   type ComparativeLine,
   type Comparatives,
 } from "./reportComparatives";
 import { printCss } from "./reportPrintCss";
+// THE TWO-PERIOD RATIO TABLE, READ — never computed. `ratioTable.ts` is
+// the typed mirror of the block the engine serves on
+// `GET /api/period/{id}/comparatives → ratios` and the ONE formatter that
+// turns a served row into printed text (quantized strings printed verbatim,
+// reasons as sentences, no arithmetic). It imports `@/i18n` and a type; it
+// imports nothing from this module, so there is no cycle.
+import i18n from "@/i18n";
+import {
+  formatRatioBand,
+  formatRatioDelta,
+  formatRatioMovement,
+  formatRatioSide,
+  reasonText,
+  type RatioCompareRow,
+  type RatioComparisonV1,
+  type RatioDisplayUnit,
+} from "./ratioTable";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -200,6 +218,17 @@ export interface PriorPeriod {
   periodLabel: string;
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
+}
+
+/** The served comparatives document, as far as the EXPORTERS read it.
+ *
+ *  Minimal on purpose: the dashboard's full response type lives in
+ *  `comparatives.ts`, and any document that carries a `ratios` block of the
+ *  served shape satisfies this structurally. The exporters never read the
+ *  document's statement columns, bridges or prior statements for a ratio —
+ *  `ratios` is the one authority for both periods' ratios. */
+export interface ExportComparatives {
+  ratios?: RatioComparisonV1 | null;
 }
 
 /** A named line on either statement — the vocabulary an absence manifest
@@ -578,6 +607,14 @@ export interface Statements {
 
   /** Optional prior-period statements for trend lines. */
   prior?: PriorPeriod;
+  /** The served comparatives document for this period and its prior
+   *  (`GET /api/period/{id}/comparatives`), attached by the caller that
+   *  hands the statements to an exporter. The exporters read ONLY its
+   *  `ratios` block — every ratio's value, band, delta and band movement
+   *  for BOTH periods, and the composites — and print it; they compute no
+   *  prior ratio of their own. Absent: no comparison document reached the
+   *  export, and every surface states that instead of a prior. */
+  comparatives?: ExportComparatives | null;
   /** Optional multi-year history (oldest → newest, NOT including current). */
   historicalPeriods?: PriorPeriod[];
   /** Canonical period_facts views — single source of truth across DCF,
@@ -2714,6 +2751,192 @@ export function verdictLabel(v: RatioVerdict): string {
             : "Critical";
 }
 
+// ─── The two-period ratio table, as the EXPORTS print it ──────────────────
+//
+// ONE PROJECTION FOR THE REPORT HTML (and so the PDF, which is that HTML),
+// THE WORKBOOK AND THE EXECUTIVE SUMMARY. The engine serves every ratio's
+// value, band, delta and band movement for both periods on the
+// comparatives route (`src/engine/comparatives/ratio_compare.py`); every
+// function below READS a served row and prints it through `ratioTable.ts`,
+// the one formatter. There is no subtraction, no toFixed, no re-banding and
+// no second ladder in this section — a surface that computed a prior ratio
+// of its own would print a number the engine never said.
+//
+// THE BYTE-MATCH HANDLE. Every printed row carries its served row
+// serialised (`serializeRatioCompareRow`) in a `data-ratio-cmp-json`
+// attribute. The report card, the report's table rows and the dashboard
+// tile embed the same string for the same served row, so a gate compares
+// the surfaces byte for byte without re-deriving anything.
+
+/** The exports print English (`<html lang="en">`, no i18n anywhere else in
+ *  the standalone document), so the one formatter is asked for English —
+ *  never the viewer's UI language, which would put a Romanian decimal comma
+ *  into an English page. */
+export const RATIO_CMP_EXPORT_LOCALE = "en";
+
+/** The served two-period ratio block on these statements, or null. */
+export function servedRatioComparison(s: Pick<Statements, "comparatives">): RatioComparisonV1 | null {
+  const block = s.comparatives?.ratios;
+  return block && Array.isArray(block.rows) ? block : null;
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`)
+    .join(",")}}`;
+}
+
+/** A served row, serialised canonically: keys sorted at every depth, no
+ *  whitespace. The string every surface embeds as `data-ratio-cmp-json` and
+ *  the byte-match gates compare. It is a serialisation of what the engine
+ *  served — nothing is formatted, rounded or dropped on the way. */
+export function serializeRatioCompareRow(row: RatioCompareRow): string {
+  return canonicalJson(row);
+}
+
+/** computeRatios key → the served census key, where they differ. MIRROR of
+ *  the `fe_key` column of `_SPECS` in `src/engine/ratios/table.py`: the FE
+ *  `ltv` row is served as `debt_to_assets` because no property value ever
+ *  reaches the engine. `reportPriorCredit.test.ts` parses the Python table
+ *  and reds when this mirror drifts. */
+export const SERVED_RATIO_KEY_OF: Readonly<Record<string, string>> = { ltv: "debt_to_assets" };
+
+export function servedRatioKey(feKey: string): string {
+  return SERVED_RATIO_KEY_OF[feKey] ?? feKey;
+}
+
+/** The printed name of a served row that has no `computeRatios` card to
+ *  borrow a label from: the six pack-banded keys the engine serves from its
+ *  metric rows alone, and the two credit composites (their cards' own
+ *  labels). The Altman composite takes the credit reader's label. */
+export const SERVED_ONLY_RATIO_LABEL: Readonly<Record<string, string>> = {
+  net_debt_to_ebitda: "Net Debt / EBITDA",
+  lt_debt_to_equity: "LT Debt / Equity",
+  ebitda_to_interest: "EBITDA / Interest",
+  operating_margin: "Operating Margin",
+  core_ebitda_margin: "Core EBITDA Margin",
+  inventory_turnover: "Inventory Turnover",
+  credit_composite: "Composite credit score",
+  letter_grade: "Letter grade",
+};
+
+/** Every served row a movement can be read off, in served order: the
+ *  census rows, then the composites. Sub-scores are supporting detail and
+ *  are never listed as movements. */
+export function servedMovableRows(cmp: RatioComparisonV1): RatioCompareRow[] {
+  return [...cmp.rows, ...cmp.composites];
+}
+
+/** The printed name of a served row. */
+export function servedRatioLabel(
+  key: string,
+  bundle: RatioBundle | null,
+  altmanLabel: string | null,
+): string {
+  if (key === ALTMAN_RATIO_KEY && altmanLabel) return altmanLabel;
+  if (bundle) {
+    for (const group of [bundle.liquidity, bundle.profitability, bundle.leverage, bundle.coverage, bundle.efficiency]) {
+      const hit = group.find((r) => servedRatioKey(r.key) === key);
+      if (hit) return hit.label;
+    }
+  }
+  return SERVED_ONLY_RATIO_LABEL[key] ?? key;
+}
+
+/** The `data-cell` id of each of the six cells, in heading order. */
+export const RATIO_CMP_CELL_IDS = ["current", "prior", "delta", "band-now", "band-prior", "movement"] as const;
+
+/** The six column headings, in order. The two period headings are the
+ *  served labels, verbatim. */
+export function ratioCompareHeadings(cmp: RatioComparisonV1): string[] {
+  return [cmp.current_label, cmp.prior_label, "Δ", "Band now", "Band prior", "Band movement"];
+}
+
+/** One served row as the six printed cells, plus its handle. */
+export interface PrintedRatioCompare {
+  key: string;
+  label: string;
+  current: string;
+  prior: string;
+  delta: string;
+  bandNow: string;
+  bandPrior: string;
+  movement: string;
+  /** Served verdicts carried for colour and for gates — never re-derived. */
+  favourable: string | null;
+  movementStatus: string;
+  json: string;
+}
+
+/** The six cells, in heading order. */
+export function printedRatioCells(p: PrintedRatioCompare): string[] {
+  return [p.current, p.prior, p.delta, p.bandNow, p.bandPrior, p.movement];
+}
+
+export function printRatioCompareRow(row: RatioCompareRow, label: string): PrintedRatioCompare {
+  const loc = RATIO_CMP_EXPORT_LOCALE;
+  const unit = row.display_unit as RatioDisplayUnit;
+  const delta = formatRatioDelta(row.delta, loc);
+  return {
+    key: row.key,
+    label,
+    current: formatRatioSide(row.current, unit, loc),
+    prior: formatRatioSide(row.prior, unit, loc),
+    delta: delta.secondary === null ? delta.primary : `${delta.primary} (${delta.secondary})`,
+    bandNow: formatRatioBand(row.current, loc),
+    bandPrior: formatRatioBand(row.prior, loc),
+    movement: formatRatioMovement(row.movement, loc),
+    favourable: row.delta?.favourable ?? null,
+    movementStatus: row.movement?.status ?? "unrecognised",
+    json: serializeRatioCompareRow(row),
+  };
+}
+
+/** The rung a crossing passed, printed in the row's own unit from the
+ *  served rung string (the letter ladder's rungs are composite scores).
+ *  Null when the movement names no rung. */
+export function printedRungCrossed(row: RatioCompareRow): string | null {
+  const rung = row.movement?.rung_crossed;
+  if (!rung) return null;
+  const unit: RatioDisplayUnit = row.display_unit === "grade" ? "score" : (row.display_unit as RatioDisplayUnit);
+  const figure = formatRatioSide(
+    { value: null, value_q: rung.value, band: null, band_status: "graded", ladder: null, ladder_floor: null, operands: [], reason: null },
+    unit,
+    RATIO_CMP_EXPORT_LOCALE,
+  );
+  const name = rung.name.length > 0 && /^[a-z]/.test(rung.name)
+    ? rung.name[0].toUpperCase() + rung.name.slice(1)
+    : rung.name;
+  return `${name} rung at ${figure}`;
+}
+
+/** The ranking rule the served lists follow, as the served sentence. */
+export function ratioRankBasisSentence(cmp: RatioComparisonV1): string {
+  // The sentence key is SERVED; it resolves through the same i18n table
+  // the formatter reads. A key with no sentence prints the "no reason was
+  // served" sentence rather than the raw key or a blank.
+  const key = cmp.band_movements?.rank_basis?.sentence_key;
+  if (!key) return reasonText(null, RATIO_CMP_EXPORT_LOCALE);
+  const text = i18n.getFixedT(RATIO_CMP_EXPORT_LOCALE)(key);
+  return text === key ? reasonText(null, RATIO_CMP_EXPORT_LOCALE) : text;
+}
+
+/** Why a prior cell has no served row to print. Never a dash. */
+export function priorRatioAbsence(s: Pick<Statements, "prior" | "comparatives">): string {
+  if (s.comparatives && !servedRatioComparison(s)) {
+    return "the comparison document reached this export without its two-period ratio table, so no ratio's prior, change or band movement is stated";
+  }
+  if (s.prior) {
+    return `the comparison period ${s.prior.periodLabel} reached this export without the served two-period ratio table, so no ratio's prior, change or band movement is stated`;
+  }
+  return "no prior period was supplied with this book";
+}
+
 // ─── HTML report renderer ───────────────────────────────────────────────────
 
 // ── THE DOCUMENT PEOPLE PRINT AND FORWARD ───────────────────────────────
@@ -3133,6 +3356,24 @@ export function renderReportHtml(
       line-height: 1.4;
       font-style: italic;
     }
+    /* THE SIX COLUMNS, read off the served two-period table: the card's
+       current and prior, the change, both bands and the band movement. */
+    .ratio-card table.fin.ratio-cmp { margin: 8px 0 0; font-size: 8.5pt; width: 100%; }
+    .ratio-card table.fin.ratio-cmp th {
+      font-size: 7.5pt;
+      font-weight: 500;
+      text-align: left;
+      color: var(--ink-mute);
+      background: none;
+      padding: 2px 6px 2px 0;
+      white-space: nowrap;
+    }
+    .ratio-card table.fin.ratio-cmp td { padding: 2px 0; line-height: 1.35; }
+    .ratio-card table.fin.ratio-cmp td.word { text-align: right; }
+    table.fin tr[data-movement="crossed_down"] td[data-cell="movement"],
+    table.fin[data-movement="crossed_down"] td[data-cell="movement"] { color: #7A1F1F; } /* design-lint-allow-hex standalone generated report doc */
+    ul.credit-movement, ul.band-crossings { margin: 6px 0 4px; padding-left: 16px; }
+    ul.credit-movement li, ul.band-crossings li { margin: 3px 0; line-height: 1.45; }
 
     /* Verdict badge — restrained institutional tones */
     .badge {
@@ -3669,6 +3910,75 @@ export function renderReportHtml(
     );
   };
 
+  // ── THE SIX COLUMNS, ON EVERY CARD ──────────────────────────────────
+  //
+  // [current] [prior] [Δ] [band now] [band prior] [band movement], read off
+  // the served two-period table (`s.comparatives.ratios`) and printed by
+  // the one formatter. The card's own figure above stays the figure the
+  // document has always printed; `reportPriorCredit.test.ts` holds the
+  // served current cell equal to it on the committed pair, so a card
+  // cannot print one value in its headline and another in its table.
+  //
+  // Three states, none of them a dash:
+  //   · a served table with this row → the six served cells, and the
+  //     served row serialised in `data-ratio-cmp-json`;
+  //   · a comparison that reached the export WITHOUT a served table, or a
+  //     served table with no row for this key → current and band from the
+  //     card, and the stated reason in the four prior-dependent cells;
+  //   · no comparison at all → nothing here; the document is a position
+  //     report and page one says so in those words.
+  const ratioCmp = servedRatioComparison(s);
+  const ratioCmpRows = new Map<string, RatioCompareRow>(
+    ratioCmp ? servedMovableRows(ratioCmp).map((row) => [row.key, row]) : [],
+  );
+  const ratioCmpWanted = ratioCmp !== null || s.prior !== undefined || (s.comparatives ?? null) !== null;
+  const ratioCmpHeadings = ratioCmp
+    ? ratioCompareHeadings(ratioCmp)
+    : [s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ", "Band now", "Band prior", "Band movement"];
+  const ratioCmpCells = (
+    key: string,
+    label: string,
+    cardFigure: string,
+    cardBand: string,
+  ): { cells: string[]; attrs: string; figureCells: boolean[]; reason: string | null } | null => {
+    if (!ratioCmpWanted) return null;
+    const row = ratioCmpRows.get(key);
+    if (row) {
+      const p = printRatioCompareRow(row, label);
+      return {
+        cells: printedRatioCells(p),
+        attrs:
+          ` data-ratio-cmp="${escapeHtml(key)}" data-ratio-cmp-json="${escapeHtml(p.json)}"` +
+          ` data-movement="${escapeHtml(p.movementStatus)}" data-favourable="${escapeHtml(p.favourable ?? "none")}"`,
+        figureCells: [row.current.value_q !== null, row.prior.value_q !== null, row.delta.value !== null, false, false, false],
+        reason: null,
+      };
+    }
+    const reason = ratioCmp
+      ? `the served two-period ratio table carries no row for ${label}, so its prior, change and band movement are not stated`
+      : priorRatioAbsence(s);
+    return {
+      cells: [cardFigure, NO_COMPARATIVE_CELL, NO_COMPARATIVE_CELL, cardBand, NO_COMPARATIVE_CELL, NO_COMPARATIVE_CELL],
+      attrs: ` data-ratio-cmp="${escapeHtml(key)}" data-ratio-cmp-absent="${ratioCmp ? "row" : "table"}"`,
+      figureCells: [true, false, false, false, false, false],
+      reason,
+    };
+  };
+  /** The six cells as a two-column table inside a card: heading | cell. */
+  const ratioCmpCardTable = (key: string, label: string, cardFigure: string, cardBand: string): string => {
+    const got = ratioCmpCells(key, label, cardFigure, cardBand);
+    if (!got) return "";
+    const body = got.cells
+      .map((cell, i) => {
+        const isReason = got.reason !== null && cell === NO_COMPARATIVE_CELL;
+        const cls = got.figureCells[i] ? "num" : isReason ? "nocmp" : "word";
+        const title = isReason ? ` title="${escapeHtml(got.reason as string)}"` : "";
+        return `<tr><th scope="row">${escapeHtml(ratioCmpHeadings[i])}</th><td class="${cls}" data-cell="${RATIO_CMP_CELL_IDS[i]}"${title}>${escapeHtml(cell)}</td></tr>`;
+      })
+      .join("");
+    return `<table class="fin ratio-cmp"${got.attrs}><tbody>${body}</tbody></table>`;
+  };
+
   const ratioCard = (rt: Ratio): string => `
       <div class="ratio-card">
         <div class="label">${escapeHtml(rt.label)}</div>
@@ -3685,8 +3995,47 @@ export function renderReportHtml(
         </div>
         ${cardTrack(rt)}
         <div class="formula" data-ratio-formula="${escapeHtml(rt.key)}">${escapeHtml(rt.formula)}</div>
+        ${ratioCmpCardTable(servedRatioKey(rt.key), rt.label, formatRatio(rt), verdictLabel(rt.verdict))}
       </div>
     `;
+
+  /** The census rows the engine serves with NO `computeRatios` card — the
+   *  six pack-banded keys read off its metric rows — as a table after the
+   *  group they belong to, so every served ratio gets its six columns in
+   *  this document and not only the ones the cards happen to cover. */
+  const servedOnlyRatioTable = (groups: readonly string[]): string => {
+    if (!ratioCmp) return "";
+    const carded = new Set(
+      [r.liquidity, r.profitability, r.leverage, r.coverage, r.efficiency].flat().map((x) => servedRatioKey(x.key)),
+    );
+    const rows = ratioCmp.rows.filter((row) => groups.includes(row.group) && !carded.has(row.key));
+    if (rows.length === 0) return "";
+    const head = ratioCmpHeadings
+      .map((h, i) => `<th class="${i < 3 ? "num" : ""}">${escapeHtml(h)}</th>`)
+      .join("");
+    const body = rows
+      .map((row) => {
+        const p = printRatioCompareRow(row, servedRatioLabel(row.key, r, null));
+        const figure = [row.current.value_q !== null, row.prior.value_q !== null, row.delta.value !== null];
+        const cells = printedRatioCells(p)
+          .map(
+            (cell, i) =>
+              `<td class="${i < 3 && figure[i] ? "num" : "word"}" data-cell="${RATIO_CMP_CELL_IDS[i]}">${escapeHtml(cell)}</td>`,
+          )
+          .join("");
+        return `<tr data-ratio-cmp="${escapeHtml(row.key)}" data-ratio-cmp-json="${escapeHtml(p.json)}" data-movement="${escapeHtml(
+          p.movementStatus,
+        )}" data-favourable="${escapeHtml(p.favourable ?? "none")}"><td>${escapeHtml(p.label)}</td>${cells}</tr>`;
+      })
+      .join("");
+    return `
+    <h3>Further ratios the engine grades</h3>
+    <p class="comparatives-note">These ratios have no card above: the engine serves them from its own metric rows. Each carries the same six columns as the cards.</p>
+    <table class="fin ratio-cmp-served-only">
+      <thead><tr><th>Ratio</th>${head}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+  };
 
   const ratioGroup = (title: string, group: Ratio[]): string => `
     <h3>${escapeHtml(title)}</h3>
@@ -3942,6 +4291,10 @@ export function renderReportHtml(
     total_assets: sf.totalAssets(),
     total_equity: sf.totalEquity(),
     equity_ratio: ratioNamed("equity_ratio")?.value ?? null,
+    // The served engine metric — the one authority for this ratio, which
+    // has no `computeRatios` row. Used only when no served two-period table
+    // reached the export; with one, the tile prints the served row.
+    net_debt_ebitda: metricsByName?.net_debt_to_ebitda ?? null,
   };
   const summary: ExecutiveSummary = buildExecutiveSummary(
     s,
@@ -3952,11 +4305,14 @@ export function renderReportHtml(
     summaryOverrides,
   );
 
-  const tileFigure = (line: ComparativeLine | null, value: number | null): string => {
+  const tileFigure = (tile: ExecutiveSummary["tiles"][number]): string => {
+    // A ratio tile with a served row prints the served current cell — the
+    // same string the card and the six-column table print.
+    if (tile.ratio?.printed) return tile.ratio.printed.current;
+    const value = tile.value;
     if (value === null || !Number.isFinite(value)) return UNREPORTED_WORD;
-    const unit = line?.unit ?? "money";
-    if (unit === "pct") return `${formatNumber(value, 1)}%`;
-    if (unit === "x") return `${formatNumber(value, 2)}×`;
+    if (tile.unit === "pct") return `${formatNumber(value, 1)}%`;
+    if (tile.unit === "x") return `${formatNumber(value, 2)}×`;
     return money(value, s.currency);
   };
 
@@ -3985,13 +4341,38 @@ export function renderReportHtml(
       .map((tile) => {
         const line = tile.line;
         const label = tile.key === "revenue" ? "Operating revenue" : tile.label;
+        // A RATIO TILE reads its change off the served two-period row — the
+        // engine's delta, in turns or points, printed by the one formatter.
+        // Nothing here subtracts two ratios.
+        const ratioCell = (): string => {
+          const printed = tile.ratio?.printed;
+          if (printed && tile.ratio?.row?.delta.value !== null) {
+            return `<td class="num" data-ratio-cmp-json="${escapeHtml(printed.json)}">${escapeHtml(printed.delta)}</td>`;
+          }
+          if (printed) {
+            return `<td class="nocmp" title="${escapeHtml(printed.delta)}" data-ratio-cmp-json="${escapeHtml(
+              printed.json,
+            )}">${escapeHtml(printed.delta)}</td>`;
+          }
+          return noCell(tile.ratio?.absence ?? c.degradedReason ?? "no comparison period reached this document");
+        };
         const noReason =
           line?.vs.prior_period.unavailable ?? c.degradedReason ?? "no comparison period reached this document";
-        const cells = c.available
-          ? c.periods.map((p) => (line ? cell(line, p.kind) : noCell(noReason))).join("")
-          : noCell(noReason);
+        const cells = tile.ratio
+          ? c.available
+            ? c.periods
+                .map((p) =>
+                  p.kind === "prior_period" || p.sameAsPriorPeriod
+                    ? ratioCell()
+                    : noCell("the served two-period ratio table compares against the immediately preceding period only"),
+                )
+                .join("")
+            : ratioCell()
+          : c.available
+            ? c.periods.map((p) => (line ? cell(line, p.kind) : noCell(noReason))).join("")
+            : noCell(noReason);
         return `<tr data-tile="${escapeHtml(tile.key)}"><td>${escapeHtml(label)}</td><td class="num">${escapeHtml(
-          tileFigure(line, tile.value),
+          tileFigure(tile),
         )}</td>${cells}</tr>`;
       })
       .join("");
@@ -4011,6 +4392,84 @@ export function renderReportHtml(
       <thead><tr><th>Figure</th><th class="num">${escapeHtml(s.periodLabel)}</th>${headings}</tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+  };
+
+  /** THE HEADLINE — WHICH RATIOS CROSSED A BAND, up and down, in the
+   *  engine's rank order, read off the served two-period table. Placed
+   *  above everything else on page one: a band crossing is the finding a
+   *  reader of a comparison needs first, and the raw change is its
+   *  supporting detail. Every crossing is listed whether its finding
+   *  surfaced or demoted; a demotion is stated on the line, never a
+   *  shorter list. Every count below is rendered from the served lists
+   *  (TC-10). */
+  const bandMovementsBlock = (): string => {
+    const bm = summary.bandMovements;
+    if (!bm.available) {
+      return ratioCmpWanted
+        ? `<div class="commentary" data-band-movements="absent"><strong>Band movements.</strong> ${escapeHtml(
+            bm.absence ?? "",
+          )}.</div>`
+        : "";
+    }
+    const crossing = (e: (typeof bm.improved)[number]): string => {
+      const p = e.printed;
+      const finding =
+        e.findingStatus === "surfaced"
+          ? ` &middot; <span class="crossing-finding">${escapeHtml(e.findingTitle ?? "")}</span>`
+          : e.findingStatus === "demoted"
+            ? ` &middot; <span class="crossing-finding">listed as a check: the finding is missing ${escapeHtml(
+                e.findingMissing.length > 0 ? e.findingMissing.join(", ") : "an element it does not name",
+              )}</span>`
+            : ` &middot; <span class="crossing-finding">no finding row was served for this crossing</span>`;
+      return (
+        `<li data-band-crossing="${escapeHtml(e.key)}" data-move="${e.direction}" data-finding-id="${escapeHtml(
+          e.findingId ?? "",
+        )}" data-finding-status="${e.findingStatus}" data-ratio-cmp-json="${escapeHtml(p.json)}">` +
+        `<strong>${escapeHtml(e.label)}</strong> ${escapeHtml(p.movement)} &middot; ` +
+        `${escapeHtml(bm.priorLabel ?? "")} ${escapeHtml(p.prior)} &rarr; ${escapeHtml(bm.currentLabel ?? "")} ${escapeHtml(
+          p.current,
+        )} &middot; change ${escapeHtml(p.delta)}` +
+        `${e.rung ? ` &middot; ${escapeHtml(e.rung)}` : ""}${finding}</li>`
+      );
+    };
+    const list = (kind: "improved" | "deteriorated", title: string): string => {
+      const entries = bm[kind];
+      const absence = kind === "improved" ? bm.improvedAbsence : bm.deterioratedAbsence;
+      const body =
+        entries.length > 0
+          ? `<ul class="band-crossings" data-band-list="${kind}">${entries.map(crossing).join("")}</ul>`
+          : `<p class="comparatives-note" data-band-list="${kind}" data-band-list-empty>${escapeHtml(
+              absence ?? "",
+            )}.</p>`;
+      return `<h4>${escapeHtml(title)} (${entries.length})</h4>${body}`;
+    };
+    const notes = (items: typeof bm.refused): string =>
+      items.map((n) => `${escapeHtml(n.label)} (${escapeHtml(n.reason)})`).join("; ");
+    const tail = [
+      bm.notComparable.length > 0
+        ? `<p class="comparatives-note" data-band-not-comparable>Valued in both periods but not comparable: ${notes(bm.notComparable)}.</p>`
+        : "",
+      bm.refused.length > 0
+        ? `<p class="comparatives-note" data-band-refused>Not compared, because a period has no figure: ${notes(bm.refused)}.</p>`
+        : "",
+      bm.unlisted.length > 0
+        ? `<p class="comparatives-note" data-band-unlisted>The served lists name ${escapeHtml(
+            bm.unlisted.join(", "),
+          )}, which the served table carries no row for.</p>`
+        : "",
+    ].join("");
+    return `
+    <div class="band-movements" data-band-movements="served">
+    <h3>Band movements: ${escapeHtml(bm.priorLabel ?? "")} &rarr; ${escapeHtml(bm.currentLabel ?? "")}</h3>
+    <p class="comparatives-note" data-band-basis>${escapeHtml(bm.basis ?? "")} ${escapeHtml(
+      bm.bothSides === null ? "" : `${bm.bothSides} ratios and composites are valued in both periods:`,
+    )} moved up a band ${bm.improved.length}, moved down ${bm.deteriorated.length}, held their band ${bm.unchanged.length}, not comparable ${
+      bm.notComparable.length
+    }.${escapeHtml(ratioCmpBasisClause())}</p>
+    ${list("improved", "Improved")}
+    ${list("deteriorated", "Deteriorated")}
+    ${tail}
+    </div>`;
   };
 
   /** WHY THIS VERDICT — the letter, the model that said it, and the two
@@ -4139,6 +4598,60 @@ export function renderReportHtml(
   // this cell and they disagree (engine CC / 24.4 against client fallback
   // CCC / 36 on this same period), and a printed page cannot be asked
   // which one ran.
+  const creditScoreFigure = credit.score === null ? UNREPORTED_WORD : `${credit.score.toFixed(1)} / 100`;
+  /** THE PRIOR, AND WHAT MOVED — the letter, the composite and the Altman
+   *  against the comparison period, each read off its served composite row.
+   *  The letter's movement is in notches, the composite's change in points,
+   *  the Z″ change in Z units: the units the engine served. A comparison
+   *  that reached the export without its served table says so. */
+  /** What the served stamps say about how the two periods were scored —
+   *  rendered from the stamps, never asserted as prose (TC-10). */
+  const ratioCmpBasisClause = (): string => {
+    if (!ratioCmp) return "";
+    const stamps = ratioCmp.stamps as RatioComparisonV1["stamps"] & {
+      effective_dating?: { basis?: string; is_convention?: boolean };
+    };
+    const parts: string[] = [];
+    if (stamps.effective_dating?.basis === "restated_under_current_revision") {
+      parts.push(
+        ` Both periods are scored under the current band table and credit model revision (restated comparatives${
+          stamps.effective_dating.is_convention ? ", a convention" : ""
+        }).`,
+      );
+    }
+    if (stamps.comparable_model === false) {
+      parts.push(` The two periods' stamps differ on: ${(stamps.differences ?? []).join(", ")}.`);
+    }
+    return parts.join("");
+  };
+  const creditMovementBlock = (): string => {
+    if (!ratioCmpWanted) return "";
+    if (!ratioCmp) {
+      return `<div class="commentary" data-report-credit-movement="absent"><strong>Against the prior period:</strong> ${escapeHtml(
+        priorRatioAbsence(s),
+      )}.</div>`;
+    }
+    const part = (key: string, label: string): string => {
+      const row = ratioCmpRows.get(key);
+      if (!row) {
+        return `<li data-credit-movement="${escapeHtml(key)}">${escapeHtml(label)}: the served two-period ratio table carries no row for it</li>`;
+      }
+      const p = printRatioCompareRow(row, label);
+      return (
+        `<li data-credit-movement="${escapeHtml(key)}" data-ratio-cmp-json="${escapeHtml(p.json)}" data-movement="${escapeHtml(p.movementStatus)}">` +
+        `<strong>${escapeHtml(label)}</strong> ${escapeHtml(ratioCmp.prior_label)} ${escapeHtml(p.prior)} &rarr; ${escapeHtml(
+          ratioCmp.current_label,
+        )} ${escapeHtml(p.current)} &middot; change ${escapeHtml(p.delta)} &middot; ${escapeHtml(p.movement)}</li>`
+      );
+    };
+    return `<div class="commentary" data-report-credit-movement="served"><strong>Against ${escapeHtml(
+      ratioCmp.prior_label,
+    )}:</strong>${escapeHtml(ratioCmpBasisClause())}<ul class="credit-movement">${part(
+      "letter_grade",
+      "Letter grade",
+    )}${part("credit_composite", "Composite credit score")}${part(ALTMAN_RATIO_KEY, altman.label)}</ul></div>`;
+  };
+
   const creditSection = (): string => {
     const letterBlock =
       credit.rating === null
@@ -4166,17 +4679,20 @@ export function renderReportHtml(
     <div class="grid grid-3">
       <div class="ratio-card">
         <div class="label">Composite credit score</div>
-        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(credit.score === null ? UNREPORTED_WORD : `${credit.score.toFixed(1)} / 100`)}</div>
+        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(creditScoreFigure)}</div>
         <div class="meta">${escapeHtml(credit.model)}</div>
+        ${ratioCmpCardTable("credit_composite", "Composite credit score", creditScoreFigure, "Not banded")}
       </div>
       <div class="ratio-card">
         <div class="label">Letter grade</div>
         <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(credit.rating ?? UNREPORTED_WORD)}</div>
         <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
+        ${ratioCmpCardTable("letter_grade", "Letter grade", credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
       </div>
       ${ratioCard(altman)}
     </div>
     ${letterBlock}
+    ${creditMovementBlock()}
     ${ladderBlock}
     <div class="${altman.verdict === "critical" ? "risk" : "commentary"}" data-report-altman-verdict data-zone="${escapeHtml(credit.altman.zone ?? "none")}">
       <strong>${escapeHtml(altman.label)}:</strong> ${escapeHtml(altman.commentary)}
@@ -4493,6 +5009,7 @@ export function renderReportHtml(
     "sec-exec",
     "Executive Summary",
     `
+  ${bandMovementsBlock()}
   <div class="insight">
     <strong>Overall verdict:</strong> ${escapeHtml(overallVerdict)}
   </div>
@@ -4588,11 +5105,16 @@ export function renderReportHtml(
     `
   ${ratioGroup("Liquidity", r.liquidity)}
   ${ratioGroup("Working Capital Cycle", r.efficiency)}
+  ${servedOnlyRatioTable(["liquidity", "efficiency"])}
   ${chartById("chart-wc-cycle")}
   `,
   )}
 
-  ${section("sec-profit", "Profitability", ratioGroup("Margin & Returns", r.profitability))}
+  ${section(
+    "sec-profit",
+    "Profitability",
+    `${ratioGroup("Margin & Returns", r.profitability)}${servedOnlyRatioTable(["profitability"])}`,
+  )}
 
   ${section(
     "sec-leverage",
@@ -4600,6 +5122,7 @@ export function renderReportHtml(
     `
   ${ratioGroup("Capital Structure", r.leverage)}
   ${ratioGroup("Debt Coverage", r.coverage)}
+  ${servedOnlyRatioTable(["leverage", "coverage"])}
   ${chartById("chart-band-tracks")}
   ${chartById("chart-covenant-headroom")}
   `,

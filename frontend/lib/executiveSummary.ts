@@ -21,16 +21,34 @@
 // WHAT IT WILL NOT DO. It states no threshold it did not read off a
 // ladder; it prints no variance for a period nobody supplied; and it
 // draws no verdict fact from a ratio whose own value is absent.
+//
+// AND IT COMPUTES NO RATIO FOR THE PRIOR PERIOD. The band-movement block
+// (the headline: which ratios crossed a band, up and down) and the two
+// ratio tiles (equity ratio, net debt / EBITDA) are READ off the engine's
+// served two-period table, `statements.comparatives.ratios`, in the served
+// order. Nothing here subtracts, ranks, re-bands or divides: the engine
+// did all four, once, for every surface.
 
 import type { CreditScoreResult } from "./financialValuation";
 import {
+  ALTMAN_RATIO_KEY,
   deriveTotals,
   formatRatio,
+  printedRungCrossed,
+  printRatioCompareRow,
+  priorRatioAbsence,
+  ratioRankBasisSentence,
+  RATIO_CMP_EXPORT_LOCALE,
+  servedMovableRows,
+  servedRatioComparison,
+  servedRatioLabel,
+  type PrintedRatioCompare,
   type Ratio,
   type RatioBundle,
   type RatioVerdict,
   type Statements,
 } from "./financialReport";
+import { reasonText, type RatioCompareRow, type RatioDisplayUnit } from "./ratioTable";
 import {
   buildComparatives,
   comparativeLine,
@@ -72,10 +90,32 @@ export interface SummaryVerdict {
 export interface SummaryTile {
   key: string;
   label: string;
-  unit: ComparativeLine["unit"];
+  unit: ComparativeLine["unit"] | RatioDisplayUnit;
   value: number | null;
+  /** The money line's comparative. Null on a ratio tile, which reads
+   *  `ratio` instead — a ratio's prior is never a subtraction here. */
   line: ComparativeLine | null;
+  /** Present on a RATIO tile: the served two-period row it prints, or the
+   *  stated reason there is none. */
+  ratio: SummaryRatioTile | null;
 }
+
+export interface SummaryRatioTile {
+  /** The served census key the tile reads. */
+  servedKey: string;
+  row: RatioCompareRow | null;
+  printed: PrintedRatioCompare | null;
+  /** Present iff `row` is null — why the tile has no served comparison. */
+  absence: string | null;
+}
+
+/** The tiles that are RATIOS, and the served census key each one reads.
+ *  Their current figure, prior, change and band all come off the served
+ *  two-period row; `reportComparatives.ts` carries money lines only. */
+export const SUMMARY_RATIO_TILES: Readonly<Record<string, { servedKey: string; label: string; unit: RatioDisplayUnit }>> = {
+  equity_ratio: { servedKey: "equity_ratio", label: "Equity ratio", unit: "pct" },
+  net_debt_ebitda: { servedKey: "net_debt_to_ebitda", label: "Net debt / EBITDA", unit: "x" },
+};
 
 /** SIX, and these six. The methodology's eight headline KPIs
  *  (CLAUDE.md Appendix A §4) minus ROE and Altman Z″ — both of which
@@ -115,9 +155,168 @@ export interface ThresholdDistance {
   unit: Ratio["unit"];
 }
 
+// ── 5. THE HEADLINE: WHICH RATIOS CROSSED A BAND ──────────────────────
+
+export type CrossingFindingStatus = "surfaced" | "demoted" | "absent";
+
+export interface BandCrossingEntry {
+  key: string;
+  label: string;
+  direction: "up" | "down";
+  /** The served row. A served list naming a key the served table carries
+   *  no row for is not an entry: it is stated in `unlisted`. */
+  row: RatioCompareRow;
+  printed: PrintedRatioCompare;
+  /** "Strong rung at 2×" — the served rung, printed in the row's unit. */
+  rung: string | null;
+  /** The served finding row for this crossing (a surfaced seven-element
+   *  finding or the check row it demoted to), matched on `finding_id`. */
+  findingId: string | null;
+  findingStatus: CrossingFindingStatus;
+  /** The surfaced finding's own title, verbatim. */
+  findingTitle: string | null;
+  /** A demoted finding's missing contract elements, verbatim. */
+  findingMissing: string[];
+}
+
+export interface BandMovementNote {
+  key: string;
+  label: string;
+  reason: string;
+}
+
+export interface SummaryBandMovements {
+  /** FALSE when no served two-period table reached this document. */
+  available: boolean;
+  /** Present iff `available` is false — why there is no block. */
+  absence: string | null;
+  currentLabel: string | null;
+  priorLabel: string | null;
+  /** The served ranking rule, as its sentence. TC-10. */
+  basis: string | null;
+  /** In served rank order. */
+  improved: BandCrossingEntry[];
+  deteriorated: BandCrossingEntry[];
+  /** Non-vacuous: present iff the list is empty while a table was served. */
+  improvedAbsence: string | null;
+  deterioratedAbsence: string | null;
+  unchanged: Array<{ key: string; label: string; band: string }>;
+  notComparable: BandMovementNote[];
+  refused: BandMovementNote[];
+  /** Keys a served list names with no row in the served table. */
+  unlisted: string[];
+  /** The served count the four lists partition (`coverage.both_sides`). */
+  bothSides: number | null;
+}
+
+/**
+ * The band-movement headline, read off the served table. Lists keep the
+ * SERVED order (the engine ranked them: rungs crossed, distance past the
+ * rung as a share of the band, materiality, key). Every crossing is listed
+ * whether its finding surfaced or demoted — a demotion never shrinks the
+ * list, it is stated on the entry.
+ */
+export function buildBandMovements(
+  s: Statements,
+  ratios: RatioBundle | null,
+  altmanLabel: string | null,
+): SummaryBandMovements {
+  const cmp = servedRatioComparison(s);
+  if (!cmp) {
+    return {
+      available: false,
+      absence: priorRatioAbsence(s),
+      currentLabel: null,
+      priorLabel: null,
+      basis: null,
+      improved: [],
+      deteriorated: [],
+      improvedAbsence: null,
+      deterioratedAbsence: null,
+      unchanged: [],
+      notComparable: [],
+      refused: [],
+      unlisted: [],
+      bothSides: null,
+    };
+  }
+  const rows = new Map(servedMovableRows(cmp).map((row) => [row.key, row]));
+  const label = (key: string): string => servedRatioLabel(key, ratios, altmanLabel);
+  const bm = cmp.band_movements;
+  const findings = new Map<string, Record<string, unknown>>();
+  for (const f of bm?.findings ?? []) {
+    const id = (f as { finding_id?: unknown }).finding_id;
+    if (typeof id === "string") findings.set(id, f);
+  }
+  const unlisted: string[] = [];
+  const entries = (keys: readonly string[], direction: "up" | "down"): BandCrossingEntry[] => {
+    const out: BandCrossingEntry[] = [];
+    for (const key of keys) {
+      const row = rows.get(key);
+      if (!row) {
+        unlisted.push(key);
+        continue;
+      }
+      const f = row.finding_id === null ? undefined : findings.get(row.finding_id);
+      const surfaced = f !== undefined && (f as { surfaced?: unknown }).surfaced === true;
+      const title = f === undefined ? null : (f as { title?: unknown }).title;
+      const missing = f === undefined ? [] : (f as { missing_elements?: unknown }).missing_elements;
+      out.push({
+        key,
+        label: label(key),
+        direction,
+        row,
+        printed: printRatioCompareRow(row, label(key)),
+        rung: printedRungCrossed(row),
+        findingId: row.finding_id,
+        findingStatus: f === undefined ? "absent" : surfaced ? "surfaced" : "demoted",
+        findingTitle: surfaced && typeof title === "string" ? title : null,
+        findingMissing: Array.isArray(missing) ? missing.filter((m): m is string => typeof m === "string") : [],
+      });
+    }
+    return out;
+  };
+  const improved = entries(bm?.improved ?? [], "up");
+  const deteriorated = entries(bm?.deteriorated ?? [], "down");
+  const between = `between ${cmp.prior_label} and ${cmp.current_label}`;
+  return {
+    available: true,
+    absence: null,
+    currentLabel: cmp.current_label,
+    priorLabel: cmp.prior_label,
+    basis: ratioRankBasisSentence(cmp),
+    improved,
+    deteriorated,
+    improvedAbsence: improved.length > 0 ? null : `no ratio moved up a band ${between}`,
+    deterioratedAbsence: deteriorated.length > 0 ? null : `no ratio moved down a band ${between}`,
+    unchanged: (bm?.unchanged ?? []).map((u) => {
+      const row = rows.get(u.key);
+      return {
+        key: u.key,
+        label: label(u.key),
+        band: row ? printRatioCompareRow(row, label(u.key)).bandNow : String(u.band ?? ""),
+      };
+    }),
+    notComparable: (bm?.not_comparable ?? []).map((n) => ({
+      key: n.key,
+      label: label(n.key),
+      reason: reasonText(n.reason_code, RATIO_CMP_EXPORT_LOCALE),
+    })),
+    refused: (bm?.refused ?? []).map((n) => ({
+      key: n.key,
+      label: label(n.key),
+      reason: reasonText(n.reason_code, RATIO_CMP_EXPORT_LOCALE),
+    })),
+    unlisted,
+    bothSides: typeof cmp.coverage?.both_sides === "number" ? cmp.coverage.both_sides : null,
+  };
+}
+
 // ── THE WHOLE MODEL ───────────────────────────────────────────────────
 
 export interface ExecutiveSummary {
+  /** The headline: ratios that crossed a band against the prior period. */
+  bandMovements: SummaryBandMovements;
   verdict: SummaryVerdict;
   tiles: SummaryTile[];
   comparatives: Comparatives;
@@ -239,19 +438,46 @@ export function buildExecutiveSummary(
   };
 
   // ── tiles ──────────────────────────────────────────────────────────
-  const tileValue = (key: string): number | null => {
-    const line = comparativeLine(comparatives, key);
-    if (line) return line.current;
-    return null;
-  };
+  const altmanLabel = extraRatios.find((x) => x.key === ALTMAN_RATIO_KEY)?.label ?? null;
+  const cmp = servedRatioComparison(s);
+  const servedRows = new Map(cmp ? servedMovableRows(cmp).map((row) => [row.key, row]) : []);
   const tiles: SummaryTile[] = SUMMARY_TILE_KEYS.map((key) => {
+    const ratioSpec = SUMMARY_RATIO_TILES[key];
+    if (ratioSpec) {
+      const row = servedRows.get(ratioSpec.servedKey) ?? null;
+      // The caller's resolved figure; else the current row the ratio cards
+      // print (equity ratio has one; net debt / EBITDA has none).
+      const override = Object.prototype.hasOwnProperty.call(currentOverrides, key)
+        ? currentOverrides[key]
+        : (allRatios(ratios, extraRatios).find((x) => x.key === key)?.value ?? null);
+      return {
+        key,
+        label: ratioSpec.label,
+        unit: row ? (row.display_unit as RatioDisplayUnit) : ratioSpec.unit,
+        // The served full-precision value when a table was served; the
+        // caller's resolved figure otherwise. Never a division here.
+        value: row ? row.current.value : override,
+        line: null,
+        ratio: {
+          servedKey: ratioSpec.servedKey,
+          row,
+          printed: row ? printRatioCompareRow(row, ratioSpec.label) : null,
+          absence: row
+            ? null
+            : cmp
+              ? `the served two-period ratio table carries no row for ${ratioSpec.servedKey}`
+              : priorRatioAbsence(s),
+        },
+      };
+    }
     const line = comparativeLine(comparatives, key);
     return {
       key,
       label: line?.label ?? key,
       unit: line?.unit ?? "money",
-      value: tileValue(key),
+      value: line ? line.current : null,
       line,
+      ratio: null,
     };
   });
   void totals;
@@ -276,6 +502,7 @@ export function buildExecutiveSummary(
     .slice(0, limit);
 
   return {
+    bandMovements: buildBandMovements(s, ratios, altmanLabel),
     verdict,
     tiles,
     comparatives,
