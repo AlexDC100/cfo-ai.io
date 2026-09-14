@@ -103,7 +103,7 @@ graph LR
     pkg_api -->|1| pkg_public_market
     pkg_api -->|2| pkg_public_ro
     pkg_api -->|1| pkg_radar
-    pkg_api -->|1| pkg_ratios
+    pkg_api -->|2| pkg_ratios
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage

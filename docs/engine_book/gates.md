@@ -2649,36 +2649,83 @@ serialised by `Finding.to_payload()`: surfaced when `validate()` finds all
 seven, otherwise the check row it demotes to, carrying its missing elements.
 The silent failure this exists for is a demoted crossing that simply
 vanishes, so the deteriorated list reads "nothing crossed" while a ratio fell
-two bands. On the real agras/carniprod pair 15 crossings serve 13 surfaced
-findings and 2 demoted check rows (letter_grade, ccc: no money denominator,
-so no headroom impact); retail/realestate serve 14 with 3 demoted
-(ccc, letter_grade, altman_z).
+two bands. Over all 20 ordered pairs of the five served books (the four corpus
+books and the Scandia baseline) 350 crossings serve 302 surfaced findings and
+48 demoted check rows, every one of them `impact: no impact supplied` on ccc
+(16), letter_grade (18) or altman_z (14) — no money denominator, so no
+headroom impact (held for the owner). Before the repair round 17 more demoted
+on formatting: carniprod serves the code `701.00'`, and subject selection
+named it.
 
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_bands.py -q` |
-| work count | junit-xml, floor **8** tests (measured 9, all over REAL GET /api/period bodies) |
-| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
+| work count | junit-xml, floor **50** tests (measured 56, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
+| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
 
 **Reds on, after the repair (TC-11):** the planted current_ratio crossing
 (prior agras with its served current liabilities raised to a 1.30 ratio,
 current carniprod 1.84, across the 1.5 rung) not surfacing, or its
-`validate()` returning any missing element, or its threshold, evidence
-(prior and current value, basis `prior_period`), provenance (both period
-ids, both snapshot ids equal to `_radar.content_hash_of` of the rows) or
-headroom impact (|delta| == the served `materiality.headroom_money`)
-differing; `ratio_compare` calling into c_bands other than exactly once; a
-finding for a ratio that did not cross, or a company compared with itself
-producing one; a lower-is-better crossing listed against the direction its
-value moved, or a threshold comparator disagreeing with its list;
-`improved + deteriorated + unchanged + not_comparable != coverage.both_sides`,
-a one-sided entry missing from `refused`, a crossing without its finding
-row, or the pair no longer carrying a demoted row; two compositions
-serialising differently. It cannot see whether a surface renders the rows,
-or the CAEN (the route passes none; the profile is inferred from the account
-mix).
+`validate()` returning any missing element, or its provenance (both period
+ids, both snapshot ids equal to `_radar.content_hash_of` of the rows)
+differing; `ratio_compare` calling into c_bands other than exactly once.
+On EVERY finding of all 20 ordered pairs, surfaced or demoted: a printed
+prior or current figure differing from the served `value_q` in the row's
+unit (the letter: the composite score) or absent from a surfaced body; the
+threshold limit, back in display units, differing from
+`movement.rung_crossed.value`; a severity other than the landing rule (any
+rung up low; landing critical or two or more rungs down high; one down
+medium); an impact present without served materiality or absent with it;
+impact baseline / adjusted not the at-rung / held numerator
+(rung x |served denominator| / unit scale, days on the served period length)
+to float precision, not cited under `band_numerator_at_rung` /
+`band_numerator_held`, or |delta| more than half a cent from the served
+`headroom_money`; the findings, improved or deteriorated list out of the
+printed rank order (spelled in the test from `rank_basis.order`). With
+carniprod current against each other book: a subject naming a served code
+`is_ledger_code` rejects, a finding demoting on "is not a ledger code", or a
+revenue-bucket crossing not surfacing. A composite citing the band table
+instead of a credit-model constant equal to the rung, or the letter's figures
+not labelled as the composite. Prose: a why-here not opening in a capital,
+an audience followed by a verb, the capitalised label mid-sentence, a doubled
+word in a title. A finding for a ratio that did not cross, or a company
+compared with itself producing one; a lower-is-better crossing listed against
+the direction its value moved; `improved + deteriorated + unchanged +
+not_comparable != coverage.both_sides`, a one-sided entry missing from
+`refused`, a crossing without its finding row, or the PLANTED demotion (the
+top surfaced crossing with its subject line items removed, every movement
+list otherwise unchanged) dropped or not demoted on `subject` — the gate no
+longer leans on a natural demotion, all of which are held impact-only ones;
+two compositions serialising differently. It cannot see whether a surface
+renders the rows, or the CAEN (the route passes none; the profile is
+inferred from the account mix).
 
-**GREEN** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)`.
+**GREEN** — exit `0`: `PASS ratio-band-findings (4.7s, 56 tests)` (repair
+round, through `run_battery.main` with the gate list narrowed to this gate).
+The wave-1 record below it (9 tests) is kept as it ran.
+
+**REPAIR-ROUND PLANTS** — each through `run_battery.main`, each reverted:
+
+| plant | where | battery record |
+|---|---|---|
+| M8 | `c_bands._figure_value` without the /100 for pct | `FAIL` exit 1, `20 failed, 36 passed` |
+| S1 | `c_bands._accounts` ledger-code and name filter removed | `FAIL` exit 1, `5 failed, 51 passed` (`assert ['701'] == ['707']`) |
+| P1 | `build_band_findings` drops non-surfaced rows | `FAIL` exit 1, `27 failed, 29 passed` |
+| W4 | `parameter_label` back to `<label> <rung> rung` | `FAIL` exit 1, `16 failed, 40 passed` |
+
+Direct pytest runs on the same round, each reverted RED: M12 days headroom on
+360 (`agras|carniprod dpo` baseline 12937720.66 vs 12760491.61), M1 / M1b
+impact endpoints swapped, M4 every severity low (`'low' == 'high'`), M11 the
+composer sorting crossed rows by key and M11b `_rank_key` without
+distance_fraction (`findings are not in the printed rank order`), P2 the
+composer dropping rows demoted on anything but impact (`11 finding rows for
+15 crossings`), Q1/Q1b/Q2/Q3 the composite source, Altman source, letter
+figure label and basis sentence reverted, W2/W3/W6 the audience verb, the
+capitalised embedded scope, an audience-first template without sentence
+casing. W1 (sentence casing removed alone) stays GREEN: every template opens
+in a capital, so it is a guard proven only with W6.
+
+**WAVE-1 GREEN** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)`.
 
 **PLANT A** — `src/engine/api/findings/c_bands.py` `build_band_findings`:
 drop demoted rows (`if not payload["surfaced"]: continue`).
