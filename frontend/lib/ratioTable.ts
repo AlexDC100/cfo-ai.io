@@ -290,9 +290,14 @@ export interface RatioBandMovements {
   improved: string[];
   deteriorated: string[];
   unchanged: { key: string; band: RatioBand | CreditLetter | null }[];
+  /** Valued on both sides and not comparable. With improved, deteriorated
+   *  and unchanged it partitions `coverage.both_sides`. */
   not_comparable: { key: string; reason_code: string }[];
-  /** Finding.to_payload() rows, or check rows when demoted, in rank order.
-   *  Typed loosely here: the findings contract owns that shape. */
+  /** Movable entries refused on either side (never dropped). */
+  refused: { key: string; reason_code: string }[];
+  /** ONE row per crossing (improved + deteriorated), in rank order:
+   *  Finding.to_payload() when surfaced, the check row it demotes to
+   *  otherwise. Typed loosely here: the findings contract owns that shape. */
   findings: Record<string, unknown>[];
 }
 
@@ -305,7 +310,12 @@ export interface RatioComparisonStamps {
 
 export interface RatioComparisonCoverage {
   census_count: number;
+  /** The composites the movement partition covers beside the census. */
+  movable_composites: string[];
+  /** Census rows plus `movable_composites`, valued on both sides. */
   both_sides: number;
+  /** Census rows alone, valued on both sides. */
+  both_sides_census: number;
   prior_refused: Record<string, string>;
   current_refused: Record<string, string>;
 }

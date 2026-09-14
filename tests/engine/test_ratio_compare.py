@@ -79,6 +79,7 @@ from typing import Any, Dict, List, Tuple
 import pytest
 
 from engine.api import _comparatives as C
+from engine.api.findings.c_bands import build_band_findings
 from engine.comparatives import ratio_compare as RC
 from engine.country_packs.ro_romania.chart_of_accounts import _piotroski_checks
 from engine.ratios import credit_model as CM
@@ -102,7 +103,8 @@ def _pair(prior_metrics=None, cur_signal=None, pri_signal=None):
 
 def _compare(cur, pri):
     return RC.compare_ratio_tables(cur, pri, current_label="2025", prior_label="2024",
-                                   piotroski_checks=_piotroski_checks)
+                                   piotroski_checks=_piotroski_checks,
+                                   band_findings=build_band_findings)
 
 
 def _all_rows(out) -> List[Dict[str, Any]]:

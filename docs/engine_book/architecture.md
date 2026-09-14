@@ -36,7 +36,7 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (103 modules)"]
+    pkg_api["api (104 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_comparatives["comparatives (6 modules)"]

@@ -87,9 +87,27 @@ effective date, so both periods are graded and scored under the CURRENT
 revision: restated comparatives. That is the retrospective-restatement
 CONVENTION, stated as `effective_dating`, not an engine fact.
 
-Findings: `band_movements.findings` and every row's `finding_id` are
-served empty / null here; the seven-element crossing findings are the
-next batch (B5).
+── THE PARTITION AND THE FINDINGS ────────────────────────────────────────
+
+The movable entries are the census rows plus altman_z, credit_composite and
+letter_grade. Every one valued on BOTH sides lands in exactly one of
+`improved`, `deteriorated`, `unchanged` or `not_comparable`, so
+
+    len(improved) + len(deteriorated) + len(unchanged) + len(not_comparable)
+        == coverage.both_sides
+
+and an entry refused on either side is listed under `refused` with its
+reason code (never dropped). `coverage.both_sides_census` is the same
+count over the census rows alone.
+
+`band_movements.findings` holds ONE row per crossing (improved and
+deteriorated, in rank order), built by the injected `band_findings`
+builder (`engine.api.findings.c_bands.build_band_findings`) in ONE call: a
+surfaced seven-element finding, or the check row it demotes to, carrying
+its missing elements. The lists above are derived from the movements, not
+from what surfaced, so a demotion never shrinks them. Each crossed row's
+`finding_id` names its finding row. The builder is a required argument:
+there is no composition without findings to serve as an empty list.
 
 Pure over its inputs: no clock, no I/O, deterministic JSON.
 """
@@ -165,6 +183,10 @@ MATERIALITY_BASES: Dict[str, Dict[str, str]] = {
 }
 
 PiotroskiChecks = Callable[..., Dict[str, Any]]
+BandFindings = Callable[..., List[Dict[str, Any]]]
+
+#: The entries the partition covers, named on the payload (TC-13).
+MOVABLE_COMPOSITES: Tuple[str, ...] = ("altman_z", "credit_composite", "letter_grade")
 
 
 # ── decimals ─────────────────────────────────────────────────────────────────
@@ -651,8 +673,17 @@ def compare_ratio_tables(
     current_label: str,
     prior_label: str,
     piotroski_checks: Optional[PiotroskiChecks] = None,
+    band_findings: BandFindings,
+    current_period_id: Optional[str] = None,
+    prior_period_id: Optional[str] = None,
+    current_snapshot_id: Optional[str] = None,
+    prior_snapshot_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """The two-period ratio block for two served `get_period` payloads."""
+    """The two-period ratio block for two served `get_period` payloads.
+
+    Period ids default to each payload's own `period.id`; snapshot ids have
+    no default (a payload does not carry its envelope's content hash — the
+    route's period rows do)."""
     cur_payload = dict(current_payload)
     pri_payload = dict(prior_payload)
     blocking = _blocking_signal(cur_payload) or _blocking_signal(pri_payload)
@@ -688,15 +719,38 @@ def compare_ratio_tables(
 
     composites, subscores = _composite_rows(cur_t["credit"], pri_t["credit"])
 
-    movable = rows + [r for r in composites if r["key"] != "credit_composite"]
+    movable = rows + [r for r in composites if r["key"] in MOVABLE_COMPOSITES]
+
+    def both(r: Mapping[str, Any]) -> bool:
+        return _has_value(r["current"]) and _has_value(r["prior"])
+
     improved = sorted((r for r in movable if r["movement"]["status"] == "crossed_up"), key=_rank_key)
     deteriorated = sorted((r for r in movable if r["movement"]["status"] == "crossed_down"), key=_rank_key)
     unchanged = sorted(({"key": r["key"], "band": r["movement"]["to"]}
                         for r in movable if r["movement"]["status"] == "same_band"),
                        key=lambda x: x["key"])
     not_comparable = sorted(({"key": r["key"], "reason_code": r["movement"]["reason_code"]}
-                             for r in rows + composites if r["movement"]["status"] == "not_comparable"),
+                             for r in movable
+                             if r["movement"]["status"] == "not_comparable" and both(r)),
                             key=lambda x: x["key"])
+    refused = sorted(({"key": r["key"], "reason_code": r["movement"]["reason_code"]}
+                      for r in movable if not both(r)),
+                     key=lambda x: x["key"])
+
+    crossed = sorted(improved + deteriorated, key=_rank_key)
+    # ONE call into the injected builder, even when nothing crossed.
+    findings = band_findings(
+        copy.deepcopy(crossed),
+        current_payload=cur_payload, current_label=current_label, prior_label=prior_label,
+        current_period_id=current_period_id or (cur_payload.get("period") or {}).get("id"),
+        prior_period_id=prior_period_id or (pri_payload.get("period") or {}).get("id"),
+        current_snapshot_id=current_snapshot_id, prior_snapshot_id=prior_snapshot_id,
+        bands_stamp=copy.deepcopy(cur_t["stamps"]["bands"]),
+        denominators=denominators, period_days=days,
+    )
+    by_key = {f.get("ratio_key"): f.get("finding_id") for f in findings}
+    for r in crossed:
+        r["finding_id"] = by_key.get(r["key"])
 
     comparable_model = (cur_t["stamps"]["credit_model_revision"] == pri_t["stamps"]["credit_model_revision"]
                         and cur_t["stamps"]["bands"]["table_sha256"] == pri_t["stamps"]["bands"]["table_sha256"])
@@ -732,12 +786,15 @@ def compare_ratio_tables(
             "deteriorated": [r["key"] for r in deteriorated],
             "unchanged": unchanged,
             "not_comparable": not_comparable,
-            "findings": [],
+            "refused": refused,
+            "findings": findings,
         },
         "coverage": {
             "census_count": len(T.CENSUS),
             "census": list(T.CENSUS),
-            "both_sides": sum(1 for r in rows if _has_value(r["current"]) and _has_value(r["prior"])),
+            "movable_composites": list(MOVABLE_COMPOSITES),
+            "both_sides": sum(1 for r in movable if both(r)),
+            "both_sides_census": sum(1 for r in rows if both(r)),
             "prior_refused": dict(pri_t["coverage"]["refused"]),
             "current_refused": dict(cur_t["coverage"]["refused"]),
         },
