@@ -18,6 +18,11 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       `_radar.content_hash_of`), its impact not being headroom money whose
       |delta| is the composer's served `materiality.headroom_money`, or
       `ratio_compare` calling into c_bands other than exactly once.
+  SUBJECT CODES  with carniprod as the current period (against each other
+      book), any finding naming a served code `is_ledger_code` rejects
+      (`701.00'`), any finding demoting on "is not a ledger code", or a
+      revenue-bucket crossing not surfacing; selection keeping a nameless
+      line instead of taking the next account.
   NO CROSSING, NO FINDING  any finding row whose ratio did not cross (same
       band, not comparable, refused), a finding set that is not exactly
       improved + deteriorated, or a company compared with itself producing
@@ -135,6 +140,43 @@ def test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_
     assert format(headroom, "f") == mv["materiality"]["headroom_money"], (imp.delta, mv["materiality"])
     assert all(step.lead_verb() in F.IMPERATIVE_VERBS for step in finding.action.steps)
     assert served["so_what"]["placeholders"]["rung_value"] == "1.5"
+
+
+# ── 1b. a served code the contract rejects is never the subject ────────────
+
+
+@pytest.mark.parametrize("pri_name", ["agras", "realestate", "retail", SB.SCANDIA])
+def test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces(pri_name):
+    """carniprod serves line items whose codes carry a stray quote
+    (`701.00'`, `6028.10'`, `6410.10'`). Ranked by balance, `701.00'` is its
+    second revenue line, so every revenue-denominated crossing with carniprod
+    as the current period used to demote on formatting alone."""
+    body = SB.served_body("carniprod")
+    malformed = {str(li.get("ro_account_code")) for li in body["line_items"]
+                 if not F.is_ledger_code(str(li.get("ro_account_code") or ""))}
+    assert "701.00'" in malformed, sorted(malformed)
+    out = _compose(body, SB.served_body(pri_name), "carniprod", pri_name)
+    findings = out["band_movements"]["findings"]
+    revenue = [f for f in findings if "revenue" in sum(CB.SUBJECT_BUCKETS[f["ratio_key"]], ())]
+    assert revenue, "non-vacuity: carniprod|%s carries no revenue-bucket crossing" % pri_name
+    for f in findings:
+        codes = [a["code"] for a in f["contract_elements"]["subject"]["accounts"]]
+        assert not set(codes) & malformed, (f["ratio_key"], codes)
+        assert not any("is not a ledger code" in r for r in f["demotion_reasons"]), (
+            f["ratio_key"], f["demotion_reasons"])
+    for f in revenue:
+        assert f["surfaced"], (f["ratio_key"], f["demotion_reasons"])
+
+
+def test_subject_selection_skips_a_nameless_line_and_takes_the_next_account():
+    """The name half of the same filter: validate() also rejects an account
+    with no name, so selection passes over it to the next balance."""
+    items = [
+        {"bucket": "revenue", "ro_account_code": "701", "ro_account_name": "  ", "amount": 900.0},
+        {"bucket": "revenue", "ro_account_code": "704'", "ro_account_name": "Servicii", "amount": 800.0},
+        {"bucket": "revenue", "ro_account_code": "707", "ro_account_name": "Marfuri", "amount": 700.0},
+    ]
+    assert [a.code for a in CB._accounts(items, ("revenue",), 1, ())] == ["707"]
 
 
 # ── 2. no crossing, no finding ─────────────────────────────────────────────

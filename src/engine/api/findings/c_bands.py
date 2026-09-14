@@ -237,6 +237,12 @@ def _accounts(line_items: Sequence[Mapping[str, Any]], buckets: Sequence[str],
         amount = li.get("amount")
         if not code or code in taken or isinstance(amount, bool) or not isinstance(amount, (int, float)):
             continue
+        # Only what the SUBJECT element accepts: a served code the contract
+        # rejects (carniprod serves `701.00'`) or a nameless line would demote
+        # the whole finding over formatting, while a valid account in the
+        # same bucket stands next in line.
+        if not F.is_ledger_code(code) or not str(li.get("ro_account_name") or "").strip():
+            continue
         candidates.append((-abs(float(amount)), code, li))
     candidates.sort(key=lambda c: (c[0], c[1]))
     out = []  # type: List[F.Account]

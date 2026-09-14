@@ -182,6 +182,13 @@ IMPERATIVE_VERBS = frozenset([
 _NUMBER_RX = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?")
 _ACCOUNT_CODE_RX = re.compile(r"^[0-9][0-9A-Za-z._-]*$")
 
+
+def is_ledger_code(code: Any) -> bool:
+    """True when `code` is a ledger code the SUBJECT element accepts — the
+    one test `Finding.validate` applies, exposed so a producer choosing
+    accounts can skip what the contract would reject instead of demoting."""
+    return isinstance(code, str) and bool(_ACCOUNT_CODE_RX.match(code))
+
 COMPARATORS = {
     ">": "above",
     ">=": "at or above",
@@ -698,7 +705,7 @@ class Finding:
         if not s.accounts:
             out.append(Missing(ELEMENT_SUBJECT, "no accounts named"))
         for a in s.accounts:
-            if not a.code or not _ACCOUNT_CODE_RX.match(a.code):
+            if not a.code or not is_ledger_code(a.code):
                 out.append(Missing(ELEMENT_SUBJECT,
                                    "account code %r is not a ledger code" % a.code))
             if not (a.name or "").strip():
@@ -1250,7 +1257,7 @@ __all__ = [
     "Confidence", "Evidence", "Figure", "Finding", "FindingSet", "Impact",
     "Missing", "Provenance", "RenderedFinding", "Subject", "Threshold",
     "Verdict", "WhyHere",
-    "ratio_impact", "money_impact", "headroom_impact",
+    "ratio_impact", "money_impact", "headroom_impact", "is_ledger_code",
     "apply_advisory_narrative",
     "NarrativeMutationError", "UnknownUnitError", "OrphanCurrencyLabelError",
     "CONTRACT_ELEMENTS", "ALL_GATES", "BANNED_PHRASES", "IMPERATIVE_VERBS",
