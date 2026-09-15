@@ -503,3 +503,58 @@ include: (a) periods whose envelope lacks `pack_provenance.jurisdiction`
 persisted before 2026-08-20; (b) periods in a jurisdiction with no packed
 statutory record (today every non-RO jurisdiction, e.g. HU packs). Each
 refuses only when its effective rate is not measured.
+
+
+## 609 — the retail disagreement, investigated (plan/2 B4, contract 5.1)
+
+Question (5.1): the retail book's statement line items carry 609 at
++1,267,606.26 (7.62 percent of opex) while the canonical leaf
+`discounts_received_supplier` says `expense_negative`. Is the assembled
+operating cost wrong, or is the leaf's word the odd one out?
+
+What the source says. 609 is "reduceri comerciale primite" (OMFP 1802,
+credit function: supplier discounts reduce cost), and 709 is "reduceri
+comerciale acordate" (debit function: customer reductions reduce revenue).
+All three Saga books close class 6/7 into 121, so each P&L row prints the
+same cumulative value on both turnover sides ("mirrored"). The corpus
+inputs, read cell by cell:
+
+| book | 609 / 709 rows (mirrored cumulative value) | exporter writes reductions |
+|---|---|---|
+| retail | 609.401 +1,177,554.93; 609.403 +131,534.14; 609.304 -34,053.41 (storno); 609.904 -7,429.40 (storno); 709.401 +171,011.99; 709.304 +61,262.95; 709.305 +13,704.00 | positive |
+| agras | 609.402 +67,198.73; 709.304 +2,087,418.08; 709.401 +1,797,564.61; 709.904 +4,272.56 | positive |
+| carniprod | 6090.01 +28,135.62; 6090.05 +123,045.43; 7094.01 +1,336,597.29; 7093.04 +987,775.35 (and three more) | positive |
+| saga_10_col (frozen Scandia golden) | 709101 -202,772.78; 709502 -12,350.57; 709901 -11,722.00 | negative |
+| Scandia FY2025 (local only, not committed) | 709102 -22,700,688.49; 609003 -27,374.00 (33 contra rows, net -35,834,590.64) | negative |
+
+The deterministic parser (`country_packs/ro_romania/trial_balance_parser.py`,
+`accounts_to_assemble_shape`, the mirrored branch) takes a mirrored row's
+sign as the entry's direction. That is right for the negative-writing
+exporter and wrong for the positive-writing one: on retail, agras and
+carniprod every supplier discount is ADDED to operating cost and every
+customer reduction ADDED to revenue.
+
+The independent check is account 121. The engine's own invariant
+`canonical_bs.invariants.p121_cross_check` compares the class-7 minus class-6
+build-up with the filed profit:
+
+| book | reconstruction as assembled | 121 filed | with 609/709 read as reductions |
+|---|---|---|---|
+| retail | 1,161,957.98 (`ok` false, gap 2,043,254.64) | 3,205,212.62 | 3,205,212.62 (`ok` true, gap 0.00) |
+| agras | 14,106,102.03 (gap -6,572,426.01) | 7,533,676.02 | 6,461,988.99 (gap 1,071,687.03, the 711 production variation remains) |
+| carniprod | 5,843,449.04 (gap -4,407,915.45) | 1,435,533.59 | 1,248,684.06 (gap 186,849.53) |
+| saga_10_col, Scandia FY2025 | unchanged (the exporter already writes reductions negative) | | |
+
+Retail reproduces account 121 to the cent only when both 609 (2 x
+1,267,606.26 off opex) and 709 (2 x 245,978.94 off revenue) enter as
+reductions; nothing else on the statement moves.
+
+DECISION: **the assembled opex is wrong** (and, by the same defect, the
+assembled revenue on the same three books). Contract 5.1's branch fires: B4
+splits into B4a (statements repair, on the critical path) and B4b (pools),
+two commit groups on `wave/plan-b4`. B4a repairs the parser, not the leaf:
+the leaf's `expense_negative` is the declared nature the repair reads. The
+owner is asked to confirm the reading of the positive-writing exporter and to
+count live periods persisted by `tb_parser_v5` that carry mirrored 609/709
+rows (every such period's revenue and opex are overstated until
+re-processed).
