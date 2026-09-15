@@ -92,6 +92,7 @@ import {
   formatRatioDelta,
   formatRatioMovement,
   movementTone,
+  serializeRatioCompareRow,
   type RatioComparisonV1,
   type RatioTableV1,
 } from "@/lib/ratioTable";
@@ -242,9 +243,12 @@ describe("G1 the tile and the table print the served strings, not a browser comp
     expect(within(drawer).getByTestId("ratio-detail-current").textContent).toContain(unit("x", planted));
     const vs = within(drawer).getByTestId("ratio-detail-vs-prior");
     expect(cell(vs, "delta")).toBe(unit("turns", "+0.07"));
-    // one printed form on every surface
+    // one printed form on every surface, and the served row as the handle
+    expect(vs.getAttribute("data-ratio-printed-json")).toBe(tr.getAttribute("data-ratio-printed-json"));
+    expect(tl.getAttribute("data-ratio-printed-json")).toBe(tr.getAttribute("data-ratio-printed-json"));
     expect(vs.getAttribute("data-ratio-cmp-json")).toBe(tr.getAttribute("data-ratio-cmp-json"));
     expect(tl.getAttribute("data-ratio-cmp-json")).toBe(tr.getAttribute("data-ratio-cmp-json"));
+    expect(tr.getAttribute("data-ratio-cmp-json")).toBe(serializeRatioCompareRow(row));
   });
 
   it("every tile the engine served a row for is served-sourced and byte-equal to its table row", () => {
@@ -255,6 +259,9 @@ describe("G1 the tile and the table print the served strings, not a browser comp
     for (const tl of tiles) {
       const engineKey = tl.getAttribute("data-engine-key")!;
       expect(tl.getAttribute("data-source"), engineKey).toBe("served");
+      expect(tl.getAttribute("data-ratio-printed-json"), engineKey).toBe(
+        tableRow(engineKey).getAttribute("data-ratio-printed-json"),
+      );
       expect(tl.getAttribute("data-ratio-cmp-json"), engineKey).toBe(
         tableRow(engineKey).getAttribute("data-ratio-cmp-json"),
       );

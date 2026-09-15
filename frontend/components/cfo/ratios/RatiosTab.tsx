@@ -46,6 +46,7 @@ import {
   engineKeyOf,
   ladderText,
   printRatioRow,
+  ratioCmpHandleOf,
   serializePrintedRow,
   servedIdentityOf,
 } from "@/lib/ratioCompareView";
@@ -175,7 +176,8 @@ export function RatioTile({
       data-ratio-key={ratio.key}
       data-engine-key={engineKey}
       data-source={printed ? "served" : "client"}
-      data-ratio-cmp-json={printed ? serializePrintedRow(printed) : undefined}
+      data-ratio-cmp-json={printed ? ratioCmpHandleOf(view, engineKey) : undefined}
+      data-ratio-printed-json={printed ? serializePrintedRow(printed) : undefined}
       aria-label={clickable ? t("dash.openRatioDetail", { label: printed?.label ?? ratio.label }) : undefined}
       className={`
         group relative w-full text-left

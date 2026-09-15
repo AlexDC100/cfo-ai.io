@@ -59,6 +59,7 @@ import {
   engineKeyOf,
   ladderText,
   printRatioRow,
+  ratioCmpHandleOf,
   serializePrintedRow,
   servedIdentityOf,
   servedVerdictOf,
@@ -317,7 +318,8 @@ function DrawerBody({
               data-testid="ratio-detail-vs-prior"
               data-ratio-prior={printed.priorStatus}
               data-movement={printed.movementStatus ?? "none"}
-              data-ratio-cmp-json={serializePrintedRow(printed)}
+              data-ratio-cmp-json={ratioCmpHandleOf(compareView, engineKey)}
+              data-ratio-printed-json={serializePrintedRow(printed)}
             >
               <div className="text-[10px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
                 {t("statements.ratioCmp.ui.vsPriorTitle", { prior: compareView?.priorLabel ?? "" })}

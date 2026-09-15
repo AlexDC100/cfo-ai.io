@@ -643,6 +643,44 @@ export interface FormattedRatioDelta {
   secondary: string | null;
 }
 
+/** How a turns row's percent change sits beside its turns change when the
+ *  two are printed as ONE cell: "+0.28× (+15.4%)". The report, the
+ *  workbook and the Ratios tab's change cell all print it this way, so a
+ *  change cell is the same bytes on every surface
+ *  (ratioTableByteMatch.test.tsx). A surface that lays the two parts out
+ *  on separate lines renders these same three strings in order. */
+export const RATIO_DELTA_SECONDARY_OPEN = " (";
+export const RATIO_DELTA_SECONDARY_CLOSE = ")";
+
+/** The one-cell text of a formatted delta. */
+export function joinRatioDelta(d: FormattedRatioDelta): string {
+  return d.secondary === null
+    ? d.primary
+    : `${d.primary}${RATIO_DELTA_SECONDARY_OPEN}${d.secondary}${RATIO_DELTA_SECONDARY_CLOSE}`;
+}
+
+function canonicalRatioJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalRatioJson).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonicalRatioJson(obj[k])}`)
+    .join(",")}}`;
+}
+
+/** A served two-period row, serialised canonically: keys sorted at every
+ *  depth, no whitespace. THE BYTE-MATCH HANDLE: every surface that prints a
+ *  served row — the Ratios tab (table, tile, drawer, lists, credit strip),
+ *  the report (cards, served-only table, executive summary) — embeds this
+ *  string as `data-ratio-cmp-json`, so the same served row is the same
+ *  bytes on the dashboard and in the downloaded document. Nothing is
+ *  formatted, rounded or dropped on the way. */
+export function serializeRatioCompareRow(row: RatioCompareRow): string {
+  return canonicalRatioJson(row);
+}
+
 /** The served delta as printed text. */
 export function formatRatioDelta(
   delta: RatioDelta | null | undefined,

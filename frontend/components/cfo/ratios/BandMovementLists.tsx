@@ -11,34 +11,47 @@
 import { useTranslation } from "react-i18next";
 
 import { PriorStateNote, toneText } from "@/components/cfo/ratios/RatioComparisonTable";
+import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 import {
   printBandMovements,
+  ratioCmpHandleOf,
   serializePrintedRow,
   type PrintedRatioRow,
   type RatioCompareView,
 } from "@/lib/ratioCompareView";
 
-function Item({ row, rank }: { row: PrintedRatioRow; rank: number }) {
+function Item({ row, rank, view }: { row: PrintedRatioRow; rank: number; view: RatioCompareView }) {
   return (
     <li
       className="py-1.5 border-t border-rule-soft first:border-t-0"
       data-testid="band-movement-item"
       data-ratio-key={row.key}
       data-rank={rank}
-      data-ratio-cmp-json={serializePrintedRow(row)}
+      data-ratio-cmp-json={ratioCmpHandleOf(view, row.key)}
+      data-ratio-printed-json={serializePrintedRow(row)}
     >
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12.5px] text-ink">{row.label}</span>
-        <span className={`text-[12px] whitespace-nowrap ${toneText(row.movementTone)}`} data-col="movement">
+        <span className={`text-[12px] whitespace-nowrap ${toneText(row.movementTone)}`} data-col="movement" data-cell="movement">
           {row.movement}
         </span>
       </div>
       <div className="mt-0.5 font-mono tabular-nums text-[11.5px] text-ink-soft">
-        <span data-col="prior">{row.prior}</span>
+        <span data-col="prior" data-cell="prior">{row.prior}</span>
         <span aria-hidden className="mx-1 text-ink-mute">→</span>
-        <span data-col="current">{row.current}</span>
-        <span className={`ml-2 ${toneText(row.deltaTone)}`} data-col="delta">{row.delta}</span>
-        {row.deltaSecondary ? <span className="ml-1 text-ink-mute" data-col="delta_secondary">{row.deltaSecondary}</span> : null}
+        <span data-col="current" data-cell="current">{row.current}</span>
+        {/* One change cell, the same bytes the report's list item and the
+            workbook's Band movements row print (`joinRatioDelta`). */}
+        <span className="ml-2" data-cell="delta">
+          <span className={toneText(row.deltaTone)} data-col="delta">{row.delta}</span>
+          {row.deltaSecondary ? (
+            <span className="text-ink-mute">
+              {RATIO_DELTA_SECONDARY_OPEN}
+              <span data-col="delta_secondary">{row.deltaSecondary}</span>
+              {RATIO_DELTA_SECONDARY_CLOSE}
+            </span>
+          ) : null}
+        </span>
       </div>
     </li>
   );
@@ -91,7 +104,7 @@ export function BandMovementLists({ view }: { view: RatioCompareView }) {
           {printed.improved.length === 0 ? (
             <p className="text-[12px] text-ink-mute">{t("statements.ratioCmp.ui.improvedEmpty")}</p>
           ) : (
-            <ol>{printed.improved.map((r, i) => <Item key={r.key} row={r} rank={i + 1} />)}</ol>
+            <ol>{printed.improved.map((r, i) => <Item key={r.key} row={r} rank={i + 1} view={view} />)}</ol>
           )}
         </div>
         <div data-testid="band-deteriorated">
@@ -101,7 +114,7 @@ export function BandMovementLists({ view }: { view: RatioCompareView }) {
           {printed.deteriorated.length === 0 ? (
             <p className="text-[12px] text-ink-mute">{t("statements.ratioCmp.ui.deterioratedEmpty")}</p>
           ) : (
-            <ol>{printed.deteriorated.map((r, i) => <Item key={r.key} row={r} rank={i + 1} />)}</ol>
+            <ol>{printed.deteriorated.map((r, i) => <Item key={r.key} row={r} rank={i + 1} view={view} />)}</ol>
           )}
         </div>
       </div>

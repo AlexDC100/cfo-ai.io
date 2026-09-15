@@ -36,9 +36,11 @@
 // the badge state the one sector decision and a withheld movement prints
 // its served `sector_unconfirmed` reason.
 //
-// `PrintedRatioRow` is the printed form every ratio surface embeds
-// (`data-ratio-cmp-json`), so a surface that formats on its own can be
-// caught by comparing strings.
+// `PrintedRatioRow` is the printed form every tab surface embeds
+// (`data-ratio-printed-json`), so a surface that formats on its own can be
+// caught by comparing strings. The served row itself rides as
+// `data-ratio-cmp-json` (`ratioCmpHandleOf`), the same bytes the report
+// embeds for that row.
 
 import i18n from "@/i18n";
 import type { ChipTone } from "@/components/instrument/Panel";
@@ -52,6 +54,7 @@ import {
   movementTone,
   ratioLocale,
   reasonText,
+  serializeRatioCompareRow,
   type CreditBlock,
   type RatioCompareRow,
   type RatioComparisonV1,
@@ -181,6 +184,18 @@ function compareRowOf(view: RatioCompareView, key: string): RatioCompareRow | nu
     (c.subscores ?? []).find((r) => r.key === key) ??
     null
   );
+}
+
+/** The byte-match handle for a key: the served two-period row serialised
+ *  (`serializeRatioCompareRow`, the string the report embeds for the same
+ *  row), or undefined when no comparison serves the key. Every tab surface
+ *  embeds it as `data-ratio-cmp-json`; the PRINTED form, which the tab's
+ *  own surfaces hold byte-equal to one another, rides as
+ *  `data-ratio-printed-json`. */
+export function ratioCmpHandleOf(view: RatioCompareView | null, key: string): string | undefined {
+  if (!view) return undefined;
+  const row = compareRowOf(view, key);
+  return row ? serializeRatioCompareRow(row) : undefined;
 }
 
 /** The served current Side for a key: the per-period table's row, else

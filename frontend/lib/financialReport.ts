@@ -124,6 +124,8 @@ import {
   deltaTone,
   formatRatioBand,
   formatRatioDelta,
+  joinRatioDelta,
+  serializeRatioCompareRow,
   formatRatioMovement,
   formatRatioSide,
   movementTone,
@@ -2843,24 +2845,10 @@ export function servedRatioComparison(s: Pick<Statements, "comparatives">): Rati
   return ratioComparisonDefect(block) === null ? block : null;
 }
 
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const obj = value as Record<string, unknown>;
-  return `{${Object.keys(obj)
-    .filter((k) => obj[k] !== undefined)
-    .sort()
-    .map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`)
-    .join(",")}}`;
-}
-
-/** A served row, serialised canonically: keys sorted at every depth, no
- *  whitespace. The string every surface embeds as `data-ratio-cmp-json` and
- *  the byte-match gates compare. It is a serialisation of what the engine
- *  served — nothing is formatted, rounded or dropped on the way. */
-export function serializeRatioCompareRow(row: RatioCompareRow): string {
-  return canonicalJson(row);
-}
+/** A served row, serialised canonically — the byte-match handle. It lives
+ *  in the one formatter module (`ratioTable.ts`) because the Ratios tab
+ *  embeds the same string; re-exported here for the export readers. */
+export { serializeRatioCompareRow };
 
 /** computeRatios key → the served census key, where they differ. MIRROR of
  *  the `fe_key` column of `_SPECS` in `src/engine/ratios/table.py`: the FE
@@ -2950,7 +2938,7 @@ export function printRatioCompareRow(row: RatioCompareRow, label: string): Print
     label,
     current: formatRatioSide(row.current, unit, loc),
     prior: formatRatioSide(row.prior, unit, loc),
-    delta: delta.secondary === null ? delta.primary : `${delta.primary} (${delta.secondary})`,
+    delta: joinRatioDelta(delta),
     bandNow: formatRatioBand(row.current, loc),
     bandPrior: formatRatioBand(row.prior, loc),
     movement: formatRatioMovement(row.movement, loc),
@@ -4724,9 +4712,9 @@ export function renderReportHtml(
         `<strong>${escapeHtml(e.label)}</strong> <span data-cell="movement" data-tone="${escapeHtml(
           ratioMovementTone(e.row),
         )}">${escapeHtml(p.movement)}</span> &middot; ` +
-        `${escapeHtml(bm.priorLabel ?? "")} ${escapeHtml(p.prior)} &rarr; ${escapeHtml(bm.currentLabel ?? "")} ${escapeHtml(
-          p.current,
-        )} &middot; change <span data-cell="delta" data-tone="${escapeHtml(ratioDeltaTone(e.row))}">${escapeHtml(p.delta)}</span>` +
+        `${escapeHtml(bm.priorLabel ?? "")} <span data-cell="prior">${escapeHtml(p.prior)}</span> &rarr; ${escapeHtml(
+          bm.currentLabel ?? "",
+        )} <span data-cell="current">${escapeHtml(p.current)}</span> &middot; change <span data-cell="delta" data-tone="${escapeHtml(ratioDeltaTone(e.row))}">${escapeHtml(p.delta)}</span>` +
         `${e.rung ? ` &middot; ${escapeHtml(e.rung)}` : ""}${finding}</li>`
       );
     };

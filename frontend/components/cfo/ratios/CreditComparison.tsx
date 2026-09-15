@@ -19,6 +19,7 @@ import { PriorStateNote, toneText } from "@/components/cfo/ratios/RatioCompariso
 import {
   asFiledSentence,
   printCreditComparison,
+  ratioCmpHandleOf,
   serializePrintedRow,
 } from "@/lib/ratioCompareView";
 
@@ -51,7 +52,8 @@ export function CreditComparison({ surface }: { surface: "hero" | "risks" }) {
                 data-testid={`credit-prior-${r.key}`}
                 data-ratio-key={r.key}
                 data-ratio-prior={r.priorStatus}
-                data-ratio-cmp-json={serializePrintedRow(r)}
+                data-ratio-cmp-json={ratioCmpHandleOf(view, r.key)}
+                data-ratio-printed-json={serializePrintedRow(r)}
               >
                 <dt className="text-ink-mute">{r.label}</dt>
                 <dd className="font-mono tabular-nums text-ink">

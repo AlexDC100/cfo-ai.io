@@ -4,15 +4,23 @@
 // credit sub-scores as supporting detail.
 //
 // Each cell is a string from `printRatioRow` (lib/ratioCompareView.ts),
-// which is the one formatter over the served rows; each row embeds that
-// printed form as `data-ratio-cmp-json` so the report and the workbook
-// can be held byte-equal to it. Nothing here formats a number.
+// which is the one formatter over the served rows. Each row embeds the
+// served row as `data-ratio-cmp-json` (the bytes the report embeds for the
+// same row) and its printed form as `data-ratio-printed-json`; the six
+// cells carry the report's `data-cell` ids, so the tab, the report and the
+// workbook are held byte-equal cell by cell (ratioTableByteMatch.test.tsx).
+// Nothing here formats a number.
 
 import { useTranslation } from "react-i18next";
 
 import type { ChipTone } from "@/components/instrument/Panel";
 import {
+  RATIO_DELTA_SECONDARY_CLOSE,
+  RATIO_DELTA_SECONDARY_OPEN,
+} from "@/lib/ratioTable";
+import {
   printRatioRow,
+  ratioCmpHandleOf,
   ratioGroupLabel,
   ratioKeysInServedOrder,
   serializePrintedRow,
@@ -67,7 +75,7 @@ export function PriorStateNote({ view }: { view: RatioCompareView }) {
   );
 }
 
-function Row({ row, compared }: { row: PrintedRatioRow; compared: boolean }) {
+function Row({ row, compared, view }: { row: PrintedRatioRow; compared: boolean; view: RatioCompareView }) {
   const { i18n } = useTranslation();
   return (
     <tr
@@ -75,7 +83,8 @@ function Row({ row, compared }: { row: PrintedRatioRow; compared: boolean }) {
       data-testid="ratio-compare-row"
       data-ratio-key={row.key}
       data-movement={row.movementStatus ?? "none"}
-      data-ratio-cmp-json={serializePrintedRow(row)}
+      data-ratio-cmp-json={ratioCmpHandleOf(view, row.key)}
+      data-ratio-printed-json={serializePrintedRow(row)}
     >
       <th scope="row" className="py-1.5 pr-3 text-left font-normal text-ink">
         <div>{row.label}</div>
@@ -90,22 +99,29 @@ function Row({ row, compared }: { row: PrintedRatioRow; compared: boolean }) {
           </div>
         ) : null}
       </th>
-      <td className="py-1.5 px-3 text-right font-mono tabular-nums text-ink" data-col="current">{row.current}</td>
+      <td className="py-1.5 px-3 text-right font-mono tabular-nums text-ink" data-col="current" data-cell="current">{row.current}</td>
       {compared ? (
         <>
-          <td className="py-1.5 px-3 text-right font-mono tabular-nums text-ink-soft" data-col="prior">{row.prior}</td>
-          <td className={`py-1.5 px-3 text-right font-mono tabular-nums ${toneText(row.deltaTone)}`}>
+          <td className="py-1.5 px-3 text-right font-mono tabular-nums text-ink-soft" data-col="prior" data-cell="prior">{row.prior}</td>
+          <td className={`py-1.5 px-3 text-right font-mono tabular-nums ${toneText(row.deltaTone)}`} data-cell="delta">
             <div data-col="delta">{row.delta}</div>
             {row.deltaSecondary ? (
-              <div className="text-[11px] text-ink-mute" data-col="delta_secondary">{row.deltaSecondary}</div>
+              // The turns change's percent, on its own line, as the same
+              // bytes the report and workbook print in one cell
+              // (`joinRatioDelta`): the cell's text is "+0.28× (+15.4%)".
+              <div className="text-[11px] text-ink-mute">
+                {RATIO_DELTA_SECONDARY_OPEN}
+                <span data-col="delta_secondary">{row.deltaSecondary}</span>
+                {RATIO_DELTA_SECONDARY_CLOSE}
+              </div>
             ) : null}
           </td>
-          <td className="py-1.5 px-3 text-ink" data-col="band_now">{row.bandNow}</td>
-          <td className="py-1.5 px-3 text-ink-soft" data-col="band_prior">{row.bandPrior}</td>
-          <td className={`py-1.5 pl-3 ${toneText(row.movementTone)}`} data-col="movement">{row.movement}</td>
+          <td className="py-1.5 px-3 text-ink" data-col="band_now" data-cell="band-now">{row.bandNow}</td>
+          <td className="py-1.5 px-3 text-ink-soft" data-col="band_prior" data-cell="band-prior">{row.bandPrior}</td>
+          <td className={`py-1.5 pl-3 ${toneText(row.movementTone)}`} data-col="movement" data-cell="movement">{row.movement}</td>
         </>
       ) : (
-        <td className="py-1.5 px-3 text-ink" data-col="band_now">{row.bandNow}</td>
+        <td className="py-1.5 px-3 text-ink" data-col="band_now" data-cell="band-now">{row.bandNow}</td>
       )}
     </tr>
   );
@@ -157,18 +173,18 @@ export function RatioComparisonTable({ view }: { view: RatioCompareView }) {
             </tr>
           </thead>
           <tbody>
-            {census.map((r) => <Row key={r.key} row={r} compared={compared} />)}
+            {census.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
           </tbody>
           {composites.length > 0 ? (
             <tbody data-testid="ratio-compare-composites">
               <tr><th colSpan={cols} scope="colgroup" className="pt-3 pb-1 text-left text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">{t("statements.ratioCmp.ui.compositesTitle")}</th></tr>
-              {composites.map((r) => <Row key={r.key} row={r} compared={compared} />)}
+              {composites.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
             </tbody>
           ) : null}
           {subscores.length > 0 ? (
             <tbody data-testid="ratio-compare-subscores">
               <tr><th colSpan={cols} scope="colgroup" className="pt-3 pb-1 text-left text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">{t("statements.ratioCmp.ui.subscoresTitle")}</th></tr>
-              {subscores.map((r) => <Row key={r.key} row={r} compared={compared} />)}
+              {subscores.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
             </tbody>
           ) : null}
         </table>
