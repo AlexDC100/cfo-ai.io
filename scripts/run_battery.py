@@ -402,6 +402,19 @@ def _engine_gates() -> List[Gate]:
                        "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
                        "test_a_lower_is_better_crossing_is_classified_by_direction",
                        "test_a_ratio_that_did_not_cross_produces_no_finding")),
+        # The route the Ratios tab and the exports call, UN-INTERCEPTED:
+        # create_app() itself over the tenancy double, a real ES256 bearer,
+        # two corpus books as two periods of one workspace. Every FE ratio
+        # gate renders a committed capture and the Playwright harness
+        # answers the route from a file, so without this nothing on the
+        # request path (mount, query binding, identity wall, org filter,
+        # CAEN) is gated. Plant log: docs/engine_book/gates.md.
+        Gate("comparatives-route",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_route_real_app.py", "-q"],
+             work_junit=True, floor=6, units="tests",
+             canaries=("test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite",
+                       "test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair",
+                       "test_a_prior_from_another_workspace_is_not_found")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -696,6 +709,21 @@ def _frontend_gates() -> List[Gate]:
              canaries=("capsuleFactIndex.test.ts",
                        "forecastPage.test.tsx",
                        "socialLinksFromConfig.test.ts")),
+        # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
+        # byte-matching" as a gate. It also rides `vitest`, and is named on
+        # its own because its defect prints a believable figure on one
+        # surface: a rounding, a unit or a joined change cell that differs
+        # between the Ratios tab, the report and the workbook while every
+        # per-surface gate stays green (it did, on the merged B6+B7 state:
+        # 68 of 70 red). Plant log: docs/engine_book/gates.md.
+        Gate("ratio-byte-match",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/ratioTableByteMatch.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=64,
+             units="row x surface comparisons",
+             canaries=("B4 non-vacuity: every census row and composite is compared",
+                       "B1/B2 altman_z: the tab, the report and the workbook print the same six cells",
+                       "B3 the deteriorated list: the served order and the same cells")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

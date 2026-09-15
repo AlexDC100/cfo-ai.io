@@ -2847,6 +2847,139 @@ cash_ratio`); materiality_floor "0.01" (`('agras', 'carniprod')`).
 
 **REVERT** — `PASS ratio-band-findings (16.2s, 60 tests)`. Verdict: proven RED.
 
+## comparatives-route
+
+`GET /api/period/{id}/comparatives` UN-INTERCEPTED (batch B8). Every
+frontend ratio gate renders a committed capture, the hermetic Playwright
+harness answers the route from a file, and the earlier route test mounts one
+router on a bare `FastAPI()` with `_org.resolve_org` stubbed — so no gate had
+sent a request to the route the Ratios tab and the exports call. An
+intercepted route is a route with no gate (CLAUDE.md 22). This one builds
+`engine.api.create_app()` itself, points `_supabase.per_user` / `admin` at
+`firm_postgrest_double` (it refuses a column no migration declares and
+verifies ES256 signatures against the session JWKS), carries agras and
+carniprod through the production write seam (parse -> `stage_map` ->
+`stage_persist`) as two periods of one workspace (with a CAEN), persists
+their metric rows as `stage_compute` does, and a third book (retail) into
+another workspace. `tests/engine/_real_app_comparatives.py` is that world,
+shared with `scripts/capture_comparatives_pair.py --current/--prior`, so an
+owner's local capture is produced by exactly the path this gate proves.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_comparatives_route_real_app.py -q` |
+| work count | junit-xml, floor **6** tests (measured 6) |
+| canary | `test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite`, `test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair`, `test_a_prior_from_another_workspace_is_not_found` |
+
+**Reds on, after the repair (TC-11):** the route unmounted, renamed or its
+query binding broken (404 / 405 / 422); the served document without `ratios`,
+a census row or composite missing, or a prior Altman Z'', composite or letter
+that is not a number on this pair; the route's `ratios` serialising
+differently from `compare_payloads` over the two GET /api/period bodies the
+same app serves; `pair_served.json` (what `ratio-byte-match` and the Ratios
+tab gates render) carrying a quantized figure, band, change or movement the
+route does not serve for the pair; a band finding whose profile is not
+resolved from the workspace's CAEN (ruling Q6 — this closes the "the route
+passes none" blind spot recorded under ratio-band-findings); a forged bearer
+served (not 401), a caller outside the workspace served (not 403), a prior
+from another workspace served (not 404 `period_not_in_workspace`).
+**Cannot see:** whether the ratios are right (ratio-compare,
+ratio-band-findings); the frontend's reading of the response
+(ratio-byte-match); row-level security — the double does not model RLS, so
+the cross-workspace case proves the org filter in `load_period_in_org`, the
+wall the route owns, not Postgres policies.
+
+**GREEN** — `PASS comparatives-route (5.9s, 6 tests)` (through
+`run_battery.main` with the gate list narrowed to the two B8 gates).
+
+**PLANT** — `src/engine/api/_comparatives.py` `load_period_in_org`: the
+filter without `org_id` (`filters={"id": "eq.%s" % period_id}`).
+
+**RED** — `FAIL comparatives-route (exit 1, 6.4s)`, battery record
+`{'state': 'FAIL', 'exit_code': 1, 'work_units': 6}`:
+
+```
+E   AssertionError: (200, '{"ratios":{"table_version":"ratio_compare.v1","current_label":"2025-12-31","prior_label":"2024-12-31","stamps":...
+E   assert 200 == 404
+FAILED tests/engine/test_comparatives_route_real_app.py::test_a_prior_from_another_workspace_is_not_found
+========================= 1 failed, 5 passed in 5.33s ==========================
+```
+
+Also observed RED (direct pytest, each reverted): the route path renamed to
+`/comparatives-v0` (`6 failed`, `AssertionError: (404, '{"detail":"Not
+Found"}')`); the route passing `caen=None` (`2 failed, 4 passed`, `('roic',
+'profile inventory_operator/band_mid/fin_related_party_funded resolved from
+structure')` and the recomposition with the CAEN no longer equal); the
+committed fixture's current_ratio prior `1.82` -> `1.83` (`{'current_ratio':
+('2.10', '1.82', 'strong', 'healthy', '+0.28', '+15.4', ...)} !=
+{'current_ratio': ('2.10', '1.83', ...)}`).
+
+**REVERT** — `PASS comparatives-route (5.9s, 6 tests)` after each plant.
+Verdict: proven RED.
+
+## ratio-byte-match
+
+The owner's brief as one assertion: every ratio's six cells — [current]
+[prior] [change] [band now] [band prior] [band movement] — print the same
+bytes on the dashboard Ratios tab, in the exported report and in the
+workbook Ratios sheet, and the improved / deteriorated lists carry the same
+order and cells on the tab, in the report's executive summary and in the
+workbook's Band movements block (batch B8). B6 (the tab) and B7 (the
+exports) were built on sibling branches; each held its own surfaces to a
+handle named `data-ratio-cmp-json` with DIFFERENT contents, and a turns row's
+change printed `+0.28x` over `+15.4%` on the tab and `+0.28x (+15.4%)` in
+the report. Every per-surface gate was green. On the merged state before the
+fix (225e48f) this gate was `68 failed, 2 passed`.
+
+The fixture is `pair_served.json` — the agras corpus book's real GET
+/api/period body and the comparatives document for agras against carniprod,
+rebuilt from the committed corpus by `scripts/capture_comparatives_pair.py`
+(`--check` for freshness; comparatives-route holds it equal to what the
+route serves) — plus the same pair with the prior blocking sector bands. No
+Scandia data (ruling Q10). The surfaces are fed through `ratioSurfacesOf`,
+the page's own join.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/ratioTableByteMatch.test.tsx --reporter=verbose` |
+| work count | stdout `Tests N passed`, floor **64** (measured 70: 2 documents x (31 rows + non-vacuity + handles + 2 lists)) |
+| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells` |
+
+**Reds on, after the repair (TC-11):** any census row or composite whose six
+cells differ by one byte between the tab table, the report (card table,
+served-only row, every element embedding the row) and the workbook; a
+surface's `data-ratio-cmp-json` that is not the served row serialised, or a
+row absent from a surface; a blank or dash cell; the lists in another order
+or with other cells on any of the three; fewer than every served row
+compared, no turns row with its percent, no refused prior, no numeric prior
+Altman, an empty list. **Cannot see:** the one formatter printing a figure
+wrongly on every surface at once (ratioTableFormat.test.ts owns that); the
+Romanian tab (the exports print English); the PDF; the live route
+(comparatives-route).
+
+**GREEN** — `PASS ratio-byte-match (2.5s, 70 row x surface comparisons)`.
+
+**PLANT** — one rounding on ONE surface each, applied, run, reverted:
+
+| plant | surface | red |
+|---|---|---|
+| `frontend/lib/financialExports.ts` `sixCells`: a days row's current printed `toFixed(1)` | workbook | `FAIL ratio-byte-match (exit 1, 2.4s)`, battery record `work_units 62` (`8 failed, 62 passed`) |
+| `frontend/lib/ratioCompareView.ts` `printRatioRow`: a pct row's current printed `toFixed(0)` | tab | `22 failed, 48 passed` |
+| `frontend/lib/financialReport.ts` `ratioCmpCardTable`: the prior cell cut to one decimal | report | `14 failed, 56 passed` |
+
+**RED** — excerpts, one per plant:
+
+```
+→ dso: the workbook's six cells differ from the tab's: expected [ '26.0 days', '40 days', …(4) ] to deeply equal [ '26 days', '40 days', …(4) ]
+→ roe: the report's six cells differ from the tab's: expected [ '31.5%', '1.3%', '+30.2 pp', …(3) ] to deeply equal [ '32%', '1.3%', '+30.2 pp', …(3) ]
+→ roic: report summary vs tab list: expected [ '4.6%', '47.1%', '+42.5 pp', …(1) ] to deeply equal [ '4.6%', '47%', '+42.5 pp', …(1) ]
+→ current_ratio: the report's six cells differ from the tab's: expected [ '2.10×', '1.8×', …(4) ] to deeply equal [ '2.10×', '1.82×', …(4) ]
+→ altman_z: the report's six cells differ from the tab's: expected [ '7.31', '6.6', '+0.69', …(3) ] to deeply equal [ '7.31', '6.62', '+0.69', …(3) ]
+```
+
+**REVERT** — `Tests 70 passed (70)` after each plant; no `# PLANT` marker
+left. Verdict: proven RED.
+
 ## cron-auth
 
 Every scheduler-only route FAILS CLOSED without `ENGINE_API_TOKEN`, and
