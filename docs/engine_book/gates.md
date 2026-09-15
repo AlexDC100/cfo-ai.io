@@ -4381,3 +4381,91 @@ ai_audit.
 (canonical trade payables) and the ratio table (balanceSheet.accountsPayable)
 — the quote renders the ratio table's own operands rather than claiming one
 figure; it is recorded for the owner, not gated.
+
+### forecast-authority — plan/2 B3 repair: one tax derivation, the hand-over, and the SYNTHETIC tying books
+
+B3 left `tax_rate` with two derivations: `engine.forecast_drivers.derive`
+kept its own `_tax_rate` (a class-69 account must stand behind the charge AND
+the build-up must reach account 121) while the model applied the engine's
+existing effective-rate rule (positive pre-tax result, reconstruction reaching
+account 121 with nothing unexplained), which contract 3.4 and R16 name as the
+book rung. On a book that ties with a nil charge and no class-69 account the
+model measured 0% and the drivers refused; B3's AbsentHandover then made the
+drivers path take the 16% statutory rung, so the same book projected 0 tax on
+GET and 549,384.54 RON of tax over three years on the drivers path. The repair
+makes derive.py read `_from_engine("tax_rate")` like the other shared concepts
+and deletes the second rule.
+
+Added to `tests/engine/test_forecast_driver_authority.py`:
+
+* `compare_book` also compares every shared concept after
+  `model_overrides` is applied: the drivers path and the GET path must hold
+  one tier and one integer.
+* `test_a_tying_book_holds_one_tax_rate_on_both_paths` over two SYNTHETIC
+  books (TC-13): retail with its account-121 gap removed, with no class-69
+  account and with a nil 691. Both must hold the engine's measured nil rate
+  (book, 0) alone, in the drivers package and after the hand-over.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-authority units=(\d+)`, floor raised **50 -> 140** (measured 150: the 52 of B3, plus 12 hand-over comparisons x 4 books, plus 25 x 2 SYNTHETIC books) |
+| canary | adds `each concept compared alone and after the hand-over` |
+
+**SCOPE** — printed: `SCOPE forecast-authority (plan/2 B3, contract 4): books
+agras, carniprod, realestate, retail; one period each (history is B7);
+SYNTHETIC books SYNTHETIC retail-ties-nil-class-69, SYNTHETIC
+retail-ties-no-class-69; shared concepts from authority.CONCEPTS (status
+supplied) plus the macro anchor; each concept compared alone and after the
+hand-over`.
+
+**GREEN** — `10 passed`; `PASS forecast-authority (1.3s, 150 shared-concept
+comparisons)`.
+
+**PLANT T1** — restore the second rule: `src/engine/forecast_drivers/derive.py`
+replaced by its pre-repair bytes (the `_tax_rate` class-69 rule and its
+dispatch). **RED (plant)** `3 failed, 7 passed`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'tax_rate': a hand-over carries None in None, and this driver holds micros
+E   AssertionError: SYNTHETIC retail-ties-no-class-69 effective_tax_rate (tax_rate): drivers ABSENT, model measured 0
+E     SYNTHETIC retail-ties-no-class-69 effective_tax_rate (tax_rate): the hand-over moves the model from book 0 to macro 160000
+```
+
+(The first line is a second defect of the same rule on the nil-class-69 book:
+its `derived 0.0` driver crossed with no exact integer and the model refused
+the hand-over.)
+
+**RED (parent commit)** — the repaired gate file on the detached worktree of
+`01a8894`: the same three reds (`zz_b3r_test_forecast_driver_authority.py`,
+`test_a_tying_book_holds_one_tax_rate_on_both_paths[SYNTHETIC
+retail-ties-no-class-69]` and `[... nil-class-69]`, and the scope check).
+
+**REVERT** — derive.py restored from its repaired byte copy (sha1
+d23afb774eab0fda2bee3af91a897f0942960837 before the plant and after the
+revert); `10 passed` after.
+
+**Retired / restated in this commit, by name (test_forecast_drivers.py):**
+`test_hx2b_a_tying_book_with_no_charge_account_still_refuses` RETIRED,
+replaced by
+`test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_account`
+(new assertion: both packages and the crossing hold book 0 with and without a
+class-69 account, and GET and the drivers path charge the same tax).
+Restated over the one derivation: `test_hx1` (a zero no class-69 account
+stands behind is never a book rate unless the book ties), `test_hx2` (the
+measured nil carries the engine's sentence), `test_hx3` (one tier and one
+integer, and the crossing keeps them), `test_hx4` (comment), `test_hg1`,
+`test_hg2`, `test_hg4`, `test_hg5`, `test_hg8` (the book rung refused with the
+engine's reason recorded as the first fallback step; the statutory rung
+taken), `test_hg6` (the distance pin moves to
+`engine.forecast.history.unexplained_vs_filed`), `test_d5` (status mirrors
+the engine tier), `test_j9` (the absent hand-over is built from a copy whose
+jurisdiction is not recorded), `test_j17` (a percentage quoted verbatim from a
+rejected rung's recorded reason is the refused measurement, not a threshold).
+
+**After the repair it reds on (TC-11):** a shared concept whose model value
+moves when the drivers' hand-over is applied; either SYNTHETIC tying book
+holding anything but the engine's measured nil rate on any path; everything
+it redded on at B3.
+**It cannot see:** constructed shapes other than the two SYNTHETIC tying
+books; whether the engine's rule is right (forecast-model's nil-charge and
+p121 tests own that).

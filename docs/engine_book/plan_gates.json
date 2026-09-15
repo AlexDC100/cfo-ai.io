@@ -101,7 +101,8 @@
    "test_files": ["tests/engine/test_forecast_driver_authority.py"],
    "canaries": [
     "SCOPE forecast-authority (plan/2 B3, contract 4)",
-    "covered concepts"
+    "covered concepts",
+    "each concept compared alone and after the hand-over"
    ]
   },
   {

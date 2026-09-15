@@ -389,17 +389,19 @@ CONCEPTS = (
         "effective_tax_rate", OWNER_DRIVERS, "supplied",
         "tax_rate", ("tax_rate",), "identity",
         """The effective rate this book paid, not the statutory headline.
-        It crosses ONLY when a class-69 account stands behind the charge
-        AND the build-up it sits in reaches the net income filed in
-        account 121 — the sum of an empty set is an absence, and a rate
-        divided out of a build-up that does not tie is measured across
-        the gap. On all four committed books one or both fail, so nothing
-        crosses and the model states the statutory rate under its own
-        name. Before this was true, retail crossed a 0.0000% stamped
-        `derived` over that stated default, the five-year plan paid no
-        tax, and the served driver carried NEITHER party's reason. The
-        substitution survives because an absent driver cannot cross the
-        override channel at all — see unrepresentable()."""),
+        ONE derivation (plan/2 contract 4, 3.4, R16; B3 repair): the
+        engine's existing effective-rate rule — measured only when the
+        pre-tax result is positive and the build-up reaches the net income
+        filed in account 121 with nothing unexplained — else the
+        jurisdiction's packed statutory rate, else absent. This package
+        reads that resolution (derive.py `_from_engine("tax_rate")`) and
+        crosses the same integer and tier back. It used to hold a second
+        rule (a class-69 account must stand behind the charge); on a book
+        that ties with a nil charge and no class-69 account that rule
+        refused where the engine measured 0%, and once absences crossed
+        the drivers path taxed the plan at the statutory rate while GET
+        charged nothing. The tie is the measurement: a book whose pre-tax
+        result less a nil charge IS its filed profit booked no charge."""),
     Concept(
         "borrowing_rate", OWNER_DRIVERS, "supplied",
         "interest_rate", ("interest_rate_debt", "revolver_rate"), "identity",

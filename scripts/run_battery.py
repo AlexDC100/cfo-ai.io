@@ -427,10 +427,13 @@ def _engine_gates() -> List[Gate]:
         # over served bytes (test_forecast_defaults_f3.py).
         Gate("forecast-authority",
              [PY, "-m", "pytest", "tests/engine/test_forecast_driver_authority.py", "-q"],
-             work_rx=r"GATE-WORK forecast-authority units=(\d+)", floor=50,
+             work_rx=r"GATE-WORK forecast-authority units=(\d+)", floor=140,
              units="shared-concept comparisons",
              canaries=("SCOPE forecast-authority (plan/2 B3, contract 4)",
-                       "covered concepts")),
+                       "covered concepts",
+                       # B3 repair: the hand-over and the SYNTHETIC tying
+                       # books (one tax derivation, contract 4)
+                       "each concept compared alone and after the hand-over")),
         Gate("forecast-defaults",
              [PY, "-m", "pytest", "tests/engine/test_forecast_tier_ladders.py", "-q"],
              work_rx=r"GATE-WORK forecast-defaults units=(\d+)", floor=150,
