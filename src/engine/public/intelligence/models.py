@@ -273,8 +273,27 @@ class CompanyExposureProfile:
 # ─────────────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
+class ScoreRefusal:
+    """Why a public-company score, or one of its categories, is not served.
+
+    ``code`` is one of the refusal codes declared in risk_scoring_engine.py
+    (``RISK_*``) or opportunity_scoring_engine.py (``OPPORTUNITY_*``);
+    ``component`` names the category (or ``overall``); ``inputs`` lists the
+    snapshot fields — or, for ``overall``, the categories — that were absent
+    or not meaningful; ``text`` is the sentence a reader sees in place of
+    the number.
+    """
+    code: str
+    component: str
+    inputs: list[str]
+    text: str
+
+
+@dataclass(frozen=True)
 class RiskCategoryScores:
-    """0–100 per risk category. None where the engine has no signal.
+    """0–100 per risk category. None where the engine has no measured input
+    for the category — never a neutral stand-in. The reason for every None
+    is a ``ScoreRefusal`` on the parent score's ``refusals``.
 
     Each category aggregates a subset of inputs:
       · macro:        sector library + macro signals tied to this ticker
@@ -285,13 +304,13 @@ class RiskCategoryScores:
       · operational:  capex maturity + inventory turnover quality
       · regulatory:   regulation signals tied to sector + geography
     """
-    macro: int
-    supply_chain: int
-    geopolitical: int
-    financial: int
-    valuation: int
-    operational: int
-    regulatory: int
+    macro: Optional[int]
+    supply_chain: Optional[int]
+    geopolitical: Optional[int]
+    financial: Optional[int]
+    valuation: Optional[int]
+    operational: Optional[int]
+    regulatory: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -326,33 +345,40 @@ class PublicCompanyRiskScore:
     NO LLM in the critical path. The LLM lives in ai_market_read.py and
     INTERPRETS this score — it doesn't compute it.
 
-    The `risk_level` mapping is fixed (NOT operator-tunable to avoid drift):
-      0–24  : "low"
-      25–49 : "medium"
-      50–74 : "high"
-      75–100: "critical"
+    The `risk_level` mapping is fixed (NOT operator-tunable to avoid drift)
+    and lives in ``risk_scoring_engine.RISK_LEVEL_CUTOFFS`` — the one copy.
+
+    ``overall_risk_score`` and ``risk_level`` are None unless EVERY weighted
+    category is measured: a composite over a stand-in category is not a
+    measurement. ``refusals`` carries the reason for each None.
     """
     ticker: str
-    overall_risk_score: int             # 0–100
-    risk_level: Severity
+    overall_risk_score: Optional[int]   # 0–100, None when refused
+    risk_level: Optional[Severity]
     categories: RiskCategoryScores
     top_risks: list[RiskItem]
     top_opportunities: list[OpportunityItem]
     explanation: str                    # short deterministic sentence (no LLM)
     confidence: float                   # 0.0–1.0, propagates from exposure profile
     computed_at: datetime
+    refusals: list[ScoreRefusal] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class PublicCompanyOpportunityScore:
-    """Symmetric to PublicCompanyRiskScore — 0–100 opportunity rating."""
+    """Symmetric to PublicCompanyRiskScore — 0–100 opportunity rating.
+
+    ``overall_opportunity_score`` / ``strength_level`` are None unless every
+    weighted category is measured; ``refusals`` says why.
+    """
     ticker: str
-    overall_opportunity_score: int      # 0–100, higher = stronger tailwind
-    strength_level: Severity
+    overall_opportunity_score: Optional[int]  # 0–100, higher = stronger tailwind
+    strength_level: Optional[Severity]
     top_opportunities: list[OpportunityItem]
     explanation: str
     confidence: float
     computed_at: datetime
+    refusals: list[ScoreRefusal] = field(default_factory=list)
 
 
 # ─────────────────────────────────────────────────────────────────────────

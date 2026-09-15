@@ -207,18 +207,19 @@ def _build_user_prompt(
         f"Exposure source: {exposure.source}  (confidence {exposure.confidence:.2f})",
         f"Feed status: {feed_status}",
         "",
-        "## Deterministic scores (do not override)",
-        f"- Risk:        {risk.overall_risk_score}/100  ({risk.risk_level})",
-        f"- Opportunity: {opportunity.overall_opportunity_score}/100  ({opportunity.strength_level})",
+        "## Deterministic scores (do not override; an UNAVAILABLE score must be",
+        "## reported as unavailable with its stated reason — never estimated)",
+        f"- Risk:        {_score_fact(risk.overall_risk_score, risk.risk_level, risk.refusals)}",
+        f"- Opportunity: {_score_fact(opportunity.overall_opportunity_score, opportunity.strength_level, opportunity.refusals)}",
         "",
         "## Risk category breakdown",
-        f"- Macro:        {risk.categories.macro}/100",
-        f"- Supply chain: {risk.categories.supply_chain}/100",
-        f"- Geopolitical: {risk.categories.geopolitical}/100",
-        f"- Financial:    {risk.categories.financial}/100",
-        f"- Valuation:    {risk.categories.valuation}/100",
-        f"- Operational:  {risk.categories.operational}/100",
-        f"- Regulatory:   {risk.categories.regulatory}/100",
+        f"- Macro:        {_category_fact(risk, 'macro')}",
+        f"- Supply chain: {_category_fact(risk, 'supply_chain')}",
+        f"- Geopolitical: {_category_fact(risk, 'geopolitical')}",
+        f"- Financial:    {_category_fact(risk, 'financial')}",
+        f"- Valuation:    {_category_fact(risk, 'valuation')}",
+        f"- Operational:  {_category_fact(risk, 'operational')}",
+        f"- Regulatory:   {_category_fact(risk, 'regulatory')}",
         "",
         "## Top deterministic risks",
     ]
@@ -379,6 +380,26 @@ def _parse_llm_envelope(raw: str) -> Optional[dict[str, Any]]:
         return None
 
 
+def _score_fact(score: Optional[int], level: Optional[str], refusals: list) -> str:
+    if score is not None:
+        return f"{score}/100  ({level})"
+    overall = [r for r in refusals if r.component == "overall"]
+    return "UNAVAILABLE — " + (overall[-1].text if overall else "not computed")
+
+
+def _category_fact(risk: PublicCompanyRiskScore, category: str) -> str:
+    score = getattr(risk.categories, category)
+    if score is not None:
+        return f"{score}/100"
+    why = [r.text for r in risk.refusals if r.component == category]
+    return "UNAVAILABLE — " + (why[0] if why else "not computed")
+
+
+def _at_least(score: Optional[int], cutoff: int) -> bool:
+    """A refused (None) category raises no watch flag."""
+    return score is not None and score >= cutoff
+
+
 def _deterministic_fallback(
     *,
     ticker: str,
@@ -395,11 +416,15 @@ def _deterministic_fallback(
     when the LLM returns malformed output. The FE renders it the same
     way the Opus output renders; only `model_id` reveals the source.
     """
-    headline = (
-        f"{ticker} composite risk {risk.overall_risk_score}/100 "
-        f"({risk.risk_level}), opportunity {opportunity.overall_opportunity_score}/100 "
-        f"({opportunity.strength_level})."
+    risk_part = (
+        f"composite risk {risk.overall_risk_score}/100 ({risk.risk_level})"
+        if risk.overall_risk_score is not None else "composite risk unavailable"
     )
+    opp_part = (
+        f"opportunity {opportunity.overall_opportunity_score}/100 ({opportunity.strength_level})"
+        if opportunity.overall_opportunity_score is not None else "opportunity unavailable"
+    )
+    headline = f"{ticker} {risk_part}, {opp_part}."
     summary_parts = [risk.explanation]
     if exposure.source == "sector_model":
         summary_parts.append(
@@ -410,13 +435,13 @@ def _deterministic_fallback(
     watch: list[str] = []
     if risk.top_risks:
         watch.append(f"Watch {risk.top_risks[0].label} — {risk.top_risks[0].severity} severity.")
-    if risk.categories.financial >= 60:
+    if _at_least(risk.categories.financial, 60):
         watch.append("Watch upcoming refinancings + interest coverage trend.")
-    if risk.categories.supply_chain >= 60:
+    if _at_least(risk.categories.supply_chain, 60):
         watch.append("Watch shipping cost + supplier concentration disclosures.")
-    if risk.categories.geopolitical >= 60:
+    if _at_least(risk.categories.geopolitical, 60):
         watch.append("Watch regional revenue exposure breakdown in next 10-K.")
-    if risk.categories.valuation >= 60:
+    if _at_least(risk.categories.valuation, 60):
         watch.append("Watch peer-relative valuation — multiple compression risk.")
     if not watch:
         watch.append("No specific watch flags — score is composite-low.")
