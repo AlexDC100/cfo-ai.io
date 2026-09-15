@@ -38,3 +38,77 @@ tax:
       profit. This is a model convention held until a sourced carry-forward
       rule is packed, not a statement of Romanian law.
 # ── end plan/2 B2 ───────────────────────────────────────────────────────
+
+# ── plan/2 B3: terminal rungs and default rules (contract 3.4, 3a.4) ────
+# The last rung of each driver's default ladder, and the two rules B3
+# stamps as conventions. A rung is pack data, never a code literal
+# (TC-10): its value is a decimal string (parsed exactly, never through a
+# float) and its sentence is served verbatim as the driver's basis. A
+# sentence carries no numeral; where it names an amount measured from the
+# book it writes the placeholder {amount}, which the engine renders from
+# the integer it used. Addresses: packs/forecast/levers.yaml#<key>.<rung>.
+revenue_growth:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      no comparable book history and no macro anchor for this jurisdiction,
+      so revenue is held flat
+dividend_payout_pct:
+  # The book rung is never available: a trial balance closes the year, so
+  # what was distributed during it is not a balance anything can read.
+  book_rung_absent: >-
+    distributions are not measurable from closing balances
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      no declared distribution, so none is projected
+intangible_additions_pct_of_revenue:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      no capitalised-intangible programme is observable in a trial balance
+capex_pct_of_revenue:
+  terminal_rung:
+    value: "0"
+    sentence_no_charge: >-
+      this book names no charge to replace, so the projection spends
+      nothing on capital
+    sentence_nil_revenue: >-
+      this book reports no revenue, so capital expenditure cannot be sized
+      as a share of it; nothing is spent on capital, and the depreciation
+      charge of {amount} runs the asset base down unreplaced
+capex_maintenance_replaces_depreciation:
+  sentence: >-
+    maintenance-capital convention: capital expenditure replaces the
+    depreciation charge of {amount}, carried as a share of revenue. A trial
+    balance discloses no investment plan, so this is a convention, not a
+    measurement of intent
+interest_income_annual:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      this book names no interest income, so none is carried
+other_financial_income_annual:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      this book names no financial income, so none is carried
+other_financial_expense_annual:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      this book names no financial expense, so none is carried
+other_operating_income_annual:
+  # Stamped on other_operating_income_pct_of_revenue until B4 renames that
+  # key to this one (contract 3.4).
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      this book names no other operating income, so none is carried
+min_cash:
+  default_rule:
+    value: "0"
+    sentence: >-
+      the cash floor below which the funding line draws; nil means the plan
+      may run the account down to nothing but never below it
+# ── end plan/2 B3 ───────────────────────────────────────────────────────

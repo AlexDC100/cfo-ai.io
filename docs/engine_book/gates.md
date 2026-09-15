@@ -4011,3 +4011,258 @@ reversal or no period.
 cost-of-sales plan-year totals across windows (a per-period share of revenue
 until the pools of B4); the served figures (forecast-route,
 forecast-serving-boundary).
+
+<!-- ═══ plan/2 B3 (plan_contract_v2 28.3): one driver authority and tier pedigree ═══
+     B3 lands two gates in the commit that moves the shared driver concepts
+     onto one derivation and gives every driver its tier ladder:
+     forecast-authority (contract 4) and forecast-defaults, engine half (F3,
+     3.3, 3.4, R16). It extends forecast-base-parity's CHANGED set under its
+     own anchor and prints a scope line for forecast-drivers (B0-16). Each
+     new gate records the plant red and the parent-commit red (0.5). -->
+
+## forecast-authority
+
+`tests/engine/test_forecast_driver_authority.py` — contract section 4, one
+concept one value. For every concept the authority registry marks `supplied`
+(`engine.forecast_drivers.authority.CONCEPTS`, read at run time, so a new
+concept is covered the day it is registered) plus the macro anchor both
+packages cite, on the four committed books: the drivers package's EXACT
+integer (micros, micro-days), translated to the model's key, equals the
+model's; the tiers agree; an absent concept on one side is not a book
+measurement on the other; the anchor has one series id and one value. It also
+checks that the crossing is exact and never demotes a tier, and that no
+blocked concept remains and the renamed gross-base depreciation share never
+crosses.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_driver_authority.py -q` |
+| work count | `GATE-WORK forecast-authority units=(\d+)`, floor **50** comparisons (measured 52 at registration: 12 model keys x 4 books + the macro anchor x 4) |
+| canary | `SCOPE forecast-authority (plan/2 B3, contract 4)`, `covered concepts` |
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed `saga_10_col`
+fixtures, FY2025 anchors), one period each; no SYNTHETIC pair (history is B7);
+shared concepts from `authority.CONCEPTS` status supplied plus the macro
+anchor. Printed: `SCOPE forecast-authority (plan/2 B3, contract 4): books
+agras, carniprod, realestate, retail; one period each (history is B7, no
+SYNTHETIC pair); shared concepts from authority.CONCEPTS (status supplied) plus
+the macro anchor` and `covered concepts 12: borrowing_rate, capital_intensity,
+cost_of_sales_share, days_inventory_outstanding, days_payable_outstanding,
+days_sales_outstanding, depreciation_rate, dividend_policy, effective_tax_rate,
+macro_anchor, operating_cost_share, revenue_growth`.
+
+**GREEN** — `8 passed`; `PASS forecast-authority (1.0s, 52 shared-concept comparisons)`.
+
+**PLANT** — contract section 4's plant, in
+`src/engine/forecast_drivers/derive.py` (`_from_engine`): move dio by one
+micro-day.
+
+```
+-    exact = int(item.exact)
++    exact = int(item.exact) + (1 if model_key == "dio_cogs_days" else 0)
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s runner, `FAIL
+forecast-authority (exit 1, 1.0s)`, `5 failed, 3 passed`; each red names the
+concept, model key and book (realestate carries no cost of sales, so its dio is
+absent on both sides and does not move):
+
+```
+E   AssertionError: agras days_inventory_outstanding (dio_cogs_days): drivers 46213148, model 46213147 (delta +1)
+E   AssertionError: carniprod days_inventory_outstanding (dio_cogs_days): drivers 62259490, model 62259489 (delta +1)
+E   AssertionError: retail days_inventory_outstanding (dio_cogs_days): drivers 39135095, model 39135094 (delta +1)
+E   AssertionError: dio_cogs_days
+```
+
+**RED (parent commit)** — the gate file copied onto a detached worktree of the
+parent `f9ca64a` (`wave/plan-b2`): collection error, `ImportError: cannot
+import name 'assumptions_for_payload' from 'engine.forecast.project'`. The
+defect itself, measured on the parent through its own APIs
+(`scratchpad/b3/parent_probe.py`): two values for one concept on every book,
+and the one blocked concept.
+
+```
+RED agras dso_days: drivers 26.2057, model 26.205674
+RED agras dio_days: drivers 45.5484, model 46.213147
+RED agras dpo_days: drivers 36.6412, model 37.175931
+RED agras capex_pct_of_revenue: drivers 0.024957, model 0.024923
+RED agras depreciation_rate: drivers 0.073739, model 0.251979
+RED carniprod capex_pct_of_revenue: drivers 0.041799, model 0.037169
+RED realestate depreciation_rate: drivers 0.037849, model 0.009404
+blocked_model_keys: ('depreciation_rate',)
+```
+
+**REVERT** — `derive.py` restored from a byte copy (sha1
+d0b82b74085a88c80825986d65d18e35650b5a30 before and after);
+`PASS forecast-authority (1.0s, 52 shared-concept comparisons)`.
+
+**After the repair it reds on (TC-11):** any shared concept whose two integers
+differ by one unit on any corpus book (named by concept, model key and book); a
+drivers value with no exact integer where the model measured one; one package
+holding a book value the other refused; a tier disagreement; the macro anchor
+under two ids or values; a hand-over that changes the integer or tier the model
+holds; a blocked concept remaining or the gross-base share crossing; zero
+comparisons.
+**It cannot see:** whether the engine's derivation is right (the model's own
+gates own that); multi-period CAGR agreement (B7); the tax rule on constructed
+books where the two packages' conditions differ (a tying book with a nil charge
+and no class-69 account: the drivers package refuses, the model measures a nil
+rate; `test_forecast_drivers.py` hx2/hx2b and the model's nil-charge test gate
+each side, and the absent hand-over makes the model honour the refusal).
+
+## forecast-defaults
+
+`tests/engine/test_forecast_tier_ladders.py` — the engine half of F3 (contract
+26.2 F3, 3.3, 3.4, R16), through `project_payload` (`project()`) on the four
+books at horizons 3 and 5: every driver carries a tier on its 3.4 ladder (the
+test's `LADDERS` table) with the evidence its tier requires; no driver outside
+`ABSENT_LEGAL` ends absent; every response carrying an absent driver projects
+(counted, 0 reds); no revenue_growth is a silent zero (with and without a
+recorded jurisdiction); the tier does not move when the capex sentence is
+reworded; a book whose effective tax rate is not measured refuses with
+`no_statutory_tax_rate` in a jurisdiction with no packed statutory record (HU)
+and with no recorded jurisdiction, through the engine and through GET
+/api/forecast as a 422 (RO still 200); deleting the statutory record refuses a
+Romanian book; the jurisdiction source of every corpus book is printed and a
+null reds.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_tier_ladders.py -q` |
+| work count | `GATE-WORK forecast-defaults units=(\d+)`, floor **150** drivers checked (measured 160: 20 drivers x 4 books x 2 horizons) |
+| canary | `SCOPE forecast-defaults (engine half, plan/2 B3)`, `jurisdiction source per corpus book`, `responses with an absent driver that projected` |
+
+**SCOPE** — books agras, carniprod, realestate, retail; horizons 3 and 5;
+through `project_payload`; no SYNTHETIC pair (history is B7); Scandia not run
+in the battery. Printed: `jurisdiction source per corpus book: agras
+pack_provenance=RO; carniprod pack_provenance=RO; realestate
+pack_provenance=RO; retail pack_provenance=RO` and `responses 8; drivers
+checked 160; responses with an absent driver that projected 8`. Locally only,
+through the blast-radius harness of contract 10: Scandia FY2025 reads
+`('RO', 'pack_provenance')`, revenue_growth macro, tax_rate macro (its
+effective rate is not measured), interest_income_rate the one absent driver.
+
+**GREEN** — `24 passed`; `PASS forecast-defaults (1.5s, 160 drivers checked)`.
+
+**PLANT 1** — contract 26.2 F3: stamp revenue_growth absent, in
+`src/engine/forecast/assumptions.py` (the macro rung's `put`):
+
+```
+-        put("revenue_growth", _RATIO, growth, "engine_default",
+-            "no comparable book history is loaded, so revenue grows at the "
+-            ...
+-            evidence=anchor.evidence(), steps=growth_steps)
++        put("revenue_growth", _RATIO, None, "unavailable",
++            "planted: revenue growth stamped absent",
++            tier="absent", steps=growth_steps)
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.8s)`: the projection
+refuses (so the projects check reds on every book and horizon) and the silent
+-zero check reds naming the book:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'revenue_growth': is unavailable, so there is no rate to spend: planted: revenue growth stamped absent
+E   AssertionError: ('agras', 'absent', None)
+```
+
+**PLANT 2** — contract 26.2 F3: reword the capex sentence. The held-in-file
+test rewords it (with every tier and rule word removed); the plant makes the
+product infer the tier from the sentence, in `assumptions.py`:
+
+```
+-            tier="convention", rule_id=maintenance.rule_id,
++            tier=("convention" if "convention" in maintenance.sentence
++                  else "book"), rule_id=maintenance.rule_id,
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.6s)`,
+`test_the_served_tier_never_follows_the_sentence`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'capex_pct_of_revenue': tier book evidence lacks method, periods_used, inputs
+```
+
+**PLANT 3** — contract 26.2 F3: delete the statutory record, in
+`packs/forecast/ro_macro.yaml`:
+
+```
+-  profit_tax_rate:
++  profit_tax_rate_deleted:
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.6s)`: every corpus book
+refuses (none measures its own effective rate):
+
+```
+E   engine.forecast.assumptions.NoStatutoryTaxRate: assumption 'tax_rate': this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, and no statutory profit-tax rate is packed for jurisdiction RO, so no tax rate can be assumed and the plan is refused; supply tax_rate to project it
+```
+
+**RED (parent commit)** — the gate file on the detached parent worktree
+`f9ca64a`: collection error, `ImportError: cannot import name 'ABSENT_LEGAL'
+from 'engine.forecast.assumptions'`. The defect itself on the parent engine
+(`scratchpad/b3/parent_probe.py`): revenue growth a silent zero and a tax rate
+assumed with no jurisdiction read, on every book.
+
+```
+RED agras revenue_growth: model engine_default 0 with no tier or fallback steps (silent zero); drivers 0.025
+RED agras tax_rate: engine_default 0.16 with no jurisdiction read (tier attribute: False)
+RED realestate revenue_growth: model engine_default 0 with no tier or fallback steps (silent zero); drivers 0.025
+```
+
+**REVERT** — `assumptions.py` restored from a byte copy after plants 1 and 2
+(sha1 97f602096e2659286231289dea0705537457f0f8 before and after), `ro_macro.yaml`
+after plant 3 (sha1 5a2e1b938d814fabbaf12cef6b68bcf9b39d9699);
+`PASS forecast-defaults (1.5s, 160 drivers checked)` after each.
+
+**After the repair it reds on (TC-11):** a tier outside the six or off the
+driver's ladder; evidence not matching the tier; an absent driver outside 3.3's
+list on a corpus book; a response with an absent driver that does not project;
+a zero growth without its convention rung and fallback steps; a tier that
+follows a reworded sentence; an unmeasured tax rate projected in a jurisdiction
+with no statutory record, or with none recorded, through the engine or the
+route; a corpus book with no recorded jurisdiction; no response carrying an
+absent driver (TC-3).
+**It cannot see:** the served bytes (B6, `test_forecast_defaults_f3.py`); the
+book-history rung (B7) and the sector rung (no sector store); a user value
+keeping its original on the wire (the engine keeps `original`; served in B6);
+rate spans (history, B7); whether a pack anchor is still the published figure.
+
+### forecast-base-parity — plan/2 B3 extension: the CHANGED set
+
+B3 appends under its anchor in `tests/engine/test_forecast_base_parity.py` the
+drivers whose tier, rung, key or convention 3.4 and 4 change (revenue_growth,
+dividend_payout_pct, tax_rate, capex_pct_of_revenue,
+intangible_additions_pct_of_revenue, depreciation_rate, dso_days, dio_cogs_days,
+dpo_cogs_days and the three held money drivers) and `REMOVED_KEYS_B3`
+(dio_days, dpo_days, renamed away; their closure is empty). Measured at B3:
+`differences: 2212 (0 outside closure)`, `GATE-WORK forecast-base-parity
+units=4788`. Revenue growth's closure is nearly every line, so delta mode now
+reds only on a line no B2 or B3 entry reaches (for example
+`pl.other_financial_income`, `bs.other_current_assets`).
+
+**Found by the gate, repaired in the same commit:** on the first B3 run,
+realestate's `pl.interest_expense_funding_line` moved OUTSIDE the closure
+(`FY2030: -830162066 -> -879863128 (delta -49701062 minor)`) — its static
+attribution named only the funding rate, while the charge is priced on the
+opening revolver, which is the running shortfall of everything that moves
+cash. `LINE_ASSUMPTIONS["pl.interest_expense_funding_line"]` now carries the
+cash closure, as `bs.revolver` already did; the next run printed 0 outside
+the closure. `test_revenue_is_outside_the_b2_closure_...` now states B2's claim
+on B2's own entries (revenue outside the tax conventions' closure) and adds
+that the renamed day drivers carry the old closure.
+
+### forecast-drivers — plan/2 B3: printed scope
+
+`tests/engine/test_forecast_drivers.py::test_zz_scope` prints `SCOPE
+forecast-drivers (plan/2 B3): books agras, carniprod, realestate, retail, one
+period each; multi-period rungs on SYNTHETIC histories scaled from agras
+(constructed, labelled in this file); micro-SRL books assembled through the
+real Romanian assembly; shared concepts read from engine.forecast (contract
+4)`. The work source stays the junit count (B2-7's reason: a printed count
+would not see one section collapse). Tests restated in B3, each named in the
+commit: j7 (the exact integer and tier, not the display value), j8 (absent
+crosses as AbsentHandover), j9 (a None is refused, the absent hand-over
+honoured), j11 (no blocked concept remains), j13 (learns `engine_forecast`
+and `pack_convention`), j17 (the refused 0% in an absent driver's engine
+refusal is not a cutoff), j18, hx3, hx5, hx7, hg4 (absent crossings).

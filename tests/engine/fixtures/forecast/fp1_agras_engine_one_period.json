@@ -1,13 +1,13 @@
 {
  "assumptions": [
   {
-   "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+   "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
    "derived_from": [],
    "id": "revenue_growth",
    "label": "revenue growth",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.0
+    "FY2028": 0.025
    }
   },
   {
@@ -50,7 +50,7 @@
    }
   },
   {
-   "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+   "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
    "derived_from": [
     "canonical_bs.rows.trade_receivables_net",
     "assembled_pl.revenue"
@@ -63,26 +63,26 @@
    }
   },
   {
-   "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+   "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
    "derived_from": [
     "canonical_bs.rows.inventory_net",
     "assembled_pl.cogs"
    ],
-   "id": "dio_days",
-   "label": "dio days",
+   "id": "dio_cogs_days",
+   "label": "dio cogs days",
    "unit": "days",
    "values": {
     "FY2028": 46.213147
    }
   },
   {
-   "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+   "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
    "derived_from": [
     "canonical_bs.rows.trade_payables",
     "assembled_pl.cogs"
    ],
-   "id": "dpo_days",
-   "label": "dpo days",
+   "id": "dpo_cogs_days",
+   "label": "dpo cogs days",
    "unit": "days",
    "values": {
     "FY2028": 37.175931
@@ -103,7 +103,7 @@
    }
   },
   {
-   "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+   "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
    "derived_from": [
     "assembled_pl.depreciation",
     "assembled_pl.revenue"
@@ -116,7 +116,7 @@
    }
   },
   {
-   "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+   "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
    "derived_from": [],
    "id": "intangible_additions_pct_of_revenue",
    "label": "intangible additions pct of revenue",
@@ -126,7 +126,7 @@
    }
   },
   {
-   "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+   "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
    "derived_from": [],
    "id": "tax_rate",
    "label": "tax rate",
@@ -214,7 +214,7 @@
    }
   },
   {
-   "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+   "basis": "no declared distribution, so none is projected [engine_default]",
    "derived_from": [],
    "id": "dividend_payout_pct",
    "label": "dividend payout pct",
@@ -224,7 +224,7 @@
    }
   },
   {
-   "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+   "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
    "derived_from": [],
    "id": "min_cash",
    "label": "min cash",
@@ -309,15 +309,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -353,20 +353,20 @@
    "projected": true
   },
   {
-   "amount_minor": -7055712072,
-   "amount_minor_projected": -7055712072,
+   "amount_minor": -7598230183,
+   "amount_minor_projected": -7598230183,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -388,8 +388,8 @@
    "projected": true
   },
   {
-   "amount_minor": -286480473,
-   "amount_minor_projected": -286480473,
+   "amount_minor": -291506599,
+   "amount_minor_projected": -291506599,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -398,15 +398,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -445,8 +445,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1545713409,
-   "amount_minor_projected": 1545713409,
+   "amount_minor": 1682324068,
+   "amount_minor_projected": 1682324068,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -459,12 +459,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -500,7 +500,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -531,7 +531,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -547,8 +547,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1842055320,
-   "amount_minor_projected": 1842055320,
+   "amount_minor": 1983692105,
+   "amount_minor_projected": 1983692105,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -557,12 +557,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -606,8 +606,8 @@
    "projected": true
   },
   {
-   "amount_minor": -249102091,
-   "amount_minor_projected": -249102091,
+   "amount_minor": -270959796,
+   "amount_minor_projected": -270959796,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -631,12 +631,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -672,7 +672,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -703,7 +703,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -743,7 +743,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -793,7 +793,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -876,7 +876,26 @@
     "revolver_rate",
     "days_basis",
     "min_cash",
-    "interest_charged_on_opening_balance"
+    "interest_charged_on_opening_balance",
+    "revenue_growth",
+    "cogs_pct_of_revenue",
+    "opex_pct_of_revenue",
+    "other_operating_income_pct_of_revenue",
+    "capex_pct_of_revenue",
+    "depreciation_rate",
+    "intangible_additions_pct_of_revenue",
+    "interest_rate_debt",
+    "interest_income_rate",
+    "interest_income_annual",
+    "other_financial_income_annual",
+    "other_financial_expense_annual",
+    "tax_rate",
+    "tax_accrued_year_to_date",
+    "tax_no_loss_carry_forward",
+    "dso_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
+    "dividend_payout_pct"
    ],
    "basis": [
     {
@@ -900,7 +919,7 @@
      "value": 365.0
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -914,6 +933,197 @@
      "label": "interest charged on opening balance",
      "unit": "convention",
      "value": null
+    },
+    {
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
+     "derived_from": [],
+     "id": "revenue_growth",
+     "label": "revenue growth",
+     "unit": "ratio",
+     "value": 0.025
+    },
+    {
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "derived_from": [
+      "assembled_pl.cogs",
+      "assembled_pl.revenue"
+     ],
+     "id": "cogs_pct_of_revenue",
+     "label": "cogs pct of revenue",
+     "unit": "ratio",
+     "value": 0.595033
+    },
+    {
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "derived_from": [
+      "assembled_pl.opex_excluding_cogs_and_da",
+      "assembled_pl.revenue"
+     ],
+     "id": "opex_pct_of_revenue",
+     "label": "opex pct of revenue",
+     "unit": "ratio",
+     "value": 0.25291
+    },
+    {
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income",
+      "assembled_pl.revenue"
+     ],
+     "id": "other_operating_income_pct_of_revenue",
+     "label": "other operating income pct of revenue",
+     "unit": "ratio",
+     "value": 0.00329
+    },
+    {
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
+     "derived_from": [
+      "assembled_pl.depreciation",
+      "assembled_pl.revenue"
+     ],
+     "id": "capex_pct_of_revenue",
+     "label": "capex pct of revenue",
+     "unit": "ratio",
+     "value": 0.024923
+    },
+    {
+     "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
+     "derived_from": [
+      "assembled_pl.depreciation",
+      "canonical_bs.rows.ppe_net",
+      "canonical_bs.rows.intangibles_net"
+     ],
+     "id": "depreciation_rate",
+     "label": "depreciation rate",
+     "unit": "ratio",
+     "value": 0.251979
+    },
+    {
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
+     "derived_from": [],
+     "id": "intangible_additions_pct_of_revenue",
+     "label": "intangible additions pct of revenue",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "annual rate = interest expense 277,930.35 / interest-bearing debt at the closing date 3,640,202.33 [derived]",
+     "derived_from": [
+      "assembled_pl.interest_expense",
+      "canonical_bs.rows.financial_liabilities_st",
+      "canonical_bs.rows.financial_liabilities_lt"
+     ],
+     "id": "interest_rate_debt",
+     "label": "interest rate debt",
+     "unit": "ratio",
+     "value": 0.07635
+    },
+    {
+     "basis": "interest income of 299,383.26 is carried at its own amount instead of as a rate: the only base this book offers is the closing cash balance of 1,168,047.04, which would imply 25.6311% on cash and compound onto a projected balance the company never held. Supply interest_income_rate to price interest on projected cash instead — it replaces the carried amount. [unavailable]",
+     "derived_from": [
+      "assembled_pl.interest_income"
+     ],
+     "id": "interest_income_rate",
+     "label": "interest income rate",
+     "unit": "ratio",
+     "value": null
+    },
+    {
+     "basis": "interest income is carried at this book's own annual amount of 299,383.26, HELD flat rather than grown [derived]",
+     "derived_from": [
+      "assembled_pl.interest_income"
+     ],
+     "id": "interest_income_annual",
+     "label": "interest income annual",
+     "unit": "money_minor",
+     "value": 29938326.0
+    },
+    {
+     "basis": "financial income other than interest on cash = financial income 456,384.14 less interest income 299,383.26, HELD at that annual amount because nothing in a trial balance says foreign-exchange movement or income from holdings scales with trading [derived]",
+     "derived_from": [
+      "assembled_pl.financial_income",
+      "assembled_pl.interest_income"
+     ],
+     "id": "other_financial_income_annual",
+     "label": "other financial income annual",
+     "unit": "money_minor",
+     "value": 15700088.0
+    },
+    {
+     "basis": "financial expense other than interest on debt = total financial expense 343,877.00 less interest expense 277,930.35, HELD at that annual amount. Interest itself is not carried here — it is priced on the debt this model actually rolls forward [derived]",
+     "derived_from": [
+      "assembled_pl.financial_expense_total",
+      "assembled_pl.interest_expense"
+     ],
+     "id": "other_financial_expense_annual",
+     "label": "other financial expense annual",
+     "unit": "money_minor",
+     "value": 6594665.0
+    },
+    {
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "derived_from": [],
+     "id": "tax_rate",
+     "label": "tax rate",
+     "unit": "ratio",
+     "value": 0.16
+    },
+    {
+     "basis": "income tax accrues on the year-to-date pre-tax result of each plan year: a period is charged the tax on the result so far this year less the tax already charged earlier in the same year, so a loss period reverses tax charged before it and the year as a whole is charged the tax on the year's own result. Tax is settled in cash in the period it accrues; the tax payable balance is held at its opening amount, so the plan shows no tax-timing benefit. [engine_default]",
+     "derived_from": [],
+     "id": "tax_accrued_year_to_date",
+     "label": "tax accrued year to date",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "a loss is not carried across plan years: a plan year whose pre-tax result is negative is charged no tax and shields no later year's profit. This is a model convention held until a sourced carry-forward rule is packed, not a statement of Romanian law. [engine_default]",
+     "derived_from": [],
+     "id": "tax_no_loss_carry_forward",
+     "label": "tax no loss carry forward",
+     "unit": "convention",
+     "value": null
+    },
+    {
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "derived_from": [
+      "canonical_bs.rows.trade_receivables_net",
+      "assembled_pl.revenue"
+     ],
+     "id": "dso_days",
+     "label": "dso days",
+     "unit": "days",
+     "value": 26.205674
+    },
+    {
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
+     "derived_from": [
+      "canonical_bs.rows.inventory_net",
+      "assembled_pl.cogs"
+     ],
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
+     "unit": "days",
+     "value": 46.213147
+    },
+    {
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
+     "derived_from": [
+      "canonical_bs.rows.trade_payables",
+      "assembled_pl.cogs"
+     ],
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
+     "unit": "days",
+     "value": 37.175931
+    },
+    {
+     "basis": "no declared distribution, so none is projected [engine_default]",
+     "derived_from": [],
+     "id": "dividend_payout_pct",
+     "label": "dividend payout pct",
+     "unit": "ratio",
+     "value": 0.0
     }
    ],
    "currency": "RON",
@@ -978,8 +1188,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1307785977,
-   "amount_minor_projected": 1307785977,
+   "amount_minor": 1422538931,
+   "amount_minor_projected": 1422538931,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1003,12 +1213,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -1044,7 +1254,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -1075,7 +1285,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -1115,7 +1325,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -1165,7 +1375,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -1197,20 +1407,20 @@
    "projected": true
   },
   {
-   "amount_minor": -2998926346,
-   "amount_minor_projected": -2998926346,
+   "amount_minor": -3229515666,
+   "amount_minor_projected": -3229515666,
    "assumption_ids": [
     "revenue_growth",
     "opex_pct_of_revenue"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -1284,20 +1494,20 @@
    "projected": true
   },
   {
-   "amount_minor": 39011774,
-   "amount_minor_projected": 39011774,
+   "amount_minor": 42011413,
+   "amount_minor_projected": 42011413,
    "assumption_ids": [
     "revenue_growth",
     "other_operating_income_pct_of_revenue"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
@@ -1319,8 +1529,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1556888068,
-   "amount_minor_projected": 1556888068,
+   "amount_minor": 1693498727,
+   "amount_minor_projected": 1693498727,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1341,12 +1551,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -1382,7 +1592,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -1413,7 +1623,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -1453,7 +1663,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -1511,19 +1721,19 @@
    "projected": true
   },
   {
-   "amount_minor": 11857681964,
-   "amount_minor_projected": 11857681964,
+   "amount_minor": 12769426541,
+   "amount_minor_projected": 12769426541,
    "assumption_ids": [
     "revenue_growth"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     }
    ],
    "currency": "RON",
@@ -1534,22 +1744,22 @@
    "projected": true
   },
   {
-   "amount_minor": 716673948,
-   "amount_minor_projected": 716673948,
+   "amount_minor": 771779456,
+   "amount_minor_projected": 771779456,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dpo_days",
+    "dpo_cogs_days",
     "days_basis"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -1563,13 +1773,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
@@ -1590,8 +1800,8 @@
    "projected": true
   },
   {
-   "amount_minor": 849012426,
-   "amount_minor_projected": 849012426,
+   "amount_minor": 914293522,
+   "amount_minor_projected": 914293522,
    "assumption_ids": [
     "revenue_growth",
     "dso_days",
@@ -1599,15 +1809,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -1634,8 +1844,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4045273996,
-   "amount_minor_projected": 4045273996,
+   "amount_minor": 4158713134,
+   "amount_minor_projected": 4158713134,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1657,18 +1867,18 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -1704,7 +1914,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -1735,7 +1945,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -1775,7 +1985,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -1825,7 +2035,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -1849,7 +2059,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -1860,29 +2070,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -1967,8 +2177,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4672048505,
-   "amount_minor_projected": 4672048505,
+   "amount_minor": 4901753908,
+   "amount_minor_projected": 4901753908,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1993,12 +2203,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -2034,7 +2244,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -2065,7 +2275,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -2105,7 +2315,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -2155,7 +2365,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -2179,7 +2389,7 @@
      "value": null
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -2205,15 +2415,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -2249,22 +2459,22 @@
    "projected": true
   },
   {
-   "amount_minor": 890892511,
-   "amount_minor_projected": 890892511,
+   "amount_minor": 959393793,
+   "amount_minor_projected": 959393793,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dio_days",
+    "dio_cogs_days",
     "days_basis"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -2278,13 +2488,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
@@ -2465,8 +2675,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1142864206,
-   "amount_minor_projected": 1142864206,
+   "amount_minor": 1180453601,
+   "amount_minor_projected": 1180453601,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -2475,15 +2685,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -2545,13 +2755,13 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -2571,12 +2781,12 @@
      "value": 0.07635
     },
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -2612,7 +2822,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -2643,7 +2853,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -2713,7 +2923,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -2737,7 +2947,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -2748,29 +2958,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -2841,15 +3051,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -2885,23 +3095,23 @@
    "projected": true
   },
   {
-   "amount_minor": -295529008,
-   "amount_minor_projected": -295529008,
+   "amount_minor": -318252418,
+   "amount_minor_projected": -318252418,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -2944,8 +3154,8 @@
     "tax_no_loss_carry_forward",
     "dividend_payout_pct",
     "dso_days",
-    "dio_days",
-    "dpo_days"
+    "dio_cogs_days",
+    "dpo_cogs_days"
    ],
    "basis": [
     {
@@ -2977,12 +3187,12 @@
      "value": null
     },
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -3018,7 +3228,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -3041,7 +3251,7 @@
      "value": 0.251979
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -3061,7 +3271,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -3111,7 +3321,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -3135,7 +3345,7 @@
      "value": null
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -3143,7 +3353,7 @@
      "value": 0.0
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3154,24 +3364,24 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     }
@@ -3184,8 +3394,8 @@
    "projected": true
   },
   {
-   "amount_minor": -295529008,
-   "amount_minor_projected": -295529008,
+   "amount_minor": -318252418,
+   "amount_minor_projected": -318252418,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -3193,15 +3403,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -3212,7 +3422,7 @@
      "value": 0.024923
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -3228,8 +3438,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1606931261,
-   "amount_minor_projected": 1606931261,
+   "amount_minor": 1699976460,
+   "amount_minor_projected": 1699976460,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3251,17 +3461,17 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days"
+    "dio_cogs_days",
+    "dpo_cogs_days"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -3297,7 +3507,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -3328,7 +3538,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -3368,7 +3578,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -3418,7 +3628,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -3442,7 +3652,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3453,24 +3663,24 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     }
@@ -3483,22 +3693,22 @@
    "projected": true
   },
   {
-   "amount_minor": 2440802,
-   "amount_minor_projected": 2440802,
+   "amount_minor": -20835481,
+   "amount_minor_projected": -20835481,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dio_days",
+    "dio_cogs_days",
     "days_basis"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -3512,13 +3722,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
@@ -3539,22 +3749,22 @@
    "projected": true
   },
   {
-   "amount_minor": -1963491,
-   "amount_minor_projected": -1963491,
+   "amount_minor": 16760997,
+   "amount_minor_projected": 16760997,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dpo_days",
+    "dpo_cogs_days",
     "days_basis"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -3568,13 +3778,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
@@ -3595,8 +3805,8 @@
    "projected": true
   },
   {
-   "amount_minor": 2326062,
-   "amount_minor_projected": 2326062,
+   "amount_minor": -19856024,
+   "amount_minor_projected": -19856024,
    "assumption_ids": [
     "revenue_growth",
     "dso_days",
@@ -3604,15 +3814,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3639,8 +3849,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4045273996,
-   "amount_minor_projected": 4045273996,
+   "amount_minor": 4158713134,
+   "amount_minor_projected": 4158713134,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3662,18 +3872,18 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -3709,7 +3919,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -3740,7 +3950,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -3780,7 +3990,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -3830,7 +4040,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -3854,7 +4064,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3865,29 +4075,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -3993,8 +4203,8 @@
    "projected": true
   },
   {
-   "amount_minor": 286480473,
-   "amount_minor_projected": 286480473,
+   "amount_minor": 291506599,
+   "amount_minor_projected": 291506599,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -4003,15 +4213,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -4076,12 +4286,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -4117,7 +4327,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -4148,7 +4358,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -4188,7 +4398,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -4238,7 +4448,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4262,7 +4472,7 @@
      "value": null
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -4301,13 +4511,13 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -4327,12 +4537,12 @@
      "value": 0.07635
     },
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -4368,7 +4578,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -4399,7 +4609,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -4469,7 +4679,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4493,7 +4703,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -4504,29 +4714,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -4550,15 +4760,15 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -4574,8 +4784,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1311402253,
-   "amount_minor_projected": 1311402253,
+   "amount_minor": 1381724042,
+   "amount_minor_projected": 1381724042,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -4597,18 +4807,18 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -4644,7 +4854,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -4675,7 +4885,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -4715,7 +4925,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -4765,7 +4975,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4789,7 +4999,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -4800,29 +5010,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -4838,8 +5048,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1307785977,
-   "amount_minor_projected": 1307785977,
+   "amount_minor": 1422538931,
+   "amount_minor_projected": 1422538931,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -4863,12 +5073,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -4904,7 +5114,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -4935,7 +5145,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -4975,7 +5185,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -5025,7 +5235,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5057,8 +5267,8 @@
    "projected": true
   },
   {
-   "amount_minor": 2733871743,
-   "amount_minor_projected": 2733871743,
+   "amount_minor": 2776989092,
+   "amount_minor_projected": 2776989092,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5080,18 +5290,18 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -5127,7 +5337,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -5158,7 +5368,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -5198,7 +5408,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -5248,7 +5458,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5272,7 +5482,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5283,29 +5493,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -5321,8 +5531,8 @@
    "projected": true
   },
   {
-   "amount_minor": 7854791723,
-   "amount_minor_projected": 7854791723,
+   "amount_minor": 8139602634,
+   "amount_minor_projected": 8139602634,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5344,19 +5554,19 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct",
     "held_at_opening_balance"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -5392,7 +5602,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -5423,7 +5633,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -5463,7 +5673,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -5513,7 +5723,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5537,7 +5747,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5548,29 +5758,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -5594,8 +5804,8 @@
    "projected": true
   },
   {
-   "amount_minor": 6675969491,
-   "amount_minor_projected": 6675969491,
+   "amount_minor": 6923191007,
+   "amount_minor_projected": 6923191007,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5617,19 +5827,19 @@
     "tax_accrued_year_to_date",
     "tax_no_loss_carry_forward",
     "dso_days",
-    "dio_days",
-    "dpo_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
     "dividend_payout_pct",
     "held_at_opening_balance"
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -5665,7 +5875,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -5696,7 +5906,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -5736,7 +5946,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -5786,7 +5996,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5810,7 +6020,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables 8,513,384.96 / revenue 118,576,819.64 x 365 days [derived]",
+     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5821,29 +6031,29 @@
      "value": 26.205674
     },
     {
-     "basis": "days inventory outstanding = 46.213147 days = inventory 8,933,332.42 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). The ratio table's days inventory outstanding (methodology.ratios.days_inventory_outstanding) reads 45.548379 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
      ],
-     "id": "dio_days",
-     "label": "dio days",
+     "id": "dio_cogs_days",
+     "label": "dio cogs days",
      "unit": "days",
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -5867,12 +6077,12 @@
    "projected": true
   },
   {
-   "amount_minor": 1299334248,
-   "amount_minor_projected": 1299334248,
+   "amount_minor": 1354439756,
+   "amount_minor_projected": 1354439756,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dpo_days",
+    "dpo_cogs_days",
     "days_basis",
     "interest_rate_debt",
     "interest_charged_on_opening_balance",
@@ -5882,12 +6092,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -5901,13 +6111,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
@@ -5940,7 +6150,7 @@
      "value": null
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -5976,8 +6186,8 @@
    "projected": true
   },
   {
-   "amount_minor": 6317252115,
-   "amount_minor_projected": 6317252115,
+   "amount_minor": 6546957518,
+   "amount_minor_projected": 6546957518,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -6003,12 +6213,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -6044,7 +6254,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -6075,7 +6285,7 @@
      "value": 365.0
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -6115,7 +6325,7 @@
      "value": 0.07635
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -6165,7 +6375,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -6189,7 +6399,7 @@
      "value": null
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",
@@ -6213,12 +6423,12 @@
    "projected": true
   },
   {
-   "amount_minor": 7854791723,
-   "amount_minor_projected": 7854791723,
+   "amount_minor": 8139602634,
+   "amount_minor_projected": 8139602634,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
-    "dpo_days",
+    "dpo_cogs_days",
     "days_basis",
     "interest_rate_debt",
     "interest_charged_on_opening_balance",
@@ -6241,12 +6451,12 @@
    ],
    "basis": [
     {
-     "basis": "one trial balance has no prior period, so growth is not measurable from this book; held at 0.0% until supplied [engine_default]",
+     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
      "derived_from": [],
      "id": "revenue_growth",
      "label": "revenue growth",
      "unit": "ratio",
-     "value": 0.0
+     "value": 0.025
     },
     {
      "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
@@ -6260,13 +6470,13 @@
      "value": 0.595033
     },
     {
-     "basis": "days payables outstanding = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). The ratio table's days payable outstanding (methodology.ratios.days_payable_outstanding) reads 36.641162 days, over total operating expense rather than cost of sales [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
      ],
-     "id": "dpo_days",
-     "label": "dpo days",
+     "id": "dpo_cogs_days",
+     "label": "dpo cogs days",
      "unit": "days",
      "value": 37.175931
     },
@@ -6299,7 +6509,7 @@
      "value": null
     },
     {
-     "basis": "the cash floor below which the funding line draws; 0 means the plan may run the account to nil but never below it [engine_default]",
+     "basis": "the cash floor below which the funding line draws; nil means the plan may run the account down to nothing but never below it [engine_default]",
      "derived_from": [],
      "id": "min_cash",
      "label": "min cash",
@@ -6341,7 +6551,7 @@
      "value": 0.00329
     },
     {
-     "basis": "maintenance-capital convention: capital expenditure is set to replace the depreciation charge, 2,955,346.39 / revenue 118,576,819.64. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent. [derived]",
+     "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
      "derived_from": [
       "assembled_pl.depreciation",
       "assembled_pl.revenue"
@@ -6364,7 +6574,7 @@
      "value": 0.251979
     },
     {
-     "basis": "no capitalised-intangible programme is observable in a trial balance; held at 0.0% of revenue until supplied [engine_default]",
+     "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
      "derived_from": [],
      "id": "intangible_additions_pct_of_revenue",
      "label": "intangible additions pct of revenue",
@@ -6414,7 +6624,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the Romanian statutory profit-tax rate is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -6438,7 +6648,7 @@
      "value": null
     },
     {
-     "basis": "a single trial balance carries no observable distribution policy (the cash-flow assembly's dividend line is itself an approximation, not a fact); held at 0.0% until supplied [engine_default]",
+     "basis": "no declared distribution, so none is projected [engine_default]",
      "derived_from": [],
      "id": "dividend_payout_pct",
      "label": "dividend payout pct",

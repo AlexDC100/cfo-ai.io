@@ -57,7 +57,8 @@ from engine.forecast import (AssumptionError, DebtMove, DebtSchedule,
 from engine.forecast.assumptions import KEYS
 from engine.forecast.levers_pack import tax_conventions
 from engine.forecast.money import MICRO, apply_rate, mul_div
-from engine.forecast.project import FP1_CONVENTIONS, LINE_ASSUMPTIONS
+from engine.forecast.project import (FP1_CONVENTIONS, LINE_ASSUMPTIONS,
+                                     context_for_payload)
 from engine.forecast.timeline import MONTHLY_MONTHS, add_months, build_timeline
 from engine.serving.facts import FactsGateway
 
@@ -88,10 +89,12 @@ def inputs(payload):
 def run(name, total_years, monthly_months, payload=None, **drivers):
     payload = payload or load(name)
     opening, history = inputs(payload)
-    base = project(opening, history, total_years=1, monthly_months=12)
+    base = project(opening, history, context=context_for_payload(payload),
+                   total_years=1, monthly_months=12)
     if not base.assumptions.is_available("revolver_rate"):
         drivers.setdefault("revolver_rate", _CALLER_REVOLVER_RATE)
-    return project(opening, history, total_years=total_years,
+    return project(opening, history, context=context_for_payload(payload),
+                   total_years=total_years,
                    monthly_months=monthly_months, **drivers)
 
 
@@ -262,7 +265,8 @@ def _loss_then_profit(total_years=1):
     result, which makes month one a loss inside a profitable year."""
     payload = load("agras")
     opening, history = inputs(payload)
-    base = project(opening, history, total_years=total_years, monthly_months=12)
+    base = project(opening, history, context=context_for_payload(payload),
+                   total_years=total_years, monthly_months=12)
     first = base.periods[0]
     debt = opening.cents("st_debt") + opening.cents("lt_debt")
     assert debt > 0, "the fixture changed: agras carries no debt to price"
@@ -274,7 +278,8 @@ def _loss_then_profit(total_years=1):
     schedule = DebtSchedule([DebtMove(0, st_repay=opening.cents("st_debt"),
                                       lt_repay=opening.cents("lt_debt"))])
     rate_text = "%d.%06d" % (rate_micros // MICRO, rate_micros % MICRO)
-    projection = project(opening, history, total_years=total_years,
+    projection = project(opening, history, context=context_for_payload(payload),
+                   total_years=total_years,
                          monthly_months=12, interest_rate_debt=rate_text,
                          debt_schedule=schedule)
     return projection, rate_text
@@ -312,14 +317,16 @@ def test_a_loss_after_profit_reverses_tax_within_the_year_and_never_below_zero()
     December's interest is twice December's pre-tax result."""
     payload = load("agras")
     opening, history = inputs(payload)
-    base = project(opening, history, total_years=1, monthly_months=12)
+    base = project(opening, history, context=context_for_payload(payload),
+                   total_years=1, monthly_months=12)
     last = base.periods[11]
     rate = base.assumptions.micros_or_none("interest_rate_debt")
     assert rate, "agras prices its own debt"
     days_basis = base.assumptions.count("days_basis")
     need = 2 * last.pl["pretax_result"]
     draw = mul_div(need * days_basis, MICRO, rate * last.period.days) + 100
-    projection = project(opening, history, total_years=1, monthly_months=12,
+    projection = project(opening, history, context=context_for_payload(payload),
+                   total_years=1, monthly_months=12,
                          debt_schedule=DebtSchedule([DebtMove(10, lt_draw=draw)]))
     december = projection.periods[11]
     assert december.pl["pretax_result"] < 0
@@ -341,7 +348,8 @@ def test_no_loss_is_carried_into_the_next_plan_year():
     tax on its own result, and year one nothing."""
     payload = load("agras")
     opening, history = inputs(payload)
-    base = project(opening, history, total_years=2, monthly_months=12)
+    base = project(opening, history, context=context_for_payload(payload),
+                   total_years=2, monthly_months=12)
     year_one = sum(p.pl["pretax_result"] for p in base.periods
                    if p.period.year_offset == 1)
     debt = opening.cents("st_debt") + opening.cents("lt_debt")
@@ -349,7 +357,8 @@ def test_no_loss_is_carried_into_the_next_plan_year():
     rate_text = "%d.%06d" % (rate_micros // MICRO, rate_micros % MICRO)
     schedule = DebtSchedule([DebtMove(11, st_repay=opening.cents("st_debt"),
                                       lt_repay=opening.cents("lt_debt"))])
-    projection = project(opening, history, total_years=2, monthly_months=12,
+    projection = project(opening, history, context=context_for_payload(payload),
+                   total_years=2, monthly_months=12,
                          interest_rate_debt=rate_text, debt_schedule=schedule)
     tax_rate = projection.assumptions.micros("tax_rate")
     loss = sum(p.pl["pretax_result"] for p in projection.periods
@@ -370,7 +379,8 @@ def test_project_payload_keeps_horizon_years_as_total_years_at_twelve_months():
     payload = load("agras")
     via_keyword = project_payload(payload, horizon_years=3)
     opening, history = inputs(payload)
-    direct = project(opening, history, total_years=3, monthly_months=12)
+    direct = project(opening, history, context=context_for_payload(payload),
+                   total_years=3, monthly_months=12)
     assert ([p.label for p in via_keyword.periods]
             == [p.label for p in direct.periods])
     assert (json.dumps(via_keyword.as_dict(), sort_keys=True)

@@ -121,11 +121,18 @@ class Driver(object):
     value."""
 
     __slots__ = ("key", "label", "unit", "kind", "favourable_direction",
-                 "value", "status", "derivation", "case_rule", "why")
+                 "value", "status", "derivation", "case_rule", "why",
+                 "exact", "tier", "rule_id", "evidence", "fallback_steps")
+
+    #: The integer unit an ``exact`` carries, by driver unit (plan/2 B3,
+    #: contract 4). A unit with no entry carries no exact integer.
+    EXACT_UNITS = {"rate": "micros", "days": "micro_days"}
 
     def __init__(self, key, label, unit, kind, favourable_direction,
-                 value, status, derivation, case_rule="hold", why=""):
-        # type: (str, str, str, str, str, Optional[float], str, Derivation, str, str) -> None
+                 value, status, derivation, case_rule="hold", why="",
+                 exact=None, tier=None, rule_id=None, evidence=None,
+                 fallback_steps=()):
+        # type: (str, str, str, str, str, Optional[float], str, Derivation, str, str, Optional[int], Optional[str], Optional[str], Optional[Dict[str, Any]], Sequence[Dict[str, str]]) -> None
         if status not in STATUSES:
             raise DriverError("unknown driver status: %r" % (status,))
         if not isinstance(derivation, Derivation):
@@ -150,6 +157,29 @@ class Driver(object):
         self.derivation = derivation
         self.case_rule = str(case_rule)
         self.why = str(why or "")
+        # ── plan/2 B3 (contract 4) ─────────────────────────────────────
+        #: The UNROUNDED integer behind ``value`` — micros for a rate,
+        #: micro-days for days — when the concept is read from the
+        #: engine.forecast derivation. ``value`` is its display rounding
+        #: (round_dp) and is never what crosses to the model.
+        if exact is not None:
+            if isinstance(exact, bool) or not isinstance(exact, int):
+                raise DriverError("driver %r exact must be an int" % (key,))
+            if self.unit not in self.EXACT_UNITS:
+                raise DriverError("driver %r of unit %s cannot carry an "
+                                  "exact integer" % (key, self.unit))
+            if value is None:
+                raise DriverError("driver %r carries an exact integer and "
+                                  "no value" % (key,))
+        self.exact = exact
+        #: The engine's tier for the value (book, macro, convention,
+        #: absent), its rule id, evidence and fallback steps, carried so a
+        #: hand-over never demotes a book or convention value to a user
+        #: one, nor a fallback status to a book tier.
+        self.tier = tier
+        self.rule_id = rule_id
+        self.evidence = evidence
+        self.fallback_steps = tuple(fallback_steps or ())
 
     # ── the sentence the surface prints beside the number ──────────────
 
@@ -193,6 +223,8 @@ class Driver(object):
             "case_rule": self.case_rule,
             "why": self.why,
             "derivation": self.derivation.as_dict(),
+            "exact": self.exact,
+            "tier": self.tier,
         }
 
 

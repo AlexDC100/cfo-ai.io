@@ -1,4 +1,6 @@
-"""Loads `packs/forecast/drivers.yaml` and `packs/forecast/ro_macro.yaml`.
+"""Loads `packs/forecast/drivers.yaml`, and the macro anchors of
+`packs/forecast/ro_macro.yaml` through `engine.forecast.levers_pack` (the one
+reader of that file since plan/2 B3).
 
 Pure data in, frozen objects out. Deliberately does NOT go through
 `engine.packs` — that loader validates a five-file jurisdiction pack, and
@@ -117,12 +119,17 @@ class DriverSpec(object):
 
 class MacroAnchor(object):
     __slots__ = ("key", "label", "value", "band_half_width", "source",
-                 "source_kind", "stated_as_of", "unit", "why")
+                 "source_kind", "stated_as_of", "unit", "why", "series_id",
+                 "series")
 
-    def __init__(self, key, raw):
-        # type: (str, Dict[str, Any]) -> None
+    def __init__(self, key, raw, series=None):
+        # type: (str, Dict[str, Any], Any) -> None
         where = "macro anchor %r" % (key,)
         self.key = key
+        #: plan/2 B3 (contract 4): the series both packages cite, from the
+        #: ONE reader of ro_macro.yaml (engine.forecast.levers_pack).
+        self.series = series
+        self.series_id = _req_str(raw, "series_id", where)
         self.label = _req_str(raw, "label", where)
         self.value = float(_req(raw, "value", where))
         self.band_half_width = float(_req(raw, "band_half_width", where))
@@ -142,8 +149,8 @@ class ForecastPack(object):
                  "_by_key", "macro_pack_id", "macro_pack_version",
                  "_anchors")
 
-    def __init__(self, drivers_raw, macro_raw):
-        # type: (Dict[str, Any], Dict[str, Any]) -> None
+    def __init__(self, drivers_raw, macro):
+        # type: (Dict[str, Any], Any) -> None
         where = "packs/forecast/drivers.yaml"
         self.schema_version = _req_str(drivers_raw, "schema_version", where)
         self.pack_id = _req_str(drivers_raw, "pack_id", where)
@@ -192,14 +199,14 @@ class ForecastPack(object):
         self._by_key = dict((s.key, s) for s in specs)
 
         mwhere = "packs/forecast/ro_macro.yaml"
-        self.macro_pack_id = _req_str(macro_raw, "pack_id", mwhere)
-        self.macro_pack_version = str(_req(macro_raw, "pack_version", mwhere))
-        anchors_raw = _req(macro_raw, "anchors", mwhere)
-        if not isinstance(anchors_raw, dict) or not anchors_raw:
+        self.macro_pack_id = macro.pack_id
+        self.macro_pack_version = macro.pack_version
+        if not macro.anchors:
             raise PackError("%s: anchors must be a non-empty mapping" % mwhere)
         anchors = {}  # type: Dict[str, MacroAnchor]
-        for key in sorted(anchors_raw):
-            anchors[key] = MacroAnchor(key, anchors_raw[key])
+        for key in sorted(macro.anchors):
+            series = macro.anchors[key]
+            anchors[key] = MacroAnchor(key, series.raw, series)
         self._anchors = anchors
 
         for spec in specs:
@@ -250,6 +257,12 @@ _CACHE = {}  # type: Dict[str, ForecastPack]
 def load_pack(pack_dir=None):
     # type: (Optional[str]) -> ForecastPack
     """Read once, cache, hand back frozen objects."""
+    # plan/2 B3 (contract 4): ro_macro.yaml is READ ONCE, by
+    # engine.forecast.levers_pack.macro_pack, and both packages build their
+    # anchors from that object — so the model and this package cite the
+    # same series_id and the same exact value.
+    from engine.forecast.levers_pack import macro_pack
+
     directory = pack_dir or _pack_dir()
     cached = _CACHE.get(directory)
     if cached is not None:
@@ -261,10 +274,8 @@ def load_pack(pack_dir=None):
             raise PackError("forecast pack file not found: %s" % path)
     with open(drivers_path, "r", encoding="utf-8") as fh:
         drivers_raw = yaml.safe_load(fh)
-    with open(macro_path, "r", encoding="utf-8") as fh:
-        macro_raw = yaml.safe_load(fh)
-    if not isinstance(drivers_raw, dict) or not isinstance(macro_raw, dict):
+    if not isinstance(drivers_raw, dict):
         raise PackError("forecast pack files must each be a mapping")
-    pack = ForecastPack(drivers_raw, macro_raw)
+    pack = ForecastPack(drivers_raw, macro_pack(macro_path))
     _CACHE[directory] = pack
     return pack

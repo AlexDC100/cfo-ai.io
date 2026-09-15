@@ -71,6 +71,29 @@ CHANGED += [
 REMOVED_KEYS_B2 = ("year_one_granularity", "horizon_years")
 CHANGED += list(REMOVED_KEYS_B2)
 # ── end plan/2 B2 ────────────────────────────────────────────────────────
+# ── plan/2 B3: every driver whose tier, rung, key or convention 3.4 and 4
+# change (contract 5.3). revenue_growth moves from a silent 0 to the macro
+# anchor on the RO corpus books; the others change rung, tier or name with
+# no cent moved, and are listed because the contract names them. ─────────
+CHANGED += [
+    "revenue_growth",
+    "dividend_payout_pct",
+    "tax_rate",
+    "capex_pct_of_revenue",
+    "intangible_additions_pct_of_revenue",
+    "depreciation_rate",
+    "dso_days",
+    "dio_cogs_days",
+    "dpo_cogs_days",
+    "interest_income_annual",
+    "other_financial_income_annual",
+    "other_financial_expense_annual",
+]
+#: Keys B3 renamed AWAY from (R8: days of cost of sales, not of total
+#: operating expense). Their closure is empty; the new names above carry it.
+REMOVED_KEYS_B3 = ("dio_days", "dpo_days")
+CHANGED += list(REMOVED_KEYS_B3)
+# ── end plan/2 B3 ────────────────────────────────────────────────────────
 
 #: The reference's check series, attributed through the served line each
 #: one measures. ``balance_delta_cents`` has no attribution: it is 0 by law.
@@ -118,7 +141,7 @@ def _lines_now(name: str, total_years: int) -> Tuple[List[Dict], Dict[str, List[
 
 def known_ids() -> set:
     return (set(KEYS) | set(cid for cid, _b in FP1_CONVENTIONS)
-            | set(REMOVED_KEYS_B2))
+            | set(REMOVED_KEYS_B2) | set(REMOVED_KEYS_B3))
 
 
 def closure(changed) -> set:
@@ -267,9 +290,18 @@ def test_a_move_inside_the_closure_is_printed_not_red():
 
 
 def test_revenue_is_outside_the_b2_closure_and_every_removed_key_attributes_nothing():
-    lines = closure(CHANGED)
+    # B2's own claim, on B2's own entries: revenue is outside the tax
+    # conventions' closure. (From plan/2 B3 the full CHANGED set holds
+    # revenue_growth, whose closure is nearly every line, so the claim is
+    # checked on the B2 slice it was written about.)
+    b2_only = ["tax_accrued_year_to_date", "tax_no_loss_carry_forward"] \
+        + list(REMOVED_KEYS_B2)
+    lines = closure(b2_only)
     assert "pl.revenue" not in lines
     assert "pl.income_tax" in lines and "pl.net_income" in lines
-    for key in REMOVED_KEYS_B2:
+    for key in REMOVED_KEYS_B2 + REMOVED_KEYS_B3:
         assert key not in KEYS
         assert not closure([key]), key
+    # B3: the renamed day drivers carry the closure the old names had
+    assert "bs.inventory" in closure(["dio_cogs_days"])
+    assert "bs.ap" in closure(["dpo_cogs_days"])

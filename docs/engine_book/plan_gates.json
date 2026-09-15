@@ -17,11 +17,13 @@
  },
  "required_rows": {
   "B0": ["F5", "F10"],
-  "B2": []
+  "B2": [],
+  "B3": ["F3"]
  },
  "required_gates": {
   "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"],
-  "B2": ["forecast-base-parity"]
+  "B2": ["forecast-base-parity"],
+  "B3": ["forecast-authority", "forecast-defaults"]
  },
  "gates": [
   {
@@ -88,6 +90,31 @@
    "canaries": [
     "SCOPE forecast-base-parity (delta mode)",
     "366-day plan year per book"
+   ]
+  },
+  {
+   "id": "forecast-authority",
+   "gate": "forecast-authority",
+   "rows": ["supporting"],
+   "landed_in": "B3",
+   "registration_only": false,
+   "test_files": ["tests/engine/test_forecast_driver_authority.py"],
+   "canaries": [
+    "SCOPE forecast-authority (plan/2 B3, contract 4)",
+    "covered concepts"
+   ]
+  },
+  {
+   "id": "forecast-defaults",
+   "gate": "forecast-defaults",
+   "rows": ["F3"],
+   "landed_in": "B3",
+   "registration_only": false,
+   "test_files": ["tests/engine/test_forecast_tier_ladders.py"],
+   "canaries": [
+    "SCOPE forecast-defaults (engine half, plan/2 B3)",
+    "jurisdiction source per corpus book",
+    "responses with an absent driver that projected"
    ]
   }
  ]

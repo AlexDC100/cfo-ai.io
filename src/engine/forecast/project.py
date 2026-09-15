@@ -54,7 +54,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .assumptions import AssumptionSet, derive_assumptions
+from .assumptions import (AssumptionSet, BookContext, NoStatutoryTaxRate,
+                          derive_assumptions)
 from .errors import AssumptionError, BalanceViolation
 from .history import PlHistory, pl_history_from_payload
 from .levers_pack import tax_conventions
@@ -64,7 +65,8 @@ from .opening import (ASSET_LINES, CURRENT_ASSET_LINES,
                       OpeningPosition)
 from .timeline import Period, build_timeline
 
-__all__ = ["ProjectedPeriod", "Projection", "project", "project_payload"]
+__all__ = ["ProjectedPeriod", "Projection", "assumptions_for_payload",
+           "context_for_payload", "project", "project_payload"]
 
 #: P&L line order — declared once, so every render and every serialization
 #: emits the same sequence (F3: no dict-ordering accident reaches output).
@@ -210,8 +212,8 @@ _TAX = _PRETAX + ("tax_rate", "tax_accrued_year_to_date",
                   "tax_no_loss_carry_forward")
 _NET_INCOME = _PRETAX + _TAX
 _AR = _REVENUE + ("dso_days", "days_basis")
-_INVENTORY = _COGS + ("dio_days", "days_basis")
-_AP = _COGS + ("dpo_days", "days_basis")
+_INVENTORY = _COGS + ("dio_cogs_days", "days_basis")
+_AP = _COGS + ("dpo_cogs_days", "days_basis")
 _DIVIDENDS = _NET_INCOME + ("dividend_payout_pct",)
 _FUNDING = ("min_cash", "revolver_rate")
 _HELD = ("held_at_opening_balance",)
@@ -243,7 +245,12 @@ LINE_ASSUMPTIONS = {
     "pl.amortisation": _u(_AMORTISATION),
     "pl.ebit": _u(_EBIT),
     "pl.interest_expense_debt": _u(_INT_DEBT),
-    "pl.interest_expense_funding_line": _u(_INT_FUNDING),
+    # The funding-line charge is priced on the OPENING revolver balance,
+    # and that balance is the running shortfall of everything that moves
+    # cash — so it is attributed like bs.revolver itself. Attributed to its
+    # rate alone until plan/2 B3, where the base parity gate measured it
+    # moving with revenue growth outside its own static closure.
+    "pl.interest_expense_funding_line": _u(_INT_FUNDING, _CASH),
     "pl.interest_income": _u(_INT_INCOME),
     "pl.other_financial_income": _u(_OTHER_FIN_INC),
     "pl.other_financial_expense": _u(_OTHER_FIN_EXP),
@@ -538,6 +545,7 @@ class Projection(object):
 def project(opening: OpeningPosition, history: PlHistory,
             assumptions: Optional[AssumptionSet] = None, *,
             total_years: int, monthly_months: int,
+            context: Optional[BookContext] = None,
             **overrides: Any) -> Projection:
     """Roll the opening position forward. Refuses rather than approximates.
 
@@ -545,10 +553,14 @@ def project(opening: OpeningPosition, history: PlHistory,
     book; ``overrides`` are applied on top and stamped ``source='caller'``.
     ``total_years`` and ``monthly_months`` are the horizon (plan_contract_v2
     2.2, 6.1): request fields, never drivers, so they are arguments and no
-    override can name them.
+    override can name them. ``context`` is the book's
+    :class:`~engine.forecast.assumptions.BookContext` (its jurisdiction and
+    ratio table, contract 0.3); without it the jurisdiction is not
+    recorded, so a tax rate the book cannot measure refuses the plan.
     """
     if assumptions is None:
-        assumptions = derive_assumptions(opening, history, **overrides)
+        assumptions = derive_assumptions(opening, history, context=context,
+                                         **overrides)
     elif overrides:
         assumptions = assumptions.with_overrides(**overrides)
 
@@ -579,6 +591,14 @@ def project(opening: OpeningPosition, history: PlHistory,
     capex_pct = assumptions.micros("capex_pct_of_revenue")
     intangible_pct = assumptions.micros("intangible_additions_pct_of_revenue")
     ooi_pct = assumptions.micros("other_operating_income_pct_of_revenue")
+    tax_driver = assumptions["tax_rate"]
+    if tax_driver.exact is None and tax_driver.tier == "absent":
+        # R16: the book's effective rate is not measured and no statutory
+        # rate is packed for this period's jurisdiction (or the
+        # jurisdiction is not recorded). Refused by name, with the code the
+        # route serves — never taxed at a rate nobody stated.
+        raise NoStatutoryTaxRate(tax_driver.basis,
+                                 getattr(context, "jurisdiction", None))
     tax_rate = assumptions.micros("tax_rate")
     # The FOUR rates that price a BALANCE, which may be nil at the
     # opening date and NOT nil once the plan moves — the capital
@@ -603,8 +623,8 @@ def project(opening: OpeningPosition, history: PlHistory,
         "other_financial_expense_annual")
     payout = assumptions.micros("dividend_payout_pct")
     dso = assumptions.micro_days_or_none("dso_days")
-    dio = assumptions.micro_days_or_none("dio_days")
-    dpo = assumptions.micro_days_or_none("dpo_days")
+    dio = assumptions.micro_days_or_none("dio_cogs_days")
+    dpo = assumptions.micro_days_or_none("dpo_cogs_days")
     schedule = assumptions.debt_schedule
 
     if growth < -MICRO:
@@ -1033,17 +1053,14 @@ def _parse_date(text: str) -> date:
     return date(int(parts[0]), int(parts[1]), int(parts[2]))
 
 
-def project_payload(payload: Dict[str, Any], horizon_years: int = 5,
-                    **overrides: Any) -> Projection:
-    """Project one captured/served period payload end to end.
+def context_for_payload(payload: Dict[str, Any]) -> BookContext:
+    """The book context a payload carries: its jurisdiction, read from the
+    anchor envelope (contract 0.3), and its ratio table."""
+    return BookContext.from_payload(payload)
 
-    The opening position is taken from the CANONICAL balance sheet
-    through the facts gateway; the P&L history from the assembled P&L.
 
-    ``horizon_years`` is kept only as ``total_years`` with a monthly window
-    of twelve months (plan_contract_v2 2.2) — the one shape the route
-    serves today — and is never an assumption override.
-    """
+def _opening_and_history(payload: Dict[str, Any]
+                         ) -> Tuple[OpeningPosition, PlHistory]:
     from engine.serving.facts import FactsGateway
 
     envelope = payload.get("envelope")
@@ -1057,6 +1074,35 @@ def project_payload(payload: Dict[str, Any], horizon_years: int = 5,
             "nothing to open the projection on")
     period_end = str(payload.get("period_end") or "")
     opening = OpeningPosition.from_gateway(gateway, period_end)
-    history = pl_history_from_payload(payload)
+    return opening, pl_history_from_payload(payload)
+
+
+def assumptions_for_payload(payload: Dict[str, Any],
+                            **overrides: Any) -> AssumptionSet:
+    """The resolved driver set of one payload, with no projection run.
+
+    The ONE derivation (contract 4): ``engine.forecast_drivers`` reads the
+    concepts it shares with this model from here rather than measuring
+    them a second time."""
+    opening, history = _opening_and_history(payload)
+    return derive_assumptions(opening, history,
+                              context=context_for_payload(payload),
+                              **overrides)
+
+
+def project_payload(payload: Dict[str, Any], horizon_years: int = 5,
+                    **overrides: Any) -> Projection:
+    """Project one captured/served period payload end to end.
+
+    The opening position is taken from the CANONICAL balance sheet
+    through the facts gateway; the P&L history from the assembled P&L;
+    the jurisdiction from the anchor envelope (contract 0.3).
+
+    ``horizon_years`` is kept only as ``total_years`` with a monthly window
+    of twelve months (plan_contract_v2 2.2) — the one shape the route
+    serves today — and is never an assumption override.
+    """
+    opening, history = _opening_and_history(payload)
     return project(opening, history, total_years=horizon_years,
-                   monthly_months=12, **overrides)
+                   monthly_months=12, context=context_for_payload(payload),
+                   **overrides)

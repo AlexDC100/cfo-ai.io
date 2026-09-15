@@ -417,6 +417,28 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE forecast-base-parity (delta mode)",
                        "366-day plan year per book")),
         # ── end plan/2 B2 ────────────────────────────────────────────────
+        # ── plan/2 B3 (plan_contract_v2 28.3): one driver authority and tier
+        # pedigree. forecast-authority (section 4): the integers the two
+        # driver packages hold for every shared concept on the four books.
+        # forecast-defaults, engine half (F3, 3.3/3.4/R16): every driver's
+        # tier from its ladder with its evidence, absent drivers project,
+        # the no_statutory_tax_rate refusal (engine and GET 422), and the
+        # jurisdiction source per corpus book. B6 extends forecast-defaults
+        # over served bytes (test_forecast_defaults_f3.py).
+        Gate("forecast-authority",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_driver_authority.py", "-q"],
+             work_rx=r"GATE-WORK forecast-authority units=(\d+)", floor=50,
+             units="shared-concept comparisons",
+             canaries=("SCOPE forecast-authority (plan/2 B3, contract 4)",
+                       "covered concepts")),
+        Gate("forecast-defaults",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_tier_ladders.py", "-q"],
+             work_rx=r"GATE-WORK forecast-defaults units=(\d+)", floor=150,
+             units="drivers checked",
+             canaries=("SCOPE forecast-defaults (engine half, plan/2 B3)",
+                       "jurisdiction source per corpus book",
+                       "responses with an absent driver that projected")),
+        # ── end plan/2 B3 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

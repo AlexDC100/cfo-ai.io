@@ -813,8 +813,9 @@ def test_h3_every_macro_anchor_declares_its_external_source(pack):
 # ──────────────────────────────────────────────────────────────────────
 
 from engine.forecast_drivers.authority import (  # noqa: E402
-    CONCEPTS, RULED_MODEL_KEYS, AuthorityError, Concept, blocked_model_keys,
-    concept_for_model_key, model_overrides, model_owned_keys, unrepresentable)
+    CONCEPTS, RULED_MODEL_KEYS, AbsentHandover, AuthorityError, Concept,
+    blocked_model_keys, concept_for_model_key, model_overrides,
+    model_owned_keys, unrepresentable)
 
 
 def _model_assumptions(payload, **overrides):
@@ -822,20 +823,12 @@ def _model_assumptions(payload, **overrides):
 
     Imported inside the helper, not at module scope: this file's other 66
     tests are about THIS package, and a broken sibling package should not
-    stop them collecting.
+    stop them collecting. plan/2 B3: with the book's own context (its
+    jurisdiction, contract 0.3), exactly as ``project_payload`` builds it.
     """
-    from engine.forecast import (OpeningPosition, derive_assumptions,
-                                 pl_history_from_payload)
-    from engine.serving.facts import FactsGateway
+    from engine.forecast.project import assumptions_for_payload
 
-    envelope = payload.get("envelope")
-    gateway = FactsGateway.from_envelope(
-        envelope if isinstance(envelope, dict) else payload,
-        currency=str(payload.get("currency") or "RON"))
-    opening = OpeningPosition.from_gateway(
-        gateway, str(payload.get("period_end") or ""))
-    return derive_assumptions(
-        opening, pl_history_from_payload(payload), **overrides)
+    return assumptions_for_payload(payload, **overrides)
 
 
 def _model_keys():
@@ -956,9 +949,24 @@ def test_j7_every_supplied_concept_arrives_with_this_packages_value(book):
             assert got.source == "caller", (
                 "%s/%s: handed over but the model kept its own %s value"
                 % (book, model_key, got.source))
-            assert got.value() == pytest.approx(want, abs=5e-7), (
-                "%s/%s: this package publishes %r, the model holds %r"
-                % (book, model_key, want, got.value()))
+            if driver.exact is not None:
+                # plan/2 B3 (contract 4): the crossing carries the EXACT
+                # integer, unrounded. This asserted the model held the
+                # display value within 5e-7, which a day count rounded to
+                # four places (26.2057 for 26.205674) can never meet once
+                # the crossing stops rounding — the gate is restated on the
+                # integer it is now about.
+                assert got.exact == concept.convert_exact(
+                    driver.exact, driver.unit), (
+                    "%s/%s: this package publishes %r exactly, the model "
+                    "holds %r" % (book, model_key, driver.exact, got.exact))
+                # and a hand-over never demotes the engine's tier to a
+                # caller's
+                assert got.tier == driver.tier, (book, model_key, got.tier)
+            else:
+                assert got.value() == pytest.approx(want, abs=5e-7), (
+                    "%s/%s: this package publishes %r, the model holds %r"
+                    % (book, model_key, want, got.value()))
             checked += 1
     assert checked, "%s: nothing crossed at all" % (book,)
 
@@ -967,13 +975,16 @@ def test_j7_every_supplied_concept_arrives_with_this_packages_value(book):
 def test_j8_an_absent_driver_never_becomes_a_number_in_the_handover(book):
     """ABSENT != ZERO, at the boundary between the two packages.
 
-    A driver this package refuses to value must not appear in the
-    overrides at all — not as 0.0, and not as None either, because the
-    model's channel DROPS a None (`overrides[key] is not None`) and would
-    fill the key from its own default while looking like a hand-over.
+    RETIRED AND RESTATED (plan/2 B3, contract 4: "an absent concept
+    crosses as an explicit absent object, never dropped"). This asserted
+    an absent driver did not appear in the overrides at all, because the
+    model's channel dropped a None. That drop is gone; the law it guarded
+    survives in the stronger form — an absent driver crosses, but only as
+    an AbsentHandover carrying its reason, never as a number or a None.
     """
     base = _base(book)
     overrides = model_overrides(base)
+    crossed_absent = 0
     for concept in CONCEPTS:
         if concept.status == "model_only":
             continue
@@ -981,22 +992,38 @@ def test_j8_an_absent_driver_never_becomes_a_number_in_the_handover(book):
         if driver is None or driver.value is not None:
             continue
         for model_key in concept.model_keys:
-            assert model_key not in overrides, (
+            value = overrides.get(model_key)
+            assert isinstance(value, AbsentHandover), (
                 "%s: %r is ABSENT here but was handed to the model as %r"
-                % (book, concept.driver_key, overrides.get(model_key)))
+                % (book, concept.driver_key, value))
+            assert value.reason == driver.basis
+            crossed_absent += 1
     for value in overrides.values():
         assert value is not None
+        if isinstance(value, AbsentHandover):
+            assert not isinstance(value, float)
+    assert crossed_absent, "%s: no absent concept crossed (TC-3)" % (book,)
 
 
-def test_j9_the_models_channel_really_does_drop_a_none():
-    """The reason test_j8 exists, proven against the model rather than
-    asserted about it. If this ever stops being true, an absent driver
-    becomes conveyable and `unrepresentable()` should shrink."""
+def test_j9_the_models_channel_refuses_a_none_and_honours_an_absent_handover():
+    """RETIRED AND RESTATED (plan/2 B3). This proved the model's channel
+    DROPPED a None — the silence contract 4 removes ("the None check is
+    removed"). After the repair: a None is refused by name, and the
+    explicit absent hand-over removes the model's book rung, recording the
+    authority's reason, while its ladder continues."""
+    from engine.forecast.errors import AssumptionError
+
     payload = _load(_CALIBRATION_BOOK)
-    plain = _model_assumptions(payload)
-    nulled = _model_assumptions(payload, tax_rate=None)
-    assert nulled["tax_rate"].source == plain["tax_rate"].source
-    assert nulled["tax_rate"].value() == plain["tax_rate"].value()
+    with pytest.raises(AssumptionError) as caught:
+        _model_assumptions(payload, tax_rate=None)
+    assert "None is not a driver value" in str(caught.value)
+    base = _base(_CALIBRATION_BOOK)
+    handover = model_overrides(base)["tax_rate"]
+    assert isinstance(handover, AbsentHandover)
+    after = _model_assumptions(payload, tax_rate=handover)
+    assert after["tax_rate"].tier == "macro"
+    assert after["tax_rate"].fallback_steps[0]["tier"] == "book"
+    assert after["tax_rate"].fallback_steps[0]["reason"] == handover.reason
 
 
 @pytest.mark.parametrize("book", _BOOKS)
@@ -1021,12 +1048,18 @@ def test_j10_what_cannot_cross_is_named_rather_than_silently_asserted(book):
 def test_j11_a_blocked_concept_must_argue_the_change_that_would_close_it():
     """A refusal to cross is only legitimate while it says what would
     make it unnecessary. Otherwise `blocked` becomes a permanent excuse
-    for two authorities."""
+    for two authorities.
+
+    RETIRED AS ITS OWN DOCSTRING INSTRUCTED (plan/2 B3, contract 4:
+    "blocked_model_keys is emptied"). The one blocked concept,
+    depreciation_rate, crosses since B3: this package's gross-base rate
+    was renamed depreciation_share_of_gross_depreciable_base and the
+    engine's closing-NBV rate is published under the name. What survives
+    is the rule for any FUTURE blocked concept, and the record that none
+    remains."""
     blocked = tuple(c for c in CONCEPTS if c.status == "blocked")
-    assert blocked, (
-        "no blocked concept remains — delete this test rather than "
-        "loosening it, and record that every concept now crosses")
-    for concept in blocked:
+    assert blocked_model_keys() == ()
+    for concept in blocked:  # pragma: no cover - none remain at B3
         assert "Closing it needs" in concept.why, (
             "%s is blocked with no stated route out" % (concept.concept_id,))
 
@@ -1050,8 +1083,12 @@ def test_j12_the_model_owns_only_the_projections_own_mechanics(pack):
 #: Derivation methods whose arithmetic this file can redo, and the shape
 #: it redoes them in. A base-case driver whose method is not here cannot
 #: be checked, and test_j13 reds rather than skipping it.
+#: plan/2 B3: ``engine_forecast`` — a shared concept read from the model's
+#: own resolution, whose first input is the engine's exact value (the
+#: arithmetic behind it is gated by the model's own tests and by
+#: forecast-authority); ``pack_convention`` — the convention rung.
 _ONE_INPUT_METHODS = ("published_ratio", "pack_macro", "engine_assumption",
-                      "pack_default")
+                      "pack_default", "engine_forecast", "pack_convention")
 _QUOTIENT_METHODS = ("period_ratio",)
 _SHARE_METHODS = ("nature_split",)
 _ARITHMETIC_METHODS = (_ONE_INPUT_METHODS + _QUOTIENT_METHODS
@@ -1188,6 +1225,13 @@ def test_j17_every_percentage_written_into_a_note_is_one_of_its_own_numbers(book
                 known.add(round(driver.value * 100.0, 6))
             for token in percent.findall(note):
                 number = float(token.replace(",", ""))
+                if driver.status == "absent" and number == 0.0:
+                    # plan/2 B3: an ABSENT driver read from the engine
+                    # quotes the engine's refusal ("it is not taken to be
+                    # 0%"). The 0% is the value the refusal REJECTS, not a
+                    # threshold, and an absent driver carries no value to
+                    # match it against. Any other percentage still reds.
+                    continue
                 assert any(abs(number - k) < 1e-6 for k in known), (
                     "%s/%s/%s: the note says %s%% and no input, and not the "
                     "driver's own value, carries it"
@@ -1210,13 +1254,19 @@ def test_j18_the_pedigree_travels_with_the_numbers(book):
         "%s: %s crossed with no pedigree behind it"
         % (book, sorted(set(overrides) - set(carried))))
     for model_key, entry in carried.items():
-        assert entry["status"] in ("derived", "fallback"), model_key
-        assert entry["basis"].strip(), model_key
-        assert entry["authority"], model_key
-        assert entry["periods_used"], model_key
         driver = base.driver(entry["driver_key"])
+        assert entry["basis"].strip(), model_key
         assert entry["basis"] == driver.basis
         assert entry["status"] == driver.status
+        if entry["status"] == "absent":
+            # plan/2 B3: an absent concept crosses with its reason and no
+            # value; it has no authority to cite and no exact integer.
+            assert isinstance(overrides[model_key], AbsentHandover)
+            assert entry["exact"] is None, model_key
+            continue
+        assert entry["status"] in ("derived", "fallback"), model_key
+        assert entry["authority"], model_key
+        assert entry["periods_used"], model_key
 
 
 def test_j19_a_fallback_does_not_cross_over_looking_like_a_measurement():
@@ -1430,9 +1480,12 @@ def test_hx3_the_two_producers_hold_one_tax_rate_or_neither_holds_one(book):
     ours = _base(book).driver("tax_rate")
     theirs = _model_assumptions(payload)["tax_rate"]
     if ours.value is None:
-        assert "tax_rate" not in model_overrides(_base(book)), (
+        # plan/2 B3: the refusal crosses as an explicit AbsentHandover
+        # (contract 4), never a number under that name.
+        crossed = model_overrides(_base(book)).get("tax_rate")
+        assert isinstance(crossed, AbsentHandover), (
             "%s: this package refuses to value the tax rate, so nothing "
-            "may cross under that name" % (book,))
+            "but its refusal may cross under that name: %r" % (book, crossed))
         assert theirs.source != "derived", (
             "%s: this package says the effective rate is not measurable "
             "and the model measured one anyway (%r) — one book, two "
@@ -1509,6 +1562,12 @@ def test_hx5_every_crossed_value_carries_its_own_pedigree(book):
     carried = handover_basis(base)
     assert set(overrides) == set(carried)
     for model_key, value in overrides.items():
+        if isinstance(value, AbsentHandover):
+            # plan/2 B3: an absence crosses with its reason attached
+            assert value.pedigree == carried[model_key]
+            assert value.reason == base.driver(
+                value.pedigree["driver_key"]).basis
+            continue
         assert isinstance(value, SuppliedValue), (
             "%s/%s crossed as a bare %s — the reason it is that number is "
             "gone the moment it leaves this package"
@@ -1580,13 +1639,21 @@ def test_hx7_the_pedigree_reaches_the_wire(book):
     """
     from engine.forecast import project_payload
 
-    projection = project_payload(_load(book), **model_overrides(_base(book)))
-    crossed = set(model_overrides(_base(book)))
+    overrides = model_overrides(_base(book))
+    projection = project_payload(_load(book), **overrides)
+    # plan/2 B3: an AbsentHandover crosses a REASON, not a measurement, so
+    # the model keeps its own ladder's rung (with its own pedigree) for it;
+    # only a crossed VALUE must arrive with a measured derivation.
+    crossed = set(k for k, v in overrides.items()
+                  if not isinstance(v, AbsentHandover))
+    absent = set(overrides) - crossed
     blank = sorted(
         row["id"] for row in projection.fp1_assumptions()
-        if row["id"] in crossed
-        and (row["basis"].startswith("supplied by the caller")
-             or not row["derived_from"]))
+        if (row["id"] in crossed
+            and (row["basis"].startswith("supplied by the caller")
+                 or not row["derived_from"]))
+        or (row["id"] in absent
+            and row["basis"].startswith("supplied by the caller")))
     assert not blank, (
         "%s: %s crossed with a measured pedigree and reached the wire "
         "with none" % (book, ", ".join(blank)))
@@ -1939,7 +2006,7 @@ def test_hg4_the_plan_never_spends_a_rate_this_package_refused():
         base = build_case_set([payload]).case("base")
         assert base.driver("tax_rate").value is None, name
         overrides = model_overrides(base)
-        assert "tax_rate" not in overrides, (
+        assert isinstance(overrides.get("tax_rate"), AbsentHandover), (
             "%s: this package refused to measure the rate and handed one "
             "over anyway — the refusal is worth exactly nothing if the "
             "number crosses regardless" % (name,))
@@ -2081,3 +2148,18 @@ def test_hg8_an_inventory_variation_does_not_bridge_the_distance():
     assert "inventory variation" in driver.derivation.note, (
         "a reader is owed the size of the thing that is NOT closing the "
         "distance: %r" % (driver.derivation.note,))
+
+
+# ── plan/2 B3: printed scope (TC-12/TC-13; B0-16 assigned it to B3) ─────
+
+def test_zz_scope(capsys):
+    """The scope this gate ran on, printed. The work count stays pytest's
+    junit count (a printed count would not see a collapse of one section)."""
+    with capsys.disabled():
+        print("\nSCOPE forecast-drivers (plan/2 B3): books %s, one period "
+              "each; multi-period rungs on SYNTHETIC histories scaled from "
+              "agras (constructed, labelled in this file); micro-SRL books "
+              "assembled through the real Romanian assembly; shared concepts "
+              "read from engine.forecast (contract 4)"
+              % ", ".join(_BOOKS))
+    assert _BOOKS
