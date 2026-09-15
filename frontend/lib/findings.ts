@@ -52,6 +52,10 @@ export type FindingUnit =
   | "days"
   | "count"
   | "score"
+  /** Altman Z'' — a plain two-decimal index, no ratio marker (ruling Q7). */
+  | "index"
+  /** Notches of the credit letter ladder (ruling Q3). */
+  | "notches"
   | "unknown";
 
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
@@ -352,7 +356,9 @@ function unit(v: unknown): FindingUnit {
     s === "percent" ||
     s === "days" ||
     s === "count" ||
-    s === "score"
+    s === "score" ||
+    s === "index" ||
+    s === "notches"
     ? s
     : "unknown";
 }
@@ -907,7 +913,7 @@ export function useFindingsReport(rows: unknown): FindingsReport {
 export function formatDimensionless(
   value: number | null | undefined,
   u: FindingUnit,
-  opts?: { daysWord?: string },
+  opts?: { daysWord?: string; dayWord?: string },
 ): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const locale = activeLocale();
@@ -918,9 +924,18 @@ export function formatDimensionless(
     }).format(v);
   if (u === "percent") return `${fixed(value * 100, 1)}%`;
   if (u === "ratio") return `${fixed(value, 2)}×`;
-  if (u === "days") return `${fixed(value, 0)} ${opts?.daysWord ?? "days"}`;
+  if (u === "days") {
+    // The noun agrees with the PRINTED count, as `_format_value` does
+    // (ruling Q8): 0.6 prints "1" and reads "1 day"; it used to read
+    // "1 days".
+    const text = fixed(value, 0);
+    const one = text === fixed(1, 0) || text === fixed(-1, 0);
+    return `${text} ${one ? (opts?.dayWord ?? "day") : (opts?.daysWord ?? "days")}`;
+  }
   if (u === "count") return fixed(value, 0);
   if (u === "score") return fixed(value, 1);
+  if (u === "index") return fixed(value, 2);
+  if (u === "notches") return `${fixed(value, 2)} notches`;
   return null;
 }
 
@@ -928,7 +943,7 @@ export function formatDimensionless(
 export function formatSignedDimensionless(
   value: number | null | undefined,
   u: FindingUnit,
-  opts?: { daysWord?: string; pointsWord?: string },
+  opts?: { daysWord?: string; dayWord?: string; pointsWord?: string },
 ): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const body = formatDimensionless(Math.abs(value), u, opts);

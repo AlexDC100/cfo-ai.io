@@ -4765,8 +4765,11 @@ def _complete_bucket_equity(
     """Complete the bucket-summed equity of a rebuild from line items, in
     place, on `bs["retainedEarnings"]`. THE ONE COMPLETION: every seam
     that rebuilds `balanceSheet` from `statement_line_items` calls this —
-    `_rebuild_assembled` (valuation routes) and `get_period`
-    (GET /api/period/{id}, and through it the comparatives route).
+    `_rebuild_assembled` (valuation routes), `get_period`
+    (GET /api/period/{id}, and through it the comparatives route) and
+    `_rebuild_assembled_for_briefing` (the Capsule tools, Radar, the firm
+    attention lane, briefing regenerate and the forecast route; joined
+    2026-09-15, ruling Q1).
 
     `pl` is the P&L bucket dict of the same rebuild; `inv_var_711` is the
     account-711 production variation still INCLUDED in `pl["otherIncome"]`
@@ -4945,6 +4948,17 @@ def _rebuild_assembled_for_briefing(
                 inv_var_memo += amount
             else:
                 pl[pl_buckets[bucket]] += amount
+
+    # Equity completion — THE ONE COMPLETION (`_complete_bucket_equity`),
+    # exactly as `get_period` runs it: on the cent-rounded buckets, with
+    # 711 already carved out of `pl["otherIncome"]` (hence 0.0). Until
+    # 2026-09-15 (ratios R2b, ruling Q1) this seam summed the line items
+    # with no completion, so the Capsule tools, Radar, the firm attention
+    # lane, a regenerated briefing and the forecast route served a
+    # retainedEarnings short by the year's result beside the complete
+    # equity GET /api/period serves for the same period.
+    bs = {k: round(v, 2) for k, v in bs.items()}
+    _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
 
     statements: Dict[str, Any] = {
         "companyName": (org or {}).get("name") if org else None,
@@ -7302,6 +7316,7 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
+        _as_filed_weights, _as_filed_refused = _credit_model.as_filed_applied_weights(metrics or [])
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7372,8 +7387,16 @@ def build_router() -> APIRouter:
                 # The rungs the letter above was read off — the same
                 # `CREDIT_LETTER_LADDER`, served, never a second copy.
                 "letter_grade_bands": _credit_model.letter_grade_bands(),
-                # The one weights table the composite multiplies by.
-                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
+                # The weights the PERSISTED composite was multiplied by —
+                # renormalised over the persisted sub-scores that carry a
+                # value when the rows are revision 2 or later, the model
+                # table otherwise (`as_filed_applied_weights`) — with the
+                # sub-scores it was scored without and the model table
+                # they were renormalised from, the same three fields the
+                # serve branch below passes through.
+                "composite_weights": _as_filed_weights,
+                "refused_subscores": _as_filed_refused,
+                "model_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",
@@ -7479,24 +7502,8 @@ def build_router() -> APIRouter:
                 and _serve_rows is not None):
             served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
                 metrics or [], _serve_rows)
-            _cb = ratio_table_block["credit"]
-            _alt = _cb.get("altman") or {}
-            assembled_metrics_envelope["credit"] = {
-                "altman_z_score": _alt.get("z"),
-                "altman_variant": "Z\"",
-                "altman_components": {x: _alt.get(x) for x in ("x1", "x2", "x3", "x4")},
-                "altman_zone": _alt.get("zone"),
-                "composite_score": _cb.get("composite"),
-                "letter_grade": _cb.get("letter"),
-                "letter_grade_bands": _cb.get("ladder"),
-                "composite_weights": _cb.get("weights"),
-                "subscores": _cb.get("subscores"),
-                "credit_model_revision": _cb.get("revision"),
-                "basis": "serve",
-                "reason": _cb.get("reason"),
-                "as_filed": _cb.get("as_filed"),
-                "as_filed_differs": _cb.get("as_filed_differs"),
-            }
+            assembled_metrics_envelope["credit"] = _credit_model.serve_credit_envelope(
+                ratio_table_block["credit"])
 
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
@@ -7666,10 +7673,17 @@ def build_router() -> APIRouter:
             with _supabase.per_user(jwt) as client:
                 cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
                 pri_row = _cmp.load_period_in_org(client, prior, org_id=org_id)
+                # The workspace's CAEN, from its ONE authority (ruling Q6):
+                # without it the band findings' company profile is inferred
+                # from the account mix alone, while the Capsule, Radar and
+                # the firm lane all qualify the same company by its code.
+                # Fails open to None, as `caen_for_org` documents.
+                caen = _org.caen_for_org(client, org_id)
             cur_payload = get_period(period_id, authorization)
             pri_payload = get_period(prior, authorization)
             return _cmp.compare_payloads(
-                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row)
+                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
+                caen=caen)
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 

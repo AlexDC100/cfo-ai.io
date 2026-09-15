@@ -63,16 +63,41 @@ export function spellLadder(
     .join(" · ");
 }
 
+/** The part of a credit component row these sentences read. `refusal`
+ *  is set on a row the engine scored the composite WITHOUT (credit model
+ *  revision 2) — it carries no weight and is not part of the vector. */
+export interface WeightedComponent {
+  weight: number | null;
+  refusal?: { subject: string; code: string | null } | null;
+}
+
 /** THE spelling of a weight vector — composed from the weights the
  *  components were actually scored with, in their own order, so a
- *  re-weight moves the sentence exactly as a re-band does. NULL when any
- *  component carries no weight (a partial vector is not a vector). */
+ *  re-weight moves the sentence exactly as a re-band does.
+ *
+ *  A REFUSED ROW IS NOT IN THE VECTOR. It carries no weight (the engine
+ *  renormalised over the rest), so the vector spelled is the one the
+ *  composite used and sums to 100. `refusedSubscores` names what it left
+ *  out. NULL when any SCORED component carries no weight (a partial
+ *  vector is not a vector), or when every component refused. */
 export function spellWeights(
-  components: ReadonlyArray<{ weight: number | null }>,
+  components: ReadonlyArray<WeightedComponent>,
 ): string | null {
-  if (components.length === 0) return null;
-  if (components.some((c) => c.weight === null || !Number.isFinite(c.weight))) return null;
-  return components.map((c) => Math.round((c.weight as number) * 100)).join("/");
+  const scored = components.filter((c) => !c.refusal);
+  if (scored.length === 0) return null;
+  if (scored.some((c) => c.weight === null || !Number.isFinite(c.weight))) return null;
+  return scored.map((c) => Math.round((c.weight as number) * 100)).join("/");
+}
+
+/** The sub-scores the composite was scored without, named — NULL when
+ *  none refused. Read together with `spellWeights`, so the sentence says
+ *  both which vector was used and what it was renormalised without. */
+export function refusedSubscores(
+  components: ReadonlyArray<WeightedComponent>,
+): string | null {
+  const refused = components.filter((c) => c.refusal).map((c) => (c.refusal as { subject: string }).subject);
+  if (refused.length === 0) return null;
+  return refused.length === 1 ? refused[0] : `${refused.slice(0, -1).join(", ")} and ${refused[refused.length - 1]}`;
 }
 
 /** The sentence that travels WITH the letter on every surface that
@@ -82,11 +107,14 @@ export function spellWeights(
 export function creditModelLabel(
   model: CreditModelId,
   bands: Array<{ min: number; grade: string }> | null,
-  components: ReadonlyArray<{ weight: number | null }>,
+  components: ReadonlyArray<WeightedComponent>,
 ): string {
   const parts = [CREDIT_MODEL_NAME[model]];
   const w = spellWeights(components);
-  if (w) parts.push(`weights ${w}`);
+  const refused = refusedSubscores(components);
+  const scoredCount = components.filter((c) => !c.refusal).length;
+  if (w) parts.push(refused ? `weights ${w} over ${scoredCount} of ${components.length} sub-scores` : `weights ${w}`);
+  if (refused) parts.push(`not scored: ${refused}`);
   const ladder = spellLadder(bands);
   parts.push(ladder ? `ladder ${ladder}` : "no band ladder reported for this period");
   const s = parts.join(" · ");
@@ -101,10 +129,16 @@ export function creditModelLabel(
 export function creditCaveat(
   model: CreditModelId,
   bands: Array<{ min: number; grade: string }> | null,
-  components: ReadonlyArray<{ weight: number | null }>,
+  components: ReadonlyArray<WeightedComponent>,
   altmanVariant: string,
 ): string {
   const w = spellWeights(components);
+  const refused = refusedSubscores(components);
+  const refusedSentence = refused
+    ? ` The composite was scored without ${refused}, which the model could not score for this ` +
+      `period; the weights above are renormalised over the remaining sub-scores, so this ` +
+      `composite is not weighted like one that scored all ${components.length}.`
+    : "";
   const ladder = spellLadder(bands);
   const ladderSentence = ladder
     ? `The letter grade is banded with the ladder this model reported for this period: ${ladder}.`
@@ -118,7 +152,10 @@ export function creditCaveat(
   if (model === "engine-canonical-v1") {
     return (
       `Engine canonical credit score (Romanian SME calibration). Weighted composite` +
-      `${w ? ` (${w})` : ""} with Altman ${altmanVariant} as the dominant signal. ` +
+      `${w ? ` (${w})` : ""}` +
+      // The engine path's first row is the Altman; when it refused, it is
+      // not the dominant signal of anything.
+      `${components[0]?.refusal ? "" : ` with Altman ${altmanVariant} as the dominant signal`}.${refusedSentence} ` +
       `${ladderSentence} ${notARating}`
     );
   }

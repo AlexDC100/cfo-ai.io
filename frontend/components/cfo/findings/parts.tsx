@@ -218,7 +218,7 @@ export function FigureValue({
       </span>
     );
   }
-  const text = formatDimensionless(value, unit, { daysWord: t("fnd.units.days") });
+  const text = formatDimensionless(value, unit, { daysWord: t("fnd.units.days"), dayWord: t("fnd.units.day") });
   if (text === null) {
     return <span className={`text-ink-mute ${className}`}>{ABSENT}</span>;
   }

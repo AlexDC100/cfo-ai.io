@@ -691,6 +691,8 @@
         "graded_by_letter": "Fără bandă proprie: ratingul de credit evaluează acest scor.",
         "credit_inputs_absent": "Neevaluat: modelului de credit îi lipsește o valoare de care are nevoie pentru această perioadă.",
         "piotroski_prior_capped": "Plafonat: anul anterior al perioadei anterioare nu este încărcat, deci verificările de la an la an rămân neevaluate, iar cele două scoruri nu sunt listate ca mișcare.",
+        "current_liabilities_not_positive": "Neevaluat: datoriile curente nu sunt pozitive în această perioadă, deci indicatorii de lichiditate nu au bază; scorul compozit este ponderat doar pe subscorurile calculate.",
+        "total_liabilities_not_positive": "Neevaluat: datoriile totale nu sunt pozitive în această perioadă, deci componenta Altman care împarte capitalurile proprii la datorii nu are bază și Z'' nu se calculează; scorul compozit este ponderat doar pe subscorurile calculate.",
         "period_absent": "Nicio valoare: această perioadă nu are un tabel de indicatori servit.",
         "unstated": "Nicio valoare și niciun motiv servit pentru lipsa ei.",
         "unlisted": "Nicio valoare: codul de motiv {{code}} nu are încă o propoziție.",

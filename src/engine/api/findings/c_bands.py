@@ -18,7 +18,9 @@ THE SEVEN, and where each comes from
 
   subject     the ledger accounts behind the ratio: the current period's
               served line items in the numerator's and the denominator's
-              buckets (`SUBJECT_BUCKETS`), largest balances first
+              buckets (`SUBJECT_BUCKETS`), contra accounts excluded
+              (`CONTRA_ACCOUNT_PREFIXES`), ranked by signed amount on the
+              bucket's natural side (largest first)
   evidence    the prior and the current value, as served; comparison
               basis kind ``prior_period``; provenance naming BOTH periods
               and BOTH snapshots
@@ -28,9 +30,16 @@ THE SEVEN, and where each comes from
   impact      HEADROOM MONEY on the per-key materiality basis the composer
               served (`ratio_compare.MATERIALITY_BASES`): the numerator at
               the rung against the numerator as held, holding the
-              denominator the ratio divides. A key with no money
-              denominator (ccc, the Altman Z'', the letter) has no impact
-              and DEMOTES — it is still listed
+              denominator the ratio divides (ccc on its working-capital
+              basis, revenue). The two composites have no money
+              denominator and state headroom in their OWN unit
+              (`NON_MONEY_IMPACT_KEYS`, ruling Q3): Altman Z'' from the rung
+              to the value held, in Z units; the letter as the credit
+              composite's distance from the rung in notches of the served
+              band width. `Finding.validate()` is unchanged: a headroom
+              impact in a declared dimensionless unit already satisfies it.
+              A crossing with no served rung distance still DEMOTES and is
+              still listed
   why_here    the current period's company profile (`_base.build_finding`)
   action      two imperative steps per direction
   confidence  the profile's position, lowered by the stated convention
@@ -187,6 +196,19 @@ RESTATEMENT_CAVEAT = (
     "revision (restated comparatives), a convention rather than the bands "
     "in force when the earlier period was filed.")
 
+#: Caveat copy this lane states in place of the pack's single-period text.
+#: The pack's `approximated_cash_flow` caveat says the cash-flow lines are
+#: approximated "because no prior period was supplied" — true of a
+#: single-period finding, false inside a finding that compares two loaded
+#: periods. What IS approximated is each period's cash-flow lines, built at
+#: persist time from that one period's balances (ruling Q4, 2026-09-15).
+TWO_PERIOD_CAVEATS: Dict[str, str] = {
+    CP.CAVEAT_APPROX_CF: (
+        "Cash-flow lines are indirect-method approximations built from a "
+        "single period's balances; working-capital movements carry a wide "
+        "band."),
+}
+
 #: The two composites are not graded on the pack's band table: the Altman
 #: zones and the letter ladder are the serve-time credit model's constants.
 #: key -> (source prefix, rung name -> constant name or None for the ladder
@@ -201,11 +223,24 @@ COMPOSITE_LADDERS: Dict[str, Tuple[str, Dict[str, str], str]] = {
 #: is graded on the credit composite, and the figure is that score.
 FIGURE_LABELS: Dict[str, str] = {"letter_grade": "credit composite"}
 
+#: Contra accounts — accumulated depreciation and amortisation (28x),
+#: impairment adjustments on fixed assets (29x), inventory provisions (39x)
+#: and receivable provisions (49x). They sit in an asset bucket with a
+#: negative balance and are never what a ratio is ABOUT: ranked by absolute
+#: balance, retail's current ratio named 491 (a provision) and a PP&E-heavy
+#: book's return on assets named 2813 (depreciation). Ruling Q5, 2026-09-15.
+CONTRA_ACCOUNT_PREFIXES: Tuple[str, ...] = ("28", "29", "39", "49")
+
 SUBJECT_NUMERATOR_ACCOUNTS = 2
 SUBJECT_DENOMINATOR_ACCOUNTS = 1
 
+#: Altman Z'' prints as a plain two-decimal index, as the methodology
+#: writes it ("Altman Z'' = 3.09"), never with the ratio marker (ruling Q7).
 _UNIT_OF = {"x": F.UNIT_RATIO, "pct": F.UNIT_PERCENT, "days": F.UNIT_DAYS,
-            "z": F.UNIT_RATIO, "grade": F.UNIT_SCORE}
+            "z": F.UNIT_INDEX, "grade": F.UNIT_SCORE}
+
+#: The keys whose impact is headroom in their own dimensionless unit.
+NON_MONEY_IMPACT_KEYS: Dict[str, str] = {"altman_z": F.UNIT_INDEX, "letter_grade": F.UNIT_NOTCHES}
 
 MONEY_AT_RUNG = "band_numerator_at_rung"
 MONEY_HELD = "band_numerator_held"
@@ -226,8 +261,9 @@ def subject_coverage(keys: Sequence[str]) -> Dict[str, Any]:
 
 
 def lane_catalog(base: "CP.ProfileCatalog", rows: Sequence[Mapping[str, Any]]) -> "CP.ProfileCatalog":
-    """A COPY of `base` with one detector spec per crossed row's rule id.
-    The pack file and the cached catalogue are left untouched."""
+    """A COPY of `base` with one detector spec per crossed row's rule id and
+    the two-period caveat copy (`TWO_PERIOD_CAVEATS`). The pack file and the
+    cached catalogue are left untouched."""
     cat = copy.copy(base)
     detectors = dict(base.detectors)
     for row in rows:
@@ -238,6 +274,9 @@ def lane_catalog(base: "CP.ProfileCatalog", rows: Sequence[Mapping[str, Any]]) -
             units={}, labels={}, default={}, by_profile={},
             why_here_default=why, why_here_by_profile={})
     cat.detectors = detectors
+    caveats = dict(base.confidence_caveats)
+    caveats.update(TWO_PERIOD_CAVEATS)
+    cat.confidence_caveats = caveats
     return cat
 
 
@@ -261,7 +300,13 @@ def _accounts(line_items: Sequence[Mapping[str, Any]], buckets: Sequence[str],
         # same bucket stands next in line.
         if not F.is_ledger_code(code) or not str(li.get("ro_account_name") or "").strip():
             continue
-        candidates.append((-abs(float(amount)), code, li))
+        if code.startswith(CONTRA_ACCOUNT_PREFIXES):
+            continue
+        # Served line items are signed on their bucket's natural side
+        # (positive = the side the bucket is named for), so the largest
+        # SIGNED amount is the largest contribution to the bucket; a line
+        # on the opposite side ranks after every line on the natural side.
+        candidates.append((-float(amount), code, li))
     candidates.sort(key=lambda c: (c[0], c[1]))
     out = []  # type: List[F.Account]
     for _neg, code, li in candidates:
@@ -291,6 +336,8 @@ def _headroom(row: Mapping[str, Any], denominators: Mapping[str, Mapping[str, An
     materiality divided. None when the composer served no materiality for
     the row (no money denominator): the finding demotes, and says so."""
     mv = row["movement"]
+    if row["key"] in NON_MONEY_IMPACT_KEYS:
+        return _own_unit_headroom(row), {}
     if mv.get("materiality") is None or mv.get("rung_crossed") is None:
         return None, {}
     den = (denominators.get(row["key"]) or {}).get("value")
@@ -305,14 +352,51 @@ def _headroom(row: Mapping[str, Any], denominators: Mapping[str, Mapping[str, An
     at_rung = Decimal(mv["rung_crossed"]["value"]) * d / scale
     if held == at_rung:
         return None, {}
-    label = "the numerator of %s at the %s rung, versus as held" % (
-        LABELS[row["key"]], mv["rung_crossed"]["name"])
+    if row["key"] == "ccc":
+        # A sum of day counts has no numerator of its own; its money is the
+        # working capital those days tie up on revenue (ruling Q3).
+        label = "the working capital %s ties up at the %s rung, versus as held" % (
+            LABELS[row["key"]], mv["rung_crossed"]["name"])
+    else:
+        label = "the numerator of %s at the %s rung, versus as held" % (
+            LABELS[row["key"]], mv["rung_crossed"]["name"])
     impact = F.headroom_impact(
         rule_id_for(row["key"]), label,
         observed=reader.q(float(held), MONEY_HELD),
         limit=reader.q(float(at_rung), MONEY_AT_RUNG))
     impact = replace(impact, baseline_fact=MONEY_AT_RUNG, adjusted_fact=MONEY_HELD)
     return impact, {MONEY_AT_RUNG: float(at_rung), MONEY_HELD: float(held)}
+
+
+def _own_unit_headroom(row: Mapping[str, Any]) -> Optional[F.Impact]:
+    """Headroom for a composite, in its own unit, read off the served
+    movement: Altman Z'' at the rung versus as held; the letter as the
+    composite's signed distance from the rung in notches of the served
+    band width (at the rung = 0). None when the composer served no rung
+    (or, for the letter, no band width)."""
+    mv = row["movement"]
+    rung = mv.get("rung_crossed") or {}
+    if rung.get("value") is None or row["current"].get("value") is None:
+        return None
+    unit = NON_MONEY_IMPACT_KEYS[row["key"]]
+    if row["key"] == "altman_z":
+        label = "Altman Z'' at the %s rung, versus as held" % rung["name"]
+        limit = _ratio_units_quantity(float(Decimal(rung["value"])), unit)
+        observed = _ratio_units_quantity(float(row["current"]["value"]), unit)
+    else:
+        width = mv.get("band_width")
+        if width is None or Decimal(width) == 0:
+            return None
+        signed = (Decimal(row["current"]["value"]) - Decimal(rung["value"])) / Decimal(width)
+        label = ("the credit composite against the %s rung, in notches of the %s-point band"
+                 % (rung["name"], width))
+        limit = _ratio_units_quantity(0.0, unit)
+        observed = _ratio_units_quantity(float(signed), unit)
+    return F.headroom_impact(rule_id_for(row["key"]), label, observed=observed, limit=limit)
+
+
+def _ratio_units_quantity(value: float, unit: str) -> Any:
+    return F._ratio_units.Quantity(float(value), unit)
 
 
 # ── The finding ──────────────────────────────────────────────────────────
@@ -524,7 +608,8 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
 
 
 __all__ = [
-    "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
+    "CONTRA_ACCOUNT_PREFIXES", "NON_MONEY_IMPACT_KEYS", "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
+    "TWO_PERIOD_CAVEATS",
     "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
     "lane_catalog", "rule_id_for",
     "subject_coverage",

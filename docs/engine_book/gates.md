@@ -2523,9 +2523,9 @@ from a different model, and nothing crashes.
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py -q` |
-| work count | junit-xml, floor **20** tests (measured 22: 7 cases × the purity claims, plus the ladder scan) |
-| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder` |
+| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py -q` |
+| work count | junit-xml, floor **24** tests (measured 26: 7 cases × the purity claims, the ladder scan, and the 4 revision-2 refusal gates) |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_x4_altman_and_liquidity_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_not_positive` |
 
 **Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
 mapping, Altman coefficient, rounding, operand, unit, direction, order) on
@@ -2555,6 +2555,40 @@ RECORD ratio-credit-model {'state': 'FAIL', 'exit_code': 1, 'work_units': 22}
 
 **REVERT** — exit `0`: `PASS ratio-credit-model (1.9s, 22 tests)`. Verdict:
 proven RED.
+
+**REVISION 2 (2026-09-15, ruling Q2: absent is never zero).** Added
+`tests/engine/test_credit_model_refusals.py`. Reds on, after the repair:
+`corpus/saga_compact_6_col` through the real GET /api/period route serving a
+number for X4, Z'' or the Altman or liquidity sub-score; a refused sub-score
+missing from `refused_subscores` or carrying another code; served `weights`
+that are not the computed sub-scores' weights renormalised; a composite that
+is not those weights times the served sub-scores; the envelope's
+composite_weights differing from the ratio table's; on every deterministic
+corpus book and the five served books, a refused set other than exactly
+{liquidity when current liabilities are not positive, altman when total
+liabilities are not positive} (census: 20 books, 7 with a refusal); the
+two-period block giving a refused row any reason but the model's own.
+
+**GREEN** — `PASS ratio-credit-model (19.6s, 26 tests)`.
+
+**PLANT A** — `credit_model.py`: X4 back on the revision-1 divisor
+(`x4 = total_equity / max(total_liab, 1)`). **RED** — exit `1`,
+`FAIL ratio-credit-model (exit 1, 9.7s)`, `3 failed, 23 passed`:
+
+```
+E   AssertionError: saga_compact_6_col: refused sub-scores {'liquidity': 'current_liabilities_not_positive'}, expected {'liquidity': 'current_liabilities_not_positive', 'altman': 'total_liabilities_not_positive'} from the liabilities
+```
+
+**PLANT B** — liquidity back to zero (`liq_subscore = 0.0` before the
+`current_liab > 0` branch): 4 failed. **PLANT C** — no renormalisation
+(`CREDIT_COMPOSITE_WEIGHTS[k]` without `/ total`): 3 failed,
+`AssertionError: ('saga_compact_6_col', {'coverage': 0.1, 'dscr': 0.1, 'equity': 0.05, 'leverage': 0.15, ...})`.
+**PLANT D** — `credit_block` serving the model table as `weights`: 3 failed.
+**PLANT E** — `ratio_compare._composite_rows.refused` ignoring the
+sub-score's own refusal: 1 failed,
+`AssertionError: ('altman_z', {'code': 'credit_inputs_absent', 'inputs': []})`.
+
+**REVERT** — `PASS ratio-credit-model (19.6s, 26 tests)`. Verdict: proven RED.
 
 ## ratio-table
 
@@ -2660,8 +2694,8 @@ named it.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_bands.py -q` |
-| work count | junit-xml, floor **50** tests (measured 56, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
-| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
+| work count | junit-xml, floor **55** tests (measured 60 after R2b, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
+| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding`, `test_a_two_period_finding_never_says_no_prior_period_was_supplied`, `test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount`, `test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served` |
 
 **Reds on, after the repair (TC-11):** the planted current_ratio crossing
 (prior agras with its served current liabilities raised to a 1.30 ratio,
@@ -2771,6 +2805,47 @@ test), the threshold comparator ignoring `higher_is_better`
 
 **REVERT** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)` after each
 plant; no `# PLANT` marker left. Verdict: proven RED.
+
+**R2b (2026-09-15, rulings Q3 Q4 Q5 Q7 Q8 Q9).** The 48 impact-only
+demotions described above are gone: ccc carries working-capital money
+(days past the rung x revenue / period days), Altman Z'' headroom in Z units
+and the letter in notches of the served band width; 350 of 350 crossings
+surface. Added reds: a composite finding without its own-unit impact or
+demoted; a ccc crossing without materiality on the dso revenue denominator;
+"no prior period was supplied" in any two-period finding (Q4); a contra
+account (28x/29x/39x/49x) in any subject, or a subject not ranked by signed
+amount (Q5); a Z'' figure printed with the ratio marker, or not UNIT_INDEX
+(Q7 — the previous `"z": "\u00d7"` expectation was the defect written into
+the gate); a day count not agreeing with its printed number (Q8); a served
+materiality floor, or a crossing of any share missing from its list or
+findings (Q9).
+
+**GREEN** — `PASS ratio-band-findings (16.2s, 60 tests)`.
+
+**PLANT** — `c_bands._headroom`: the `NON_MONEY_IMPACT_KEYS` branch removed.
+**RED** — `FAIL ratio-band-findings (exit 1, 13.9s)`, `18 failed, 42 passed`:
+
+```
+E   AssertionError: ('agras|carniprod letter_grade', None)
+```
+
+Also observed RED (direct pytest, each reverted): `denominators["ccc"]`
+removed (`('agras|carniprod ccc', 'ccc crossed with no materiality')`);
+notches unsigned (`('carniprod|agras letter_grade', 0.07000000000000028, -1)`);
+notches not divided by the width (`('agras|carniprod letter_grade',
+0.7000000000000028, '0.070')`); the two-period caveat override dropped
+(`('agras|carniprod roic', 'Cash-flow lines are indirect-method
+approximations because no prior period was supplied; ...')`); abs()
+ranking back (`('carniprod|agras letter_grade', ['117.1', '4111.01',
+'401.01'], ['4111.01', '5124.9.8', '401.01'])`); the contra exclusion
+removed (planted bucket only — on the real pairs signed ranking already
+keeps contra lines out of the top slots, measured); "z" back to UNIT_RATIO
+(`('agras|realestate altman_z', 'prior', '2.43\u00d7', '2.43')`); the days
+printer back to "days" (`('carniprod|retail dso', 'prior', '1 days',
+'1 day')`); findings filtered below a 1% share (`agras|carniprod
+cash_ratio`); materiality_floor "0.01" (`('agras', 'carniprod')`).
+
+**REVERT** — `PASS ratio-band-findings (16.2s, 60 tests)`. Verdict: proven RED.
 
 ## cron-auth
 

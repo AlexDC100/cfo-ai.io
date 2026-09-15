@@ -514,11 +514,11 @@ export function buildExcelWorkbook(
     ...credit.components.map((c) => [
       c.label,
       fixedCell(c.value, 2),
-      c.weight === null ? EXPORT_UNREPORTED : `${(c.weight * 100).toFixed(0)}%`,
+      c.weight === null ? (c.refusal ? "refused" : EXPORT_UNREPORTED) : `${(c.weight * 100).toFixed(0)}%`,
       fixedCell(c.contribution, 1),
       // A component with no number has no sentence — never the intact
       // period's words over an absent figure.
-      c.read ?? EXPORT_UNREPORTED,
+      c.read ?? c.refusal?.sentence ?? EXPORT_UNREPORTED,
     ]),
     [],
     ["Piotroski F-Score"],

@@ -22,6 +22,7 @@ depth can carry never moves against the other. This module only plumbs.
 """
 from __future__ import annotations
 
+import functools
 from dataclasses import asdict
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -162,8 +163,14 @@ def compare_payloads(
     *,
     current_row: Mapping[str, Any],
     prior_row: Mapping[str, Any],
+    caen: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Everything the comparative surfaces render, JSON-ready.
+
+    `caen` is the workspace's CAEN code (`_org.caen_for_org`, read by the
+    route): the band findings' company profile is qualified by it exactly
+    as the single-period lanes qualify theirs. None when the workspace has
+    none — the profile then says it resolved from structure.
 
     Pure over its inputs: no clock, no I/O. Same payloads in, same
     document out."""
@@ -192,7 +199,9 @@ def compare_payloads(
         current_payload, prior_payload,
         current_label=str(cur_block["label"]), prior_label=str(pri_block["label"]),
         piotroski_checks=_piotroski_checks,
-        band_findings=build_band_findings,
+        # Read off the module at call time, so a gate that wraps the
+        # builder still sees this call; the CAEN rides along.
+        band_findings=functools.partial(build_band_findings, caen=caen),
         current_period_id=current_row.get("id"), prior_period_id=prior_row.get("id"),
         current_snapshot_id=snapshot_id_of(current_row),
         prior_snapshot_id=snapshot_id_of(prior_row),

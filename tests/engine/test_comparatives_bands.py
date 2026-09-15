@@ -47,6 +47,13 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       (`701.00'`), any finding demoting on "is not a ledger code", or a
       revenue-bucket crossing not surfacing; selection keeping a nameless
       line instead of taking the next account.
+  CONTRA  (ruling Q5) on all 20 pairs: any finding naming a 28x / 29x / 39x
+      / 49x account (measured before: 22 findings named 491 or 2813.01), or
+      a subject whose numerator and denominator accounts are not the largest
+      SIGNED balances among the eligible served lines of their buckets
+      (measured before: carniprod's credit findings named 117.1, a negative
+      retained-earnings line, ahead of 4111.01); the planted bucket ranking
+      a provision or a debit-side line first.
   NO CROSSING, NO FINDING  any finding row whose ratio did not cross (same
       band, not comparable, refused), a finding set that is not exactly
       improved + deteriorated, or a company compared with itself producing
@@ -62,16 +69,30 @@ WHAT EACH GATE REDS ON, AFTER THE REPAIR (TC-11):
       dropped); the PLANTED demotion (the top surfaced crossing with its
       subject line items removed, every movement list otherwise unchanged)
       missing from the findings or not demoted on `subject`; a demoted row
-      not carrying its missing elements and its check summary. The gate no
-      longer depends on a natural demotion (every one today is an impact-only
-      demotion on altman_z / letter_grade / ccc, held for the owner).
+      not carrying its missing elements and its check summary. The gate
+      plants its own demotion: since ruling Q3 no natural demotion remains on
+      the 20 pairs (the 48 impact-only ones on altman_z / letter_grade / ccc
+      now carry an impact).
+  OWN-UNIT IMPACT  (ruling Q3) on all 20 pairs: an altman_z or letter_grade
+      finding without a headroom impact in its own unit (index / notches),
+      or demoted; Z'' not measured from the served rung to the served value
+      (|delta| more than half a hundredth from `distance_past_rung`); the
+      letter's notches not the served `distance_fraction` (3dp) with the
+      sign of the crossing; a ccc finding not surfaced or not valued on the
+      revenue denominator dso divides.
   DETERMINISM  two compositions over the same bodies serialising to
       different bytes.
+  CAVEAT  (ruling Q4) on all 20 pairs: any finding's confidence caveat or
+      body saying "no prior period was supplied" (a prior WAS supplied);
+      a finding whose profile carries the approximated-cash-flow caveat not
+      naming what is approximated (`c_bands.TWO_PERIOD_CAVEATS`); the pack's
+      own single-period caveat text changing (the lane edits a copy).
 
 WHAT IT CANNOT SEE: whether a surface renders the findings (B6/B7); the
-CAEN (the comparatives route passes none, so the profile is inferred from
-the account mix — the same inference the single-period lane makes without
-one); period length (every served period is 365 days).
+CAEN (these compositions pass none, so the profile is inferred from the
+account mix; the route reading the workspace's CAEN and passing it is held
+by test_comparatives_route.py, ruling Q6); period length (every served
+period is 365 days).
 """
 from __future__ import annotations
 
@@ -177,8 +198,16 @@ def test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_
 #: Scandia baseline), both orders.
 PAIRS = [(c, p) for c in SB.ALL_BOOKS for p in SB.ALL_BOOKS if c != p]
 
-#: What `_finding._format_value` appends per served display unit.
-_PRINTED_SUFFIX = {"x": "\u00d7", "z": "\u00d7", "pct": "%", "days": " days"}
+#: What `_finding._format_value` appends per served display unit. Days
+#: agree with the printed count (ruling Q8): "1 day", "2 days". Altman Z''
+#: is a plain two-decimal figure with no marker (ruling Q7).
+_PRINTED_SUFFIX = {"x": "\u00d7", "z": "", "pct": "%", "days": " days"}
+
+
+def _printed(value_q: str, unit: str) -> str:
+    if unit == "days" and value_q in ("1", "-1"):
+        return value_q + " day"
+    return value_q + _PRINTED_SUFFIX[unit]
 
 
 def _landing_severity(mv: Dict[str, Any]) -> str:
@@ -244,7 +273,7 @@ def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_an
                 # the letter is graded on the composite; the figure is that score
                 expected = T.quantize_display(r[side]["value"], "score")
             else:
-                expected = r[side]["value_q"] + _PRINTED_SUFFIX[unit]
+                expected = _printed(r[side]["value_q"], unit)
             assert printed == expected, (where, side, printed, expected)
             if f["surfaced"]:
                 assert "%s \u2014 %s" % (fg["label"], printed) in f["body"], (where, side)
@@ -260,6 +289,28 @@ def test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_an
 
         # headroom money: the at-rung and held numerators on the served denominator
         imp = el["impact"]
+        if key in CB.NON_MONEY_IMPACT_KEYS:
+            # ruling Q3: the composites state headroom in their own unit
+            assert mv["materiality"] is None, (where, mv["materiality"])
+            assert imp is not None and imp["kind"] == "headroom", (where, imp)
+            assert imp["unit"] == CB.NON_MONEY_IMPACT_KEYS[key], (where, imp["unit"])
+            assert f["surfaced"], (where, f["demotion_reasons"])
+            if key == "altman_z":
+                assert Decimal(repr(imp["baseline"])) == Decimal(rung["value"]), (where, imp)
+                assert imp["adjusted"] == r["current"]["value"], (where, imp)
+                assert abs(Decimal(repr(abs(imp["delta"]))) - Decimal(mv["distance_past_rung"])) <= Decimal("0.005000001"), (
+                    where, imp["delta"], mv["distance_past_rung"])
+            else:
+                assert imp["baseline"] == 0.0, (where, imp)
+                printed = Decimal(repr(abs(imp["adjusted"]))).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+                assert format(printed, "f") == mv["distance_fraction"], (where, imp["adjusted"], mv["distance_fraction"])
+                assert (imp["adjusted"] > 0) == (mv["rungs_crossed"] > 0), (where, imp["adjusted"], mv["rungs_crossed"])
+            continue
+        if key == "ccc":
+            # ruling Q3: working-capital money on revenue, the denominator dso divides
+            assert mv["materiality"] is not None, (where, "ccc crossed with no materiality")
+            assert denominators.get("ccc") == denominators["dso"], (where, denominators.get("ccc"), denominators["dso"])
+            assert f["surfaced"], (where, f["demotion_reasons"])
         if mv["materiality"] is None:
             assert imp is None, (where, imp)
             continue
@@ -300,6 +351,12 @@ def test_a_composite_crossing_cites_the_credit_model_and_a_ratio_the_band_table(
         el = f["contract_elements"]
         source, basis = el["threshold"]["source"], el["evidence"]["comparison_basis"]["description"]
         if key == "altman_z":
+            # Ruling Q7: Z'' is a plain two-decimal index, never "3.09\u00d7".
+            assert {fg["unit"] for fg in el["evidence"]["figures"]} == {F.UNIT_INDEX}, el["evidence"]["figures"]
+            assert el["threshold"]["unit"] == F.UNIT_INDEX, el["threshold"]
+            if f["surfaced"]:
+                for fg in el["evidence"]["figures"]:
+                    assert ("%.2f\u00d7" % fg["value"]) not in f["body"] + f["title"], (fg, f["title"])
             prefix, _, constant = source.partition("#")
             assert prefix == "credit_model" and Decimal(repr(getattr(CM, constant))) == Decimal(rung["value"]), source
             assert "Altman Z'' zones" in basis and bands["source"] not in basis, basis
@@ -505,3 +562,123 @@ def test_band_findings_are_deterministic_json():
                  "agras", "carniprod")
     ja = json.dumps(a["band_movements"], sort_keys=True, allow_nan=False)
     assert ja == json.dumps(b["band_movements"], sort_keys=True, allow_nan=False)
+
+
+# ── 6. the two-period caveat names what is approximated (ruling Q4) ───────
+
+
+def test_a_two_period_finding_never_says_no_prior_period_was_supplied():
+    from engine.api import _company_profile as CP
+
+    pack_text = CP.load_catalog().caveat_text(CP.CAVEAT_APPROX_CF)
+    assert "no prior" in pack_text, "the single-period pack caveat changed: %r" % pack_text
+    two_period = CB.TWO_PERIOD_CAVEATS[CP.CAVEAT_APPROX_CF]
+    carried = 0
+    for cur_name, pri_name in PAIRS:
+        out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+        for f in out["band_movements"]["findings"]:
+            where = "%s|%s %s" % (cur_name, pri_name, f["ratio_key"])
+            caveat = f["contract_elements"]["confidence"]["caveat"] or ""
+            assert "no prior period" not in caveat and "no prior period" not in (f.get("body") or ""), (where, caveat)
+            if two_period.rstrip(".") in caveat:
+                carried += 1
+    assert carried >= 20, "non-vacuity: only %d findings carry the approximated cash-flow caveat" % carried
+
+
+# ── 1c. contra accounts are never the subject; rank is by signed amount (Q5) ──
+
+
+def _eligible(line_items, buckets, taken):
+    out = []
+    for li in line_items:
+        code = str(li.get("ro_account_code") or "")
+        amount = li.get("amount")
+        if li.get("bucket") not in buckets or not code or code in taken:
+            continue
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            continue
+        if not F.is_ledger_code(code) or not str(li.get("ro_account_name") or "").strip():
+            continue
+        if code[:2] in ("28", "29", "39", "49"):
+            continue
+        out.append((-float(amount), code))
+    return [c for _a, c in sorted(out)]
+
+
+def test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount():
+    checked = 0
+    for cur_name, pri_name in PAIRS:
+        body = SB.served_body(cur_name)
+        out = _compose(body, SB.served_body(pri_name), cur_name, pri_name)
+        for f in out["band_movements"]["findings"]:
+            key = f["ratio_key"]
+            codes = [a["code"] for a in f["contract_elements"]["subject"]["accounts"]]
+            where = "%s|%s %s" % (cur_name, pri_name, key)
+            assert not [c for c in codes if c[:2] in ("28", "29", "39", "49")], (where, codes)
+            numerator, denominator = CB.SUBJECT_BUCKETS[key]
+            want = []
+            for c in _eligible(body["line_items"], set(numerator), ()):
+                if c not in want:
+                    want.append(c)
+                if len(want) == CB.SUBJECT_NUMERATOR_ACCOUNTS:
+                    break
+            den = _eligible(body["line_items"], set(denominator), want)[:CB.SUBJECT_DENOMINATOR_ACCOUNTS]
+            assert codes == want + den, (where, codes, want + den)
+            checked += 1
+    assert checked >= 300, "non-vacuity: %d findings checked" % checked
+
+
+def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():
+    """Planted, because on the real pairs signed ranking alone already keeps
+    every contra line out of the top slots (measured: removing the exclusion
+    leaves the census above green) — the exclusion is only visible where a
+    bucket has fewer natural-side lines than the subject takes."""
+    contra = [
+        {"bucket": "ar", "ro_account_code": "4111", "ro_account_name": "Clienti", "amount": 100.0},
+        {"bucket": "ar", "ro_account_code": "491", "ro_account_name": "Ajustari clienti", "amount": -900.0},
+        {"bucket": "ppe", "ro_account_code": "2131", "ro_account_name": "Echipamente", "amount": 700.0},
+        {"bucket": "ppe", "ro_account_code": "2813", "ro_account_name": "Amortizare", "amount": -5000.0},
+        {"bucket": "inventory", "ro_account_code": "397", "ro_account_name": "Ajustari marfuri", "amount": -60.0},
+        {"bucket": "ppe", "ro_account_code": "2911", "ro_account_name": "Ajustari terenuri", "amount": -10.0},
+    ]
+    assert [a.code for a in CB._accounts(contra, ("ar", "ppe", "inventory"), 4, ())] == ["2131", "4111"]
+    opposite = [
+        {"bucket": "ar", "ro_account_code": "4118", "ro_account_name": "Clienti incerti", "amount": -800.0},
+        {"bucket": "ar", "ro_account_code": "4111", "ro_account_name": "Clienti", "amount": 100.0},
+        {"bucket": "ar", "ro_account_code": "4112", "ro_account_name": "Clienti interni", "amount": 50.0},
+    ]
+    assert [a.code for a in CB._accounts(opposite, ("ar",), 2, ())] == ["4111", "4112"]
+
+
+# ── 7. materiality ranks, it never filters (ruling Q9) ──────────────────────
+
+
+def test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served():
+    """Ruling Q9: `materiality_floor` stays null and nothing is hidden for
+    being small. Reds when any pair serves a floor, when any crossed row
+    (however small its share) is missing from improved / deteriorated or
+    from the findings, or when the smallest crossings stop surfacing.
+    Measured 2026-09-15: the smallest is realestate's dso, share 0.0001
+    (headroom 7,176.29 RON), on four pairs; 40 of 318 valued crossings sit
+    below a 1% share."""
+    smallest = []
+    for cur_name, pri_name in PAIRS:
+        out = _compose(SB.served_body(cur_name), SB.served_body(pri_name), cur_name, pri_name)
+        bm = out["band_movements"]
+        assert bm["rank_basis"]["materiality_floor"] is None, (cur_name, pri_name)
+        listed = set(bm["improved"]) | set(bm["deteriorated"])
+        findings = {f["ratio_key"]: f for f in bm["findings"]}
+        for r in out["rows"] + out["composites"]:
+            mv = r["movement"]
+            if not mv["status"].startswith("crossed"):
+                continue
+            where = "%s|%s %s" % (cur_name, pri_name, r["key"])
+            assert r["key"] in listed and r["key"] in findings, where
+            share = (mv["materiality"] or {}).get("share")
+            if share is not None:
+                smallest.append((Decimal(share), where, findings[r["key"]]["surfaced"]))
+    smallest.sort()
+    assert smallest and smallest[0][0] < Decimal("0.001"), (
+        "non-vacuity: no crossing below a 0.1%% share (smallest %s)" % (smallest[:1],))
+    for share, where, surfaced in smallest[:4]:
+        assert surfaced, (where, share)
