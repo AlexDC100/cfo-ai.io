@@ -52,7 +52,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import _supabase
-from ._industry_classifier import suggest_caen_code
+from ._industry_classifier import classify_cost_structure, cost_structure_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -275,11 +275,22 @@ def _candidates_from_activity_text(client: Any,
 
 
 def _candidates_from_cost_structure(client: Any,
-                                     metrics: Optional[Dict[str, float]]) -> List[Candidate]:
-    """Run the legacy structural classifier and resolve its CAEN guess."""
+                                     metrics: Optional[Dict[str, float]],
+                                     refusals: Optional[List[Dict[str, Any]]] = None,
+                                     ) -> List[Candidate]:
+    """Run the legacy structural classifier and resolve its CAEN guess.
+
+    When the classifier refuses (a cost line is not measured) the reason is
+    appended to ``refusals`` so the result can say which signal it lacked.
+    """
     if not metrics:
         return []
-    caen, label, conf = suggest_caen_code(metrics)
+    classification = classify_cost_structure(metrics)
+    if classification.refusal is not None and refusals is not None:
+        refusals.append(classification.refusal)
+    caen, label, conf = (
+        classification.caen, classification.label, classification.confidence
+    )
     if not caen:
         return []
     row = _resolve_caen(client, caen)
@@ -313,14 +324,17 @@ def _universal_fallback(client: Any,
     `manufacturing_generic` otherwise."""
     is_services_like = False
     if metrics:
-        revenue = float(
-            metrics.get("total_operating_revenue") or metrics.get("revenue") or 0
-        )
-        personnel = float(metrics.get("opex_personnel") or 0)
-        cogs = float(metrics.get("cogs") or 0)
-        if revenue > 0:
-            personnel_pct = personnel / revenue
-            cogs_pct = cogs / revenue
+        revenue = metrics.get("total_operating_revenue")
+        if revenue is None:
+            revenue = metrics.get("revenue")
+        personnel = metrics.get("opex_personnel")
+        cogs = metrics.get("cogs")
+        # Services-shaped only on MEASURED personnel and COGS: an absent COGS
+        # read as 0 used to pass the "< 20%" test by itself.
+        if revenue is not None and personnel is not None and cogs is not None \
+                and float(revenue) > 0:
+            personnel_pct = float(personnel) / float(revenue)
+            cogs_pct = float(cogs) / float(revenue)
             is_services_like = personnel_pct > 0.35 and cogs_pct < 0.20
     key = "professional_services_generic" if is_services_like else "manufacturing_generic"
     return Candidate(
@@ -351,9 +365,10 @@ def detect_from_signals(client: Any,
     be an active SupabaseClient (admin or per_user — catalog reads work
     either way per RLS)."""
     cands: List[Candidate] = []
+    refusals: List[Dict[str, Any]] = []
     cands += _candidates_from_caen(client, caen_code)
     cands += _candidates_from_activity_text(client, activity_text)
-    cands += _candidates_from_cost_structure(client, metrics)
+    cands += _candidates_from_cost_structure(client, metrics, refusals)
     cands = _dedupe_candidates(cands)
     cands.sort(key=_tiebreak)
     if not cands:
@@ -366,6 +381,8 @@ def detect_from_signals(client: Any,
             "caen_code": _normalize_caen(caen_code),
             "has_activity_text": bool(activity_text),
             "has_metrics": bool(metrics),
+            # Signals that were present but could not be read, with why.
+            "refusals": refusals,
         },
     )
 
@@ -378,7 +395,8 @@ def detect_industry_for_period(client: Any,
     Reads (all via the SupabaseClient `client`):
       · company_industry_assignments[period_id] — if locked, return immediately
       · organizations[org_id].caen_code + organizations[org_id].activity_description
-      · calculated_metrics[period_id] — cost-structure flat dict
+      · calculated_metrics[period_id] + statement_line_items[period_id] —
+        flattened by ``_industry_classifier.cost_structure_metrics``
 
     The caller is responsible for using an RLS-scoped client (per_user)
     for the tenant tables; we use admin() implicitly via the catalog
@@ -439,22 +457,22 @@ def detect_industry_for_period(client: Any,
         except Exception:
             activity_text = None
 
-    # Cost-structure metrics — read calculated_metrics via the caller's
-    # client (RLS-scoped) so we never read other-tenants' periods.
+    # Cost-structure metrics — read via the caller's client (RLS-scoped) so
+    # we never read other-tenants' periods. calculated_metrics alone carries
+    # no cost lines (measured: every cost rule then read absent cost as zero
+    # and a food manufacturer was suggested real estate), so the PL line
+    # items are read too — the same two sources `_benchmarks` classifies from.
     metric_rows = client.select(
         "calculated_metrics",
         filters={"period_id": f"eq.{period_id}"},
         columns="name,value",
     )
-    metrics: Dict[str, float] = {}
-    for r in metric_rows:
-        name = r.get("name")
-        val = r.get("value")
-        if name and val is not None:
-            try:
-                metrics[name] = float(val)
-            except (TypeError, ValueError):
-                pass
+    line_items = client.select(
+        "statement_line_items",
+        filters={"period_id": f"eq.{period_id}"},
+        columns="statement,bucket,ro_account_code,amount",
+    )
+    metrics: Dict[str, float] = cost_structure_metrics(metric_rows, line_items)
 
     # Catalog reads go through the admin client (catalog tables are
     # world-readable to authenticated sessions, but admin() avoids
@@ -472,6 +490,7 @@ def detect_industry_for_period(client: Any,
     result.inputs["caen_code"] = _normalize_caen(caen_code)
     result.inputs["activity_text_len"] = len(activity_text or "")
     result.inputs["metrics_count"] = len(metrics)
+    result.inputs["line_item_count"] = len(line_items)
     result.inputs["period_id"] = period_id
     return result
 
