@@ -370,8 +370,12 @@ CONCEPTS = (
         "days_payable_outstanding", OWNER_DRIVERS, "supplied",
         "dpo", ("dpo_cogs_days",), "identity",
         """As days_inventory_outstanding, over cost of sales
-        (forecast.dpo_cogs), on the same trade-payables operand the ratio
-        table uses."""),
+        (forecast.dpo_cogs). NOT the ratio table's operand: the model reads
+        canonical_bs.rows.trade_payables, the ratio table
+        balanceSheet.accountsPayable (agras 7,186,373.77 against
+        7,554,847.25; retail 14,005,085.38 against 6,455,119.80), so the
+        basis renders the ratio table's own operands beside its value
+        rather than claiming one payables figure."""),
     Concept(
         "capital_intensity", OWNER_DRIVERS, "supplied",
         "capex_rate", ("capex_pct_of_revenue",), "identity",

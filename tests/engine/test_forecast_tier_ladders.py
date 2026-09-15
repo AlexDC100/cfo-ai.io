@@ -27,7 +27,26 @@ WHAT THIS GATE REDS ON AFTER THE REPAIR (TC-11)
   projects instead of refusing with ``no_statutory_tax_rate`` — through the
   engine and through GET /api/forecast as a 422;
 * a corpus book whose jurisdiction is not recorded (0.3; the source per
-  book is printed).
+  book is printed);
+* the jurisdiction read from anywhere but pack_provenance, then ai_audit,
+  then nowhere (0.3): an envelope carrying only ai_audit.jurisdiction that
+  does not reach the macro and statutory rungs, or ai_audit read before
+  pack_provenance when both are present;
+* a driver whose fallback_steps do not record every rung its 3.4 ladder
+  passed over, in order, for the tier it ended on (the STEPS table below):
+  a tax macro rung with no book-absent step, a payout or held money
+  convention rung with no book-absent step, a capex terminal rung with no
+  rejected maintenance step;
+* a statutory tax rung whose integer is not the pack record's value (the
+  record's value is changed in a tmp copy of ro_macro.yaml and the rung
+  must follow it: a code literal equal to today's pack value reds);
+* a working-capital basis that quotes a days value under the ratio table's
+  name that is not the served ratio table's own value (engine.ratios.table,
+  inventory or trade payables x period days / total operating expense)
+  on the corpus books, checked against
+  tests/engine/fixtures/firm/served_metrics.json at that file's own
+  rounding, or that quotes methodology.ratios (which divides by cost of
+  sales) at all.
 
 IT CANNOT SEE: the served bytes (B6 extends this gate over fp1.2 in
 test_forecast_defaults_f3.py); the book-history and sector rungs (B7, and no
@@ -79,7 +98,59 @@ LADDERS = {
     "days_basis": ("convention",),
 }
 
-_WORK = {"drivers": 0, "absent_projections": 0, "responses": 0}
+#: Contract 3.4, the rungs a driver PASSED OVER before the tier it ended
+#: on, in order, as (tier, outcome) — keyed (driver, end tier, rule), where
+#: rule is None unless one end tier has two rungs (capex). A driver ending
+#: on a (key, tier, rule) this table does not name reds: the table is the
+#: ladder written as data, so a new rung must be added here to pass.
+_ABSENT = ("book", "absent")
+STEPS = {
+    ("revenue_growth", "macro", None): (_ABSENT, ("sector", "absent")),
+    ("revenue_growth", "convention", None): (_ABSENT, ("sector", "absent"),
+                                             ("macro", "absent")),
+    ("tax_rate", "book", None): (),
+    ("tax_rate", "macro", None): (_ABSENT,),
+    ("tax_rate", "absent", None): (_ABSENT, ("macro", "absent")),
+    ("dividend_payout_pct", "convention", None): (_ABSENT,),
+    ("capex_pct_of_revenue", "convention",
+     "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation"): (),
+    ("capex_pct_of_revenue", "convention",
+     "packs/forecast/levers.yaml#capex_pct_of_revenue.terminal_rung"): (
+        ("convention", "rejected"),),
+    ("intangible_additions_pct_of_revenue", "convention", None): (),
+    ("min_cash", "convention", None): (),
+    ("days_basis", "convention", None): (),
+}
+for _key in ("interest_income_annual", "other_financial_income_annual",
+             "other_financial_expense_annual",
+             "other_operating_income_pct_of_revenue"):
+    STEPS[(_key, "book", None)] = ()
+    STEPS[(_key, "convention", None)] = (_ABSENT,)
+for _key in ("cogs_pct_of_revenue", "opex_pct_of_revenue",
+             "other_operating_income_pct_of_revenue", "dso_days",
+             "dio_cogs_days", "dpo_cogs_days", "depreciation_rate",
+             "interest_rate_debt", "revolver_rate", "interest_income_rate"):
+    STEPS[(_key, "book", None)] = ()
+    STEPS[(_key, "absent", None)] = (_ABSENT,)
+
+
+def step_violations(item):
+    """The rungs this driver passed over, against the STEPS table."""
+    rule = item.rule_id if item.key == "capex_pct_of_revenue" else None
+    expected = STEPS.get((item.key, item.tier, rule))
+    got = tuple((step["tier"], step["outcome"])
+                for step in item.fallback_steps)
+    if expected is None:
+        return ["ends on %s (rule %s), a rung the STEPS table does not name"
+                % (item.tier, rule)]
+    if got != expected:
+        return ["fallback_steps %s, the ladder passed over %s"
+                % (list(got), list(expected))]
+    return []
+
+
+_WORK = {"drivers": 0, "absent_projections": 0, "responses": 0,
+         "step_shapes": 0, "ratio_quotes": 0}
 _JURISDICTIONS = {}
 
 
@@ -170,7 +241,7 @@ def test_every_driver_carries_a_tier_from_its_ladder_with_its_evidence(
     absent = []
     for item in projection.assumptions.items():
         _WORK["drivers"] += 1
-        for why in pedigree_violations(item):
+        for why in pedigree_violations(item) + step_violations(item):
             reds.append("%s h%d %s: %s" % (name, horizon, item.key, why))
         if item.tier == "absent":
             absent.append(item.key)
@@ -207,6 +278,151 @@ def test_no_revenue_growth_reaches_a_plan_as_a_silent_zero(name):
                 name, growth.tier, growth.exact)
         else:
             assert growth.tier == "convention", (name, growth.tier)
+
+
+#: Built shapes the corpus books never end on (TC-3: each is asserted to
+#: reach the rung it names): no depreciation charge (capex terminal rung),
+#: and no interest income, financial income or financial expense line (the
+#: held money drivers' convention rungs).
+SHAPES = {
+    "agras without a depreciation charge": (
+        {"depreciation": None}, "capex_pct_of_revenue", "convention",
+        "packs/forecast/levers.yaml#capex_pct_of_revenue.terminal_rung"),
+    "agras without interest income": (
+        {"interest_income": None}, "interest_income_annual", "convention",
+        None),
+    "agras without financial income": (
+        {"financial_income": None}, "other_financial_income_annual",
+        "convention", None),
+    "agras without financial expense": (
+        {"financial_expense_total": None}, "other_financial_expense_annual",
+        "convention", None),
+}
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_every_rung_passed_over_is_recorded_on_the_built_shapes(shape):
+    from engine.forecast.project import assumptions_for_payload
+
+    fields, key, tier, rule = SHAPES[shape]
+    payload = copy.deepcopy(load("agras"))
+    payload["statements"]["assembled_pl"].update(fields)
+    assumptions = assumptions_for_payload(payload)
+    item = assumptions[key]
+    assert item.tier == tier and (rule is None or item.rule_id == rule), (
+        "%s: the shape no longer reaches %s %s (got %s %s), so it proves "
+        "nothing" % (shape, key, tier, item.tier, item.rule_id))
+    reds = []
+    for driver in assumptions.items():
+        for why in pedigree_violations(driver) + step_violations(driver):
+            reds.append("%s %s: %s" % (shape, driver.key, why))
+    _WORK["step_shapes"] += 1
+    assert not reds, "\n".join(reds)
+
+
+def test_the_jurisdiction_is_read_from_pack_provenance_then_ai_audit():
+    """Contract 0.3, both orders: an AI-lane envelope carries its
+    jurisdiction only in ai_audit, and pack_provenance wins when both
+    record one."""
+    from engine.forecast.project import assumptions_for_payload
+
+    lane = copy.deepcopy(load("agras"))
+    lane["envelope"].pop("pack_provenance", None)
+    lane["envelope"]["ai_audit"] = {"jurisdiction": "RO"}
+    assert jurisdiction_of(lane["envelope"]) == ("RO", "ai_audit")
+    drivers = assumptions_for_payload(lane)
+    assert drivers["revenue_growth"].tier == "macro"
+    assert drivers["tax_rate"].tier == "macro"
+    assert drivers["tax_rate"].evidence["kind"] == "statutory"
+
+    both = copy.deepcopy(load("agras"))
+    both["envelope"]["ai_audit"] = {"jurisdiction": "HU"}
+    assert both["envelope"]["pack_provenance"]["jurisdiction"] == "RO"
+    assert jurisdiction_of(both["envelope"]) == ("RO", "pack_provenance")
+    assert assumptions_for_payload(both)["tax_rate"].tier == "macro"
+    reversed_ = copy.deepcopy(both)
+    reversed_["envelope"]["pack_provenance"]["jurisdiction"] = "HU"
+    reversed_["envelope"]["ai_audit"] = {"jurisdiction": "RO"}
+    assert jurisdiction_of(reversed_["envelope"]) == ("HU", "pack_provenance")
+    with pytest.raises(NoStatutoryTaxRate):
+        project_payload(reversed_, horizon_years=3)
+
+
+def test_the_statutory_rung_holds_the_pack_records_value(monkeypatch,
+                                                         tmp_path):
+    """TC-10: the statutory integer follows the pack record. The record's
+    value is changed in a tmp copy of ro_macro.yaml; a code literal equal
+    to today's pack value would keep the old integer and red."""
+    import yaml
+
+    from engine.forecast import assumptions as A
+    from engine.forecast import levers_pack
+    from engine.forecast.money import micros_from
+    from engine.forecast.project import assumptions_for_payload
+
+    real = levers_pack.macro_pack()
+    raw = yaml.safe_load(open(real.path, encoding="utf-8"))
+    today = raw["statutory"]["profit_tax_rate"]["value"]
+    moved = round(today + 0.03, 4)
+    raw["statutory"]["profit_tax_rate"]["value"] = moved
+    target = tmp_path / "ro_macro.yaml"
+    target.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr(A, "macro_pack",
+                        lambda: levers_pack.macro_pack(str(target)))
+    rung = assumptions_for_payload(load("agras"))["tax_rate"]
+    assert rung.tier == "macro"
+    assert rung.exact == micros_from(str(moved)) != micros_from(str(today)), (
+        "the statutory rung holds %r with the pack record at %s (was %s)"
+        % (rung.exact, moved, today))
+
+
+def _served_metrics():
+    return json.loads((FIRM / "served_metrics.json").read_text("utf-8"))
+
+
+def _decimal_places(value):
+    text = repr(float(value))
+    return len(text.split(".")[1]) if "." in text else 0
+
+
+@pytest.mark.parametrize("name", BOOKS)
+def test_the_days_basis_quotes_the_served_ratio_tables_own_value(name):
+    """Contract 4 / R8: the dio and dpo basis quotes the ratio table's own
+    value — engine.ratios.table, over total operating expense — never the
+    methodology pack's ratio, which divides by cost of sales. Checked
+    against the served metrics at their own rounding (the finest decimal
+    places the served dio/dpo values carry across the corpus)."""
+    from engine.forecast.money import MICRO_DAY
+    from engine.forecast.project import assumptions_for_payload
+
+    served = _served_metrics()
+    places = max(_decimal_places(served[b][k]) for b in BOOKS
+                 for k in ("dio", "dpo") if served[b].get(k) is not None)
+    tolerance = 0.5 * 10 ** -places + 0.5 / MICRO_DAY
+    drivers = assumptions_for_payload(load(name))
+    reds = []
+    for key, table_key in (("dio_cogs_days", "dio"),
+                           ("dpo_cogs_days", "dpo")):
+        item = drivers[key]
+        if "methodology.ratios" in item.basis:
+            reds.append("%s %s quotes methodology.ratios" % (name, key))
+        if item.tier != "book":
+            continue
+        quotes = [row for row in item.evidence["inputs"]
+                  if row["fact"] == "ratio_table.%s" % table_key]
+        if len(quotes) != 1:
+            reds.append("%s %s quotes the ratio table %d times"
+                        % (name, key, len(quotes)))
+            continue
+        quoted = quotes[0]["value_micro_days"] / MICRO_DAY
+        want = served[name][table_key]
+        _WORK["ratio_quotes"] += 1
+        if abs(quoted - want) > tolerance:
+            reds.append("%s %s quotes ratio_table.%s = %.6f, the served ratio "
+                        "table reads %s (tolerance %.7f, %d places)"
+                        % (name, key, table_key, quoted, want, tolerance,
+                           places))
+    assert not reds, "\n".join(reds)
 
 
 def test_the_served_tier_never_follows_the_sentence(monkeypatch):
@@ -246,26 +462,44 @@ def _with_jurisdiction(name, jurisdiction):
     return payload
 
 
+def _with_a_gap_to_121(payload):
+    """The unmeasured precondition BUILT, not borrowed from the corpus: the
+    filed account-121 balance is moved one currency unit away from the
+    reconstruction plus capitalised own work, so the engine's effective-rate
+    rule cannot measure a rate whatever a future statements repair does to
+    the committed book."""
+    pl = payload["statements"]["assembled_pl"]
+    block = payload["envelope"]["canonical_bs"]["invariants"][
+        "p121_cross_check"]
+    block["p121"] = round(pl["pretax"] - pl["income_tax"]
+                          + (pl.get("capitalized_own_work_memo") or 0.0)
+                          + 1.0, 2)
+    return payload
+
+
 @pytest.mark.parametrize("name", BOOKS)
 def test_an_unmeasured_rate_with_no_statutory_record_refuses_the_plan(name):
-    """R16 through the engine: every corpus book's effective rate is not
-    measured (none reproduces its filed profit), so a jurisdiction with no
-    packed statutory record — or none recorded — refuses by name."""
+    """R16 through the engine, on a copy of each corpus book whose account
+    121 is forced one unit away from its reconstruction (so the effective
+    rate is not measured by construction): a jurisdiction with no packed
+    statutory record — or none recorded — refuses by name."""
     from engine.forecast.project import assumptions_for_payload
 
-    rung = assumptions_for_payload(load(name))["tax_rate"]
+    rung = assumptions_for_payload(
+        _with_a_gap_to_121(copy.deepcopy(load(name))))["tax_rate"]
     assert rung.tier == "macro", (name, rung.tier)
     assert rung.evidence["kind"] == "statutory"
     for jurisdiction, expected in (("HU", "jurisdiction HU"),
                                    (None, "the jurisdiction of this book is "
                                           "not recorded")):
         with pytest.raises(NoStatutoryTaxRate) as caught:
-            project_payload(_with_jurisdiction(name, jurisdiction),
-                            horizon_years=3)
+            project_payload(_with_a_gap_to_121(
+                _with_jurisdiction(name, jurisdiction)), horizon_years=3)
         assert caught.value.code == "no_statutory_tax_rate"
         assert expected in str(caught.value), str(caught.value)
         # a caller who states the rate is projected at it
-        stated = project_payload(_with_jurisdiction(name, jurisdiction),
+        stated = project_payload(_with_a_gap_to_121(
+            _with_jurisdiction(name, jurisdiction)),
                                  horizon_years=3, tax_rate="0.16",
                                  revolver_rate="0.09")
         assert stated.assumptions["tax_rate"].tier == "user"
@@ -292,7 +526,8 @@ def test_deleting_the_statutory_record_refuses_a_romanian_book(monkeypatch):
 
     monkeypatch.setattr(A, "macro_pack", lambda: _NoStatutory())
     with pytest.raises(NoStatutoryTaxRate) as caught:
-        project_payload(load("agras"), horizon_years=3)
+        project_payload(_with_a_gap_to_121(copy.deepcopy(load("agras"))),
+                        horizon_years=3)
     assert "no statutory profit-tax rate is packed for jurisdiction RO" \
         in str(caught.value)
 
@@ -340,19 +575,44 @@ def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE forecast-defaults (engine half, plan/2 B3): books %s; "
               "horizons %s; through project_payload (project()); no "
-              "SYNTHETIC pair (history is B7); Scandia not run in the "
-              "battery (local harness only)" % (", ".join(BOOKS),
+              "SYNTHETIC pair (history is B7); SYNTHETIC built copies of "
+              "agras (no depreciation charge; no interest income; no "
+              "financial income; no financial expense; jurisdiction only in "
+              "ai_audit; ai_audit beside pack_provenance) and of each book "
+              "(account 121 forced one unit off its reconstruction); "
+              "Scandia not run in the battery (local harness only)" % (", ".join(BOOKS),
                                                  ", ".join(map(str, HORIZONS))))
         print("jurisdiction source per corpus book: %s" % "; ".join(
             "%s %s=%s" % (n, s, v)
             for n, (s, v) in sorted(_JURISDICTIONS.items())))
         print("responses %d; drivers checked %d; responses with an absent "
-              "driver that projected %d"
+              "driver that projected %d; built step shapes %d; ratio-table "
+              "quotes checked %d"
               % (_WORK["responses"], _WORK["drivers"],
-                 _WORK["absent_projections"]))
+                 _WORK["absent_projections"], _WORK["step_shapes"],
+                 _WORK["ratio_quotes"]))
+        local = os.environ.get("PLAN_LOCAL_XLSX")
+        if local:
+            # Opt-in, local only (contract 10): the Scandia book is never
+            # committed; its jurisdiction source is printed, nothing else.
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "measure_plan_blast_radius",
+                str(REPO / "scripts" / "measure_plan_blast_radius.py"))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            book = module._local_book(Path(local))
+            value, source = jurisdiction_of(book.get("envelope"))
+            print("jurisdiction source, local book %s: %s=%s"
+                  % (Path(local).name, source, value))
+        else:
+            print("jurisdiction source, local Scandia: not run (set "
+                  "PLAN_LOCAL_XLSX to a local trial balance to print it)")
         print("GATE-WORK forecast-defaults units=%d" % _WORK["drivers"])
     assert len(_JURISDICTIONS) == len(BOOKS)
     assert _WORK["drivers"] > 0, "no driver was checked (TC-3)"
+    assert _WORK["step_shapes"] == len(SHAPES), _WORK["step_shapes"]
+    assert _WORK["ratio_quotes"] > 0, "no ratio-table quote was checked (TC-3)"
     assert _WORK["absent_projections"] > 0, (
         "no projection carried an absent driver, so 'an absent driver "
         "still projects' was never exercised (TC-3)")

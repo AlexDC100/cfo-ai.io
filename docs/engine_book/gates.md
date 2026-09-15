@@ -4266,3 +4266,118 @@ crosses as AbsentHandover), j9 (a None is refused, the absent hand-over
 honoured), j11 (no blocked concept remains), j13 (learns `engine_forecast`
 and `pack_convention`), j17 (the refused 0% in an absent driver's engine
 refusal is not a cutoff), j18, hx3, hx5, hx7, hg4 (absent crossings).
+
+<!-- ═══ plan/2 B3 repair (plan_contract_v2 28.3, convergence review of B3) ═══
+     Two medium defects repaired with their gates: the days basis quoted a
+     methodology ratio under the ratio table's name (R8), and tax_rate had
+     two derivations (contract 4). Low findings closed in the same files:
+     the ai_audit jurisdiction rung, the rungs passed over, the statutory
+     value against its pack record, and the R16 precondition built rather
+     than borrowed from the corpus. -->
+
+### forecast-defaults — plan/2 B3 repair: the ratio table's own days value, the rungs passed over, the jurisdiction rungs
+
+Added to `tests/engine/test_forecast_tier_ladders.py`:
+
+* `test_the_days_basis_quotes_the_served_ratio_tables_own_value` — the
+  dio_cogs_days / dpo_cogs_days basis quotes `ratio_table.dio|dpo`, the value
+  `engine.ratios.table.build_ratio_table` computes (inventory or accounts
+  payable x period days / total operating expense), and never
+  `methodology.ratios` (which divides by cost of sales). Checked against
+  `tests/engine/fixtures/firm/served_metrics.json` at that file's own rounding
+  (the finest decimal places its dio/dpo values carry, 4, plus half a
+  micro-day). Printed: `ratio-table quotes checked 6` (realestate has no cost
+  of sales, so its two drivers are absent and quote nothing).
+* `STEPS` — the rungs each driver passed over, as data, keyed (driver, end
+  tier, rule); every driver of every response and of four built SYNTHETIC
+  shapes (agras with no depreciation charge, no interest income, no financial
+  income, no financial expense) must record exactly those steps. Printed:
+  `built step shapes 4`.
+* `test_the_jurisdiction_is_read_from_pack_provenance_then_ai_audit` — an
+  envelope with only `ai_audit.jurisdiction` reaches the macro and statutory
+  rungs; with both present `pack_provenance` wins (and a HU pack_provenance
+  beside an RO ai_audit refuses).
+* `test_the_statutory_rung_holds_the_pack_records_value` — the record's value
+  is moved by 0.03 in a tmp copy of `ro_macro.yaml`; the rung must follow.
+* The R16 refusal test and the statutory-deletion plant test now build their
+  precondition (account 121 forced one unit off the reconstruction) instead of
+  relying on no corpus book tying.
+* `PLAN_LOCAL_XLSX=<local trial balance>` prints the local book's jurisdiction
+  source from the scope test (opt-in, never in the battery). Run on the local
+  Scandia FY2025 book: `jurisdiction source, local book
+  scandia_trial_balance_2025_downloaded.xlsx: pack_provenance=RO`.
+
+| | |
+|---|---|
+| work count | unchanged, `GATE-WORK forecast-defaults units=(\d+)`, floor **150** |
+| canary | adds `built step shapes`, `ratio-table quotes checked` |
+
+**GREEN** — `34 passed`; `PASS forecast-defaults (2.1s, 160 drivers checked)`.
+
+**PLANT R1** — quote methodology.ratios, in `src/engine/forecast/assumptions.py`
+(`BookContext.from_payload`):
+
+```
+-        return cls(jurisdiction, source, ratio_table_days(payload))
++        return cls(jurisdiction, source, {"dio": dict(envelope["methodology"]["ratios"]["days_inventory_outstanding"], operands=[]), "dpo": dict(envelope["methodology"]["ratios"]["days_payable_outstanding"], operands=[])})
+```
+
+**RED (plant)** — `3 failed, 31 passed`:
+
+```
+E   AssertionError: agras dio_cogs_days quotes ratio_table.dio = 45.548379, the served ratio table reads 31.5035 (tolerance 0.0000505, 4 places)
+E     agras dpo_cogs_days quotes ratio_table.dpo = 36.641162, the served ratio table reads 26.6422 (tolerance 0.0000505, 4 places)
+E   AssertionError: carniprod dio_cogs_days quotes ratio_table.dio = 61.458927, the served ratio table reads 37.662 (tolerance 0.0000505, 4 places)
+E   AssertionError: retail dio_cogs_days quotes ratio_table.dio = 38.362280, the served ratio table reads 30.4348 (tolerance 0.0000505, 4 places)
+```
+
+**RED (parent commit)** — the repaired gate file on a detached worktree of
+`01a8894` (`wave/plan-b3` before the repair):
+
+```
+E   AssertionError: agras dio_cogs_days quotes methodology.ratios
+E     agras dio_cogs_days quotes the ratio table 0 times
+E   AssertionError: carniprod dio_cogs_days quotes methodology.ratios
+E   AssertionError: retail dio_cogs_days quotes methodology.ratios
+E   AssertionError: no ratio-table quote was checked (TC-3)
+```
+
+**PLANT R2** — the tax macro rung records no step (`steps=steps` ->
+`steps=()`). **RED** `12 failed, 22 passed`:
+`E   AssertionError: agras h3 tax_rate: fallback_steps [], the ladder passed over [('book', 'absent')]`.
+
+**PLANT R3** — the payout convention rung records no book step. **RED**:
+`E   AssertionError: agras h3 dividend_payout_pct: fallback_steps [], the ladder passed over [('book', 'absent')]`.
+
+**PLANT R4** — the capex no-charge terminal rung records no rejected
+maintenance step. **RED** `1 failed, 33 passed`:
+`E   AssertionError: agras without a depreciation charge capex_pct_of_revenue: fallback_steps [], the ladder passed over [('convention', 'rejected')]`.
+
+**PLANT R5** — the statutory integer as a code literal
+(`rate = _micros_of(statutory.value)` -> `rate = micros_from(0.16)`). **RED**
+`1 failed, 33 passed`:
+`E   AssertionError: the statutory rung holds 160000 with the pack record at 0.19 (was 0.16)`.
+
+**PLANT R6** — drop the ai_audit rung (`("pack_provenance", "ai_audit")` ->
+`("pack_provenance",)`). **RED** `1 failed, 33 passed`:
+`E   AssertionError: assert (None, None) == ('RO', 'ai_audit')`.
+
+**PLANT R7** — read ai_audit first. **RED** `1 failed, 33 passed`:
+`E   AssertionError: assert ('HU', 'ai_audit') == ('RO', 'pack_provenance')`.
+
+R2-R7 guard correct parent behaviour (the parent passes them): each records
+the plant red only. **REVERT** — each plant applied by
+`scratchpad/b3r/plant.py` from a byte copy and restored from it
+(`assumptions.py` sha1 fb2d2ceb1aaefa8472e87c5e7529f1d93bd52ae6 before and
+after every plant).
+
+**After the repair it also reds on (TC-11):** a days basis quoting any value
+under the ratio table's name that is not engine.ratios.table's own, or quoting
+methodology.ratios; a rung passed over and not recorded, or a driver ending on
+a rung the STEPS table does not name; a statutory integer that does not follow
+its pack record; the jurisdiction read from anywhere but pack_provenance, then
+ai_audit.
+**It cannot see:** the payables operand mismatch between the model
+(canonical trade payables) and the ratio table (balanceSheet.accountsPayable)
+— the quote renders the ratio table's own operands rather than claiming one
+figure; it is recorded for the owner, not gated.

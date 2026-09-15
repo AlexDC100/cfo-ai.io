@@ -209,11 +209,16 @@ def jurisdiction_of(envelope: Any) -> Tuple[Optional[str], Optional[str]]:
 
 class BookContext(object):
     """What a driver ladder needs from the book beyond its opening position
-    and P&L: the period's jurisdiction (0.3) and the ratio table the book
-    publishes, whose days ratios a working-capital basis quotes beside the
-    engine's own (contract 4). Frozen; built once per payload."""
+    and P&L: the period's jurisdiction (0.3) and the ratio table's own days
+    rows, which a working-capital basis quotes beside the engine's driver
+    (contract 4, R8). Frozen; built once per payload."""
 
     __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table")
+
+    #: The ratio-table rows a days basis quotes: engine.ratios.table's own
+    #: keys (its _Spec ids), never the methodology pack's ratios, which
+    #: divide by cost of sales and are a different quantity (R8).
+    RATIO_TABLE_DAYS = ("dio", "dpo")
 
     def __init__(self, jurisdiction: Optional[str] = None,
                  jurisdiction_source: Optional[str] = None,
@@ -231,18 +236,79 @@ class BookContext(object):
         envelope = envelope if isinstance(envelope, dict) else (
             payload if isinstance(payload, dict) else {})
         jurisdiction, source = jurisdiction_of(envelope)
-        methodology = envelope.get("methodology")
-        ratios = (methodology.get("ratios")
-                  if isinstance(methodology, dict) else None)
-        return cls(jurisdiction, source,
-                   ratios if isinstance(ratios, dict) else None)
+        return cls(jurisdiction, source, ratio_table_days(payload))
 
-    def ratio_value(self, key: str) -> Optional[float]:
+    def ratio_row(self, key: str) -> Optional[Dict[str, Any]]:
+        """The ratio table's row for ``key`` when it carries a value."""
         entry = self.ratio_table.get(key)
         value = entry.get("value") if isinstance(entry, dict) else None
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None
-        return float(value)
+        return entry
+
+
+def ratio_table_days(payload: Any) -> Dict[str, Dict[str, Any]]:
+    """The ratio table's dio and dpo rows for this payload, computed by
+    ``engine.ratios.table.build_ratio_table`` itself (the table the product
+    serves), so the quoted value is that table's value and its operands are
+    the operands it divided — inventory or trade payables times the period's
+    days, over total operating expense. Built from the payload's statements
+    only (a forecast payload carries no served metrics); {} when the payload
+    carries no statements."""
+    if not isinstance(payload, dict):
+        return {}
+    statements = payload.get("statements")
+    envelope = payload.get("envelope")
+    if not isinstance(statements, dict) or not isinstance(envelope, dict):
+        return {}
+    from engine.ratios.table import build_ratio_table
+
+    served = dict(statements)
+    if isinstance(envelope.get("canonical_bs"), dict):
+        served["canonical_bs"] = envelope["canonical_bs"]
+    served["assembled_canonical_v1"] = envelope
+    table = build_ratio_table({"statements": served})
+    rows = {}
+    for row in table.get("rows") or ():
+        if isinstance(row, dict) and row.get("key") in \
+                BookContext.RATIO_TABLE_DAYS:
+            rows[row["key"]] = {"key": row["key"], "value": row.get("value"),
+                                "operands": list(row.get("operands") or ())}
+    return rows
+
+
+def _ratio_table_quote(key: str, micro_days: int,
+                       operands: Sequence[Dict[str, Any]]) -> str:
+    """The ratio table's own days value, rendered from the operands that
+    table divided (contract 4, R8): the first operand is the balance, the
+    ``period_days`` operand the day count, and every other operand a part
+    of its denominator, total operating expense. Nothing here names a
+    denominator the quoted number was not divided by."""
+    from .money import fmt
+
+    def plain(name):
+        return "".join(" " + c.lower() if c.isupper() else c
+                       for c in str(name)).replace("_", " ").strip()
+
+    balance = operands[0] if operands else None
+    day_count = [o for o in operands if o.get("name") == "period_days"]
+    parts = [o for o in operands[1:] if o.get("name") != "period_days"]
+    if (balance is None or len(day_count) != 1 or not parts
+            or any(not isinstance(o.get("value"), (int, float))
+                   or isinstance(o.get("value"), bool)
+                   for o in [balance] + day_count + parts)):
+        return ("Beside it, the ratio table's %s (engine.ratios.table) reads "
+                "%s days" % (key, days_fmt(micro_days)))
+    denominator = sum(cents_from(o["value"]) for o in parts)
+    return ("Beside it, the ratio table's %s (engine.ratios.table) reads %s "
+            "days = %s %s x %s days / total operating expense %s (%s); that "
+            "table divides by total operating expense, not cost of sales, so "
+            "its value is quoted here and never served under this driver's "
+            "name" % (key, days_fmt(micro_days), plain(balance["name"]),
+                      fmt(cents_from(balance["value"])),
+                      days_fmt(micro_days_from(day_count[0]["value"])),
+                      fmt(denominator),
+                      " + ".join(plain(o["name"]) for o in parts)))
 
 
 def _step(tier: str, outcome: str, reason: str) -> Dict[str, str]:
@@ -1055,19 +1121,16 @@ def derive_assumptions(opening: Any, history: Any, *,
             put(key, _DAYS, None, "unavailable", why, tier="absent",
                 rule_id=formula_id, steps=(_step("book", "absent", why),))
             return
-        table = context.ratio_value(ratio_key) if ratio_key else None
+        row = context.ratio_row(ratio_key) if ratio_key else None
         inputs = [(balance_fact, balance, "value_minor"),
                   (flow_fact, flow, "value_minor")]
         quoted = ""
-        if table is not None:
-            table_micro_days = micro_days_from(table)
-            inputs.append(("methodology.ratios.%s" % ratio_key,
-                           table_micro_days, "value_micro_days"))
-            quoted = (". The ratio table's %s (methodology.ratios.%s) reads "
-                      "%s days, over total operating expense rather than "
-                      "cost of sales" % (ratio_key.replace("_", " "),
-                                         ratio_key,
-                                         days_fmt(table_micro_days)))
+        if row is not None:
+            table_micro_days = micro_days_from(row["value"])
+            inputs.append(("ratio_table.%s" % ratio_key, table_micro_days,
+                           "value_micro_days"))
+            quoted = ". " + _ratio_table_quote(ratio_key, table_micro_days,
+                                               row["operands"])
         put(key, _DAYS, measured, "derived",
             "%s = %s days = %s %s / %s %s x %d days (%s)%s"
             % (what, days_fmt(measured), balance_fact.split(".")[-1]
@@ -1083,11 +1146,11 @@ def derive_assumptions(opening: Any, history: Any, *,
     day_driver("dio_cogs_days", "forecast.dio_cogs", inv_cents,
                "canonical_bs.rows.inventory_net", cogs, "assembled_pl.cogs",
                "days inventory outstanding, in days of cost of sales",
-               "cost of sales", "days_inventory_outstanding")
+               "cost of sales", "dio")
     day_driver("dpo_cogs_days", "forecast.dpo_cogs", ap_cents,
                "canonical_bs.rows.trade_payables", cogs, "assembled_pl.cogs",
                "days payables outstanding, in days of cost of sales",
-               "cost of sales", "days_payable_outstanding")
+               "cost of sales", "dpo")
 
     # ── fixed assets ───────────────────────────────────────────────────
     nbv = opening.cents("ppe_net") + opening.cents("intangibles_net")

@@ -437,7 +437,11 @@ def _engine_gates() -> List[Gate]:
              units="drivers checked",
              canaries=("SCOPE forecast-defaults (engine half, plan/2 B3)",
                        "jurisdiction source per corpus book",
-                       "responses with an absent driver that projected")),
+                       "responses with an absent driver that projected",
+                       # B3 repair: rungs passed over on built shapes, and
+                       # the ratio table's own days value (R8)
+                       "built step shapes",
+                       "ratio-table quotes checked")),
         # ── end plan/2 B3 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
