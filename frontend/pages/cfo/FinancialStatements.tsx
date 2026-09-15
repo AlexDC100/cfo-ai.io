@@ -54,16 +54,17 @@ import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // COMPARATIVES — two periods side by side (engine document, FE cells).
 import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
-import { bsOpeningFill, pickDefaultPrior, useComparatives, type ComparativesResponse } from "@/lib/comparatives";
+import { bsOpeningFill, pickDefaultPrior, useComparatives } from "@/lib/comparatives";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
   ComparativesControls,
   ComparativesRefusedNote,
   ComparativesSummary,
-  RatioPriorCtx,
-  ratioPriorFromBundle,
-  useRatioPrior,
+  RatioCompareCtx,
 } from "@/components/cfo/ComparativesPanel";
+import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
+import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
+import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { MONEY_MISSING } from "@/lib/money";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
@@ -183,7 +184,6 @@ import {
   altmanRatio,
   computeRatios,
   deriveTotals,
-  formatRatio,
   generateRecommendations,
   type CanonicalBs,
   type Ratio,
@@ -191,7 +191,6 @@ import {
   type Recommendation,
   type Statements,
 } from "@/lib/financialReport";
-import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import {
   computeCostOfCapital,
   computeCreditScore,
@@ -224,7 +223,6 @@ import { isScanSpherePaused } from "@/components/cfo/CouncilSphereHost";
 import { TemplateDownloadCard } from "@/components/cfo/products/TemplateDownloadCard";
 import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
-import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
 import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
 import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
@@ -594,9 +592,6 @@ function FinancialStatementsInner() {
       ? null
       : cmpView.view.priorPeriodId ?? cmpAutoPick?.period_id ?? null;
   const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId);
-  const cmpDoc: ComparativesResponse | null =
-    cmpQuery.data?.kind === "ok" ? cmpQuery.data.data : null;
-  const cmpRefused = cmpQuery.data?.kind === "refused" ? cmpQuery.data : null;
   const { data: directPeriodsData } = useQuery({
     queryKey: ["org-periods", activeOrgForPeriods?.id],
     queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
@@ -708,11 +703,40 @@ function FinancialStatementsInner() {
     return out;
   }, [remotePeriod.metrics]);
 
+  // ── THE RATIO SURFACES' INPUTS, DECIDED IN ONE PLACE ────────────────
+  // `cmpDoc` / `cmpRefused` (the served comparatives fetch, sorted), the
+  // view every RatioCompareCtx provider below is handed, the export
+  // statements carrying the served comparatives document, and the credit
+  // envelopes the hero, the Risks tab and the exports read. See
+  // lib/useRatioSurfaces.ts; ratioCompareTab.test.tsx G9 runs it over the
+  // served fixture and holds this call and every provider to it.
+  //
+  // PRIOR RATIOS ARE THE ENGINE'S: the prior column, its change, both
+  // bands, the band movement and the prior Altman / credit score / letter
+  // come from the served comparatives `ratios` block; no computeRatios
+  // runs over the prior's statements.
+  //
+  // THE CREDIT IS THE SERVED TABLE'S: when GET /api/period served its
+  // credit from the serve-time model, the readers get
+  // `assembled_metrics.ratio_table.credit` and the credit-family metric
+  // rows are withheld (see `servedCreditEnvelopes`). One selection, passed
+  // to all three readers, so no two surfaces score a period with
+  // different models.
+  const { cmpDoc, cmpRefused, ratioCompareView, statementsForExport, creditEnvelopes } = useRatioSurfaces({
+    assembledMetrics: remotePeriod.assembled_metrics,
+    statements,
+    metricsByName,
+    currentLabel: statements?.periodLabel ?? remotePeriod.label ?? "",
+    periodId: remotePeriod.id,
+    priorId: cmpPriorId,
+    comparatives: cmpQuery,
+  });
+
   // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
-  // Cash flow and ratios are FE-derived from a period's served statements;
-  // the prior column runs the SAME builder / the SAME computeRatios on the
-  // prior's own served block and metrics, so a prior figure is never a
-  // different arithmetic wearing the same label.
+  // Cash flow is FE-derived from a period's served statements; the prior
+  // column runs the SAME builder on the prior's own served block, so a
+  // prior figure is never a different arithmetic wearing the same label.
+  // Ratios are not derived here for either period: see ratioCompareView.
   const priorStatements = useMemo<Statements | null>(() => {
     if (!cmpDoc) return null;
     const ps = cmpDoc.prior_statements as unknown as Statements;
@@ -739,57 +763,6 @@ function FinancialStatementsInner() {
       })(),
     });
   }, [cmpDoc, priorStatements, t]);
-  const priorRatios = useMemo(() => {
-    if (!cmpDoc || !priorStatements) return null;
-    const byName: Record<string, number | null> = {};
-    for (const mt of cmpDoc.prior_metrics ?? []) {
-      byName[mt.name] = typeof mt.value === "number" ? mt.value : null;
-    }
-    const margins = {
-      ebitdaMargin: typeof byName["ebitda_margin"] === "number" ? byName["ebitda_margin"] : null,
-      netMargin: typeof byName["net_margin"] === "number" ? byName["net_margin"] : null,
-    };
-    return computeRatios(priorStatements, margins, byName);
-  }, [cmpDoc, priorStatements]);
-  // The exports read `statements.prior` (reportComparatives.ts,
-  // financialExports.ts) — populated only when a prior is loaded, so a
-  // single-period report still says "no prior period" in words.
-  const statementsForExport = useMemo<Statements | null>(() => {
-    if (!statements) return null;
-    if (!cmpDoc || !priorStatements) return statements;
-    return {
-      ...statements,
-      prior: {
-        periodLabel: cmpDoc.prior.label,
-        balanceSheet: priorStatements.balanceSheet,
-        incomeStatement: priorStatements.incomeStatement,
-      },
-    };
-  }, [statements, cmpDoc, priorStatements]);
-
-  // ── ONE PLACE DECIDES WHICH ENVELOPES THIS PERIOD HAS ───────────────
-  // This selection used to be written out three times (hero card, Risks
-  // tab, and not at all for the export). Three copies of a model
-  // selector are three chances for two surfaces to score the same period
-  // with different models; the export proved it, shipping the client
-  // fallback's CCC while the screen showed the engine's CC. One memo,
-  // passed to all three.
-  const creditEnvelopes = useMemo(() => {
-    const am = remotePeriod.assembled_metrics as {
-      credit?: import("@/lib/financialValuation").CreditEnvelope;
-      piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
-    } | null;
-    return {
-      credit: am?.credit,
-      piotroski:
-        am?.piotroski
-        ?? (statements as unknown as {
-          assembled_piotroski?: import("@/lib/financialValuation").PiotroskiEnvelope;
-        } | null)?.assembled_piotroski,
-      metricsByName,
-    };
-  }, [remotePeriod.assembled_metrics, statements, metricsByName]);
-
   const ratios = useMemo(
     () => (statements ? computeRatios(statements, dashboardCanonicalMargins, metricsByName) : null),
     [statements, dashboardCanonicalMargins, metricsByName],
@@ -2062,6 +2035,11 @@ function FinancialStatementsInner() {
                 credit={heroCredit}
                 companyName={statements?.companyName ?? null}
                 provenance={heroProvenance}
+                footer={
+                  <RatioCompareCtx.Provider value={ratioCompareView}>
+                    <CreditComparison surface="hero" />
+                  </RatioCompareCtx.Provider>
+                }
               />
               <StoryOverview
                 currency={statements.currency}
@@ -2102,6 +2080,11 @@ function FinancialStatementsInner() {
               credit={heroCredit}
               companyName={statements?.companyName ?? null}
               provenance={heroProvenance}
+              footer={
+                <RatioCompareCtx.Provider value={ratioCompareView}>
+                  <CreditComparison surface="hero" />
+                </RatioCompareCtx.Provider>
+              }
             />
 
             {statements && totals && headline && (
@@ -2371,15 +2354,13 @@ function FinancialStatementsInner() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
-            <RatioPriorCtx.Provider
-              value={cmpDoc ? ratioPriorFromBundle(priorRatios as unknown as Record<string, unknown> | null, cmpDoc.prior.label) : null}
-            >
+            <RatioCompareCtx.Provider value={ratioCompareView}>
               <RatiosTabContent
                 ratios={ratios}
                 statements={statements}
                 altman={heroCredit ? altmanRatio(heroCredit) : null}
               />
-            </RatioPriorCtx.Provider>
+            </RatioCompareCtx.Provider>
           </TabsContent>
         )}
 
@@ -2592,6 +2573,11 @@ function FinancialStatementsInner() {
               creditEnvelope={creditEnvelopes.credit}
               piotroskiEnvelope={creditEnvelopes.piotroski}
               metricsByName={creditEnvelopes.metricsByName}
+              creditComparison={
+                <RatioCompareCtx.Provider value={ratioCompareView}>
+                  <CreditComparison surface="risks" />
+                </RatioCompareCtx.Provider>
+              }
             />
           </TabsContent>
         )}
@@ -5001,224 +4987,8 @@ function DocGuideCard({ title, format, shows, where, tone }: {
   );
 }
 
-// Wrapper around all 6 RatioGroupSections that owns the selected-ratio
-// state and renders the premium explainer drawer. Owning state here
-// keeps the Ratios surface self-contained — no upstream prop drilling,
-// no global store for an interaction that's scoped to this tab.
-function RatiosTabContent({
-  ratios,
-  statements,
-  // ── THE BANKRUPTCY ROW IS NOT PART OF THE BUNDLE ANY MORE ─────────
-  // It used to be `ratios.bankruptcy` — a Z″ computed by an arithmetic
-  // that exists nowhere else, banded by a ladder that used `>=` where
-  // every other surface uses `>`. It agreed with the Risks tab, the hero
-  // and the workbook only while `calculated_metrics.altman_z_score`
-  // happened to arrive: deleting that ONE engine row split this tab to
-  // 0.18590918 against the reader's 0.22 (measured on the real Scandia
-  // period). The row is now the reader's own, handed down from the page,
-  // so it cannot be computed a second way here.
-  altman,
-}: {
-  ratios: RatioBundle;
-  statements: Statements | null;
-  /** `altmanRatio(credit)` — NULL only when the page has no statements
-   *  to score, in which case there is no Ratios tab either. */
-  altman: Ratio | null;
-}) {
-  const { t } = useTranslation();
-  const [selected, setSelected] = useState<Ratio | null>(null);
-  return (
-    <>
-      <RatioGroupSection title={t("dash.ratioLiquidity")}            ratios={ratios.liquidity}     onPick={setSelected} />
-      <div data-guide="ratios-profitability">
-        <RatioGroupSection title={t("dash.ratioProfitability")}      ratios={ratios.profitability} onPick={setSelected} />
-      </div>
-      <div data-guide="ratios-leverage">
-        <RatioGroupSection title={t("dash.ratioLeverage")}           ratios={ratios.leverage}      onPick={setSelected} />
-        <div className="mt-8">
-          <RatioGroupSection title={t("dash.ratioCoverage")}         ratios={ratios.coverage}      onPick={setSelected} />
-        </div>
-      </div>
-      <div data-guide="ratios-efficiency">
-        <RatioGroupSection title={t("dash.ratioEfficiency")}          ratios={ratios.efficiency}    onPick={setSelected} />
-      </div>
-      <div data-guide="ratios-risk">
-        <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={altman ? [altman] : []} onPick={setSelected} />
-      </div>
-
-      {/* Premium explainer drawer — 8 sections + related-ratio pivot.
-       *  See `src/components/cfo/RatioDetailDrawer.tsx` and the
-       *  knowledge map at `src/lib/ratioKnowledge.ts`. The drawer
-       *  reads the company's live values from the same `ratios`
-       *  bundle this tab already has, so opening it is a free
-       *  client-side action — no fetch, no re-compute. */}
-      <RatioDetailDrawer
-        ratio={selected}
-        bundle={ratios}
-        /* The Altman row travels separately because it belongs to the
-           credit reader, not to `computeRatios` — the drawer needs it in
-           its key index so "related ratio" pivots still reach it. */
-        extraRatios={altman ? [altman] : undefined}
-        statements={statements}
-        onClose={() => setSelected(null)}
-        onPickRelated={setSelected}
-      />
-    </>
-  );
-}
-
-function RatioGroupSection({
-  title, ratios, onPick,
-}: {
-  title: string;
-  ratios: Ratio[];
-  /** Click on any ratio tile opens the premium explainer drawer.
-   *  Threaded down from the Ratios TabsContent which owns the
-   *  selected-ratio state and renders the drawer. */
-  onPick?: (r: Ratio) => void;
-}) {
-  return (
-    <div>
-      {/* Eyebrow-style section header matches the new global design
-       *  vocabulary used elsewhere in the app (uppercase + 0.12em
-       *  tracking + brand-tinted small accent). */}
-      <h2 className="text-[10.5px] uppercase tracking-[0.14em] text-ink-soft font-semibold mb-3">
-        {title}
-      </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {ratios.map((r) => (
-          <RatioTile key={r.key} ratio={r} onPick={onPick} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RatioTile({
-  ratio, onPick,
-}: {
-  ratio: Ratio;
-  onPick?: (r: Ratio) => void;
-}) {
-  const { t } = useTranslation();
-  const clickable = typeof onPick === "function";
-  const ratioPrior = useRatioPrior();
-  // The tile becomes a button when clickable, keeping keyboard focus,
-  // Enter/Space activation, and an aria role for AT users. When the
-  // Ratios tab isn't mounted with a `onPick` (legacy callers) it
-  // gracefully degrades to the static-card look.
-  const Tag = (clickable ? "button" : "div") as "button" | "div";
-  return (
-    <Tag
-      type={clickable ? "button" : undefined}
-      onClick={clickable ? () => onPick!(ratio) : undefined}
-      data-testid="ratio-tile"
-      data-ratio-key={ratio.key}
-      aria-label={clickable ? t("dash.openRatioDetail", { label: ratio.label }) : undefined}
-      className={`
-        group relative w-full text-left
-        rounded-md border border-rule bg-surface p-4
-        transition-colors duration-150
-        ${clickable
-          ? "hover:border-rule-strong hover:bg-bg-2/40 focus:outline-none focus:ring-2 focus:ring-brand/30 cursor-pointer"
-          : ""}
-      `}
-    >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="text-[11px] uppercase tracking-[0.1em] text-ink-mute font-medium">
-          {ratio.label}
-        </div>
-        <span
-          className={`text-[9.5px] font-semibold uppercase tracking-[0.06em] px-2 py-0.5 rounded-full border text-ink anim-fill-verdict ${
-            ratio.verdict === "unknown" || ratio.verdict === "ungraded"
-              ? "border-rule text-ink-mute"
-              : ratio.verdict === "critical"
-                ? "anim-fill-red border-red-500/40"
-                : ratio.verdict === "watch"
-                  ? "anim-fill-amber border-amber-500/40"
-                  : "anim-fill-green border-brand/40"
-          }`}
-        >
-          {/* Localized verdict label (was the EN-only lib verdictLabel()). */}
-          {ratio.verdict === "strong"
-            ? t("dashV2.ratioVerdictStrong")
-            : ratio.verdict === "healthy"
-              ? t("dashV2.ratioVerdictHealthy")
-              : ratio.verdict === "watch"
-                ? t("dashV2.ratioVerdictWatch")
-                : ratio.verdict === "unknown"
-                  ? t("dashV2.ratioVerdictUnknown")
-                  : ratio.verdict === "ungraded"
-                    ? t("dashV2.ratioVerdictUngraded")
-                    : t("dashV2.ratioVerdictCritical")}
-        </span>
-      </div>
-      {/* A REFUSED RATIO IS NOT A NUMBER, so it does not get the number
-          treatment: no `<LearnableNumber>` (its popover would explain a
-          value nobody computed), no 22px mono figure, and a NEUTRAL chip
-          rather than the red one every unknown used to fall through to.
-          The reason itself renders as the commentary below. */}
-      {ratio.value === null ? (
-        <div
-          className="text-[13px] text-ink-mute leading-snug"
-          data-testid="ratio-unavailable"
-        >
-          {t("dashV2.ratioVerdictUnknown")}
-        </div>
-      ) : (
-        <div className="font-mono text-[22px] font-medium text-ink leading-tight tabular-nums tracking-[-0.005em]">
-          <LearnableNumber conceptKey={ratio.key} value={ratio.value}>
-            {formatRatio(ratio)}
-          </LearnableNumber>
-        </div>
-      )}
-      <div className="text-[11px] text-ink-mute mt-1">{ratio.benchmark}</div>
-      {/* COMPARATIVES — the prior period's SAME ratio (same computeRatios
-          on its own served statements) and the change in the ratio's own
-          unit. Absent prior → the gap glyph, never "0". */}
-      {ratioPrior && ratio.value !== null && (() => {
-        const pv = ratioPrior.byKey.has(ratio.key) ? ratioPrior.byKey.get(ratio.key) ?? null : null;
-        const d = pv === null ? null : ratio.value! - pv;
-        const unit = ratio.unit === "x" ? "×" : ratio.unit === "%" ? " pp" : ratio.unit === "days" ? " days" : "";
-        const fmtV = (v: number) =>
-          ratio.unit === "%" ? `${v.toFixed(1)}%`
-          : ratio.unit === "days" ? `${v.toFixed(0)} days`
-          : ratio.unit === "x" ? `${v.toFixed(2)}×`
-          : v.toFixed(2);
-        return (
-          <div
-            className="mt-1 font-mono tabular-nums text-[11.5px] text-ink-soft"
-            data-testid="ratio-prior"
-            data-ratio-prior={pv === null ? "absent" : "present"}
-          >
-            <span className="text-ink-mute uppercase tracking-[0.06em] text-[10px] mr-1">{ratioPrior.label}</span>
-            <span>{pv === null ? MONEY_MISSING : fmtV(pv)}</span>
-            {d !== null && Number.isFinite(d) && (
-              <span className="ml-2 text-ink-soft">
-                {d > 0 ? "+" : ""}{ratio.unit === "%" ? d.toFixed(1) : ratio.unit === "days" ? d.toFixed(0) : d.toFixed(2)}{unit}
-              </span>
-            )}
-          </div>
-        );
-      })()}
-      {/* A REFUSAL IS RENDERED IN THE READER'S LANGUAGE. `ratio.commentary`
-          for a refused ratio is `describeAbsence()`, which is hard-coded
-          English — under a chip that says "Neraportat". The structured
-          absence carried on the row renders through the same translator
-          the chip uses, so the two halves of the refusal can no longer
-          disagree about what language the reader speaks. */}
-      <p className="text-[12px] text-ink-soft leading-snug mt-2 line-clamp-3">
-        {ratio.unavailable ? absenceSentence(t, ratio.unavailable) : ratio.commentary}
-      </p>
-      {clickable && (
-        <div className="mt-2 inline-flex items-center gap-1 text-[10.5px] text-ink-mute group-hover:text-brand-d transition-colors">
-          <span>{t("dash.openExplainer")}</span>
-          <span aria-hidden>→</span>
-        </div>
-      )}
-    </Tag>
-  );
-}
+// The Ratios tab (RatiosTabContent, RatioGroupSection, RatioTile) lives in
+// components/cfo/ratios/RatiosTab.tsx, where a test can render it.
 
 // ─── 2026 redesign: priority buckets ────────────────────────────────────────
 // The engine's four severities collapse into three reader-facing buckets:
@@ -5573,12 +5343,16 @@ export function HeroVerdictCard({
   credit,
   companyName,
   provenance = null,
+  footer = null,
 }: {
   credit: ReturnType<typeof computeCreditScore> | null;
   companyName?: string | null;
   /** Origin of the score — the served envelope field when the score IS
    *  that field, the client derivation otherwise. Null → plain. */
   provenance?: AmountProvenance | null;
+  /** The served prior composites and the as-filed disclosure
+   *  (`<CreditComparison surface="hero" />`). */
+  footer?: ReactNode;
 }) {
   const { t } = useTranslation();
   // A NULL score is the refusal the library now emits; keep it first so
@@ -5599,6 +5373,7 @@ export function HeroVerdictCard({
             {t("dashV2.verdictPending")}
           </p>
         </div>
+        {footer}
       </section>
     );
   }
@@ -5690,6 +5465,7 @@ export function HeroVerdictCard({
           </p>
         </div>
       </div>
+      {footer}
     </section>
   );
 }
@@ -6144,6 +5920,7 @@ export function RisksPanel({
   creditEnvelope,
   piotroskiEnvelope,
   metricsByName,
+  creditComparison = null,
 }: {
   statements: Statements;
   // F2.4 — engine canonical envelopes (assembled_metrics.credit +
@@ -6154,6 +5931,9 @@ export function RisksPanel({
   creditEnvelope?: import("@/lib/financialValuation").CreditEnvelope;
   piotroskiEnvelope?: import("@/lib/financialValuation").PiotroskiEnvelope;
   metricsByName?: Record<string, number | null>;
+  /** The served prior composites and the as-filed disclosure
+   *  (`<CreditComparison surface="risks" />`). */
+  creditComparison?: ReactNode;
 }) {
   const { t } = useTranslation();
   const credit = useMemo(
@@ -6249,6 +6029,7 @@ export function RisksPanel({
           </div>
           <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
         </div>
+        {creditComparison}
         <div className="mt-3 rounded-2xl border border-rule bg-surface overflow-hidden">
           <div className="overflow-x-auto">
           <table className="w-full text-[13px] min-w-[600px] sm:min-w-0">
