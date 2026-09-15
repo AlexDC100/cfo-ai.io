@@ -465,3 +465,41 @@ scope: books agras, carniprod, realestate, retail; amounts in minor units shown 
 | 5 | peak funding | 0.00 | 0.00 | 0 |
 | 5 | first shortfall | none | none | same |
 
+
+## B3 repair — the ratio table's days value, one tax derivation, and the periods that may refuse
+
+Measured 2026-09-15 on `wave/plan-b3` after f6d6cf6 and bdbe2b9 with
+`python scripts/measure_plan_blast_radius.py --markdown`: all four books GET
+200 at horizon 5, and at horizon 3 through the same harness (agras,
+carniprod, realestate, retail 200). **Every cell of the B3 table above is
+unchanged** (the 108 table rows of the regenerated output are byte-identical
+to the B3 section's), so the table is not repeated. What moved:
+
+* the dio_cogs_days / dpo_cogs_days basis sentences on GET: they quote the
+  ratio table's own dio/dpo (engine.ratios.table, over total operating
+  expense; agras 31.503485 / 26.642244 days) instead of methodology.ratios
+  (over cost of sales; agras 45.548379 / 36.641162) under the ratio table's
+  name. No driver value and no cent moves.
+* tax_rate on the forecast_drivers path (cases, not served on GET): on the
+  four corpus books the drivers package now holds the engine's statutory
+  rung (macro, 160000 micros) where it held an absence; the model already
+  held that rung, so no plan moves. On a book that ties to account 121 with
+  a nil charge and no class-69 account, both paths now charge 0 (the drivers
+  path charged the statutory rate after B3).
+
+**The no_statutory_tax_rate count owed to the owner is wider than B3 said.**
+GET reads the jurisdiction from `financial_periods.assembled_canonical_v1`
+(`_forecast_routes._load_period`). The `pack_provenance` stamp is written by
+`country_packs/ro_romania/chart_of_accounts.py` (line 1757) since 4d65125
+(2026-08-20, the Phase 3 pack cutover); `api/_reconcile.py` already treats an
+envelope without it as a pre-cutover snapshot. **Every period persisted
+before 4d65125 and not re-processed since carries no pack_provenance, so B3
+reads its jurisdiction as not recorded, and unless its effective tax rate is
+measured (none of the four corpus books nor Scandia FY2025 is), GET now
+answers 422 "the jurisdiction of this book is not recorded".** No script in
+this batch reads live periods. The owner's count at the B13 hand-off must
+include: (a) periods whose envelope lacks `pack_provenance.jurisdiction`
+(and `ai_audit.jurisdiction`), the likeliest class being every period
+persisted before 2026-08-20; (b) periods in a jurisdiction with no packed
+statutory record (today every non-RO jurisdiction, e.g. HU packs). Each
+refuses only when its effective rate is not measured.
