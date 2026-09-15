@@ -294,7 +294,10 @@ def _print_summary(payload: dict) -> None:
     print(f"Period:      {payload['data_period']}")
     print(f"Categories:  {s['total_categories_analyzed']}")
     print(f"Capital blocked: {s['capital_blocked_RON']:,.0f} RON")
-    print(f"ROIC:        {s['total_roic_pct']}% (cost of capital {s['cost_of_capital_pct']}%)")
+    if s.get("total_roic_pct") is None and s.get("total_roic_refusal"):
+        print(f"ROIC:        {s['total_roic_refusal']['text']}")
+    else:
+        print(f"ROIC:        {s['total_roic_pct']}% (cost of capital {s['cost_of_capital_pct']}%)")
     print(f"\nFlag counts:")
     for k in ("anchors_count", "anchors_with_alerts", "eliminate_count",
               "warning_count", "scale_count", "keep_count"):

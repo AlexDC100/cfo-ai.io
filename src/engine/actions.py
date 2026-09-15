@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 
 from .buckets import BUCKET_KEYS, Bucket
 from .config import Config
+from .metrics import niv_weighted_margin, portfolio_roic
 from .models import CategoryMetrics, Decision, Recommendation
 
 
@@ -178,16 +179,13 @@ def _executive_summary(
         for d in decisions
         if d.bucket in ("LIQUIDATE", "REDUCE")
     )
-    # Portfolio-level real margin: weighted by NIV
-    total_niv = sum(m.niv_kron for m in metrics) or 1.0
-    weighted_rm = sum(m.real_margin_pct * m.niv_kron for m in metrics) / total_niv
-    # Portfolio ROIC: total abs profit / total capital trapped
-    total_abs_profit = sum(m.abs_profit_kron for m in metrics)
-    portfolio_roic = (
-        (total_abs_profit / total_capital_trapped * 100.0)
-        if total_capital_trapped > 0
-        else 0.0
+    # Portfolio-level real margin (NIV-weighted) and ROIC. Both refuse
+    # rather than floor: see engine.metrics.niv_weighted_margin/portfolio_roic.
+    weighted_rm, rm_refusal = niv_weighted_margin(
+        [(m.real_margin_pct, m.niv_kron) for m in metrics]
     )
+    total_abs_profit = sum(m.abs_profit_kron for m in metrics)
+    roic, roic_refusal = portfolio_roic(total_abs_profit, total_capital_trapped)
 
     bucket_counts = {key: 0 for key in BUCKET_KEYS.values()}
     for d in decisions:
@@ -201,8 +199,10 @@ def _executive_summary(
         # multiplies by 1000 if it needs RON; cleaner than mixing units here.
         "cash_trapped_kron": round(total_capital_trapped, 2),
         "cash_recovery_potential_kron": round(cash_recovery, 2),
-        "roic_pct": round(portfolio_roic, 2),
-        "real_margin_pct": round(weighted_rm, 2),
+        "roic_pct": round(roic, 2) if roic is not None else None,
+        "real_margin_pct": round(weighted_rm, 2) if weighted_rm is not None else None,
+        # One entry per figure above that is None, with the reason it is.
+        "refusals": [r for r in (roic_refusal, rm_refusal) if r is not None],
         "products_analyzed": sku_count if sku_count is not None else len(decisions),
         "categories_analyzed": len(decisions),
         "urgent_actions": urgent,
@@ -226,7 +226,9 @@ def _legacy_summary(
     capital_recoverable = sum(
         (d.capital_freed_kron or 0.0) for d in decisions if d.flag == "ELIMINATE"
     )
-    roic_pct = (total_abs_profit / total_woca * 100.0) if total_woca else 0.0
+    roic_pct, roic_refusal = portfolio_roic(
+        total_abs_profit, total_woca, component="total_roic_pct"
+    )
 
     return {
         "total_categories_analyzed": len(decisions),
@@ -241,6 +243,7 @@ def _legacy_summary(
         "warning_count": counts.get("WARNING", 0),
         "scale_count": counts.get("SCALE", 0),
         "keep_count": counts.get("KEEP", 0),
-        "total_roic_pct": round(roic_pct, 1),
+        "total_roic_pct": round(roic_pct, 1) if roic_pct is not None else None,
+        "total_roic_refusal": roic_refusal,
         "cost_of_capital_pct": cfg.cost_of_capital_pct,
     }

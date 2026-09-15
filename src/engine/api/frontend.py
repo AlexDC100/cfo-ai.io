@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from ..alerts import alert_summary, detect_alerts
 from ..config import Config
 from ..loader import load_categories_from_excel, load_skus_from_excel
+from ..metrics import ANCHOR_PROFIT_SHARE_UNDEFINED, portfolio_roic
 from ..models import CategoryRow, SkuRow
 from ..pipeline import run_pipeline
 from ..sku_pipeline import drill_category
@@ -234,19 +235,39 @@ def _to_daily_run(
     total_woca = sum((m.niv_kron * m.dio_days / 365.0) for m in metrics)  # in kRON
     total_abs_profit = sum(m.abs_profit_kron for m in metrics)
     anchor_profit = sum(a["absoluteProfit"] for a in by_bucket["anchors"])
-    anchor_share = (anchor_profit / total_abs_profit) if total_abs_profit > 0 else 0.0
-    roic = (total_abs_profit / total_woca * 100.0) if total_woca > 0 else 0.0
+    refusals: List[Dict[str, Any]] = []
+    if total_abs_profit > 0:
+        anchor_share: Optional[float] = anchor_profit / total_abs_profit
+    else:
+        # A share of a total that is zero or a loss is undefined — it used
+        # to be served as 0.0, i.e. "anchors earn none of the profit".
+        anchor_share = None
+        refusals.append({
+            "code": ANCHOR_PROFIT_SHARE_UNDEFINED,
+            "component": "anchorProfitShare",
+            "inputs": {"total_abs_profit_kron": round(total_abs_profit, 2),
+                       "anchor_profit_kron": round(anchor_profit, 2)},
+            "text": (
+                "Anchor profit share unavailable: the portfolio's absolute profit "
+                f"nets to {'zero' if total_abs_profit == 0 else 'a loss'} "
+                f"({total_abs_profit:,.1f} kRON), so there is no profit to take a share of."
+            ),
+        })
+    roic, roic_refusal = portfolio_roic(total_abs_profit, total_woca, component="roicPct")
+    if roic_refusal is not None:
+        refusals.append(roic_refusal)
     now = datetime.now()
     return {
         "date": run_date.isoformat(),
         "period": data_period,
         "workingCapitalMRon": round(total_woca / 1000.0, 2),  # kRON → MRON
-        "roicPct": round(roic, 1),
+        "roicPct": round(roic, 1) if roic is not None else None,
         "costOfCapitalPct": cfg.cost_of_capital_pct,
         "runCompletedAt": now.strftime("%H:%M"),
         "nextRunAt": "06:00",
         "confidence": "high" if len(decisions) >= 20 else ("medium" if len(decisions) >= 10 else "low"),
-        "anchorProfitShare": round(anchor_share, 3),
+        "anchorProfitShare": round(anchor_share, 3) if anchor_share is not None else None,
+        "refusals": refusals,
         "anchors": sorted(by_bucket["anchors"], key=lambda x: x["absoluteProfit"], reverse=True),
         "eliminate": sorted(by_bucket["eliminate"], key=lambda x: x["realMargin"]),
         "review": sorted(by_bucket["review"], key=lambda x: x["absoluteProfit"], reverse=True),
@@ -257,9 +278,20 @@ def _to_daily_run(
 # ─────────── DIO ingestion from upload's own DIO sheet ───────────
 
 
+# Declared plausibility band for a DIO read off the upload's DIO sheet. A
+# value outside it is SERVED as measured and flagged — it used to be
+# clamped into the band, which served a real 1,488-day stock (HERING) as
+# 365 days and understated its trapped capital fourfold.
+DIO_SHEET_PLAUSIBLE_DAYS: Tuple[int, int] = (7, 365)
+# The two banner dates must span a period in this range for the sheet's
+# days-in-period to count as confirmed.
+DIO_SHEET_PERIOD_DAYS_RANGE: Tuple[int, int] = (30, 366)
+
+
 def _load_dio_from_workbook(
     xlsx_path: Path,
     sales_volume_tons_by_cat: Dict[str, float],
+    notes: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, int]:
     """Compute fresh DIO per category from the upload's DIO sheet.
 
@@ -271,12 +303,20 @@ def _load_dio_from_workbook(
 
     Implied DIO = avg_stock_kg × period_days / sales_kg_during_period.
 
-    period_days defaults to 90 (a quarter). When the sheet header row carries
-    two date strings (e.g. 31.03.2026 and 01.01.2026) we use their difference.
+    period_days is the difference between the two date stamps on the sheet's
+    banner row (e.g. 31.03.2026 and 01.01.2026). When the banner does not
+    confirm a period in ``DIO_SHEET_PERIOD_DAYS_RANGE`` the sheet is NOT used
+    — it used to assume 90 days, which mis-states every DIO by the ratio of
+    the real period to a quarter (2x for a half-year YTD) — and the reason
+    is appended to ``notes``; every category then falls through the ladder.
 
-    Returns a {UPPERCASE_CATEGORY: int(dio_days)} map. Categories without an
-    entry fall through to canonical inheritance.
+    Returns a {UPPERCASE_CATEGORY: int(dio_days)} map of MEASURED DIO. A
+    value outside ``DIO_SHEET_PLAUSIBLE_DAYS`` is kept and flagged in
+    ``notes``. Categories without an entry fall through to canonical
+    inheritance.
     """
+    if notes is None:
+        notes = []
     import pandas as pd
     try:
         raw = pd.read_excel(xlsx_path, sheet_name="DIO", header=None)
@@ -287,7 +327,7 @@ def _load_dio_from_workbook(
         return {}
 
     # Period detection: row 0 typically has two date stamps. Find them.
-    period_days = 90
+    period_days: Optional[int] = None
     dates = []
     for v in raw.iloc[0].tolist():
         if hasattr(v, "year") and hasattr(v, "month"):
@@ -304,11 +344,28 @@ def _load_dio_from_workbook(
                         continue
             except Exception:
                 pass
+    lo_p, hi_p = DIO_SHEET_PERIOD_DAYS_RANGE
+    diff: Optional[int] = None
     if len(dates) >= 2:
         d_max, d_min = max(dates), min(dates)
         diff = (d_max - d_min).days
-        if 30 <= diff <= 366:
+        if lo_p <= diff <= hi_p:
             period_days = diff
+    if period_days is None:
+        notes.append({
+            "code": "dio_sheet_period_unconfirmed",
+            "component": "dio_sheet",
+            "inputs": {"banner_dates_found": len(dates), "banner_span_days": diff},
+            "text": (
+                "DIO sheet not used: its banner row "
+                + (f"spans {diff} days, outside the {lo_p}-{hi_p} day range a reporting "
+                   "period must fall in" if diff is not None
+                   else "does not carry two dates")
+                + ", so days-in-period is unconfirmed. Category DIO falls back to the "
+                "canonical calibration."
+            ),
+        })
+        return {}
 
     # Data rows start at index 2 (row 0 = period banner, row 1 = column labels).
     end_stock_kg: Dict[str, float] = {}
@@ -332,17 +389,61 @@ def _load_dio_from_workbook(
             pass
 
     out: Dict[str, int] = {}
-    for cat in set(list(end_stock_kg.keys()) + list(start_stock_kg.keys())):
+    lo_d, hi_d = DIO_SHEET_PLAUSIBLE_DAYS
+    for cat in sorted(set(list(end_stock_kg.keys()) + list(start_stock_kg.keys()))):
         e = end_stock_kg.get(cat)
         s = start_stock_kg.get(cat)
+        # e/s are only recorded when > 0, so `e or s` picks a measured side.
         avg = (e + s) / 2 if (e and s) else (e or s)
+        # A category the upload sold nothing of has no DIO to compute; the
+        # .get() default is "no sales", which the `sold_kg > 0` test refuses.
         sold_kg = sales_volume_tons_by_cat.get(cat, 0) * 1000.0
         if avg and sold_kg > 0:
-            dio = avg * period_days / sold_kg
-            # Clamp to a sane range — outliers like HERING at 1488d are real but
-            # cap so they don't poison the engine. 365 days = 1 year of stock.
-            out[cat] = int(round(min(max(dio, 7), 365)))
+            dio = int(round(avg * period_days / sold_kg))
+            out[cat] = dio
+            if not (lo_d <= dio <= hi_d):
+                notes.append({
+                    "code": "dio_outlier",
+                    "component": f"dio_days:{cat}",
+                    "inputs": {"dio_days": dio, "avg_stock_kg": round(avg, 1),
+                               "sold_kg": round(sold_kg, 1), "period_days": period_days},
+                    "text": (
+                        f"{cat}: DIO {dio} days is outside the {lo_d}-{hi_d} day band "
+                        "expected for stock; served as measured — check the DIO sheet."
+                    ),
+                })
     return out
+
+
+# ─────────── Share of category profit ───────────
+
+
+def _share_of_category_profit(category: str, sku_dec_rows: List[Dict[str, Any]]):
+    """Return a per-SKU function giving its share-of-category-profit fields.
+
+    The share is defined only when the category's SKU profits sum to a
+    positive total. A total of exactly zero used to divide by a 1.0 floor
+    (measured ±50,000.0%), and a negative total flipped every SKU's sign
+    (a +100 kRON SKU served -100.0%). Both now serve null with a reason.
+    """
+    total = sum(s["abs_profit_kron"] for s in sku_dec_rows)
+    if total > 0:
+        return lambda s: {
+            "share_of_category_profit_pct": round(s["abs_profit_kron"] / total * 100.0, 1),
+        }
+    refusal = {
+        "code": "share_of_category_profit_undefined",
+        "component": "share_of_category_profit_pct",
+        "inputs": {"category": category, "category_profit_kron": round(total, 2)},
+        "text": (
+            "Share of category profit unavailable: SKU profits in this category net to "
+            f"{'zero' if total == 0 else 'a loss'} (total {total:,.1f} kRON)."
+        ),
+    }
+    return lambda s: {
+        "share_of_category_profit_pct": None,
+        "share_of_category_profit_refusal": refusal,
+    }
 
 
 # ─────────── SKU rows → CategoryRow aggregation ───────────
@@ -405,6 +506,7 @@ def _aggregate_to_categories(
     rows: List[SkuRowIn],
     canonical: Dict[str, CategoryRow],
     dio_overrides: Optional[Dict[str, int]] = None,
+    refusals: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[List[CategoryRow], List[SkuRow]]:
     """Group uploaded SKU rows by category and build CategoryRows.
 
@@ -418,8 +520,18 @@ def _aggregate_to_categories(
 
     `real_margin_pct_stored` is intentionally NOT inherited — we always
     recompute via the CCC formula so margins reflect the upload's GM%.
+
+    Refusals (appended to ``refusals`` when given; the caller serves them):
+      · a category — or a SKU — whose revenue totals zero has no
+        revenue-weighted GM%. It is NOT built into a row (it used to get
+        GM 0.0, which classified a 25%-GM line as ELIMINATE on a
+        fabricated negative real margin).
+      · rows that carry DIO but no volume cannot weight it; the category
+        falls through to the next rung of the ladder instead of DIO 0.
     """
     dio_overrides = dio_overrides or {}
+    if refusals is None:
+        refusals = []
     by_cat: Dict[str, List[SkuRowIn]] = {}
     for r in rows:
         by_cat.setdefault(r.category.strip(), []).append(r)
@@ -429,11 +541,21 @@ def _aggregate_to_categories(
     for cat_name, items in by_cat.items():
         total_vol = sum(i.volume_tons for i in items)
         total_niv = sum(i.revenue_kron for i in items)
-        # GM% as revenue-weighted average
-        gm_pct = (
-            sum(i.gross_margin_pct * i.revenue_kron for i in items) / total_niv
-            if total_niv > 0 else 0.0
-        )
+        # GM% as revenue-weighted average. revenue_kron is ge=0, so a total
+        # that is not positive means no revenue at all.
+        if total_niv <= 0:
+            refusals.append({
+                "code": "category_gross_margin_undefined",
+                "component": f"category:{cat_name}",
+                "inputs": {"revenue_kron": total_niv, "volume_tons": total_vol,
+                           "row_count": len(items)},
+                "text": (
+                    f"Category {cat_name} not classified: its rows carry no revenue, so a "
+                    "revenue-weighted gross margin is undefined."
+                ),
+            })
+            continue
+        gm_pct = sum(i.gross_margin_pct * i.revenue_kron for i in items) / total_niv
 
         # Inheritance ladder: exact match → sibling prefix match → 90-day default.
         canon = canonical.get(cat_name) or _find_canonical_sibling(cat_name, canonical)
@@ -443,13 +565,23 @@ def _aggregate_to_categories(
         upload_dio = dio_overrides.get(cat_name.strip().upper())
 
         # Per-row DIO: prefer explicit, else upload DIO, else canonical, else default
-        explicit_dios = [i.dio_days for i in items if i.dio_days is not None]
-        if explicit_dios:
+        dio_rows = [i for i in items if i.dio_days is not None]
+        dio_weight = sum(i.volume_tons for i in dio_rows)
+        if dio_rows and dio_weight <= 0:
+            refusals.append({
+                "code": "category_weighted_dio_undefined",
+                "component": f"dio_days:{cat_name}",
+                "inputs": {"rows_with_dio": len(dio_rows), "volume_tons": dio_weight},
+                "text": (
+                    f"Category DIO unavailable for {cat_name}: rows carry DIO but no "
+                    "volume to weight them; DIO taken from the next source in the ladder."
+                ),
+            })
+        if dio_rows and dio_weight > 0:
             # Volume-weighted average DIO
-            denom = sum(i.volume_tons for i in items if i.dio_days is not None) or 1.0
-            dio = int(round(sum(
-                (i.dio_days or 0) * i.volume_tons for i in items if i.dio_days is not None
-            ) / denom))
+            dio = int(round(
+                sum(i.dio_days * i.volume_tons for i in dio_rows) / dio_weight
+            ))
         elif upload_dio is not None:
             dio = upload_dio
         elif canon is not None:
@@ -493,11 +625,20 @@ def _aggregate_to_categories(
         for sid, rows_for_sku in sku_groups.items():
             agg_vol = sum(r.volume_tons for r in rows_for_sku)
             agg_niv = sum(r.revenue_kron for r in rows_for_sku)
+            if agg_niv <= 0:
+                refusals.append({
+                    "code": "sku_gross_margin_undefined",
+                    "component": f"sku:{sid}",
+                    "inputs": {"category": cat_name, "revenue_kron": agg_niv,
+                               "volume_tons": agg_vol},
+                    "text": (
+                        f"SKU {sid} not classified: it carries no revenue, so a "
+                        "revenue-weighted gross margin is undefined."
+                    ),
+                })
+                continue
             # GM% as revenue-weighted average so GM_kron is consistent.
-            gm_pct = (
-                sum(r.gross_margin_pct * r.revenue_kron for r in rows_for_sku) / agg_niv
-                if agg_niv > 0 else 0.0
-            )
+            gm_pct = sum(r.gross_margin_pct * r.revenue_kron for r in rows_for_sku) / agg_niv
             brand = sid.split("|", 1)[0] if "|" in sid else None
             sku_name = sid.split("|", 1)[1] if "|" in sid else sid
             skus.append(SkuRow(
@@ -741,21 +882,29 @@ def create_frontend_router(
             for r in rows:
                 k = r.category.strip().upper()
                 sales_by_cat[k] = sales_by_cat.get(k, 0.0) + r.volume_tons
-            dio_overrides = _load_dio_from_workbook(tmp_path, sales_by_cat)
+            dio_notes: List[Dict[str, Any]] = []
+            dio_overrides = _load_dio_from_workbook(tmp_path, sales_by_cat, dio_notes)
             if dio_overrides:
                 print(f"[upload-excel] DIO sheet found — overriding canonical for {len(dio_overrides)} categories")
 
             # Run full pipeline
-            cats, sku_records = _aggregate_to_categories(rows, canonical, dio_overrides)
+            agg_refusals: List[Dict[str, Any]] = []
+            cats, sku_records = _aggregate_to_categories(
+                rows, canonical, dio_overrides, refusals=agg_refusals,
+            )
             metrics, decisions = run_pipeline(cats, req_cfg, period_months=period_months)
             run = _to_daily_run(metrics, decisions, req_cfg, _Date.today(), "Uploaded YTD")
+            run["refusals"] = agg_refusals + run["refusals"]
             alerts = detect_alerts(metrics, decisions, sku_records, req_cfg)
 
             # Build SKU list (same logic as /api/skus)
             cat_flag_by_name = {d.id: d.flag for d in decisions}
             cat_real_margin_by_name = {m.category: m.real_margin_pct for m in metrics}
             from .frontend_helpers import classify_skus_within_category
-            _, sku_records = _aggregate_to_categories(rows, canonical, dio_overrides)
+            # Same inputs as above: its refusals are already on `run`.
+            _, sku_records = _aggregate_to_categories(
+                rows, canonical, dio_overrides, refusals=[],
+            )
             all_sku_decisions: List[Dict[str, Any]] = []
             for cat in cats:
                 cat_skus = [s for s in sku_records if s.category == cat.category]
@@ -764,15 +913,15 @@ def create_frontend_router(
                 sku_dec_rows = classify_skus_within_category(
                     cat, cat_skus, req_cfg, period_months
                 )
-                cat_total_profit = sum(s["abs_profit_kron"] for s in sku_dec_rows) or 1.0
+                share_of = _share_of_category_profit(cat.category, sku_dec_rows)
                 for s in sku_dec_rows:
                     s["category_flag"] = cat_flag_by_name.get(cat.category, "KEEP")
+                    # Every built category has a metric row, so the default
+                    # is unreachable (no absent value is served as 0.0).
                     s["category_real_margin_pct"] = round(
                         cat_real_margin_by_name.get(cat.category, 0.0), 1
                     )
-                    s["share_of_category_profit_pct"] = round(
-                        s["abs_profit_kron"] / cat_total_profit * 100.0, 1
-                    )
+                    s.update(share_of(s))
                     all_sku_decisions.append(s)
             all_sku_decisions.sort(key=lambda d: d["abs_profit_kron"], reverse=True)
 
@@ -860,6 +1009,9 @@ def create_frontend_router(
                 "analysis": analysis,
                 "alerts": [a.model_dump() for a in alerts],
                 "alert_summary": alert_summary(alerts),
+                # The DIO sheet's own verdicts: an unconfirmed period (sheet
+                # not used) or a measured DIO outside the plausible band.
+                "dio_sheet_notes": dio_notes,
             }
         finally:
             try:
@@ -908,10 +1060,13 @@ def create_frontend_router(
             raise HTTPException(400, "rows is empty")
 
         req_cfg = _merge_config(cfg, req.overrides)
-        cats, _ = _aggregate_to_categories(req.rows, canonical)
+        agg_refusals: List[Dict[str, Any]] = []
+        cats, _ = _aggregate_to_categories(req.rows, canonical, refusals=agg_refusals)
         metrics, decisions = run_pipeline(cats, req_cfg, period_months=req.period_months)
         run_date = req.run_date or Date.today()
-        return _to_daily_run(metrics, decisions, req_cfg, run_date, req.data_period)
+        run = _to_daily_run(metrics, decisions, req_cfg, run_date, req.data_period)
+        run["refusals"] = agg_refusals + run["refusals"]
+        return run
 
     @router.post("/skus")
     def skus_flat(req: SkusRequest) -> Dict[str, Any]:
@@ -925,7 +1080,8 @@ def create_frontend_router(
             raise HTTPException(400, "rows is empty")
 
         req_cfg = _merge_config(cfg, req.overrides)
-        cats, sku_records = _aggregate_to_categories(req.rows, canonical)
+        agg_refusals: List[Dict[str, Any]] = []
+        cats, sku_records = _aggregate_to_categories(req.rows, canonical, refusals=agg_refusals)
 
         # Run the category-level pipeline so we know each category's flag
         cat_metrics, cat_decisions = run_pipeline(cats, req_cfg, period_months=req.period_months)
@@ -942,19 +1098,18 @@ def create_frontend_router(
             sku_dec_rows = classify_skus_within_category(
                 cat, cat_skus, req_cfg, req.period_months,
             )
-            cat_total_profit = sum(s["abs_profit_kron"] for s in sku_dec_rows) or 1.0
+            share_of = _share_of_category_profit(cat.category, sku_dec_rows)
             for s in sku_dec_rows:
                 if s["volume_tons"] < req.min_volume_tons:
                     continue
                 if s["revenue_kron"] < req.min_revenue_kron:
                     continue
                 s["category_flag"] = cat_flag_by_name.get(cat.category, "KEEP")
+                # Unreachable default: run_pipeline emits a metric per category.
                 s["category_real_margin_pct"] = round(
                     cat_real_margin_by_name.get(cat.category, 0.0), 1
                 )
-                s["share_of_category_profit_pct"] = round(
-                    s["abs_profit_kron"] / cat_total_profit * 100.0, 1
-                )
+                s.update(share_of(s))
                 all_sku_decisions.append(s)
 
         # Sort by absolute profit descending — top contributors at the top
@@ -983,6 +1138,7 @@ def create_frontend_router(
             },
             "flag_counts": flag_counts,
             "skus": all_sku_decisions,
+            "refusals": agg_refusals,
         }
 
     @router.post("/drill")
@@ -992,12 +1148,14 @@ def create_frontend_router(
             raise HTTPException(400, "rows is empty")
 
         req_cfg = _merge_config(cfg, req.overrides)
-        cats, skus = _aggregate_to_categories(req.rows, canonical)
+        agg_refusals: List[Dict[str, Any]] = []
+        cats, skus = _aggregate_to_categories(req.rows, canonical, refusals=agg_refusals)
         metrics, decisions = drill_category(req.category, skus, cats, req_cfg, req.period_months)
         if not decisions:
             raise HTTPException(404, f"No SKUs found for category '{req.category}'")
         return {
             "category": req.category,
+            "refusals": agg_refusals,
             "sku_count": len(decisions),
             "decisions": [
                 {
@@ -1033,7 +1191,9 @@ def create_frontend_router(
         # Build SKU-level rec list
         sku_recs: List[Dict[str, Any]] = []
         if req.rows:
-            cats, _ = _aggregate_to_categories(req.rows, canonical)
+            # Refusals are served by /classify-rows and /skus over the same
+            # rows; this route returns the analysis narrative only.
+            cats, _ = _aggregate_to_categories(req.rows, canonical, refusals=[])
             cat_metrics, cat_decisions = run_pipeline(cats, req_cfg, period_months=req.period_months)
             cat_flag_by_name = {d.id: d.flag for d in cat_decisions}
             cats_by_name = {c.category: c for c in cats}
@@ -1104,13 +1264,15 @@ def create_frontend_router(
             raise HTTPException(400, "rows is empty")
 
         req_cfg = _merge_config(cfg, req.overrides)
-        cats, sku_records = _aggregate_to_categories(req.rows, canonical)
+        agg_refusals: List[Dict[str, Any]] = []
+        cats, sku_records = _aggregate_to_categories(req.rows, canonical, refusals=agg_refusals)
         metrics, decisions = run_pipeline(cats, req_cfg, period_months=req.period_months)
         alerts = detect_alerts(metrics, decisions, sku_records, req_cfg)
 
         return {
             "alerts": [a.model_dump() for a in alerts],
             "summary": alert_summary(alerts),
+            "refusals": agg_refusals,
         }
 
     return router

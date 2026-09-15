@@ -67,10 +67,14 @@ def _build_user_facts(payload: Dict[str, Any]) -> str:
         f"Capital blocked: {s.get('capital_blocked_RON', 0):,.0f} RON; "
         f"recoverable in 30 days: {s.get('capital_recoverable_30d_RON', 0):,.0f} RON"
     )
-    lines.append(
-        f"ROIC: {s.get('total_roic_pct', 0)}% vs cost of capital "
-        f"{s.get('cost_of_capital_pct', 0)}%"
-    )
+    if s.get("total_roic_pct") is None and s.get("total_roic_refusal"):
+        # A refused ROIC is stated with its reason, never as "None%" or 0%.
+        lines.append(s["total_roic_refusal"]["text"])
+    else:
+        lines.append(
+            f"ROIC: {s.get('total_roic_pct', 0)}% vs cost of capital "
+            f"{s.get('cost_of_capital_pct', 0)}%"
+        )
     lines.append(
         f"Counts — anchors {s.get('anchors_count', 0)} "
         f"({s.get('anchors_with_alerts', 0)} with alerts), "
