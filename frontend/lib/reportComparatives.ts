@@ -88,7 +88,16 @@ export interface ComparisonPeriod {
 export interface ComparativeLine {
   key: string;
   label: string;
-  unit: "money" | "pct" | "x";
+  /** MONEY ONLY. This module used to carry four ratio lines (EBITDA
+   *  margin, net margin, equity ratio, net debt / EBITDA), each a
+   *  division of its own over `deriveTotals` — a third ratio arithmetic
+   *  beside `computeRatios` and the engine's served table, printing a
+   *  prior ratio nothing else in the product agreed with. Ratios and their
+   *  movements are the engine's: they are read off the served two-period
+   *  table (`statements.comparatives.ratios`) by `executiveSummary.ts` and
+   *  the report, and never computed here. `reportComparativesNoSecondRatio
+   *  .test.ts` reds if a ratio line, a ratio unit or a division returns. */
+  unit: "money";
   current: number | null;
   /** FALSE when the two sides are not built the same way. `vs` then
    *  carries the stated reason on both kinds. */
@@ -166,8 +175,6 @@ interface LineSpec {
   reportedAs?: readonly ReportedTotalKey[];
 }
 
-const safeRatio = (a: number, b: number): number | null => (b === 0 ? null : a / b);
-
 const REVENUE: readonly StatementInput[] = ["revenue"];
 const PL_TO_EBITDA: readonly StatementInput[] = [
   "revenue",
@@ -214,22 +221,6 @@ export const COMPARATIVE_LINES: readonly LineSpec[] = [
     inputs: PL_TO_NET, reportedAs: ["netIncome", "pbt"], of: (x) => x.totals.netIncome,
   },
   {
-    key: "ebitda_margin", label: "EBITDA margin", unit: "pct",
-    inputs: PL_TO_EBITDA, reportedAs: ["ebitda"],
-    of: (x) => {
-      const r = safeRatio(x.totals.ebitda, x.incomeStatement.revenue);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
-    key: "net_margin", label: "Net margin", unit: "pct",
-    inputs: PL_TO_NET, reportedAs: ["netIncome"],
-    of: (x) => {
-      const r = safeRatio(x.totals.netIncome, x.incomeStatement.revenue);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
     key: "total_assets", label: "Total assets", unit: "money",
     inputs: BS_ASSETS, reportedAs: ["totalAssets", "totalCurrentAssets", "totalNonCurrentAssets"],
     of: (x) => x.totals.totalAssets,
@@ -239,21 +230,8 @@ export const COMPARATIVE_LINES: readonly LineSpec[] = [
     inputs: BS_EQUITY, reportedAs: ["totalEquity"], of: (x) => x.totals.totalEquity,
   },
   {
-    key: "equity_ratio", label: "Equity ratio", unit: "pct",
-    inputs: [...BS_EQUITY, ...BS_ASSETS], reportedAs: ["totalEquity", "totalAssets"],
-    of: (x) => {
-      const r = safeRatio(x.totals.totalEquity, x.totals.totalAssets);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
     key: "net_debt", label: "Net debt", unit: "money",
     inputs: BS_DEBT, reportedAs: ["totalDebt"], of: (x) => x.totals.netDebt,
-  },
-  {
-    key: "net_debt_ebitda", label: "Net debt / EBITDA", unit: "x",
-    inputs: [...BS_DEBT, ...PL_TO_EBITDA], reportedAs: ["totalDebt", "ebitda"],
-    of: (x) => safeRatio(x.totals.netDebt, x.totals.ebitda),
   },
 ] as const;
 
@@ -420,14 +398,10 @@ export function comparativeLine(c: Comparatives, key: string): ComparativeLine |
  *  invents "0.0%" for a move nobody measured. */
 export function formatVariance(v: Variance, unit: ComparativeLine["unit"]): string {
   if (v.absolute === null) return NO_COMPARATIVES_NOTE;
+  void unit; // money is the only unit a comparative line carries
   const arrow = v.direction === "up" ? "+" : v.direction === "down" ? "−" : "±";
   const abs = Math.abs(v.absolute);
-  const magnitude =
-    unit === "pct"
-      ? `${abs.toFixed(1)} pp`
-      : unit === "x"
-        ? `${abs.toFixed(2)}×`
-        : abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const magnitude = abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
   const share =
     v.percent === null
       ? " (no percentage — the comparison period is zero on this line)"

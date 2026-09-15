@@ -34,6 +34,14 @@
 //  · a gap card that travels to the HTML but is dropped from the workbook
 //    — a period that looks like it had five fewer open questions
 //  · a section losing its sheet
+//  · the Ratios sheet heading its prior column with anything but the served
+//    prior label (when a served two-period table reached the export) or
+//    `NO_COMPARATIVES_NOTE` (when nothing did) — a dash, a blank, a stale
+//    "Verdict"; or losing any of the Δ / Band now / Band prior / Band
+//    movement columns (G-C3b). PLANT, proven RED 2026-09-15: heading the
+//    prior column with an em dash in `buildExcelWorkbook` reds both cases
+//    (expected '—' to be 'No comparatives — position report, not
+//    performance report' / … to be 'Dec 2024').
 //
 // ── WHAT IT CANNOT SEE ────────────────────────────────────────────────
 //  · the PDF, because nothing in this repo renders one; and the PPTX,
@@ -45,7 +53,9 @@ import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
 import { buildExcelWorkbook } from "@/lib/financialExports";
+import { NO_COMPARATIVES_NOTE } from "@/lib/reportComparatives";
 import { BOOKS, type Book, exportDoc, metricsFor, statementsFor } from "./exportBooks";
+import { pairEnvelopes, pairStatements, servedRatioPair } from "./servedRatioPair";
 
 function workbook(b: Book): XLSX.WorkBook {
   return buildExcelWorkbook(statementsFor(b), undefined, { metricsByName: metricsFor(b) });
@@ -137,5 +147,25 @@ describe("G-C3 — the workbook and the document print the same figures", () => 
         chart.title,
       );
     }
+  });
+});
+
+describe("G-C3b — the Ratios sheet names its prior column, or states there is none", () => {
+  const MOVEMENT_COLUMNS = ["Δ", "Band now", "Band prior", "Band movement"];
+
+  it.each(BOOKS)("%s: no comparison — the prior column is headed with the stated absence", (b: Book) => {
+    const header = sheetRows(workbook(b), "Ratios")[0];
+    expect(header[2]).toBe(statementsFor(b).periodLabel);
+    expect(header[3], `${b}: the prior column heading`).toBe(NO_COMPARATIVES_NOTE);
+    expect(header.slice(4, 8)).toEqual(MOVEMENT_COLUMNS);
+  });
+
+  it("a served two-period table — the prior column is headed with the served prior label", () => {
+    const wb = buildExcelWorkbook(pairStatements(), undefined, pairEnvelopes());
+    const header = sheetRows(wb, "Ratios")[0];
+    expect(header[2]).toBe(servedRatioPair().ratios.current_label);
+    expect(header[3], "the prior column heading").toBe(servedRatioPair().ratios.prior_label);
+    expect(header.slice(4, 8)).toEqual(MOVEMENT_COLUMNS);
+    expect(header[3]).not.toBe("—");
   });
 });

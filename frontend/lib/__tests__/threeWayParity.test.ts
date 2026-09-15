@@ -261,6 +261,13 @@ function printedFigureText(doc: Document): string {
   take("table.fin td");
   take("table.chart-table td");
   take(".ratio-card .value");
+  // The six columns each ratio card carries when a served two-period table
+  // reached the export (B7). `table.fin td` already collects them today;
+  // they are named here too, so moving the card table off the `fin` class
+  // cannot silently take the prior, change and movement cells out of what
+  // must survive into the PDF.
+  take(".ratio-card .ratio-cmp td.num");
+  take("table.ratio-cmp-served-only td.num");
   take(".rec");
   return parts.join(" ").replace(/\s+/g, " ");
 }

@@ -110,12 +110,22 @@ describe("executive summary — six tiles, each carrying its comparative", () =>
       "No comparatives — position report, not performance report",
     );
     for (const tile of es.tiles) {
+      // A RATIO tile (equity ratio, net debt / EBITDA) carries no
+      // comparative line: its prior and change are the engine's served
+      // two-period row, and with no served table it states why (B7).
+      if (tile.ratio) {
+        expect(tile.line, `${book}/${tile.key} computes a ratio comparative again`).toBeNull();
+        expect(tile.ratio.row, `${book}/${tile.key}`).toBeNull();
+        expect(tile.ratio.absence, `${book}/${tile.key} states no reason`).toBeTruthy();
+        continue;
+      }
       expect(tile.line, `${book}/${tile.key} has no comparative line at all`).not.toBeNull();
       for (const kind of ["prior_period", "prior_year"] as const) {
         expect(tile.line!.vs[kind].absolute, `${book}/${tile.key}/${kind}`).toBeNull();
         expect(tile.line!.vs[kind].unavailable, `${book}/${tile.key}/${kind}`).toBeTruthy();
       }
     }
+    expect(es.tiles.filter((t) => t.ratio !== null).map((t) => t.key)).toEqual(["equity_ratio", "net_debt_ebitda"]);
   });
 
   it.each(BOOKS)("%s: the tile still carries the CURRENT figure", (book: Book) => {
