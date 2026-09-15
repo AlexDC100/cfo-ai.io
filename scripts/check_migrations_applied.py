@@ -40,8 +40,7 @@ so a single-process check would have to pretend one of those is true.
 
     # end to end, from the repo, probing through the container
     python3 scripts/check_migrations_applied.py --emit \
-      | ssh root@HOST 'docker exec -i cfo-ai-backend python3 - --probe' \
-      < /dev/stdin
+      | ssh root@HOST 'docker exec -i cfo-ai-backend python3 /app/scripts/check_migrations_applied.py --probe'
 
 Or, simplest, the one-liner the deploy runs:
     scripts/check_migrations_applied.sh
