@@ -34,7 +34,7 @@ repository (ruling Q10 — no client book or served capture is committed).
           --out /private/tmp/…/scratchpad/harness
 
   Writes period_current.json, period_prior.json, comparatives.json and
-  periods_list.json into --out (the hermetic Playwright harness serves them),
+  periods_list.json (synthesised in the periods-with-documents shape) into --out (the hermetic Playwright harness serves them),
   and prints the prior Altman Z'', composite and letter the route served.
 
 Run with PYTHONPATH=src and CFO_AI_SKIP_BOOT_VERIFY=1.
@@ -45,7 +45,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
@@ -73,6 +73,10 @@ def _corpus(check: bool) -> int:
     return 0
 
 
+def _period_uuid(period_end: str) -> str:
+    return "11111111-1111-4111-8111-%012d" % int(period_end.replace("-", ""))
+
+
 def _outside_repo(out: Path) -> bool:
     try:
         out.resolve().relative_to(REPO.resolve())
@@ -90,8 +94,10 @@ def _local(args: argparse.Namespace) -> int:
     import _real_app_comparatives as RA
     import firm_postgrest_double as D
 
-    cur_id = "period-%s" % args.current_end
-    pri_id = "period-%s" % args.prior_end
+    # UUID-shaped ids (the dashboard reads `?period=` as a period uuid),
+    # stable per period end so a re-capture keeps the harness's URLs.
+    cur_id = _period_uuid(args.current_end)
+    pri_id = _period_uuid(args.prior_end)
     books = []
     for path, end, pid in ((Path(args.current), args.current_end, cur_id),
                            (Path(args.prior), args.prior_end, pri_id)):
@@ -124,13 +130,19 @@ def _local(args: argparse.Namespace) -> int:
             return 1
         comparatives = resp.json()
     out.mkdir(parents=True, exist_ok=True)
-    periods: List[Dict[str, Optional[str]]] = [
-        {"period_id": cur_id, "period_start": args.current_end[:4] + "-01-01", "period_end": args.current_end},
-        {"period_id": pri_id, "period_start": args.prior_end[:4] + "-01-01", "period_end": args.prior_end},
-    ]
+    # The period picker's list, in GET /api/org/periods-with-documents'
+    # shape but SYNTHESISED here: that route also reads documents, SKU and
+    # public-record tables this world does not seed. It carries ids and
+    # dates only, no figure.
+    periods_list = {"recently_deleted": [], "periods": [
+        {"period_id": pid, "period_label": end, "period_start": end[:4] + "-01-01", "period_end": end,
+         "is_active": True,
+         "documents": [{"id": "doc-%s" % end[:4], "filename": Path(path).name, "is_active": True,
+                        "status": "analyzed", "scope": "financial"}]}
+        for pid, end, path in ((cur_id, args.current_end, args.current), (pri_id, args.prior_end, args.prior))]}
     files = dict(bodies)
     files["comparatives.json"] = comparatives
-    files["periods_list.json"] = {"periods": periods}
+    files["periods_list.json"] = periods_list
     for name, doc in files.items():
         (out / name).write_text(json.dumps(doc, ensure_ascii=False, allow_nan=False), encoding="utf-8")
         print("wrote %s" % (out / name))
