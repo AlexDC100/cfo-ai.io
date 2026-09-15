@@ -86,6 +86,7 @@ export function ImpactRow({
     ? null
     : formatSignedDimensionless(impact.delta, impact.unit, {
         daysWord: t("fnd.units.days"),
+        dayWord: t("fnd.units.day"),
         pointsWord: t("fnd.units.points"),
       });
 
