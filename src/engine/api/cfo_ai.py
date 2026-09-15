@@ -206,7 +206,9 @@ def create_cfo_router(
         else:
             persisted = fresh_recs[:20]
 
-        # Aggregate financials
+        # Aggregate financials. capital_trapped_kron is always a float from
+        # run_pipeline (NIV*DIO/365), so `or 0.0` never stands in for an
+        # absent value; capital_freed_kron sums only the estimates that exist.
         total_capital_trapped = sum(
             (m.capital_trapped_kron or 0.0) for m in cat_metrics
         )

@@ -171,9 +171,14 @@ def _executive_summary(
     sku_count: Optional[int],
 ) -> Dict[str, Any]:
     """The CFO-facing summary block for the Today page."""
+    # Not a floor: pipeline.compute_category_metrics always sets
+    # capital_trapped_kron to NIV*DIO/365, so the `or` re-derives the same
+    # formula (a measured 0.0 re-derives 0.0).
     total_capital_trapped = sum(
         m.capital_trapped_kron or (m.niv_kron * m.dio_days / 365.0) for m in metrics
     )
+    # Sums the freed-capital ESTIMATES that exist (pipeline sets one for
+    # ELIMINATE only); a decision without an estimate adds nothing.
     cash_recovery = sum(
         d.capital_freed_kron or 0.0
         for d in decisions
