@@ -7502,30 +7502,8 @@ def build_router() -> APIRouter:
                 and _serve_rows is not None):
             served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
                 metrics or [], _serve_rows)
-            _cb = ratio_table_block["credit"]
-            _alt = _cb.get("altman") or {}
-            assembled_metrics_envelope["credit"] = {
-                "altman_z_score": _alt.get("z"),
-                "altman_variant": "Z\"",
-                "altman_components": {x: _alt.get(x) for x in ("x1", "x2", "x3", "x4")},
-                "altman_zone": _alt.get("zone"),
-                "composite_score": _cb.get("composite"),
-                "letter_grade": _cb.get("letter"),
-                "letter_grade_bands": _cb.get("ladder"),
-                "composite_weights": _cb.get("weights"),
-                # Why each absent sub-score is absent, and the model table
-                # the weights above were renormalised from — without these
-                # the FE could only print a bare "not reported" beside a
-                # refused row, or reach for a model weight it never carried.
-                "refused_subscores": _cb.get("refused_subscores"),
-                "model_weights": _cb.get("model_weights"),
-                "subscores": _cb.get("subscores"),
-                "credit_model_revision": _cb.get("revision"),
-                "basis": "serve",
-                "reason": _cb.get("reason"),
-                "as_filed": _cb.get("as_filed"),
-                "as_filed_differs": _cb.get("as_filed_differs"),
-            }
+            assembled_metrics_envelope["credit"] = _credit_model.serve_credit_envelope(
+                ratio_table_block["credit"])
 
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract

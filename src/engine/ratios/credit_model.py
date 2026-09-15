@@ -811,3 +811,34 @@ def credit_block(
             "credit_model_revision": int(f_rev) if f_rev is not None else "unknown",
         }
     return block
+
+
+def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
+    """The GET /api/period `assembled_metrics.credit` envelope for a period
+    whose serve-time model ran, projected from its `credit_block` — the one
+    builder, so the route and every captured FE fixture carry the same
+    shape. `composite_weights` are the weights the composite multiplied by
+    (renormalised when a sub-score refused); `refused_subscores` says why
+    each absent sub-score is absent and `model_weights` names the table the
+    weights were renormalised from — without them the FE could only print a
+    bare "not reported" beside a refused row, or reach for a model weight
+    the composite never carried."""
+    alt = block.get("altman") or {}
+    return {
+        "altman_z_score": alt.get("z"),
+        "altman_variant": "Z\"",
+        "altman_components": {x: alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+        "altman_zone": alt.get("zone"),
+        "composite_score": block.get("composite"),
+        "letter_grade": block.get("letter"),
+        "letter_grade_bands": block.get("ladder"),
+        "composite_weights": block.get("weights"),
+        "refused_subscores": block.get("refused_subscores"),
+        "model_weights": block.get("model_weights"),
+        "subscores": block.get("subscores"),
+        "credit_model_revision": block.get("revision"),
+        "basis": "serve",
+        "reason": block.get("reason"),
+        "as_filed": block.get("as_filed"),
+        "as_filed_differs": block.get("as_filed_differs"),
+    }
