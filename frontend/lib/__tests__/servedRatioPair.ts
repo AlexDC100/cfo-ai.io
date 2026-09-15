@@ -91,6 +91,12 @@ export interface ServedCorpusPairs {
   prior_label: string;
   books: Record<Book, { credit_envelope: CreditEnvelope | null; piotroski_envelope: PiotroskiEnvelope | null }>;
   pairs: Record<string, RatioComparisonV1>;
+  /** The agras|carniprod block with its top surfaced crossing's subject
+   *  line items removed, so the COMPOSER demotes it on `subject`
+   *  (`build_demoted_planted`): no corpus pair demotes a crossing
+   *  naturally since the R2b rulings, and the "listed as a check" path
+   *  needs a real demoted row to render. */
+  demoted_planted: { pair: string; planted_key: string; ratios: RatioComparisonV1 };
 }
 
 let corpusCache: ServedCorpusPairs | null = null;

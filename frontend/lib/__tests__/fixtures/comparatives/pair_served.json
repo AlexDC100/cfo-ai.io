@@ -2734,7 +2734,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 1
+    "value": 2
    }
   ],
   "prior_statements": {
@@ -7442,8 +7442,8 @@
     ],
     "findings": [
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 12,991,048. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 12,991,048. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -7466,7 +7466,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -7619,21 +7619,21 @@
       "title_template": "Return on invested capital on 711 / 7015.01 / 1012.01 at 47.1% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2813.01 (Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2813.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from RON 3,931,911 to RON 7,533,676. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2813.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2813.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2813.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2813.01 (Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2813.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2813.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2813.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2813.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from RON 3,931,911 to RON 7,533,676. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
         "steps": [
          {
-          "artefact": "two-period balance listing for accounts 711, 7015.01, 2813.01",
+          "artefact": "two-period balance listing for accounts 711, 7015.01, 2131.01",
           "horizon": "before the next board pack",
           "imperative": "Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger",
           "lang": "en",
           "provider": "the financial controller"
          },
          {
-          "artefact": "list of non-recurring entries on accounts 711, 7015.01, 2813.01 in Dec 2025",
+          "artefact": "list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025",
           "horizon": null,
           "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
           "lang": "en",
@@ -7643,7 +7643,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -7671,7 +7671,7 @@
          "line_refs": [
           "711",
           "7015.01",
-          "2813.01"
+          "2131.01"
          ],
          "period_id": "period-agras-fy2025",
          "prior_period_id": "period-carniprod-fy2024",
@@ -7707,12 +7707,12 @@
          },
          {
           "bucket": "ppe",
-          "code": "2813.01",
-          "name": "Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27",
+          "code": "2131.01",
+          "name": "Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13",
           "statement": "BS"
          }
         ],
-        "scope": "Return on assets on 711 / 7015.01 / 2813.01"
+        "scope": "Return on assets on 711 / 7015.01 / 2131.01"
        },
        "threshold": {
         "comparator": ">=",
@@ -7738,7 +7738,7 @@
         ],
         "profile_id": "inventory_operator",
         "profile_label": "mid-size inventory-heavy operator",
-        "rationale": "For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2813.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
+        "rationale": "For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
         "signals": [
          "bank_debt",
          "fx_exposure",
@@ -7792,12 +7792,12 @@
       },
       "source_currency": "RON",
       "surfaced": true,
-      "title": "Return on assets on 711 / 7015.01 / 2813.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator",
-      "title_template": "Return on assets on 711 / 7015.01 / 2813.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator"
+      "title": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator",
+      "title_template": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from RON 4,784,817 to RON 7,533,676. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from RON 4,784,817 to RON 7,533,676. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -7820,7 +7820,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -7973,8 +7973,8 @@
       "title_template": "Return on equity on 711 / 7015.01 / 1012.01 at 31.5% — at or above the 20.0% strong rung of return on equity for mid-size inventory-heavy operator"
      },
      {
-      "body": "5121.07 (Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52), 5311.09 (Cdod Ledxrxt Lfcgdp 6044.59), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash ratio in Dec 2024 — 0.59×; cash ratio in Dec 2025 — 0.09×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 5121.07, 5311.09, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_cash_ratio fires when watch rung of cash ratio is below 0.10×; observed 0.09×. Impact: the numerator of cash ratio at the watch rung, versus as held moves from RON 1,301,298 to RON 1,168,047. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: cash ratio on 5121.07 / 5311.09 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the cash ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 5121.07, 5311.09, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash ratio to the watch rung — headroom schedule for the numerator and the denominator of cash ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "5121.07 (Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52), 5311.09 (Cdod Ledxrxt Lfcgdp 6044.59), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash ratio in Dec 2024 — 0.59×; cash ratio in Dec 2025 — 0.09×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 5121.07, 5311.09, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_cash_ratio fires when watch rung of cash ratio is below 0.10×; observed 0.09×. Impact: the numerator of cash ratio at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: cash ratio on 5121.07 / 5311.09 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the cash ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 5121.07, 5311.09, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash ratio to the watch rung — headroom schedule for the numerator and the denominator of cash ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "5121.07 (Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52), 5311.09 (Cdod Ledxrxt Lfcgdp 6044.59), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash ratio in Dec 2024 — 0.59×; cash ratio in Dec 2025 — 0.09×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 5121.07, 5311.09, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_cash_ratio fires when watch rung of cash ratio is below 0.10×; observed 0.09×. Impact: the numerator of cash ratio at the watch rung, versus as held moves from RON 1,301,298 to RON 1,168,047. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: cash ratio on 5121.07 / 5311.09 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the cash ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 5121.07, 5311.09, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash ratio to the watch rung — headroom schedule for the numerator and the denominator of cash ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "5121.07 (Xsvtalk xf nfvck kv xzk LEHKTEHEVH 9878.52), 5311.09 (Cdod Ledxrxt Lfcgdp 6044.59), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash ratio in Dec 2024 — 0.59×; cash ratio in Dec 2025 — 0.09×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 5121.07, 5311.09, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_cash_ratio fires when watch rung of cash ratio is below 0.10×; observed 0.09×. Impact: the numerator of cash ratio at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: cash ratio on 5121.07 / 5311.09 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the cash ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 5121.07, 5311.09, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash ratio to the watch rung — headroom schedule for the numerator and the denominator of cash ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "liquidity",
       "contract_elements": {
        "action": {
@@ -7997,7 +7997,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -8150,21 +8150,21 @@
       "title_template": "Cash ratio on 5121.07 / 5311.09 / 401.01 at 0.09× — below the 0.10× watch rung of cash ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": "7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329), 2813.01 (Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27): asset turnover in Dec 2024 — 0.79×; asset turnover in Dec 2025 — 3.02×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 7015.01, 707.093, 2813.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_asset_turnover fires when strong rung of asset turnover is at or above 1.50×; observed 3.02×. Impact: the numerator of asset turnover at the strong rung, versus as held moves from RON 58,978,671 to RON 118,576,820. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2813.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the asset turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 7015.01, 707.093, 2813.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 7015.01, 707.093, 2813.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329), 2813.01 (Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27): asset turnover in Dec 2024 — 0.79×; asset turnover in Dec 2025 — 3.02×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 7015.01, 707.093, 2813.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_asset_turnover fires when strong rung of asset turnover is at or above 1.50×; observed 3.02×. Impact: the numerator of asset turnover at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2813.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the asset turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 7015.01, 707.093, 2813.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 7015.01, 707.093, 2813.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): asset turnover in Dec 2024 — 0.79×; asset turnover in Dec 2025 — 3.02×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 7015.01, 707.093, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_asset_turnover fires when strong rung of asset turnover is at or above 1.50×; observed 3.02×. Impact: the numerator of asset turnover at the strong rung, versus as held moves from RON 58,978,671 to RON 118,576,820. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2131.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the asset turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 7015.01, 707.093, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 7015.01, 707.093, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): asset turnover in Dec 2024 — 0.79×; asset turnover in Dec 2025 — 3.02×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 7015.01, 707.093, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_asset_turnover fires when strong rung of asset turnover is at or above 1.50×; observed 3.02×. Impact: the numerator of asset turnover at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2131.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the asset turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 7015.01, 707.093, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 7015.01, 707.093, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
         "steps": [
          {
-          "artefact": "two-period balance listing for accounts 7015.01, 707.093, 2813.01",
+          "artefact": "two-period balance listing for accounts 7015.01, 707.093, 2131.01",
           "horizon": "before the next board pack",
           "imperative": "Reconcile the asset turnover movement from Dec 2024 to Dec 2025 to the ledger",
           "lang": "en",
           "provider": "the financial controller"
          },
          {
-          "artefact": "list of non-recurring entries on accounts 7015.01, 707.093, 2813.01 in Dec 2025",
+          "artefact": "list of non-recurring entries on accounts 7015.01, 707.093, 2131.01 in Dec 2025",
           "horizon": null,
           "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
           "lang": "en",
@@ -8174,7 +8174,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -8202,7 +8202,7 @@
          "line_refs": [
           "7015.01",
           "707.093",
-          "2813.01"
+          "2131.01"
          ],
          "period_id": "period-agras-fy2025",
          "prior_period_id": "period-carniprod-fy2024",
@@ -8238,12 +8238,12 @@
          },
          {
           "bucket": "ppe",
-          "code": "2813.01",
-          "name": "Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27",
+          "code": "2131.01",
+          "name": "Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13",
           "statement": "BS"
          }
         ],
-        "scope": "Asset turnover on 7015.01 / 707.093 / 2813.01"
+        "scope": "Asset turnover on 7015.01 / 707.093 / 2131.01"
        },
        "threshold": {
         "comparator": ">=",
@@ -8269,7 +8269,7 @@
         ],
         "profile_id": "inventory_operator",
         "profile_label": "mid-size inventory-heavy operator",
-        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2813.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
+        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; asset turnover on 7015.01 / 707.093 / 2131.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
         "signals": [
          "bank_debt",
          "fx_exposure",
@@ -8323,12 +8323,12 @@
       },
       "source_currency": "RON",
       "surfaced": true,
-      "title": "Asset turnover on 7015.01 / 707.093 / 2813.01 at 3.02× — at or above the 1.50× strong rung of asset turnover for mid-size inventory-heavy operator",
-      "title_template": "Asset turnover on 7015.01 / 707.093 / 2813.01 at 3.02× — at or above the 1.50× strong rung of asset turnover for mid-size inventory-heavy operator"
+      "title": "Asset turnover on 7015.01 / 707.093 / 2131.01 at 3.02× — at or above the 1.50× strong rung of asset turnover for mid-size inventory-heavy operator",
+      "title_template": "Asset turnover on 7015.01 / 707.093 / 2131.01 at 3.02× — at or above the 1.50× strong rung of asset turnover for mid-size inventory-heavy operator"
      },
      {
-      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,760,492 to RON 7,554,835. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,760,492 to RON 7,554,835. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
@@ -8351,7 +8351,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -8504,8 +8504,8 @@
       "title_template": "Days payables outstanding on 401.01 / 401.110 / 601.201 at 27 days — below the 45 days healthy rung of days payables outstanding for mid-size inventory-heavy operator"
      },
      {
-      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): quick ratio in Dec 2024 — 1.23×; quick ratio in Dec 2025 — 0.74×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_quick_ratio fires when healthy rung of quick ratio is below 1.00×; observed 0.74×. Impact: the numerator of quick ratio at the healthy rung, versus as held moves from RON 13,012,977 to RON 9,681,432. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: quick ratio on 4111.01 / 4111.10 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the quick ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns quick ratio to the healthy rung — headroom schedule for the numerator and the denominator of quick ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): quick ratio in Dec 2024 — 1.23×; quick ratio in Dec 2025 — 0.74×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_quick_ratio fires when healthy rung of quick ratio is below 1.00×; observed 0.74×. Impact: the numerator of quick ratio at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: quick ratio on 4111.01 / 4111.10 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the quick ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns quick ratio to the healthy rung — headroom schedule for the numerator and the denominator of quick ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): quick ratio in Dec 2024 — 1.23×; quick ratio in Dec 2025 — 0.74×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_quick_ratio fires when healthy rung of quick ratio is below 1.00×; observed 0.74×. Impact: the numerator of quick ratio at the healthy rung, versus as held moves from RON 13,012,977 to RON 9,681,432. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: quick ratio on 4111.01 / 4111.10 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the quick ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns quick ratio to the healthy rung — headroom schedule for the numerator and the denominator of quick ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): quick ratio in Dec 2024 — 1.23×; quick ratio in Dec 2025 — 0.74×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_quick_ratio fires when healthy rung of quick ratio is below 1.00×; observed 0.74×. Impact: the numerator of quick ratio at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: quick ratio on 4111.01 / 4111.10 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the quick ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns quick ratio to the healthy rung — headroom schedule for the numerator and the denominator of quick ratio, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "liquidity",
       "contract_elements": {
        "action": {
@@ -8528,7 +8528,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -8681,8 +8681,8 @@
       "title_template": "Quick ratio on 4111.01 / 4111.10 / 401.01 at 0.74× — below the 1.00× healthy rung of quick ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): net margin in Dec 2024 — 1.4%; net margin in Dec 2025 — 6.3%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_net_margin fires when watch rung of net margin is at or above 3.0%; observed 6.3%. Impact: the numerator of net margin at the watch rung, versus as held moves from RON 3,557,305 to RON 7,529,628. For a mid-size inventory-heavy operator, net margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the net margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): net margin in Dec 2024 — 1.4%; net margin in Dec 2025 — 6.3%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_net_margin fires when watch rung of net margin is at or above 3.0%; observed 6.3%. Impact: the numerator of net margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, net margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the net margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): net margin in Dec 2024 — 1.4%; net margin in Dec 2025 — 6.3%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_net_margin fires when watch rung of net margin is at or above 3.0%; observed 6.3%. Impact: the numerator of net margin at the watch rung, versus as held moves from RON 3,557,305 to RON 7,529,628. For a mid-size inventory-heavy operator, net margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the net margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): net margin in Dec 2024 — 1.4%; net margin in Dec 2025 — 6.3%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_net_margin fires when watch rung of net margin is at or above 3.0%; observed 6.3%. Impact: the numerator of net margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, net margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the net margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -8705,7 +8705,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -8858,8 +8858,8 @@
       "title_template": "Net margin on 711 / 7015.01 / 707.093 at 6.3% — at or above the 3.0% watch rung of net margin for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 5.9%; operating margin in Dec 2025 — 13.0%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_operating_margin fires when healthy rung of operating margin is at or above 10.0%; observed 13.0%. Impact: the numerator of operating margin at the healthy rung, versus as held moves from RON 11,857,682 to RON 15,462,417. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 5.9%; operating margin in Dec 2025 — 13.0%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_operating_margin fires when healthy rung of operating margin is at or above 10.0%; observed 13.0%. Impact: the numerator of operating margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 5.9%; operating margin in Dec 2025 — 13.0%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_operating_margin fires when healthy rung of operating margin is at or above 10.0%; observed 13.0%. Impact: the numerator of operating margin at the healthy rung, versus as held moves from RON 11,857,682 to RON 15,462,417. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 5.9%; operating margin in Dec 2025 — 13.0%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_operating_margin fires when healthy rung of operating margin is at or above 10.0%; observed 13.0%. Impact: the numerator of operating margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -8882,7 +8882,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -9035,8 +9035,8 @@
       "title_template": "Operating margin on 711 / 7015.01 / 707.093 at 13.0% — at or above the 10.0% healthy rung of operating margin for mid-size inventory-heavy operator"
      },
      {
-      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41): days sales outstanding in Dec 2024 — 40 days; days sales outstanding in Dec 2025 — 26 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 7015.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dso fires when strong rung of days sales outstanding is at or below 30 days; observed 26 days. Impact: the numerator of days sales outstanding at the strong rung, versus as held moves from RON 9,746,040 to RON 8,513,385. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days sales outstanding on 4111.01 / 4111.10 / 7015.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days sales outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 7015.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4111.01, 4111.10, 7015.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41): days sales outstanding in Dec 2024 — 40 days; days sales outstanding in Dec 2025 — 26 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 7015.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dso fires when strong rung of days sales outstanding is at or below 30 days; observed 26 days. Impact: the numerator of days sales outstanding at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days sales outstanding on 4111.01 / 4111.10 / 7015.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days sales outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 7015.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4111.01, 4111.10, 7015.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41): days sales outstanding in Dec 2024 — 40 days; days sales outstanding in Dec 2025 — 26 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 7015.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dso fires when strong rung of days sales outstanding is at or below 30 days; observed 26 days. Impact: the numerator of days sales outstanding at the strong rung, versus as held moves from RON 9,746,040 to RON 8,513,385. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days sales outstanding on 4111.01 / 4111.10 / 7015.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days sales outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 7015.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4111.01, 4111.10, 7015.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41): days sales outstanding in Dec 2024 — 40 days; days sales outstanding in Dec 2025 — 26 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 4111.10, 7015.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dso fires when strong rung of days sales outstanding is at or below 30 days; observed 26 days. Impact: the numerator of days sales outstanding at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days sales outstanding on 4111.01 / 4111.10 / 7015.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days sales outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 7015.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4111.01, 4111.10, 7015.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
@@ -9059,7 +9059,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -9212,8 +9212,8 @@
       "title_template": "Days sales outstanding on 4111.01 / 4111.10 / 7015.01 at 26 days — at or below the 30 days strong rung of days sales outstanding for mid-size inventory-heavy operator"
      },
      {
-      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): current ratio in Dec 2024 — 1.82×; current ratio in Dec 2025 — 2.10×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_current_ratio fires when strong rung of current ratio is at or above 2.00×; observed 2.10×. Impact: the numerator of current ratio at the strong rung, versus as held moves from RON 26,025,954 to RON 27,371,337. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: current ratio on 4511.01 / 4111.01 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the current ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): current ratio in Dec 2024 — 1.82×; current ratio in Dec 2025 — 2.10×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_current_ratio fires when strong rung of current ratio is at or above 2.00×; observed 2.10×. Impact: the numerator of current ratio at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: current ratio on 4511.01 / 4111.01 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the current ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): current ratio in Dec 2024 — 1.82×; current ratio in Dec 2025 — 2.10×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_current_ratio fires when strong rung of current ratio is at or above 2.00×; observed 2.10×. Impact: the numerator of current ratio at the strong rung, versus as held moves from RON 26,025,954 to RON 27,371,337. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: current ratio on 4511.01 / 4111.01 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the current ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): current ratio in Dec 2024 — 1.82×; current ratio in Dec 2025 — 2.10×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_current_ratio fires when strong rung of current ratio is at or above 2.00×; observed 2.10×. Impact: the numerator of current ratio at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: current ratio on 4511.01 / 4111.01 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the current ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "liquidity",
       "contract_elements": {
        "action": {
@@ -9236,7 +9236,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -9389,19 +9389,9 @@
       "title_template": "Current ratio on 4511.01 / 4111.01 / 401.01 at 2.10× — at or above the 2.00× strong rung of current ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": null,
+      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 80.7. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 80.7. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.07 notches (+0.07 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 80.7. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 80.7. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.07 notches (+0.07 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
-      "check_summary": {
-       "comparator": ">=",
-       "fired": true,
-       "limit": 80.0,
-       "note": "demoted: impact: no impact supplied",
-       "observed": 80.7,
-       "parameter": "AA",
-       "profile_id": "inventory_operator",
-       "rule_id": "band_letter_grade",
-       "unit": "score"
-      },
       "contract_elements": {
        "action": {
         "steps": [
@@ -9423,14 +9413,14 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
         "comparison_basis": {
          "basis_unit": "score",
          "basis_value": 79.3,
-         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 1",
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2",
          "kind": "prior_period"
         },
         "figures": [
@@ -9459,7 +9449,18 @@
          "source": "assembled_canonical_v1"
         }
        },
-       "impact": null,
+       "impact": {
+        "adjusted": 0.07000000000000028,
+        "adjusted_fact": null,
+        "baseline": 0.0,
+        "baseline_fact": null,
+        "currency": null,
+        "delta": 0.07000000000000028,
+        "kind": "headroom",
+        "metric": "band_letter_grade",
+        "metric_label": "the credit composite against the AA rung, in notches of the 10.0-point band",
+        "unit": "notches"
+       },
        "subject": {
         "accounts": [
          {
@@ -9516,20 +9517,20 @@
         ]
        }
       },
-      "demoted": true,
-      "demotion_reasons": [
-       "impact: no impact supplied"
-      ],
+      "demoted": false,
+      "demotion_reasons": [],
       "direction": "improved",
+      "fact_units": {
+       "letter_grade__current": "unknown",
+       "letter_grade__prior": "unknown"
+      },
       "facts_cited": {
        "letter_grade__current": 80.7,
        "letter_grade__prior": 79.3
       },
       "finding_id": "band_letter_grade:A->AA",
       "lane": "c_bands",
-      "missing_elements": [
-       "impact"
-      ],
+      "missing_elements": [],
       "narrative_source": "deterministic",
       "profile_fingerprint": "c8f2df71eb5e40c9",
       "profile_id": "inventory_operator",
@@ -9556,12 +9557,13 @@
        }
       },
       "source_currency": "RON",
-      "surfaced": false,
-      "title": null
+      "surfaced": true,
+      "title": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 80.7 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator",
+      "title_template": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 80.7 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 9.6%; EBITDA margin in Dec 2025 — 15.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ebitda_margin fires when healthy rung of EBITDA margin is at or above 15.0%; observed 15.5%. Impact: the numerator of EBITDA margin at the healthy rung, versus as held moves from RON 17,786,523 to RON 18,414,980. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 9.6%; EBITDA margin in Dec 2025 — 15.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ebitda_margin fires when healthy rung of EBITDA margin is at or above 15.0%; observed 15.5%. Impact: the numerator of EBITDA margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 9.6%; EBITDA margin in Dec 2025 — 15.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ebitda_margin fires when healthy rung of EBITDA margin is at or above 15.0%; observed 15.5%. Impact: the numerator of EBITDA margin at the healthy rung, versus as held moves from RON 17,786,523 to RON 18,414,980. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 9.6%; EBITDA margin in Dec 2025 — 15.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ebitda_margin fires when healthy rung of EBITDA margin is at or above 15.0%; observed 15.5%. Impact: the numerator of EBITDA margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -9584,7 +9586,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -9737,19 +9739,9 @@
       "title_template": "EBITDA margin on 711 / 7015.01 / 707.093 at 15.5% — at or above the 15.0% healthy rung of EBITDA margin for mid-size inventory-heavy operator"
      },
      {
-      "body": null,
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 26 days; cash conversion cycle in Dec 2025 — 31 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 31 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,746,040 to RON 10,092,642. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 26 days; cash conversion cycle in Dec 2025 — 31 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 31 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
-      "check_summary": {
-       "comparator": ">",
-       "fired": true,
-       "limit": 30.0,
-       "note": "demoted: impact: no impact supplied",
-       "observed": 31.0669,
-       "parameter": "strong",
-       "profile_id": "inventory_operator",
-       "rule_id": "band_ccc",
-       "unit": "days"
-      },
       "contract_elements": {
        "action": {
         "steps": [
@@ -9771,7 +9763,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -9807,7 +9799,18 @@
          "source": "assembled_canonical_v1"
         }
        },
-       "impact": null,
+       "impact": {
+        "adjusted": 10092641.638558675,
+        "adjusted_fact": "band_numerator_held",
+        "baseline": 9746039.97041096,
+        "baseline_fact": "band_numerator_at_rung",
+        "currency": "RON",
+        "delta": 346601.6681477148,
+        "kind": "headroom",
+        "metric": "band_ccc",
+        "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
+        "unit": "money"
+       },
        "subject": {
         "accounts": [
          {
@@ -9864,20 +9867,24 @@
         ]
        }
       },
-      "demoted": true,
-      "demotion_reasons": [
-       "impact: no impact supplied"
-      ],
+      "demoted": false,
+      "demotion_reasons": [],
       "direction": "deteriorated",
+      "fact_units": {
+       "band_numerator_at_rung": "money",
+       "band_numerator_held": "money",
+       "ccc__current": "unknown",
+       "ccc__prior": "unknown"
+      },
       "facts_cited": {
+       "band_numerator_at_rung": 9746039.97041096,
+       "band_numerator_held": 10092641.638558675,
        "ccc__current": 31.0669,
        "ccc__prior": 25.9292
       },
       "finding_id": "band_ccc:strong->healthy",
       "lane": "c_bands",
-      "missing_elements": [
-       "impact"
-      ],
+      "missing_elements": [],
       "narrative_source": "deterministic",
       "profile_fingerprint": "c8f2df71eb5e40c9",
       "profile_id": "inventory_operator",
@@ -9894,7 +9901,7 @@
         "delta": "+5",
         "delta_unit": "days",
         "from": "strong",
-        "headroom_money": null,
+        "headroom_money": "346601.67",
         "label_key": "ratioTable.ccc.label",
         "prior_label": "Dec 2024",
         "prior_value": "26",
@@ -9904,12 +9911,13 @@
        }
       },
       "source_currency": "RON",
-      "surfaced": false,
-      "title": null
+      "surfaced": true,
+      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 31 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
+      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 31 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
      },
      {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 8.2%; core EBITDA margin in Dec 2025 — 15.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_core_ebitda_margin fires when healthy rung of core EBITDA margin is at or above 15.0%; observed 15.2%. Impact: the numerator of core EBITDA margin at the healthy rung, versus as held moves from RON 17,786,523 to RON 18,035,534. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 8.2%; core EBITDA margin in Dec 2025 — 15.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_core_ebitda_margin fires when healthy rung of core EBITDA margin is at or above 15.0%; observed 15.2%. Impact: the numerator of core EBITDA margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 8.2%; core EBITDA margin in Dec 2025 — 15.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_core_ebitda_margin fires when healthy rung of core EBITDA margin is at or above 15.0%; observed 15.2%. Impact: the numerator of core EBITDA margin at the healthy rung, versus as held moves from RON 17,786,523 to RON 18,035,534. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 8.2%; core EBITDA margin in Dec 2025 — 15.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_core_ebitda_margin fires when healthy rung of core EBITDA margin is at or above 15.0%; observed 15.2%. Impact: the numerator of core EBITDA margin at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the healthy rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "margin",
       "contract_elements": {
        "action": {
@@ -9932,7 +9940,7 @@
        },
        "confidence": {
         "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
         "level": "medium"
        },
        "evidence": {
@@ -10111,6 +10119,10 @@
        "numerator_statement": "income_statement"
       },
       "cash_ratio": {
+       "base": "total_assets",
+       "numerator_statement": "balance_sheet"
+      },
+      "ccc": {
        "base": "total_assets",
        "numerator_statement": "balance_sheet"
       },
@@ -10687,8 +10699,18 @@
       }
      ],
      "letter": "AA",
+     "model_weights": {
+      "altman": 0.3,
+      "coverage": 0.1,
+      "dscr": 0.1,
+      "equity": 0.05,
+      "leverage": 0.15,
+      "liquidity": 0.1,
+      "profitability": 0.2
+     },
      "reason": null,
-     "revision": 1,
+     "refused_subscores": {},
+     "revision": 2,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -10759,8 +10781,18 @@
       }
      ],
      "letter": "A",
+     "model_weights": {
+      "altman": 0.3,
+      "coverage": 0.1,
+      "dscr": 0.1,
+      "equity": 0.05,
+      "leverage": 0.15,
+      "liquidity": 0.1,
+      "profitability": 0.2
+     },
      "reason": null,
-     "revision": 1,
+     "refused_subscores": {},
+     "revision": 2,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -12641,7 +12673,12 @@
       "distance_fraction": "0.036",
       "distance_past_rung": "1",
       "from": "strong",
-      "materiality": null,
+      "materiality": {
+       "basis_key": "total_assets",
+       "basis_value": "39319114.09",
+       "headroom_money": "346601.67",
+       "share": "0.0088"
+      },
       "reason_code": null,
       "rung_crossed": {
        "name": "strong",
@@ -13201,7 +13238,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 1,
+     "credit_model_revision": 2,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -13227,7 +13264,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 1,
+     "credit_model_revision": 2,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -14026,7 +14063,7 @@
      "liquidity": 0.1,
      "profitability": 0.2
     },
-    "credit_model_revision": 1,
+    "credit_model_revision": 2,
     "letter_grade": "AA",
     "letter_grade_bands": [
      {
@@ -14062,7 +14099,17 @@
       "min": 0
      }
     ],
+    "model_weights": {
+     "altman": 0.3,
+     "coverage": 0.1,
+     "dscr": 0.1,
+     "equity": 0.05,
+     "leverage": 0.15,
+     "liquidity": 0.1,
+     "profitability": 0.2
+    },
     "reason": null,
+    "refused_subscores": {},
     "subscores": {
      "altman": 100.0,
      "coverage": 95.0,
@@ -14278,8 +14325,18 @@
       }
      ],
      "letter": "AA",
+     "model_weights": {
+      "altman": 0.3,
+      "coverage": 0.1,
+      "dscr": 0.1,
+      "equity": 0.05,
+      "leverage": 0.15,
+      "liquidity": 0.1,
+      "profitability": 0.2
+     },
      "reason": null,
-     "revision": 1,
+     "refused_subscores": {},
+     "revision": 2,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -15133,7 +15190,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 1,
+     "credit_model_revision": 2,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -15304,7 +15361,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 1
+    "value": 2
    }
   ],
   "deprecated_fields": [
@@ -16259,7 +16316,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 1
+    "value": 2
    }
   ],
   "organization": {

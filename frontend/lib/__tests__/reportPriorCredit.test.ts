@@ -141,7 +141,11 @@ describe("§0 the served pair has something to bite on", () => {
     expect(r.band_movements.deteriorated.length).toBeGreaterThan(0);
     expect(r.rows.some((row) => row.prior.value_q === null && row.current.value_q !== null)).toBe(true);
     expect(r.band_movements.not_comparable.length).toBeGreaterThan(0);
-    expect(r.band_movements.findings.some((f) => (f as { demoted?: boolean }).demoted === true)).toBe(true);
+    // A demoted crossing is no longer natural on any corpus pair (the R2b
+    // rulings gave every crossing an impact); the engine-planted variant
+    // carries one, and §8 renders over it.
+    const planted = servedCorpusPairs().demoted_planted.ratios;
+    expect(planted.band_movements.findings.some((f) => (f as { demoted?: boolean }).demoted === true)).toBe(true);
     expect(r.composites.map((c) => c.key)).toEqual(["altman_z", "credit_composite", "letter_grade"]);
     for (const c of r.composites) expect(c.prior.value_q, `${c.key} prior`).not.toBeNull();
   });
@@ -503,8 +507,15 @@ describe("§8 executive summary — band movement is the headline, in served ord
       Array.from(doc.querySelectorAll(`ul[data-band-list="${kind}"] li`)).map((li) => li.getAttribute("data-band-crossing"));
     expect(keys("improved")).toEqual(served.band_movements.improved);
     expect(keys("deteriorated")).toEqual(served.band_movements.deteriorated);
+  });
+
+  it("a crossing the composer demoted stays listed, as a check naming what its finding is missing", () => {
+    const planted = servedCorpusPairs().demoted_planted.ratios;
+    const doc = reportDoc(planted);
+    const expected = planted.band_movements.findings.filter((f) => (f as { demoted?: boolean }).demoted).length;
+    expect(expected).toBeGreaterThan(0);
     const demoted = Array.from(doc.querySelectorAll('[data-finding-status="demoted"]'));
-    expect(demoted.length).toBe(served.band_movements.findings.filter((f) => (f as { demoted?: boolean }).demoted).length);
+    expect(demoted.length).toBe(expected);
     for (const li of demoted) expect(text(li)).toContain("listed as a check: the finding is missing");
   });
 

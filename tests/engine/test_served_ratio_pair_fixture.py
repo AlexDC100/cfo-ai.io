@@ -77,7 +77,20 @@ def test_the_pair_is_not_vacuous():
     doc = _capture_module().build()
     bm = doc["ratios"]["band_movements"]
     assert bm["improved"] and bm["deteriorated"], bm
-    assert any(f.get("demoted") for f in bm["findings"]), "no demoted crossing to list"
+    # The demoted crossing is PLANTED (build_demoted_planted), not natural:
+    # the R2b rulings gave every crossing an impact, so none demotes on
+    # this pair any more. The plant must demote its key (and only crossings
+    # sharing its subject buckets), on `subject`, and leave every movement
+    # list as served.
+    cap = _capture_module()
+    planted = cap.build_demoted_planted(doc["ratios"])
+    pbm = planted["ratios"]["band_movements"]
+    demoted = [f for f in pbm["findings"] if f.get("demoted")]
+    assert planted["planted_key"] in [f["ratio_key"] for f in demoted], demoted
+    assert all("subject" in f["missing_elements"] for f in demoted), demoted
+    assert len(demoted) < len(pbm["findings"]), "the plant demoted every crossing"
+    for bucket in ("improved", "deteriorated", "unchanged", "not_comparable"):
+        assert pbm[bucket] == bm[bucket], bucket
     assert all(c["prior"]["value_q"] is not None for c in doc["ratios"]["composites"])
     assert doc["current_label"] != doc["prior_label"]
     assert doc["current_credit_envelope"]["letter_grade"] is not None

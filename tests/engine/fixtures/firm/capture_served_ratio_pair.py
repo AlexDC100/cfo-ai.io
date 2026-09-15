@@ -61,14 +61,21 @@ CURRENT_BOOK, PRIOR_BOOK = "agras", "carniprod"
 CURRENT_LABEL, PRIOR_LABEL = "Dec 2025", "Dec 2024"
 
 
-def compose(current_book: str, prior_book: str) -> Dict[str, Any]:
+def compose(current_book: str, prior_book: str, drop_subject_of: str = "") -> Dict[str, Any]:
     """``compare_payloads`` over two served corpus bodies, labelled as two
-    distinguishable periods. Only labels, ids and period ends are set."""
+    distinguishable periods. Only labels, ids and period ends are set —
+    and, with ``drop_subject_of``, the current body's line items in that
+    ratio's subject buckets are removed (the demotion plant below)."""
     import _served_books as SB
     from engine.api import _comparatives as C
+    from engine.api.findings import c_bands as CB
 
     cur = SB.served_body(current_book)
     pri = SB.served_body(prior_book)
+    if drop_subject_of:
+        numerator, denominator = CB.SUBJECT_BUCKETS[drop_subject_of]
+        drop = set(numerator) | set(denominator)
+        cur["line_items"] = [li for li in cur.get("line_items") or [] if li.get("bucket") not in drop]
     for body, label, pid, end in ((cur, CURRENT_LABEL, "period-%s-dec2025" % current_book, "2025-12-31"),
                                   (pri, PRIOR_LABEL, "period-%s-dec2024" % prior_book, "2024-12-31")):
         body["statements"]["periodLabel"] = label
@@ -98,7 +105,23 @@ def build_all() -> Dict[str, Any]:
             if cur == pri:
                 continue
             pairs["%s|%s" % (cur, pri)] = compose(cur, pri)["doc"]["ratios"]
-    return {"current_label": CURRENT_LABEL, "prior_label": PRIOR_LABEL, "books": books, "pairs": pairs}
+    return {"current_label": CURRENT_LABEL, "prior_label": PRIOR_LABEL, "books": books, "pairs": pairs,
+            "demoted_planted": build_demoted_planted(pairs["%s|%s" % (CURRENT_BOOK, PRIOR_BOOK)])}
+
+
+def build_demoted_planted(natural: Dict[str, Any]) -> Dict[str, Any]:
+    """THE DEMOTED CROSSING, PLANTED BY THE ENGINE. Since the R2b rulings
+    (Q3 headroom impact) no corpus pair demotes a crossing naturally, so the
+    export gates' "listed as a check" path had nothing to render. The same
+    plant `test_comparatives_bands.py` uses: the pair's top surfaced
+    crossing loses its subject line items (the ratio still computes from
+    the canonical totals; its finding can name no account), and the
+    composer itself demotes it on `subject`. The whole served block is
+    kept, so finding ids and rows tie exactly as served."""
+    surfaced = [f["ratio_key"] for f in natural["band_movements"]["findings"] if f.get("surfaced")]
+    key = surfaced[0]
+    return {"pair": "%s|%s" % (CURRENT_BOOK, PRIOR_BOOK), "planted_key": key,
+            "ratios": compose(CURRENT_BOOK, PRIOR_BOOK, drop_subject_of=key)["doc"]["ratios"]}
 
 
 def build() -> Dict[str, Any]:
