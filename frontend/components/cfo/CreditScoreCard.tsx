@@ -37,9 +37,18 @@ import {
   type CreditScoreResult,
 } from "@/lib/financialValuation";
 
+type SubKey = "altman" | "profitability" | "leverage" | "coverage" | "dscr" | "liquidity" | "equity";
+
 export interface CreditScoreData {
   composite: number;          // 0-100
-  altmanZ: number;            // raw Z″
+  /** Raw Z″. NULL when the engine refused it (credit model revision 2:
+   *  total liabilities not positive, so X4 has no base) — the composite
+   *  beside it is still computed, over the other sub-scores, and the card
+   *  still renders; `altmanRefusal` says why there is no Z″. */
+  altmanZ: number | null;
+  /** The reader's sentence for a refused Altman sub-score; NULL when the
+   *  Z″ was scored (or is simply absent with no stated refusal). */
+  altmanRefusal: string | null;
   // ── THE LETTER, AND WHO MINTED IT ───────────────────────────────────
   //
   // ⚠ THIS CARD USED TO MINT ITS OWN. `compositeToGrade()` was a
@@ -106,6 +115,13 @@ export interface CreditScoreData {
     liquidity: number | null;
     equity: number | null;
   };
+  /** THE WEIGHT EACH BAR CARRIED, off the reader's rows — never a table
+   *  in this file. The bars printed a hardcoded 30/20/15/10/10/10/5 beside
+   *  a composite the engine had renormalised over five sub-scores. NULL on
+   *  a refused (or unreported) row. */
+  weights: Record<SubKey, number | null>;
+  /** The reader's refusal sentence per row; NULL on a scored row. */
+  refusals: Record<SubKey, string | null>;
 }
 
 // ── `compositeToGrade()` LIVED HERE AND IS DELETED ──────────────────
@@ -180,19 +196,30 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
   if (!result) return null;
   const composite = result.score;
   const altmanZ = result.altman.score;
-  // The card's headline is a composite AND a Z"; with either absent there
-  // is no card to draw, and the page states that instead. This is the one
-  // refusal it keeps, and it reads off the shared result rather than off a
-  // second set of operands.
-  if (composite === null || altmanZ === null) return null;
+  // THE HEADLINE IS THE COMPOSITE. It used to be "a composite AND a Z″",
+  // which was right while the engine always emitted both. Credit model
+  // revision 2 refuses Z″ on a book with no liabilities and still computes
+  // the composite over the other sub-scores, so that rule told /report's
+  // reader "Credit score not available — re-run the pipeline" while the
+  // dashboard hero and the exported report printed 97.5 / AAA for the same
+  // period. A refused Z″ is stated inside the card; only a period with no
+  // composite has no card.
+  if (composite === null) return null;
   const ladder = result.letterBands;
   const letter = result.rating;
   // The seven weighted rows, in the reader's own order.
   const [altman, profitability, leverage, coverage, dscr, liquidity, equity] =
     result.components;
+  const rows: Record<SubKey, CreditScoreResult["components"][number] | undefined> = {
+    altman, profitability, leverage, coverage, dscr, liquidity, equity,
+  };
+  const keys = Object.keys(rows) as SubKey[];
   return {
     composite,
     altmanZ,
+    altmanRefusal: altman?.refusal?.sentence ?? null,
+    weights: Object.fromEntries(keys.map((k) => [k, rows[k]?.weight ?? null])) as Record<SubKey, number | null>,
+    refusals: Object.fromEntries(keys.map((k) => [k, rows[k]?.refusal?.sentence ?? null])) as Record<SubKey, string | null>,
     letter,
     model: result.model,
     modelLabel: result.modelLabel,
@@ -241,7 +268,7 @@ interface Props {
 
 export function CreditScoreCard({ data }: Props) {
   const grade = data.letter;
-  const zone = altmanZone(data.altmanZ);
+  const zone = data.altmanZ === null ? null : altmanZone(data.altmanZ);
   /** The engine's ladder, spelled — by `spellLadder`, the ONE spelling of
    *  a band table in this product. It was spelled inline here (sort, map,
    *  join) and inline again in the printed document; two spellings of one
@@ -257,7 +284,7 @@ export function CreditScoreCard({ data }: Props) {
     : data.composite >= 50 ? "text-caution"
     : "text-alert";
 
-  const zoneLabel = zone === "safe" ? "Safe" : zone === "grey" ? "Grey" : "Distress";
+  const zoneLabel = zone === null ? null : zone === "safe" ? "Safe" : zone === "grey" ? "Grey" : "Distress";
   const zoneClass =
     zone === "safe" ? "bg-success-tint text-success border-transparent"
     : zone === "grey" ? "bg-caution-tint text-caution border-transparent"
@@ -307,7 +334,7 @@ export function CreditScoreCard({ data }: Props) {
             )}
           </div>
           <div className="mt-2 text-[12px] text-ink-soft">
-            Composite score · weighted average of 7 risk dimensions
+            Composite score · weighted average of the risk dimensions the model scored
           </div>
           {/* THE LETTER NEVER APPEARS WITHOUT ITS MODEL — the same rule
               the Risks tab, the hero card and the workbook already
@@ -319,14 +346,23 @@ export function CreditScoreCard({ data }: Props) {
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
             Altman Z″ score
           </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-mono tabular-nums text-[26px] font-medium text-ink">
-              <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
-            </span>
-            <span className={`text-[11px] uppercase tracking-[0.08em] font-medium px-2 py-0.5 rounded-md border ${zoneClass}`}>
-              {zoneLabel}
-            </span>
-          </div>
+          {data.altmanZ === null ? (
+            <div className="mt-1 max-w-[260px]" data-testid="report-altman-refused">
+              <span className="font-mono text-[15px] font-medium text-ink-mute">not scored</span>
+              <p className="mt-1 text-[11px] leading-snug text-ink-mute">
+                {data.altmanRefusal ?? "The engine reported no Altman Z″ for this period."}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-mono tabular-nums text-[26px] font-medium text-ink">
+                <LearnableNumber conceptKey="altman_z_score" value={data.altmanZ}>{data.altmanZ.toFixed(2)}</LearnableNumber>
+              </span>
+              <span className={`text-[11px] uppercase tracking-[0.08em] font-medium px-2 py-0.5 rounded-md border ${zoneClass}`}>
+                {zoneLabel}
+              </span>
+            </div>
+          )}
           {/* A Z″ COMPONENT THAT WAS NOT EMITTED IS NOT 0.00. `0.00` is a
               readable, plausible component value — a reader has no way to
               tell it from a measured one. */}
@@ -349,13 +385,25 @@ export function CreditScoreCard({ data }: Props) {
           Component breakdown
         </div>
         <div className="space-y-2">
-          <ScoreBar label="Altman Z″"          value={data.subscores.altman}        weight={30} />
-          <ScoreBar label="Profitability"      value={data.subscores.profitability} weight={20} />
-          <ScoreBar label="Leverage"           value={data.subscores.leverage}      weight={15} />
-          <ScoreBar label="Interest coverage"  value={data.subscores.coverage}      weight={10} />
-          <ScoreBar label="DSCR"               value={data.subscores.dscr}          weight={10} />
-          <ScoreBar label="Liquidity"          value={data.subscores.liquidity}     weight={10} />
-          <ScoreBar label="Equity ratio"       value={data.subscores.equity}        weight={5} />
+          {(
+            [
+              ["Altman Z″", "altman"],
+              ["Profitability", "profitability"],
+              ["Leverage", "leverage"],
+              ["Interest coverage", "coverage"],
+              ["DSCR", "dscr"],
+              ["Liquidity", "liquidity"],
+              ["Equity ratio", "equity"],
+            ] as Array<[string, SubKey]>
+          ).map(([label, key]) => (
+            <ScoreBar
+              key={key}
+              label={label}
+              value={data.subscores[key]}
+              weight={data.weights[key]}
+              refusal={data.refusals[key]}
+            />
+          ))}
         </div>
       </div>
     </section>
@@ -408,11 +456,16 @@ function ScoreBar({
   label,
   value,
   weight,
+  refusal,
 }: {
   label: string;
   value: number | null;
-  weight: number;
+  /** The weight the composite multiplied this row by, 0–1 — off the
+   *  reader. NULL on a refused or unreported row: no weight is printed. */
+  weight: number | null;
+  refusal: string | null;
 }) {
+  const weightText = weight === null ? "none" : `${Math.round(weight * 100)}%`;
   // AN UNMEASURED SUB-SCORE IS NOT A ZERO SCORE. No bar (an empty track
   // reads as "scored 0"), no number, and the neutral rule colour rather
   // than the distress red the `< 50` branch would otherwise pick.
@@ -421,11 +474,18 @@ function ScoreBar({
       <div
         className="grid grid-cols-[140px_1fr_56px_44px] items-center gap-3 text-[12px]"
         data-testid={`score-bar-absent-${label}`}
+        data-weight={weight === null ? "none" : String(weight)}
+        title={refusal ?? undefined}
       >
         <div className="text-ink-mute">{label}</div>
         <div className="h-1.5 rounded-full bg-bg-2 overflow-hidden" aria-hidden />
-        <div className="text-right text-[11px] text-ink-mute">not scored</div>
-        <div className="text-right text-[11px] text-ink-mute tabular-nums">{weight}%</div>
+        <div className="text-right text-[11px] text-ink-mute">{refusal ? "refused" : "not scored"}</div>
+        <div className="text-right text-[11px] text-ink-mute tabular-nums">{weightText}</div>
+        {refusal ? (
+          <div className="col-span-4 -mt-1 text-[10.5px] leading-snug text-ink-mute" data-testid={`score-bar-refusal-${label}`}>
+            {refusal}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -441,7 +501,7 @@ function ScoreBar({
         <div className={`h-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <div className="text-right text-ink tabular-nums">{Math.round(value)}</div>
-      <div className="text-right text-[11px] text-ink-mute tabular-nums">{weight}%</div>
+      <div className="text-right text-[11px] text-ink-mute tabular-nums" data-weight={weight === null ? "none" : String(weight)}>{weightText}</div>
     </div>
   );
 }

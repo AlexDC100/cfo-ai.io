@@ -4156,9 +4156,9 @@ export function renderReportHtml(
         (c) => `<tr>
           <td>${escapeHtml(c.label)}</td>
           <td class="num">${escapeHtml(c.value === null ? UNREPORTED_WORD : c.value.toFixed(2))}</td>
-          <td class="num">${escapeHtml(c.weight === null ? UNREPORTED_WORD : `${(c.weight * 100).toFixed(0)}%`)}</td>
+          <td class="num">${escapeHtml(c.weight === null ? (c.refusal ? "refused" : UNREPORTED_WORD) : `${(c.weight * 100).toFixed(0)}%`)}</td>
           <td class="num">${escapeHtml(c.contribution === null ? UNREPORTED_WORD : c.contribution.toFixed(1))}</td>
-          <td>${escapeHtml(c.read ?? UNREPORTED_WORD)}</td>
+          <td>${escapeHtml(c.read ?? c.refusal?.sentence ?? UNREPORTED_WORD)}</td>
         </tr>`,
       )
       .join("");

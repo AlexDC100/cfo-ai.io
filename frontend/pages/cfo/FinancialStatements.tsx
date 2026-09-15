@@ -6269,10 +6269,10 @@ export function RisksPanel({
                     {num(c.value, 2)}
                   </td>
                   <td className="py-2 px-4 text-right font-mono tabular-nums text-ink-soft">
-                    {c.weight === null ? unavail : `${(c.weight * 100).toFixed(0)}%`}
+                    {c.weight === null ? (c.refusal ? "refused" : unavail) : `${(c.weight * 100).toFixed(0)}%`}
                   </td>
                   <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{num(c.contribution, 1)}</td>
-                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read ?? unavail}</td>
+                  <td className="py-2 px-4 text-ink-soft text-[12px]">{c.read ?? c.refusal?.sentence ?? unavail}</td>
                 </tr>
               ))}
             </tbody>

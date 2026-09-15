@@ -450,13 +450,15 @@ export function creditContributions(i: ChartInputs): ChartBlock {
       // `Term:` says what the figure is: a term of the composite.
       label: `Term: ${c.label}`,
       value: c.contribution,
-      printed: c.contribution === null ? "not reported" : c.contribution.toFixed(1),
+      printed: c.contribution === null ? (c.refusal ? "refused" : "not reported") : c.contribution.toFixed(1),
       ceiling,
-      ceilingPrinted: ceiling === null ? "not reported" : ceiling.toFixed(1),
+      ceilingPrinted: ceiling === null ? (c.refusal ? "no weight" : "not reported") : ceiling.toFixed(1),
       // The CEILING is drawn on the bar ("of 20.0"), so it has to be
       // printed in a table too — the same law every other figure obeys.
       source:
-        c.weight === null
+        c.refusal
+          ? `not scored, no weight: ${c.refusal.sentence}`
+          : c.weight === null
           ? "weight not reported"
           : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)}`,
       breach: c.contribution !== null && ceiling !== null && ceiling > 0 && c.contribution / ceiling < 0.34,
@@ -472,7 +474,7 @@ export function creditContributions(i: ChartInputs): ChartBlock {
     svg: contributionBars("chart-credit-contrib", title, rows),
     rows,
     table: rowsTable(rows, "points"),
-    caption: `The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute. ${lost.toFixed(1)} points of the composite were given up across the seven terms, and the marked rows are the ones that gave up more than two-thirds of their own ceiling.`,
+    caption: `The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute. ${lost.toFixed(1)} points of the composite were given up across the ${rows.filter((r) => r.ceiling !== null).length} weighted terms, and the marked rows are the ones that gave up more than two-thirds of their own ceiling.`,
   };
 }
 
