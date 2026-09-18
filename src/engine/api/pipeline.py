@@ -5329,6 +5329,9 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                 "equity_value": f("dcf_equity_value"),
                 "sensitivity_low": f("dcf_sensitivity_low"),
                 "sensitivity_high": f("dcf_sensitivity_high"),
+                # Why the DCF refused ([] when it computed; None on the
+                # legacy persisted-row path, which carries no reasons).
+                "refusals": src.get("dcf_refusals"),
             },
         },
         "football_field": football_field,
@@ -7937,13 +7940,26 @@ def build_router() -> APIRouter:
             v = (body or {}).get(k)
             if v is None:
                 continue
+            if isinstance(v, bool):
+                raise HTTPException(
+                    400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
+                )
             try:
-                # forecast_years is an int; everything else is a float.
-                overrides[k] = int(v) if k == "forecast_years" else float(v)
+                overrides[k] = float(v)
             except (TypeError, ValueError):
                 raise HTTPException(
                     400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
                 )
+        # OUT-OF-DOMAIN OVERRIDES ARE A 400, never a computation at a
+        # substitute: the domains are `_valuation.DCF_OVERRIDE_DOMAINS`
+        # (a non-finite value, fewer than one forecast year, a fractional
+        # year, a growth rate at or below -100%). `forecast_years` used to be
+        # `int()`-truncated here, so 2.5 years silently became 2.
+        domain_errors = _valuation.dcf_override_domain_errors(overrides)
+        if domain_errors:
+            raise HTTPException(400, "valuation/recompute: " + " ".join(domain_errors))
+        if "forecast_years" in overrides:
+            overrides["forecast_years"] = int(overrides["forecast_years"])
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(
@@ -7966,7 +7982,13 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+            # The SAME served-rebuild seam GET /api/period's valuation reads
+            # (canonical assembled_pl / _bs / _cf). The bucket-only
+            # `_rebuild_assembled` carries no working-capital change, and the
+            # DCF no longer reads an absent ΔWC as 0 — on that shape every
+            # recompute would refuse, and before this it computed a DCF the
+            # GET path never served.
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
 
             # Layer the user's saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
@@ -8000,6 +8022,19 @@ def build_router() -> APIRouter:
                 raise HTTPException(
                     500, f"Valuation recompute failed: {type(exc).__name__}"
                 ) from exc
+
+        # The Gordon terminal is undefined when the central WACC does not
+        # exceed terminal growth. With the caller's overrides in play that
+        # is an out-of-domain request, answered 400 with the engine's own
+        # sentence — the old code nudged WACC to g + 0.5% and served an EV
+        # (692.6M against 72.2M at defaults, measured) at a rate nobody chose.
+        if overrides:
+            undefined = [r for r in (result.get("dcf_refusals") or [])
+                         if r.get("code") in ("dcf_wacc_not_above_growth",
+                                              "dcf_override_out_of_domain")]
+            if undefined:
+                raise HTTPException(
+                    400, "valuation/recompute: " + " ".join(r["text"] for r in undefined))
 
         return {
             "valuation": result,
