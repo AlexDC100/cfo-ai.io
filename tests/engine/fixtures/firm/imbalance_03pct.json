@@ -1052,7 +1052,7 @@
    "retained_earnings": 0.0
   },
   "supplementary": {
-   "periodDays": 365
+   "periodDays": null
   }
  }
 }
