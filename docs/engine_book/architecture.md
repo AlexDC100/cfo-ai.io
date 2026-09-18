@@ -43,7 +43,7 @@ graph LR
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
-    pkg_country_packs["country_packs (16 modules)"]
+    pkg_country_packs["country_packs (17 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -88,7 +88,7 @@ graph LR
     pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
     pkg_api -->|4| pkg_core
-    pkg_api -->|4| pkg_country_packs
+    pkg_api -->|5| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
     pkg_api -->|1| pkg_forecast

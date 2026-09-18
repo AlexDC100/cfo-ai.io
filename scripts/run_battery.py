@@ -396,6 +396,23 @@ def _engine_gates() -> List[Gate]:
                        "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
                        "test_a_lower_is_better_crossing_is_classified_by_direction",
                        "test_a_ratio_that_did_not_cross_produces_no_finding")),
+        # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
+        # 2026-09-15): the valuation DCF, the AI briefing's citable
+        # ratios, the RO pack's ROA check and the served period day count.
+        # Every defect it covers served a believable number built on a
+        # figure the book never yielded (1 RON equity, a 5% cost of debt, a
+        # 0 FCF, 1e-9 EBITDA, 365 days). Floor 44 = the measured 48.
+        # Plant log: docs/engine_book/gates.md
+        Gate("floor-valuation",
+             [PY, "-m", "pytest", "tests/engine/test_floor_dcf.py",
+              "tests/engine/test_floor_period_days.py",
+              "tests/engine/test_floor_briefing_ratios.py", "-q"],
+             work_junit=True, floor=44, units="tests",
+             canaries=("test_dcf_refuses_when_book_equity_is_not_positive",
+                       "test_a_measured_implied_cost_of_debt_is_used_even_below_the_old_floor",
+                       "test_recompute_answers_400_on_an_out_of_domain_override",
+                       "test_a_31_december_corpus_book_serves_exactly_the_bytes_it_served_before",
+                       "test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
