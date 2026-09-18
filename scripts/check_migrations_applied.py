@@ -124,15 +124,19 @@ DECLARED_NOT_APPLIED = {
     # Its table is absent for the same reason its routes are.
     "schema_phase_dashboard_config.sql":
         "the dashboard-config router is not mounted in server.py (CLAUDE.md 16)",
+    # SUPERSEDED (owner ruling 2026-09-18: dead unless a live path reads
+    # them — measured, none does). `git grep` over src/ and frontend/ for
+    # public_companies, public_company_periods, public_company_quotes,
+    # nasdaq_responses and benchmark_peers finds no reader outside this
+    # file and the migration itself; the Public Companies surface serves
+    # from EDGAR and engine.public_market's own SQLite store
+    # (data/public_market.db). A store that no path reads is dead design,
+    # not a cache. Benchmarks by country will declare its own peer store.
+    "schema_phase_nasdaq_public_companies.sql":
+        "superseded: no engine or frontend path reads its five tables "
+        "(measured 2026-09-18); the public-companies surface serves from "
+        "EDGAR and engine.public_market's SQLite store",
 }
-
-#: NOT declared, and named here so the gate's output says why: the
-#: `public_companies` surface is ACTIVE in production while the four
-#: tables schema_phase_nasdaq_public_companies.sql declares are absent.
-#: The surface serves from EDGAR/Sharadar live, so it works — which means
-#: those tables are either dead design or a cache that silently degrades.
-#: That is a product decision, not a deployment one, so this gate keeps
-#: reporting it rather than quietly accepting it.
 
 
 def _strip_sql_comments(text):
