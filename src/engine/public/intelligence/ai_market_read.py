@@ -395,7 +395,7 @@ def _category_fact(risk: PublicCompanyRiskScore, category: str) -> str:
     return "UNAVAILABLE — " + (why[0] if why else "not computed")
 
 
-def _at_least(score: Optional[int], cutoff: int) -> bool:
+def _measured_at_or_above(score: Optional[int], cutoff: int) -> bool:
     """A refused (None) category raises no watch flag."""
     return score is not None and score >= cutoff
 
@@ -435,13 +435,13 @@ def _deterministic_fallback(
     watch: list[str] = []
     if risk.top_risks:
         watch.append(f"Watch {risk.top_risks[0].label} — {risk.top_risks[0].severity} severity.")
-    if _at_least(risk.categories.financial, 60):
+    if _measured_at_or_above(risk.categories.financial, 60):
         watch.append("Watch upcoming refinancings + interest coverage trend.")
-    if _at_least(risk.categories.supply_chain, 60):
+    if _measured_at_or_above(risk.categories.supply_chain, 60):
         watch.append("Watch shipping cost + supplier concentration disclosures.")
-    if _at_least(risk.categories.geopolitical, 60):
+    if _measured_at_or_above(risk.categories.geopolitical, 60):
         watch.append("Watch regional revenue exposure breakdown in next 10-K.")
-    if _at_least(risk.categories.valuation, 60):
+    if _measured_at_or_above(risk.categories.valuation, 60):
         watch.append("Watch peer-relative valuation — multiple compression risk.")
     if not watch:
         watch.append("No specific watch flags — score is composite-low.")
