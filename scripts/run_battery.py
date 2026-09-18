@@ -523,6 +523,41 @@ def _engine_gates() -> List[Gate]:
              # can be satisfied by accident is not a canary.
              canaries=("PM1  no AI-authored numerics in the facts path",
                        "PM7  BVB / public_ro untouched")),
+        # ── FLOOR C6-C8 (wave/floor-c6-public-sku, 2026-09-18) ──────────
+        # The owner's rule "absent is never zero and never a floor" over the
+        # three non-credit clusters of the floor sweep (scratchpad/specs/
+        # floor_sweep.json): public risk/opportunity scores (C6), the SKU /
+        # portfolio engine (C7), industry detection (C8). Each defect served
+        # a number where none was defined — a neutral 50 for a company with
+        # no financials, a 20,000% portfolio margin over a 1.0 divisor, a
+        # real-estate CAEN read off absent cost lines — and nothing crashed.
+        # Named separately from `pytest` so the battery record shows them.
+        # Plant log: docs/engine_book/gates.md § floor-public-score,
+        # § floor-sku-portfolio, § floor-industry-absent.
+        Gate("floor-public-score",
+             [PY, "-m", "pytest",
+              "tests/engine/public/intelligence/test_risk_scoring_engine.py",
+              "tests/engine/public/intelligence/test_opportunity_scoring_engine.py",
+              "tests/engine/public/intelligence/test_public_score_refusal_route.py",
+              "-q"],
+             work_junit=True, floor=30, units="tests",
+             canaries=("test_no_financials_refuses_every_financial_category_and_the_composite",
+                       "test_snapshot_boundary_converts_points_and_keeps_a_measured_zero",
+                       "test_no_financials_refuses_instead_of_scoring_medium")),
+        Gate("floor-sku-portfolio",
+             [PY, "-m", "pytest", "tests/engine/test_floor_sku_portfolio.py",
+              "tests/test_metrics.py", "-q"],
+             work_junit=True, floor=35, units="tests",
+             canaries=("test_skus_share_of_category_profit_refuses_net_zero",
+                       "test_zero_volume_dio_rows_fall_through_to_the_upload_sheet",
+                       "test_zero_revenue_category_is_refused_not_eliminated",
+                       "test_composite_score_dio_zero_is_undefined")),
+        Gate("floor-industry-absent",
+             [PY, "-m", "pytest",
+              "tests/engine/test_industry_classifier_absent_inputs.py", "-q"],
+             work_junit=True, floor=12, units="tests",
+             canaries=("test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate",
+                       "test_detect_industry_for_period_reads_the_pl_line_items")),
     ]
 
 

@@ -3634,3 +3634,246 @@ left all five cross-org read tests GREEN — those routes are guarded by RLS
 in the per-user client, not by that call. A plant that does not red is not
 evidence the gate is weak; it is evidence the plant was aimed at the wrong
 thing. It was replaced with Plant D, which reds.
+
+## floor-public-score
+
+Floor sweep cluster C6 (`wave/floor-c6-public-sku`, 2026-09-18). The public
+risk and opportunity engines (`engine.public.intelligence.risk_scoring_engine`,
+`opportunity_scoring_engine`) scored an ABSENT input as a number: a missing
+financial read as a neutral 50, a missing market cap as 30, and the snapshot
+boundary (`routes._financials_from_snapshot`) read percentage points as
+fractions, so a 5% EBITDA margin took the best tier. Measured before the
+repair: an unknown-sector ticker with no snapshot at all served 21/100
+"low"; every one of the 291 offline universe rows (88 BVB seed + 203 NASDAQ
+demo) served a composite. After: a category with an absent input is `null`
+with `{code, component, inputs, text}`, the composite refuses when any
+weighted category is absent, and the route serves the refusal sentence.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/public/intelligence/test_risk_scoring_engine.py tests/engine/public/intelligence/test_opportunity_scoring_engine.py tests/engine/public/intelligence/test_public_score_refusal_route.py -q` |
+| work count | junit-xml, floor **30** tests (measured 33) |
+| canary | `test_no_financials_refuses_every_financial_category_and_the_composite`, `test_snapshot_boundary_converts_points_and_keeps_a_measured_zero`, `test_no_financials_refuses_instead_of_scoring_medium` |
+
+**Reds on, after the repair (TC-11):** any risk or opportunity category
+scoring an absent, NaN or non-positive-denominator input; a composite or
+level minted while a weighted category is `null`; net debt over a
+non-positive EBITDA read as net cash; a ratio crossing the snapshot boundary
+without the points-to-fraction conversion, or a measured 0 turned into
+"not reported" by an `or` chain; the per-ticker route serving a number
+where the engine refused.
+
+**GREEN** — exit `0`: `33 passed`.
+
+**PLANT A** — `risk_scoring_engine.py` `_score_financial`: the refusal
+replaced by the old neutral (`return 50, None  # neutral when unknown`).
+
+**RED** — exit `1`:
+
+```
+tests/engine/public/intelligence/test_public_score_refusal_route.py:70: assert 50 is None
+FAILED tests/engine/public/intelligence/test_risk_scoring_engine.py::test_no_financials_refuses_every_financial_category_and_the_composite
+FAILED tests/engine/public/intelligence/test_public_score_refusal_route.py::test_per_ticker_risk_score_refuses_for_a_live_shaped_snapshot
+```
+
+**PLANT B** — `opportunity_scoring_engine.py` market position: absent
+market cap scored 30 again (`return 30, None`).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: ('market_position', [ScoreRefusal(code='opportunity_category_unavailable', component='financial_quality', ...)])
+E   assert 0 == 1
+```
+
+**PLANT C** — `routes.py` `_points_to_fraction`: `return value` (no
+conversion).
+
+**RED** — exit `1`:
+
+```
+    assert fin["ebitda_margin"] == pytest.approx(0.3445)
+E   assert 34.45 == 0.3445 ± 3.4e-07
+```
+
+**PLANT D** — `risk_scoring_engine.py`: the `ebitda <= 0` rejection of
+net-debt/EBITDA disabled (`if False:`).
+
+**RED** — exit `1`:
+
+```
+    assert score.categories.financial is None
+E   AssertionError: assert 36 is None
+E    +  where 36 = RiskCategoryScores(macro=65, supply_chain=66, geopolitical=40, financial=36, ...).financial
+```
+
+**REVERT** — all four restored; exit `0`, `33 passed`. Verdict: proven RED
+four ways.
+
+## floor-sku-portfolio
+
+Floor sweep cluster C7 (`wave/floor-c6-public-sku`, 2026-09-18). The SKU /
+portfolio engine divided by a floored denominator wherever the real one was
+zero: share of category profit over `total or 1.0` (a net-zero category
+served shares of 50,000.0 / −50,000.0), the NIV-weighted portfolio margin
+over `total_niv or 1.0` (NIV +1000/−1000 served 20,000.00; NIV 0 served 0.00
+beside a category at 29.3), ROIC `if trapped > 0 else 0.0` (300 kRON on zero
+capital served 0.00%), the volume-weighted category DIO over `volume or 1.0`
+(rows at 180/120 days with no volume served DIO 0 and zero trapped capital
+while the upload sheet said 150), the DIO sheet clamped to [7, 365] (a real
+1,483-day stock served 365) or assumed a 90-day period, a zero-revenue
+category served GM 0.0 and was ELIMINATED on real margin −1.6, and
+`composite_score` ranked over `max(DIO, 1)`. All of these went out on
+`POST /run-daily`, `/api/cfo/today`, `/profit`, the board summary and the
+CLI file. Now every one refuses with `{code, component, inputs, text}`
+through one authority (`engine.metrics.niv_weighted_margin`,
+`portfolio_roic`), the DIO falls through the ladder (sheet → canonical →
+labelled default), and the outlier DIO is served measured and flagged.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_floor_sku_portfolio.py tests/test_metrics.py -q` |
+| work count | junit-xml, floor **35** tests (measured 40) |
+| canary | `test_skus_share_of_category_profit_refuses_net_zero`, `test_zero_volume_dio_rows_fall_through_to_the_upload_sheet`, `test_zero_revenue_category_is_refused_not_eliminated`, `test_composite_score_dio_zero_is_undefined` |
+
+**Reds on, after the repair (TC-11):** a share, margin, ROIC or composite
+served as a number over a zero, negative or floored denominator on any of
+the four surfaces; a zero-volume DIO row set winning over the upload sheet;
+a sheet DIO clamped or computed over an assumed period; a zero-revenue
+category or SKU classified instead of refused; a refusal missing from the
+`/run-daily` payload or from the board-summary prose.
+
+**GREEN** — exit `0`: `40 passed`.
+
+**PLANT A** — `frontend.py` share of category profit: `total = sum(...) or
+1.0` and the `if total > 0` guard forced true.
+
+**RED** — exit `1`:
+
+```
+tests/engine/test_floor_sku_portfolio.py:212: assert 50000.0 is None
+tests/engine/test_floor_sku_portfolio.py:223: assert False
+FAILED ...::test_skus_share_of_category_profit_refuses_net_zero
+FAILED ...::test_skus_share_of_category_profit_refuses_negative_total
+```
+
+**PLANT B** — `metrics.py` `niv_weighted_margin`: `total = sum(...) or 1.0`
+returning the average before the sign checks.
+
+**RED** — exit `1`:
+
+```
+tests/engine/test_floor_sku_portfolio.py:151: assert (0.0 is None)
+FAILED ...::test_run_daily_route_serves_the_refusal
+FAILED ...::test_cfo_today_refuses_and_the_briefing_states_why
+```
+
+**PLANT C** — `metrics.py` `portfolio_roic`: `return 0.0, None` on zero
+trapped capital.
+
+**RED** — exit `1`:
+
+```
+tests/engine/test_floor_sku_portfolio.py:127: assert 0.0 is None
+tests/engine/test_floor_sku_portfolio.py:192: assert 'Portfolio ROIC unavailable' in "# Demo Company — CFO AI Board Summary\n..."
+```
+
+**PLANT D** — `frontend.py` weighted DIO: `/ (dio_weight or 1.0)` with the
+`dio_weight > 0` guard dropped.
+
+**RED** — exit `1`: `AssertionError: assert 0 == 150`.
+
+**PLANT E** — `frontend.py` DIO sheet: `min(max(avg * period_days /
+sold_kg, 7), 365)` restored.
+
+**RED** — exit `1`: `assert 365 == 1483`.
+
+**PLANT F** — `frontend.py` DIO sheet: `period_days = 90` assumed when no
+period is confirmed.
+
+**RED** — exit `1`: `AssertionError: assert {'SUC': 45} == {}`.
+
+**PLANT G** — `frontend.py` category GM: the `total_niv <= 0` refusal
+disabled (`if False:`) and the division floored (`/ (total_niv or 1.0)`).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert ('ZZZERO' not in ['ZZLIVE', 'ZZZERO'])
+FAILED ...::test_zero_revenue_category_is_refused_not_eliminated
+```
+
+**PLANT H** — `metrics.py` `composite_score`: `/ max(dio_days, 1)` restored.
+
+**RED** — exit `1`: `assert 10000.0 is None` (both suites).
+
+**REVERT** — all eight restored; exit `0`, `40 passed`. Verdict: proven RED
+eight ways.
+
+**One plant that proved nothing, recorded (TC-2).** The first plant for G
+floored only the division at line 558 (`... / total_niv if total_niv > 0
+else 0.0`) and stayed GREEN — that line is behind the guard, so the plant
+was dead code. The plant was re-aimed at the guard itself, which is the
+repair; that is the one recorded above.
+
+## floor-industry-absent
+
+Floor sweep cluster C8 (`wave/floor-c6-public-sku`, 2026-09-18).
+`_industry_classifier.py` evaluated its cost-structure rules over `m.get(key,
+0) or 0` numerators and a `.get(revenue, 1)` divisor, so a period whose
+metrics carried no cost lines had COGS 0 / revenue and matched the real-estate
+rule at confidence 0.7. Measured before: every firm fixture (agras,
+carniprod, retail, realestate, Scandia FY2025) suggested CAEN 6820 "Real
+estate / property rental" at 0.7 from `calculated_metrics` alone;
+`detect_industry_for_period` never read the P&L line items that carry the
+cost lines. After: a rule set is evaluated only when every one of its six
+inputs is measured, otherwise it refuses with the missing names; detection
+reads the line items, so Scandia classifies 1012/1013 (two rules match →
+ambiguous 0.4, which the rules always said and the zero-read had hidden) and
+the fixtures without line items fall to the universal fallback at 0.30 with
+the reason stated.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_industry_classifier_absent_inputs.py -q` |
+| work count | junit-xml, floor **12** tests (measured 14) |
+| canary | `test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate`, `test_detect_industry_for_period_reads_the_pl_line_items` |
+
+**Reds on, after the repair (TC-11):** a CAEN suggested while any of the six
+cost inputs or the revenue is absent or non-positive; a refusal without the
+missing names; detection that ignores the P&L line items; the services
+fallback deciding on an absent COGS.
+
+**GREEN** — exit `0`: `14 passed`.
+
+**PLANT A** — `_industry_classifier.py`: `missing = []` and every absent
+cost input pre-filled with 0.
+
+**RED** — exit `1`:
+
+```
+    assert result.caen is None
+E   AssertionError: assert '6820' is None
+E    +  where '6820' = CostStructureClassification(caen='6820', label='Real estate / property rental', confidence=0.7, refusal=None).caen
+```
+
+**PLANT B** — `_industry_detection.py`: `cost_structure_metrics(metric_rows,
+[])` (line items dropped).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert 'fallback' == 'auto_account_structure'
+```
+
+**PLANT C** — `_industry_detection.py`: `cogs = metrics.get("cogs") or 0` in
+the services fallback.
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert 'professional...vices_generic' == 'manufacturing_generic'
+```
+
+**REVERT** — all three restored; exit `0`, `14 passed`. Verdict: proven RED
+three ways.
