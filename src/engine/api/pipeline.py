@@ -67,6 +67,9 @@ from . import _valuation
 # swapped at runtime in F3.3+. Importing the ro_romania subpackage as
 # a side-effect registers the Romania pack with the registry.
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
+# The day-count rule (`period_days_covered`) is pack data + a pure function;
+# read directly, like the net-income anchor helpers below.
+from engine.country_packs.ro_romania import chart_of_accounts as _ro_chart_of_accounts
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
 # Account-121 anchor provenance — the SAME code object the offline seam
@@ -4883,6 +4886,36 @@ def _rebuild_assembled(
     return {"balanceSheet": bs, "incomeStatement": pl}
 
 
+def _served_supplementary(period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """`statements.supplementary` for a served period row — ONE rule for
+    every served-rebuild seam (/api/period and `_rebuild_assembled_for_
+    briefing`, which the Capsule, Radar, Forecast and the firm lane read).
+
+    `periodDays` is established from the row: a stated span
+    (`period_start` before `period_end`), or the period end with the
+    detection record `stage_persist` stamped on the envelope
+    (`period_detection.signal_used`), counted from the pack's financial-
+    year start — `chart_of_accounts.period_days_covered`. Otherwise it is
+    None and `periodDaysRefusal` says why. It was a hard-coded 365 at both
+    seams, which served a June year-to-date book's DSO / DIO / DPO at
+    twice their value under a provenance that read like a measured field.
+
+    An established period serves exactly `{"periodDays": n}` — the same
+    bytes as before for every 31 December book on the corpus.
+    """
+    row = period or {}
+    env = row.get("assembled_canonical_v1")
+    record = env.get("period_detection") if isinstance(env, dict) else None
+    signal = record.get("signal_used") if isinstance(record, dict) else None
+    covered = _ro_chart_of_accounts.period_days_covered(
+        row.get("period_end"), period_start=row.get("period_start"),
+        signal_used=signal if isinstance(signal, str) else None,
+    )
+    if covered["days"] is not None:
+        return {"periodDays": covered["days"]}
+    return {"periodDays": None, "periodDaysRefusal": covered["refusal"]}
+
+
 def _rebuild_assembled_for_briefing(
     line_items: List[Dict[str, Any]],
     period: Dict[str, Any],
@@ -4956,7 +4989,7 @@ def _rebuild_assembled_for_briefing(
             **{k: round(v, 2) for k, v in pl.items()},
             "inventoryVariationMemo": round(inv_var_memo, 2),
         },
-        "supplementary": {"periodDays": 365},
+        "supplementary": _served_supplementary(period),
     }
 
     # ── Canonical reassembly via assemble_statements ─────────────────
@@ -7105,9 +7138,9 @@ def build_router() -> APIRouter:
                 "inventoryVariationMemo": round(inv_var_memo, 2),
             },
             # Required by the TS Statements interface so computeRatios() can
-            # read supplementary.periodDays. Real enrichment values arrive
-            # later via Settings.
-            "supplementary": {"periodDays": 365},
+            # read supplementary.periodDays — established from the period
+            # row or refused with its reason, never a 365 placeholder.
+            "supplementary": _served_supplementary(period),
         }
 
         # ── Re-assemble the canonical views from line items ──────────────
