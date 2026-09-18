@@ -2719,6 +2719,64 @@ def _briefing_grand_totals(assembled: Dict[str, Any],
     return out
 
 
+def _briefing_ratios(
+    pl_canonical: Dict[str, Any],
+    bs_canonical: Dict[str, Any],
+    total_equity: Optional[float],
+) -> Tuple[Dict[str, Optional[float]], Dict[str, str]]:
+    """The `briefing_facts.ratios` block and the stated reason for every
+    ratio in it that does not compute.
+
+    These are citable numerals (`numerals.facts_from_briefing`), so a value
+    here must be a measurement. It used to hold two substitutes: a zero or
+    absent operating EBITDA divided as 1e-9 (debt 2,000,000 over no EBITDA
+    served Debt/EBITDA 2e15x), and margins of 0.00% on zero or absent
+    revenue (a loss of 150,000 on no revenue handed to the model as
+    break-even). Each now refuses.
+    """
+    def num(v: Any) -> Optional[float]:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        return float(v)
+
+    ebitda = num(pl_canonical.get("operating_ebitda"))
+    revenue = num(pl_canonical.get("total_operating_revenue"))
+    net_income = num(pl_canonical.get("net_income_statutory"))
+    total_debt = bs_canonical.get("total_debt", 0.0)
+    cash_val = bs_canonical.get("cash", 0.0)
+    refusals: Dict[str, str] = {}
+
+    def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
+        if revenue is None:
+            refusals[key] = "margin not computable: operating revenue not reported"
+            return None
+        if revenue <= 0:
+            refusals[key] = "margin not computable: no operating revenue in this period"
+            return None
+        if numerator is None:
+            refusals[key] = "margin not computable: %s not reported" % what
+            return None
+        return round(100 * numerator / revenue, 2)
+
+    ratios: Dict[str, Optional[float]] = {
+        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "operating EBITDA"),
+        "net_margin_pct": margin("net_margin_pct", net_income, "net income"),
+    }
+    if ebitda is None or ebitda == 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is zero or not reported for this period")
+        ratios["debt_to_ebitda"] = None
+    elif ebitda < 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
+        ratios["debt_to_ebitda"] = None
+    else:
+        ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
+    ratios["debt_to_equity"] = round(total_debt / total_equity, 2) if total_equity else None
+    ratios["net_debt"] = round(total_debt - cash_val, 2)
+    return ratios, refusals
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -2939,12 +2997,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    operating_ebitda = pl_canonical.get("operating_ebitda", 0.0)
-    total_operating_revenue = pl_canonical.get("total_operating_revenue", 0.0)
+    # ABSENT != ZERO: a missing operating EBITDA or revenue stays None here
+    # (it used to default to 0.0, the same value as a measured zero).
+    operating_ebitda = pl_canonical.get("operating_ebitda")
+    total_operating_revenue = pl_canonical.get("total_operating_revenue")
     total_debt = bs_canonical.get("total_debt", 0.0)
     total_equity = grand_totals["total_equity"]
     cash_val = bs_canonical.get("cash", 0.0)
-    ebitda_for_ratios = operating_ebitda if operating_ebitda else 1e-9
+    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
+        pl_canonical, bs_canonical, total_equity)
 
     briefing_facts_raw = {
         # P&L — operating view (matches the frontend P&L tab + KPI tiles).
@@ -2977,20 +3038,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "bs_balance_delta": grand_totals["bs_balance_delta"],
         # Key derived ratios — operating-view based, so the briefing's
         # leverage / coverage commentary stays consistent with the tab.
-        "ratios": {
-            "ebitda_margin_pct": (
-                round(100 * operating_ebitda / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "net_margin_pct": (
-                round(100 * pl_canonical.get("net_income_statutory", 0.0) / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "debt_to_ebitda": round(total_debt / ebitda_for_ratios, 2),
-            "debt_to_equity": round(total_debt / total_equity, 2) if total_equity else None,
-            "net_debt": round(total_debt - cash_val, 2),
-        },
+        # A ratio that cannot be computed is None (numerals.facts_from_
+        # briefing types it RatioFact(None), so it can never be cited).
+        "ratios": briefing_ratios,
     }
+    if briefing_ratio_refusals:
+        # Why each None ratio is None — the model reads the reason instead
+        # of inventing a figure. Present only when something refused, so a
+        # book whose ratios all compute sends the same payload as before.
+        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
