@@ -3148,9 +3148,11 @@
    "net_income_anchor_source": null,
    "net_income_anchor_status": "absent",
    "net_income_operational": 0.0,
+   "net_income_reconciliation_to_121": 0.0,
    "net_income_reconstructed": 0.0,
    "net_income_statutory": 0.0,
    "net_income_statutory_anchor": null,
+   "net_income_unexplained_vs_121": 0.0,
    "operating_ebit": 0.0,
    "operating_ebitda": 0.0,
    "opex_excluding_cogs_and_da": 0.0,
@@ -3159,6 +3161,7 @@
    "other_income_758": 0,
    "other_income_781_reversals": 0,
    "other_op_income_lump": 0,
+   "other_operating_income": 0.0,
    "pretax": 0.0,
    "revenue": 0.0,
    "tax": 0.0,
@@ -3396,6 +3399,182 @@
    "taxExpense": 0.0
   },
   "industry": null,
+  "insights": {
+   "currency": "RON",
+   "insights": [
+    {
+     "accounts": [],
+     "claim": "RON 0.00 of operating income is other operating income and provision reversals rather than trading margin — not reported of not reported; the operating cash proxy is RON 0.00 against an EBITDA of RON 0.00, a conversion of not reported.",
+     "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
+     "facts": [
+      {
+       "label": "EBITDA",
+       "name": "assembled_pl.ebitda",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Other operating income",
+       "name": "assembled_pl.other_operating_income",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Provision reversals",
+       "name": "assembled_pl.other_income_781_reversals",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Capitalised own work",
+       "name": "assembled_pl.capitalized_own_work_memo",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Operating cash proxy",
+       "name": "assembled_pl.free_cash_flow_proxy",
+       "unit": "money",
+       "value": 0.0
+      }
+     ],
+     "formula": "(Other operating income + provision reversals) ÷ EBITDA; operating cash proxy ÷ EBITDA; capitalised own work",
+     "id": "earnings_quality",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "non_trading",
+       "label": "Other operating income and provision reversals",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "ebitda",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "graded_share",
+       "label": "Non-trading income as a share of ebitda",
+       "unit": "ratio",
+       "value": null
+      },
+      {
+       "key": "graded_base",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": null
+      },
+      {
+       "key": "provision_reversals",
+       "label": "Provision reversals (781)",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "capitalised_own_work",
+       "label": "Capitalised own work",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "cash_proxy",
+       "label": "Operating cash proxy",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "cash_conversion",
+       "label": "Operating cash proxy ÷ EBITDA",
+       "unit": "ratio",
+       "value": null
+      }
+     ],
+     "narrative": {
+      "explanation": "RON 0.00 of operating income is other operating income and provision reversals rather than trading margin — not reported of not reported; the operating cash proxy is RON 0.00 against an EBITDA of RON 0.00, a conversion of not reported. Severity is reported as info because ebitda was not available as a scale on this book. Other operating income and provision reversals is measured, but ebitda is not available on this book as a scale, so the finding is reported without a graded severity.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
+      "source": "deterministic"
+     },
+     "rank": 1,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.3,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.15,
+        "level": "high"
+       },
+       {
+        "at_least": 0.07,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.02,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "ebitda_positive",
+      "basis_label": "EBITDA",
+      "basis_value": null,
+      "level": "info",
+      "magnitude": 0.0,
+      "materiality": null,
+      "why": "Other operating income and provision reversals is measured, but ebitda is not available on this book as a scale, so the finding is reported without a graded severity."
+     },
+     "title": "Part of EBITDA is not trading income"
+    }
+   ],
+   "not_fired": [
+    {
+     "id": "asset_age",
+     "reason": "The book carries no gross PP&E rows, so there is no asset base to age.",
+     "title": "Asset base is late in its depreciation life"
+    },
+    {
+     "id": "financial_position",
+     "reason": "The financial result nets to nil and no financial income or expense is reported.",
+     "title": "The financial line is not incidental to the result"
+    },
+    {
+     "id": "liquidity_quality",
+     "reason": "Current liabilities are not positive on this book, so a current ratio has no denominator to be graded against.",
+     "title": "Headline liquidity leans on receivables that are not trade"
+    },
+    {
+     "id": "reconstruction_gap",
+     "reason": "The reconstructed P&L reaches statutory profit exactly; there is no bridging step to report.",
+     "title": "The P&L does not reach statutory profit on its own"
+    },
+    {
+     "id": "related_party_exposure",
+     "reason": "No intercompany or related-party receivable row is present in the classified balance sheet.",
+     "title": "Related-party and other-debtor balances sit inside the assets"
+    },
+    {
+     "id": "trade_float",
+     "reason": "Neither a trade-receivable nor a trade-payable row is present, so there is no trade cycle to measure.",
+     "title": "Suppliers and customers move the cash cycle"
+    },
+    {
+     "id": "unclassified_balances",
+     "reason": "Every account in the book matched a classification rule; no balance is carried under an Unclassified row.",
+     "title": "Balances no statement line explains"
+    }
+   ],
+   "schema_version": "insights/1",
+   "summary_ids": [
+    "earnings_quality"
+   ]
+  },
   "periodLabel": "2025-12-31",
   "subAggregates": {
    "ap_dividends": 0.0,

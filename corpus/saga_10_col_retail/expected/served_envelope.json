@@ -25,8 +25,8 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-      "cls7_minus_cls6": 1161957.98,
-      "ok": false,
+      "cls7_minus_cls6": 3205212.62,
+      "ok": true,
       "p121": 3205212.62
     },
     "result_basis": "sf_closing_column",

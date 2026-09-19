@@ -31,7 +31,7 @@
      "cur_liab"
     ],
     "numeric_fingerprint": "7f8b18992431ce3f8da001251ab951522ca1ba2b2ca679a3dcddda7b134ab625",
-    "row_fingerprint": "991add6e6554feb38b98e41245021d76866532d59ab281fa685939e44ca22b3f",
+    "row_fingerprint": "230343d1350a5dab1790fd7f1247baf86fd12b170ead26f00fab7a9c4a9d8e5d",
     "rule_id": "liquidity_cash_tight",
     "severity": "high"
    },
@@ -49,7 +49,7 @@
      "total_assets"
     ],
     "numeric_fingerprint": "eda1fb0145fbf3a3108490d6ee508e56b0d1e09a11d2bcf1a4fe469795faa1b2",
-    "row_fingerprint": "57bfba51b24a7f7603729c00f67891d36ca81359e37db9ce25141af688a46603",
+    "row_fingerprint": "20c6ff2b11a1401196fd9cee814a19e6558696b73b8a2eb3cf2c94f076e5bdc5",
     "rule_id": "concentration_related_party",
     "severity": "medium"
    },
@@ -64,25 +64,25 @@
      "fx_cash",
      "total_cash"
     ],
-    "numeric_fingerprint": "a6426ebf8e827f9c2222376c0f9136b0bb90dfb2e4d85c1ba0b2df7f6e1071ba",
-    "row_fingerprint": "b49a6f1fa9da4ce3634bf275e1ffc6298aec61a61e751697997cd53b5af87a6f",
+    "numeric_fingerprint": "2d43e2d48f6cfddbcf59e0d14b5f2d621adacca2db5f5b9b335bd38e364af8a8",
+    "row_fingerprint": "bbc8c5feaadf13aec1365e13ff67731c0b69c3b75c84aa5395b45c8f1957e524",
     "rule_id": "fx_exposure",
     "severity": "medium"
    },
    {
     "facts_cited": {
-     "ebitda_statutory": 18420491.28,
+     "ebitda_statutory": 10776378.24,
      "input_cost_ceiling_share": 0.35,
-     "input_cost_share": 0.5950329490554045,
-     "revenue": 118576819.64
+     "input_cost_share": 0.6368067818692708,
+     "revenue": 110798309.14
     },
     "finding_id": "input_cost_exposure|601,602,607",
     "money_facts": [
      "ebitda_statutory",
      "revenue"
     ],
-    "numeric_fingerprint": "0c8bce400e144a1934481e3b075ebed02622cf2de114ff5ddeb8fccd6c126222",
-    "row_fingerprint": "a9678f21e00fac332a37aed4c1a2b3cca4bad6c1a9bea291e239362aec03bd4c",
+    "numeric_fingerprint": "83256e8f8f34b6413635adf210f992b46300e9f9d47461232e8c428e2d1428bc",
+    "row_fingerprint": "3f3b7283e2abaf7bc4b16d28e60e1c404ce4cf1e7cd6e693301605cd246323ba",
     "rule_id": "input_cost_exposure",
     "severity": "medium"
    }
@@ -90,7 +90,7 @@
   "surfaced_count": 4
  },
  "period_id": "p-saga_10_col_agras",
- "profile_fingerprint": "3a69c7c4e2928552",
+ "profile_fingerprint": "6dc82e544864881b",
  "profile_id": "inventory_operator",
  "snapshot_hash": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d",
  "source": "corpus/saga_10_col_agras/input.xlsx",
@@ -327,7 +327,7 @@
       "cogs_merchandise",
       "discounts_received_supplier"
      ],
-     "net": 71586879.3
+     "net": 71452481.84
     },
     "contributed_capital": {
      "leaves": [
@@ -514,7 +514,7 @@
       "revenue_merchandise_resale",
       "revenue_commercial_reductions"
      ],
-     "net": 118576819.64
+     "net": 110798309.14
     },
     "tax_payables": {
      "leaves": [
@@ -571,7 +571,7 @@
      "el_eq_row_sum": true,
      "identity_holds": true,
      "p121_cross_check": {
-      "cls7_minus_cls6": 206197948.36,
+      "cls7_minus_cls6": 198553835.32,
       "ok": false,
       "p121": 7533676.02
      },
@@ -912,20 +912,16 @@
      },
      {
       "account_codes": [
-       "3",
        "301"
       ],
-      "amount": 4316023.15,
+      "amount": 3654805.78,
       "id": "inventory_raw_materials",
       "label": "Raw materials",
       "label_key": "bs.row.inventory_raw_materials",
       "leaf_ids": [
        "301.201",
        "301.202",
-       "301.203",
-       "348.102",
-       "378.078",
-       "378.080"
+       "301.203"
       ],
       "opening": null,
       "section": "current_assets"
@@ -969,23 +965,26 @@
      },
      {
       "account_codes": [
-       "345"
+       "345",
+       "348"
       ],
-      "amount": 795942.72,
+      "amount": 1457159.29,
       "id": "inventory_finished_goods",
       "label": "Finished goods",
       "label_key": "bs.row.inventory_finished_goods",
       "leaf_ids": [
-       "345.010"
+       "345.010",
+       "348.102"
       ],
       "opening": null,
       "section": "current_assets"
      },
      {
       "account_codes": [
-       "371"
+       "371",
+       "378"
       ],
-      "amount": 2064259.85,
+      "amount": 2064260.65,
       "id": "inventory_merchandise_resale",
       "label": "Merchandise for resale",
       "label_key": "bs.row.inventory_merchandise_resale",
@@ -995,7 +994,9 @@
        "371.050",
        "371.081",
        "371.093",
-       "371.095"
+       "371.095",
+       "378.078",
+       "378.080"
       ],
       "opening": null,
       "section": "current_assets"
@@ -1595,7 +1596,7 @@
     "discounts_received_supplier": {
      "magnitude": 67198.73,
      "ras_line_items_count": 1,
-     "ras_line_items_sum_signed": 67198.73,
+     "ras_line_items_sum_signed": -67198.73,
      "sign_meaning": "expense_negative"
     },
     "energy_utilities": {
@@ -1665,15 +1666,15 @@
      "sign_meaning": "asset_positive"
     },
     "inventory_finished_goods": {
-     "magnitude": 795942.72,
-     "ras_line_items_count": 1,
-     "ras_line_items_sum_signed": 795942.72,
+     "magnitude": 1457159.29,
+     "ras_line_items_count": 2,
+     "ras_line_items_sum_signed": 1457159.29,
      "sign_meaning": "asset_positive"
     },
     "inventory_merchandise_resale": {
-     "magnitude": 2064282.89,
-     "ras_line_items_count": 6,
-     "ras_line_items_sum_signed": 2064259.85,
+     "magnitude": 2064283.69,
+     "ras_line_items_count": 8,
+     "ras_line_items_sum_signed": 2064260.65,
      "sign_meaning": "asset_positive"
     },
     "inventory_packaging": {
@@ -1689,9 +1690,9 @@
      "sign_meaning": "asset_negative"
     },
     "inventory_raw_materials": {
-     "magnitude": 4316023.15,
-     "ras_line_items_count": 6,
-     "ras_line_items_sum_signed": 4316023.15,
+     "magnitude": 3654805.78,
+     "ras_line_items_count": 3,
+     "ras_line_items_sum_signed": 3654805.78,
      "sign_meaning": "asset_positive"
     },
     "inventory_variation_memo": {
@@ -1847,7 +1848,7 @@
     "revenue_commercial_reductions": {
      "magnitude": 3889255.25,
      "ras_line_items_count": 3,
-     "ras_line_items_sum_signed": 3889255.25,
+     "ras_line_items_sum_signed": -3889255.25,
      "sign_meaning": "revenue_negative"
     },
     "revenue_merchandise_resale": {
@@ -1919,10 +1920,10 @@
    },
    "methodology": {
     "ebitda": {
-     "adjusted": 18030400.73,
-     "cash": 18420491.28,
-     "reported": 18420491.28,
-     "strict": 18030400.73
+     "adjusted": 10386287.69,
+     "cash": 10776378.24,
+     "reported": 10776378.24,
+     "strict": 10386287.69
     },
     "errors": [],
     "industry_key_applied": "default",
@@ -1945,21 +1946,21 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 3.019335
+      "value": 2.821269
      },
      "capex_intensity": {
       "band": null,
       "direction": "neutral",
       "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
       "unit": "ratio",
-      "value": 0.024957
+      "value": 0.026709
      },
      "cash_conversion_cycle": {
       "band": null,
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 35.112891
+      "value": 36.969396
      },
      "cash_ratio": {
       "band": [
@@ -1989,7 +1990,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 45.548379
+      "value": 45.634053
      },
      "days_payable_outstanding": {
       "band": [
@@ -1999,7 +2000,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "days",
-      "value": 36.641162
+      "value": 36.710081
      },
      "days_sales_outstanding": {
       "band": [
@@ -2009,7 +2010,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 26.205674
+      "value": 28.045424
      },
      "debt_to_assets": {
       "band": null,
@@ -2033,14 +2034,14 @@
       "direction": "higher_is_better",
       "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
       "unit": "ratio",
-      "value": 35.158346
+      "value": 20.568378
      },
      "ebitda_margin_cash": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.155346
+      "value": 0.097261
      },
      "ebitda_margin_reported": {
       "band": [
@@ -2050,7 +2051,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.155346
+      "value": 0.097261
      },
      "ebitda_to_interest": {
       "band": [
@@ -2060,7 +2061,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 53.567093
+      "value": 31.337886
      },
      "equity_ratio": {
       "band": [
@@ -2077,7 +2078,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.396283
+      "value": 0.355112
      },
      "interest_coverage": {
       "band": [
@@ -2087,14 +2088,14 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 44.961298
+      "value": 22.732091
      },
      "inventory_turnover": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 8.013457
+      "value": 7.998413
      },
      "lt_debt_to_equity": {
       "band": null,
@@ -2111,7 +2112,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.084994
+      "value": 0.145283
      },
      "net_margin": {
       "band": [
@@ -2121,7 +2122,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.118928
+      "value": 0.058286
      },
      "quick_ratio": {
       "band": [
@@ -2141,7 +2142,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.359084
+      "value": 0.164441
      },
      "return_on_equity": {
       "band": [
@@ -2151,7 +2152,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.589453
+      "value": 0.269937
      },
      "working_capital": {
       "band": null,
@@ -2165,10 +2166,10 @@
     "totals": {
      "current_assets": 27476056.94,
      "current_liabilities": 13012976.77,
-     "gross_profit": 46989940.34,
+     "gross_profit": 39345827.3,
      "net_debt": 1565628.87,
-     "operating_profit_reported": 15461156.19,
-     "revenue_net": 118576819.64,
+     "operating_profit_reported": 7817043.15,
+     "revenue_net": 110798309.14,
      "total_assets": 39272501.03,
      "total_debt": 3640202.33,
      "total_equity": 23924083.72,
@@ -2294,21 +2295,21 @@
    "score_max": 9
   },
   "assembled_pl": {
-   "adjusted_ebitda": 18030400.73,
+   "adjusted_ebitda": 10386287.69,
    "capitalized_own_work_memo": 0.0,
    "cogs": 70557114.68,
-   "core_ebitda": 18030400.73,
+   "core_ebitda": 10386287.69,
    "cost_of_goods_sold": 70557114.68,
    "depreciation": 2955346.39,
    "discounts_received": 0.0,
-   "ebit": 15465144.89,
-   "ebitda": 18420491.28,
-   "ebitda_adjusted": 18420491.28,
-   "ebitda_cash": 18420491.28,
-   "ebitda_operating_view": 18420491.28,
-   "ebitda_operational": 18420491.28,
-   "ebitda_statutory": 18420491.28,
-   "ebitda_statutory_with_711": 210512337.61,
+   "ebit": 7821031.85,
+   "ebitda": 10776378.24,
+   "ebitda_adjusted": 10776378.24,
+   "ebitda_cash": 10776378.24,
+   "ebitda_operating_view": 10776378.24,
+   "ebitda_operational": 10776378.24,
+   "ebitda_statutory": 10776378.24,
+   "ebitda_statutory_with_711": 202868224.57,
    "financial_expense": 65946.65,
    "financial_expense_total": 343877.0,
    "financial_income": 456384.14,
@@ -2316,7 +2317,7 @@
    "free_cash_flow_proxy": 10489022.41,
    "fx_gain": 157000.88,
    "fx_loss": 65946.65,
-   "gross_profit": 48019704.96,
+   "gross_profit": 40241194.46,
    "income_tax": 1471550.0,
    "interest_expense": 277930.35,
    "interest_income": 299383.26,
@@ -2324,24 +2325,27 @@
    "net_financial_result": 112507.14,
    "net_income_anchor_source": "envelope_p121_cross_check",
    "net_income_anchor_status": "anchored",
-   "net_income_operational": 14106102.03,
-   "net_income_reconstructed": 14106102.03,
+   "net_income_operational": 6461988.99,
+   "net_income_reconciliation_to_121": 1071687.03,
+   "net_income_reconstructed": 6461988.99,
    "net_income_statutory": 7533676.02,
    "net_income_statutory_anchor": 7533676.02,
-   "operating_ebit": 15465144.89,
-   "operating_ebitda": 18420491.28,
-   "opex_excluding_cogs_and_da": 29989304.23,
+   "net_income_unexplained_vs_121": 1071687.03,
+   "operating_ebit": 7821031.85,
+   "operating_ebitda": 10776378.24,
+   "opex_excluding_cogs_and_da": 29854906.77,
    "opex_third_party": 1313827.41,
-   "opex_total": 29989304.23,
+   "opex_total": 29854906.77,
    "other_income_758": 386101.85,
    "other_income_781_reversals": 3988.7,
    "other_op_income_lump": 386101.85,
-   "pretax": 15577652.03,
-   "revenue": 118576819.64,
+   "other_operating_income": 390090.55,
+   "pretax": 7933538.99,
+   "revenue": 110798309.14,
    "tax": 1471550.0,
-   "total_operating_expense": 103501765.3,
-   "total_operating_revenue": 118576819.64,
-   "total_operating_revenue_statutory": 310668665.97
+   "total_operating_expense": 103367367.84,
+   "total_operating_revenue": 110798309.14,
+   "total_operating_revenue_statutory": 302890155.47
   },
   "balanceSheet": {
    "accountsPayable": 7554847.25,
@@ -2395,7 +2399,7 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-     "cls7_minus_cls6": 206197948.36,
+     "cls7_minus_cls6": 198553835.32,
      "ok": false,
      "p121": 7533676.02
     },
@@ -2736,20 +2740,16 @@
     },
     {
      "account_codes": [
-      "3",
       "301"
      ],
-     "amount": 4316023.15,
+     "amount": 3654805.78,
      "id": "inventory_raw_materials",
      "label": "Raw materials",
      "label_key": "bs.row.inventory_raw_materials",
      "leaf_ids": [
       "301.201",
       "301.202",
-      "301.203",
-      "348.102",
-      "378.078",
-      "378.080"
+      "301.203"
      ],
      "opening": null,
      "section": "current_assets"
@@ -2793,23 +2793,26 @@
     },
     {
      "account_codes": [
-      "345"
+      "345",
+      "348"
      ],
-     "amount": 795942.72,
+     "amount": 1457159.29,
      "id": "inventory_finished_goods",
      "label": "Finished goods",
      "label_key": "bs.row.inventory_finished_goods",
      "leaf_ids": [
-      "345.010"
+      "345.010",
+      "348.102"
      ],
      "opening": null,
      "section": "current_assets"
     },
     {
      "account_codes": [
-      "371"
+      "371",
+      "378"
      ],
-     "amount": 2064259.85,
+     "amount": 2064260.65,
      "id": "inventory_merchandise_resale",
      "label": "Merchandise for resale",
      "label_key": "bs.row.inventory_merchandise_resale",
@@ -2819,7 +2822,9 @@
       "371.050",
       "371.081",
       "371.093",
-      "371.095"
+      "371.095",
+      "378.078",
+      "378.080"
      ],
      "opening": null,
      "section": "current_assets"
@@ -3311,12 +3316,1369 @@
    "financialIncome": 456384.14,
    "interestExpense": 277930.35,
    "inventoryVariationMemo": 192091846.33,
-   "operatingExpenses": 29989304.23,
+   "operatingExpenses": 29854906.77,
    "otherIncome": 390090.55,
-   "revenue": 118576819.64,
+   "revenue": 110798309.14,
    "taxExpense": 1471550.0
   },
   "industry": null,
+  "insights": {
+   "currency": "RON",
+   "insights": [
+    {
+     "accounts": [
+      {
+       "amount": 983882.24,
+       "code": "2111.02",
+       "name": "UW997149 EBMSAW.3542 TISBIZLKI 03 0999.70 0999.70",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 17148.67,
+       "code": "2111.04",
+       "name": "MZ84254 ESGJBZ.9569 ADJSDWRXD 25 2999.64 2999.64",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 37484.85,
+       "code": "2111.05",
+       "name": "ZV80491 LQWKOV.5416 YBKQBRCEB 49 4666.29 4666.29",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 35565.48,
+       "code": "2111.06",
+       "name": "BO8761 JTURPO.7227 ICRTCASXC 96 9222.04 9222.04",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 205798.25,
+       "code": "2111.07",
+       "name": "LS74642 BOMWIS.484 JYWOYTHFY 84I 2333.57 2333.57",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 524083.0,
+       "code": "2111.08",
+       "name": "PW76965_Kfzfk wktzdswndk_JdzadHhvhwxqhnhw0D_566ce 0222.97",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 270680.0,
+       "code": "2111.09",
+       "name": "YP83138_Hnwny xymwclxqcy_ScwpcUsbsxtzsqsx4L_843dv 4999.10",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 498894.23,
+       "code": "2112.01",
+       "name": "Xkjogdgen yj qjejomen 6336.83",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 5604426.88,
+       "code": "2121.01",
+       "name": "Btkhaosqayy 5656.06",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 1046579.0,
+       "code": "2121.02",
+       "name": "QU69495_Q7Qdtqaiuahqklxiatdt_ BtiqtLklkaerkdka2V_599mb  2727.42",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 17528035.29,
+       "code": "2131.01",
+       "name": "Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 701762.41,
+       "code": "2132.01",
+       "name": "Rbjdjgn tw wytgjpjgww sn rjtcdjdn, eiygdip tw dnupjdn 0530.45",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 9341916.0,
+       "code": "2133.01",
+       "name": "Hmlsktwo eo bptvrukpb 6011.30",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 554867.72,
+       "code": "214.001",
+       "name": "Rlvqgqrf, ikifisxfi vqflsqbi, rbmqkinresr hr kflsrbsqr i oiglfqglf xnier wq nisrfqigr wq igsr ibsqor blfklfigr 275.667",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": 49773.0,
+       "code": "231.010",
+       "name": "Spueca Kewigwe 564.848",
+       "role": "gross_ppe"
+      },
+      {
+       "amount": -434488.49,
+       "code": "2811.01",
+       "name": "Omuhgoqehie emisevehowuh bi gihisjho 8399.79",
+       "role": "accumulated_depreciation"
+      },
+      {
+       "amount": -4094529.08,
+       "code": "2812.01",
+       "name": "Dlrdqwuadba trijqdftqwwmrd 7987.08",
+       "role": "accumulated_depreciation"
+      },
+      {
+       "amount": -21362608.76,
+       "code": "2813.01",
+       "name": "Wqipsbhxplx bjksxtxsbbtip, qbwtixzltip el spxjkaips, xjbqxtltip kb atxjsxsbbtip 9873.27",
+       "role": "accumulated_depreciation"
+      },
+      {
+       "amount": -453821.15,
+       "code": "2814.01",
+       "name": "Qrxeqpgleil lzqxe prxupzpglep axenxelzi 3491.69",
+       "role": "accumulated_depreciation"
+      },
+      {
+       "amount": 5106502.31,
+       "code": "2050.01",
+       "name": "Kvisolxmix, unoaowo, cxsoiwo, zknsx svzonsxkco, tnoewmnx lx kswxao lxzxckno 6010.08",
+       "role": "gross_intangibles"
+      },
+      {
+       "amount": 194568.94,
+       "code": "2080.01",
+       "name": "Mlbv xsmhxlxadox rvjmoymodlv 8121.15",
+       "role": "gross_intangibles"
+      },
+      {
+       "amount": -4472847.31,
+       "code": "2805.01",
+       "name": "Torkwxlvksv nrfnsixefxyrk, jkstswsyrk, yxnsfwsyrk, ovknxyrk nrosknxvys, bkscwekxyrk ix vnwxtsyrk ixoxyvks 9653.58",
+       "role": "accumulated_amortization"
+      },
+      {
+       "amount": -155133.81,
+       "code": "2808.01",
+       "name": "Xrmtvhkdtpd djvmt hrmzhjhkdth upnmtwmtdjp 0595.92",
+       "role": "accumulated_amortization"
+      }
+     ],
+     "claim": "70.4% of gross PP&E is already depreciated; the remaining net book value of RON 11,728,539.67 carries 4.0 years of life at the current annual charge of RON 2,955,346.39.",
+     "claim_template": "{measure:depreciated_share} of gross PP&E is already depreciated; the remaining net book value of {money:net_book_value} carries {measure:remaining_book_life} of life at the current annual charge of {money:annual_da}.",
+     "facts": [
+      {
+       "label": "Gross PP&E",
+       "name": "canonical_bs.rows[ppe_land+ppe_buildings+ppe_machinery_equipment+ppe_furniture_office+ppe_under_construction+ppe_advances+ppe_investment_property]",
+       "unit": "money",
+       "value": 37400897.02
+      },
+      {
+       "label": "Accumulated depreciation",
+       "name": "canonical_bs.rows[accumulated_depreciation_ppe+accumulated_impairment_ppe]",
+       "unit": "money",
+       "value": -26345447.48
+      },
+      {
+       "label": "Gross intangibles",
+       "name": "canonical_bs.rows[intangibles_other+intangibles_software+goodwill]",
+       "unit": "money",
+       "value": 5301071.25
+      },
+      {
+       "label": "Accumulated amortisation",
+       "name": "canonical_bs.rows[accumulated_amortization_intangibles]",
+       "unit": "money",
+       "value": -4627981.12
+      },
+      {
+       "label": "D&A charge for the period",
+       "name": "assembled_pl.depreciation",
+       "unit": "money",
+       "value": 2955346.39
+      }
+     ],
+     "formula": "Accumulated depreciation ÷ gross PP&E; net book value ÷ annual D&A = remaining book life",
+     "id": "asset_age",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "depreciated_share",
+       "label": "Depreciated share of gross PP&E",
+       "unit": "ratio",
+       "value": 0.704406834572
+      },
+      {
+       "key": "gross_ppe",
+       "label": "Gross PP&E",
+       "unit": "money",
+       "value": 37400897.02
+      },
+      {
+       "key": "accumulated_depreciation",
+       "label": "Accumulated depreciation",
+       "unit": "money",
+       "value": 26345447.48
+      },
+      {
+       "key": "net_book_value",
+       "label": "Net book value (PP&E and intangibles)",
+       "unit": "money",
+       "value": 11728539.67
+      },
+      {
+       "key": "intangible_amortised_share",
+       "label": "Amortised share of gross intangibles",
+       "unit": "ratio",
+       "value": 0.873027526276
+      },
+      {
+       "key": "annual_da",
+       "label": "Annual depreciation and amortisation charge",
+       "unit": "money",
+       "value": 2955346.39
+      },
+      {
+       "key": "remaining_book_life",
+       "label": "Remaining book life at current charge",
+       "unit": "years",
+       "value": 3.96858375373
+      }
+     ],
+     "narrative": {
+      "explanation": "70.4% of gross PP&E is already depreciated; the remaining net book value of RON 11,728,539.67 carries 4.0 years of life at the current annual charge of RON 2,955,346.39. Graded high: the amount at stake is 70.4% of gross pp&e, against the ladder printed beside this finding. Depreciation is graded against the asset base that produced it, so a factory and a courier are compared on the share of their OWN gross PP&E already written off rather than on an absolute charge.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Ask for the fixed-asset register by acquisition year and the committed capex plan. A book this far through its depreciation life either has replacement spending ahead of it or is running assets past their useful life, and the two have very different cash consequences.",
+      "source": "deterministic"
+     },
+     "rank": 1,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.85,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.7,
+        "level": "high"
+       },
+       {
+        "at_least": 0.55,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.35,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "gross_ppe",
+      "basis_label": "Gross PP&E",
+      "basis_value": 37400897.02,
+      "level": "high",
+      "magnitude": 26345447.48,
+      "materiality": 0.704407,
+      "why": "Depreciation is graded against the asset base that produced it, so a factory and a courier are compared on the share of their OWN gross PP&E already written off rather than on an absolute charge."
+     },
+     "title": "Asset base is late in its depreciation life"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 7536754.9,
+       "code": "4511.01",
+       "name": "Ndqe te cnifmfy NLC 3299.59",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 143709.49,
+       "code": "461.016",
+       "name": "Svwzgdnz czkvnozz qlzazqgz 092.829 092.829",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 5637.91,
+       "code": "461.06",
+       "name": "Jhjvabrv ivthrzvv Zwjhwqk Wikwri 260.96",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 6100.44,
+       "code": "461.07",
+       "name": "Aplhzbah thdpaghh YRWP YAJCYM DCZVY 045.81",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 44835.35,
+       "code": "473.01",
+       "name": "176.58 Ewsjgimbk akg jqwbmikk kg slbu aw sombkxksmbw",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": -1953.0,
+       "code": "481",
+       "name": "347 Wegodufcx xduce ndxufue yx ynpndxufux",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 19614.76,
+       "code": "4092.34",
+       "name": "HWHBU E.XB  9304.59",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 38228.13,
+       "code": "4428.010",
+       "name": "JVK kbbuwdwlwyr NKCWKUEPCXP - 1164.959 1164.959",
+       "role": "non_trade_receivable"
+      },
+      {
+       "amount": 10505.59,
+       "code": "4428.26",
+       "name": "4462.65 LGA yllqabawazu - LGA ayeutunl hgnyakdn",
+       "role": "non_trade_receivable"
+      }
+     ],
+     "claim": "The current ratio of 2.10× falls to 1.50× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×.",
+     "claim_template": "The current ratio of {measure:current_ratio} falls to {measure:current_ratio_trade_only} once {money:non_trade} of non-trade receivables is removed; the cash ratio is {measure:cash_ratio}.",
+     "facts": [
+      {
+       "label": "Total current assets",
+       "name": "assembled_bs.total_current_assets",
+       "unit": "money",
+       "value": 27371337.47
+      },
+      {
+       "label": "Total current liabilities",
+       "name": "assembled_bs.total_current_liabilities",
+       "unit": "money",
+       "value": 13012976.77
+      },
+      {
+       "label": "Cash and equivalents",
+       "name": "assembled_bs.cash",
+       "unit": "money",
+       "value": 1168047.04
+      },
+      {
+       "label": "Inventory",
+       "name": "assembled_bs.inventory",
+       "unit": "money",
+       "value": 8933332.42
+      },
+      {
+       "label": "Non-trade receivables inside current assets",
+       "name": "canonical_bs.rows[ar_intercompany+ar_other+ar_supplier_advances+ar_tax_recoverable+ar_personnel]",
+       "unit": "money",
+       "value": 7803433.57
+      }
+     ],
+     "formula": "Current ratio recomputed with non-trade receivables (intercompany, other debtors, supplier advances, tax recoverable) removed from current assets",
+     "id": "liquidity_quality",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "current_ratio",
+       "label": "Current ratio as reported",
+       "unit": "multiple",
+       "value": 2.103387868416
+      },
+      {
+       "key": "current_ratio_trade_only",
+       "label": "Current ratio, non-trade receivables removed",
+       "unit": "multiple",
+       "value": 1.503722341618
+      },
+      {
+       "key": "ratio_delta",
+       "label": "Movement in the current ratio",
+       "unit": "multiple",
+       "value": 0.599665526799
+      },
+      {
+       "key": "non_trade",
+       "label": "Non-trade receivables removed",
+       "unit": "money",
+       "value": 7803433.57
+      },
+      {
+       "key": "quick_ratio",
+       "label": "Quick ratio as reported",
+       "unit": "multiple",
+       "value": 1.41689371893
+      },
+      {
+       "key": "cash_ratio",
+       "label": "Cash ratio as reported",
+       "unit": "multiple",
+       "value": 0.08976017253
+      }
+     ],
+     "narrative": {
+      "explanation": "The current ratio of 2.10× falls to 1.50× once RON 7,803,433.57 of non-trade receivables is removed; the cash ratio is 0.09×. Graded high: the amount at stake is 60.0% of total current liabilities, against the ladder printed beside this finding. The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Read the current ratio in its trade-only form when setting covenant headroom. The non-trade balances removed here are not stock that converts on ordinary terms, and a lender will discount them.",
+      "source": "deterministic"
+     },
+     "rank": 2,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.75,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.4,
+        "level": "high"
+       },
+       {
+        "at_least": 0.2,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.05,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "total_current_liabilities",
+      "basis_label": "Total current liabilities",
+      "basis_value": 13012976.77,
+      "level": "high",
+      "magnitude": 7803433.57,
+      "materiality": 0.599666,
+      "why": "The excluded assets are graded against the liabilities they were being counted as cover for, which is the same denominator the current ratio itself uses — so the severity IS the ratio movement."
+     },
+     "title": "Headline liquidity leans on receivables that are not trade"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 7536754.9,
+       "code": "4511.01",
+       "name": "Ndqe te cnifmfy NLC 3299.59",
+       "role": "related_party"
+      },
+      {
+       "amount": 143709.49,
+       "code": "461.016",
+       "name": "Svwzgdnz czkvnozz qlzazqgz 092.829 092.829",
+       "role": "related_party"
+      },
+      {
+       "amount": 5637.91,
+       "code": "461.06",
+       "name": "Jhjvabrv ivthrzvv Zwjhwqk Wikwri 260.96",
+       "role": "related_party"
+      },
+      {
+       "amount": 6100.44,
+       "code": "461.07",
+       "name": "Aplhzbah thdpaghh YRWP YAJCYM DCZVY 045.81",
+       "role": "related_party"
+      }
+     ],
+     "claim": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.8% to 51.3% and the current ratio from 2.10× to 1.51×.",
+     "claim_template": "{money:related_party} of related-party and other-debtor receivables is {measure:share_of_assets} of total assets and {measure:share_of_equity} of equity; written off in full, the equity ratio moves from {measure:equity_ratio} to {measure:equity_ratio_haircut} and the current ratio from {measure:current_ratio} to {measure:current_ratio_haircut}.",
+     "facts": [
+      {
+       "label": "Related-party receivables",
+       "name": "canonical_bs.rows[ar_intercompany+ar_personnel]",
+       "unit": "money",
+       "value": 7692202.74
+      },
+      {
+       "label": "Total assets",
+       "name": "assembled_bs.total_assets",
+       "unit": "money",
+       "value": 39319114.09
+      },
+      {
+       "label": "Total equity",
+       "name": "assembled_bs.total_equity",
+       "unit": "money",
+       "value": 23924083.72
+      },
+      {
+       "label": "Total current assets",
+       "name": "assembled_bs.total_current_assets",
+       "unit": "money",
+       "value": 27371337.47
+      },
+      {
+       "label": "Total current liabilities",
+       "name": "assembled_bs.total_current_liabilities",
+       "unit": "money",
+       "value": 13012976.77
+      }
+     ],
+     "formula": "Related-party receivables ÷ total assets and ÷ total equity; every dependent ratio recomputed at a 100% lender haircut",
+     "id": "related_party_exposure",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "related_party",
+       "label": "Related-party and other-debtor receivables",
+       "unit": "money",
+       "value": 7692202.74
+      },
+      {
+       "key": "share_of_assets",
+       "label": "Share of total assets",
+       "unit": "ratio",
+       "value": 0.195635199776
+      },
+      {
+       "key": "share_of_equity",
+       "label": "Share of total equity",
+       "unit": "ratio",
+       "value": 0.321525489963
+      },
+      {
+       "key": "equity_ratio",
+       "label": "Equity ratio as reported",
+       "unit": "ratio",
+       "value": 0.60845937844
+      },
+      {
+       "key": "equity_ratio_haircut",
+       "label": "Equity ratio at a 100% haircut",
+       "unit": "ratio",
+       "value": 0.513230040087
+      },
+      {
+       "key": "current_ratio",
+       "label": "Current ratio as reported",
+       "unit": "multiple",
+       "value": 2.103387868416
+      },
+      {
+       "key": "current_ratio_haircut",
+       "label": "Current ratio at a 100% haircut",
+       "unit": "multiple",
+       "value": 1.512270026899
+      },
+      {
+       "key": "net_debt_ebitda",
+       "label": "Net debt ÷ EBITDA as reported",
+       "unit": "multiple",
+       "value": 0.229405022257
+      }
+     ],
+     "narrative": {
+      "explanation": "RON 7,692,202.74 of related-party and other-debtor receivables is 19.6% of total assets and 32.2% of equity; written off in full, the equity ratio moves from 60.8% to 51.3% and the current ratio from 2.10× to 1.51×. Graded high: the amount at stake is 32.2% of total equity, against the ladder printed beside this finding. Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
+      "source": "deterministic"
+     },
+     "rank": 3,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.5,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.25,
+        "level": "high"
+       },
+       {
+        "at_least": 0.1,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.02,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "total_equity",
+      "basis_label": "Total equity",
+      "basis_value": 23924083.72,
+      "level": "high",
+      "magnitude": 7692202.74,
+      "materiality": 0.321525,
+      "why": "Equity is the cushion a lender writes the exposure off against, so the exposure is graded as a share of that cushion rather than of the balance sheet it is already inside."
+     },
+     "title": "Related-party and other-debtor balances sit inside the assets"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 46613.06,
+       "code": "413",
+       "name": "367 Fhyrly cy bfknkl cy gs rgkyqlk",
+       "role": "unclassified"
+      }
+     ],
+     "claim": "RON 46,613.06 across 1 account sits in the statements under an Unclassified row because the classification pack matched no rule for it — 0.1% of total assets.",
+     "claim_template": "{money:unclassified} across {measure:account_count} sits in the statements under an Unclassified row because the classification pack matched no rule for it — {measure:share_of_assets} of total assets.",
+     "facts": [
+      {
+       "label": "Accounts the pack matched no rule for",
+       "name": "canonical_bs.unmapped",
+       "unit": "count",
+       "value": 1.0
+      },
+      {
+       "label": "Diagnosis codes raised: D9_UNMAPPED_INCLUDED",
+       "name": "canonical_bs.diagnosis",
+       "unit": "count",
+       "value": 1.0
+      },
+      {
+       "label": "Balance-sheet delta",
+       "name": "assembled_bs.bs_balance_delta",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Total assets",
+       "name": "assembled_bs.total_assets",
+       "unit": "money",
+       "value": 39319114.09
+      }
+     ],
+     "formula": "Sum of accounts the classification pack matched no rule for, ÷ total assets",
+     "id": "unclassified_balances",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "unclassified",
+       "label": "Unclassified balances",
+       "unit": "money",
+       "value": 46613.06
+      },
+      {
+       "key": "account_count",
+       "label": "Accounts affected",
+       "noun": "account",
+       "unit": "count",
+       "value": 1.0
+      },
+      {
+       "key": "share_of_assets",
+       "label": "Share of total assets",
+       "unit": "ratio",
+       "value": 0.001185506364
+      },
+      {
+       "key": "balance_sheet_delta",
+       "label": "Balance-sheet delta the payload reports",
+       "unit": "money",
+       "value": 0.0
+      }
+     ],
+     "narrative": {
+      "explanation": "RON 46,613.06 across 1 account sits in the statements under an Unclassified row because the classification pack matched no rule for it — 0.1% of total assets. Graded high: the amount at stake is 0.1% of total assets, against the ladder printed beside this finding. An unexplained balance is graded against the balance sheet it had to be forced into, because the question a reader asks is what share of the statement is not actually classified.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Get these accounts mapped before the next close. A balance carried under an Unclassified row is in the totals but in no statement line, so it is invisible to every ratio computed from those lines.",
+      "source": "deterministic"
+     },
+     "rank": 4,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.005,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.001,
+        "level": "high"
+       },
+       {
+        "at_least": 0.0002,
+        "level": "medium"
+       },
+       {
+        "at_least": 1e-05,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "total_assets",
+      "basis_label": "Total assets",
+      "basis_value": 39319114.09,
+      "level": "high",
+      "magnitude": 46613.06,
+      "materiality": 0.001186,
+      "why": "An unexplained balance is graded against the balance sheet it had to be forced into, because the question a reader asks is what share of the statement is not actually classified."
+     },
+     "title": "Balances no statement line explains"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 7533676.02,
+       "code": "121",
+       "name": "Current year profit",
+       "role": "account_121"
+      }
+     ],
+     "claim": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging.",
+     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
+     "facts": [
+      {
+       "label": "Reconciliation to account 121",
+       "name": "assembled_pl.net_income_reconciliation_to_121",
+       "unit": "money",
+       "value": 1071687.03
+      },
+      {
+       "label": "Net income rebuilt from the movements",
+       "name": "assembled_pl.net_income_operational",
+       "unit": "money",
+       "value": 6461988.99
+      },
+      {
+       "label": "Net income in account 121",
+       "name": "assembled_pl.net_income_statutory",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "label": "Revenue",
+       "name": "assembled_pl.revenue",
+       "unit": "money",
+       "value": 110798309.14
+      }
+     ],
+     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
+     "id": "reconstruction_gap",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "step",
+       "label": "Reconciliation to account 121",
+       "unit": "money",
+       "value": 1071687.03
+      },
+      {
+       "key": "reconstructed",
+       "label": "Net income rebuilt from the movements",
+       "unit": "money",
+       "value": 6461988.99
+      },
+      {
+       "key": "statutory",
+       "label": "Net income in account 121",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "key": "graded_share",
+       "label": "Step as a share of reconstructed net income",
+       "unit": "ratio",
+       "value": 0.165844762605
+      },
+      {
+       "key": "graded_base",
+       "label": "Reconstructed net income",
+       "unit": "money",
+       "value": 6461988.99
+      }
+     ],
+     "narrative": {
+      "explanation": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging. Graded medium: the amount at stake is 16.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
+      "source": "deterministic"
+     },
+     "rank": 5,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.5,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.2,
+        "level": "high"
+       },
+       {
+        "at_least": 0.05,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.01,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "reconstructed_net_income",
+      "basis_label": "Reconstructed net income",
+      "basis_value": 6461988.99,
+      "level": "medium",
+      "magnitude": 1071687.03,
+      "materiality": 0.165845,
+      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
+     },
+     "title": "The P&L does not reach statutory profit on its own"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 95681.37,
+       "code": "7581",
+       "name": "5642 Rwvfqtlf mfv mwgapktuflf, piwvnf gf awvphfqpqf",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 34481.39,
+       "code": "7583",
+       "name": "2365 Zmjhoxbh thj eyjkybmy ylohemdsb gh ydom szmbyohh tm lyzhoyd",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 85603.12,
+       "code": "7584.15",
+       "name": "Iyacw.dgsryawcc Ffwfrfxwocpy 3254.82",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 617.69,
+       "code": "7588.01",
+       "name": "Jmfn cnihfdyh xhi nuwmbkfkyn. 9844.52 9844.52",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 11166.56,
+       "code": "7588.02",
+       "name": "Hxek vkdsewys psng. lwydshqys XV 4500.17",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 23158.72,
+       "code": "7588.05",
+       "name": "Bxdq hqb.qiyx.juhqpeq 7511.45",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 135393.0,
+       "code": "7588.07",
+       "name": "Eixh rhv.zyvt.ayictjmcxjx 3166.53",
+       "role": "otherIncome"
+      },
+      {
+       "amount": 3988.7,
+       "code": "7814.01",
+       "name": "Qteyisdy tclq.au.ptld.abi.bydb. 7624.02",
+       "role": "otherIncome"
+      }
+     ],
+     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%.",
+     "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
+     "facts": [
+      {
+       "label": "EBITDA",
+       "name": "assembled_pl.ebitda",
+       "unit": "money",
+       "value": 10776378.24
+      },
+      {
+       "label": "Other operating income",
+       "name": "assembled_pl.other_operating_income",
+       "unit": "money",
+       "value": 390090.55
+      },
+      {
+       "label": "Provision reversals",
+       "name": "assembled_pl.other_income_781_reversals",
+       "unit": "money",
+       "value": 3988.7
+      },
+      {
+       "label": "Capitalised own work",
+       "name": "assembled_pl.capitalized_own_work_memo",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "label": "Operating cash proxy",
+       "name": "assembled_pl.free_cash_flow_proxy",
+       "unit": "money",
+       "value": 10489022.41
+      }
+     ],
+     "formula": "(Other operating income + provision reversals) ÷ EBITDA; operating cash proxy ÷ EBITDA; capitalised own work",
+     "id": "earnings_quality",
+     "in_summary": false,
+     "measures": [
+      {
+       "key": "non_trading",
+       "label": "Other operating income and provision reversals",
+       "unit": "money",
+       "value": 390090.55
+      },
+      {
+       "key": "ebitda",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": 10776378.24
+      },
+      {
+       "key": "graded_share",
+       "label": "Non-trading income as a share of ebitda",
+       "unit": "ratio",
+       "value": 0.036198669099
+      },
+      {
+       "key": "graded_base",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": 10776378.24
+      },
+      {
+       "key": "provision_reversals",
+       "label": "Provision reversals (781)",
+       "unit": "money",
+       "value": 3988.7
+      },
+      {
+       "key": "capitalised_own_work",
+       "label": "Capitalised own work",
+       "unit": "money",
+       "value": 0.0
+      },
+      {
+       "key": "cash_proxy",
+       "label": "Operating cash proxy",
+       "unit": "money",
+       "value": 10489022.41
+      },
+      {
+       "key": "cash_conversion",
+       "label": "Operating cash proxy ÷ EBITDA",
+       "unit": "ratio",
+       "value": 0.973334656264
+      }
+     ],
+     "narrative": {
+      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%. Graded low: the amount at stake is 3.6% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
+      "source": "deterministic"
+     },
+     "rank": 6,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.3,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.15,
+        "level": "high"
+       },
+       {
+        "at_least": 0.07,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.02,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "ebitda_positive",
+      "basis_label": "EBITDA",
+      "basis_value": 10776378.24,
+      "level": "low",
+      "magnitude": 390090.55,
+      "materiality": 0.036199,
+      "why": "Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\"."
+     },
+     "title": "Part of EBITDA is not trading income"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 4600644.59,
+       "code": "4111.01",
+       "name": "Kukipmk Tuoc - 5444.84 5444.84",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": 1270793.58,
+       "code": "4111.02",
+       "name": "Ptfpkjf Imbmlpgjf 5444.89",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": 511694.82,
+       "code": "4111.03",
+       "name": "Ryifrki fhkfjri 8333.07",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": 2190160.47,
+       "code": "4111.10",
+       "name": "Urqkjfq qjf.VUF 5444.43 5444.43",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": -48170.15,
+       "code": "491",
+       "name": "509 Ujrdqnlm gubqlr ougluxmulun xlunbqukil - xkmubqm",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": -11738.35,
+       "code": "496",
+       "name": "983 Fnxlhfoq rbjhox zbrobpqbobf pobfjhbemo - zbwqhmoq zqvbolq",
+       "role": "trade_receivable"
+      },
+      {
+       "amount": 1843676.17,
+       "code": "401.003",
+       "name": "Ifxkcnyxc dljdxkc - 861.63 861.663",
+       "role": "trade_payable"
+      },
+      {
+       "amount": 2476804.2,
+       "code": "401.01",
+       "name": "Zchgynjhy ygbohgy - 940.40 940.40",
+       "role": "trade_payable"
+      },
+      {
+       "amount": 2363596.3,
+       "code": "401.110",
+       "name": "Ypurclfuc BVN 976.667",
+       "role": "trade_payable"
+      },
+      {
+       "amount": 439477.55,
+       "code": "403.001",
+       "name": "Wwjvfj oj tqxfef 084.887",
+       "role": "trade_payable"
+      },
+      {
+       "amount": 62819.55,
+       "code": "404.001",
+       "name": "Iktsdmntd vo dznudpdmftd - 313 313.118",
+       "role": "trade_payable"
+      }
+     ],
+     "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
+     "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+     "facts": [
+      {
+       "label": "Trade receivables net of provisions",
+       "name": "canonical_bs.rows[ar_trade_gross+ar_doubtful_gross+ar_provisions]",
+       "unit": "money",
+       "value": 8513384.96
+      },
+      {
+       "label": "Trade payables",
+       "name": "canonical_bs.rows[ap_trade]",
+       "unit": "money",
+       "value": 7186373.77
+      },
+      {
+       "label": "Revenue",
+       "name": "assembled_pl.revenue",
+       "unit": "money",
+       "value": 110798309.14
+      },
+      {
+       "label": "Cost of goods sold",
+       "name": "assembled_pl.cogs",
+       "unit": "money",
+       "value": 70557114.68
+      }
+     ],
+     "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+     "id": "trade_float",
+     "in_summary": false,
+     "measures": [
+      {
+       "key": "dso",
+       "label": "Days sales outstanding",
+       "unit": "days",
+       "value": 28.045423567553
+      },
+      {
+       "key": "dpo",
+       "label": "Days payables outstanding",
+       "unit": "days",
+       "value": 37.175930987914
+      },
+      {
+       "key": "float_days",
+       "label": "Collection gap (DSO − DPO)",
+       "unit": "days",
+       "value": -9.130507420361
+      },
+      {
+       "key": "float",
+       "label": "Net trade float (receivables − payables)",
+       "unit": "money",
+       "value": 1327011.19
+      },
+      {
+       "key": "trade_receivables",
+       "label": "Trade receivables net of provisions",
+       "unit": "money",
+       "value": 8513384.96
+      },
+      {
+       "key": "trade_payables",
+       "label": "Trade payables",
+       "unit": "money",
+       "value": 7186373.77
+      },
+      {
+       "key": "cogs",
+       "label": "Cost of goods sold",
+       "unit": "money",
+       "value": 70557114.68
+      }
+     ],
+     "narrative": {
+      "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
+      "source": "deterministic"
+     },
+     "rank": 7,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.2,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.1,
+        "level": "high"
+       },
+       {
+        "at_least": 0.05,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.01,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "revenue",
+      "basis_label": "Revenue",
+      "basis_value": 110798309.14,
+      "level": "low",
+      "magnitude": 1327011.19,
+      "materiality": 0.011977,
+      "why": "Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against."
+     },
+     "title": "Suppliers and customers move the cash cycle"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 65946.65,
+       "code": "665",
+       "name": "115 Azwecapwep jph jpkwswhcw jw dasl gteacts",
+       "role": "financialExpense"
+      },
+      {
+       "amount": 210406.98,
+       "code": "666.01",
+       "name": "Lsgcyfxgcx hlxdxqz zkbwqjxcg  333.71 333.71",
+       "role": "interestExpense"
+      },
+      {
+       "amount": 67523.37,
+       "code": "666.111",
+       "name": "Vaugb.nxe. olbx  guoytjc 222.888 222.888",
+       "role": "interestExpense"
+      },
+      {
+       "amount": 157000.88,
+       "code": "765",
+       "name": "928 Sslzqytz czl czfstslqs cs gytr xonyqot",
+       "role": "financialIncome"
+      },
+      {
+       "amount": 299383.26,
+       "code": "766",
+       "name": "800 Ixmdahbd zdm zqjfmcd",
+       "role": "financialIncome"
+      }
+     ],
+     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24.",
+     "claim_template": "This book earns more on financial assets than it pays on debt: financial income of {money:financial_income} against financial expense of {money:financial_expense} leaves a net gain of {money:net_financial}, {measure:graded_share} of {money:graded_base}.",
+     "facts": [
+      {
+       "label": "Financial income",
+       "name": "assembled_pl.financial_income",
+       "unit": "money",
+       "value": 456384.14
+      },
+      {
+       "label": "Financial expense",
+       "name": "assembled_pl.financial_expense_total",
+       "unit": "money",
+       "value": 343877.0
+      },
+      {
+       "label": "Net financial result",
+       "name": "assembled_pl.net_financial_result",
+       "unit": "money",
+       "value": 112507.14
+      },
+      {
+       "label": "Interest expense",
+       "name": "assembled_pl.interest_expense",
+       "unit": "money",
+       "value": 277930.35
+      },
+      {
+       "label": "Interest income",
+       "name": "assembled_pl.interest_income",
+       "unit": "money",
+       "value": 299383.26
+      },
+      {
+       "label": "EBITDA",
+       "name": "assembled_pl.ebitda",
+       "unit": "money",
+       "value": 10776378.24
+      }
+     ],
+     "formula": "Financial income − financial expense, against operating EBITDA",
+     "id": "financial_position",
+     "in_summary": false,
+     "measures": [
+      {
+       "key": "financial_income",
+       "label": "Financial income",
+       "unit": "money",
+       "value": 456384.14
+      },
+      {
+       "key": "financial_expense",
+       "label": "Financial expense",
+       "unit": "money",
+       "value": 343877.0
+      },
+      {
+       "key": "net_financial",
+       "label": "Net financial result",
+       "unit": "money",
+       "value": 112507.14
+      },
+      {
+       "key": "graded_share",
+       "label": "Net financial result as a share of ebitda",
+       "unit": "ratio",
+       "value": 0.010440162501
+      },
+      {
+       "key": "graded_base",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": 10776378.24
+      },
+      {
+       "key": "interest_expense",
+       "label": "Interest expense",
+       "unit": "money",
+       "value": 277930.35
+      },
+      {
+       "key": "interest_income",
+       "label": "Interest income",
+       "unit": "money",
+       "value": 299383.26
+      },
+      {
+       "key": "ebitda",
+       "label": "EBITDA",
+       "unit": "money",
+       "value": 10776378.24
+      }
+     ],
+     "narrative": {
+      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24. Graded info: the amount at stake is 1.0% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
+      "source": "deterministic"
+     },
+     "rank": 8,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.5,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.2,
+        "level": "high"
+       },
+       {
+        "at_least": 0.08,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.02,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "ebitda_positive",
+      "basis_label": "EBITDA",
+      "basis_value": 10776378.24,
+      "level": "info",
+      "magnitude": 112507.14,
+      "materiality": 0.01044,
+      "why": "The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing."
+     },
+     "title": "The financial line is not incidental to the result"
+    }
+   ],
+   "not_fired": [],
+   "schema_version": "insights/1",
+   "summary_ids": [
+    "asset_age",
+    "liquidity_quality",
+    "related_party_exposure",
+    "unclassified_balances",
+    "reconstruction_gap"
+   ]
+  },
   "periodLabel": "2025-12-31",
   "subAggregates": {
    "ap_dividends": 0.0,

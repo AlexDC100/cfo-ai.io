@@ -194,8 +194,8 @@ def test_the_projections_own_accessors_work_and_carry_the_real_number():
     128,062,965.21 — carried as integer minor units and divided exactly once,
     at the display boundary."""
     figure = _gateway().figure("revenue", "FY+1")
-    assert figure.projected_minor == 12806296521
-    assert figure.to_display() == 128062965.21
+    assert figure.projected_minor == 11966217387
+    assert figure.to_display() == 119662173.87
 
 
 def test_the_gateway_refuses_a_payload_that_also_carries_actual_figures():
@@ -251,7 +251,7 @@ def test_a_projection_stripped_of_its_marker_is_still_caught():
     stripped = {
         "line": "revenue",
         "period": "FY+1",
-        "amount_minor": 12806296521,
+        "amount_minor": 11966217387,
         "assumption_ids": ["revenue_growth"],
     }
     planted = copy.deepcopy(book)
@@ -605,7 +605,7 @@ def test_the_committed_fp1_fixture_is_exactly_what_the_builder_produces():
 
 def test_the_committed_fixture_loads_through_the_gateway_unchanged():
     gateway = ProjectionGateway.from_payload(json.loads(FP1_FIXTURE.read_text()))
-    assert gateway.figure("revenue", "FY+1").projected_minor == 12806296521
+    assert gateway.figure("revenue", "FY+1").projected_minor == 11966217387
     assert gateway.unbalanced_periods() == ()
 
 
@@ -1109,6 +1109,6 @@ def test_the_committed_served_fixture_reads_back_through_the_gateway():
     assert gateway is not None
     figure = gateway.figure("revenue", "FY+1")
     assert isinstance(figure, ProjectedFigure)
-    assert figure.projected_minor == 12806296521
+    assert figure.projected_minor == 11966217387
     assert [(a.id, a.value) for a in figure.basis] == [("revenue_growth", 0.08)]
     assert gateway.unbalanced_periods() == ()

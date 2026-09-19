@@ -1354,17 +1354,32 @@ def test_hx1_a_zero_tax_charge_no_account_stands_behind_is_refused(book):
     never published as a measured rate unless the book's pre-tax result
     less that nil charge IS the profit it filed in account 121 (the tie is
     then the measurement). On the corpus books realestate and retail carry
-    no class-69 account and neither ties, so neither measures a rate.
+    no class-69 account; realestate does not tie, so it measures no rate.
+    RESTATED (plan/2 B4a): retail TIES once its mirrored 609/709 rows are
+    read as reductions (the 2,043,254.64 gap was the double count), so on
+    retail the nil charge is now the measurement — book 0, on both paths —
+    exactly the hx2b law. Which branch a book takes is read off the book
+    (its unexplained step against 121), never off its name.
     """
     from engine.forecast_drivers.reader import ActualsPeriod
 
-    period = ActualsPeriod(_load(book))
+    payload = _load(book)
+    period = ActualsPeriod(payload)
     driver = _base(book).driver("tax_rate")
     tax = period.pl("income_tax")
     if period.accounts_with_prefix(_TAX_ACCOUNT_CLASS) or tax is None \
             or abs(tax) > 1e-9:
         return
-    model = _model_assumptions(_load(book))["tax_rate"]
+    model = _model_assumptions(payload)["tax_rate"]
+    unexplained = float(payload["statements"]["assembled_pl"].get(
+        "net_income_unexplained_vs_121") or 0.0)
+    if abs(unexplained) < 0.005:
+        assert model.tier == "book" and driver.tier == "book", (
+            "%s ties to account 121 with a nil charge and no class-69 "
+            "account: the tie is the measurement (book 0), got %r / %r"
+            % (book, model.tier, driver.tier))
+        assert driver.value == 0, (book, driver.value)
+        return
     assert model.tier != "book" and driver.tier != "book", (
         "%s: income_tax is %r, no class-69 account stands behind it and "
         "the build-up does not tie, but a rate was measured (%r / %r)"

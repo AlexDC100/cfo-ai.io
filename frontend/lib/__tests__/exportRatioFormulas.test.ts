@@ -399,6 +399,10 @@ function envOf(book: Book): Env {
 const show = (n: number, unit: Spec["unit"]) =>
   unit === "%" ? `${n.toFixed(4)}%` : unit === "days" ? `${n.toFixed(4)} d` : `${n.toFixed(4)}×`;
 
+//: books that can tell the filed account-121 figure from the reconstruction
+//: (plan/2 B4a: filled per book, checked once across the scope, TC-3).
+const DISCRIMINATING = new Map<string, number>();
+
 describe("G4 — every rendered ratio equals its stated formula", () => {
   it("declares a formula for every ratio the printed document states", () => {
     // Not vacuous, and not silently outgrown: a ratio card added to the
@@ -505,6 +509,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       const doc = exportDoc(book as Book);
       const env = envOf(book as Book);
       const anchored: string[] = [];
+      const cannotTell: string[] = [];
       const failures: string[] = [];
       for (const sp of SPECS) {
         if (sp.onReconstruction === undefined) continue;
@@ -515,12 +520,19 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         if (rendered === null || onFiled === null || onRebuilt === null) continue;
         const tol = tolerance(sp.unit, onFiled);
         // Non-vacuity: the two bases must actually differ on this book, or
-        // "it is on the anchor" is a statement about nothing.
-        expect(
-          Math.abs(onFiled - onRebuilt),
-          `${book}: “${label}” — the filed and reconstructed bases are the same number ` +
-            `(${show(onFiled, sp.unit)}), so this book cannot tell them apart`,
-        ).toBeGreaterThan(tol * 4);
+        // "it is on the anchor" is a statement about nothing. A book whose
+        // reconstruction reaches account 121 (retail, since plan/2 B4a read
+        // its mirrored 609/709 rows as reductions) or comes within four
+        // tolerances of it (carniprod) cannot tell them apart and is
+        // recorded as unable to, by name; the scope-wide TC-3 check below
+        // requires at least one book that can.
+        if (Math.abs(onFiled - onRebuilt) <= tol * 4) {
+          cannotTell.push(
+            `${book}: “${label}” — filed ${show(onFiled, sp.unit)} and reconstructed ` +
+              `${show(onRebuilt, sp.unit)} agree within four tolerances`,
+          );
+          continue;
+        }
         anchored.push(label);
         if (Math.abs(rendered - onFiled) > tol) {
           failures.push(
@@ -532,10 +544,22 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           );
         }
       }
-      expect(anchored.length, `${book}: no net-income ratio was compared`).toBe(3);
+      expect(
+        anchored.length + cannotTell.length,
+        `${book}: not every net-income ratio was considered`,
+      ).toBe(3);
+      DISCRIMINATING.set(book, anchored.length);
       expect(failures, `${book}: a ratio is built on the reconstruction, not the anchor`).toEqual(
         [],
       );
     });
   }
+
+  it("at least one book tells the filed account-121 figure from the reconstruction (TC-3)", () => {
+    const counts = Array.from(DISCRIMINATING.entries()).map(([b, n]) => `${b}: ${n} of 3`);
+    expect(
+      Math.max(0, ...DISCRIMINATING.values()),
+      `no book discriminates the two bases — ${counts.join(", ")}`,
+    ).toBeGreaterThan(0);
+  });
 });

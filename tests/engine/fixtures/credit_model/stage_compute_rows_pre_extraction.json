@@ -2,562 +2,563 @@
  "_meta": {
   "captured_at_commit": "cfd2117 (main), BEFORE the credit-model extraction",
   "captured_by": "pipeline.stage_compute with a recording admin double (delete/insert captured, nothing written)",
-  "note": "rows are exactly what stage_compute inserted into calculated_metrics at that commit; they carry no credit_model_revision row because the stamp did not exist yet"
+  "note": "rows are exactly what stage_compute inserted into calculated_metrics at that commit; they carry no credit_model_revision row because the stamp did not exist yet",
+  "recaptured_plan2_b4a": "saga_10_col_agras, saga_10_col_carniprod, saga_10_col_retail and saga_10_col_agras_zero_balance_sheet: rows re-derived by engine.ratios.credit_model.compute_period_metrics over the firm fixtures recaptured after the 609/709 contra-sign repair (plan/2 B4a). The pre-extraction parity for those four cases was proven at cfd2117 on the old inputs; the function is unchanged since, so the pure function is the only source of rows over the repaired books."
  },
  "cases": {
   "saga_10_col_agras": {
    "rows": [
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 110798309.14,
      "unit": "RON",
-     "value": 118576819.64
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 40241194.46,
      "unit": "RON",
-     "value": 48019704.96
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory_with_711",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 202868224.57,
      "unit": "RON",
-     "value": 210512337.61
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_variation_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 192091846.33,
      "unit": "RON",
-     "value": 192091846.33
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 7821031.85,
      "unit": "RON",
-     "value": 15465144.89
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6461988.99,
      "unit": "RON",
-     "value": 14106102.03
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_operational",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6461988.99,
      "unit": "RON",
-     "value": 14106102.03
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 7533676.02,
      "unit": "RON",
-     "value": 7533676.02
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 110798309.14,
      "unit": "RON",
-     "value": 118576819.64
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 302890155.47,
      "unit": "RON",
-     "value": 310668665.97
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "capitalized_own_work_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3632,
      "unit": "ratio",
-     "value": 0.405
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0973,
      "unit": "ratio",
-     "value": 0.1553
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.068,
      "unit": "ratio",
-     "value": 0.0635
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 39272501.03,
      "unit": "RON",
-     "value": 39272501.03
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3640202.33,
      "unit": "RON",
-     "value": 3640202.33
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 23924083.72,
      "unit": "RON",
-     "value": 23924083.72
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "current_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2.1114,
      "unit": "ratio",
-     "value": 2.1114
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1522,
      "unit": "ratio",
-     "value": 0.1522
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3378,
      "unit": "ratio",
-     "value": 0.1976
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "interest_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roa",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1918,
      "unit": "ratio",
-     "value": 0.1918
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roe",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3149,
      "unit": "ratio",
-     "value": 0.3149
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roic",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.2383,
      "unit": "ratio",
-     "value": 0.4713
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1168047.04,
      "unit": "RON",
-     "value": 1168047.04
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "free_cash_flow",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10489022.41,
      "unit": "RON",
-     "value": 10489022.41
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "adjusted_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10386287.69,
      "unit": "RON",
-     "value": 18030400.73
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_758",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 386101.85,
      "unit": "RON",
-     "value": 386101.85
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_781_reversals",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3988.7,
      "unit": "RON",
-     "value": 3988.7
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_pct",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_abs",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_debit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 70215990.73,
      "unit": "RON",
-     "value": 70215990.73
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_credit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 70215990.73,
      "unit": "RON",
-     "value": 70215990.73
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "quick_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.744,
      "unit": "ratio",
-     "value": 0.744
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0898,
      "unit": "ratio",
-     "value": 0.0898
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "working_capital",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 14463080.17,
      "unit": "RON",
-     "value": 14463080.17
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2472155.29,
      "unit": "RON",
-     "value": 2472155.29
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.2294,
      "unit": "ratio",
-     "value": 0.1342
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "equity_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.6092,
      "unit": "ratio",
-     "value": 0.6092
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0927,
      "unit": "ratio",
-     "value": 0.0927
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "lt_debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0602,
      "unit": "ratio",
-     "value": 0.0602
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_to_interest",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 4.3493,
      "unit": "ratio",
-     "value": 7.4345
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr_with_lt_principal",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 23.5301,
      "unit": "ratio",
-     "value": 40.2209
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "asset_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2.8213,
      "unit": "ratio",
-     "value": 3.0193
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dso",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 28.0454,
      "unit": "days",
-     "value": 26.2057
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 31.5444,
      "unit": "days",
-     "value": 31.5035
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dpo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 26.6769,
      "unit": "days",
-     "value": 26.6422
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ccc",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 32.913,
      "unit": "days",
-     "value": 31.0669
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 11.571,
      "unit": "ratio",
-     "value": 11.586
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0706,
      "unit": "ratio",
-     "value": 0.1304
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0937,
      "unit": "ratio",
-     "value": 0.1521
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10386287.69,
      "unit": "RON",
-     "value": 18030400.73
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_z_score",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6.01,
      "unit": "ratio",
-     "value": 7.31
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x1",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3683,
      "unit": "ratio",
-     "value": 0.3683
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x2",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1903,
      "unit": "ratio",
-     "value": 0.1903
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x3",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1991,
      "unit": "ratio",
-     "value": 0.3938
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x4",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.554,
      "unit": "ratio",
-     "value": 1.554
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_composite",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 81.0,
      "unit": "score",
-     "value": 80.7
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_altman",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 100,
      "unit": "score",
-     "value": 100
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_profitability",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 33.2,
      "unit": "score",
-     "value": 31.7
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_leverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 90,
      "unit": "score",
-     "value": 90
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 95,
      "unit": "score",
-     "value": 95
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 90,
      "unit": "score",
-     "value": 90
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_liquidity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 74.1,
      "unit": "score",
-     "value": 74.1
+     "direction": "higher"
     },
     {
-     "direction": "higher",
-     "name": "credit_subscore_equity",
      "org_id": "org-gate",
      "period_id": "period-gate",
+     "name": "credit_subscore_equity",
+     "value": 100,
      "unit": "score",
-     "value": 100
+     "direction": "higher"
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_agras.json",
@@ -568,452 +569,452 @@
    "derive": "zero_balance_sheet",
    "rows": [
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 110798309.14,
      "unit": "RON",
-     "value": 118576819.64
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 40241194.46,
      "unit": "RON",
-     "value": 48019704.96
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory_with_711",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 202868224.57,
      "unit": "RON",
-     "value": 210512337.61
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_variation_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 192091846.33,
      "unit": "RON",
-     "value": 192091846.33
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 7821031.85,
      "unit": "RON",
-     "value": 15465144.89
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6461988.99,
      "unit": "RON",
-     "value": 14106102.03
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_operational",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6461988.99,
      "unit": "RON",
-     "value": 14106102.03
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 7533676.02,
      "unit": "RON",
-     "value": 7533676.02
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10776378.24,
      "unit": "RON",
-     "value": 18420491.28
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 110798309.14,
      "unit": "RON",
-     "value": 118576819.64
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 302890155.47,
      "unit": "RON",
-     "value": 310668665.97
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "capitalized_own_work_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3632,
      "unit": "ratio",
-     "value": 0.405
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0973,
      "unit": "ratio",
-     "value": 0.1553
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.068,
      "unit": "ratio",
-     "value": 0.0635
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "current_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "interest_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roa",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roe",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roic",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6569666.754,
      "unit": "ratio",
-     "value": 12990721.7076
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "free_cash_flow",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10489022.41,
      "unit": "RON",
-     "value": 10489022.41
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "adjusted_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10386287.69,
      "unit": "RON",
-     "value": 18030400.73
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_758",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 386101.85,
      "unit": "RON",
-     "value": 386101.85
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_781_reversals",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3988.7,
      "unit": "RON",
-     "value": 3988.7
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_pct",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_abs",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_debit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 70215990.73,
      "unit": "RON",
-     "value": 70215990.73
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_credit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 70215990.73,
      "unit": "RON",
-     "value": 70215990.73
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "quick_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "working_capital",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "equity_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "lt_debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_to_interest",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr_with_lt_principal",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 38.7737,
      "unit": "ratio",
-     "value": 66.2774
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "asset_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dso",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "days",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "days",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dpo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "days",
-     "value": 0.0
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ccc",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "days",
-     "value": null
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0706,
      "unit": "ratio",
-     "value": 0.1304
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0937,
      "unit": "ratio",
-     "value": 0.1521
+     "direction": "higher"
     },
     {
-     "direction": "higher",
-     "name": "core_ebitda",
      "org_id": "org-gate",
      "period_id": "period-gate",
+     "name": "core_ebitda",
+     "value": 10386287.69,
      "unit": "RON",
-     "value": 18030400.73
+     "direction": "higher"
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_agras.json",
@@ -1023,556 +1024,556 @@
   "saga_10_col_carniprod": {
    "rows": [
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 94509939.96,
      "unit": "RON",
-     "value": 99424740.16
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 37080143.73,
      "unit": "RON",
-     "value": 41994943.93
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 4993979.59,
      "unit": "RON",
-     "value": 9588744.57
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 4993979.59,
      "unit": "RON",
-     "value": 9588744.57
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory_with_711",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 93447975.09,
      "unit": "RON",
-     "value": 98042740.07
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_variation_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 88453995.5,
      "unit": "RON",
-     "value": 88453995.5
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1298454.0,
      "unit": "RON",
-     "value": 5893218.98
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1248684.06,
      "unit": "RON",
-     "value": 5843449.04
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_operational",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1248684.06,
      "unit": "RON",
-     "value": 5843449.04
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1435533.59,
      "unit": "RON",
-     "value": 1435533.59
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 4993979.59,
      "unit": "RON",
-     "value": 9588744.57
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 94509939.96,
      "unit": "RON",
-     "value": 99424740.16
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 182963935.46,
      "unit": "RON",
-     "value": 187878735.66
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "capitalized_own_work_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3923,
      "unit": "ratio",
-     "value": 0.4224
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0528,
      "unit": "ratio",
-     "value": 0.0964
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0152,
      "unit": "ratio",
-     "value": 0.0144
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 125886192.51,
      "unit": "RON",
-     "value": 125886192.51
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 106895967.91,
      "unit": "RON",
-     "value": 106895967.91
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "current_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.8353,
      "unit": "ratio",
-     "value": 1.8353
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "interest_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roa",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0114,
      "unit": "ratio",
-     "value": 0.0114
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roe",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0134,
      "unit": "ratio",
-     "value": 0.0134
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roic",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0102,
      "unit": "ratio",
-     "value": 0.0463
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 10124869.04,
      "unit": "RON",
-     "value": 10124869.04
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "free_cash_flow",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 5131059.18,
      "unit": "RON",
-     "value": 5131059.18
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "adjusted_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3587758.52,
      "unit": "RON",
-     "value": 8182523.5
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_758",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 945903.59,
      "unit": "RON",
-     "value": 945903.59
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_781_reversals",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 460317.48,
      "unit": "RON",
-     "value": 460317.48
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_pct",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_abs",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_debit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 202329749.34,
      "unit": "RON",
-     "value": 202329749.34
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_credit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 202329749.34,
      "unit": "RON",
-     "value": 202329749.34
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "quick_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.228,
      "unit": "ratio",
-     "value": 1.228
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.5933,
      "unit": "ratio",
-     "value": 0.5933
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "working_capital",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 14253248.16,
      "unit": "RON",
-     "value": 14253248.16
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": -10124869.04,
      "unit": "RON",
-     "value": -10124869.04
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": -2.0274,
      "unit": "ratio",
-     "value": -1.0559
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "equity_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.8491,
      "unit": "ratio",
-     "value": 0.8491
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "lt_debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_to_interest",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr_with_lt_principal",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": null,
      "unit": "ratio",
-     "value": null
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "asset_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.7508,
      "unit": "ratio",
-     "value": 0.7898
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dso",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 41.8247,
      "unit": "days",
-     "value": 39.7572
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 37.7894,
      "unit": "days",
-     "value": 37.662
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dpo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 51.6642,
      "unit": "days",
-     "value": 51.4901
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ccc",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 27.9499,
      "unit": "days",
-     "value": 25.9292
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 9.6588,
      "unit": "ratio",
-     "value": 9.6915
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0137,
      "unit": "ratio",
-     "value": 0.0593
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.038,
      "unit": "ratio",
-     "value": 0.0823
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3587758.52,
      "unit": "RON",
-     "value": 8182523.5
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_z_score",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 6.38,
      "unit": "ratio",
-     "value": 6.62
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x1",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1132,
      "unit": "ratio",
-     "value": 0.1132
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x2",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": -0.1073,
      "unit": "ratio",
-     "value": -0.1073
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x3",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0103,
      "unit": "ratio",
-     "value": 0.0468
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x4",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 5.6337,
      "unit": "ratio",
-     "value": 5.6337
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_composite",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79.3,
      "unit": "score",
-     "value": 79.3
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_altman",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 100,
      "unit": "score",
-     "value": 100
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_profitability",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 5.5,
      "unit": "score",
-     "value": 5.3
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_leverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 100,
      "unit": "score",
-     "value": 100
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 95,
      "unit": "score",
-     "value": 95
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 90,
      "unit": "score",
-     "value": 90
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_liquidity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 97.3,
      "unit": "score",
-     "value": 97.3
+     "direction": "higher"
     },
     {
-     "direction": "higher",
-     "name": "credit_subscore_equity",
      "org_id": "org-gate",
      "period_id": "period-gate",
+     "name": "credit_subscore_equity",
+     "value": 100,
      "unit": "score",
-     "value": 100
+     "direction": "higher"
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_carniprod.json",
@@ -2141,556 +2142,556 @@
   "saga_10_col_retail": {
    "rows": [
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79018306.77,
      "unit": "RON",
-     "value": 79510264.65
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 15641685.32,
      "unit": "RON",
-     "value": 16133643.2
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2263417.48,
      "unit": "RON",
-     "value": 220162.84
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2263417.48,
      "unit": "RON",
-     "value": 220162.84
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory_with_711",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2263417.48,
      "unit": "RON",
-     "value": 220162.84
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_variation_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_profit",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 786579.83,
      "unit": "RON",
-     "value": -1256674.81
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3205212.62,
      "unit": "RON",
-     "value": 1161957.98
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_operational",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3205212.62,
      "unit": "RON",
-     "value": 1161957.98
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_income_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 3205212.62,
      "unit": "RON",
-     "value": 3205212.62
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2263417.48,
      "unit": "RON",
-     "value": 220162.84
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79020230.55,
      "unit": "RON",
-     "value": 79512188.43
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_operating_revenue_statutory",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79020230.55,
      "unit": "RON",
-     "value": 79512188.43
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "capitalized_own_work_memo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "gross_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.198,
      "unit": "ratio",
-     "value": 0.2029
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0286,
      "unit": "ratio",
-     "value": 0.0028
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0406,
      "unit": "ratio",
-     "value": 0.0403
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 70089631.84,
      "unit": "RON",
-     "value": 70089631.84
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 27859009.64,
      "unit": "RON",
-     "value": 27859009.64
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "total_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 25224176.6,
      "unit": "RON",
-     "value": 25224176.6
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "current_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.5847,
      "unit": "ratio",
-     "value": 0.5847
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.1045,
      "unit": "ratio",
-     "value": 1.1045
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 12.3084,
      "unit": "ratio",
-     "value": 126.5382
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "interest_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.9349,
      "unit": "ratio",
-     "value": 0.0909
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roa",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0457,
      "unit": "ratio",
-     "value": 0.0457
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roe",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.1271,
      "unit": "ratio",
-     "value": 0.1271
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "roic",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0124,
      "unit": "ratio",
-     "value": -0.0199
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1138011.63,
      "unit": "RON",
-     "value": 1138011.63
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "free_cash_flow",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 4682050.27,
      "unit": "RON",
-     "value": 4682050.27
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "adjusted_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1536548.84,
      "unit": "RON",
-     "value": -506705.8
+     "direction": "higher"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_758",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 245913.17,
      "unit": "RON",
-     "value": 245913.17
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "other_income_781_reversals",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 77934.61,
      "unit": "RON",
-     "value": 77934.61
+     "direction": "neutral"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_pct",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "ratio",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_imbalance_abs",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0,
      "unit": "RON",
-     "value": 0.0
+     "direction": "lower"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_debit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79153785.88,
      "unit": "RON",
-     "value": 79153785.88
+     "direction": "neutral"
     },
     {
-     "direction": "neutral",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "source_closing_credit_sum",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 79153785.88,
      "unit": "RON",
-     "value": 79153785.88
+     "direction": "neutral"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "quick_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0819,
      "unit": "ratio",
-     "value": 0.0819
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "cash_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0669,
      "unit": "ratio",
-     "value": 0.0669
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "working_capital",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": -7063092.84,
      "unit": "RON",
-     "value": -7063092.84
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 26720998.01,
      "unit": "RON",
-     "value": 26720998.01
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "net_debt_to_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 11.8056,
      "unit": "ratio",
-     "value": 121.3692
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "equity_ratio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3599,
      "unit": "ratio",
-     "value": 0.3599
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "debt_to_assets",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3975,
      "unit": "ratio",
-     "value": 0.3975
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "lt_debt_to_equity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.1045,
      "unit": "ratio",
-     "value": 1.1045
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ebitda_to_interest",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.9349,
      "unit": "ratio",
-     "value": 0.0909
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.9349,
      "unit": "ratio",
-     "value": 0.0909
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dscr_with_lt_principal",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.3834,
      "unit": "ratio",
-     "value": 0.0373
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "asset_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.1274,
      "unit": "ratio",
-     "value": 1.1344
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dso",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1.1777,
      "unit": "days",
-     "value": 1.1704
+     "direction": "lower"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dio",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 31.412,
      "unit": "days",
-     "value": 30.4348
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "dpo",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 29.8399,
      "unit": "days",
-     "value": 28.9116
+     "direction": "higher"
     },
     {
-     "direction": "lower",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "ccc",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 2.7498,
      "unit": "days",
-     "value": 2.6936
+     "direction": "lower"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "inventory_turnover",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 11.6198,
      "unit": "ratio",
-     "value": 11.9928
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "operating_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.01,
      "unit": "ratio",
-     "value": -0.0158
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda_margin",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0245,
      "unit": "ratio",
-     "value": -0.0013
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "core_ebitda",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 1939569.7,
      "unit": "RON",
-     "value": -103684.94
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_z_score",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.79,
      "unit": "ratio",
-     "value": 0.6
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x1",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": -0.1008,
      "unit": "ratio",
-     "value": -0.1008
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x2",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.2423,
      "unit": "ratio",
-     "value": 0.2423
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x3",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.0112,
      "unit": "ratio",
-     "value": -0.0179
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "altman_x4",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0.5622,
      "unit": "ratio",
-     "value": 0.5622
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_composite",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 20.6,
      "unit": "score",
-     "value": 15.8
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_altman",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 28.6,
      "unit": "score",
-     "value": 21.5
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_profitability",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 17.8,
      "unit": "score",
-     "value": 17.7
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_leverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 0,
      "unit": "score",
-     "value": 0
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_coverage",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 9.7,
      "unit": "score",
-     "value": 0
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_dscr",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 19.2,
      "unit": "score",
-     "value": 1.9
+     "direction": "higher"
     },
     {
-     "direction": "higher",
+     "org_id": "org-gate",
+     "period_id": "period-gate",
      "name": "credit_subscore_liquidity",
-     "org_id": "org-gate",
-     "period_id": "period-gate",
+     "value": 20.3,
      "unit": "score",
-     "value": 20.3
+     "direction": "higher"
     },
     {
-     "direction": "higher",
-     "name": "credit_subscore_equity",
      "org_id": "org-gate",
      "period_id": "period-gate",
+     "name": "credit_subscore_equity",
+     "value": 72.0,
      "unit": "score",
-     "value": 72.0
+     "direction": "higher"
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_retail.json",

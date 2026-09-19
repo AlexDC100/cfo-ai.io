@@ -463,11 +463,36 @@ def test_f6_every_committed_book_opens_on_a_sheet_that_closes(book):
         "%s opens out by %s" % (book, fmt(opening.total_assets_cents()
                                           - opening.total_el_cents())))
     pl = payload["statements"]["assembled_pl"]
+    # plan/2 B4a: retail now reproduces account 121 to the cent (its
+    # 609/709 double count is repaired), so on a tying book the anchored
+    # figure and the reconstruction coincide and this book says nothing
+    # about which one the sheet closes on; the three others still miss 121
+    # (agras by the hidden 711 net, carniprod likewise, realestate by
+    # 29.6M) and carry the distinction. test_f6_scope_has_a_book_that_does_not_tie
+    # keeps the parametrization non-vacuous (TC-3).
+    if cents_from(pl["net_income_operational"]) == cents_from(pl["net_income_statutory"]):
+        assert cents_from(pl["net_income_unexplained_vs_121"]) == 0, (
+            "%s: the two views agree but the book records an unexplained step" % book)
+        return
     assert cents_from(pl["net_income_operational"]) != cents_from(
         pl["net_income_statutory"]), (
         "%s: the reconstruction and the filed figure agree on this book, "
         "so it says nothing about which of the two the sheet closes on"
         % (book,))
+
+
+def test_f6_scope_has_a_book_that_does_not_tie():
+    """TC-3 for the test above: at least one committed book must miss its
+    filed figure, or 'the sheet closes on the anchored figure' is asserted
+    on nothing. Printed per book."""
+    differing = []
+    for book in BOOKS:
+        pl = load(book)["statements"]["assembled_pl"]
+        if cents_from(pl["net_income_operational"]) != cents_from(pl["net_income_statutory"]):
+            differing.append(book)
+    print("books whose reconstruction misses account 121: %s" % ", ".join(differing))
+    assert differing, "every committed book ties to 121; the f6 distinction is vacuous"
+
 
 
 def test_f6_plant_an_unbalanced_source_sheet_and_the_opening_refuses():
@@ -1257,10 +1282,16 @@ def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
         assert not driver.derived_from, "nothing was measured, so nothing is cited"
 
 
-@pytest.mark.parametrize("name", ("agras", "carniprod", "retail"))
+@pytest.mark.parametrize("name", ("agras", "carniprod"))
 def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     """TC-10: both numbers in the sentence are rendered from the same
-    integers the decision used, never retyped."""
+    integers the decision used, never retyped.
+
+    RESTATED (plan/2 B4a): retail left this parametrization — it now ties
+    to account 121 (the 2,043,254.64 step was its 609/709 double count) and
+    is no longer demoted; its measured nil is covered by
+    test_the_rate_is_measured_only_when_the_book_ties_and_defaulted_otherwise
+    above and by test_a_book_that_ties_with_a_nil_charge_is_charged_nothing."""
     history = pl_history_from_payload(load(name))
     driver = plan(name, horizon_years=1).assumptions["tax_rate"]
     assert driver.source == "engine_default"
@@ -1271,13 +1302,20 @@ def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
 
 
 @pytest.mark.parametrize("name", ("agras", "carniprod"))
-def test_the_unreconciled_rate_would_have_charged_strictly_less_tax(name):
+def test_the_unreconciled_rate_would_have_charged_a_different_tax(name):
     """The CONSEQUENCE, measured on the real book rather than argued.
 
     The rate the previous behaviour derived is supplied here as a caller
     override — the only way to spend it now — and the plan it produces is
-    charged less tax in every one of the five years. That direction is
-    why an unattributed figure may not wear the word `derived`.
+    charged a DIFFERENT tax over the five years, in the direction the
+    unattributed rate points: below the statutory rate it under-charges,
+    above it it over-charges. RESTATED (plan/2 B4a): before the 609/709
+    repair both books' pre-tax results were overstated, so the implied
+    rate sat below 16% and this test read "strictly less"; read correctly
+    the implied rates sit above 16% and the same unattributed figure would
+    over-charge. Either way it is not a measurement, which is why it may
+    not wear the word `derived`. The direction is printed from the
+    integers, never assumed.
     """
     history = pl_history_from_payload(load(name))
     implied = mul_div(history.income_tax, 1_000_000, history.pretax)
@@ -1287,7 +1325,13 @@ def test_the_unreconciled_rate_would_have_charged_strictly_less_tax(name):
     assert previous.assumptions["tax_rate"].source == "caller"
     charged_now = sum(-p.pl["income_tax"] for p in default.periods)
     charged_before = sum(-p.pl["income_tax"] for p in previous.periods)
-    assert charged_before < charged_now
+    print("%s: implied rate %.4f%% vs statutory 16.0000%%; charged %s (unattributed) vs %s (statutory)"
+          % (name, implied / 10_000.0, fmt(charged_before), fmt(charged_now)))
+    assert charged_before != charged_now
+    if implied < micros_from(0.16):
+        assert charged_before < charged_now
+    else:
+        assert charged_before > charged_now
     assert sum(p.pl["pretax_result"] for p in default.periods) > 0
 
 
@@ -1334,13 +1378,39 @@ def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
 
 
 def test_a_profitable_plan_is_actually_taxed():
-    """The consequence, not the pedigree: on the retail book a plan the
-    model itself forecasts into profit is charged tax."""
-    projection = plan("retail", horizon_years=5, opex_pct_of_revenue=0.12)
+    """The consequence, not the pedigree: on a book whose rate is above
+    zero (agras, statutory 16% — its own charge does not tie) a plan the
+    model itself forecasts into profit is charged tax.
+
+    RESTATED (plan/2 B4a): this ran on retail, whose 16% came from the
+    statutory rung only because its book rung was refused — the refusal
+    was the 609/709 double count. Read correctly retail ties to account
+    121 with a nil charge and no class-69 account, so its rate is a
+    MEASURED book 0 (the hx2b law) and a profitable retail plan is charged
+    nothing; the companion test below pins that consequence by name."""
+    projection = plan("agras", horizon_years=5, opex_pct_of_revenue=0.12)
+    assert projection.assumptions["tax_rate"].exact > 0
     pretax = sum(p.pl["pretax_result"] for p in projection.periods)
     charged = sum(-p.pl["income_tax"] for p in projection.periods)
     assert pretax > 0
     assert charged > 0, "five profitable years and nothing charged"
+
+
+def test_a_book_that_ties_with_a_nil_charge_is_charged_nothing():
+    """plan/2 B4a, the retail consequence stated rather than hidden: the
+    book reproduces account 121 to the cent, books no income tax and has
+    no class-69 account, so the measured rate is book 0 and its basis says
+    so; a profitable plan on it is charged nothing. The owner is told this
+    in the as-built log (B4a) — it is the engine's ruled rule (3.4, R16)
+    applied to a book that now ties, not a new rule."""
+    projection = plan("retail", horizon_years=5)
+    driver = projection.assumptions["tax_rate"]
+    assert driver.source == "derived" and driver.exact == 0
+    assert "leaving nothing unexplained against account 121" in driver.basis
+    pretax = sum(p.pl["pretax_result"] for p in projection.periods)
+    charged = sum(-p.pl["income_tax"] for p in projection.periods)
+    assert pretax > 0
+    assert charged == 0
 
 
 # ──────────────────────────────────────────────────────────────────────

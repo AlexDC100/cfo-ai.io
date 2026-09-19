@@ -93,7 +93,7 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-      "cls7_minus_cls6": 94297444.54,
+      "cls7_minus_cls6": 89702679.56,
       "ok": false,
       "p121": 1435533.59
     },

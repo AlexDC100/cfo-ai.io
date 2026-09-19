@@ -50,8 +50,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 20.29,
-        "printed": "20.3",
+        "value": 19.8,
+        "printed": "19.8",
         "unit": "%",
         "verdict": "watch",
         "higher_is_better": true,
@@ -63,8 +63,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 0.27999999999999997,
-        "printed": "0.3",
+        "value": 2.86,
+        "printed": "2.9",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -76,8 +76,8 @@
         "absence": null
       },
       "net_margin": {
-        "value": 4.03,
-        "printed": "4.0",
+        "value": 4.06,
+        "printed": "4.1",
         "unit": "%",
         "verdict": "watch",
         "higher_is_better": true,
@@ -115,8 +115,8 @@
         "absence": null
       },
       "roic": {
-        "value": -1.9900000000000002,
-        "printed": "-2.0",
+        "value": 1.24,
+        "printed": "1.2",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -128,8 +128,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 126.53820072451656,
-        "printed": "126.54",
+        "value": 12.308383179933776,
+        "printed": "12.31",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -180,8 +180,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 0.0909,
-        "printed": "0.09",
+        "value": 0.9349,
+        "printed": "0.93",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -193,8 +193,8 @@
         "absence": null
       },
       "dscr": {
-        "value": 0.0909,
-        "printed": "0.09",
+        "value": 0.9349,
+        "printed": "0.93",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -220,8 +220,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.0373,
-        "printed": "0.04",
+        "value": 0.3834,
+        "printed": "0.38",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -233,7 +233,7 @@
         "absence": null
       },
       "dso": {
-        "value": 1.1704260558010855,
+        "value": 1.1777129788527865,
         "printed": "1",
         "unit": "days",
         "verdict": "strong",
@@ -246,8 +246,8 @@
         "absence": null
       },
       "dio": {
-        "value": 30.4348,
-        "printed": "30",
+        "value": 31.412,
+        "printed": "31",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -259,8 +259,8 @@
         "absence": null
       },
       "dpo": {
-        "value": 28.9116,
-        "printed": "29",
+        "value": 29.8399,
+        "printed": "30",
         "unit": "days",
         "verdict": "watch",
         "higher_is_better": true,
@@ -271,7 +271,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 2.6936,
+        "value": 2.7498,
         "printed": "3",
         "unit": "days",
         "verdict": "strong",
@@ -284,7 +284,7 @@
         "absence": null
       },
       "asset_turnover": {
-        "value": 1.1344083648706464,
+        "value": 1.127389382646242,
         "printed": "1.13",
         "unit": "x",
         "verdict": "healthy",
@@ -338,8 +338,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 20.29,
-        "printed": "20.3",
+        "value": 19.8,
+        "printed": "19.8",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -347,8 +347,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 0.27999999999999997,
-        "printed": "0.3",
+        "value": 2.86,
+        "printed": "2.9",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -356,8 +356,8 @@
         "absence": null
       },
       "net_margin": {
-        "value": 4.03,
-        "printed": "4.0",
+        "value": 4.06,
+        "printed": "4.1",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -391,8 +391,8 @@
         "absence": null
       },
       "roic": {
-        "value": -1.9900000000000002,
-        "printed": "-2.0",
+        "value": 1.24,
+        "printed": "1.2",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -404,8 +404,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 126.53820072451656,
-        "printed": "126.54",
+        "value": 12.308383179933776,
+        "printed": "12.31",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -456,8 +456,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 0.0909,
-        "printed": "0.09",
+        "value": 0.9349,
+        "printed": "0.93",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -469,8 +469,8 @@
         "absence": null
       },
       "dscr": {
-        "value": 0.0909,
-        "printed": "0.09",
+        "value": 0.9349,
+        "printed": "0.93",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -496,8 +496,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.0373,
-        "printed": "0.04",
+        "value": 0.3834,
+        "printed": "0.38",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -509,7 +509,7 @@
         "absence": null
       },
       "dso": {
-        "value": 1.1704260558010855,
+        "value": 1.1777129788527865,
         "printed": "1",
         "unit": "days",
         "verdict": "ungraded",
@@ -518,8 +518,8 @@
         "absence": null
       },
       "dio": {
-        "value": 30.4348,
-        "printed": "30",
+        "value": 31.412,
+        "printed": "31",
         "unit": "days",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -527,8 +527,8 @@
         "absence": null
       },
       "dpo": {
-        "value": 28.9116,
-        "printed": "29",
+        "value": 29.8399,
+        "printed": "30",
         "unit": "days",
         "verdict": "watch",
         "higher_is_better": true,
@@ -539,7 +539,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 2.6936,
+        "value": 2.7498,
         "printed": "3",
         "unit": "days",
         "verdict": "strong",
@@ -552,7 +552,7 @@
         "absence": null
       },
       "asset_turnover": {
-        "value": 1.1344083648706464,
+        "value": 1.127389382646242,
         "printed": "1.13",
         "unit": "x",
         "verdict": "ungraded",
@@ -602,8 +602,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 27.797300000000003,
-        "printed": "27.8",
+        "value": 27.126000000000005,
+        "printed": "27.1",
         "unit": "%",
         "verdict": "healthy",
         "higher_is_better": true,
@@ -615,8 +615,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 0.38360000000000005,
-        "printed": "0.4",
+        "value": 3.9182,
+        "printed": "3.9",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -628,8 +628,8 @@
         "absence": null
       },
       "net_margin": {
-        "value": 5.521100000000001,
-        "printed": "5.5",
+        "value": 5.5622,
+        "printed": "5.6",
         "unit": "%",
         "verdict": "watch",
         "higher_is_better": true,
@@ -667,8 +667,8 @@
         "absence": null
       },
       "roic": {
-        "value": -2.7263,
-        "printed": "-2.7",
+        "value": 1.6987999999999999,
+        "printed": "1.7",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -680,8 +680,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 126.53820072451656,
-        "printed": "126.54",
+        "value": 12.308383179933776,
+        "printed": "12.31",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -732,8 +732,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 0.124533,
-        "printed": "0.12",
+        "value": 1.280813,
+        "printed": "1.28",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -745,10 +745,10 @@
         "absence": null
       },
       "dscr": {
-        "value": 0.124533,
-        "printed": "0.12",
+        "value": 1.280813,
+        "printed": "1.28",
         "unit": "x",
-        "verdict": "critical",
+        "verdict": "healthy",
         "higher_is_better": true,
         "ladder": {
           "strong": 1.5,
@@ -772,8 +772,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.051101,
-        "printed": "0.05",
+        "value": 0.5252580000000001,
+        "printed": "0.53",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -785,7 +785,7 @@
         "absence": null
       },
       "dso": {
-        "value": 1.1704260558010855,
+        "value": 1.1777129788527865,
         "printed": "1",
         "unit": "days",
         "verdict": "strong",
@@ -798,8 +798,8 @@
         "absence": null
       },
       "dio": {
-        "value": 41.695676,
-        "printed": "42",
+        "value": 43.034440000000004,
+        "printed": "43",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -811,8 +811,8 @@
         "absence": null
       },
       "dpo": {
-        "value": 39.608892000000004,
-        "printed": "40",
+        "value": 40.880663000000006,
+        "printed": "41",
         "unit": "days",
         "verdict": "watch",
         "higher_is_better": true,
@@ -823,7 +823,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 3.6902320000000004,
+        "value": 3.7672260000000004,
         "printed": "4",
         "unit": "days",
         "verdict": "strong",
@@ -836,7 +836,7 @@
         "absence": null
       },
       "asset_turnover": {
-        "value": 1.1344083648706464,
+        "value": 1.127389382646242,
         "printed": "1.13",
         "unit": "x",
         "verdict": "healthy",

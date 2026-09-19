@@ -11,7 +11,7 @@
    }
   },
   {
-   "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+   "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
    "derived_from": [
     "assembled_pl.cogs",
     "assembled_pl.revenue"
@@ -20,11 +20,11 @@
    "label": "cogs pct of revenue",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.595033
+    "FY2028": 0.636807
    }
   },
   {
-   "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+   "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
    "derived_from": [
     "assembled_pl.opex_excluding_cogs_and_da",
     "assembled_pl.revenue"
@@ -33,11 +33,11 @@
    "label": "opex pct of revenue",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.25291
+    "FY2028": 0.269453
    }
   },
   {
-   "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+   "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
    "derived_from": [
     "assembled_pl.other_operating_income",
     "assembled_pl.revenue"
@@ -46,11 +46,11 @@
    "label": "other operating income pct of revenue",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.00329
+    "FY2028": 0.003521
    }
   },
   {
-   "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+   "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
    "derived_from": [
     "canonical_bs.rows.trade_receivables_net",
     "assembled_pl.revenue"
@@ -59,11 +59,11 @@
    "label": "dso days",
    "unit": "days",
    "values": {
-    "FY2028": 26.205674
+    "FY2028": 28.045424
    }
   },
   {
-   "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+   "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
    "derived_from": [
     "canonical_bs.rows.inventory_net",
     "assembled_pl.cogs"
@@ -76,7 +76,7 @@
    }
   },
   {
-   "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+   "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
    "derived_from": [
     "canonical_bs.rows.trade_payables",
     "assembled_pl.cogs"
@@ -112,7 +112,7 @@
    "label": "capex pct of revenue",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.024923
+    "FY2028": 0.026673
    }
   },
   {
@@ -126,7 +126,7 @@
    }
   },
   {
-   "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+   "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
    "derived_from": [],
    "id": "tax_rate",
    "label": "tax rate",
@@ -353,8 +353,8 @@
    "projected": true
   },
   {
-   "amount_minor": -7598230183,
-   "amount_minor_projected": -7598230183,
+   "amount_minor": -7598232135,
+   "amount_minor_projected": -7598232135,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue"
@@ -369,7 +369,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -377,7 +377,7 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     }
    ],
    "currency": "RON",
@@ -388,8 +388,8 @@
    "projected": true
   },
   {
-   "amount_minor": -291506599,
-   "amount_minor_projected": -291506599,
+   "amount_minor": -291508055,
+   "amount_minor_projected": -291508055,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -414,7 +414,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -445,8 +445,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1682324068,
-   "amount_minor_projected": 1682324068,
+   "amount_minor": 859126004,
+   "amount_minor_projected": 859126004,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -467,7 +467,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -475,10 +475,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -486,10 +486,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -497,7 +497,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -508,7 +508,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -547,8 +547,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1983692105,
-   "amount_minor_projected": 1983692105,
+   "amount_minor": 1160495497,
+   "amount_minor_projected": 1160495497,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -565,7 +565,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -573,10 +573,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -584,10 +584,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -595,7 +595,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     }
    ],
    "currency": "RON",
@@ -606,8 +606,8 @@
    "projected": true
   },
   {
-   "amount_minor": -270959796,
-   "amount_minor_projected": -270959796,
+   "amount_minor": -139248106,
+   "amount_minor_projected": -139248106,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -639,7 +639,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -647,10 +647,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -658,10 +658,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -669,7 +669,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -680,7 +680,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -793,7 +793,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -943,7 +943,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -951,10 +951,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -962,10 +962,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -973,7 +973,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -984,7 +984,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -1061,7 +1061,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -1085,7 +1085,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -1093,10 +1093,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -1107,7 +1107,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -1188,8 +1188,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1422538931,
-   "amount_minor_projected": 1422538931,
+   "amount_minor": 731052557,
+   "amount_minor_projected": 731052557,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1221,7 +1221,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -1229,10 +1229,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -1240,10 +1240,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -1251,7 +1251,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1262,7 +1262,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -1375,7 +1375,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -1407,8 +1407,8 @@
    "projected": true
   },
   {
-   "amount_minor": -3229515666,
-   "amount_minor_projected": -3229515666,
+   "amount_minor": -3215050154,
+   "amount_minor_projected": -3215050154,
    "assumption_ids": [
     "revenue_growth",
     "opex_pct_of_revenue"
@@ -1423,7 +1423,7 @@
      "value": 0.025
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -1431,7 +1431,7 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     }
    ],
    "currency": "RON",
@@ -1494,8 +1494,8 @@
    "projected": true
   },
   {
-   "amount_minor": 42011413,
-   "amount_minor_projected": 42011413,
+   "amount_minor": 42011748,
+   "amount_minor_projected": 42011748,
    "assumption_ids": [
     "revenue_growth",
     "other_operating_income_pct_of_revenue"
@@ -1510,7 +1510,7 @@
      "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -1518,7 +1518,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     }
    ],
    "currency": "RON",
@@ -1529,8 +1529,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1693498727,
-   "amount_minor_projected": 1693498727,
+   "amount_minor": 870300663,
+   "amount_minor_projected": 870300663,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1559,7 +1559,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -1567,10 +1567,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -1578,10 +1578,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -1589,7 +1589,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1600,7 +1600,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -1721,8 +1721,8 @@
    "projected": true
   },
   {
-   "amount_minor": 12769426541,
-   "amount_minor_projected": 12769426541,
+   "amount_minor": 11931766038,
+   "amount_minor_projected": 11931766038,
    "assumption_ids": [
     "revenue_growth"
    ],
@@ -1744,8 +1744,8 @@
    "projected": true
   },
   {
-   "amount_minor": 771779456,
-   "amount_minor_projected": 771779456,
+   "amount_minor": 771779655,
+   "amount_minor_projected": 771779655,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1762,7 +1762,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -1770,10 +1770,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -1800,8 +1800,8 @@
    "projected": true
   },
   {
-   "amount_minor": 914293522,
-   "amount_minor_projected": 914293522,
+   "amount_minor": 914293545,
+   "amount_minor_projected": 914293545,
    "assumption_ids": [
     "revenue_growth",
     "dso_days",
@@ -1817,7 +1817,7 @@
      "value": 0.025
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -1825,7 +1825,7 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
      "basis": "days in a year for every rate-to-period conversion [engine_default]",
@@ -1844,8 +1844,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4158713134,
-   "amount_minor_projected": 4158713134,
+   "amount_minor": 2134432677,
+   "amount_minor_projected": 2134432677,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -1881,7 +1881,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -1889,10 +1889,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -1900,10 +1900,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -1911,7 +1911,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1922,7 +1922,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -2035,7 +2035,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -2059,7 +2059,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -2067,10 +2067,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -2081,7 +2081,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -2177,8 +2177,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4901753908,
-   "amount_minor_projected": 4901753908,
+   "amount_minor": 2877481407,
+   "amount_minor_projected": 2877481407,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -2211,7 +2211,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -2219,10 +2219,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -2230,10 +2230,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -2241,7 +2241,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -2252,7 +2252,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -2365,7 +2365,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -2459,8 +2459,8 @@
    "projected": true
   },
   {
-   "amount_minor": 959393793,
-   "amount_minor_projected": 959393793,
+   "amount_minor": 959394040,
+   "amount_minor_projected": 959394040,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -2477,7 +2477,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -2485,10 +2485,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -2675,8 +2675,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1180453601,
-   "amount_minor_projected": 1180453601,
+   "amount_minor": 1180461486,
+   "amount_minor_projected": 1180461486,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -2701,7 +2701,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -2789,7 +2789,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -2797,10 +2797,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -2808,10 +2808,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -2819,7 +2819,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -2830,7 +2830,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -2923,7 +2923,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -2947,7 +2947,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -2955,10 +2955,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -2969,7 +2969,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -3095,8 +3095,8 @@
    "projected": true
   },
   {
-   "amount_minor": -318252418,
-   "amount_minor_projected": -318252418,
+   "amount_minor": -318255996,
+   "amount_minor_projected": -318255996,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue"
@@ -3119,7 +3119,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     }
    ],
    "currency": "RON",
@@ -3195,7 +3195,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -3203,10 +3203,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -3214,10 +3214,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -3225,7 +3225,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3236,7 +3236,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -3321,7 +3321,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -3353,7 +3353,7 @@
      "value": 0.0
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3361,10 +3361,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -3375,7 +3375,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -3394,8 +3394,8 @@
    "projected": true
   },
   {
-   "amount_minor": -318252418,
-   "amount_minor_projected": -318252418,
+   "amount_minor": -318255996,
+   "amount_minor_projected": -318255996,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -3419,7 +3419,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "no capitalised-intangible programme is observable in a trial balance [engine_default]",
@@ -3438,8 +3438,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1699976460,
-   "amount_minor_projected": 1699976460,
+   "amount_minor": 1008491541,
+   "amount_minor_projected": 1008491541,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3474,7 +3474,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -3482,10 +3482,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -3493,10 +3493,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -3504,7 +3504,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3515,7 +3515,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -3628,7 +3628,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -3652,7 +3652,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3660,10 +3660,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -3674,7 +3674,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -3693,8 +3693,8 @@
    "projected": true
   },
   {
-   "amount_minor": -20835481,
-   "amount_minor_projected": -20835481,
+   "amount_minor": -20835487,
+   "amount_minor_projected": -20835487,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3711,7 +3711,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -3719,10 +3719,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -3749,8 +3749,8 @@
    "projected": true
   },
   {
-   "amount_minor": 16760997,
-   "amount_minor_projected": 16760997,
+   "amount_minor": 16761002,
+   "amount_minor_projected": 16761002,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3767,7 +3767,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -3775,10 +3775,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -3822,7 +3822,7 @@
      "value": 0.025
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -3830,7 +3830,7 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
      "basis": "days in a year for every rate-to-period conversion [engine_default]",
@@ -3849,8 +3849,8 @@
    "projected": true
   },
   {
-   "amount_minor": 4158713134,
-   "amount_minor_projected": 4158713134,
+   "amount_minor": 2134432677,
+   "amount_minor_projected": 2134432677,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -3886,7 +3886,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -3894,10 +3894,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -3905,10 +3905,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -3916,7 +3916,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3927,7 +3927,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -4040,7 +4040,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4064,7 +4064,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -4072,10 +4072,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -4086,7 +4086,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -4203,8 +4203,8 @@
    "projected": true
   },
   {
-   "amount_minor": 291506599,
-   "amount_minor_projected": 291506599,
+   "amount_minor": 291508055,
+   "amount_minor_projected": 291508055,
    "assumption_ids": [
     "revenue_growth",
     "capex_pct_of_revenue",
@@ -4229,7 +4229,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -4294,7 +4294,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -4302,10 +4302,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -4313,10 +4313,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -4324,7 +4324,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4335,7 +4335,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -4448,7 +4448,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4545,7 +4545,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -4553,10 +4553,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -4564,10 +4564,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -4575,7 +4575,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4586,7 +4586,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -4679,7 +4679,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4703,7 +4703,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -4711,10 +4711,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -4725,7 +4725,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -4784,8 +4784,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1381724042,
-   "amount_minor_projected": 1381724042,
+   "amount_minor": 690235545,
+   "amount_minor_projected": 690235545,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -4821,7 +4821,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -4829,10 +4829,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -4840,10 +4840,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -4851,7 +4851,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4862,7 +4862,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -4975,7 +4975,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -4999,7 +4999,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5007,10 +5007,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -5021,7 +5021,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -5048,8 +5048,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1422538931,
-   "amount_minor_projected": 1422538931,
+   "amount_minor": 731052557,
+   "amount_minor_projected": 731052557,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5081,7 +5081,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -5089,10 +5089,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -5100,10 +5100,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -5111,7 +5111,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5122,7 +5122,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -5235,7 +5235,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5267,8 +5267,8 @@
    "projected": true
   },
   {
-   "amount_minor": 2776989092,
-   "amount_minor_projected": 2776989092,
+   "amount_minor": 1444197132,
+   "amount_minor_projected": 1444197132,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5304,7 +5304,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -5312,10 +5312,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -5323,10 +5323,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -5334,7 +5334,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5345,7 +5345,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -5458,7 +5458,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5482,7 +5482,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5490,10 +5490,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -5504,7 +5504,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -5531,8 +5531,8 @@
    "projected": true
   },
   {
-   "amount_minor": 8139602634,
-   "amount_minor_projected": 8139602634,
+   "amount_minor": 6115330332,
+   "amount_minor_projected": 6115330332,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5569,7 +5569,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -5577,10 +5577,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -5588,10 +5588,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -5599,7 +5599,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5610,7 +5610,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -5723,7 +5723,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -5747,7 +5747,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -5755,10 +5755,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -5769,7 +5769,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -5804,8 +5804,8 @@
    "projected": true
   },
   {
-   "amount_minor": 6923191007,
-   "amount_minor_projected": 6923191007,
+   "amount_minor": 4898910820,
+   "amount_minor_projected": 4898910820,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -5842,7 +5842,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -5850,10 +5850,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -5861,10 +5861,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -5872,7 +5872,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5883,7 +5883,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -5996,7 +5996,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -6020,7 +6020,7 @@
      "value": null
     },
     {
-     "basis": "days sales outstanding = 26.205674 days = trade receivables net 8,513,384.96 / revenue 118,576,819.64 x 365 days (forecast.dso) [derived]",
+     "basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso) [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_receivables_net",
       "assembled_pl.revenue"
@@ -6028,10 +6028,10 @@
      "id": "dso_days",
      "label": "dso days",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     {
-     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.503485 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.inventory_net",
       "assembled_pl.cogs"
@@ -6042,7 +6042,7 @@
      "value": 46.213147
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -6077,8 +6077,8 @@
    "projected": true
   },
   {
-   "amount_minor": 1354439756,
-   "amount_minor_projected": 1354439756,
+   "amount_minor": 1354439955,
+   "amount_minor_projected": 1354439955,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -6100,7 +6100,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -6108,10 +6108,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -6186,8 +6186,8 @@
    "projected": true
   },
   {
-   "amount_minor": 6546957518,
-   "amount_minor_projected": 6546957518,
+   "amount_minor": 4522685017,
+   "amount_minor_projected": 4522685017,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -6221,7 +6221,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -6229,10 +6229,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -6240,10 +6240,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -6251,7 +6251,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -6262,7 +6262,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -6375,7 +6375,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
@@ -6423,8 +6423,8 @@
    "projected": true
   },
   {
-   "amount_minor": 8139602634,
-   "amount_minor_projected": 8139602634,
+   "amount_minor": 6115330332,
+   "amount_minor_projected": 6115330332,
    "assumption_ids": [
     "revenue_growth",
     "cogs_pct_of_revenue",
@@ -6459,7 +6459,7 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.cogs",
       "assembled_pl.revenue"
@@ -6467,10 +6467,10 @@
      "id": "cogs_pct_of_revenue",
      "label": "cogs pct of revenue",
      "unit": "ratio",
-     "value": 0.595033
+     "value": 0.636807
     },
     {
-     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.642244 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,501,765.30 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
+     "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
      "derived_from": [
       "canonical_bs.rows.trade_payables",
       "assembled_pl.cogs"
@@ -6529,7 +6529,7 @@
      "value": 0.07635
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,989,304.23 (assembled_pl.opex_excluding_cogs_and_da) / 118,576,819.64 (assembled_pl.revenue), from this book's own period [derived]",
+     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
      "derived_from": [
       "assembled_pl.opex_excluding_cogs_and_da",
       "assembled_pl.revenue"
@@ -6537,10 +6537,10 @@
      "id": "opex_pct_of_revenue",
      "label": "opex pct of revenue",
      "unit": "ratio",
-     "value": 0.25291
+     "value": 0.269453
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 118,576,819.64 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
      "derived_from": [
       "assembled_pl.other_operating_income",
       "assembled_pl.revenue"
@@ -6548,7 +6548,7 @@
      "id": "other_operating_income_pct_of_revenue",
      "label": "other operating income pct of revenue",
      "unit": "ratio",
-     "value": 0.00329
+     "value": 0.003521
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -6559,7 +6559,7 @@
      "id": "capex_pct_of_revenue",
      "label": "capex pct of revenue",
      "unit": "ratio",
-     "value": 0.024923
+     "value": 0.026673
     },
     {
      "basis": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base. [derived]",
@@ -6624,7 +6624,7 @@
      "value": 6594665.0
     },
     {
-     "basis": "this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
+     "basis": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead [engine_default]",
      "derived_from": [],
      "id": "tax_rate",
      "label": "tax rate",
