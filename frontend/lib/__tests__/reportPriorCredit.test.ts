@@ -387,7 +387,7 @@ describe("§6 a prior that cannot be computed states why — never a dash", () =
     expect(row.prior.value_q).toBeNull();
     const sentence = reasonText(row.prior.reason?.code, "en", row.prior.reason?.inputs);
     expect(cardCells(doc, "interest_coverage")[1]).toBe(sentence);
-    const wb = ratiosSheet().find((r) => r[1] === "Interest coverage (EBITDA / interest)") as string[];
+    const wb = ratiosSheet().find((r) => r[1] === "Interest coverage (EBIT / interest)") as string[];
     expect(wb[3]).toBe(sentence);
   });
 

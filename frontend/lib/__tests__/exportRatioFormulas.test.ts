@@ -8,6 +8,11 @@
 //   §Debt Coverage card   "Interest Coverage"                  66.28×
 //   §Credit component row "Interest Coverage (EBIT / Interest)"  —
 //
+// (Resolved 2026-09-19 the other way round from the label fix below: the
+// engine row itself moved to EBIT ÷ interest — the methodology's basis —
+// so the card now prints 55.64× under "Interest coverage (EBIT / interest)"
+// and the SPEC below recomputes it from operating EBIT.)
+//
 // where 66.28× is EBITDA ÷ interest (18,420,491.28 / 277,930.35) and the
 // component's own basis, EBIT ÷ interest, is 55.64× (15,465,144.89 /
 // 277,930.35). Two bases, two numbers, one name, no formula anywhere.
@@ -230,11 +235,14 @@ const SPECS: Spec[] = [
   },
   {
     key: "interest_coverage",
-    label: "Interest coverage (EBITDA / interest)",
+    label: "Interest coverage (EBIT / interest)",
+    // The methodology's basis (CLAUDE.md Appendix A section 5) since
+    // 2026-09-19; the card's own name says which. EBITDA ÷ interest is the
+    // engine's separate `ebitda_to_interest` row, not carded here.
     formula:
-      "EBITDA (statutory) ÷ interest expense — NOT EBIT ÷ interest, which the credit component below bands on and which is a different number on every levered book",
+      "EBIT ÷ interest expense (the methodology's interest coverage; EBITDA ÷ interest is the separate 'EBITDA to interest' row)",
     unit: "x",
-    recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense),
+    recompute: (e) => div(e.pl.operating_ebit, e.pl.interest_expense),
   },
   {
     key: "dscr",

@@ -264,7 +264,7 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     // The guard must not become a way to make a bad book look quiet.
     const doc = exportDoc("realestate");
     for (const label of [
-      "Interest coverage (EBITDA / interest)",
+      "Interest coverage (EBIT / interest)",
       "Debt service coverage",
       "Net margin",
     ]) {
