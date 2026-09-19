@@ -3287,6 +3287,8 @@ FAILED tests/engine/test_floor_dcf.py::test_dcf_refuses_when_book_equity_is_not_
 FAILED tests/engine/test_floor_dcf.py::test_dcf_refuses_when_book_equity_is_not_positive[0.0]
 ```
 
+**REVERT** — the refusal branch restored; `49 passed in 2.18s`, exit `0`.
+
 **PLANT 2 (C4)** — `src/engine/api/pipeline.py::_briefing_ratios`: the
 shipped `round(total_debt / (ebitda or 1e-9), 2)` restored in place of the
 refusal.
@@ -3305,6 +3307,8 @@ FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_i
 FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_instead_of_substituting[pl2-bs2-expect_none2]
 ```
 
+**REVERT** — the refusal restored; `49 passed`, exit `0`.
+
 **PLANT 3 (C5)** — `src/engine/api/pipeline.py::_served_supplementary`: the
 shipped `return {"periodDays": 365}` placeholder restored at the served seam.
 
@@ -3318,6 +3322,10 @@ E   assert 365 is None
 FAILED tests/engine/test_floor_period_days.py::test_a_june_year_to_date_book_serves_its_true_day_count
 FAILED tests/engine/test_floor_period_days.py::test_a_fallback_filed_period_serves_no_day_count_and_says_why
 ```
+
+**REVERT** — `_served_supplementary` reads the period again; `49 passed`,
+exit `0` (the 31 December corpus book still serves exactly
+`{"periodDays": 365}`).
 
 **Measured blast radius** (GET /api/period over the six RO corpus books
 through the real router, main → this batch; `scripts` scratch
