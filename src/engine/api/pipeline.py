@@ -2742,8 +2742,11 @@ def _briefing_ratios(
     ebitda = num(pl_canonical.get("operating_ebitda"))
     revenue = num(pl_canonical.get("total_operating_revenue"))
     net_income = num(pl_canonical.get("net_income_statutory"))
-    total_debt = bs_canonical.get("total_debt", 0.0)
-    cash_val = bs_canonical.get("cash", 0.0)
+    # Absent debt or cash is absent — it used to be read as 0.0, which
+    # served a citable Debt/EBITDA 0.0, Debt/Equity 0.0 and net debt 0.0
+    # on a book that reported neither (and a TypeError on an explicit None).
+    total_debt = num(bs_canonical.get("total_debt"))
+    cash_val = num(bs_canonical.get("cash"))
     refusals: Dict[str, str] = {}
 
     def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
@@ -2770,10 +2773,26 @@ def _briefing_ratios(
         refusals["debt_to_ebitda"] = (
             "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
         ratios["debt_to_ebitda"] = None
+    elif total_debt is None:
+        refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: total debt not reported for this period"
+        ratios["debt_to_ebitda"] = None
     else:
         ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
-    ratios["debt_to_equity"] = round(total_debt / total_equity, 2) if total_equity else None
-    ratios["net_debt"] = round(total_debt - cash_val, 2)
+    if total_debt is None:
+        refusals["debt_to_equity"] = "Debt/Equity unavailable: total debt not reported for this period"
+        ratios["debt_to_equity"] = None
+    elif not total_equity:
+        refusals["debt_to_equity"] = ("Debt/Equity unavailable: book equity is %s for this period"
+                                      % ("not reported" if total_equity is None else "zero"))
+        ratios["debt_to_equity"] = None
+    else:
+        ratios["debt_to_equity"] = round(total_debt / total_equity, 2)
+    if total_debt is None or cash_val is None:
+        missing = [n for n, v in (("total debt", total_debt), ("cash", cash_val)) if v is None]
+        refusals["net_debt"] = "Net debt unavailable: %s not reported for this period" % " and ".join(missing)
+        ratios["net_debt"] = None
+    else:
+        ratios["net_debt"] = round(total_debt - cash_val, 2)
     return ratios, refusals
 
 

@@ -84,3 +84,29 @@ def test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios(monkeypatc
         assert facts["ratio_refusals"][key]
     typed = numerals.facts_from_briefing(facts, "RON")
     assert typed["ratios.debt_to_ebitda"].value is None
+
+
+def test_briefing_ratios_refuse_an_absent_debt_or_cash_instead_of_reading_zero():
+    """Measured before the fix: `_briefing_ratios({...}, {}, 500.0)` served
+    `debt_to_ebitda 0.0, debt_to_equity 0.0, net_debt 0.0` with refusals
+    `{}` — three citable numerals on a book that reported neither debt nor
+    cash — and `{'total_debt': None, 'cash': None}` raised TypeError."""
+    pl = {"operating_ebitda": 100.0, "total_operating_revenue": 1_000.0,
+          "net_income_statutory": 50.0}
+    for bs in ({}, {"total_debt": None, "cash": None}):
+        ratios, refusals = P._briefing_ratios(pl, bs, 500.0)
+        for key in ("debt_to_ebitda", "debt_to_equity", "net_debt"):
+            assert ratios[key] is None, (bs, key, ratios)
+            assert "not reported" in refusals[key], (bs, key, refusals)
+        facts = numerals.facts_from_briefing({"ratios": ratios}, "RON")
+        assert facts["ratios.debt_to_ebitda"].value is None
+    # Debt reported, cash not: the two debt ratios compute, net debt refuses.
+    ratios, refusals = P._briefing_ratios(pl, {"total_debt": 200.0}, 500.0)
+    assert ratios["debt_to_ebitda"] == 2.0 and ratios["debt_to_equity"] == 0.4
+    assert ratios["net_debt"] is None
+    assert refusals["net_debt"] == "Net debt unavailable: cash not reported for this period"
+    # Equity absent or zero: Debt/Equity refuses with the reason, never 0.
+    for equity, word in ((None, "not reported"), (0.0, "zero")):
+        ratios, refusals = P._briefing_ratios(pl, {"total_debt": 200.0, "cash": 50.0}, equity)
+        assert ratios["debt_to_equity"] is None and word in refusals["debt_to_equity"]
+        assert ratios["net_debt"] == 150.0
