@@ -539,19 +539,27 @@ def _engine_gates() -> List[Gate]:
         # refused); the SKU gate gained the served anchorProfitShare and
         # DIO-sheet period-range refusals two verifier plants had shown were
         # ungated; the industry gate now drives the real /report router.
+        # R-PUBLIC-ABSENT (2026-09-19): the producer-coverage file joined —
+        # a category no producer can fill is dropped with its weight
+        # redistributed and the coverage stated; a per-company gap still
+        # refuses; the declaration is measured against the producers.
         Gate("floor-public-score",
              [PY, "-m", "pytest",
               "tests/engine/public/intelligence/test_risk_scoring_engine.py",
               "tests/engine/public/intelligence/test_opportunity_scoring_engine.py",
               "tests/engine/public/intelligence/test_public_score_refusal_route.py",
               "tests/engine/public/intelligence/test_ai_market_read.py",
+              "tests/engine/public/intelligence/test_risk_producer_coverage.py",
               "-q"],
-             work_junit=True, floor=42, units="tests",
+             work_junit=True, floor=52, units="tests",
              canaries=("test_no_financials_refuses_every_financial_category_and_the_composite",
                        "test_snapshot_boundary_converts_points_and_keeps_a_measured_zero",
                        "test_no_financials_refuses_instead_of_scoring_medium",
                        "test_top_risk_contribution_is_null_when_every_mapped_category_is_refused",
-                       "test_fallback_watch_flags_state_a_refused_composite_not_composite_low")),
+                       "test_fallback_watch_flags_state_a_refused_composite_not_composite_low",
+                       "test_the_declaration_is_measured_against_the_live_producers",
+                       "test_a_per_company_absence_still_refuses_the_category_and_the_composite",
+                       "test_per_ticker_route_serves_the_composite_with_its_coverage_block")),
         Gate("floor-sku-portfolio",
              [PY, "-m", "pytest", "tests/engine/test_floor_sku_portfolio.py",
               "tests/test_metrics.py", "-q"],

@@ -3796,6 +3796,150 @@ FAILED tests/engine/public/intelligence/test_ai_market_read.py::test_fallback_wa
 
 **REVERT** — both restored; exit `0`, `47 passed`.
 
+### floor-public-score — R-PUBLIC-ABSENT (2026-09-19, C6 follow-up)
+
+**The owner ruled** (scratchpad floor_rulings.md R-PUBLIC-ABSENT): in the
+PUBLIC risk score a category whose input NO data producer carries is
+DROPPED — its weight redistributed over the categories that computed, and
+the served block lists the dropped categories, the reason and the weights
+actually applied — while a category whose input the producer carries but
+THIS company lacks still REFUSES, and the composite with it. Refusing on a
+structurally absent input had nulled the composite universe-wide (0 / 291
+above), which hides the score rather than stating what it covers. The
+private credit composite never redistributes (R-COMPOSITE); this is the
+public score's rule alone.
+
+**Measured before designing** (`scratchpad/c6_measure_coverage.py`, the
+291 offline rows): `interestExpense` is a key on **0 / 291** rows and
+neither live builder reads the adapter's `interest_expense` — structural
+for every producer. `revenueGrowth` is **not** 291/291 absent as the
+ruling's note said: the seed and demo producers carry it as a field
+(203 / 203 demo rows with a value, 7 / 88 seed rows) and both LIVE builders
+write a literal `None` ("requires prior period — v2"). So the drop is
+declared **per producer** — the row's `mode`, carried as
+`financials["producer"]` — in `risk_scoring_engine.PRODUCER_COVERAGE`:
+live → financial + operational dropped; demo, seed → financial dropped; a
+row with no producer marker drops nothing (per-company refusals only). A
+dropped category is never scored, even for a row that happens to carry the
+input, so every row of one producer keeps the same categories and weights.
+`applied_weights` = `CATEGORY_WEIGHTS` rescaled over the scored set (sums
+to 1; exactly the declared weights when nothing is dropped). The
+declaration is itself gated: over every seed/demo row a declared input has
+no key and every other category input is a key; both live builders driven
+with inputs that DO carry an interest expense still emit no
+`interestExpense` and `revenueGrowth None`. Once a producer carries a
+declared input (`PT-PUBLIC-1`) that test reds and the entry comes out.
+
+Blast radius, same command as above (`c6_public_blast.py`, extended with
+the coverage counts):
+
+| | main @1f3ff4b | branch before (refuse) | branch after (drop) |
+|---|---|---|---|
+| composite risk numeric | 291 / 291 | 0 / 291 | **183 / 291** (NASDAQ demo 183 / 203, BVB seed 0 / 88) |
+| financial category | 291 scored (30 % of it a fixed 50) | 291 refused | 291 **dropped** |
+| operational category | 291 scored | 101 refused | 101 refused per company (demo carries growth; 88 seed rows lack capex, 13 demo rows lack growth/capex) |
+| valuation refused per company | 0 | 107 | 107 |
+| risk levels | medium 260 · high 31 | — | medium 151 · high 32 |
+
+The 88 BVB seed rows still score 0 / 88: their curated rows carry the
+`capex` field but leave it None on every row and P/E on 81, so operational
+and valuation refuse per company — a curation gap, not a producer one, and
+the refusal sentence names the field.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/public/intelligence/test_risk_scoring_engine.py tests/engine/public/intelligence/test_opportunity_scoring_engine.py tests/engine/public/intelligence/test_public_score_refusal_route.py tests/engine/public/intelligence/test_ai_market_read.py tests/engine/public/intelligence/test_risk_producer_coverage.py -q` |
+| work count | junit-xml, floor **52** tests (measured 57) |
+| added canaries | `test_the_declaration_is_measured_against_the_live_producers`, `test_a_per_company_absence_still_refuses_the_category_and_the_composite`, `test_per_ticker_route_serves_the_composite_with_its_coverage_block` |
+
+**Restated in a named commit (83f78cf):** `test_public_score_refusal_route.py`
+pinned the live-shaped AAPL row REFUSING — the shape the ruling reverses.
+The live AAPL row now scores (pinned in the coverage file); the per-company
+refusal moved to a live MSFT row lacking P/E, a field the producer carries:
+valuation refuses, the composite, the batch row and the AI-read headline
+refuse with it, and P/E being an opportunity input that score refuses too
+(the file had asserted it measured).
+
+**Reds on, after the repair (TC-11), added:** a composite refused on a
+structurally absent input; a composite served while a REFUSED scored
+category is redistributed away; applied weights that are not the declared
+weights rescaled, or that do not sum to 1; a dropped category with no
+stated reason; a declared "not carried" input that a producer does carry;
+the per-ticker route or the batch row serving the composite without the
+coverage block; on the Risk tab, a level word, a bar, a digit outside the
+engine's sentence, or the word "unavailable" beside a dropped category; a
+coverage note whose weights come from anywhere but the served block.
+
+**RED first** — `test_risk_producer_coverage.py` on the parent engine:
+`ImportError: cannot import name 'CATEGORY_INPUTS'` at collection.
+
+**GREEN** — exit `0`: `57 passed`; `tests/engine/public/intelligence` +
+`tests/engine/test_public_egress.py`: `1095 passed`.
+
+**PLANT G** — `dropped_categories()` reads `not_carried = ()` (the drop
+reverted; every structural absence refuses again).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert 'risk_category_unavailable' == 'risk_category_dropped'
+E   AssertionError: assert 8 is None
+E    +  where 8 = RiskCategoryScores(macro=65, supply_chain=56, geopolitical=4, financial=8, ...).financial
+E   - Composite risk unavailable: valuation inputs not reported for MSFT.
+E   + Composite risk unavailable: financial, valuation and operational inputs not reported for MSFT.
+FAILED tests/engine/public/intelligence/test_risk_producer_coverage.py::test_every_producer_drops_financial_and_only_live_drops_operational
+FAILED tests/engine/public/intelligence/test_risk_producer_coverage.py::test_a_live_row_drops_financial_and_operational_and_scores_the_rest
+FAILED tests/engine/public/intelligence/test_risk_producer_coverage.py::test_a_per_company_absence_still_refuses_the_category_and_the_composite
+FAILED tests/engine/public/intelligence/test_risk_producer_coverage.py::test_a_dropped_category_is_never_scored_even_when_the_row_carries_the_input
+```
+
+**PLANT H** — the weights renormalised over the MEASURED subset (a refused
+category redistributed away: the R-COMPOSITE fabrication).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert (43 is None)
+E    +  where 43 = PublicCompanyRiskScore(ticker='MSFT', overall_risk_score=43, risk_level='medium', ...).overall_risk_score
+FAILED tests/engine/public/intelligence/test_risk_producer_coverage.py::test_a_per_company_absence_still_refuses_the_category_and_the_composite
+FAILED tests/engine/public/intelligence/test_risk_scoring_engine.py::test_no_financials_refuses_every_financial_category_and_the_composite
+FAILED tests/engine/public/intelligence/test_risk_scoring_engine.py::test_one_absent_financial_input_refuses_the_category[interest_expense-interest coverage]
+(+5 more in test_risk_scoring_engine.py)
+```
+
+**REVERT** — both restored; exit `0`, `57 passed`.
+
+**FE (vitest, `riskBreakdownDropped.test.tsx`, 9 tests + the refusal file's
+4).** PLANT FE-1 — `CategoryGrid`'s dropped branch removed (`const dropped
+= null`): a drop falls to the refusal branch.
+
+**RED** — exit `1`:
+
+```
+   × CategoryGrid — a dropped category > renders 'not scored' plus the engine's sentence: no bar, no level, no digit, not 'unavailable'
+     → expected 'unavailable' to be 'dropped' // Object.is equality
+   × CategoryGrid — a dropped category > falls back to the block's reason when the refusal list lacks the sentence
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+```
+
+PLANT FE-2 — `CoverageNote` prints `declared_weights` instead of
+`applied_weights` (a remembered constant in place of the served block).
+
+**RED** — exit `1`:
+
+```
+AssertionError: expected 'Scored over 5 of 7 categories. Not sc…' to contain 'Macro 26.5%'
+Received: "... Weights applied: Macro 18.0% · Supply chain 17.0% · Geopolitical 13.0% · Valuation 10.0% · Regulatory 10.0%."
+      Tests  2 failed | 7 passed (9)
+```
+
+**REVERT** — both restored; `13 passed` across the two files. `tsc
+--noEmit -p tsconfig.app.json`: 10 errors, all pre-existing in
+`capsuleEmpty/capsuleAskGuard(.test).ts`, identical to main — the
+`DailyRun.roicPct` / `anchorProfitShare` widening to `number | null`
+surfaced its consumers (`cfoDerive.ts`, `chatResponder.ts`), each now
+stating the refusal.
+
 
 ## floor-sku-portfolio
 
