@@ -43,6 +43,7 @@ from engine.api.frontend import (
 )
 from engine.config import load_config
 from engine.metrics import (
+    ANCHOR_PROFIT_SHARE_UNDEFINED,
     PORTFOLIO_REAL_MARGIN_UNDEFINED,
     PORTFOLIO_ROIC_UNDEFINED,
     composite_score,
@@ -315,3 +316,96 @@ def test_dio_sheet_without_a_confirmed_period_is_not_used(tmp_path):
     assert _load_dio_from_workbook(path, {"SUC": 1.0}, notes) == {}
     assert [n["code"] for n in notes] == ["dio_sheet_period_unconfirmed"]
     assert "does not carry two dates" in notes[0]["text"]
+
+
+# ─── api/frontend.py narrative: a refused figure is stated, never 0.0 or a 500 ──
+
+
+def _refused_run():
+    """A DailyRun as `_to_daily_run` serves it when both headline figures refuse."""
+    return {
+        "date": "2026-01-01", "period": "x", "workingCapitalMRon": 0.0,
+        "roicPct": None, "costOfCapitalPct": 6.5, "confidence": "low",
+        "anchorProfitShare": None,
+        "refusals": [
+            {"code": PORTFOLIO_ROIC_UNDEFINED, "component": "roicPct", "inputs": {},
+             "text": "Portfolio ROIC unavailable: capital trapped is zero."},
+            {"code": ANCHOR_PROFIT_SHARE_UNDEFINED, "component": "anchorProfitShare",
+             "inputs": {}, "text": "Anchor profit share unavailable: the portfolio's "
+             "absolute profit nets to a loss (-3.0 kRON), so there is no profit to "
+             "take a share of."},
+        ],
+        "anchors": [], "eliminate": [], "scale": [],
+        "review": [{"name": "A", "realMargin": -1.0, "absoluteProfit": -3.0, "reason": "x"}],
+    }
+
+
+def _legacy_client(monkeypatch):
+    """/api/analyze sits behind the LEGACY_SKU_AI_ENABLED wall; no model key, so
+    the narrative is the deterministic one."""
+    monkeypatch.setenv("LEGACY_SKU_AI_ENABLED", "1")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    os.environ.pop("ENGINE_API_TOKEN", None)
+    return TestClient(create_app(config_path=REPO_ROOT / "config.yaml"))
+
+
+def test_analyze_route_states_refused_roic_and_share_instead_of_500(monkeypatch):
+    """The narrative formatted `run.get("roicPct", 0)` — a PRESENT None is not
+    defaulted, so `f"{None:.1f}"` raised and the route 500'd for exactly the
+    portfolios whose figures refused. `eliminate` is empty so no model call
+    is attempted; the summary is deterministic."""
+    client = _legacy_client(monkeypatch)
+    r = client.post("/api/analyze", json={"run": _refused_run(), "language": "en"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "ROIC unavailable (Portfolio ROIC unavailable: capital trapped is zero.)" in body["headline"]
+    assert "an unavailable share of real profit (Anchor profit share unavailable" in body["summary_en"]
+    assert "o cotă indisponibilă din profitul real" in body["summary_ro"]
+    for text in (body["headline"], body["summary_en"], body["summary_ro"]):
+        assert "0.0% ROIC" not in text and "0.0% of real profit" not in text
+
+
+def test_analyze_route_control_formats_a_measured_roic(monkeypatch):
+    client = _legacy_client(monkeypatch)
+    run = dict(_refused_run(), roicPct=38.8, anchorProfitShare=0.833, refusals=[])
+    body = client.post("/api/analyze", json={"run": run}).json()
+    assert "38.8% ROIC" in body["headline"]
+    assert "83.3% of real profit" in body["summary_en"]
+
+
+# ─── sku_pipeline.py (CLI loader path): share of category NIV ───────────────
+
+
+def test_sku_share_of_category_niv_is_undefined_over_a_zero_total():
+    """Measured before: `total or 1.0` gave a 1,000 kRON SKU in a category whose
+    SKU NIV nets to zero a share of 1,000x — 500 kRON of parent WOCA allocated
+    as 500,000 kRON, and -500,000 to its mirror. With the share undefined the
+    parent's WOCA and inventory are not allocated; the SKU keeps only what it
+    supplied itself."""
+    from engine.models import SkuRow
+    from engine.sku_pipeline import compute_sku_metrics
+    parent = CategoryRow(category="X", volume_tons=10, niv_kron=2000.0, gm_pct=20,
+                         dio_days=40, woca_kron=500.0)
+    skus = [SkuRow(sku_id="a", sku_name="a", category="X", volume_tons=5,
+                   niv_kron=1000.0, gm_pct=20),
+            SkuRow(sku_id="b", sku_name="b", category="X", volume_tons=5,
+                   niv_kron=-1000.0, gm_pct=20)]
+    out = {m.category: m for m in compute_sku_metrics(skus, [parent], 6.5)}
+    assert out["a"].woca_kron is None and out["b"].woca_kron is None
+    assert out["a"].avg_inventory_kron is None and out["a"].capital_trapped_kron is None
+    assert out["a"].roic_pct is None and out["a"].gmroii_pct is None
+
+
+def test_sku_share_of_category_niv_control_allocates_pro_rata():
+    from engine.models import SkuRow
+    from engine.sku_pipeline import compute_sku_metrics
+    parent = CategoryRow(category="X", volume_tons=10, niv_kron=4000.0, gm_pct=20,
+                         dio_days=40, woca_kron=500.0)
+    skus = [SkuRow(sku_id="a", sku_name="a", category="X", volume_tons=5,
+                   niv_kron=1000.0, gm_pct=20),
+            SkuRow(sku_id="b", sku_name="b", category="X", volume_tons=5,
+                   niv_kron=3000.0, gm_pct=20)]
+    out = {m.category: m for m in compute_sku_metrics(skus, [parent], 6.5)}
+    assert out["a"].woca_kron == pytest.approx(125.0)
+    assert out["b"].woca_kron == pytest.approx(375.0)
+    assert out["a"].avg_inventory_kron == pytest.approx(4000.0 * 40 / 365.0 * 0.25)

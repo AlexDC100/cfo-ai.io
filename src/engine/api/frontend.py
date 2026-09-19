@@ -1434,16 +1434,16 @@ def _build_analysis(
             "priority": "medium",
         })
 
+    roic_en = _run_figure(run, "roicPct", "{:.1f}% ROIC", "en")
+    roic_ro = _run_figure(run, "roicPct", "{:.1f}% ROIC", "ro")
     headline_en = (
         f"{len(eliminate)} eliminations, {len(alerts)} anchor alerts, {len(scale)} scale opportunities. "
-        f"Working capital {run.get('workingCapitalMRon', 0):.1f}M RON at "
-        f"{run.get('roicPct', 0):.1f}% ROIC."
+        f"Working capital {run.get('workingCapitalMRon', 0):.1f}M RON at {roic_en}."
     )
     headline_ro = (
         f"{len(eliminate)} eliminări, {len(alerts)} alerte ancoră, "
         f"{len(scale)} oportunități de scalare. Capital de lucru "
-        f"{run.get('workingCapitalMRon', 0):.1f}M RON la "
-        f"{run.get('roicPct', 0):.1f}% ROIC."
+        f"{run.get('workingCapitalMRon', 0):.1f}M RON la {roic_ro}."
     )
 
     summary_en, summary_ro = _build_summaries(run, eliminate, alerts, scale)
@@ -1509,23 +1509,65 @@ def _build_summaries(
     alert_names = ", ".join(a["name"] for a in alerts) or "none"
     scale_names = ", ".join(c["name"] for c in scale) or "none"
 
+    # A refused ROIC / anchor share is None on the run (see _to_daily_run).
+    # These strings used to format `run.get(key, 0)` — a present None is
+    # not defaulted, and `None * 100` / `f"{None:.1f}"` raised TypeError:
+    # a 500 on /upload-excel and /analyze for exactly the portfolios whose
+    # figures refused. The sentence now carries the refusal instead.
+    roic_en = _run_figure(run, "roicPct", "{:.1f}% ROIC", "en")
+    roic_ro = _run_figure(run, "roicPct", "{:.1f}% ROIC", "ro")
+    share_en = _run_figure(run, "anchorProfitShare", "{:.1f}% of real profit", "en", scale=100.0)
+    share_ro = _run_figure(run, "anchorProfitShare", "{:.1f}% din profitul real", "ro", scale=100.0)
+
     en = (
         f"Working capital deployed: {run.get('workingCapitalMRon', 0):.2f}M RON, "
-        f"earning {run.get('roicPct', 0):.1f}% ROIC against a "
+        f"earning {roic_en} against a "
         f"{run.get('costOfCapitalPct', 6.5):.1f}% cost of capital. "
         f"Engine flagged {len(eliminate)} categories for elimination ({elim_names}) and "
         f"{len(alerts)} anchor alerts ({alert_names}).\n\n"
         f"Scale opportunities: {scale_names}. Anchors generate "
-        f"{run.get('anchorProfitShare', 0) * 100:.1f}% of real profit — protect them; "
+        f"{share_en} — protect them; "
         f"every other line either earns its capital or it doesn't."
     )
     ro = (
         f"Capital de lucru desfășurat: {run.get('workingCapitalMRon', 0):.2f}M RON, "
-        f"generând {run.get('roicPct', 0):.1f}% ROIC față de un cost de capital de "
+        f"generând {roic_ro} față de un cost de capital de "
         f"{run.get('costOfCapitalPct', 6.5):.1f}%. "
         f"Motorul a marcat {len(eliminate)} categorii pentru eliminare ({elim_names}) și "
         f"{len(alerts)} alerte de ancoră ({alert_names}).\n\n"
         f"Oportunități de scalare: {scale_names}. Ancorele generează "
-        f"{run.get('anchorProfitShare', 0) * 100:.1f}% din profitul real — protejați-le."
+        f"{share_ro} — protejați-le."
     )
     return en, ro
+
+
+_RUN_FIGURE_UNAVAILABLE = {
+    "en": {"roicPct": "ROIC unavailable", "anchorProfitShare": "an unavailable share of real profit"},
+    "ro": {"roicPct": "ROIC indisponibil", "anchorProfitShare": "o cotă indisponibilă din profitul real"},
+}
+
+
+def _run_figure(
+    run: Dict[str, Any],
+    key: str,
+    fmt: str,
+    language: str,
+    scale: float = 1.0,
+) -> str:
+    """Format a headline figure of a DailyRun, or say it is unavailable.
+
+    `run[key]` is None when `_to_daily_run` refused it; the reason is on
+    `run["refusals"]` under `component == key` and is quoted here so the
+    narrative states why rather than a number that was never computed.
+    """
+    value = run.get(key)
+    if value is not None:
+        return fmt.format(float(value) * scale)
+    lang = language if language in _RUN_FIGURE_UNAVAILABLE else "en"
+    label = _RUN_FIGURE_UNAVAILABLE[lang].get(key, f"{key} unavailable")
+    reason = next(
+        (r.get("text") for r in run.get("refusals") or []
+         if isinstance(r, dict) and r.get("component") == key and r.get("text")),
+        None,
+    )
+    return f"{label} ({reason})" if reason else label
