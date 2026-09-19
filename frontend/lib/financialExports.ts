@@ -29,6 +29,7 @@ import {
   RATIO_CMP_EXPORT_LOCALE,
   printedRatioCells,
   printRatioCompareRow,
+  priorColumnHeading,
   priorRatioAbsence,
   ratioRowAbsence,
   ratioCompareHeadings,
@@ -50,7 +51,7 @@ import { factsFrom } from "./servedFacts";
 // ONE sentence for "there is nothing to compare against", shared with
 // the report model — so the workbook and the printed document cannot
 // describe the same absence two different ways.
-import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "./reportComparatives";
+import { NO_COMPARATIVE_CELL } from "./reportComparatives";
 import {
   computeCostOfCapital,
   computeCreditScore,
@@ -232,7 +233,7 @@ export function buildExcelWorkbook(
     // header made the whole column ambiguous before a single cell was
     // read; the sentence says the column is empty because there is no
     // period behind it, not because nothing moved.
-    ["Profit & Loss", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
+    ["Profit & Loss", s.periodLabel, priorColumnHeading(s), "Δ Abs", "Δ %"],
     plRow("Revenue", s.incomeStatement.revenue, priorIs?.revenue),
     plRow("Cost of goods sold", -s.incomeStatement.costOfGoodsSold, priorIs ? -priorIs.costOfGoodsSold : undefined),
     plRow("Gross profit", t.grossProfit, priorT?.grossProfit),
@@ -348,7 +349,7 @@ export function buildExcelWorkbook(
     const bs = s.balanceSheet;
     const bsP = s.prior?.balanceSheet;
     const bsRows: (string | number)[][] = [
-      ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
+      ["Balance Sheet", s.periodLabel, priorColumnHeading(s), "Δ Abs", "Δ %"],
       plRow("Cash & equivalents", bs.cash, bsP?.cash),
       plRow("Accounts receivable", bs.accountsReceivable, bsP?.accountsReceivable),
       plRow("Inventory", bs.inventory, bsP?.inventory),
@@ -397,10 +398,14 @@ export function buildExcelWorkbook(
   );
   const cmpHeadings = ratioCmp
     ? ratioCompareHeadings(ratioCmp)
-    : ratioCompareHeadingsFor(s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, RATIO_CMP_EXPORT_LOCALE);
-  const cmpAbsent = ratioCmp === null && (s.prior !== undefined || (s.comparatives ?? null) !== null)
-    ? priorRatioAbsence(s)
-    : null;
+    : ratioCompareHeadingsFor(s.periodLabel, priorColumnHeading(s), RATIO_CMP_EXPORT_LOCALE);
+  // A prior attached, a document attached, or a comparison requested and
+  // refused / failed / pending: the four cells state the reason.
+  const outcomeKind = s.comparison?.kind ?? "none";
+  const cmpAbsent =
+    ratioCmp === null && (s.prior !== undefined || (s.comparatives ?? null) !== null || outcomeKind !== "none")
+      ? priorRatioAbsence(s)
+      : null;
   const sixCells = (key: string, label: string, figure: string | number, band: string): (string | number)[] => {
     const row = ratioCmpRows.get(key);
     if (row) return printedRatioCells(printRatioCompareRow(row, label));

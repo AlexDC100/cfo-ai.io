@@ -129,6 +129,42 @@ export const NO_COMPARATIVE_CELL = "no prior period";
 
 const NO_PRIOR = "no prior period was supplied with this book";
 
+/** The outcome of the comparison request an export was built under. */
+export type ExportComparisonState =
+  | { kind: "none" }
+  | { kind: "served" }
+  | { kind: "refused"; code: string; message: string }
+  | { kind: "failed"; status: number }
+  | { kind: "pending" };
+
+/** The sentence for a comparison that was requested and is not served:
+ *  refused, failed or pending. Null when none was requested (or one is
+ *  served — then the served document speaks). */
+export function comparisonOutcomeSentence(
+  s: Pick<Statements, "comparison">,
+  consequence: string,
+): string | null {
+  const c = s.comparison ?? null;
+  if (!c || c.kind === "none" || c.kind === "served") return null;
+  if (c.kind === "refused") return `the engine refused the comparison (${c.code}): ${c.message} — so ${consequence}`;
+  if (c.kind === "failed") {
+    return `the comparison request failed (HTTP ${c.status}${c.status === 0 ? ", no response" : ""}), so ${consequence}`;
+  }
+  return `the comparison had not been answered when this export was built, so ${consequence}`;
+}
+
+/** The prior column's heading when no prior statements are attached:
+ *  the comparison's outcome in two words, or the position-report note. */
+export function priorColumnHeading(s: Pick<Statements, "prior" | "comparison">): string {
+  if (s.prior) return s.prior.periodLabel;
+  const c = s.comparison ?? null;
+  if (c?.kind === "refused") return "comparison refused";
+  if (c?.kind === "failed") return "comparison failed";
+  if (c?.kind === "pending") return "comparison pending";
+  return NO_COMPARATIVES_NOTE;
+}
+
+
 const degraded = (reason: string): Variance => ({
   absolute: null,
   percent: null,
@@ -310,10 +346,15 @@ export function buildComparatives(
   const history = s.historicalPeriods ?? [];
 
   if (priors.length === 0 && history.length === 0) {
+    // A comparison that was requested and refused, failed or is pending
+    // is stated as such on every line — the prior exists; it is the
+    // comparison that is unavailable.
+    const outcome = comparisonOutcomeSentence(s, "no line's variance is stated");
+    const reason = outcome ?? NO_PRIOR;
     return {
       available: false,
-      degradedNote: NO_COMPARATIVES_NOTE,
-      degradedReason: NO_PRIOR,
+      degradedNote: outcome ?? NO_COMPARATIVES_NOTE,
+      degradedReason: reason,
       periods: [],
       lines: COMPARATIVE_LINES.map((spec) => ({
         key: spec.key,
@@ -321,7 +362,7 @@ export function buildComparatives(
         unit: spec.unit,
         current: currentOf(spec),
         comparable: false,
-        vs: { prior_period: degraded(NO_PRIOR), prior_year: degraded(NO_PRIOR) },
+        vs: { prior_period: degraded(reason), prior_year: degraded(reason) },
       })),
     };
   }

@@ -109,6 +109,9 @@ import {
   formatVariance,
   NO_COMPARATIVE_CELL,
   NO_COMPARATIVES_NOTE,
+  comparisonOutcomeSentence,
+  priorColumnHeading,
+  type ExportComparisonState,
   type ComparativeLine,
   type Comparatives,
 } from "./reportComparatives";
@@ -628,6 +631,13 @@ export interface Statements {
    *  prior ratio of their own. Absent: no comparison document reached the
    *  export, and every surface states that instead of a prior. */
   comparatives?: ExportComparatives | null;
+  /** What became of the comparison request, when no document is attached:
+   *  the engine's refusal (code + message), a failed request (status), or
+   *  one not yet answered. The exports print THAT in every prior-dependent
+   *  cell — never "no prior period was supplied" when a prior exists and
+   *  the Ratios tab is stating the refusal beside it (B8 verifier). Absent
+   *  or `none`: no comparison was requested. */
+  comparison?: ExportComparisonState | null;
   /** Optional multi-year history (oldest → newest, NOT including current). */
   historicalPeriods?: PriorPeriod[];
   /** Canonical period_facts views — single source of truth across DCF,
@@ -3040,7 +3050,9 @@ export function ratioRankBasisSentence(cmp: RatioComparisonV1): string {
  *  prior-dependent cell — never "no prior period" under a column headed
  *  with the prior period's own label, which contradicted its heading and
  *  left the reason in a tooltip a PDF never shows. */
-export function priorRatioAbsence(s: Pick<Statements, "prior" | "comparatives">): string {
+export { comparisonOutcomeSentence, priorColumnHeading, type ExportComparisonState };
+
+export function priorRatioAbsence(s: Pick<Statements, "prior" | "comparatives" | "comparison">): string {
   const block = s.comparatives?.ratios;
   const defect = ratioComparisonDefect(block);
   if (s.comparatives && defect !== null) {
@@ -3052,6 +3064,10 @@ export function priorRatioAbsence(s: Pick<Statements, "prior" | "comparatives">)
   if (s.prior) {
     return `the comparison period ${s.prior.periodLabel} reached this export without the served two-period ratio table, so no ratio's prior, change or band movement is stated`;
   }
+  // A comparison that was requested and refused, failed or is pending is
+  // NOT a missing prior: the prior exists and the tab states the outcome.
+  const outcome = comparisonOutcomeSentence(s, "no ratio's prior, change or band movement is stated");
+  if (outcome !== null) return outcome;
   return "no prior period was supplied with this book";
 }
 
@@ -4254,10 +4270,14 @@ export function renderReportHtml(
   const ratioCmpRows = new Map<string, RatioCompareRow>(
     ratioCmp ? servedMovableRows(ratioCmp).map((row) => [row.key, row]) : [],
   );
-  const ratioCmpWanted = ratioCmp !== null || s.prior !== undefined || (s.comparatives ?? null) !== null;
+  // Six-column tables are wanted when a comparison was served, a prior
+  // attached, or a comparison requested and refused / failed / pending —
+  // then the four prior cells carry the outcome (B8 verifier low b).
+  const ratioCmpWanted =
+    ratioCmp !== null || s.prior !== undefined || (s.comparatives ?? null) !== null || (s.comparison?.kind ?? "none") !== "none";
   const ratioCmpHeadings = ratioCmp
     ? ratioCompareHeadings(ratioCmp)
-    : [s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ", "Band now", "Band prior", "Band movement"];
+    : ratioCompareHeadingsFor(s.periodLabel, priorColumnHeading(s), RATIO_CMP_EXPORT_LOCALE);
   const ratioCmpCells = (
     key: string,
     label: string,

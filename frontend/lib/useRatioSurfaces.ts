@@ -16,7 +16,7 @@
 
 import { useMemo } from "react";
 
-import type { Statements } from "@/lib/financialReport";
+import type { ExportComparisonState, Statements } from "@/lib/financialReport";
 import {
   statementsForExportOf,
   type ComparativesFetch,
@@ -78,6 +78,17 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
         : data === undefined && input.comparatives.isError === true
           ? { status: 0 }
           : null;
+  // The outcome the exports are built under, when no document is served:
+  // the refusal, the failure, or a request not yet answered. The report
+  // and the workbook print it in every prior-dependent cell (never "no
+  // prior period was supplied" while the tab states the refusal).
+  const comparisonOutcome: ExportComparisonState | null = cmpRefused
+    ? { kind: "refused", code: cmpRefused.code, message: cmpRefused.message }
+    : failure
+      ? { kind: "failed", status: failure.status }
+      : requested && data === undefined
+        ? { kind: "pending" }
+        : null;
   const ratioCompareView = buildRatioCompareView({
     periodTable: readRatioTable(input.assembledMetrics),
     comparativesDoc: cmpDoc,
@@ -90,7 +101,7 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
     cmpDoc,
     cmpRefused,
     ratioCompareView,
-    statementsForExport: statementsForExportOf(input.statements, cmpDoc),
+    statementsForExport: statementsForExportOf(input.statements, cmpDoc, comparisonOutcome),
     creditEnvelopes: servedCreditEnvelopes(input.assembledMetrics, input.statements, input.metricsByName),
   };
 }

@@ -33,7 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { OrgPeriod } from "@/lib/orgPeriods";
-import type { Statements } from "@/lib/financialReport";
+import type { ExportComparisonState, Statements } from "@/lib/financialReport";
 import type { RatioComparisonV1 } from "@/lib/ratioTable";
 import { currentOrgId, getSupabase } from "@/lib/supabase";
 
@@ -234,6 +234,10 @@ export type StatementsForExport = Statements & {
    *  comparison): the exports print its ratio rows instead of rebuilding a
    *  prior of their own. */
   comparatives: ComparativesResponse | null;
+  /** The comparison request's outcome — served, refused, failed, pending
+   *  or none — so an export built while the engine refused or the request
+   *  failed states THAT, not "no prior period was supplied". */
+  comparison: ExportComparisonState;
 };
 
 /**
@@ -245,10 +249,15 @@ export type StatementsForExport = Statements & {
 export function statementsForExportOf(
   statements: Statements | null,
   doc: ComparativesResponse | null,
+  /** The outcome when no document is served (refused / failed / pending);
+   *  `none` when omitted. Ignored when a document is served. */
+  outcome: ExportComparisonState | null = null,
 ): StatementsForExport | null {
   if (!statements) return null;
   const ps = doc?.prior_statements as unknown as Statements | undefined;
-  if (!doc || !ps || !ps.incomeStatement || !ps.balanceSheet) return { ...statements, comparatives: null };
+  if (!doc || !ps || !ps.incomeStatement || !ps.balanceSheet) {
+    return { ...statements, comparatives: null, comparison: outcome ?? { kind: "none" } };
+  }
   return {
     ...statements,
     prior: {
@@ -257,6 +266,7 @@ export function statementsForExportOf(
       incomeStatement: ps.incomeStatement,
     },
     comparatives: doc,
+    comparison: { kind: "served" },
   };
 }
 

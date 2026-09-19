@@ -84,6 +84,8 @@ import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "@/lib/reportComparati
 import { formatRatioBand, ratioCompareHeadingsFor, reasonText, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
 
 import { metricsFor, statementsFor } from "./exportBooks";
+import { ratioSurfacesOf } from "@/lib/useRatioSurfaces";
+import { statementsForExportOf } from "@/lib/comparatives";
 import {
   corpusPairEnvelopes,
   corpusPairKeys,
@@ -493,6 +495,81 @@ describe("§7 a book with no comparison claims none", () => {
     const current = rows.find((r) => r[1] === "Current ratio") as string[];
     expect([current[3], current[4], current[6], current[7]]).toEqual(Array(4).fill(NO_COMPARATIVE_CELL));
     expect(rows.some((r) => r[0] === "no prior period was supplied with this book")).toBe(true);
+  });
+});
+
+// ── §7b the comparison exists and is unavailable — say which ───────────
+//
+// statementsForExportOf(statements, null) used to hand the exports
+// `comparatives: null` whether no prior was chosen or the engine REFUSED
+// the comparison / the request FAILED / it was still LOADING — so the
+// report printed "No comparatives — position report" and the workbook
+// "no prior period was supplied with this book" while the Ratios tab, at
+// the same moment, stated the refusal (B8 verifier low b). The page's join
+// (`ratioSurfacesOf`) now carries the outcome into `StatementsForExport
+// .comparison`, and every prior-dependent cell prints it.
+
+describe("§7b a comparison that was refused, failed or is pending is stated as such — never as a missing prior", () => {
+  const CASES: [string, { data?: unknown; isError?: boolean }, RegExp, string][] = [
+    [
+      "refused by the engine",
+      { data: { kind: "refused", code: "prior_not_servable", message: "the prior period carries no statements block" } },
+      /the engine refused the comparison \(prior_not_servable\): the prior period carries no statements block/,
+      "comparison refused",
+    ],
+    ["failed with a status", { data: { kind: "error", status: 502 } }, /the comparison request failed \(HTTP 502\)/, "comparison failed"],
+    ["failed with no response", { data: undefined, isError: true }, /the comparison request failed \(HTTP 0, no response\)/, "comparison failed"],
+    ["not yet answered", { data: undefined, isError: false }, /the comparison had not been answered when this export was built/, "comparison pending"],
+  ];
+
+  it.each(CASES)("%s: the report's prior cells, band block and credit block, and the workbook, state it", (_name, query, rx, heading) => {
+    const surfaces = ratioSurfacesOf({
+      assembledMetrics: {},
+      statements: statementsFor("agras"),
+      metricsByName: metricsFor("agras"),
+      currentLabel: "Dec 2025",
+      periodId: "period-agras-fy2025",
+      priorId: "period-carniprod-fy2024",
+      comparatives: query as Parameters<typeof ratioSurfacesOf>[0]["comparatives"],
+    });
+    const st = surfaces.statementsForExport!;
+    expect(st.comparison.kind, "the page join carried no outcome").not.toBe("none");
+    expect(st.comparatives).toBeNull();
+
+    const html = buildReportHtml(st, surfaces.creditEnvelopes);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const tables = Array.from(doc.querySelectorAll("table.ratio-cmp"));
+    expect(tables.length, "no six-column tables for a requested comparison").toBeGreaterThan(20);
+    for (const t of tables) {
+      for (const id of ["prior", "delta", "band-prior", "movement"]) {
+        expect(text(t.querySelector(`[data-cell="${id}"]`)), `${t.getAttribute("data-ratio-cmp")} ${id}`).toMatch(rx);
+      }
+    }
+    expect(text(doc.querySelector('[data-band-movements="absent"]'))).toMatch(rx);
+    expect(text(doc.querySelector('[data-report-credit-movement="absent"]'))).toMatch(rx);
+    expect(html).not.toContain("no prior period was supplied");
+    expect(html).not.toContain(NO_COMPARATIVES_NOTE);
+
+    const wb = buildExcelWorkbook(st, undefined, surfaces.creditEnvelopes);
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets.Ratios, { header: 1, raw: false, defval: "" }) as string[][];
+    expect(rows[0].slice(2, 8)).toEqual(ratioCompareHeadingsFor(statementsFor("agras").periodLabel, heading, "en"));
+    const current = rows.find((r) => r[1] === "Current ratio") as string[];
+    for (const i of [3, 4, 6, 7]) expect(current[i]).toMatch(rx);
+    const bandBlock = rows.slice(rows.findIndex((r) => r[0] === "Band movements"));
+    expect(bandBlock.some((r) => rx.test(String(r[0])))).toBe(true);
+    for (const sheet of ["Ratios", "P&L", "Balance Sheet"]) {
+      const all = (XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, raw: false, defval: "" }) as string[][]).flat().join("\n");
+      expect(all, sheet).not.toContain("no prior period was supplied");
+      expect(all, sheet).not.toContain(NO_COMPARATIVES_NOTE);
+    }
+    const pl = XLSX.utils.sheet_to_json(wb.Sheets["P&L"], { header: 1, raw: false, defval: "" }) as string[][];
+    expect(pl[0][2]).toBe(heading);
+  });
+
+  it("no comparison requested: the outcome is none and the sentences are the no-prior ones", () => {
+    const st = statementsForExportOf(statementsFor("agras"), null)!;
+    expect(st.comparison).toEqual({ kind: "none" });
+    expect(priorRatioAbsence(st)).toBe("no prior period was supplied with this book");
   });
 });
 
