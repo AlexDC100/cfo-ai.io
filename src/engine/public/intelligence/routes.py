@@ -385,10 +385,15 @@ def _financials_from_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
     """Pull the canonical financial subset the scoring engines expect.
 
     Ratios come out as 0–1 fractions; multiples and money as-is. A field the
-    snapshot does not carry is None, and the engines refuse on it.
+    snapshot does not carry is None, and the engines refuse on it — unless
+    the row's PRODUCER (its ``mode``: live / demo / seed, carried under
+    ``producer``) never emits that field, in which case the risk engine
+    drops the category and says so (R-PUBLIC-ABSENT).
     """
     g = _first_present
+    mode = snap.get("mode")
     return {
+        "producer":             mode if isinstance(mode, str) else None,
         "revenue":              g(snap, "revenue"),
         "revenue_growth":       _points_to_fraction(g(snap, "revenue_growth", "revenueGrowth")),
         "ebitda":               g(snap, "ebitda"),
@@ -1317,6 +1322,9 @@ def build_router() -> APIRouter:
                     "risk_refusal": next(
                         (r.text for r in risk.refusals if r.component == "overall"), None
                     ),
+                    # What the score covers: the dropped categories, the
+                    # reason, and the weights applied (R-PUBLIC-ABSENT).
+                    "risk_coverage": _serialize(risk.coverage),
                     "main_risk": (
                         risk.top_risks[0].label if risk.top_risks else None
                     ),

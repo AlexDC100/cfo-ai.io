@@ -290,10 +290,43 @@ class ScoreRefusal:
 
 
 @dataclass(frozen=True)
+class DroppedCategory:
+    """A category the public risk score did not score because an input it
+    reads is one the row's data PRODUCER never carries (R-PUBLIC-ABSENT).
+    Its declared weight is redistributed over the scored categories;
+    ``reason`` is the sentence a reader sees beside the category."""
+    category: str
+    inputs: list[str]
+    reason: str
+
+
+@dataclass(frozen=True)
+class ScoreCoverage:
+    """What the composite risk score covers — served beside every score so a
+    reader sees which categories were scored, which were dropped and why,
+    and the weights actually applied (rendered from data, never prose).
+
+    ``producer`` is the row's data producer (the snapshot ``mode``: live /
+    demo / seed) or None when the row carries none, in which case nothing is
+    dropped. ``applied_weights`` are ``declared_weights`` rescaled over
+    ``scored`` so they sum to 1; when nothing is dropped they are the
+    declared weights themselves.
+    """
+    producer: Optional[str]
+    scored: list[str]
+    dropped: list[DroppedCategory]
+    declared_weights: dict[str, float]
+    applied_weights: dict[str, float]
+
+
+@dataclass(frozen=True)
 class RiskCategoryScores:
     """0–100 per risk category. None where the engine has no measured input
-    for the category — never a neutral stand-in. The reason for every None
-    is a ``ScoreRefusal`` on the parent score's ``refusals``.
+    for the category — never a neutral stand-in — or where the category is
+    dropped because its producer never carries an input it reads. The
+    reason for every None is a ``ScoreRefusal`` on the parent score's
+    ``refusals`` (code ``risk_category_unavailable`` for a refusal,
+    ``risk_category_dropped`` for a drop).
 
     Each category aggregates a subset of inputs:
       · macro:        sector library + macro signals tied to this ticker
@@ -351,9 +384,12 @@ class PublicCompanyRiskScore:
     The `risk_level` mapping is fixed (NOT operator-tunable to avoid drift)
     and lives in ``risk_scoring_engine.RISK_LEVEL_CUTOFFS`` — the one copy.
 
-    ``overall_risk_score`` and ``risk_level`` are None unless EVERY weighted
+    ``overall_risk_score`` and ``risk_level`` are None unless EVERY scored
     category is measured: a composite over a stand-in category is not a
-    measurement. ``refusals`` carries the reason for each None.
+    measurement. ``refusals`` carries the reason for each None. A category
+    the row's producer can never fill is DROPPED, not refused, and
+    ``coverage`` says which, why, and the weights applied over the rest
+    (R-PUBLIC-ABSENT).
     """
     ticker: str
     overall_risk_score: Optional[int]   # 0–100, None when refused
@@ -365,6 +401,7 @@ class PublicCompanyRiskScore:
     confidence: float                   # 0.0–1.0, propagates from exposure profile
     computed_at: datetime
     refusals: list[ScoreRefusal] = field(default_factory=list)
+    coverage: Optional[ScoreCoverage] = None
 
 
 @dataclass(frozen=True)

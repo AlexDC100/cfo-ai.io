@@ -391,8 +391,12 @@ def _category_fact(risk: PublicCompanyRiskScore, category: str) -> str:
     score = getattr(risk.categories, category)
     if score is not None:
         return f"{score}/100"
-    why = [r.text for r in risk.refusals if r.component == category]
-    return "UNAVAILABLE — " + (why[0] if why else "not computed")
+    why = [r for r in risk.refusals if r.component == category]
+    if why and why[0].code == "risk_category_dropped":
+        # R-PUBLIC-ABSENT: dropped by the producer's coverage, weight
+        # redistributed — not this company's gap.
+        return "NOT SCORED — " + why[0].text
+    return "UNAVAILABLE — " + (why[0].text if why else "not computed")
 
 
 def _measured_at_or_above(score: Optional[int], cutoff: int) -> bool:

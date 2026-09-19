@@ -22,10 +22,23 @@ Score architecture — composite 0–100, weighted across 7 categories
 Each category is itself a 0–100 number — or None, with a ``ScoreRefusal``,
 when an input it reads is absent, non-finite or outside the domain its
 tiers are defined on. The overall_risk_score is the weighted sum, rounded,
-and it is served only when EVERY weighted category is measured. Category
+and it is served only when EVERY scored category is measured. Category
 weights are NOT operator-tunable to keep the score comparable across
-companies and stable across time, and they are never renormalised over
-the measured subset (a renormalised composite is its own fabrication).
+companies and stable across time, and they are never renormalised over a
+REFUSED category (a composite that quietly drops a company's missing
+category is its own fabrication).
+
+R-PUBLIC-ABSENT (floor_rulings.md, 2026-09-19) — the one exception, and it
+is structural, not per company: a category whose input the row's data
+PRODUCER never carries (``PRODUCER_COVERAGE``: no producer emits an
+interest expense; the live producers write revenueGrowth None) is DROPPED
+for every row of that producer, its weight redistributed over the scored
+categories, and the served ``coverage`` block lists the dropped categories,
+the reason and the weights actually applied. Refusing on a structurally
+absent input nulled the composite on every listed company (measured
+2026-09-19: 0 / 291 rows scored), which hides the score rather than
+stating what it covers. The private credit composite never redistributes
+(R-COMPOSITE); this rule is the public score's alone.
 
 Tunable parameters live at the top of this file as named constants. To
 calibrate, change a constant + re-run the wrong-on-purpose test fixtures.
@@ -42,11 +55,13 @@ from typing import Any, Optional
 
 from .models import (
     CompanyExposureProfile,
+    DroppedCategory,
     IntelligenceSignal,
     OpportunityItem,
     PublicCompanyRiskScore,
     RiskCategoryScores,
     RiskItem,
+    ScoreCoverage,
     ScoreRefusal,
     Severity,
 )
@@ -142,6 +157,98 @@ TOP_RISK_MIN_RELEVANCE = 0.3
 RISK_CATEGORY_UNAVAILABLE = "risk_category_unavailable"
 RISK_COMPOSITE_UNAVAILABLE = "risk_composite_unavailable"
 RISK_SCORE_OUT_OF_RANGE = "risk_score_out_of_range"
+RISK_CATEGORY_DROPPED = "risk_category_dropped"
+
+# ─────────────────────────────────────────────────────────────────────────
+# Producer coverage (R-PUBLIC-ABSENT). The financials dict carries the
+# row's data producer under ``PRODUCER_KEY`` (the snapshot ``mode``:
+# ``live`` = universe_service._live_row / normalizer.build_universe_snapshot_row,
+# ``demo`` = demo_universe, ``seed`` = bvb_seed). PRODUCER_COVERAGE declares,
+# per producer, the category inputs that producer NEVER emits — a
+# declaration, not a per-row inference, so every row of one producer is
+# scored over the same categories with the same weights. It is measured
+# against the producers by test_risk_producer_coverage.py: once a producer
+# carries an input listed here (PT-PUBLIC-1), that gate reds and the entry
+# comes out, re-enabling the category with no other engine change.
+#
+# Measured 2026-09-19 (scratchpad/c6_measure_coverage.py): ``interestExpense``
+# is a key on 0 / 291 offline rows and neither live builder reads the
+# adapter's interest_expense; ``revenueGrowth`` is a field of the seed and
+# demo producers (203 / 203 demo rows carry a value, 7 / 88 seed rows) and
+# a literal None in both live builders ("requires prior period — v2").
+# ─────────────────────────────────────────────────────────────────────────
+
+PRODUCER_KEY = "producer"
+NOT_CARRIED_REASON = "input not carried by the data producer"
+
+PRODUCER_COVERAGE: dict[str, tuple[str, ...]] = {
+    "live": ("interest_expense", "revenue_growth"),
+    "demo": ("interest_expense",),
+    "seed": ("interest_expense",),
+}
+
+# The snapshot inputs each financial category reads (the exposure
+# categories read the sector model, which every producer carries).
+CATEGORY_INPUTS: dict[str, tuple[str, ...]] = {
+    "financial": ("net_debt_to_ebitda", "ebitda", "ebitda_margin", "interest_expense"),
+    "valuation": ("ev_to_ebitda", "pe_ratio"),
+    "operational": ("revenue_growth", "capex", "revenue"),
+}
+
+# What a reader is told the dropped input was (the category's own name for
+# it: interest expense enters the financial category as interest coverage).
+DROPPED_INPUT_LABELS: dict[str, str] = {
+    "interest_expense": "interest coverage",
+    "revenue_growth": "revenue growth",
+}
+
+
+def dropped_categories(producer: Optional[str]) -> list[DroppedCategory]:
+    """The categories dropped for ``producer``, in CATEGORY_WEIGHTS order.
+
+    None or an undeclared producer drops nothing: a row that carries no
+    producer marker (a test fixture, the batch's ``{}`` for a ticker with no
+    snapshot) has no structural absence, only per-company ones.
+    """
+    not_carried = PRODUCER_COVERAGE.get(producer or "", ())
+    out: list[DroppedCategory] = []
+    for category in CATEGORY_WEIGHTS:
+        inputs = [i for i in CATEGORY_INPUTS.get(category, ()) if i in not_carried]
+        if inputs:
+            out.append(DroppedCategory(category=category, inputs=inputs,
+                                       reason=NOT_CARRIED_REASON))
+    return out
+
+
+def applied_weights(scored: list[str]) -> dict[str, float]:
+    """CATEGORY_WEIGHTS rescaled over ``scored`` so they sum to 1.
+
+    Over every category this is CATEGORY_WEIGHTS itself; over none it is
+    empty (nothing to apply, never a division by zero).
+    """
+    if set(scored) == set(CATEGORY_WEIGHTS):
+        return {k: CATEGORY_WEIGHTS[k] for k in scored}   # exact, no rescale noise
+    total = sum(CATEGORY_WEIGHTS[k] for k in scored)
+    if total <= 0:
+        return {}
+    return {k: CATEGORY_WEIGHTS[k] / total for k in scored}
+
+
+def _dropped_refusal(dropped: DroppedCategory) -> ScoreRefusal:
+    labels = join_names([DROPPED_INPUT_LABELS.get(i, INPUT_LABELS.get(i, i))
+                         for i in dropped.inputs])
+    verb = "is" if len(dropped.inputs) == 1 else "are"
+    weight_pct = f"{CATEGORY_WEIGHTS[dropped.category] * 100:.0f}%"
+    return ScoreRefusal(
+        code=RISK_CATEGORY_DROPPED,
+        component=dropped.category,
+        inputs=list(dropped.inputs),
+        text=(
+            f"{CATEGORY_LABELS[dropped.category]} risk not scored: {labels} {verb} "
+            f"not carried by the data producer; its {weight_pct} weight is "
+            "redistributed over the scored categories."
+        ),
+    )
 
 # Declared range of every category and of the composite.
 SCORE_RANGE: tuple[int, int] = (0, 100)
@@ -556,21 +663,43 @@ def compute_risk_score(
     """
     signals = matched_signals or []
 
+    # R-PUBLIC-ABSENT: the row's producer decides which categories are
+    # dropped before anything is scored — a dropped category is never
+    # scored, even for a row that happens to carry the input, so every row
+    # of one producer is scored over the same categories and weights.
+    producer_raw = financials.get(PRODUCER_KEY)
+    producer = producer_raw if isinstance(producer_raw, str) else None
+    dropped = dropped_categories(producer)
+    dropped_names = {d.category for d in dropped}
+    scored_names = [k for k in CATEGORY_WEIGHTS if k not in dropped_names]
+    weights = applied_weights(scored_names)
+    coverage = ScoreCoverage(
+        producer=producer,
+        scored=scored_names,
+        dropped=dropped,
+        declared_weights=dict(CATEGORY_WEIGHTS),
+        applied_weights=weights,
+    )
+
+    scorers = {
+        "macro": lambda: _score_macro(exposure, signals),
+        "supply_chain": lambda: _score_supply_chain(exposure, signals),
+        "geopolitical": lambda: _score_geopolitical(exposure, signals),
+        "financial": lambda: _score_financial(financials),
+        "valuation": lambda: _score_valuation(financials, exposure.sector),
+        "operational": lambda: _score_operational(financials, exposure.sector),
+        "regulatory": lambda: _score_regulatory(exposure, signals),
+    }
     scored: dict[str, Scored] = {
-        "macro": _score_macro(exposure, signals),
-        "supply_chain": _score_supply_chain(exposure, signals),
-        "geopolitical": _score_geopolitical(exposure, signals),
-        "financial": _score_financial(financials),
-        "valuation": _score_valuation(financials, exposure.sector),
-        "operational": _score_operational(financials, exposure.sector),
-        "regulatory": _score_regulatory(exposure, signals),
+        k: ((None, None) if k in dropped_names else scorers[k]()) for k in CATEGORY_WEIGHTS
     }
     categories = RiskCategoryScores(**{k: v[0] for k, v in scored.items()})
     refusals: list[ScoreRefusal] = [v[1] for v in scored.values() if v[1] is not None]
+    refusals.extend(_dropped_refusal(d) for d in dropped)
 
     overall: Optional[int]
     risk_level: Optional[Severity]
-    refused = [k for k in CATEGORY_WEIGHTS if scored[k][0] is None]
+    refused = [k for k in scored_names if scored[k][0] is None]
     if refused:
         overall = None
         risk_level = None
@@ -584,19 +713,31 @@ def compute_risk_score(
                 f"inputs not reported for {exposure.ticker}."
             ),
         ))
+    elif not scored_names:
+        overall = None
+        risk_level = None
+        refusals.append(ScoreRefusal(
+            code=RISK_COMPOSITE_UNAVAILABLE,
+            component="overall",
+            inputs=sorted(dropped_names),
+            text=(
+                f"Composite risk unavailable: every category is dropped for "
+                f"{exposure.ticker} ({NOT_CARRIED_REASON})."
+            ),
+        ))
     else:
         overall = int(round(sum(
-            CATEGORY_WEIGHTS[k] * scored[k][0] for k in CATEGORY_WEIGHTS
+            weights[k] * scored[k][0] for k in scored_names
         )))
         lo, hi = SCORE_RANGE
         if not (lo <= overall <= hi):
             # Unreachable while every category is capped at the top of the
-            # scale and the weights sum to 1.0 — but a score outside its
-            # declared range refuses; it is never clamped into it.
+            # scale and the applied weights sum to 1.0 — but a score outside
+            # its declared range refuses; it is never clamped into it.
             refusals.append(ScoreRefusal(
                 code=RISK_SCORE_OUT_OF_RANGE,
                 component="overall",
-                inputs=list(CATEGORY_WEIGHTS),
+                inputs=list(scored_names),
                 text=f"Composite risk unavailable: computed {overall} is outside {lo}-{hi}.",
             ))
             overall = None
@@ -622,6 +763,7 @@ def compute_risk_score(
             next(r for r in reversed(refusals) if r.component == "overall")
             if overall is None else None
         ),
+        coverage=coverage,
     )
 
     return PublicCompanyRiskScore(
@@ -635,6 +777,7 @@ def compute_risk_score(
         confidence=exposure.confidence,
         computed_at=datetime.now(timezone.utc),
         refusals=refusals,
+        coverage=coverage,
     )
 
 
@@ -757,18 +900,29 @@ def _build_explanation(
     categories: RiskCategoryScores,
     top_risks: list[RiskItem],
     composite_refusal: Optional[ScoreRefusal] = None,
+    coverage: Optional[ScoreCoverage] = None,
 ) -> str:
     """Deterministic short sentence. NO LLM.
 
     LLM-driven narrative lives in ai_market_read.py. A refused composite
     states its refusal and names no "highest pressure": the loudest of a
-    partial set of categories is not the company's loudest.
+    partial set of categories is not the company's loudest. A composite
+    over dropped categories states what it covers (TC-12) and takes its
+    "highest pressure" over the scored categories only.
     """
     if overall is None:
         parts = [composite_refusal.text if composite_refusal is not None
                  else f"{ticker} composite risk unavailable."]
     else:
-        parts = [f"{ticker} composite risk {overall}/100 ({risk_level})."]
+        head = f"{ticker} composite risk {overall}/100 ({risk_level})"
+        if coverage is not None and coverage.dropped:
+            total = len(coverage.scored) + len(coverage.dropped)
+            names = join_names([CATEGORY_LABELS[d.category].lower() for d in coverage.dropped])
+            head += (
+                f" over {len(coverage.scored)} of {total} categories: {names} not "
+                f"scored ({NOT_CARRIED_REASON})"
+            )
+        parts = [head + "."]
         cat_dict = {
             "financial":     categories.financial,
             "supply_chain":  categories.supply_chain,
@@ -778,7 +932,8 @@ def _build_explanation(
             "operational":   categories.operational,
             "regulatory":    categories.regulatory,
         }
-        loudest_cat, loudest_score = max(cat_dict.items(), key=lambda kv: kv[1])
+        measured = {k: v for k, v in cat_dict.items() if v is not None}
+        loudest_cat, loudest_score = max(measured.items(), key=lambda kv: kv[1])
         parts.append(f"Highest pressure: {loudest_cat.replace('_',' ')} ({loudest_score}/100).")
     if top_risks:
         parts.append(f"Top risk: {top_risks[0].label}.")
