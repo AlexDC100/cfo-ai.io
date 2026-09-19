@@ -240,27 +240,60 @@ def main() -> int:
         finally:
             v_mod.load_valuation_benchmarks = _orig_load
 
-        # 18. DCF base FCF == stabilized (CFO − D&A); the engine reports
-        #     this as `fcf_breakdown.stabilized_fcf`.
-        stabilized_expected = max(
-            cf.get("net_profit", 0)  # NP equals (CFO − D&A) in steady state
-            + cf.get("net_wc_change", 0),
-            0,
-        )
+        # 18. The stabilized FCF tile is NI + ΔWC, SIGNED (owner ruling
+        #     R-OTHER, 2026-09-15). This gate used to assert
+        #     `max(NI + ΔWC, 0)` — it encoded the floor that served
+        #     "net income + ΔWC ≈ RON 0.00" on a book whose sum was
+        #     -3.5M, so a repair of that defect read as a regression
+        #     (TC-11). It now reds on the floor coming back.
+        stabilized_expected = cf.get("net_profit", 0) + cf.get("net_wc_change", 0)
         fcf_brk = valuation.get("fcf_breakdown") or {}
-        stabilized_actual = float(fcf_brk.get("stabilized_fcf", 0))
-        if abs(stabilized_actual - stabilized_expected) > 1.0:
+        stabilized_actual = fcf_brk.get("stabilized_fcf")
+        if stabilized_actual is None or abs(float(stabilized_actual) - stabilized_expected) > 1.0:
             issues.append(
-                f"DCF stabilized FCF mismatch: actual {stabilized_actual:,.2f} "
-                f"vs expected {stabilized_expected:,.2f} (NI + ΔWC steady-state)"
+                f"DCF stabilized FCF mismatch: actual {stabilized_actual!r} "
+                f"vs expected {stabilized_expected:,.2f} (NI + ΔWC, signed)"
             )
+        stabilized_actual = float(stabilized_actual or 0)
 
-        # 19. DCF equity value positive when statutory NI is positive
-        dcf_equity = float(valuation.get("dcf_equity_value") or 0)
-        if pl["net_income_statutory"] > 0 and dcf_equity <= 0:
+        # 19. On this profitable stub the DCF computes (no refusal) and its
+        #     equity value is positive; a refusal here would be a false one.
+        dcf_equity = valuation.get("dcf_equity_value")
+        if pl["net_income_statutory"] > 0 and (valuation.get("dcf_refusals") or dcf_equity is None
+                                               or float(dcf_equity) <= 0):
             issues.append(
-                f"DCF equity value {dcf_equity:,.2f} is non-positive despite "
+                f"DCF equity value {dcf_equity!r} (refusals "
+                f"{[r.get('code') for r in valuation.get('dcf_refusals') or []]}) despite "
                 f"positive statutory NI {pl['net_income_statutory']:,.2f}"
+            )
+        dcf_equity = float(dcf_equity or 0)
+
+        # 19b. The SAME statements with a statutory LOSS: the stabilized tile
+        #      is served negative (never floored to 0) and the DCF REFUSES
+        #      with a stated reason instead of serving EV 0 and equity =
+        #      -net debt. Reds on either floor returning.
+        import copy as _copy
+        loss_statements = _copy.deepcopy(result["statements"])
+        loss_ni = -3_000_000.0
+        loss_statements["assembled_pl"]["net_income_statutory"] = loss_ni
+        v_mod.load_valuation_benchmarks = _stub_load
+        try:
+            loss_val = v_mod.compute_valuation(
+                industry_key="real_estate_commercial", statements=loss_statements,
+            )
+        finally:
+            v_mod.load_valuation_benchmarks = _orig_load
+        loss_expected = loss_ni + cf.get("net_wc_change", 0)
+        loss_tile = (loss_val.get("fcf_breakdown") or {}).get("stabilized_fcf")
+        if loss_tile is None or abs(float(loss_tile) - loss_expected) > 1.0:
+            issues.append(
+                f"Loss book: stabilized FCF {loss_tile!r} vs expected {loss_expected:,.2f} (signed)"
+            )
+        loss_codes = [r.get("code") for r in loss_val.get("dcf_refusals") or []]
+        if loss_val.get("dcf_equity_value") is not None or "dcf_base_fcf_not_positive" not in loss_codes:
+            issues.append(
+                f"Loss book: DCF served equity {loss_val.get('dcf_equity_value')!r} with refusals "
+                f"{loss_codes}; a non-positive base FCF must refuse (dcf_base_fcf_not_positive)"
             )
 
         # 20. EBITDA used by valuation engine == ebitda_statutory (NOT
@@ -280,8 +313,11 @@ def main() -> int:
         print(f"    ebitda_used        : RON {eb_used:,.2f}")
         print(f"    stabilized_fcf     : RON {stabilized_actual:,.2f}")
         print(f"    dcf_equity_value   : RON {dcf_equity:,.2f}")
+        print(f"    loss-book stabilized_fcf : RON {float(loss_tile or 0):,.2f}; DCF refusals {loss_codes}")
     except Exception as e:  # noqa: BLE001
-        print(f"WARN: valuation engine smoke failed: {e} — skipping DCF/Graham gates")
+        # A valuation smoke that cannot run has checked nothing: that is a
+        # failure, not a skipped gate (TC-9).
+        issues.append(f"valuation engine smoke failed to run: {type(e).__name__}: {e}")
 
     # ── RECOMMENDATION GATES ─────────────────────────────────────────────
     # The FE rule registry (recommendationRules.ts) and the backend LLM

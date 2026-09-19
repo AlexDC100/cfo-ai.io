@@ -56,19 +56,25 @@ import {
   ratioCards,
   statementsFor,
 } from "./exportBooks";
+import { periodDaysLabel } from "../financialReport";
 
 type Env = {
   pl: Record<string, number>;
   bs: Record<string, number>;
-  days: number;
+  /** The period's day count as the statements carry it — null when the
+   *  engine did not establish it. NEVER defaulted to 365 here: this gate
+   *  once carried its own `?? 365` and so re-floored, in the gate, the
+   *  substitute the card had stopped making. */
+  days: number | null;
 };
 
 interface Spec {
   key: string;
   /** The label the card prints. */
   label: string | ((e: Env) => string);
-  /** The formula the card prints, verbatim. */
-  formula: string;
+  /** The formula the card prints, verbatim (a function when the words
+   *  depend on the book — the day-count captions name the day count). */
+  formula: string | ((e: Env) => string);
   unit: "x" | "%" | "days";
   /** This gate's own arithmetic, from the served envelope. */
   recompute: (e: Env) => number | null;
@@ -271,22 +277,22 @@ const SPECS: Spec[] = [
   {
     key: "dso",
     label: "Days Sales Outstanding",
-    formula: "trade receivables ÷ revenue × 365 days",
+    formula: (e) => `trade receivables ÷ revenue × ${periodDaysLabel(e.days)}`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.accounts_receivable, e.pl.revenue);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
     key: "dio",
     label: "Days Inventory Outstanding",
-    formula:
-      "inventory ÷ TOTAL operating expense (COGS + opex + D&A) × 365 days — not narrow COGS",
+    formula: (e) =>
+      `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.inventory, e.pl.total_operating_expense);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
@@ -298,12 +304,12 @@ const SPECS: Spec[] = [
     // this row computes. Two bases cannot share one name in one
     // document.
     label: "Days Payables Outstanding (on total operating cost)",
-    formula:
-      "trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × 365 days — not narrow COGS",
+    formula: (e) =>
+      `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.accounts_payable, e.pl.total_operating_expense);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
@@ -315,7 +321,7 @@ const SPECS: Spec[] = [
       const dso = div(e.bs.accounts_receivable, e.pl.revenue);
       const dio = div(e.bs.inventory, e.pl.total_operating_expense);
       const dpo = div(e.bs.accounts_payable, e.pl.total_operating_expense);
-      if (dso === null || dio === null || dpo === null) return null;
+      if (dso === null || dio === null || dpo === null || e.days === null) return null;
       return (dso + dio - dpo) * e.days;
     },
   },
@@ -392,9 +398,12 @@ function envOf(book: Book): Env {
   return {
     pl: s.assembled_pl ?? {},
     bs,
-    days: s.supplementary?.periodDays ?? 365,
+    days: s.supplementary?.periodDays ?? null,
   };
 }
+
+const formulaOf = (sp: Spec, e: Env): string =>
+  typeof sp.formula === "function" ? sp.formula(e) : sp.formula;
 
 const show = (n: number, unit: Spec["unit"]) =>
   unit === "%" ? `${n.toFixed(4)}%` : unit === "days" ? `${n.toFixed(4)} d` : `${n.toFixed(4)}×`;
@@ -443,6 +452,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
   for (const book of BOOKS) {
     it(`${book}: each ratio prints the formula it was computed by`, () => {
       const doc = exportDoc(book as Book);
+      const env = envOf(book as Book);
       const failures: string[] = [];
       for (const sp of SPECS) {
         const el = doc.querySelector(`[data-ratio-formula="${sp.key}"]`);
@@ -451,10 +461,10 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           continue;
         }
         const printedFormula = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (printedFormula !== sp.formula) {
+        if (printedFormula !== formulaOf(sp, env)) {
           failures.push(
             `${book}: “${sp.key}” prints the formula ${JSON.stringify(printedFormula)} ` +
-              `but this gate recomputes it as ${JSON.stringify(sp.formula)} — the words and ` +
+              `but this gate recomputes it as ${JSON.stringify(formulaOf(sp, env))} — the words and ` +
               `the arithmetic have drifted apart`,
           );
         }
@@ -476,7 +486,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           // not print a figure.
           if (rendered !== null) {
             failures.push(
-              `${book}: “${label}” prints ${card.value} but its formula (${sp.formula}) is ` +
+              `${book}: “${label}” prints ${card.value} but its formula (${formulaOf(sp, env)}) is ` +
                 `undefined on this book — a refusal was the only honest answer`,
             );
           }
@@ -492,7 +502,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         const tol = tolerance(sp.unit, expected);
         if (Math.abs(rendered - expected) > tol) {
           failures.push(
-            `${book}: “${label}” prints ${card.value} (${rendered}) but ${sp.formula} ` +
+            `${book}: “${label}” prints ${card.value} (${rendered}) but ${formulaOf(sp, env)} ` +
               `recomputes to ${show(expected, sp.unit)} — off by ` +
               `${Math.abs(rendered - expected).toFixed(4)}, tolerance ${tol.toFixed(4)}`,
           );

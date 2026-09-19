@@ -168,6 +168,10 @@ export interface PeriodValuation {
       equity_value: number | null;
       sensitivity_low: number | null;
       sensitivity_high: number | null;
+      /** Every reason the engine's DCF refused (`{code, inputs, text}`;
+       *  `text` is the sentence the page shows). `[]` when it computed;
+       *  absent / null on a legacy persisted row that carries no reasons. */
+      refusals?: { code: string; inputs: string[]; text: string }[] | null;
     };
   };
   football_field: ValuationFootballRow[];

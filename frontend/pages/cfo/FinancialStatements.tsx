@@ -5606,6 +5606,10 @@ function ValuationPanel({
   const { t } = useTranslation();
   const wacc = useMemo(() => computeCostOfCapital(statements), [statements]);
   const dcf = useMemo(() => runDcf(statements), [statements]);
+  /** The engine's own DCF refusals for this period ([] when it computed or
+   *  when the row predates the reasons). Read once; the equity tile and
+   *  nothing else keys on it until C9 lands. */
+  const engineDcfRefusals = valuation?.cross_checks?.dcf?.refusals ?? [];
   const graham = useMemo(() => runGraham(statements), [statements]);
   const cfClient = useMemo(() => deriveCashFlow(statements), [statements]);
   const growth = useMemo(() => multiPeriodGrowth(statements), [statements]);
@@ -5700,17 +5704,31 @@ function ValuationPanel({
             </div>
             <div className="md:text-right min-w-0 md:shrink-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium">{t("dash.equityValue")}</div>
-              <div className="font-mono text-[clamp(18px,2.6vw,26px)] font-medium text-ink leading-tight tabular-nums break-words">
-                <LearnableNumber
-                  conceptKey="equity_value"
-                  value={valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue}
+              {engineDcfRefusals.length > 0 ? (
+                // The engine refused this DCF (its reasons are also the
+                // method_warnings lines above). Never fall through to the
+                // client-side runDcf figure here: that number is built on
+                // the very substitutes the engine refused (C9), and a tile
+                // showing it beside its own refusal is a contradiction.
+                <div
+                  className="text-[12px] text-ink-mute leading-snug md:max-w-[26rem] md:ml-auto"
+                  data-testid="dcf-equity-refused"
                 >
-                  {fmtMoney(
-                    valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue,
-                    cur,
-                  )}
-                </LearnableNumber>
-              </div>
+                  {engineDcfRefusals[0].text}
+                </div>
+              ) : (
+                <div className="font-mono text-[clamp(18px,2.6vw,26px)] font-medium text-ink leading-tight tabular-nums break-words">
+                  <LearnableNumber
+                    conceptKey="equity_value"
+                    value={valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue}
+                  >
+                    {fmtMoney(
+                      valuation?.cross_checks?.dcf?.equity_value ?? dcf.equityValue,
+                      cur,
+                    )}
+                  </LearnableNumber>
+                </div>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">
