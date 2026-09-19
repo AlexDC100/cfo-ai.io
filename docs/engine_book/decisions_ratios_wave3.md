@@ -102,3 +102,78 @@ engine suite over them stays green; see the commit that lands this file).
 - `_valuation.py:201` / `financialValuation.ts:102` (effective tax rate
   clamped to [0, 25 %]) stay on the ratchet, unlisted, for owner triage
   (D6 of the sweep).
+
+## D8 — repair round (B8 verifier, 2026-09-19): the fallback is deleted, not fenced
+
+`credit_block(rows)` / `_refused_subscores(rows)` took a rows-only operands
+fallback by DEFAULT and read an absent `total_debt` / `net_debt` / EBIT
+row as 0.0 and an absent `ebitda_to_interest` row as "interest is zero":
+agras with three rows removed was declared the R-D1 top rung. Both
+product callers already passed statements, so `statements` is now
+required and `operands_from_rows` is gone — a fenced fallback is a
+fallback the next caller reaches. With statements the operands cannot be
+read from, nothing is declared and every withheld row refuses
+`credit_inputs_absent`. Gate: `test_credit_model_rungs_and_ranges.py`
+(the file the refusals docstring already named).
+
+## D9 — the withdrawal gate found the withdrawal losing its own disclosure
+
+Pinning `as_filed.withdrawn` showed the served block nulling a withdrawn
+filed Z'' / composite and THEN comparing them to the served (refused,
+null) figures: `as_filed_differs` came out False and the note was never
+served. The comparison now reads what was filed; any withdrawal differs.
+The FE prints a withdrawn figure as "withdrawn" with the engine's note,
+never as a number and never as "not filed". The served-range law gained
+an as-filed row: a filed figure is inside the same bound as its served
+twin, or withdrawn by name and value; a withdrawn Z'' is outside its
+bound; a withdrawn composite is outside its bound or composed over a
+withdrawn Z'' (an in-range 88.5 built on X4 1500 is not a score).
+
+## D10 — a broken pack refuses the credit block, never the period; boot refuses to start
+
+`_refused_subscores` ran outside every non-fatal try in `get_period`, so a
+malformed pack was a 500 on every period page. The as-filed credit
+envelope now refuses with the pack's own message (`credit_inputs_absent`,
+inputs `packs/credit/model.yaml`) and the period serves; the ratio table
+(inside its try) is absent, not invented. `boot_verify.verify_config`
+loads the pack first, so a container with a bad pack fails to start with
+the same message. Pinned through the real route and `verify_config`.
+
+## D11 — CREDIT_MODEL_REVISION stays 2; revision 2 IS the refusing cut
+
+The renormalising cut (c6ae80f / 2802d56 on the held branch) and this
+refusing cut both carry revision 2. The renormalising cut was never
+deployed and never persisted a row anywhere, so no stored row can be
+mistaken for it. Recorded here rather than bumped to 3: a bump re-captures
+every credit fixture and every served-fixture again for a cut that
+existed only on a branch. Owner may still bump before merge; the golden's
+"recaptured under revision 2" note means this cut.
+
+## D12 — served-range books widened for the vacuous laws
+
+The ROIC law (invested capital <= 0) and the R-D1 debt leg (debt > 0,
+interest 0, EBIT > 0) matched no book. Added through the production write
+seam: `synthetic_negative_equity` (ROIC refuses on the route) and the
+compact book with a planted 1621 row of 1,000 (no rung, coverage / DSCR
+refuse, X4 defined); plus the compact book with its revision-1 rows
+persisted (the withdrawal on the route). Observation, not fixed here: a
+planted SUMMING account 162 is silently dropped by the RO assembler (only
+the leaf 1621 maps) — a reconciliation matter for the pack wave.
+
+## D13 — open for the owner
+
+- `packs/credit/model.yaml`: with exactly 1 RON of current liabilities the
+  liquidity component scores 100 (cash / 1 saturates the clamp) while
+  Altman refuses by materiality on the same book. Q2 refuses liquidity
+  only at zero, so the letter of the ruling holds; whether the liabilities
+  materiality share should also gate liquidity is a pack change plus a law
+  change in `served_range_law.py`, together. Not changed.
+- `credit_model.compute_period_metrics` still carries three OR_ZERO
+  ratchet sites (`pl.get('operatingExpenses', 0.0)`, `bs.get('cash', 0.0)`
+  x2) — the sites the verifier counted as "the three or 0.0" were the
+  deleted fallback's, which the census had never classified; these three
+  are real and held on the ratchet for the next pass.
+- tsc carries one error beyond the capsuleAskGuard baseline after the
+  main merge: `frontend/lib/__tests__/reportBooks.tsx:88` (`supplementary`
+  on `Statements`) from main's floor-c3 harness commit 4826c06, untouched
+  here.

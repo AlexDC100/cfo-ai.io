@@ -96,68 +96,65 @@ def _load(path: str) -> Dict[str, Any]:
     #    only the materiality is malformed, never "the rungs default" ──
     rungs: Dict[str, Dict[str, Any]] = {}
     raw_rungs = raw.get("declared_rungs")
-    if True:
-        if not isinstance(raw_rungs, dict):
-            raise CreditPackError("%s declared_rungs: a mapping is required" % path)
-        for component, name in DECLARED_RUNG_KEYS:
-            where = "%s declared_rungs.%s.%s" % (path, component, name)
-            block = (raw_rungs.get(component) or {}).get(name)
-            if not isinstance(block, dict):
-                raise CreditPackError("%s: missing" % where)
-            rungs[component] = {
-                "rung": name,
-                "score": _bounded_score(block, "score", where),
-                "when": _text(block, "when", where),
-                "label": _text(block, "label", where),
-                "source": _text(block, "source", where),
-                "file": CREDIT_PACK_FILE,
-            }
+    if not isinstance(raw_rungs, dict):
+        raise CreditPackError("%s declared_rungs: a mapping is required" % path)
+    for component, name in DECLARED_RUNG_KEYS:
+        where = "%s declared_rungs.%s.%s" % (path, component, name)
+        block = (raw_rungs.get(component) or {}).get(name)
+        if not isinstance(block, dict):
+            raise CreditPackError("%s: missing" % where)
+        rungs[component] = {
+            "rung": name,
+            "score": _bounded_score(block, "score", where),
+            "when": _text(block, "when", where),
+            "label": _text(block, "label", where),
+            "source": _text(block, "source", where),
+            "file": CREDIT_PACK_FILE,
+        }
 
     # ── profitability with ROE undefined (R-D2) ───────────────────────────
     raw_prof = (raw.get("profitability") or {}).get("roe_undefined") if isinstance(raw.get("profitability"), dict) else None
-    if True:
-        where = "%s profitability.roe_undefined" % path
-        if not isinstance(raw_prof, dict):
-            raise CreditPackError("%s: a mapping is required" % where)
-        prof = {"formula": _text(raw_prof, "formula", where), "label": _text(raw_prof, "label", where),
-                "source": _text(raw_prof, "source", where), "file": CREDIT_PACK_FILE}
+    where = "%s profitability.roe_undefined" % path
+    if not isinstance(raw_prof, dict):
+        raise CreditPackError("%s: a mapping is required" % where)
+    prof = {"formula": _text(raw_prof, "formula", where), "label": _text(raw_prof, "label", where),
+            "source": _text(raw_prof, "source", where), "file": CREDIT_PACK_FILE}
 
     # ── ranges (R-RANGE) ──────────────────────────────────────────────────
     ranges: Dict[str, Dict[str, Any]] = {}
     raw_ranges = raw.get("ranges")
-    if True:
-        if not isinstance(raw_ranges, dict):
-            raise CreditPackError("%s ranges: a mapping is required" % path)
-        for key in ("subscore", "composite"):
-            where = "%s ranges.%s" % (path, key)
-            block = raw_ranges.get(key)
-            if not isinstance(block, dict):
-                raise CreditPackError("%s: missing" % where)
-            lo, hi = block.get("min"), block.get("max")
-            if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (lo, hi)) or lo >= hi:
-                raise CreditPackError("%s: min < max required" % where)
-            ranges[key] = {"min": float(lo), "max": float(hi), "source": _text(block, "source", where),
+    if not isinstance(raw_ranges, dict):
+        raise CreditPackError("%s ranges: a mapping is required" % path)
+    for key in ("subscore", "composite"):
+        where = "%s ranges.%s" % (path, key)
+        block = raw_ranges.get(key)
+        if not isinstance(block, dict):
+            raise CreditPackError("%s: missing" % where)
+        lo, hi = block.get("min"), block.get("max")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (lo, hi)) or lo >= hi:
+            raise CreditPackError("%s: min < max required" % where)
+        ranges[key] = {"min": float(lo), "max": float(hi), "source": _text(block, "source", where),
+                       "file": CREDIT_PACK_FILE}
+    where = "%s ranges.altman_x1" % path
+    block = raw_ranges.get("altman_x1")
+    if not isinstance(block, dict) or not isinstance(block.get("max"), (int, float)):
+        raise CreditPackError("%s: max required" % where)
+    ranges["altman_x1"] = {"max": float(block["max"]), "source": _text(block, "source", where),
                            "file": CREDIT_PACK_FILE}
-        where = "%s ranges.altman_x1" % path
-        block = raw_ranges.get("altman_x1")
-        if not isinstance(block, dict) or not isinstance(block.get("max"), (int, float)):
-            raise CreditPackError("%s: max required" % where)
-        ranges["altman_x1"] = {"max": float(block["max"]), "source": _text(block, "source", where),
-                               "file": CREDIT_PACK_FILE}
-        where = "%s ranges.altman_x4" % path
-        block = raw_ranges.get("altman_x4")
-        if not isinstance(block, dict):
-            raise CreditPackError("%s: missing" % where)
-        ranges["altman_x4"] = {
-            # DERIVED from the materiality share, never a second literal.
-            "max": float(Decimal(1) / share), "max_is": _text(block, "max_is", where),
-            "source": _text(block, "source", where), "file": CREDIT_PACK_FILE}
-        where = "%s ranges.altman_z" % path
-        block = raw_ranges.get("altman_z")
-        if not isinstance(block, dict):
-            raise CreditPackError("%s: missing" % where)
-        ranges["altman_z"] = {"bound_is": _text(block, "bound_is", where),
-                              "source": _text(block, "source", where), "file": CREDIT_PACK_FILE}
+    where = "%s ranges.altman_x4" % path
+    block = raw_ranges.get("altman_x4")
+    if not isinstance(block, dict):
+        raise CreditPackError("%s: missing" % where)
+    ranges["altman_x4"] = {
+        # DERIVED from the materiality share, never a second literal.
+        "max": float(Decimal(1) / share), "max_is": _text(block, "max_is", where),
+        "source": _text(block, "source", where), "file": CREDIT_PACK_FILE}
+    where = "%s ranges.altman_z" % path
+    block = raw_ranges.get("altman_z")
+    if not isinstance(block, dict):
+        raise CreditPackError("%s: missing" % where)
+    ranges["altman_z"] = {"bound_is": _text(block, "bound_is", where),
+                          "source": _text(block, "source", where), "file": CREDIT_PACK_FILE}
 
     return {
         # materiality, flat, as revision 2's first cut read it

@@ -317,3 +317,57 @@ def test_a_malformed_pack_raises_and_never_defaults(tmp_path, monkeypatch):
     monkeypatch.delenv("CREDIT_PACKS_DIR")
     CP._load.cache_clear()
     assert CP.credit_pack()["share"] == Decimal("0.01")
+
+
+# ── 5. a broken pack refuses the credit block — never the period, never boot ──
+
+
+def _plant_bad_pack(tmp_path, monkeypatch) -> None:
+    bad = tmp_path / "packs"
+    bad.mkdir(exist_ok=True)
+    text = (REPO / "packs" / "credit" / "model.yaml").read_text("utf-8")
+    (bad / CP.CREDIT_PACK_NAME).write_text(text.replace('share: "0.01"', 'share: "1.5"'), encoding="utf-8")
+    monkeypatch.setenv("CREDIT_PACKS_DIR", str(bad))
+    CP._load.cache_clear()
+
+
+def test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves(tmp_path, monkeypatch):
+    """B8 verifier D6: `_refused_subscores` ran outside every non-fatal try
+    in get_period, so a malformed pack turned EVERY GET /api/period into a
+    500. Now the credit block refuses with the pack's own error and the
+    period page serves."""
+    import _served_books as SB
+
+    _plant_bad_pack(tmp_path, monkeypatch)
+    try:
+        body = SB.routed_body(SB.book("agras"))  # asserts 200
+    finally:
+        CP._load.cache_clear()
+    env = body["assembled_metrics"]["credit"]
+    assert env["composite_score"] is None and env["letter_grade"] is None, env
+    assert env["reason"]["code"] == CM.CREDIT_INPUTS_ABSENT
+    assert env["reason"]["inputs"] == [CP.CREDIT_PACK_FILE]
+    assert "share must be in (0, 1)" in env["reason"]["text"], env["reason"]
+    assert env["refused_subscores"] == {}
+    # the ratio table could not open the pack either: absent, not invented
+    assert body["assembled_metrics"]["ratio_table"] is None
+    monkeypatch.delenv("CREDIT_PACKS_DIR")
+    CP._load.cache_clear()
+    good = SB.routed_body(SB.book("agras"))["assembled_metrics"]["credit"]
+    assert good["composite_score"] is not None and good["reason"] is None
+
+
+def test_boot_refuses_to_start_on_a_broken_pack(tmp_path, monkeypatch):
+    from engine import boot_verify
+
+    for k in boot_verify._CRITICAL:
+        monkeypatch.setenv(k, "set-for-the-test")
+    _plant_bad_pack(tmp_path, monkeypatch)
+    try:
+        with pytest.raises(RuntimeError, match=r"credit pack .* is unusable .* share must be in"):
+            boot_verify.verify_config()
+    finally:
+        CP._load.cache_clear()
+    monkeypatch.delenv("CREDIT_PACKS_DIR")
+    CP._load.cache_clear()
+    boot_verify.verify_credit_pack()  # the committed pack loads

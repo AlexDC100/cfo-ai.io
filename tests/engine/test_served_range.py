@@ -4,11 +4,15 @@ absolute). Battery gate `served-range`.
 Every credit score the real GET /api/period route serves is read against
 the law in `served_range_law.py` — a file that imports NOTHING from the
 product, so the product's own `score_out_of_range` cannot pass its own
-bug. Seven books go through the real router over the projection-faithful
+bug. Ten books go through the real router over the projection-faithful
 Supabase double (`_served_books`): the four corpus books, the Scandia
 FY2025 regression baseline, `corpus/imbalance_03pct` (no liabilities,
 empty P&L) and `synthetic_thin_equity` (no liabilities, revenue nil),
-plus the thin book carrying exactly 1 RON of liabilities.
+the thin book carrying exactly 1 RON of liabilities, the compact book
+carrying 1,000 RON of long-term debt with no interest (R-D1's debt leg:
+no rung), `synthetic_negative_equity` (invested capital not positive:
+ROIC refuses) and the compact book with its REVISION-1 rows persisted
+(X4 1500 / Z'' 1584.89 / composite 88.5: withdrawn as filed).
 
 For each score the law names, on each book:
   · in its domain  -> the served value is a finite number inside the
@@ -17,7 +21,8 @@ For each score the law names, on each book:
   · out of domain  -> the served value is None AND the surface carries a
                       refusal whose code is in the law's vocabulary;
 and a composite is served only when every component is; a letter only
-beside a composite; the envelope agrees with the ratio-table block.
+beside a composite; the envelope agrees with the ratio-table block; a
+FILED figure (`as_filed`) is inside the same bound or withdrawn by name.
 
 WHAT THIS REDS ON, after the repair (TC-11): a zero-liability book (or one
 with 1 RON of liabilities) serving any Altman figure, a liquidity score or
@@ -25,8 +30,10 @@ a composite; a composite or letter served beside a refused component; a
 sub-score outside [0, 100]; X1 above 1, X4 above 1 / share, Z'' above its
 derived bound; a refused score with no reason or a reason outside the
 law's vocabulary; ROIC served with invested capital <= 0; the composite
-envelope disagreeing with the ratio-table credit block; fewer than seven
-books measured (non-vacuity).
+envelope disagreeing with the ratio-table credit block; a filed Z'' or
+composite outside its bound reprinted under `as_filed`, or withdrawn
+without its name and value; the R-D1 rung declared on a book with debt;
+fewer than ten books measured (non-vacuity).
 
 WHAT IT CANNOT SEE (TC-13): whether an in-range value is the RIGHT value
 (that is ratio-credit-model's golden), the FE reader (creditRefusedSubscores
@@ -50,8 +57,14 @@ REPO = Path(__file__).resolve().parents[2]
 IMBALANCE = REPO / "corpus" / "imbalance_03pct"
 
 #: The seven books, plus the 1-RON-of-liabilities probe (R-D4: a divisor
-#: that is rounding, not a capital structure).
-BOOKS: Tuple[str, ...] = SB.ALL_BOOKS + ("imbalance_03pct", "synthetic_thin_equity", "thin_plus_1_ron")
+#: that is rounding, not a capital structure), the compact book with 1,000
+#: of long-term debt (R-D1's debt leg), the negative-equity book (ROIC's
+#: domain) and the compact book with its revision-1 rows persisted (the
+#: as-filed withdrawal).
+BOOKS: Tuple[str, ...] = SB.ALL_BOOKS + ("imbalance_03pct", "synthetic_thin_equity", "thin_plus_1_ron",
+                                          "compact_ltd_1000", "negative_equity", "compact_filed_rev1")
+COMPACT = REPO / "corpus" / "saga_compact_6_col"
+NEGATIVE_EQUITY_INPUT = REPO / "tests" / "engine" / "fixtures" / "firm" / "inputs" / "synthetic_negative_equity.xlsx"
 
 _BODIES: Dict[str, Dict[str, Any]] = {}
 
@@ -59,26 +72,30 @@ _BODIES: Dict[str, Dict[str, Any]] = {}
 THIN_INPUT = REPO / "tests" / "engine" / "fixtures" / "firm" / "inputs" / "synthetic_thin_equity.xlsx"
 
 
-def _thin_book(payable: float = 0.0, case_id: str = "synthetic_thin_equity") -> Any:
-    """`synthetic_thin_equity` carried through the SAME production write
-    seam as every corpus book (`ANCHOR._Book`: parse -> stage_map ->
-    stage_persist over the fake persist seam), from its committed xlsx.
-    `payable` plants ONE extra trial-balance row — account 401, a closing
-    credit balance of that amount — before assembly, so the 1-RON probe is
-    a book the engine assembled, not a hand-edited envelope."""
+def _credit_row(account: str, name: str, credit: float) -> Dict[str, Any]:
+    """One planted trial-balance row: `account`, a closing credit balance
+    of `credit` (no opening balance, one credit movement)."""
+    return {"cont": account, "nume_cont": "%s (planted %s RON)" % (name, credit),
+            "si_d": 0.0, "si_c": 0.0, "r_d": 0.0, "r_c": float(credit),
+            "st_d": 0.0, "st_c": float(credit), "sf_d": 0.0, "sf_c": float(credit)}
+
+
+def _planted_book(input_path: Path, case_id: str, extra_rows: Tuple[Dict[str, Any], ...] = ()) -> Any:
+    """A committed xlsx carried through the SAME production write seam as
+    every corpus book (`ANCHOR._Book`: parse -> stage_map -> stage_persist
+    over the fake persist seam), with `extra_rows` planted in the trial
+    balance BEFORE assembly — so a probe is a book the engine assembled,
+    not a hand-edited envelope."""
     import corpus_replay
     from engine.api import pipeline as P
 
     pack = corpus_replay.get_pack("RO")
-    content = THIN_INPUT.read_bytes()
-    tb_rows = pack.parse_trial_balance(content, THIN_INPUT.name)
-    if payable:
-        tb_rows.append({"cont": "401", "nume_cont": "Furnizori (planted %s RON)" % payable,
-                        "si_d": 0.0, "si_c": 0.0, "r_d": 0.0, "r_c": float(payable),
-                        "st_d": 0.0, "st_c": float(payable), "sf_d": 0.0, "sf_c": float(payable)})
+    content = input_path.read_bytes()
+    tb_rows = pack.parse_trial_balance(content, input_path.name)
+    tb_rows.extend(dict(r) for r in extra_rows)
     _tb, shaped, _assembled = pack.assemble_parsed_tb(tb_rows, company_name=case_id, period_label="Imported period")
-    doc = {"id": "doc-%s" % case_id, "org_id": "org-corpus", "original_filename": THIN_INPUT.name,
-           "content_hash": "sha256-planted-%s" % payable, "period_end_hint": "2025-12-31"}
+    doc = {"id": "doc-%s" % case_id, "org_id": "org-corpus", "original_filename": input_path.name,
+           "content_hash": "sha256-planted-%s" % case_id, "period_end_hint": "2025-12-31"}
     parsed = P._deterministic_tb_parsed(doc, tb_rows, shaped,
                                         pack.compute_statutory_net_profit_anchor(tb_rows),
                                         pack.compute_source_imbalance(tb_rows))
@@ -93,6 +110,28 @@ def _thin_book(payable: float = 0.0, case_id: str = "synthetic_thin_equity") -> 
                                  persist_assembled=persist_assembled, doc=doc, parsed=parsed)
 
 
+def _thin_book(payable: float = 0.0, case_id: str = "synthetic_thin_equity") -> Any:
+    """`synthetic_thin_equity`; `payable` plants account 401 at that closing
+    credit balance (the 1-RON probe)."""
+    return _planted_book(THIN_INPUT, case_id,
+                         (_credit_row("401", "Furnizori", payable),) if payable else ())
+
+
+def _revision_1_rows(statements: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """What revision 1 persisted for `saga_compact_6_col` (measured
+    2026-09-14: X4 = equity / max(TL, 1) = 1500.0, Z'' 1584.89, liquidity
+    0.0, composite 88.5 AA), over today's rows for everything else."""
+    from engine.ratios import credit_model as CM
+
+    rows = [dict(r) for r in CM.compute_period_metrics(copy.deepcopy(statements))]
+    planted = {"altman_x4": 1500.0, "altman_z_score": 1584.89, "credit_subscore_altman": 100.0,
+               "credit_subscore_liquidity": 0.0, "credit_composite": 88.5, CM.CREDIT_MODEL_REVISION_METRIC: 1}
+    for r in rows:
+        if r["name"] in planted:
+            r["value"] = planted[r["name"]]
+    return rows
+
+
 def body_of(name: str) -> Dict[str, Any]:
     if name not in _BODIES:
         if name in SB.ALL_BOOKS:
@@ -103,6 +142,17 @@ def body_of(name: str) -> Dict[str, Any]:
             _BODIES[name] = SB.routed_body(_thin_book())
         elif name == "thin_plus_1_ron":
             _BODIES[name] = SB.routed_body(_thin_book(payable=1.0, case_id="synthetic_thin_equity_1ron"))
+        elif name == "compact_ltd_1000":
+            import corpus_replay
+            _BODIES[name] = SB.routed_body(_planted_book(
+                corpus_replay._input_path(COMPACT), "saga_compact_6_col_ltd_1000",
+                (_credit_row("1621", "Credite bancare pe termen lung", 1000.0),)))
+        elif name == "negative_equity":
+            _BODIES[name] = SB.routed_body(_planted_book(NEGATIVE_EQUITY_INPUT, "synthetic_negative_equity"))
+        elif name == "compact_filed_rev1":
+            bk = ANCHOR._Book(COMPACT)
+            statements = SB.routed_body(bk)["statements"]
+            _BODIES[name] = SB.routed_body(bk, metrics=_revision_1_rows(statements))
         else:
             raise AssertionError(name)
     return copy.deepcopy(_BODIES[name])
@@ -205,7 +255,68 @@ def test_the_ratio_table_serves_roic_only_for_positive_invested_capital(name):
             assert v is None and (row.get("reason") or {}).get("code") in codes, (name, key, row.get("reason"))
 
 
+@pytest.mark.parametrize("name", BOOKS)
+def test_a_filed_figure_is_inside_the_law_or_withdrawn_by_name_and_value(name):
+    body = body_of(name)
+    credit = _credit(body)
+    ops = LAW.operands(body["statements"])
+    af = credit.get("as_filed")
+    if af is None:
+        assert credit["as_filed_differs"] is False, name
+        return
+    assert credit["as_filed_differs"] is True, name
+    withdrawn = {w["figure"]: w for w in (af.get("withdrawn") or [])}
+    for row in LAW.AS_FILED_LAW:
+        v = LAW.read_path(credit, row.path)
+        where = "%s %s (%s)" % (name, row.key, row.path)
+        if v is None:
+            if row.key in withdrawn:
+                w = withdrawn[row.key]
+                assert isinstance(w.get("value"), (int, float)) and w.get("text"), (where, w)
+                over_withdrawn_z = row.key == "credit_composite" and "altman_z_score" in withdrawn
+                assert not row.in_range(w["value"], ops) or over_withdrawn_z, (
+                    "%s: withdrawn a filed %r that is inside %s" % (where, w["value"], row.bound_text(ops)))
+        else:
+            assert row.in_range(v, ops), "%s: filed %r reprinted outside %s" % (where, v, row.bound_text(ops))
+            assert row.key not in withdrawn, "%s: %r printed AND withdrawn" % (where, v)
+    if af["composite"] is None:
+        assert af["letter"] is None, (name, af)
+
+
 # ── the books this gate exists for (non-vacuity, named) ──────────────────
+
+
+def test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route():
+    credit = _credit(body_of("compact_filed_rev1"))
+    assert credit["as_filed_differs"] is True
+    af = credit["as_filed"]
+    assert af["credit_model_revision"] == 1
+    assert af["altman_z"] is None and af["composite"] is None and af["letter"] is None, af
+    assert {(w["figure"], w["value"]) for w in af["withdrawn"]} == {("altman_z_score", 1584.89),
+                                                                     ("credit_composite", 88.5)}
+    # the served side is the refusing model
+    assert credit["composite"] is None and credit["altman"]["z"] is None
+
+
+def test_the_r_d1_debt_leg_declares_no_rung_on_the_route():
+    body = body_of("compact_ltd_1000")
+    credit, ops = _credit(body), LAW.operands(body["statements"])
+    assert ops["total_debt"] == 1000.0 and ops["interest"] == 0 and ops["ebit"] > 0, ops
+    assert credit["declared_rungs"] == {}, credit["declared_rungs"]
+    assert credit["subscores"]["coverage"] is None and credit["subscores"]["dscr"] is None
+    for k in ("coverage", "dscr"):
+        assert credit["refused_subscores"][k]["code"] == "interest_expense_not_positive"
+    # X4 is defined on this book (1,000 of liabilities on 1,500 of assets)
+    assert credit["altman"]["x4"] is not None
+
+
+def test_roic_refuses_on_the_route_when_invested_capital_is_not_positive():
+    body = body_of("negative_equity")
+    ops = LAW.operands(body["statements"])
+    assert ops["invested_capital"] <= 0, ops["invested_capital"]
+    row = _ratio_rows(body)["roic"]
+    assert row["value"] is None and (row.get("reason") or {}).get("code") in LAW.RATIO_LAW[0][3], row
+
 
 
 def test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter():

@@ -366,17 +366,27 @@ def _engine_gates() -> List[Gate]:
         # prior composite silently absent, a band crossing that demotes and
         # vanishes from the list that should name it.
         # Plant log: docs/engine_book/gates.md
+        # + the rung / range / withdrawal gates and the FE fixture capture
+        # (B8 verifier repair round, 2026-09-19): statements required on the
+        # block, the as-filed withdrawal, the served re-check, a broken
+        # pack refusing the block (never the period) and failing boot.
         Gate("ratio-credit-model",
              [PY, "-m", "pytest",
               "tests/engine/test_credit_model_pure.py",
               "tests/engine/test_credit_ladder_single_source.py",
-              "tests/engine/test_credit_model_refusals.py", "-q"],
-             work_junit=True, floor=24, units="tests",
+              "tests/engine/test_credit_model_refusals.py",
+              "tests/engine/test_credit_model_rungs_and_ranges.py",
+              "tests/engine/test_credit_refusal_fe_fixture.py", "-q"],
+             work_junit=True, floor=60, units="tests",
              canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
                        "test_stage_compute_inserts_exactly_the_pure_rows",
                        "test_there_is_exactly_one_literal_ladder",
                        "test_a_book_with_no_liabilities_refuses_x4_altman_and_liquidity_through_the_real_route",
-                       "test_every_book_refuses_exactly_where_its_liabilities_are_not_positive")),
+                       "test_every_book_refuses_exactly_where_its_liabilities_are_not_positive",
+                       "test_the_block_and_the_refusals_take_no_rows_only_fallback",
+                       "test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted",
+                       "test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves",
+                       "test_the_fe_credit_fixture_is_what_the_route_serves_today")),
         Gate("ratio-table",
              [PY, "-m", "pytest", "tests/engine/test_ratio_table.py", "-q"],
              work_junit=True, floor=50, units="tests",
@@ -406,15 +416,21 @@ def _engine_gates() -> List[Gate]:
         # absolute). An independent law file that imports nothing from the
         # product, read against the real GET /api/period route over eight
         # books: the five scoring books, imbalance_03pct and
-        # synthetic_thin_equity (no liabilities) and the thin book carrying
-        # exactly 1 RON of liabilities. Plant log: docs/engine_book/gates.md.
+        # synthetic_thin_equity (no liabilities), the thin book carrying
+        # exactly 1 RON of liabilities, the compact book with 1,000 of
+        # long-term debt (R-D1's debt leg), synthetic_negative_equity (ROIC)
+        # and the compact book with its revision-1 rows persisted (the
+        # as-filed withdrawal). Plant log: docs/engine_book/gates.md.
         Gate("served-range",
              [PY, "-m", "pytest", "tests/engine/test_served_range.py", "-q"],
-             work_junit=True, floor=25, units="tests",
+             work_junit=True, floor=44, units="tests",
              canaries=("test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason",
                        "test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter",
                        "test_one_ron_of_liabilities_is_not_a_capital_structure",
-                       "test_the_law_is_independent_of_the_product")),
+                       "test_the_law_is_independent_of_the_product",
+                       "test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route",
+                       "test_the_r_d1_debt_leg_declares_no_rung_on_the_route",
+                       "test_roic_refuses_on_the_route_when_invested_capital_is_not_positive")),
         # THE FLOOR CENSUS, engine half (owner rule: absent is never zero and
         # never a floor). stdlib-ast over a printed 14-file scope for the
         # eight substitute classes of the floor sweep; the credit tier is

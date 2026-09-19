@@ -7432,7 +7432,22 @@ def build_router() -> APIRouter:
         _as_filed_by_name = {m["name"]: m.get("value") for m in (metrics or [])}
         # The refusal reasons come from the model's own predicate over the
         # SAME statements the rows were computed from (revision 2).
-        _as_filed_refused = _credit_model._refused_subscores(_as_filed_by_name, statements)
+        # The pack (packs/credit/model.yaml) is read on this path: the
+        # as-filed refusal reasons, the letter's range check and the
+        # composite refusal all open it. A pack that cannot be loaded must
+        # refuse the CREDIT block, not 500 the whole period page: boot
+        # verifies the pack (boot_verify.verify_config), so this branch is
+        # reached only when the file moved under a running container.
+        from engine.ratios.credit_pack import CREDIT_PACK_FILE as _CREDIT_PACK_FILE
+        from engine.ratios.credit_pack import CreditPackError as _CreditPackError
+        _pack_error: Optional[str] = None
+        try:
+            _as_filed_refused = _credit_model._refused_subscores(_as_filed_by_name, statements)
+        except _CreditPackError as exc:
+            _pack_error = str(exc)
+            _as_filed_refused = {}
+            logger.error("[/api/period] credit pack unusable; the credit block refuses for period %s: %s",
+                         period.get("id"), exc)
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7491,13 +7506,13 @@ def build_router() -> APIRouter:
                     "x3": _m("altman_x3"),
                     "x4": _m("altman_x4"),
                 },
-                "composite_score":           _m("credit_composite"),
+                "composite_score":           None if _pack_error else _m("credit_composite"),
                 # F1.h — letter grade emitted as a canonical field on the
                 # envelope so the FE can be a pure reader (no FE-side
                 # mapping). Uses the same _composite_to_letter_grade helper
                 # as stage_compute, so engine logging and envelope agree.
                 "letter_grade": (
-                    None if _m("credit_composite") is None
+                    None if _pack_error or _m("credit_composite") is None
                     else _composite_to_letter_grade(float(_m("credit_composite")))
                 ),
                 # The rungs the letter above was read off — the same
@@ -7510,9 +7525,13 @@ def build_router() -> APIRouter:
                 # below passes through.
                 "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
                 "refused_subscores": _as_filed_refused,
-                "reason": (_credit_model.credit_reason(_as_filed_by_name, _as_filed_refused,
-                                                       _m("credit_composite"))
-                           if metrics else None),
+                "reason": (
+                    {"code": _credit_model.CREDIT_INPUTS_ABSENT, "inputs": [_CREDIT_PACK_FILE],
+                     "text": "No credit score: the credit model's pack cannot be read (%s)." % _pack_error}
+                    if _pack_error
+                    else (_credit_model.credit_reason(_as_filed_by_name, _as_filed_refused,
+                                                      _m("credit_composite"))
+                          if metrics else None)),
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",

@@ -175,6 +175,22 @@ LAW: List[Row] = [
         COMPONENT_CODES, hi_of=z_bound),
 ]
 
+#: THE AS-FILED EVIDENCE (`credit.as_filed`, served only when the persisted
+#: figures differ from the served ones). A filed figure is held to the SAME
+#: bound as its served twin: it is either inside it, or WITHDRAWN — null on
+#: `as_filed`, named in `as_filed.withdrawn` with the value it was filed
+#: at. A withdrawn Z'' lies OUTSIDE its bound; a withdrawn composite lies
+#: outside its bound OR was composed over a withdrawn Z'' (an in-range 88.5
+#: built on X4 1500 is not a score). A withdrawal of any other in-range
+#: figure is as much a defect as a reprint of an exploded one. A filed
+#: letter exists only beside a filed composite.
+AS_FILED_LAW: List[Row] = [
+    Row("credit_composite", "as_filed.composite", 0, 100, lambda o: True, COMPOSITE_SOURCE, []),
+    Row("altman_z_score", "as_filed.altman_z", None, None, lambda o: True,
+        "finite and <= the bound derived with the book's own X2 and X3 (as the served Z'')", [],
+        hi_of=z_bound),
+]
+
 #: Non-credit rows the same law holds on the served ratio table.
 RATIO_LAW = [
     ("roic", _roic_defined, "defined only for invested capital (debt + equity) > 0",

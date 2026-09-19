@@ -2523,9 +2523,9 @@ from a different model, and nothing crashes.
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py -q` |
-| work count | junit-xml, floor **24** tests (measured 26: 7 cases × the purity claims, the ladder scan, and the 4 revision-2 refusal gates) |
-| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_x4_altman_and_liquidity_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_not_positive` |
+| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py tests/engine/test_credit_model_rungs_and_ranges.py tests/engine/test_credit_refusal_fe_fixture.py -q` |
+| work count | junit-xml, floor **60** tests (measured 70: the purity claims, the ladder scan, the refusal gates, the 35 rung / range / withdrawal / pack gates and the FE fixture capture) |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_x4_altman_and_liquidity_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_not_positive`, `test_the_block_and_the_refusals_take_no_rows_only_fallback`, `test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted`, `test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves`, `test_the_fe_credit_fixture_is_what_the_route_serves_today` |
 
 **Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
 mapping, Altman coefficient, rounding, operand, unit, direction, order) on
@@ -2847,6 +2847,58 @@ cash_ratio`); materiality_floor "0.01" (`('agras', 'carniprod')`).
 
 **REVERT** — `PASS ratio-band-findings (16.2s, 60 tests)`. Verdict: proven RED.
 
+**REPAIR-ROUND PLANTS (B8 verifier, 2026-09-19)** — `tests/engine/test_credit_model_rungs_and_ranges.py`
+(the file the refusals docstring had named before it existed), each
+applied to `src/engine/ratios/credit_model.py`, run, and reverted
+(`33 passed` clean before each):
+
+**P1** — the rows-only fallback restored (`statements: Optional[...] = None`
+on `credit_block`). **RED** — `1 failed, 32 passed`:
+`AssertionError: credit_block: statements must be required, got default None`.
+
+**P2** — the as-filed withdrawal off (`filed_bad = {}`). **RED** —
+`1 failed`: `assert (1584.89 is None)` on `as_filed.altman_z`
+(`{'altman_z': 1584.89, 'composite': 88.5, 'credit_model_revision': 1, 'letter': 'AA', ...}`).
+
+**P2b** — the withdrawal kept but `as_filed_differs` compared AFTER nulling
+(the defect this gate found while being written). **RED** — `1 failed`:
+`assert False is True` on `as_filed_differs` — the withdrawal note was
+never served.
+
+**P3** — the served re-check off (`served_bad = {}`). **RED** — `3 failed`:
+`assert (200.0 is None)` (X4), `assert (140.0 is None)` (composite),
+`assert 120.0 is None` (leverage).
+
+**P4** — the liquidity negative-term refusal off (`if False:`). **RED** —
+`2 failed`: `assert (66.7 is None)` / `assert (59.3 is None)` (liquidity
+scored on cash -1 / -1,000,000).
+
+**P5** — the -0.0 row read with `v < 0`. **RED** — `1 failed`:
+`['credit_subscore_liquidity'] == ['cash_ratio']` (the refusal named the
+sub-score, not the negative term).
+
+**P6** — a letter minted from an out-of-range composite (the range check
+removed from `composite_to_letter_grade`). **RED** — `3 failed`:
+`'CC' == None` (nan), `'CC' == None` (-5.0), `'AAA' == None` (140.0).
+
+**FE (vitest, `ratioCompareTab.test.tsx`)** — `asFiledSentence` ignoring
+`withdrawn` (`new Set<string>()`). **RED** — `1 failed | 38 passed`:
+`expected "As filed: composite not filed, letter…" to contain "composite
+withdrawn, letter withdrawn…"`.
+
+**FE (vitest, `creditRefusedSubscores.test.tsx`)** — the reader's range
+branch off (`if (false)` on `compositeRefusalOf`) over the fully scored
+agras envelope (`agras_serve` in `served_credit_refusals.json`) with a
+planted composite 140 / AAA. **RED** — `4 failed | 45 passed`:
+`expected 140 to be null` (the reader), `expected 'strong' to be
+'pending'` (the hero band), the Risks tab and the exports. Over the
+compact cases alone this plant reds on ONE assertion only (the code:
+`expected 'credit_component_undefined' to be 'credit_out_of_range'`) —
+the beside-refused branch withholds the composite anyway — which is why
+the agras case exists.
+
+**REVERT** after each — `33 passed`. Verdict: proven RED.
+
 ## comparatives-route
 
 `GET /api/period/{id}/comparatives` UN-INTERCEPTED (batch B8). Every
@@ -2933,16 +2985,22 @@ ratio.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_served_range.py -q` |
-| work count | junit-xml, floor **25** tests (measured 28: 3 parametrised laws × 8 books + 4 named gates) |
-| canary | `test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason`, `test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter`, `test_one_ron_of_liabilities_is_not_a_capital_structure`, `test_the_law_is_independent_of_the_product` |
+| work count | junit-xml, floor **44** tests (measured 51: 4 parametrised laws × 11 books + 7 named gates) |
+| canary | `test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason`, `test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter`, `test_one_ron_of_liabilities_is_not_a_capital_structure`, `test_the_law_is_independent_of_the_product`, `test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route`, `test_the_r_d1_debt_leg_declares_no_rung_on_the_route`, `test_roic_refuses_on_the_route_when_invested_capital_is_not_positive` |
 
-Eight books through the real `GET /api/period` router over the
+Eleven books through the real `GET /api/period` router over the
 projection-faithful Supabase double: agras, carniprod, realestate, retail,
 the Scandia FY2025 regression baseline, `corpus/imbalance_03pct` (no
-liabilities, empty P&L), `synthetic_thin_equity` (no liabilities) and the
+liabilities, empty P&L), `synthetic_thin_equity` (no liabilities), the
 same thin book assembled through the production write seam with ONE
 planted 401 row of exactly 1 RON (R-D4: a divisor that is rounding, not a
-capital structure).
+capital structure), and — added in the B8 repair round because two rows
+of the law matched no book — `saga_compact_6_col` with one planted 1621
+row of 1,000 (R-D1's debt leg: debt > 0, interest 0, EBIT > 0 declares
+NO rung), `synthetic_negative_equity` (invested capital not positive:
+ROIC refuses) and `saga_compact_6_col` with its REVISION-1 rows persisted
+(X4 1500 / Z'' 1584.89 / composite 88.5: withdrawn as filed, by name and
+value — the fourth law, `AS_FILED_LAW`).
 
 **Reds on, after the repair (TC-11):** a zero-liability book (or the 1-RON
 book) serving any Altman figure, a liquidity score or a composite; a
@@ -2997,6 +3055,37 @@ E   AssertionError: synthetic_thin_equity credit_subscore_coverage (subscores.co
 **REVERT** — exit `0`: `28 passed in 3.23s`. Verdict: proven RED. The gate
 is independent of all three product-side guards: with every one of them
 down it still reds, and with one of them up it reds on the refusal code.
+
+**REPAIR-ROUND PLANTS (B8 verifier, 2026-09-19)** — over the widened
+eleven books (`51 passed` clean before each), each reverted:
+
+**SR-A** — `credit_model.py`: the as-filed withdrawal off (`filed_bad =
+{}`). **RED** — `2 failed`:
+```
+E   AssertionError: compact_filed_rev1 altman_z_score (as_filed.altman_z): filed 1584.89 reprinted outside [-inf, 114.88666666666667]
+E   assert (1584.89 is None)
+```
+
+**SR-B** — `credit_model.py`: the R-D1 rung without `total_debt == 0`
+(`if ops["interest_zero"] and ops["ebit"] > 0:`). **RED** — `2 failed`:
+```
+E   AssertionError: compact_ltd_1000 credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+E   assert {'coverage': ...'score': 90, ...}} == {}
+```
+(Before the widening this plant stayed GREEN on served-range; only the FE
+fixture capture caught it, and that file was not in the credit gate.)
+
+**SR-C** — `ratios/table.py`: the ROIC floor restored
+(`_positive(_known(max(invested_capital.value or 0.0, 1.0)), ...)`).
+**RED** — `2 failed`:
+```
+E   AssertionError: ('negative_equity', 'roic', {'code': 'negative_denominator', ...})
+E   assert (-10080000.0 is None)
+```
+(Before the widening this plant stayed GREEN on served-range: no book had
+invested capital <= 0.)
+
+**REVERT** after each — `51 passed`. Verdict: proven RED.
 
 ## floor-census
 
