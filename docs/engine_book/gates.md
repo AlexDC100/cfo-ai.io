@@ -4469,3 +4469,178 @@ it redded on at B3.
 **It cannot see:** constructed shapes other than the two SYNTHETIC tying
 books; whether the engine's rule is right (forecast-model's nil-charge and
 p121 tests own that).
+
+## statements-anchor-gap
+
+plan/2 B4a (plan_contract_v2 5.1 / 28.3 B4; owner ruling 2026-09-18: the
+609/709 double count is a P0, fixed with a RED test first).
+`tests/engine/test_statements_anchor_gap.py`, registered in
+`scripts/run_battery.py` under the plan/2 B4a anchor.
+
+THE DEFECT. Saga exports that close class 6/7 into account 121 print each
+P&L row's cumulative value on both turnover sides ("mirrored"). For an
+account whose nature is contra to the bucket it lands in — 609 supplier
+discounts in operating expenses, 709 customer reductions in revenue — the
+exporters disagree on the sign: the frozen Scandia golden and both local
+Scandia years write the reductions NEGATIVE, the retail, agras and
+carniprod exports write them POSITIVE. `accounts_to_assemble_shape` took
+the printed sign as the entry's direction, so on the positive-writing books
+every supplier discount was ADDED to operating cost and every customer
+reduction ADDED to revenue: retail opex 16,640,349.00 for 14,105,136.48,
+revenue 79,510,264.65 for 79,018,306.77, and a reconstruction that missed
+account 121 by 2,043,254.64. The served-P&L guard `pl_sanity` (PL3) pinned
+the same reading as its law (revenue = the PRINTED class-70 sum), so the
+correct statement would have been refused by the live pipeline.
+
+THE REPAIR. The document decides its contra convention ONCE from its own
+mirrored 609/709 rows (`trial_balance_parser.contra_reading`: the net of
+the mirrored contra rows is positive only when reductions print positive;
+a document with no mirrored contra row decides nothing and nothing flips)
+— never a per-row guess. Under `entry_magnitude` a mirrored contra row
+enters its bucket negated; under `natural_signed` it enters as printed.
+The contra nature is the canonical schema's declared sign meaning of the
+leaf the account maps to, never a hand-kept list. `pl_sanity.class_movement`
+reads the same row through the same `contra_reading`, so the witness and
+the statement agree.
+
+WHAT THE GATE CHECKS. On every corpus book, the Scandia regression baseline
+(`regression_baselines/scandia_fy2025.json`, aggregates only) and any book
+in `PLAN_LOCAL_XLSX`, `|account 121 - reconstruction|` is printed and must
+be within a floor rendered from `packs/ro/statements_anchor.yaml#anchor_gap`
+and the book (TC-10): the cent tolerance plus the turnover of the book's
+711/712 rows, whose year net a mirrored exporter hides behind gross
+turnover on both sides. On retail, which has no 711, the floor is one
+cent. Then: retail reproduces 121 to the cent; every mirrored contra row
+of every corpus xlsx enters as a reduction under its document's
+convention; the metamorphic pair (the same ledger rewritten into the
+other convention) is byte-identical on revenue, cost of sales, operating
+cost and the reconstruction; 781 (expense_negative, credit-natural
+bucket) is never contra to its bucket.
+
+| | |
+|---|---|
+| work count | `GATE-WORK statements-anchor-gap units=(\d+)` (books judged + mirrored contra rows checked + metamorphic comparisons; measured 51), floor 45 |
+| canaries | `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)`, `floor from packs/ro/statements_anchor.yaml#anchor_gap`, `convention per document`, `mirrored contra rows checked` |
+
+**SCOPE** — printed: `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1):
+books examined 14 (6 carry account 121), floor from
+packs/ro/statements_anchor.yaml#anchor_gap`, then one line per book with
+its gap, floor, hidden turnover and decided convention (TC-12/TC-13), and
+`convention per document: ... saga_10_col natural_signed (3 mirrored contra
+rows, net -226845.35); saga_10_col_agras entry_magnitude (4 ...);
+saga_10_col_carniprod entry_magnitude (7 ...); saga_10_col_realestate
+not_decided (0 ...); saga_10_col_retail entry_magnitude (7 ...)`. With
+`PLAN_LOCAL_XLSX` naming the two local Scandia books: 16 examined, 8 with
+121, both `natural_signed` (33 and 6 mirrored contra rows), gaps
+519,389.11 and 2,832,404.19 inside floors of 762,030,968.14 and
+760,431,164.95 — unchanged by the repair.
+
+**GREEN** — `5 passed`; measured after the repair: retail 0.00 (floor
+0.01), agras 1,071,687.03 (floor 192,091,846.34), carniprod 186,849.53
+(88,453,995.51), realestate 29,589,814.24 (29,589,814.25), saga_10_col
+231,203.19 (82,948,008.60), regression baseline 519,389.11
+(630,091,698.20).
+
+**RED (parent commit)** — the gate file committed first (ca2e40c, the RED
+half) run on 832c566's parser, `4 failed, 1 passed`:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01: the reconstruction misses account 121 by more than the production-variation turnover of this book can hide, so a class-6/7 row entered a statement bucket with the wrong sign
+E   AssertionError: retail: the build-up reaches 1161957.98, account 121 filed 3205212.62
+```
+
+(the two contra-sign checks red on the missing parser helpers). Per book
+on the parent: retail 2,043,254.64 BEYOND floor 0.01; agras -6,572,426.01
+within 192,091,846.34; carniprod -4,407,915.45 within 88,453,995.51;
+realestate 29,589,814.24 within 29,589,814.25; golden 231,203.19 within
+82,948,008.60; baseline 519,389.11 within 630,091,698.20.
+
+**PLANT P1** — the exporter's sign taken as printed
+(`ContraReading.reads_as_reduction` returns False). **RED (plant)**
+`3 failed, 2 passed`:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01
+E   AssertionError: retail: the build-up reaches 1161957.98, account 121 filed 3205212.62
+E   AssertionError: saga_10_col revenue: natural_signed 48349081.59, the same ledger in the other exporter convention (entry_magnitude) 48802772.29
+```
+
+**PLANT P2** — a hand-kept account list in place of the schema's sign
+meaning (`_pl_contra_to_bucket` returns `code.startswith(("609", "709",
+"781"))`). **RED (plant)** `4 failed, 1 passed`: the 781 check reds
+(`assert not True`) and, because the provision reversals were flipped, the
+anchor gap reds too:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 155869.22 exceeds the floor 0.01
+E   AssertionError: retail: the build-up reaches 3049343.40, account 121 filed 3205212.62
+```
+
+**PLANT P3** — a per-row guess (flip any positive mirrored contra row,
+ignore the document's decision). **RED (plant)** `3 failed, 2 passed`: the
+retail stornos (609.304 -34,053.41, 609.904 -7,429.40) enter unflipped:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = -82965.62 exceeds the floor 0.01
+E   AssertionError: saga_10_col_carniprod 6090.03: printed -892.09 under entry_magnitude entered -892.09, want 892.09
+```
+
+**PLANT P4** — a natural-signed document flipped too (`!= CONTRA_NOT_DECIDED`
+in place of `!= CONTRA_ENTRY_MAGNITUDE`). **RED (plant)** `1 failed, 4
+passed`:
+
+```
+E   AssertionError: saga_10_col 709101: printed -202772.78 under natural_signed entered 202772.78, want -202772.78
+E     saga_10_col revenue: natural_signed 48802772.29, the same ledger in the other exporter convention (entry_magnitude) 48349081.59
+```
+
+**PLANT P5** — the floor's `hidden_net_prefixes` deleted from the pack
+(TC-10 liveness). **RED (plant)** `1 failed, 4 passed`:
+`E   KeyError: 'hidden_net_prefixes'`.
+
+**PLANT P6** — the served-P&L witness reads the printed class-70 sum
+(`pl_sanity.class_movement`, `c70_c += st_c` unconditionally), gate
+`tests/engine/test_pl_sanity.py`. **RED (plant)** `7 failed, 32 passed, 6
+skipped`:
+
+```
+E   AssertionError: saga_10_col_agras would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 110,798,309.14 does not equal the trial balance's one-sided class-70 credit 118,576,819.64, its 709 reductions read under the document's contra convention (entry_magnitude; drift -7,778,510.50)
+E   AssertionError: saga_10_col_carniprod would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 94,509,939.96 does not equal ...
+```
+
+**REVERT** — each plant applied by string replacement to
+`trial_balance_parser.py`, `pl_sanity.py` or `statements_anchor.yaml`,
+observed, and the three files restored from byte copies (sha1
+f28ee5c899cf2fb503f668e1e9de54de9cf9e1a0, d00db72b4aa0eb791e12ad267f3ee56168c09297,
+715f19a92dfc694cab48ef2ca4bf68eb7d4aed7c before every plant and after
+every revert); `5 passed` after.
+
+**Retired / restated in this commit, by name:**
+`tests/engine/test_pl_sanity.py::test_revenue_is_exactly_the_one_sided_class70_credit`
+pinned the defect as law (revenue = the printed class-70 sum) and is
+restated: the one-sided class-70 credit reads each mirrored 709 row under
+the document's convention; new
+`test_the_witness_reads_a_mirrored_709_as_a_reduction_on_entry_magnitude_books`
+proves the witness differs from the naive printed sum by twice the mirrored
+709 on entry-magnitude books and equals it on natural-signed ones.
+`tests/engine/test_insights_wire.py::test_agras_serves_the_reconstruction_gap`
+and `::test_agras_carries_all_eight_findings_into_the_summary_ordering`
+pinned agras's 46.6% reconstruction gap, most of which was the double count;
+restated to the measured 16.6% (+1,071,687.03, the hidden 711 net) and the
+ranking it gives.
+
+**After the repair it reds on (TC-11):** a class-6/7 row entering its
+bucket with the wrong sign on a book whose 711 turnover cannot hide it
+(retail, floor one cent); a mirrored contra row entering with the
+exporter's sign on an entry-magnitude document; a natural-signed document
+flipped; a per-row guess; a contra account read from a hand-kept list; a
+floor whose data is not in the pack; the served-P&L witness disagreeing
+with the assembler; a scope with no document of either convention or no
+book carrying 121.
+**It cannot see:** a wrong sign on a book whose 711 turnover is larger than
+the error (agras and carniprod on the parent parser were inside their
+floors; retail decided); a document whose contra rows net positive only
+because stornos outweigh the reductions they reverse; non-mirrored rows;
+the served statements of periods persisted before this repair (they need
+re-processing; the count is owed by the owner, forecast_blast_radius.md
+under 609).

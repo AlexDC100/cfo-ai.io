@@ -558,3 +558,209 @@ owner is asked to confirm the reading of the positive-writing exporter and to
 count live periods persisted by `tb_parser_v5` that carry mirrored 609/709
 rows (every such period's revenue and opex are overstated until
 re-processed).
+
+
+## B4a — the 609/709 contra-sign repair (plan/2, contract 5.1; owner ruling 2026-09-18)
+
+The parser (`country_packs/ro_romania/trial_balance_parser.py`) now decides
+each document's contra convention once, from its own mirrored 609/709 rows
+(`contra_reading`): `entry_magnitude` when reductions print positive (the
+retail, agras and carniprod corpus exports), `natural_signed` when they print
+negative (the frozen Scandia golden and both local Scandia years), and
+`not_decided` when the document carries no mirrored contra row (realestate;
+nothing flips). Under `entry_magnitude` a mirrored contra row enters its
+bucket negated. `pl_sanity.class_movement` (the served-P&L guard the live
+pipeline raises on) reads the same row through the same decision, or it would
+have refused the three repaired books. Gate: `statements-anchor-gap`
+(`tests/engine/test_statements_anchor_gap.py`, floor from
+`packs/ro/statements_anchor.yaml#anchor_gap`).
+
+### Served P&L figures that move, per book (assemble path, parent 832c566 -> B4a)
+
+| book | figure | before (parent) | after (B4a) | delta |
+|---|---|---|---|---|
+| retail | revenue | 79,510,264.65 | 79,018,306.77 | -491,957.88 |
+| retail | opex_excluding_cogs_and_da | 16,640,349.00 | 14,105,136.48 | -2,535,212.52 |
+| retail | gross_profit | 16,133,643.20 | 15,641,685.32 | -491,957.88 |
+| retail | ebitda | 220,162.84 | 2,263,417.48 | +2,043,254.64 |
+| retail | ebitda_adjusted | 5,674,086.62 | 7,717,341.26 | +2,043,254.64 |
+| retail | ebit | -1,256,674.81 | 786,579.83 | +2,043,254.64 |
+| retail | net_income_operational | 1,161,957.98 | 3,205,212.62 | +2,043,254.64 |
+| retail | net_income_reconstructed | 1,161,957.98 | 3,205,212.62 | +2,043,254.64 |
+| retail | net_income_unexplained_vs_121 | 2,043,254.64 | 0.00 | -2,043,254.64 |
+| retail | total_operating_revenue | 79,512,188.43 | 79,020,230.55 | -491,957.88 |
+| agras | revenue | 118,576,819.64 | 110,798,309.14 | -7,778,510.50 |
+| agras | opex_excluding_cogs_and_da | 29,989,304.23 | 29,854,906.77 | -134,397.46 |
+| agras | gross_profit | 48,019,704.96 | 40,241,194.46 | -7,778,510.50 |
+| agras | ebitda | 18,420,491.28 | 10,776,378.24 | -7,644,113.04 |
+| agras | ebitda_adjusted | 18,420,491.28 | 10,776,378.24 | -7,644,113.04 |
+| agras | ebit | 15,465,144.89 | 7,821,031.85 | -7,644,113.04 |
+| agras | net_income_operational | 14,106,102.03 | 6,461,988.99 | -7,644,113.04 |
+| agras | net_income_reconstructed | 14,106,102.03 | 6,461,988.99 | -7,644,113.04 |
+| agras | net_income_unexplained_vs_121 | -6,572,426.01 | 1,071,687.03 | +7,644,113.04 |
+| agras | total_operating_revenue | 118,576,819.64 | 110,798,309.14 | -7,778,510.50 |
+| carniprod | revenue | 99,424,740.16 | 94,509,939.96 | -4,914,800.20 |
+| carniprod | opex_excluding_cogs_and_da | 33,812,420.43 | 33,492,385.21 | -320,035.22 |
+| carniprod | gross_profit | 41,994,943.93 | 37,080,143.73 | -4,914,800.20 |
+| carniprod | ebitda | 9,588,744.57 | 4,993,979.59 | -4,594,764.98 |
+| carniprod | ebitda_adjusted | 9,588,744.57 | 4,993,979.59 | -4,594,764.98 |
+| carniprod | ebit | 5,893,218.98 | 1,298,454.00 | -4,594,764.98 |
+| carniprod | net_income_operational | 5,843,449.04 | 1,248,684.06 | -4,594,764.98 |
+| carniprod | net_income_reconstructed | 5,843,449.04 | 1,248,684.06 | -4,594,764.98 |
+| carniprod | net_income_unexplained_vs_121 | -4,407,915.45 | 186,849.53 | +4,594,764.98 |
+| carniprod | total_operating_revenue | 99,424,740.16 | 94,509,939.96 | -4,914,800.20 |
+| realestate | every served P&L figure | unchanged | unchanged | 0.00 (convention not_decided, 0 mirrored contra rows) |
+| saga_10_col (frozen Scandia golden) | every served P&L figure | unchanged | unchanged | 0.00 (convention natural_signed, 3 mirrored contra rows) |
+| local scandia_trial_balance_2025_downloaded.xlsx | every served P&L figure | unchanged | unchanged | 0.00 (convention natural_signed, 33 mirrored contra rows) |
+| local Balanta decembrie 2024_extern .xlsx | every served P&L figure | unchanged | unchanged | 0.00 (convention natural_signed, 6 mirrored contra rows) |
+
+Account 121 after the repair: retail 0.00 (ties to the cent); agras
+1,071,687.03 and carniprod 186,849.53 remain, both inside what their mirrored
+711 production-variation turnover hides (192,091,846.33 / 88,453,995.50);
+realestate, the frozen Scandia golden (`saga_10_col`), the Scandia regression
+baseline and the two local Scandia books (FY2025 downloaded, FY2024 extern —
+aggregates to the owner only) are unchanged to the cent: 29,589,814.24 /
+231,203.19 / 519,389.11 / 519,389.11 / 2,832,404.19, every one inside its
+floor.
+
+### Forecast (default GET, horizon 5): the B3 engine over the OLD books -> the same engine over the repaired books
+
+The committed `base_get_b0.json` was re-recorded on this tree (the B0 baseline
+was recorded from the wrong statements); the honest before/after is therefore
+measured against a scratch record of the B3 engine (832c566, unchanged engine
+code) over the pre-repair fixtures. Realestate: every cell delta 0 (its
+document carries no mirrored contra row). GET 200 on all four books at
+horizons 5 and 3.
+
+### agras  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 121,541,240.13 | 113,568,266.87 | -7,972,973.26 |
+| 1 | EBITDA | 18,881,066.99 | 11,045,763.22 | -7,835,303.77 |
+| 1 | closing cash | 14,311,097.41 | 7,729,408.10 | -6,581,689.31 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 124,579,771.13 | 116,407,473.54 | -8,172,297.59 |
+| 2 | EBITDA | 19,353,093.71 | 11,321,907.28 | -8,031,186.43 |
+| 2 | closing cash | 27,769,890.92 | 14,441,971.32 | -13,327,919.60 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 127,694,265.41 | 119,317,660.38 | -8,376,605.03 |
+| 3 | EBITDA | 19,836,921.05 | 11,604,954.97 | -8,231,966.08 |
+| 3 | closing cash | 41,587,131.34 | 21,344,326.77 | -20,242,804.57 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 130,886,622.05 | 122,300,601.89 | -8,586,020.16 |
+| 4 | EBITDA | 20,332,844.08 | 11,895,078.84 | -8,437,765.24 |
+| 4 | closing cash | 55,680,397.51 | 28,349,836.61 | -27,330,560.90 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 134,158,787.60 | 125,358,116.94 | -8,800,670.66 |
+| 5 | EBITDA | 20,841,165.18 | 12,192,455.82 | -8,648,709.36 |
+| 5 | closing cash | 70,151,016.30 | 35,555,505.80 | -34,595,510.50 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |
+### carniprod  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 101,910,358.66 | 96,872,688.46 | -5,037,670.20 |
+| 1 | EBITDA | 9,828,438.80 | 5,118,849.76 | -4,709,589.04 |
+| 1 | closing cash | 15,194,162.13 | 11,238,097.48 | -3,956,064.65 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 104,458,117.63 | 99,294,505.67 | -5,163,611.96 |
+| 2 | EBITDA | 10,074,149.79 | 5,246,820.98 | -4,827,328.81 |
+| 2 | closing cash | 20,370,707.24 | 12,359,676.48 | -8,011,030.76 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 107,069,570.57 | 101,776,868.31 | -5,292,702.26 |
+| 3 | EBITDA | 10,326,003.53 | 5,377,991.50 | -4,948,012.03 |
+| 3 | closing cash | 25,682,017.83 | 13,514,646.86 | -12,167,370.97 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 109,746,309.83 | 104,321,290.02 | -5,425,019.81 |
+| 4 | EBITDA | 10,584,153.62 | 5,512,441.28 | -5,071,712.34 |
+| 4 | closing cash | 31,060,969.64 | 14,633,349.97 | -16,427,619.67 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 112,489,967.58 | 106,929,322.27 | -5,560,645.31 |
+| 5 | EBITDA | 10,848,757.46 | 5,650,252.32 | -5,198,505.14 |
+| 5 | closing cash | 36,579,732.15 | 15,785,357.65 | -20,794,374.50 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |
+### realestate  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 166,424.60 | 166,424.60 | 0 |
+| 1 | EBITDA | -29,764,809.67 | -29,764,809.67 | 0 |
+| 1 | closing cash | 0.00 | 0.00 | 0 |
+| 1 | peak funding | 30,771,633.35 | 30,771,633.35 | 0 |
+| 1 | first shortfall | 2026-01 | 2026-01 | same |
+| 2 | revenue | 170,585.22 | 170,585.22 | 0 |
+| 2 | EBITDA | -30,508,930.85 | -30,508,930.85 | 0 |
+| 2 | closing cash | 0.00 | 0.00 | 0 |
+| 2 | peak funding | 64,557,688.81 | 64,557,688.81 | 0 |
+| 2 | first shortfall | FY2027 | FY2027 | same |
+| 3 | revenue | 174,849.85 | 174,849.85 | 0 |
+| 3 | EBITDA | -31,271,654.03 | -31,271,654.03 | 0 |
+| 3 | closing cash | 0.00 | 0.00 | 0 |
+| 3 | peak funding | 101,231,109.23 | 101,231,109.23 | 0 |
+| 3 | first shortfall | FY2028 | FY2028 | same |
+| 4 | revenue | 179,221.10 | 179,221.10 | 0 |
+| 4 | EBITDA | -32,053,446.05 | -32,053,446.05 | 0 |
+| 4 | closing cash | 0.00 | 0.00 | 0 |
+| 4 | peak funding | 140,963,044.06 | 140,963,044.06 | 0 |
+| 4 | first shortfall | FY2029 | FY2029 | same |
+| 5 | revenue | 183,701.63 | 183,701.63 | 0 |
+| 5 | EBITDA | -32,854,782.65 | -32,854,782.65 | 0 |
+| 5 | closing cash | 0.00 | 0.00 | 0 |
+| 5 | peak funding | 183,977,958.66 | 183,977,958.66 | 0 |
+| 5 | first shortfall | FY2030 | FY2030 | same |
+### retail  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 81,498,021.27 | 80,993,764.44 | -504,256.83 |
+| 1 | EBITDA | 225,668.07 | 2,319,985.40 | +2,094,317.33 |
+| 1 | closing cash | 2,256,977.71 | 4,536,725.98 | +2,279,748.27 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 83,535,471.80 | 83,018,608.55 | -516,863.25 |
+| 2 | EBITDA | 231,309.72 | 2,377,985.02 | +2,146,675.30 |
+| 2 | closing cash | 3,348,488.93 | 7,959,941.07 | +4,611,452.14 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 85,623,858.60 | 85,094,073.76 | -529,784.84 |
+| 3 | EBITDA | 237,092.47 | 2,437,434.64 | +2,200,342.17 |
+| 3 | closing cash | 4,390,540.30 | 11,381,174.01 | +6,990,633.71 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 87,764,455.07 | 87,221,425.60 | -543,029.47 |
+| 4 | EBITDA | 243,019.78 | 2,498,370.51 | +2,255,350.73 |
+| 4 | closing cash | 5,453,679.73 | 14,875,709.94 | +9,422,030.21 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 89,958,566.45 | 89,401,961.24 | -556,605.21 |
+| 5 | EBITDA | 249,095.26 | 2,560,829.78 | +2,311,734.52 |
+| 5 | closing cash | 6,471,758.66 | 18,376,168.35 | +11,904,409.69 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |
+
+### Consequences the owner should read
+
+- Retail's plan is now charged NO income tax: the book reproduces account 121
+  to the cent with a nil charge and no class-69 account, so the engine's
+  ruled effective-rate rule (3.4, R16; B3R-4) measures book 0 where the
+  statutory 16% stood only because the double count kept the book from
+  tying. `test_a_book_that_ties_with_a_nil_charge_is_charged_nothing` pins it
+  by name. This is the ruled rule on a book that now ties, not a new rule; if
+  the owner wants a tying book with no charge to take the statutory rung, that
+  is a definition change (stop condition) and is not made here.
+- Every live period persisted by `tb_parser_v5` from an entry-magnitude
+  export carries revenue and operating cost overstated by twice its mirrored
+  709/609 rows until re-processed; the count is owed by the owner (above,
+  under 609).
+- The p121 cross-check invariant's `cls7_minus_cls6` sums the mirrored 711
+  gross on both sides (agras 198.6M against a filed 7.5M), so `ok` is false
+  on every book with production variation whatever the parser does; the
+  anchor-gap gate reads `net_income_unexplained_vs_121` instead. Not repaired
+  here (not the 609 defect; flagged for the owner).

@@ -83,7 +83,19 @@ def test_the_book_list_is_not_empty():
 @pytest.mark.parametrize("name,inp", BOOKS, ids=BOOK_IDS)
 def test_revenue_is_exactly_the_one_sided_class70_credit(name, inp):
     """The identity PL3 enforces, asserted directly. Measured exact on
-    all 17 books this engine can parse."""
+    all 17 books this engine can parse.
+
+    RESTATED (plan/2 B4a, owner ruling 2026-09-18): the one-sided class-70
+    credit reads each mirrored 709 row under the convention its document
+    decided — on an entry-magnitude exporter (retail, agras, carniprod)
+    the printed positive value IS the reduction and enters negated, as
+    the assembler enters it. Before B4a this test pinned the defect as
+    law: revenue equalled the PRINTED class-70 sum, so retail served
+    79,510,264.65 with its 709 reductions added twice and missed account
+    121 by 2,043,254.64. `pl_sanity.class_movement` and
+    `accounts_to_assemble_shape` now read the row through one
+    `trial_balance_parser.contra_reading`, and the identity holds on
+    every book with the reductions read as reductions."""
     try:
         tb, _shaped, assembled = _assemble(inp)
     except Exception as e:
@@ -94,6 +106,42 @@ def test_revenue_is_exactly_the_one_sided_class70_credit(name, inp):
         f"{name}: served revenue {revenue:,.2f} != class-70 credit "
         f"{mv['class70_credit']:,.2f}"
     )
+
+
+def test_the_witness_reads_a_mirrored_709_as_a_reduction_on_entry_magnitude_books():
+    """plan/2 B4a. On a document whose exporter prints reductions positive,
+    the class-70 witness must differ from the naive printed sum by twice
+    the mirrored 709 rows (once to remove the wrong addition, once to
+    subtract the reduction); on a natural-signed document the two agree.
+    A scope with no entry-magnitude book reds (TC-3)."""
+    from engine.country_packs.ro_romania import trial_balance_parser as tbp
+
+    entry_magnitude = []
+    for name, inp in BOOKS:
+        try:
+            tb, _shaped, _assembled = _assemble(inp)
+        except Exception:
+            continue
+        mv = pl_sanity.class_movement(tb)
+        naive = sum(float(r.get("st_c") or 0.0) for r in tb
+                    if str(r.get("cont") or "").strip().startswith("70"))
+        reading = tbp.contra_reading(tb)
+        flipped_709 = sum(
+            float(r.get("st_c") or 0.0) for r in tb
+            if str(r.get("cont") or "").strip().startswith("70")
+            and reading.reads_as_reduction(
+                str(r["cont"]).strip(), float(r.get("st_d") or 0.0),
+                float(r.get("st_c") or 0.0)))
+        if mv["contra_convention"] == tbp.CONTRA_ENTRY_MAGNITUDE:
+            entry_magnitude.append(name)
+            assert flipped_709 > 0, name
+            assert mv["class70_credit"] == pytest.approx(naive - 2 * flipped_709, abs=0.005), (
+                f"{name}: witness {mv['class70_credit']:,.2f}, printed {naive:,.2f}, "
+                f"mirrored 709 {flipped_709:,.2f}")
+        else:
+            assert flipped_709 == 0, name
+            assert mv["class70_credit"] == pytest.approx(naive, abs=0.005), name
+    assert entry_magnitude, "no entry-magnitude book in the corpus (TC-3)"
 
 
 def test_at_least_one_corpus_book_is_post_closing():

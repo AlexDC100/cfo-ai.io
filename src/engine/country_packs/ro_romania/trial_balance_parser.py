@@ -112,6 +112,170 @@ class AssembleShapeResult(list):
         super().__init__(accounts)
         self.unmapped: List[Dict] = []
         self.excluded: List[Dict] = []
+        self.contra_convention: Dict[str, Any] = {
+            "convention": CONTRA_NOT_DECIDED, "mirrored_contra_rows": 0,
+            "mirrored_contra_sum": 0.0,
+        }
+
+
+# ─── Mirrored contra rows: whose sign is it? (plan/2 B4a) ───────────────────
+#
+# Exporters that close class 6/7 into 121 print the same cumulative value on
+# BOTH turnover sides ("mirrored"). For an ordinary account the value's sign
+# is the entry's direction in every exporter. For an account whose nature is
+# CONTRA to the statement bucket it lands in — 609 "reduceri comerciale
+# primite" (credit nature, classified operatingExpenses) and 709 "reduceri
+# comerciale acordate" (debit nature, classified revenue) — exporters
+# disagree:
+#   natural_signed   the reductions print NEGATIVE (the frozen Scandia
+#                    golden: 709101 -202,772.78 on both sides); the value
+#                    already carries the bucket direction.
+#   entry_magnitude  the reductions print POSITIVE (the retail corpus book:
+#                    609.401 +1,177,554.93, 709.401 +171,011.99); the value is
+#                    the reduction itself and must enter its bucket negated.
+# Reading an entry-magnitude file as natural-signed ADDS every supplier
+# discount to operating cost and every customer reduction to revenue. On the
+# retail book that put 2 x 1,267,606.26 on opex and 2 x 245,978.94 on
+# revenue, and the reconstruction missed account 121 by 2,043,254.64; read
+# correctly it reproduces account 121 to the cent.
+#
+# The document decides, never a per-row guess: the net of its mirrored
+# contra rows is positive only when reductions print positive (a stray
+# storno row is outweighed by the reductions it reverses). A document with
+# no mirrored contra row decides nothing and nothing is flipped.
+CONTRA_NATURAL_SIGNED = "natural_signed"
+CONTRA_ENTRY_MAGNITUDE = "entry_magnitude"
+CONTRA_NOT_DECIDED = "not_decided"
+
+
+def _is_mirrored(eff_d: float, eff_c: float) -> bool:
+    """Both turnover sides carry the same non-zero value to the cent."""
+    return eff_d != 0 and round(eff_d - eff_c, 2) == 0
+
+
+def _pl_contra_to_bucket(code: str, bucket: str, *, credit_pos_pl,
+                         debit_pos_pl) -> bool:
+    """True when the account's economic nature is opposite to its statement
+    bucket's natural side. The nature is the canonical schema's declared
+    sign meaning of the leaf the account maps to (schema_v1: 609
+    discounts_received_supplier expense_negative, 709
+    revenue_commercial_reductions revenue_negative), so no account list
+    lives here; 781 provision_reversals is expense_negative but lands in the
+    credit-natural otherIncome bucket, which is its own side, so it is not
+    contra to its bucket."""
+    from engine.canonical import SignMeaning, bucket_by_name
+    from .canonical_adapter import _canonical_bucket_for_ras
+
+    leaf = _canonical_bucket_for_ras(code)
+    if not leaf:
+        return False
+    declared = bucket_by_name(leaf)
+    if declared is None:
+        return False
+    meaning = declared.sign_meaning
+    if meaning == SignMeaning.EXPENSE_NEGATIVE:
+        return bucket in debit_pos_pl
+    if meaning == SignMeaning.REVENUE_NEGATIVE:
+        return bucket in credit_pos_pl
+    return False
+
+
+def decide_contra_convention(tb_rows, has_any_cumulative: bool, bucket_for,
+                             contra_to_bucket) -> Dict[str, Any]:
+    """The document's mirrored-contra sign convention, with its evidence."""
+    rows = 0
+    total = 0.0
+    if has_any_cumulative:
+        for r in tb_rows:
+            code = (r.get("cont") or "").strip()
+            if not code or code.startswith("8"):
+                continue
+            st_d = float(r.get("st_d") or 0)
+            st_c = float(r.get("st_c") or 0)
+            if not _is_mirrored(st_d, st_c):
+                continue
+            rule = bucket_for(code)
+            if not rule or not contra_to_bucket(code, rule.bucket):
+                continue
+            rows += 1
+            total += st_c
+    total = round(total, 2)
+    if rows == 0 or total == 0:
+        convention = CONTRA_NOT_DECIDED
+    elif total > 0:
+        convention = CONTRA_ENTRY_MAGNITUDE
+    else:
+        convention = CONTRA_NATURAL_SIGNED
+    return {"convention": convention, "mirrored_contra_rows": rows,
+            "mirrored_contra_sum": total}
+
+
+#: The statement buckets a class-6/7 row lands in, by natural side. Module
+#: scope so the assembler and pl_sanity (the served-P&L guard) read ONE
+#: definition of "contra to its bucket".
+PL_CREDIT_BUCKETS = frozenset({
+    "revenue", "otherIncome", "inventoryVariationMemo", "financialIncome",
+    "financial_income", "interest_income", "fx_gain", "capitalizedOwnWork",
+})
+PL_DEBIT_BUCKETS = frozenset({
+    "cogs", "operatingExpenses", "opex_third_party", "depreciation",
+    "interestExpense", "interest_expense", "financialExpense", "fx_loss",
+    "taxExpense",
+})
+
+
+def has_cumulative_block(tb_rows) -> bool:
+    """Whether the document carries cumulative turnover anywhere (Layout
+    A/B); a closing-only file reads class 6/7 from its closing sides."""
+    return any(
+        float(r.get("st_d") or 0) != 0 or float(r.get("st_c") or 0) != 0
+        for r in tb_rows
+    )
+
+
+class ContraReading:
+    """How THIS document's mirrored contra rows are to be read — decided
+    once per document, from its own 609/709 rows, and applied identically
+    by the assembler (`accounts_to_assemble_shape`) and by the served-P&L
+    guard (`pl_sanity.class_movement`), so the witness and the statement
+    read the same row the same way."""
+
+    __slots__ = ("convention",)
+
+    def __init__(self, convention: Dict[str, Any]) -> None:
+        self.convention = convention
+
+    def reads_as_reduction(self, code: str, eff_d: float, eff_c: float) -> bool:
+        """True when the printed value of this mirrored row is the
+        reduction itself and must enter its bucket negated."""
+        if self.convention["convention"] != CONTRA_ENTRY_MAGNITUDE:
+            return False
+        if not _is_mirrored(eff_d, eff_c):
+            return False
+        from . import chart_of_accounts as _ro_coa  # lazy: the package imports this module
+
+        rule = _ro_coa.bucket_for(code)
+        if not rule:
+            return False
+        return _pl_contra_to_bucket(
+            code, rule.bucket, credit_pos_pl=PL_CREDIT_BUCKETS,
+            debit_pos_pl=PL_DEBIT_BUCKETS)
+
+
+def contra_reading(tb_rows) -> ContraReading:
+    """The document's contra convention with its evidence (one decision
+    per document, never a per-row guess)."""
+    from . import chart_of_accounts as _ro_coa  # lazy: the package imports this module
+
+    rows = list(tb_rows)
+
+    def _contra(code: str, bucket: str) -> bool:
+        return _pl_contra_to_bucket(
+            code, bucket, credit_pos_pl=PL_CREDIT_BUCKETS,
+            debit_pos_pl=PL_DEBIT_BUCKETS)
+
+    return ContraReading(decide_contra_convention(
+        rows, has_cumulative_block(rows), _ro_coa.bucket_for, _contra))
 
 
 # ─── Format detection (magic bytes, not extension) ──────────────────────────
@@ -1247,15 +1411,8 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
         "inventory", "ppe", "ppe_investment", "ppe_under_construction",
         "ppe_advances", "intangibles", "otherCurrentAssets", "otherNonCurrentAssets",
     }
-    CREDIT_POS_PL = {
-        "revenue", "otherIncome", "inventoryVariationMemo", "financialIncome",
-        "financial_income", "interest_income", "fx_gain", "capitalizedOwnWork",
-    }
-    DEBIT_POS_PL = {
-        "cogs", "operatingExpenses", "opex_third_party", "depreciation",
-        "interestExpense", "interest_expense", "financialExpense", "fx_loss",
-        "taxExpense",
-    }
+    CREDIT_POS_PL = PL_CREDIT_BUCKETS
+    DEBIT_POS_PL = PL_DEBIT_BUCKETS
 
     # ── Parser-lane override ENCODING families (Phase 3 cutover) ────────
     # These class-4/16 codes are MIXED-SIDE: on the credit side they are
@@ -1315,6 +1472,9 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
         float(r.get("st_d") or 0) != 0 or float(r.get("st_c") or 0) != 0
         for r in tb_rows
     )
+
+    reading = contra_reading(tb_rows)
+    out.contra_convention = reading.convention
 
     for r in tb_rows:
         code = (r.get("cont") or "").strip()
@@ -1462,9 +1622,19 @@ def accounts_to_assemble_shape(tb_rows: List[Dict]) -> AssembleShapeResult:
             # for class-6/7 accounts (because the year-end closing entry
             # mirrors the natural-side accumulation). SAGA-style puts the
             # movement on one side only. Pick the side with the larger
-            # absolute value so both formats work; the sign of that value
-            # is the real direction (709 contra-revenue shows as negative).
+            # absolute value so both formats work.
             amount = eff_c if abs(eff_c) >= abs(eff_d) else eff_d
+            # A mirrored row's sign is the exporter's, not the account's:
+            # one exporter writes a contra account's reductions NEGATIVE on
+            # both sides (709 -202,772.78, the frozen Scandia golden),
+            # another writes the same reductions POSITIVE (609 +1,177,554.93
+            # and 709 +171,011.99, the retail corpus book). The document's
+            # own contra rows decide which (`contra_reading`, one decision per
+            # document, shared with pl_sanity's class-70 witness); under
+            # the entry-magnitude convention the value is the reduction, so
+            # it enters its bucket negated.
+            if reading.reads_as_reduction(code, eff_d, eff_c):
+                amount = -eff_c
             # SAGA fallback: contra-revenue / contra-expense end up on the
             # "wrong" side. Sign-flip when the bucket's expected direction
             # disagrees with where the value showed up.

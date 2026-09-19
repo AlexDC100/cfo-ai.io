@@ -285,6 +285,9 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
     seen = set()  # type: set
     covered = dict((row, []) for row in CONTRACT_ROWS)  # type: Dict[str, List[str]]
     landed = set()  # type: set
+    #: the batch keys as written (B4a / B4b kept apart from B4), for the
+    #: split rule below
+    landed_raw = set()  # type: set
     live = []  # type: List[Dict[str, Any]]
     for entry in entries:
         gid = entry.get("id") or entry.get("gate")
@@ -304,6 +307,7 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
                             % (where, entry.get("landed_in")))
         else:
             landed.add(batch)
+            landed_raw.add(entry.get("landed_in"))
 
         retired = entry.get("retired_in")
         if retired is not None and RETIREMENTS.get(gate_name) != retired:
@@ -402,6 +406,7 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
                 failures.append("%s[%s]: not a batch of contract 28.3" % (field, key))
                 continue
             landed.add(batch)
+            landed_raw.add(key)
             into.setdefault(batch, []).extend(values or [])
 
     def _met_gate(batch: str, name: str) -> bool:
@@ -421,6 +426,18 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
         if batch == FINAL_BATCH:
             must_gates = sorted(set(g for gs in ROW_BATTERY_GATES.values() for g in gs))
             must_rows = list(CONTRACT_ROWS)
+        # A batch the contract splits (28.3 B4 -> B4a then B4b, 5.1): its
+        # "Registers:" gates belong to the closing half ("everything
+        # below"), so they are required once that half — or the batch under
+        # its own name — has landed; the opening half registers only what
+        # it repairs (plan/2 B4a: statements-anchor-gap).
+        halves = sorted(k for k, v in BATCH_ALIASES.items() if v == batch)
+        if halves and halves[-1] not in landed_raw and batch not in landed_raw:
+            report.append("  %-4s split batch: %s landed, the contract gates %s are "
+                          "required once %s lands" % (
+                              batch, "+".join(h for h in halves if h in landed_raw),
+                              "+".join(must_gates), halves[-1]))
+            must_gates = []
         for name in must_gates:
             if name not in req_gates.get(batch, []):
                 failures.append("required_gates[%s] omits %r, which contract %s "

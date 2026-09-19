@@ -446,6 +446,24 @@ def _engine_gates() -> List[Gate]:
                        "built step shapes",
                        "ratio-table quotes checked")),
         # ── end plan/2 B3 ────────────────────────────────────────────────
+        # ── plan/2 B4a (plan_contract_v2 5.1 / 28.3 B4; owner ruling
+        # 2026-09-18, the 609/709 double count): statements-anchor-gap.
+        # On every corpus book, the Scandia regression baseline and any
+        # PLAN_LOCAL_XLSX book, |account 121 - reconstruction| is printed
+        # and must be within the floor rendered from
+        # packs/ro/statements_anchor.yaml#anchor_gap and the book (the
+        # cent tolerance plus the 711/712 turnover a mirrored exporter
+        # hides); every mirrored 609/709 row enters its bucket as the
+        # reduction it is under the convention its document decided.
+        Gate("statements-anchor-gap",
+             [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=45,
+             units="books judged, contra rows checked and metamorphic comparisons",
+             canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
+                       "floor from packs/ro/statements_anchor.yaml#anchor_gap",
+                       "convention per document",
+                       "mirrored contra rows checked")),
+        # ── end plan/2 B4a ───────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

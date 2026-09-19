@@ -55,25 +55,48 @@ def _net(row: Mapping[str, Any], d: str, c: str) -> float:
 def class_movement(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     """One-sided cumulative movement for classes 6 and 7, plus the
     post-closing signal. Reads the RAW parsed rows, never the assembly."""
+    # plan/2 B4a: a mirrored CONTRA row (609 supplier discounts, 709
+    # customer reductions) prints, on an entry-magnitude exporter, the
+    # reduction as a POSITIVE value on both sides. The assembler enters it
+    # negated under the convention the document decided; the one-sided
+    # witness here must read the same row the same way, or the guard
+    # refuses every correctly-read book (retail, agras, carniprod).
+    from .trial_balance_parser import contra_reading
+
+    rows = list(tb_rows)
+    reading = contra_reading(rows)
     c6_d = c6_c = c7_d = c7_c = 0.0
     c70_c = 0.0
     c6_sf = c7_sf = 0.0
     n6 = n7 = 0
-    for r in tb_rows:
+    contra_flipped = 0
+    one_sided_c6_d = 0.0
+    for r in rows:
         code = str(r.get("cont") or "").strip()
         if not code:
             continue
+        st_d = float(r.get("st_d") or 0.0)
+        st_c = float(r.get("st_c") or 0.0)
         if code[0] == "6":
             n6 += 1
-            c6_d += float(r.get("st_d") or 0.0)
-            c6_c += float(r.get("st_c") or 0.0)
+            c6_d += st_d
+            c6_c += st_c
             c6_sf += abs(_net(r, "sf_d", "sf_c"))
+            if reading.reads_as_reduction(code, st_d, st_c):
+                one_sided_c6_d -= st_d
+                contra_flipped += 1
+            else:
+                one_sided_c6_d += st_d
         elif code[0] == "7":
             n7 += 1
             if code.startswith("70"):
-                c70_c += float(r.get("st_c") or 0.0)
-            c7_d += float(r.get("st_d") or 0.0)
-            c7_c += float(r.get("st_c") or 0.0)
+                if reading.reads_as_reduction(code, st_d, st_c):
+                    c70_c -= st_c
+                    contra_flipped += 1
+                else:
+                    c70_c += st_c
+            c7_d += st_d
+            c7_c += st_c
             c7_sf += abs(_net(r, "sf_d", "sf_c"))
     # POST-CLOSING: every P&L account closed out — the two sides agree and
     # nothing is left standing in the closing column.
@@ -88,7 +111,11 @@ def class_movement(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
         # produce if it is reading the book correctly.
         "class70_credit": c70_c,
         "one_sided_class7_credit": c7_c,
-        "one_sided_class6_debit": c6_d,
+        "one_sided_class6_debit": one_sided_c6_d,
+        # The document's contra convention and how many mirrored contra
+        # rows were read as reductions (plan/2 B4a).
+        "contra_convention": reading.convention["convention"],
+        "contra_rows_read_as_reductions": contra_flipped,
     }
 
 
@@ -175,19 +202,23 @@ def check(pl: Mapping[str, Any], tb_rows: Iterable[Mapping[str, Any]]) -> List[D
                 "blocking": True,
                 "message": (
                     "Served revenue %s does not equal the trial balance's "
-                    "class-70 cumulative credit %s (drift %s). Revenue IS "
-                    "that one-sided sum; a difference means the income side "
-                    "was read from the wrong column — netted, or taken from "
-                    "the closing balance, which is zero on a post-closing "
-                    "book (post_closing: %s)."
+                    "one-sided class-70 credit %s, its 709 reductions read "
+                    "under the document's contra convention (%s; drift %s). "
+                    "Revenue IS that one-sided sum; a difference means the "
+                    "income side was read from the wrong column — netted, "
+                    "taken from the closing balance, which is zero on a "
+                    "post-closing book (post_closing: %s) — or a contra "
+                    "row entered with the exporter's sign."
                     % ("{:,.2f}".format(revenue),
                        "{:,.2f}".format(mv["class70_credit"]),
+                       mv["contra_convention"],
                        "{:+,.2f}".format(drift), mv["post_closing"])
                 ),
                 "observed": {"revenue": revenue,
                              "class70_credit": mv["class70_credit"],
                              "drift": drift,
-                             "post_closing": mv["post_closing"]},
+                             "post_closing": mv["post_closing"],
+                             "contra_convention": mv["contra_convention"]},
             })
 
     return findings

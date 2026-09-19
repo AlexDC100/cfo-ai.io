@@ -1,124 +1,202 @@
 {
- "schema": "plan_gates/2",
- "contract": "plan_contract_v2 section 26; rulings in docs/engine_book/plan_rulings.md",
- "checked_by": "scripts/check_plan_gates.py (battery gate plan-gate-census)",
- "entry_fields": {
-  "id": "unique; defaults to gate. Shared runners (vitest, playwright) use <gate>:<batch>",
-  "gate": "the scripts/run_battery.py gate name",
-  "rows": "contract rows F1-F10 / S1-S8 this gate carries, or 'supporting' (26.3)",
-  "landed_in": "the batch that registered the entry",
-  "registration_only": "true when an existing, passing test was registered with no repair (0.5)",
-  "test_files": "what the gate runs",
-  "canaries": "optional; each must be a canary of the battery gate (and, for vitest/playwright, in the runner's CANARIES)",
-  "plant_log": "optional gates.md heading; defaults to the gate name",
-  "retired_in": "optional; only for a retirement contract 28.3 names (forecast-get-b4-parity, B6); the entry and its plant log stay, the battery checks stop",
-  "required_rows": "keyed by batch: the rows whose 26.1 Lands column is that batch, each met only by an entry landed in that batch (B21: any)",
-  "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
- },
- "required_rows": {
-  "B0": ["F5", "F10"],
-  "B2": [],
-  "B3": ["F3"]
- },
- "required_gates": {
-  "B0": ["forecast-model", "forecast-serving-boundary", "forecast-drivers", "forecast-ai-write-path", "forecast-boundary", "plan-gate-census"],
-  "B2": ["forecast-base-parity"],
-  "B3": ["forecast-authority", "forecast-defaults"]
- },
- "gates": [
-  {
-   "id": "forecast-model",
-   "gate": "forecast-model",
-   "rows": ["F1"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["tests/engine/test_forecast_model.py"],
-   "canaries": [
-    "test_f1_every_projected_period_closes_to_zero",
-    "test_f1_one_cent_is_enough_to_red_it",
-    "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
-    "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book"
-   ]
+  "schema": "plan_gates/2",
+  "contract": "plan_contract_v2 section 26; rulings in docs/engine_book/plan_rulings.md",
+  "checked_by": "scripts/check_plan_gates.py (battery gate plan-gate-census)",
+  "entry_fields": {
+    "id": "unique; defaults to gate. Shared runners (vitest, playwright) use <gate>:<batch>",
+    "gate": "the scripts/run_battery.py gate name",
+    "rows": "contract rows F1-F10 / S1-S8 this gate carries, or 'supporting' (26.3)",
+    "landed_in": "the batch that registered the entry",
+    "registration_only": "true when an existing, passing test was registered with no repair (0.5)",
+    "test_files": "what the gate runs",
+    "canaries": "optional; each must be a canary of the battery gate (and, for vitest/playwright, in the runner's CANARIES)",
+    "plant_log": "optional gates.md heading; defaults to the gate name",
+    "retired_in": "optional; only for a retirement contract 28.3 names (forecast-get-b4-parity, B6); the entry and its plant log stay, the battery checks stop",
+    "required_rows": "keyed by batch: the rows whose 26.1 Lands column is that batch, each met only by an entry landed in that batch (B21: any)",
+    "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
   },
-  {
-   "id": "forecast-serving-boundary",
-   "gate": "forecast-serving-boundary",
-   "rows": ["supporting"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["tests/engine/test_forecast_serving_boundary.py"]
+  "required_rows": {
+    "B0": [
+      "F5",
+      "F10"
+    ],
+    "B2": [],
+    "B3": [
+      "F3"
+    ],
+    "B4a": []
   },
-  {
-   "id": "forecast-drivers",
-   "gate": "forecast-drivers",
-   "rows": ["supporting"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["tests/engine/test_forecast_drivers.py"]
+  "required_gates": {
+    "B0": [
+      "forecast-model",
+      "forecast-serving-boundary",
+      "forecast-drivers",
+      "forecast-ai-write-path",
+      "forecast-boundary",
+      "plan-gate-census"
+    ],
+    "B2": [
+      "forecast-base-parity"
+    ],
+    "B3": [
+      "forecast-authority",
+      "forecast-defaults"
+    ],
+    "B4a": [
+      "statements-anchor-gap"
+    ]
   },
-  {
-   "id": "forecast-ai-write-path",
-   "gate": "forecast-ai-write-path",
-   "rows": ["F5"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["tests/engine/test_forecast_no_ai_write_path.py"]
-  },
-  {
-   "id": "forecast-boundary",
-   "gate": "forecast-boundary",
-   "rows": ["F2"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["scripts/check_forecast_boundary.mjs"]
-  },
-  {
-   "id": "plan-gate-census",
-   "gate": "plan-gate-census",
-   "rows": ["F10"],
-   "landed_in": "B0",
-   "registration_only": true,
-   "test_files": ["scripts/check_plan_gates.py", "docs/engine_book/plan_gates.json"]
-  },
-  {
-   "id": "forecast-base-parity",
-   "gate": "forecast-base-parity",
-   "rows": ["supporting"],
-   "landed_in": "B2",
-   "registration_only": false,
-   "test_files": ["tests/engine/test_forecast_base_parity.py", "tests/engine/fixtures/forecast/base_get_b0.json"],
-   "canaries": [
-    "SCOPE forecast-base-parity (delta mode)",
-    "366-day plan year per book"
-   ]
-  },
-  {
-   "id": "forecast-authority",
-   "gate": "forecast-authority",
-   "rows": ["supporting"],
-   "landed_in": "B3",
-   "registration_only": false,
-   "test_files": ["tests/engine/test_forecast_driver_authority.py"],
-   "canaries": [
-    "SCOPE forecast-authority (plan/2 B3, contract 4)",
-    "covered concepts",
-    "each concept compared alone and after the hand-over"
-   ]
-  },
-  {
-   "id": "forecast-defaults",
-   "gate": "forecast-defaults",
-   "rows": ["F3"],
-   "landed_in": "B3",
-   "registration_only": false,
-   "test_files": ["tests/engine/test_forecast_tier_ladders.py"],
-   "canaries": [
-    "SCOPE forecast-defaults (engine half, plan/2 B3)",
-    "jurisdiction source per corpus book",
-    "responses with an absent driver that projected",
-    "built step shapes",
-    "ratio-table quotes checked"
-   ]
-  }
- ]
+  "gates": [
+    {
+      "id": "forecast-model",
+      "gate": "forecast-model",
+      "rows": [
+        "F1"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_model.py"
+      ],
+      "canaries": [
+        "test_f1_every_projected_period_closes_to_zero",
+        "test_f1_one_cent_is_enough_to_red_it",
+        "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
+        "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book"
+      ]
+    },
+    {
+      "id": "forecast-serving-boundary",
+      "gate": "forecast-serving-boundary",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_serving_boundary.py"
+      ]
+    },
+    {
+      "id": "forecast-drivers",
+      "gate": "forecast-drivers",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_drivers.py"
+      ]
+    },
+    {
+      "id": "forecast-ai-write-path",
+      "gate": "forecast-ai-write-path",
+      "rows": [
+        "F5"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_no_ai_write_path.py"
+      ]
+    },
+    {
+      "id": "forecast-boundary",
+      "gate": "forecast-boundary",
+      "rows": [
+        "F2"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "scripts/check_forecast_boundary.mjs"
+      ]
+    },
+    {
+      "id": "plan-gate-census",
+      "gate": "plan-gate-census",
+      "rows": [
+        "F10"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "scripts/check_plan_gates.py",
+        "docs/engine_book/plan_gates.json"
+      ]
+    },
+    {
+      "id": "forecast-base-parity",
+      "gate": "forecast-base-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B2",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_base_parity.py",
+        "tests/engine/fixtures/forecast/base_get_b0.json"
+      ],
+      "canaries": [
+        "SCOPE forecast-base-parity (delta mode)",
+        "366-day plan year per book"
+      ]
+    },
+    {
+      "id": "forecast-authority",
+      "gate": "forecast-authority",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B3",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_driver_authority.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-authority (plan/2 B3, contract 4)",
+        "covered concepts",
+        "each concept compared alone and after the hand-over"
+      ]
+    },
+    {
+      "id": "forecast-defaults",
+      "gate": "forecast-defaults",
+      "rows": [
+        "F3"
+      ],
+      "landed_in": "B3",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_tier_ladders.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-defaults (engine half, plan/2 B3)",
+        "jurisdiction source per corpus book",
+        "responses with an absent driver that projected",
+        "built step shapes",
+        "ratio-table quotes checked"
+      ]
+    },
+    {
+      "id": "statements-anchor-gap",
+      "gate": "statements-anchor-gap",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B4a",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_statements_anchor_gap.py"
+      ],
+      "canaries": [
+        "SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
+        "floor from packs/ro/statements_anchor.yaml#anchor_gap",
+        "convention per document",
+        "mirrored contra rows checked"
+      ],
+      "plant_log": "statements-anchor-gap"
+    }
+  ]
 }
