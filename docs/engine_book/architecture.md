@@ -73,6 +73,7 @@ graph LR
     pkg_storage["storage (3 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
+    pkg__root_ -->|1| pkg_ratios
     pkg__root_ -->|1| pkg_storage
     pkg_ai -->|3| pkg_ai_lane
     pkg_ai -->|1| pkg_packs
