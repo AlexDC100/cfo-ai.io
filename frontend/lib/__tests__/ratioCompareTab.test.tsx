@@ -74,6 +74,7 @@ import { computeCreditScore } from "@/lib/financialValuation";
 import { statementsForExportOf, type ComparativesResponse } from "@/lib/comparatives";
 import {
   ENGINE_KEY_OF_FE_KEY,
+  asFiledSentence,
   bandSideOf,
   bandTone,
   buildRatioCompareView,
@@ -585,6 +586,44 @@ describe("G5 the hero and Risks credit read the served table", () => {
     const text = screen.getByTestId("credit-as-filed-hero").textContent ?? "";
     expect(text).toContain("composite 71.7, letter A, Altman Z″ 2.41");
     expect(text).toContain(bundle("en", "statements.ratioCmp.ui.asFiledRevisionUnknown"));
+  });
+
+  it("a withdrawn filed Z″ and composite print as withdrawn with the engine's note, never as figures", () => {
+    // What revision 1 persisted for a zero-liability book (X4 = equity /
+    // max(TL, 1)): Z″ 1584.89, composite 88.5 AA. The engine withdraws
+    // both (R-RANGE) and serves the note; the surface must print neither
+    // number, and must not call them "not filed".
+    const p = fresh();
+    const view = viewOf(p);
+    const note = "withdrawn: computed under revision 1 on a substituted operand (altman_x4 outside its range)";
+    tableOf(p).credit.as_filed = {
+      composite: null,
+      altman_z: null,
+      letter: null,
+      credit_model_revision: 1,
+      withdrawn: [
+        { figure: "altman_z_score", value: 1584.89, text: note },
+        { figure: "credit_composite", value: 88.5, text: note },
+      ],
+    };
+    tableOf(p).credit.as_filed_differs = true;
+    renderWithProviders(
+      <RatioCompareCtx.Provider value={view}>
+        <CreditComparison surface="hero" />
+      </RatioCompareCtx.Provider>,
+    );
+    const text = screen.getByTestId("credit-as-filed-hero").textContent ?? "";
+    expect(text).toContain("composite withdrawn, letter withdrawn, Altman Z″ withdrawn");
+    expect(text).toContain(note);
+    expect(text).not.toContain("1584.89");
+    expect(text).not.toContain("88.5");
+    expect(text).not.toContain(bundle("en", "statements.ratioCmp.ui.asFiledValueAbsent"));
+    // a payload that still carries the number beside the withdrawal
+    // prints "withdrawn", not the number (the reader re-checks)
+    tableOf(p).credit.as_filed!.composite = 88.5;
+    tableOf(p).credit.as_filed!.altman_z = 1584.89;
+    expect(asFiledSentence(tableOf(p).credit, "en")).not.toContain("1584.89");
+    expect(asFiledSentence(tableOf(p).credit, "en")).not.toContain("88.5");
   });
 });
 

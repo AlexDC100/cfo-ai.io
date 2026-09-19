@@ -789,6 +789,8 @@
         "asFiled": "Conform raportării: scor compus {{composite}}, rating {{letter}}, Altman Z″ {{z}}, sub revizia modelului de credit {{revision}}. Valorile afișate sunt recalculate din situațiile servite sub revizia {{servedRevision}} și diferă de cele raportate.",
         "asFiledRevisionUnknown": "necunoscută (salvată înainte de marcajul reviziei)",
         "asFiledValueAbsent": "neraportat",
+        "asFiledValueWithdrawn": "retrasă",
+        "asFiledWithdrawnNote": "Retrase din raportare, netipărite din nou: {{notes}}.",
         "unlabelled": "Rând fără etichetă {{key}}: motorul a servit o etichetă pentru care acest cititor nu are cuvânt."
       }
     },

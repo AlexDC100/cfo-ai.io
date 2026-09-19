@@ -789,6 +789,8 @@
         "asFiled": "As filed: composite {{composite}}, letter {{letter}}, Altman Z″ {{z}}, under credit model revision {{revision}}. The figures shown are recomputed from the served statements under revision {{servedRevision}} and differ from the filed ones.",
         "asFiledRevisionUnknown": "unknown (persisted before the revision stamp)",
         "asFiledValueAbsent": "not filed",
+        "asFiledValueWithdrawn": "withdrawn",
+        "asFiledWithdrawnNote": "Withdrawn from the filing, not reprinted: {{notes}}.",
         "unlabelled": "Unlabelled row {{key}}: the engine served a label this reader has no word for."
       }
     },

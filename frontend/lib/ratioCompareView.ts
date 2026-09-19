@@ -566,10 +566,20 @@ export function printCreditComparison(
   );
 }
 
-function asFiledFigure(v: unknown, t: T, loc: "en" | "ro"): string {
+function asFiledFigure(v: unknown, t: T, loc: "en" | "ro", withdrawn = false): string {
+  if (withdrawn) return t("statements.ratioCmp.ui.asFiledValueWithdrawn");
   if (typeof v === "number" && Number.isFinite(v)) return localiseDecimal(String(v), loc);
   if (typeof v === "string" && v !== "") return v;
   return t("statements.ratioCmp.ui.asFiledValueAbsent");
+}
+
+/** The figures the engine withdrew from the filing (`as_filed.withdrawn`),
+ *  by the figure name they were filed under. */
+function withdrawnFigures(af: { withdrawn?: unknown }): Set<string> {
+  const out = new Set<string>();
+  if (!Array.isArray(af.withdrawn)) return out;
+  for (const w of af.withdrawn) if (isObj(w) && typeof w.figure === "string") out.add(w.figure);
+  return out;
 }
 
 /** The served as-filed disclosure for the CURRENT period's credit block:
@@ -581,16 +591,29 @@ export function asFiledSentence(credit: CreditBlock | null | undefined, locale?:
   const loc = ratioLocale(locale ?? i18n.language);
   const t = tFor(loc);
   const af = credit.as_filed;
-  return t("statements.ratioCmp.ui.asFiled", {
-    composite: asFiledFigure(af.composite, t, loc),
-    letter: asFiledFigure(af.letter, t, loc),
-    z: asFiledFigure(af.altman_z, t, loc),
+  // A withdrawn filed figure prints as "withdrawn", never as a number and
+  // never as "not filed": it WAS filed, outside its range, and the engine
+  // says so in its own words (re-checked here: a numeric value beside a
+  // withdrawal is never printed, whatever the payload carries).
+  const withdrawn = withdrawnFigures(af);
+  const compositeWithdrawn = withdrawn.has("credit_composite");
+  const zWithdrawn = withdrawn.has("altman_z_score");
+  const sentence = t("statements.ratioCmp.ui.asFiled", {
+    composite: asFiledFigure(af.composite, t, loc, compositeWithdrawn),
+    letter: asFiledFigure(af.letter, t, loc, compositeWithdrawn),
+    z: asFiledFigure(af.altman_z, t, loc, zWithdrawn),
     revision:
       af.credit_model_revision === "unknown"
         ? t("statements.ratioCmp.ui.asFiledRevisionUnknown")
         : asFiledFigure(af.credit_model_revision, t, loc),
     servedRevision: asFiledFigure(credit.revision, t, loc),
   });
+  if (withdrawn.size === 0) return sentence;
+  const notes = (af.withdrawn ?? [])
+    .filter((w) => isObj(w) && typeof w.text === "string")
+    .map((w) => `${w.figure}: ${w.text}`)
+    .join("; ");
+  return `${sentence} ${t("statements.ratioCmp.ui.asFiledWithdrawnNote", { notes })}`;
 }
 
 // ─── The current period's credit, for the hero, the Risks tab, exports ──

@@ -220,11 +220,23 @@ export interface CreditLadderRung {
   grade: CreditLetter;
 }
 
+/** A filed figure the engine WITHDREW: it was persisted outside its
+ *  pack range (a revision-1 X4 1500 / Z'' 1584.89 / composite 88.5 on a
+ *  zero-liability book), so `as_filed` carries null for it and this note
+ *  in its place. The value is served for the audit trail only — never
+ *  printed as a figure (R-RANGE, every surface). */
+export interface CreditAsFiledWithdrawn {
+  figure: "altman_z_score" | "credit_composite" | string;
+  value: number;
+  text: string;
+}
+
 export interface CreditAsFiled {
   composite: number | null;
   altman_z: number | null;
   letter: CreditLetter | null;
   credit_model_revision: number | "unknown";
+  withdrawn?: CreditAsFiledWithdrawn[];
 }
 
 /** A sub-score the credit model refused (credit_model revision 2,
