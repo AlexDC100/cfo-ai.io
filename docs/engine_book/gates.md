@@ -2920,8 +2920,8 @@ owner's local capture is produced by exactly the path this gate proves.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_route_real_app.py -q` |
-| work count | junit-xml, floor **6** tests (measured 6) |
-| canary | `test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite`, `test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair`, `test_a_prior_from_another_workspace_is_not_found` |
+| work count | junit-xml, floor **7** tests (measured 7) |
+| canary | `test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite`, `test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair`, `test_a_prior_from_another_workspace_is_not_found`, `test_a_current_period_from_another_workspace_is_not_found` |
 
 **Reds on, after the repair (TC-11):** the route unmounted, renamed or its
 query binding broken (404 / 405 / 422); the served document without `ratios`,
@@ -2934,7 +2934,13 @@ route does not serve for the pair; a band finding whose profile is not
 resolved from the workspace's CAEN (ruling Q6 — this closes the "the route
 passes none" blind spot recorded under ratio-band-findings); a forged bearer
 served (not 401), a caller outside the workspace served (not 403), a prior
-from another workspace served (not 404 `period_not_in_workspace`).
+from another workspace served (not 404 `period_not_in_workspace`); a CURRENT
+period from another workspace served through the path parameter (the B8
+verifier's plant A11: `cur_row` loaded by an id-only select left all six
+earlier tests green while `current_label 2024-12-31` — the foreign book —
+was served; `test_a_current_period_from_another_workspace_is_not_found`
+now reds on it: `AssertionError: (200, '{"ratios":{...,"current_label":
+"2024-12-31",...')`; reverted, 7 passed).
 **Cannot see:** whether the ratios are right (ratio-compare,
 ratio-band-findings); the frontend's reading of the response
 (ratio-byte-match); row-level security — the double does not model RLS, so

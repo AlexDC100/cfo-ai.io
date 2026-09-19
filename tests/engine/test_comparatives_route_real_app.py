@@ -35,7 +35,10 @@ WHAT IT REDS ON, AFTER THE REPAIR (TC-11):
   · the workspace's CAEN not reaching the band findings (ruling Q6);
   · the wall: a forged bearer served (not 401), a member asking for a
     workspace they do not belong to served (not 403), a prior period of
-    another workspace served (not 404 period_not_in_workspace).
+    another workspace served (not 404 period_not_in_workspace), a CURRENT
+    period of another workspace served through the path parameter (not
+    404 — the org filter on the first load, which the prior case alone
+    does not prove).
 
 WHAT IT CANNOT SEE: whether the ratios are right (test_ratio_compare.py,
 test_comparatives_bands.py own that); the frontend's reading of the
@@ -170,3 +173,16 @@ def test_a_prior_from_another_workspace_is_not_found(app, world):
     assert resp.status_code == 404, (resp.status_code, resp.text[:300])
     assert resp.json()["detail"]["code"] == "period_not_in_workspace", resp.text[:300]
     assert "ratios" not in resp.text
+
+
+def test_a_current_period_from_another_workspace_is_not_found(app, world):
+    """The CURRENT id is the path parameter, and it is browser-supplied
+    just as `prior` is. The prior test above proves the org filter on the
+    second load only: with the first load reduced to an id-only select
+    (B8 verifier plant A11) all six earlier tests stayed green while
+    another workspace's book was served as the current side."""
+    resp = _get(app, "/api/period/%s/comparatives?prior=%s" % (FOREIGN, PRI), D.mint_jwt(USER), ORG)
+    assert resp.status_code == 404, (resp.status_code, resp.text[:300])
+    assert resp.json()["detail"]["code"] == "period_not_in_workspace", resp.text[:300]
+    assert "ratios" not in resp.text
+    assert "2024-12-31" not in resp.text  # the foreign book's period label never leaves

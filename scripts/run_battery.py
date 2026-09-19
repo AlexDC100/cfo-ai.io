@@ -453,10 +453,11 @@ def _engine_gates() -> List[Gate]:
         # CAEN) is gated. Plant log: docs/engine_book/gates.md.
         Gate("comparatives-route",
              [PY, "-m", "pytest", "tests/engine/test_comparatives_route_real_app.py", "-q"],
-             work_junit=True, floor=6, units="tests",
+             work_junit=True, floor=7, units="tests",
              canaries=("test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite",
                        "test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair",
-                       "test_a_prior_from_another_workspace_is_not_found")),
+                       "test_a_prior_from_another_workspace_is_not_found",
+                       "test_a_current_period_from_another_workspace_is_not_found")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.
