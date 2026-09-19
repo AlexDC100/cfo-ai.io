@@ -66,7 +66,7 @@ graph LR
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
     pkg_radar["radar (15 modules)"]
-    pkg_ratios["ratios (3 modules)"]
+    pkg_ratios["ratios (4 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (7 modules)"]
@@ -368,4 +368,5 @@ declaration is the supply-chain lock's job to reject).
 | `public_market` | anthropic (anthropic), fastapi (fastapi), yaml (pyyaml) |
 | `public_ro` | fastapi (fastapi), pydantic (pydantic) |
 | `radar` | yaml (pyyaml) |
+| `ratios` | yaml (pyyaml) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |
