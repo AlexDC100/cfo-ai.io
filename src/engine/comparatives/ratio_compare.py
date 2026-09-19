@@ -144,16 +144,22 @@ MOVEMENT_REASON_CODES: Tuple[str, ...] = (
 )
 
 #: Codes the composite rows and the Piotroski block carry. The two
-#: `*_liabilities_not_positive` codes are the credit model's sub-score
-#: refusals (`credit_model.CREDIT_SUBSCORE_REFUSAL_CODES`, revision 2): a
-#: refused Altman or liquidity sub-score row carries its own reason, never
-#: `credit_inputs_absent` beside a composite that was computed.
+#: liabilities codes are the credit model's sub-score refusals
+#: (`credit_model.CREDIT_SUBSCORE_REFUSAL_CODES`, revision 2): a refused
+#: Altman or liquidity row carries its own reason. `credit_component_undefined`
+#: is the composite's and the letter's refusal when any component refused
+#: (R-COMPOSITE), listing every refused component — never
+#: `credit_inputs_absent`, which means the model did not run at all.
 COMPOSITE_REASON_CODES: Tuple[str, ...] = (
     "credit_inputs_absent",
     "graded_by_letter",
     "piotroski_prior_capped",
     "current_liabilities_not_positive",
-    "total_liabilities_not_positive",
+    "total_liabilities_below_materiality",
+    "revenue_not_positive",
+    "interest_expense_not_positive",
+    "credit_out_of_range",
+    "credit_component_undefined",
 )
 
 DELTA_UNIT_OF = {"x": "turns", "pct": "pp", "days": "days", "z": "z", "score": "points",
@@ -441,9 +447,9 @@ def _movement(key: str, cur: Mapping[str, Any], pri: Mapping[str, Any], display_
 def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
                     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     def refused(credit: Mapping[str, Any], subscore: Optional[str] = None) -> Dict[str, Any]:
-        # A sub-score the model refused beside a computed composite states
-        # its own reason; only a period with no composite at all falls to
-        # the block's reason.
+        # A sub-score the model refused states its own reason; the
+        # composite and the letter state the block's (which lists every
+        # refused component).
         own = (credit.get("refused_subscores") or {}).get(subscore) if subscore else None
         reason = own or credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
         return {"value": None, "value_q": None, "band": None, "band_status": "refused",

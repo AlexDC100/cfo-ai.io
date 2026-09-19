@@ -165,6 +165,7 @@ REASON_CODES: Tuple[str, ...] = (
     # refused (no value)
     "operand_absent",
     "zero_denominator",
+    "nonpositive_denominator",
     "non_finite",
     "engine_metric_absent",
     "user_input_absent",
@@ -398,8 +399,13 @@ def _pct_of(a: _Fig, b: _Fig, denominator: str) -> _Fig:
     return _mul(_div(a, b, denominator), _known(100.0))
 
 
-def _at_least(f: _Fig, floor: float) -> _Fig:
-    return f if f.value is None else _Fig(max(f.value, floor), None, f.ops)
+def _positive(f: _Fig, denominator: str) -> _Fig:
+    """A denominator that must be positive: a negative value is an absence
+    (`nonpositive_denominator`), never a floor. Zero is left to `_div`, which
+    names it `zero_denominator`."""
+    if f.value is None or f.value >= 0:
+        return f
+    return _Fig(None, ("nonpositive", denominator), f.ops)
 
 
 # ── quantization and rungs ──────────────────────────────────────────────────
@@ -577,6 +583,8 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
         return {"code": "operand_absent", "inputs": inputs}
     if kind == "undefined":
         return {"code": "zero_denominator", "inputs": [absence[1]]}
+    if kind == "nonpositive":
+        return {"code": "nonpositive_denominator", "inputs": [absence[1]]}
     if kind == "metric":
         return {"code": "engine_metric_absent", "inputs": [absence[1]]}
     return {"code": "non_finite", "inputs": [str(absence[1])]}
@@ -690,9 +698,14 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
     figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
     figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
+    # ROIC is DEFINED only for positive invested capital (ruling R-OTHER,
+    # C2.1): zero refuses as `zero_denominator`, negative (negative equity
+    # exceeding debt) as `nonpositive_denominator` — the value is never
+    # served with its band merely withheld. The 1-RON floor this replaced
+    # served 25,200,000.0% "strong" on a book with no debt and no equity.
     invested_capital = _add(total_debt, total_equity)
     figs["roic"] = mPctOr("roic", _pct_of(_mul(ebit, _known(1 - 0.16)),
-                                          _at_least(invested_capital, 1.0), "invested capital"))
+                                          _positive(invested_capital, "invested capital"), "invested capital"))
 
     figs["debt_to_ebitda"] = bsOr("debt_to_ebitda", _div(total_debt, ebitda, "EBITDA"))
     figs["debt_to_equity"] = bsOr("debt_to_equity", _div(total_debt, total_equity, "total equity"))
@@ -841,7 +854,7 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
     if serve_time_metrics:
         payload = dict(payload)
         payload["metrics"] = list(serve_rows or [])
-    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows)
+    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows, statements=statements)
     if serve_rows is None:
         credit["reason"] = {"code": _cm.CREDIT_INPUTS_ABSENT,
                             "inputs": ["statements.balanceSheet", "statements.incomeStatement"]}

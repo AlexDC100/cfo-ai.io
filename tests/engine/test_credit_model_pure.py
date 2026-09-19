@@ -186,18 +186,33 @@ def test_the_credit_model_imports_no_client():
     """Stubbing Supabase catches a Supabase call; this catches the other
     ways out (an HTTP client, a clock, a file). Scope: this one module."""
     tree = ast.parse(MODULE.read_text("utf-8"))
-    allowed = {"__future__", "logging", "typing"}
+    # `decimal` and `math` are arithmetic. `engine.ratios.credit_pack` is the ONE module
+    # allowed to open a file on the model's behalf — the pack data the X4
+    # materiality is read from (ruling R-D4, TC-10) — and it is held below
+    # to that: yaml + the path to the pack, no client, no clock.
+    allowed = {"__future__", "logging", "typing", "decimal", "math", "engine.ratios.credit_pack"}
     imported = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom):
-            imported.add((node.module or "").split(".")[0] if node.level == 0 else "." * node.level)
+            mod = node.module or ""
+            imported.add(mod if mod == "engine.ratios.credit_pack" else
+                         mod.split(".")[0] if node.level == 0 else "." * node.level)
     assert imported <= allowed, "credit_model imports %r" % sorted(imported - allowed)
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert not names & {"open", "_supabase", "admin", "per_user", "httpx", "requests"}, (
         names & {"open", "_supabase", "admin", "per_user", "httpx", "requests"}
     )
+    pack_tree = ast.parse((MODULE.parent / "credit_pack.py").read_text("utf-8"))
+    pack_imports = set()
+    for node in ast.walk(pack_tree):
+        if isinstance(node, ast.Import):
+            pack_imports.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            pack_imports.add((node.module or "").split(".")[0])
+    assert pack_imports <= {"__future__", "functools", "os", "decimal", "pathlib", "typing", "yaml"}, (
+        "credit_pack imports %r" % sorted(pack_imports))
 
 
 # ── stage_compute persists exactly the pure rows ──────────────────────

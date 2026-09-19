@@ -2087,7 +2087,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
 # `compositeToGrade()` in `CreditScoreCard.tsx` mirrors those rungs;
 # `tests/engine/test_credit_ladder_single_source.py` reds on a second
 # literal copy anywhere in this module or in `engine/ratios/`.
-def _composite_to_letter_grade(composite: float) -> str:
+def _composite_to_letter_grade(composite: Optional[float]) -> Optional[str]:
+    # None for a null, non-finite or out-of-range composite (R-RANGE): a
+    # letter is never minted from a score the model did not validly produce.
     return _credit_model.composite_to_letter_grade(composite)
 
 
@@ -7316,7 +7318,10 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
-        _as_filed_weights, _as_filed_refused = _credit_model.as_filed_applied_weights(metrics or [])
+        _as_filed_by_name = {m["name"]: m.get("value") for m in (metrics or [])}
+        # The refusal reasons come from the model's own predicate over the
+        # SAME statements the rows were computed from (revision 2).
+        _as_filed_refused = _credit_model._refused_subscores(_as_filed_by_name, statements)
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7387,16 +7392,16 @@ def build_router() -> APIRouter:
                 # The rungs the letter above was read off — the same
                 # `CREDIT_LETTER_LADDER`, served, never a second copy.
                 "letter_grade_bands": _credit_model.letter_grade_bands(),
-                # The weights the PERSISTED composite was multiplied by —
-                # renormalised over the persisted sub-scores that carry a
-                # value when the rows are revision 2 or later, the model
-                # table otherwise (`as_filed_applied_weights`) — with the
-                # sub-scores it was scored without and the model table
-                # they were renormalised from, the same three fields the
-                # serve branch below passes through.
-                "composite_weights": _as_filed_weights,
+                # The model's weight table — the only weights a composite is
+                # ever multiplied by (R-COMPOSITE: never renormalised) — with
+                # the persisted sub-scores the model refused and, when the
+                # composite is absent, why: the same fields the serve branch
+                # below passes through.
+                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
                 "refused_subscores": _as_filed_refused,
-                "model_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
+                "reason": (_credit_model.credit_reason(_as_filed_by_name, _as_filed_refused,
+                                                       _m("credit_composite"))
+                           if metrics else None),
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",

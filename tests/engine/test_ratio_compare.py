@@ -101,6 +101,16 @@ def _pair(prior_metrics=None, cur_signal=None, pri_signal=None):
     return cur, pri
 
 
+def _scoring_pair(prior_metrics=None):
+    """A pair whose PRIOR the credit model scores: the analytic book against
+    its condensed form. The picked synthetic book (`saga_compact_6_col`)
+    carries no liabilities, so since R-COMPOSITE its composite and letter
+    refuse — correct, and useless to a gate about a prior's composite."""
+    cur = F.served_payload(_AN[1], "p-cur", "2025-12-31")
+    pri = F.served_payload(F.condense(_AN[1]), "p-pri", "2024-12-31", metrics=prior_metrics)
+    return cur, pri
+
+
 def _compare(cur, pri):
     return RC.compare_ratio_tables(cur, pri, current_label="2025", prior_label="2024",
                                    piotroski_checks=_piotroski_checks,
@@ -115,7 +125,7 @@ def _all_rows(out) -> List[Dict[str, Any]]:
 
 
 def test_a_prior_with_no_persisted_metric_rows_still_carries_its_composite():
-    cur, pri = _pair(prior_metrics=[])
+    cur, pri = _scoring_pair(prior_metrics=[])
     out = _compare(cur, pri)
     comps = {r["key"]: r for r in out["composites"]}
     expected = {r["name"]: r["value"] for r in CM.compute_period_metrics(copy.deepcopy(pri["statements"]))}
@@ -151,7 +161,7 @@ def test_a_prior_whose_rows_agree_discloses_no_as_filed_difference():
 
 
 def test_stale_persisted_rows_are_disclosed_as_filed():
-    cur, pri = _pair()
+    cur, pri = _scoring_pair()
     stale = [dict(r) for r in pri["metrics"]]
     for r in stale:
         if r["name"] == "credit_composite":

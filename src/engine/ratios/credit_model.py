@@ -28,26 +28,41 @@ against the model that produced it. Change the weights, a sub-score
 mapping, the Altman coefficients or the ladder and the revision moves
 with them.
 
-ABSENT IS NEVER ZERO (revision 2, 2026-09-15, ruling Q2). Revision 1 read a
-book with no current liabilities as liquidity sub-score 0.0 (`if
-current_liab > 0 else 0` on all three ratios) and divided Altman X4 by
-`max(total_liabilities, 1)`: `saga_compact_6_col`, whose liabilities are all
-zero, served X4 1500.0, Z'' 1584.89, liquidity 0.0 and composite 88.5 AA.
-Revision 2 REFUSES instead: current liabilities not positive -> the
-liquidity sub-score refuses (`current_liabilities_not_positive`); total
-liabilities not positive -> X4 refuses, so Z'' and the Altman sub-score
-refuse (`total_liabilities_not_positive`). The composite is the weighted
-sum over the sub-scores that computed, with their weights renormalised to
-sum to one (`applied_composite_weights`); `credit_block` serves the refused
-sub-scores with their reasons and the weights the composite actually used.
-A book with no refusal is computed by the same expression as revision 1,
-byte for byte.
+ABSENT IS NEVER ZERO, AND NEVER A FLOOR (revision 2, 2026-09-15, rulings
+Q2 corrected, R-COMPOSITE, R-D4). Revision 1 read a book with no current
+liabilities as liquidity sub-score 0.0 (`if current_liab > 0 else 0` on all
+three ratios) and divided Altman X4 by `max(total_liabilities, 1)`:
+`saga_compact_6_col`, whose liabilities are all zero, served X4 1500.0, Z''
+1584.89, liquidity 0.0 and composite 88.5 AA. Revision 2 REFUSES instead:
+
+  · current liabilities not positive -> the liquidity sub-score refuses
+    (`current_liabilities_not_positive`);
+  · total liabilities below the pack's materiality share of total assets
+    (`packs/credit/model.yaml`, 1%) -> X4 refuses, so Z'', the zone and the
+    Altman sub-score refuse (`total_liabilities_below_materiality`);
+  · any sub-score refused -> the COMPOSITE AND THE LETTER REFUSE
+    (`credit_component_undefined`), and the refusal lists every refused
+    component with its code, inputs and text.
+
+⚠ THE WEIGHTS ARE NEVER REDISTRIBUTED. An earlier cut of this revision
+renormalised the weights over the sub-scores that computed and still served
+a composite and a letter. Measured on the real GET /api/period route:
+`corpus/imbalance_03pct` (cash 1,000,000, share capital 997,000, no
+liabilities, empty P&L) served 39.2 CCC over 60% of the model, and a book
+with 1 RON of liabilities served Z'' 10,416.74 "safe" and 63.5 BBB. A
+composite scored over part of its model is a different model wearing its
+name. A book with no refusal is computed by the same expression as
+revision 1, byte for byte.
 """
 
 from __future__ import annotations
 
 import logging
+import math
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
+
+from engine.ratios.credit_pack import CREDIT_PACK_FILE, credit_pack, share_percent, x4_materiality_share
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +92,8 @@ CREDIT_LETTER_LADDER: Tuple[Tuple[int, str], ...] = (
 #: Composite weights, by sub-score. The ONE statement: the composite below
 #: multiplies by these and `GET /api/period` serves them
 #: (`assembled_metrics.credit.composite_weights`). Before 2026-09-14 the
-#: served weights were a second literal dict in `get_period`.
+#: served weights were a second literal dict in `get_period`. They are
+#: NEVER renormalised: a composite with a refused component refuses.
 CREDIT_COMPOSITE_WEIGHTS: Dict[str, float] = {
     "altman": 0.30,
     "profitability": 0.20,
@@ -105,47 +121,326 @@ CREDIT_SUBSCORE_METRICS: Tuple[Tuple[str, str], ...] = (
     ("equity", "credit_subscore_equity"),
 )
 
-#: The reason a period carries no credit composite: the model names a
-#: missing operand (today: total assets not positive, so no Altman).
+#: The reason a period carries no credit composite at all: the model did
+#: not run (total assets not positive).
 CREDIT_INPUTS_ABSENT = "credit_inputs_absent"
 
-#: Why a single sub-score refuses while the composite is still computed.
+#: Why a single sub-score refuses (revision 2). Any one makes the composite
+#: refuse. The first four are PREDICATES over the statements (one function,
+#: `component_refusals`, decides them for the model and for the served
+#: block alike); the fifth is found AFTER composition, when a computed value
+#: lies outside its pack-declared range (R-RANGE).
 CURRENT_LIABILITIES_NOT_POSITIVE = "current_liabilities_not_positive"
-TOTAL_LIABILITIES_NOT_POSITIVE = "total_liabilities_not_positive"
+TOTAL_LIABILITIES_BELOW_MATERIALITY = "total_liabilities_below_materiality"
+REVENUE_NOT_POSITIVE = "revenue_not_positive"
+INTEREST_EXPENSE_NOT_POSITIVE = "interest_expense_not_positive"
+CREDIT_OUT_OF_RANGE = "credit_out_of_range"
 CREDIT_SUBSCORE_REFUSAL_CODES: Tuple[str, ...] = (
     CURRENT_LIABILITIES_NOT_POSITIVE,
-    TOTAL_LIABILITIES_NOT_POSITIVE,
+    TOTAL_LIABILITIES_BELOW_MATERIALITY,
+    REVENUE_NOT_POSITIVE,
+    INTEREST_EXPENSE_NOT_POSITIVE,
+    CREDIT_OUT_OF_RANGE,
 )
+
+#: Why the composite and the letter refuse when a component is undefined.
+CREDIT_COMPONENT_UNDEFINED = "credit_component_undefined"
+
+# ── the credit pack (packs/credit/model.yaml) ────────────────────────────────
+#
+# Every threshold, rung and range is pack DATA, read by
+# `engine.ratios.credit_pack` — the one module allowed to open it, so this
+# module stays free of files, clients and clocks
+# (`test_credit_model_pure.test_the_credit_model_imports_no_client`).
 
 _CURRENT_LIABILITY_INPUTS = ("balanceSheet.accountsPayable", "balanceSheet.shortTermDebt",
                              "balanceSheet.otherCurrentLiabilities")
 
-#: sub-score -> the refusal its row carries when it is absent beside a
-#: computed composite. These are the ONLY two ways a sub-score refuses in
-#: revision 2 (every other sub-score is computed whenever total assets are
-#: positive), so a None sub-score row names its reason without guessing.
-CREDIT_SUBSCORE_REFUSALS: Dict[str, Dict[str, Any]] = {
-    "liquidity": {"code": CURRENT_LIABILITIES_NOT_POSITIVE,
-                  "inputs": list(_CURRENT_LIABILITY_INPUTS)},
-    "altman": {"code": TOTAL_LIABILITIES_NOT_POSITIVE,
-               "inputs": list(_CURRENT_LIABILITY_INPUTS) + [
-                   "balanceSheet.longTermDebt", "balanceSheet.otherNonCurrentLiabilities"]},
+_TOTAL_LIABILITY_INPUTS = _CURRENT_LIABILITY_INPUTS + (
+    "balanceSheet.longTermDebt", "balanceSheet.otherNonCurrentLiabilities")
+
+_DEBT_INPUTS = ("balanceSheet.shortTermDebt", "balanceSheet.longTermDebt")
+
+#: The inputs each predicate refusal names.
+_REFUSAL_INPUTS: Dict[str, List[str]] = {
+    CURRENT_LIABILITIES_NOT_POSITIVE: list(_CURRENT_LIABILITY_INPUTS),
+    TOTAL_LIABILITIES_BELOW_MATERIALITY: list(_TOTAL_LIABILITY_INPUTS) + ["balanceSheet.total_assets"],
+    REVENUE_NOT_POSITIVE: ["incomeStatement.revenue"],
+    INTEREST_EXPENSE_NOT_POSITIVE: ["incomeStatement.interestExpense"] + list(_DEBT_INPUTS)
+    + ["incomeStatement.operating_profit"],
 }
 
 
-def applied_composite_weights(computed: Any) -> Dict[str, float]:
-    """The weights the composite multiplies by, over the sub-scores that
-    `computed` names. All seven computed -> `CREDIT_COMPOSITE_WEIGHTS`
-    verbatim (no division, so a book with no refusal is byte-identical to
-    revision 1); otherwise each computed weight divided by the sum of the
-    computed weights, in the table's order."""
-    keys = [k for k in CREDIT_COMPOSITE_WEIGHTS if k in set(computed)]
-    if len(keys) == len(CREDIT_COMPOSITE_WEIGHTS):
-        return dict(CREDIT_COMPOSITE_WEIGHTS)
-    total = sum(CREDIT_COMPOSITE_WEIGHTS[k] for k in keys)
-    if total <= 0:
-        return {}
-    return {k: CREDIT_COMPOSITE_WEIGHTS[k] / total for k in keys}
+def _operands(bs: Dict[str, Any], interest: float, ebit: float, ebitda: float,
+              revenue: float) -> Dict[str, Any]:
+    """The primitives every predicate below reads, from the statements'
+    leaves — the SAME arithmetic `compute_period_metrics` uses for its
+    rows, so a predicate and a row cannot disagree about an operand."""
+    current_assets = bs["cash"] + bs["accountsReceivable"] + bs["inventory"] + bs["otherCurrentAssets"]
+    non_current_assets = bs["propertyPlantEquipment"] + bs["intangibles"] + bs["otherNonCurrentAssets"]
+    total_assets = current_assets + non_current_assets
+    current_liab = bs["accountsPayable"] + bs["shortTermDebt"] + bs["otherCurrentLiabilities"]
+    total_liab = current_liab + bs["longTermDebt"] + bs["otherNonCurrentLiabilities"]
+    total_debt = bs["shortTermDebt"] + bs["longTermDebt"]
+    total_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
+    return {
+        "total_assets": total_assets,
+        "current_liab_positive": current_liab > 0,
+        "total_liab": total_liab,
+        "tl_material": (total_liab > 0 and Decimal(repr(float(total_liab)))
+                        >= x4_materiality_share() * Decimal(repr(float(total_assets)))),
+        "total_debt": total_debt,
+        "interest_positive": interest > 0,
+        "interest_zero": interest == 0,
+        "ebit": ebit,
+        "ebitda": ebitda,
+        "net_debt": total_debt - bs["cash"],
+        "total_equity": total_equity,
+        "equity_ratio": (total_equity / total_assets) if total_assets > 0 else None,
+        "revenue": revenue,
+    }
+
+
+def statement_operands(statements: Dict[str, Any]) -> Dict[str, Any]:
+    """`_operands` from a served statements block — the entry point a
+    served block uses to run the SAME predicates the model ran."""
+    bs = statements["balanceSheet"]
+    pl = statements["incomeStatement"]
+    gross_profit = pl["revenue"] - pl["costOfGoodsSold"]
+    ebit = gross_profit - pl["operatingExpenses"] - pl["depreciationAmortization"] + pl["otherIncome"]
+    return _operands(bs, pl["interestExpense"], ebit, ebit + pl["depreciationAmortization"], pl["revenue"])
+
+
+def operands_from_rows(rows_by_name: Dict[str, Any]) -> Dict[str, Any]:
+    """The operands recovered from the model's OWN rows, for a caller that
+    holds rows and no statements (a block read back off persisted rows).
+    Every field is read from a row the model emits; `current_liab_positive`
+    is read off the current-ratio row (None exactly when current liabilities
+    are zero), `tl_material` off the X4 row and `interest_positive` off the
+    EBITDA-to-interest row (None exactly when interest is zero). It is the
+    documented fallback, never the served path's source: both live callers
+    pass the statements."""
+    cur = _num(rows_by_name.get("current_ratio"))
+    return {
+        "total_assets": _num(rows_by_name.get("total_assets")) or 0.0,
+        "current_liab_positive": cur is not None and cur >= 0,
+        "total_liab": None,
+        "tl_material": _num(rows_by_name.get("altman_x4")) is not None,
+        "total_debt": _num(rows_by_name.get("total_debt")) or 0.0,
+        "interest_positive": _num(rows_by_name.get("ebitda_to_interest")) is not None,
+        "interest_zero": _num(rows_by_name.get("ebitda_to_interest")) is None,
+        "ebit": _num(rows_by_name.get("operating_profit")) or 0.0,
+        "ebitda": _num(rows_by_name.get("ebitda")) or 0.0,
+        "net_debt": _num(rows_by_name.get("net_debt")) or 0.0,
+        "total_equity": _num(rows_by_name.get("total_equity")) or 0.0,
+        "equity_ratio": _num(rows_by_name.get("equity_ratio")),
+        "revenue": _num(rows_by_name.get("revenue")) or 0.0,
+    }
+
+
+def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
+    """THE predicate: which sub-scores refuse on these operands, by code.
+    Run by the model to decide, and by the served block to label — one
+    function, so the two cannot disagree.
+
+      liquidity     current liabilities not positive            (Q2)
+      altman        total liabilities below the pack share of TA (R-D4)
+      profitability revenue not positive                        (R-D2)
+      coverage/dscr interest not positive, and not the R-D1 rung
+                    (debt == 0, interest == 0, EBIT > 0)        (R-D1)
+
+    A refusal after composition (`credit_out_of_range`) is not a predicate;
+    the block finds it on the rows."""
+    out: Dict[str, str] = {}
+    if not ops["current_liab_positive"]:
+        out["liquidity"] = CURRENT_LIABILITIES_NOT_POSITIVE
+    if not ops["tl_material"]:
+        out["altman"] = TOTAL_LIABILITIES_BELOW_MATERIALITY
+    if not ops["revenue"] > 0:
+        out["profitability"] = REVENUE_NOT_POSITIVE
+    if not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
+        out["coverage"] = INTEREST_EXPENSE_NOT_POSITIVE
+        out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
+    return out
+
+
+def declared_rungs(ops: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Which sub-scores take a DECLARED rung on these operands, with the
+    pack's rung (`{rung, score, when, label, source, file}`) — stated, not
+    measured, and served labelled so no surface prints it as a measurement.
+
+      coverage, dscr  no interest-bearing debt: debt == 0, interest == 0
+                      and EBIT > 0, all measured                   (R-D1)
+      leverage        EBITDA <= 0 with net debt > 0, both measured (R-D3)
+      equity          equity ratio <= 0, measured                  (R-D2)
+    """
+    pack = credit_pack()["declared_rungs"]
+    out: Dict[str, Dict[str, Any]] = {}
+    if ops["total_debt"] == 0 and ops["interest_zero"] and ops["ebit"] > 0:
+        out["coverage"] = dict(pack["coverage"])
+        out["dscr"] = dict(pack["dscr"])
+    if ops["net_debt"] > 0 and not ops["ebitda"] > 0:
+        out["leverage"] = dict(pack["leverage"])
+    if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0:
+        out["equity"] = dict(pack["equity"])
+    return out
+
+
+def profitability_disclosure(ops: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """R-D2: with book equity not positive and revenue positive, ROE is
+    undefined and the sub-score is the net-margin term alone — the pack's
+    disclosed variant, served on the block."""
+    if ops["revenue"] > 0 and ops["total_equity"] <= 0:
+        return dict(credit_pack()["profitability_roe_undefined"])
+    return None
+
+
+def credit_ranges(x2: Optional[float] = None, x3: Optional[float] = None) -> Dict[str, Any]:
+    """The pack-declared ranges every served score is read against, with
+    the Z'' bound DERIVED for this book from the bounded components (X1's
+    and X4's pack maxima) and the book's own measured X2 and X3, printed
+    with its derivation (R-RANGE). `altman_z.bound` is None when X2 or X3
+    is not given."""
+    r = credit_pack()["ranges"]
+    x1_max, x4_max = r["altman_x1"]["max"], r["altman_x4"]["max"]
+    bound = None
+    if x2 is not None and x3 is not None and math.isfinite(x2) and math.isfinite(x3):
+        bound = 6.56 * x1_max + 3.26 * x2 + 6.72 * x3 + 1.05 * x4_max
+    return {
+        "subscore": dict(r["subscore"]),
+        "composite": dict(r["composite"]),
+        "altman_x1": dict(r["altman_x1"]),
+        "altman_x4": dict(r["altman_x4"]),
+        "altman_z": dict(r["altman_z"], bound=bound,
+                         derivation=None if bound is None else
+                         "6.56 x %s + 3.26 x %s + 6.72 x %s + 1.05 x %s = %s"
+                         % (format(x1_max, "g"), format(x2, "g"), format(x3, "g"), format(x4_max, "g"),
+                            format(bound, ".4f"))),
+    }
+
+
+def _in_range(v: Optional[float], lo: Optional[float], hi: Optional[float]) -> bool:
+    if v is None or isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return False
+    return (lo is None or v >= lo) and (hi is None or v <= hi)
+
+
+def score_out_of_range(v: Optional[float], which: str = "subscore") -> bool:
+    """True when a computed sub-score or composite is not finite or lies
+    outside its pack range. None is not out of range — it is absent."""
+    if v is None:
+        return False
+    r = credit_pack()["ranges"][which]
+    return not _in_range(v, r["min"], r["max"])
+
+
+def altman_out_of_range(x1: Optional[float], x2: Optional[float], x3: Optional[float],
+                        x4: Optional[float], z: Optional[float]) -> Optional[str]:
+    """The first Altman figure outside its declared range (`altman_x1`,
+    `altman_x2`, `altman_x3`, `altman_x4` or `altman_z_score`), or None when
+    all are in range. Absent figures are not checked."""
+    ranges = credit_ranges(x2, x3)
+    if x1 is not None and not _in_range(x1, None, ranges["altman_x1"]["max"]):
+        return "altman_x1"
+    for name, v in (("altman_x2", x2), ("altman_x3", x3)):
+        if v is not None and not _in_range(v, None, None):
+            return name
+    if x4 is not None and not _in_range(x4, None, ranges["altman_x4"]["max"]):
+        return "altman_x4"
+    if z is not None and not _in_range(z, None, ranges["altman_z"]["bound"]):
+        return "altman_z_score"
+    return None
+
+
+def subscore_refusal(key: str, code: Optional[str] = None,
+                     out_of_range_input: Optional[str] = None) -> Dict[str, Any]:
+    """The served refusal of one sub-score: `{code, component, inputs, text}`
+    and, for the Altman materiality refusal, the pack materiality it was
+    read against (`materiality: {share, basis, source, file}`) — the
+    threshold rendered from the pack, never written as prose (TC-10). A
+    `credit_out_of_range` refusal names the figure that left its range and
+    the range it was read against."""
+    code = code or CREDIT_INPUTS_ABSENT
+    out: Dict[str, Any] = {"code": code, "component": key,
+                           "inputs": list(_REFUSAL_INPUTS.get(code, ["credit_model.%s" % key]))}
+    if code == TOTAL_LIABILITIES_BELOW_MATERIALITY:
+        pack = credit_pack()
+        out["materiality"] = {"share": format(pack["share"], "f"), "basis": pack["basis"],
+                              "source": pack["source"], "file": pack["file"]}
+        out["text"] = (
+            "Altman Z'' is not scored: total liabilities are below %s of total assets for this "
+            "period (%s), so X4 (equity / total liabilities) is not defined, and neither are "
+            "Z'', its zone or the Altman component." % (share_percent(pack["share"]), pack["file"]))
+    elif code == CURRENT_LIABILITIES_NOT_POSITIVE:
+        out["text"] = ("The liquidity component is not scored: current liabilities are not positive "
+                       "for this period, so the current, quick and cash ratios have no base.")
+    elif code == REVENUE_NOT_POSITIVE:
+        out["text"] = ("The profitability component is not scored: revenue is not positive for this "
+                       "period, so net margin (and with it the blend) is not defined.")
+    elif code == INTEREST_EXPENSE_NOT_POSITIVE:
+        rung = credit_pack()["declared_rungs"]["coverage"]
+        out["text"] = (
+            "The %s component is not scored: interest expense is not positive for this period, so "
+            "%s is not measured, and the declared rung does not apply (it applies only when %s; %s)."
+            % ("interest-coverage" if key == "coverage" else "DSCR",
+               "EBIT / interest" if key == "coverage" else "EBITDA / debt service",
+               rung["when"], rung["file"]))
+    elif code == CREDIT_OUT_OF_RANGE:
+        figure = out_of_range_input or "credit_subscore_%s" % key
+        out["inputs"] = [figure]
+        ranges = credit_pack()["ranges"]
+        if figure == "credit_composite":
+            r = ranges["composite"]
+            rng = "[%g, %g]" % (r["min"], r["max"])
+        elif figure == "altman_x1":
+            rng = "<= %g" % ranges["altman_x1"]["max"]
+        elif figure == "altman_x4":
+            rng = "<= %g (%s)" % (ranges["altman_x4"]["max"], ranges["altman_x4"]["max_is"])
+        elif figure == "altman_z_score":
+            rng = "finite and <= %s" % ranges["altman_z"]["bound_is"]
+        elif figure in ("altman_x2", "altman_x3"):
+            rng = "finite"
+        else:
+            r = ranges["subscore"]
+            rng = "[%g, %g]" % (r["min"], r["max"])
+        out["range"] = rng
+        out["text"] = ("The %s component is not scored: %s lies outside its declared range (%s; %s), "
+                       "so the value is withheld rather than served." % (key, figure, rng, CREDIT_PACK_FILE))
+    else:
+        out["text"] = "The %s component is not scored: the model's inputs for it were not filed." % key
+    return out
+
+
+def composite_refusal(refused: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """The composite's (and the letter's) refusal when components refused:
+    `{code: credit_component_undefined, inputs, components: [...]}`, every
+    refused component listed in the model's order with its own refusal.
+    The weights are not redistributed, so there is no composite to state."""
+    components = [dict(refused[k], code=CREDIT_COMPONENT_UNDEFINED, cause=refused[k]["code"])
+                  for k in CREDIT_COMPOSITE_WEIGHTS if k in refused]
+    return {
+        "code": CREDIT_COMPONENT_UNDEFINED,
+        "inputs": ["credit_model.%s" % c["component"] for c in components],
+        "components": components,
+        "text": "No composite and no letter: the model's weights are not redistributed over the "
+                "components that scored, and %s did not score. %s" % (
+                    " and ".join(c["component"] for c in components),
+                    " ".join(c["text"] for c in components)),
+    }
+
+
+def composite_out_of_range_refusal(composite: Optional[float]) -> Dict[str, Any]:
+    """The composite's refusal when it was composed and left its range."""
+    r = credit_pack()["ranges"]["composite"]
+    return {
+        "code": CREDIT_OUT_OF_RANGE,
+        "inputs": ["credit_composite"],
+        "range": "[%g, %g]" % (r["min"], r["max"]),
+        "components": [],
+        "text": "No composite and no letter: the composed value%s lies outside the model's declared "
+                "range [%g, %g] (%s), so it is withheld." % (
+                    "" if composite is None else " %r" % composite, r["min"], r["max"], CREDIT_PACK_FILE),
+    }
 
 
 def altman_zone(z: Optional[float]) -> Optional[str]:
@@ -159,13 +454,20 @@ def altman_zone(z: Optional[float]) -> Optional[str]:
     return "distress"
 
 
-def composite_to_letter_grade(composite: float) -> str:
-    """The letter for a composite score, read off `CREDIT_LETTER_LADDER`.
+def composite_to_letter_grade(composite: Optional[float]) -> Optional[str]:
+    """The letter for a composite score, read off `CREDIT_LETTER_LADDER` —
+    or NONE.
 
-    A composite below the lowest floor (negative is reachable: the
-    liquidity sub-score is not clamped below zero) and a NaN both take
-    the last rung, exactly as the if-chain this replaces did.
+    A letter is minted only from a composite that exists and lies inside
+    the pack's composite range (R-RANGE). None, NaN, infinity and any value
+    outside [min, max] return None: revision 1 mapped NaN and a negative
+    composite to the last rung ("CC"), which printed a letter for a score
+    the model never validly produced (synthetic_negative_equity: -2.9 CC).
     """
+    if composite is None or isinstance(composite, bool) or not isinstance(composite, (int, float)):
+        return None
+    if score_out_of_range(float(composite), "composite"):
+        return None
     ladder = CREDIT_LETTER_LADDER
     for floor, grade in ladder:
         if composite >= floor:
@@ -341,7 +643,12 @@ def compute_period_metrics(
         {"name": "interest_coverage",  "value": safe(ebitda, interest),             "unit": "ratio", "direction": "higher"},
         {"name": "roa",                "value": safe(net_income_statutory, total_assets),  "unit": "ratio", "direction": "higher"},
         {"name": "roe",                "value": safe(net_income_statutory, total_equity),  "unit": "ratio", "direction": "higher"},
-        {"name": "roic",               "value": safe(operating_profit * (1 - 0.16), max(total_debt + total_equity, 1)), "unit": "ratio", "direction": "higher"},
+        # ROIC = NOPAT / invested capital (debt + equity), DEFINED only for
+        # positive invested capital (ruling R-OTHER, C1.9). Revision 1 floored
+        # the divisor at 1 RON: the agras book with its balance sheet zeroed
+        # served ROIC 12,990,721.7 (1,299,072,170.8%, graded strong).
+        {"name": "roic",               "value": (None if total_debt + total_equity <= 0
+                                                 else safe(operating_profit * (1 - 0.16), total_debt + total_equity)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
         {"name": "free_cash_flow",     "value": round(net_income_statutory + depreciation, 2),"unit": "RON",  "direction": "higher"},
     ]
@@ -485,24 +792,52 @@ def compute_period_metrics(
     # ratio into a single 0-100 number, mapped to a letter grade A-D.
     # Surfaced on the dashboard's CreditScoreCard so the user sees one
     # headline trust signal before drilling into individual ratios.
+    #
+    # REVISION 2 — absent is never zero, and never a floor. The ONE
+    # predicate `component_refusals` decides which sub-scores refuse, the
+    # ONE table `declared_rungs` which take a pack-declared rung, and the
+    # pack ranges are checked on every figure after it is computed
+    # (`credit_out_of_range`). A refused figure serves its row with value
+    # None; the served block (`credit_block`) runs the same predicate over
+    # the same statements to label each absence. A book with nothing
+    # refused and no rung is computed by the same expressions as revision
+    # 1, byte for byte.
     altman_z = None
     composite = None
     letter_grade = None
     if total_assets > 0:
-        x1 = (current_assets - current_liab) / total_assets
-        x2 = bs["retainedEarnings"] / total_assets
-        x3 = operating_profit / total_assets
-        # X4 = book equity / total liabilities. Revision 2: no liabilities
-        # is ABSENT, not a divisor of 1 — X4, Z'' and the Altman sub-score
-        # refuse (`total_liabilities_not_positive`). Revision 1 divided by
-        # max(liabilities, 1) and served X4 1500.0 / Z'' 1584.89 on a book
-        # with no liabilities at all.
-        total_liab = current_liab + non_current_liab
-        x4 = (total_equity / total_liab) if total_liab > 0 else None
-        altman_subscore = None
-        if x4 is not None:
-            altman_z = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
+        ops = _operands(bs, interest, operating_profit, ebitda, revenue)
+        refusals = component_refusals(ops)
+        rungs = declared_rungs(ops)
 
+        x1: Optional[float] = (current_assets - current_liab) / total_assets
+        x2: Optional[float] = bs["retainedEarnings"] / total_assets
+        x3: Optional[float] = operating_profit / total_assets
+        # X4 = book equity / total liabilities — DEFINED only when total
+        # liabilities reach the pack's materiality share of total assets
+        # (R-D4, `packs/credit/model.yaml`). Revision 1 divided by
+        # max(liabilities, 1) and served X4 1500.0 / Z'' 1584.89 on a book
+        # with no liabilities at all; a `> 0` guard still served Z''
+        # 10,416.74 "safe" on a book carrying 1 RON of liabilities.
+        x4: Optional[float] = None
+        altman_subscore: Optional[float] = None
+        if "altman" not in refusals:
+            x4 = total_equity / ops["total_liab"]
+            altman_z = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
+        # R-RANGE: every Altman figure against its declared range. The
+        # offending figure is withheld (X1 alone; X4 with Z''; Z'' alone).
+        bad = altman_out_of_range(x1, x2, x3, x4, altman_z)
+        if bad is not None:
+            if bad == "altman_x1":
+                x1 = None
+            elif bad == "altman_x2":
+                x2 = None
+            elif bad == "altman_x3":
+                x3 = None
+            elif bad == "altman_x4":
+                x4 = None
+            altman_z = None
+        if altman_z is not None:
             # Map Z″ to a 0-100 sub-score with the same three-zone reading the
             # methodology uses (>2.60 safe, 1.10-2.60 grey, <1.10 distress).
             if altman_z >= ALTMAN_SAFE_FROM:
@@ -519,79 +854,127 @@ def compute_period_metrics(
         # reconstruction while the page shows the filed figure is a
         # verdict on a number the reader is never given: agras scored 59.3
         # on profitability from 14.1M, where the filed 7.5M scores 31.7.
-        roe_val = net_income_statutory / total_equity if total_equity > 0 else 0
-        net_margin_val = net_income_statutory / revenue if revenue > 0 else 0
-        prof_subscore = min(100, max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5))
+        # R-D2: revenue not positive -> refused; equity not positive with
+        # revenue positive -> the net-margin term alone, disclosed
+        # (`profitability_disclosure`). Revision 1 read both as 0.
+        prof_subscore: Optional[float] = None
+        if "profitability" not in refusals:
+            net_margin_val = net_income_statutory / revenue
+            if total_equity > 0:
+                roe_val = net_income_statutory / total_equity
+                prof_subscore = min(100, max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5))
+            else:
+                prof_subscore = min(100, max(0, (net_margin_val * 100 * 5) / 1.5))
 
         # Leverage sub-score (lower Net Debt/EBITDA = higher score). The
         # net_debt_ebitda formula uses CASH ebitda not statutory.
+        # R-D3: net debt <= 0 is measured net cash and scores 100 whatever
+        # EBITDA's sign; net debt > 0 with EBITDA <= 0 takes the pack's
+        # declared rung 0, labelled. Revision 1 read EBITDA <= 0 as a 999
+        # sentinel (score 0) even on a net-cash book.
         net_debt = total_debt - bs["cash"]
-        nde = net_debt / ebitda if ebitda > 0 else 999
-        if nde <= 0:
+        if "leverage" in rungs:
+            lev_subscore = rungs["leverage"]["score"]
+        elif net_debt <= 0:
             lev_subscore = 100
-        elif nde <= 1.5:
-            lev_subscore = 90
-        elif nde <= 3.0:
-            lev_subscore = 70
-        elif nde <= 5.0:
-            lev_subscore = 50
         else:
-            lev_subscore = max(0, 50 - (nde - 5) * 10)
+            nde = net_debt / ebitda
+            if nde <= 1.5:
+                lev_subscore = 90
+            elif nde <= 3.0:
+                lev_subscore = 70
+            elif nde <= 5.0:
+                lev_subscore = 50
+            else:
+                lev_subscore = max(0, 50 - (nde - 5) * 10)
 
-        # Interest coverage sub-score: EBIT / interest. 999 sentinel when
-        # there's no interest (zero-debt company).
-        ic = (operating_profit / interest) if interest > 0 else 999
-        if ic >= 8:
-            ic_subscore = 95
-        elif ic >= 4:
-            ic_subscore = 80
-        elif ic >= 2:
-            ic_subscore = 60
-        elif ic >= 1:
-            ic_subscore = 40
-        else:
-            ic_subscore = max(0, ic * 30)
+        # Interest coverage sub-score: EBIT / interest, measured when
+        # interest is positive. R-D1: no interest-bearing debt (debt == 0,
+        # interest == 0, EBIT > 0, all measured) takes the pack's declared
+        # top rung, labelled; any other zero / absent interest state
+        # REFUSES. Revision 1 read every zero-interest state as a 999
+        # sentinel (score 95), loss-making indebted books included.
+        ic_subscore: Optional[float] = None
+        if "coverage" in rungs:
+            ic_subscore = rungs["coverage"]["score"]
+        elif "coverage" not in refusals:
+            ic = operating_profit / interest
+            if ic >= 8:
+                ic_subscore = 95
+            elif ic >= 4:
+                ic_subscore = 80
+            elif ic >= 2:
+                ic_subscore = 60
+            elif ic >= 1:
+                ic_subscore = 40
+            else:
+                ic_subscore = max(0, ic * 30)
 
-        # DSCR — EBITDA / (interest + LT debt principal / 8 years).
-        dscr = (ebitda / (interest + bs["longTermDebt"] / 8)) if interest > 0 else 999
-        if dscr >= 2:
-            dscr_subscore = 90
-        elif dscr >= 1.25:
-            dscr_subscore = 70
-        else:
-            dscr_subscore = max(0, dscr * 50)
+        # DSCR — EBITDA / (interest + LT debt principal / 8 years), on the
+        # same R-D1 rule as coverage.
+        dscr_subscore: Optional[float] = None
+        if "dscr" in rungs:
+            dscr_subscore = rungs["dscr"]["score"]
+        elif "dscr" not in refusals:
+            dscr = ebitda / (interest + bs["longTermDebt"] / 8)
+            if dscr >= 2:
+                dscr_subscore = 90
+            elif dscr >= 1.25:
+                dscr_subscore = 70
+            else:
+                dscr_subscore = max(0, dscr * 50)
 
         # Liquidity sub-score: blend of current / quick / cash ratios.
         # Revision 2: with no current liabilities the three ratios have no
         # base, so the sub-score REFUSES (`current_liabilities_not_positive`)
-        # — revision 1 read each ratio as 0 and scored liquidity 0.0.
-        liq_subscore = None
-        if current_liab > 0:
+        # — revision 1 read each ratio as 0 and scored liquidity 0.0. A
+        # negative ratio term (a negative asset leaf) is out of the
+        # sub-score's domain and refuses (`credit_out_of_range`).
+        liq_subscore: Optional[float] = None
+        liq_out_of_range: Optional[str] = None
+        if "liquidity" not in refusals:
             cur_ratio = current_assets / current_liab
             quick_ratio = (current_assets - bs["inventory"]) / current_liab
             cash_ratio = bs["cash"] / current_liab
-            liq_subscore = (
-                min(100, cur_ratio * 50) + min(100, quick_ratio * 80) + min(100, cash_ratio * 250)
-            ) / 3
+            for term_name, term in (("current_ratio", cur_ratio), ("quick_ratio", quick_ratio),
+                                    ("cash_ratio", cash_ratio)):
+                if term < 0 and liq_out_of_range is None:
+                    liq_out_of_range = term_name
+            if liq_out_of_range is None:
+                liq_subscore = (
+                    min(100, cur_ratio * 50) + min(100, quick_ratio * 80) + min(100, cash_ratio * 250)
+                ) / 3
 
-        # Equity ratio sub-score.
-        eq_subscore = min(100, (total_equity / total_assets) * 200) if total_assets > 0 else 0
+        # Equity ratio sub-score. R-D2: equity ratio <= 0 takes the pack's
+        # declared rung 0, labelled (revision 1 had no lower bound: -500.0
+        # on synthetic_negative_equity, which drove the composite to -2.9).
+        if "equity" in rungs:
+            eq_subscore = rungs["equity"]["score"]
+        else:
+            eq_subscore = min(100, (total_equity / total_assets) * 200)
 
-        # Composite — the methodology's weights over the sub-scores that
-        # computed, renormalised when one refused (`applied_composite_weights`).
-        # With all seven computed this is revision 1's sum, term for term.
-        subscore_values = {
+        # R-RANGE: every sub-score against the pack's [min, max] after it is
+        # computed; a value outside it is withheld, and the composite refuses.
+        subscore_values: Dict[str, Optional[float]] = {
             "altman": altman_subscore, "profitability": prof_subscore,
             "leverage": lev_subscore, "coverage": ic_subscore, "dscr": dscr_subscore,
             "liquidity": liq_subscore, "equity": eq_subscore,
         }
-        weights = applied_composite_weights(
-            [k for k, v in subscore_values.items() if v is not None])
-        composite = 0
-        for key, weight in weights.items():
-            composite = composite + weight * subscore_values[key]
+        for key in CREDIT_COMPOSITE_WEIGHTS:
+            if score_out_of_range(subscore_values[key]):
+                subscore_values[key] = None
 
-        letter_grade = composite_to_letter_grade(composite)
+        # Composite — the methodology's weights, term for term (revision 1's
+        # sum). ANY refused sub-score -> NO composite and NO letter
+        # (R-COMPOSITE): the weights are never redistributed over the rest.
+        # A composite outside its range is withheld too, and mints no letter.
+        if all(subscore_values[k] is not None for k in CREDIT_COMPOSITE_WEIGHTS):
+            composite = 0
+            for key, weight in CREDIT_COMPOSITE_WEIGHTS.items():
+                composite = composite + weight * subscore_values[key]
+            if score_out_of_range(composite, "composite"):
+                composite = None
+            letter_grade = composite_to_letter_grade(composite)
 
         # Surface Altman + composite + sub-scores as calculated_metrics so the
         # CreditScoreCard renders without a separate DB query.
@@ -602,22 +985,19 @@ def compute_period_metrics(
 
         metrics.extend([
             {"name": "altman_z_score",       "value": _r(altman_z, 2),            "unit": "ratio", "direction": "higher"},
-            {"name": "altman_x1",            "value": round(x1, 4),               "unit": "ratio", "direction": "higher"},
-            {"name": "altman_x2",            "value": round(x2, 4),               "unit": "ratio", "direction": "higher"},
-            {"name": "altman_x3",            "value": round(x3, 4),               "unit": "ratio", "direction": "higher"},
+            {"name": "altman_x1",            "value": _r(x1, 4),                  "unit": "ratio", "direction": "higher"},
+            {"name": "altman_x2",            "value": _r(x2, 4),                  "unit": "ratio", "direction": "higher"},
+            {"name": "altman_x3",            "value": _r(x3, 4),                  "unit": "ratio", "direction": "higher"},
             {"name": "altman_x4",            "value": _r(x4, 4),                  "unit": "ratio", "direction": "higher"},
-            {"name": "credit_composite",     "value": round(composite, 1),        "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_altman",       "value": _r(altman_subscore, 1),     "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_profitability","value": round(prof_subscore, 1),    "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_leverage",     "value": round(lev_subscore, 1),     "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_coverage",     "value": round(ic_subscore, 1),      "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_dscr",         "value": round(dscr_subscore, 1),    "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_liquidity",    "value": _r(liq_subscore, 1),        "unit": "score", "direction": "higher"},
-            {"name": "credit_subscore_equity",       "value": round(eq_subscore, 1),      "unit": "score", "direction": "higher"},
+            {"name": "credit_composite",     "value": _r(composite, 1),           "unit": "score", "direction": "higher"},
+        ] + [
+            {"name": name, "value": _r(subscore_values[key], 1), "unit": "score", "direction": "higher"}
+            for key, name in CREDIT_SUBSCORE_METRICS
         ])
         logger.info(
-            "[pipeline] credit: Altman Z″=%s composite=%.0f → grade %s",
-            "refused" if altman_z is None else "%.2f" % altman_z, composite, letter_grade,
+            "[pipeline] credit: Altman Z″=%s composite=%s → grade %s",
+            "refused" if altman_z is None else "%.2f" % altman_z,
+            "refused" if composite is None else "%.0f" % composite, letter_grade,
         )
 
     # ── The revision stamp (2026-09-13) ────────────────────────────────
@@ -696,47 +1076,89 @@ def serve_credit_rows(
     return served, as_filed
 
 
-def _refused_subscores(subscores: Dict[str, Optional[float]]) -> Dict[str, Dict[str, Any]]:
-    """Every absent sub-score beside a computed composite, with the reason
-    `CREDIT_SUBSCORE_REFUSALS` names for it (`credit_inputs_absent` for a
-    sub-score the model has no refusal rule for)."""
+def _refused_subscores(rows_by_name: Dict[str, Any],
+                       statements: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
+    """Every sub-score whose row the model EMITTED with no value, with its
+    refusal (`subscore_refusal`). The reason is the ONE predicate
+    (`component_refusals`) run over the statements the rows came from — or,
+    for a caller holding rows alone, over the operands recovered from the
+    rows (`operands_from_rows`). A row absent with no predicate refusing
+    it, and no declared rung, left its range after composition
+    (`credit_out_of_range`), and the figure that left it is named from the
+    rows. A row that is missing altogether is not a component refusal: the
+    model did not run (total assets not positive)."""
+    ops = statement_operands(statements) if statements else operands_from_rows(rows_by_name)
+    predicate = component_refusals(ops)
     out: Dict[str, Dict[str, Any]] = {}
-    for key, value in subscores.items():
-        if value is None:
-            refusal = CREDIT_SUBSCORE_REFUSALS.get(key) or {
-                "code": CREDIT_INPUTS_ABSENT, "inputs": ["credit_model.%s" % key]}
-            out[key] = {"code": refusal["code"], "inputs": list(refusal["inputs"])}
+    for key, name in CREDIT_SUBSCORE_METRICS:
+        if name not in rows_by_name or _num(rows_by_name.get(name)) is not None:
+            continue
+        if key in predicate:
+            out[key] = subscore_refusal(key, predicate[key])
+            continue
+        out[key] = subscore_refusal(key, CREDIT_OUT_OF_RANGE, _out_of_range_figure(key, rows_by_name))
     return out
 
 
-def as_filed_applied_weights(
-    rows: Optional[List[Dict[str, Any]]],
-) -> Tuple[Dict[str, float], Dict[str, Dict[str, Any]]]:
-    """The weights a PERSISTED composite was multiplied by, and the
-    sub-scores it was scored without — read off the persisted rows, for the
-    `basis: as_filed` credit envelope (served when the serve-time model
-    cannot run).
+def _out_of_range_figure(key: str, m: Dict[str, Any]) -> str:
+    """Which figure of a component left its range, read off the rows the
+    model withheld: the Altman figure the model nulled (X1 alone, X4 with
+    Z'', or Z'' alone), a negative liquidity term, else the sub-score."""
+    if key == "altman":
+        for name in ("altman_x1", "altman_x2", "altman_x3", "altman_x4"):
+            if name in m and _num(m.get(name)) is None:
+                return name
+        return "altman_z_score"
+    if key == "liquidity":
+        for name in ("current_ratio", "quick_ratio", "cash_ratio"):
+            v = _num(m.get(name))
+            if v is not None and v < 0:
+                return name
+    return "credit_subscore_%s" % key
 
-    Revision 2 or later with a composite: `applied_composite_weights` over
-    the persisted sub-score rows that carry a value, and the absent ones as
-    refused with their model reason — the same two fields `credit_block`
-    serves. A composite persisted before revision 2 (stamp 1 or no stamp)
-    was multiplied by the model table whatever its rows carry, so it serves
-    the model table and no refusal: renormalising it here would state a
-    weighting that composite never had. No composite -> the model table."""
-    m = _rows_by_name(rows)
-    composite = _num(m.get("credit_composite"))
-    revision = _num(m.get(CREDIT_MODEL_REVISION_METRIC))
-    if composite is None or revision is None or revision < 2:
-        return dict(CREDIT_COMPOSITE_WEIGHTS), {}
-    subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
-    return (applied_composite_weights([k for k, v in subscores.items() if v is not None]),
-            _refused_subscores(subscores))
+
+def _served_out_of_range(rows_by_name: Dict[str, Any]) -> Dict[str, str]:
+    """THE INDEPENDENT RE-CHECK ON THE ROWS (R-RANGE, every surface): a
+    served sub-score outside the pack range, an Altman figure outside its
+    bound, or a composite outside its range — read off the rows as served,
+    whatever produced them. `{component or "composite": figure}`."""
+    out: Dict[str, str] = {}
+    for key, name in CREDIT_SUBSCORE_METRICS:
+        v = _num(rows_by_name.get(name))
+        if v is not None and score_out_of_range(v):
+            out[key] = name
+    bad = altman_out_of_range(_num(rows_by_name.get("altman_x1")), _num(rows_by_name.get("altman_x2")),
+                              _num(rows_by_name.get("altman_x3")), _num(rows_by_name.get("altman_x4")),
+                              _num(rows_by_name.get("altman_z_score")))
+    if bad is not None and "altman" not in out:
+        out["altman"] = bad
+    c = _num(rows_by_name.get("credit_composite"))
+    if c is not None and score_out_of_range(c, "composite"):
+        out["composite"] = "credit_composite"
+    return out
+
+
+def credit_reason(rows_by_name: Dict[str, Any],
+                  refused: Dict[str, Dict[str, Any]],
+                  composite: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """Why this period carries no composite: a refused component
+    (`credit_component_undefined`, every component listed), a composed
+    value outside its range (`credit_out_of_range`), or a model that did
+    not run (`credit_inputs_absent`). None beside a composite."""
+    if composite is not None:
+        return None
+    if refused:
+        return composite_refusal(refused)
+    if any(name in rows_by_name for _k, name in CREDIT_SUBSCORE_METRICS):
+        # every component scored, the composite did not: it left its range
+        return composite_out_of_range_refusal(_num(rows_by_name.get("credit_composite")))
+    return {"code": CREDIT_INPUTS_ABSENT, "inputs": ["balanceSheet.total_assets"]}
 
 
 def credit_block(
     rows: List[Dict[str, Any]],
     as_filed_rows: Optional[List[Dict[str, Any]]] = None,
+    statements: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The served CreditBlock for one period, read off ITS OWN
     `compute_period_metrics` rows (the serve-time model), with the
@@ -746,26 +1168,46 @@ def credit_block(
     sub-scores at 1dp); the zone and the letter are read off those same
     printed figures, so the zone beside a 2.60 never disagrees with it.
 
-    Revision 2: `refused_subscores` names every sub-score that refused
-    beside a computed composite, with its reason
-    (`CREDIT_SUBSCORE_REFUSALS`); `weights` are the weights the composite
-    multiplied by (`applied_composite_weights` over the sub-scores that
-    computed — the model table itself when none refused) and
-    `model_weights` the table they were renormalised from.
+    Revision 2: `refused_subscores` names every sub-score the model refused,
+    with its `{code, component, inputs, text}` — the reason found by running
+    the model's own predicate over `statements` (pass them; both live
+    callers do) — and the block RE-CHECKS every served figure against the
+    pack ranges (`ranges`), withholding any that left them; any refusal
+    leaves the composite and the letter null, and `reason` lists every
+    refused component. `declared_rungs` labels each sub-score the model
+    STATED rather than measured (R-D1/D2/D3), `profitability_disclosure`
+    says when ROE was dropped from the blend (R-D2). `weights` are the model
+    table, always — never renormalised.
     `as_filed` is served ONLY when the persisted composite, Z'' or letter
     differs from the served one at that same precision (after a
     reanalyze, which never recomputes metrics, or for rows persisted
-    before a model change); persisted rows with no revision stamp print
-    revision "unknown". No persisted rows at all -> `as_filed` null and
-    `as_filed_differs` false: nothing was filed to differ from.
+    before a model change); a persisted figure outside its range is
+    WITHDRAWN (null, named in `as_filed.withdrawn`), never reprinted;
+    persisted rows with no revision stamp print revision "unknown". No
+    persisted rows at all -> `as_filed` null and `as_filed_differs` false:
+    nothing was filed to differ from.
     """
-    m = _rows_by_name(rows)
+    m = dict(_rows_by_name(rows))
+    # The independent re-check: a served figure outside its range is
+    # withheld here whatever produced the rows.
+    served_bad = _served_out_of_range(m)
+    for key, figure in served_bad.items():
+        if key == "composite":
+            m["credit_composite"] = None
+            continue
+        m["credit_subscore_%s" % key] = None
+        if key == "altman":
+            m[figure] = None
+            m["altman_z_score"] = None
+    if served_bad and any(k != "composite" for k in served_bad):
+        m["credit_composite"] = None
     z = _num(m.get("altman_z_score"))
     composite = _num(m.get("credit_composite"))
-    letter = None if composite is None else composite_to_letter_grade(composite)
+    letter = composite_to_letter_grade(composite)
     subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
-    refused_subscores: Dict[str, Dict[str, Any]] = (
-        _refused_subscores(subscores) if composite is not None else {})
+    refused_subscores = _refused_subscores(m, statements)
+    ops = statement_operands(statements) if statements else operands_from_rows(m)
+    rungs = {k: v for k, v in declared_rungs(ops).items() if subscores.get(k) is not None}
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {
@@ -779,14 +1221,15 @@ def credit_block(
         },
         "subscores": subscores,
         "refused_subscores": refused_subscores,
-        "weights": (applied_composite_weights([k for k, v in subscores.items() if v is not None])
-                    if composite is not None else dict(CREDIT_COMPOSITE_WEIGHTS)),
-        "model_weights": dict(CREDIT_COMPOSITE_WEIGHTS),
+        "declared_rungs": rungs,
+        "profitability_disclosure": (profitability_disclosure(ops)
+                                     if subscores.get("profitability") is not None else None),
+        "weights": dict(CREDIT_COMPOSITE_WEIGHTS),
+        "ranges": credit_ranges(_num(m.get("altman_x2")), _num(m.get("altman_x3"))),
         "composite": composite,
         "letter": letter,
         "ladder": letter_grade_bands(),
-        "reason": None if composite is not None else {
-            "code": CREDIT_INPUTS_ABSENT, "inputs": ["balanceSheet.total_assets"]},
+        "reason": credit_reason(m, refused_subscores, composite),
         "as_filed": None,
         "as_filed_differs": False,
     }
@@ -795,8 +1238,21 @@ def credit_block(
         return block
     f_z = _num(filed.get("altman_z_score"))
     f_c = _num(filed.get("credit_composite"))
-    f_l = None if f_c is None else composite_to_letter_grade(f_c)
     f_rev = _num(filed.get(CREDIT_MODEL_REVISION_METRIC))
+    withdrawn: List[Dict[str, Any]] = []
+    filed_bad = _served_out_of_range(filed)
+    rev_word = "revision %d" % int(f_rev) if f_rev is not None else "an unknown revision"
+    if f_z is not None and ("altman" in filed_bad):
+        withdrawn.append({"figure": "altman_z_score", "value": f_z,
+                          "text": "withdrawn: computed under %s on a substituted operand (%s outside its range)"
+                                  % (rev_word, filed_bad["altman"])})
+        f_z = None
+    if f_c is not None and filed_bad:
+        withdrawn.append({"figure": "credit_composite", "value": f_c,
+                          "text": "withdrawn: computed under %s on a substituted operand (%s outside its range)"
+                                  % (rev_word, ", ".join(sorted(set(filed_bad.values()))))})
+        f_c = None
+    f_l = composite_to_letter_grade(f_c)
 
     def _q(v: Optional[float], places: int) -> Optional[str]:
         return None if v is None else "%.*f" % (places, round(v, places))
@@ -809,6 +1265,7 @@ def credit_block(
             "altman_z": f_z,
             "letter": f_l,
             "credit_model_revision": int(f_rev) if f_rev is not None else "unknown",
+            "withdrawn": withdrawn,
         }
     return block
 
@@ -817,12 +1274,13 @@ def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
     """The GET /api/period `assembled_metrics.credit` envelope for a period
     whose serve-time model ran, projected from its `credit_block` — the one
     builder, so the route and every captured FE fixture carry the same
-    shape. `composite_weights` are the weights the composite multiplied by
-    (renormalised when a sub-score refused); `refused_subscores` says why
-    each absent sub-score is absent and `model_weights` names the table the
-    weights were renormalised from — without them the FE could only print a
-    bare "not reported" beside a refused row, or reach for a model weight
-    the composite never carried."""
+    shape. `composite_weights` are the model table (never renormalised);
+    `refused_subscores` says why each absent sub-score is absent, `reason`
+    why the composite and the letter are absent (listing every refused
+    component), `declared_rungs` which sub-scores were stated rather than
+    measured and `ranges` the bounds every figure was read against —
+    without them the FE could only print a bare "not reported" where the
+    verdict would be."""
     alt = block.get("altman") or {}
     return {
         "altman_z_score": alt.get("z"),
@@ -834,7 +1292,9 @@ def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
         "letter_grade_bands": block.get("ladder"),
         "composite_weights": block.get("weights"),
         "refused_subscores": block.get("refused_subscores"),
-        "model_weights": block.get("model_weights"),
+        "declared_rungs": block.get("declared_rungs"),
+        "profitability_disclosure": block.get("profitability_disclosure"),
+        "ranges": block.get("ranges"),
         "subscores": block.get("subscores"),
         "credit_model_revision": block.get("revision"),
         "basis": "serve",

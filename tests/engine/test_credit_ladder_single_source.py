@@ -142,10 +142,13 @@ def test_the_helper_follows_the_constant(monkeypatch):
     from engine.api import pipeline as P
     from engine.ratios import credit_model as CM
 
+    # -5 is outside the pack's composite range: no letter, on either ladder
+    # (R-RANGE: a letter is never minted from an out-of-range composite).
     before = [P._composite_to_letter_grade(c) for c in (96, 50, 10, -5)]
+    assert before[-1] is None, before
     monkeypatch.setattr(CM, "CREDIT_LETTER_LADDER", PATCHED)
     assert [P._composite_to_letter_grade(c) for c in (96, 50, 10, -5)] == [
-        "ZZ-TOP", "ZZ-MID", "ZZ-LOW", "ZZ-LOW"
+        "ZZ-TOP", "ZZ-MID", "ZZ-LOW", None
     ]
     assert CM.letter_grade_bands() == [{"min": m, "grade": g} for m, g in PATCHED]
     monkeypatch.undo()
