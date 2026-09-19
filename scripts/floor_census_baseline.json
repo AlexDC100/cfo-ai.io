@@ -9,12 +9,6 @@
     "src/engine/api/_benchmark_engine.py": {
       "OR_ZERO": 1
     },
-    "src/engine/api/_valuation.py": {
-      "CLAMP": 7,
-      "S1": 1,
-      "S3": 4,
-      "S7": 1
-    },
     "src/engine/api/cfo_ai.py": {
       "OR_ZERO": 2,
       "S2": 3,
@@ -28,11 +22,9 @@
     },
     "src/engine/api/pipeline.py": {
       "CLAMP": 3,
-      "OR_ZERO": 16,
+      "OR_ZERO": 15,
       "S1": 2,
-      "S3": 8,
-      "S4": 1,
-      "S8": 2
+      "S3": 6
     },
     "src/engine/comparatives/ratio_compare.py": {
       "S8": 1
@@ -40,8 +32,7 @@
     "src/engine/country_packs/ro_romania/chart_of_accounts.py": {
       "CLAMP": 7,
       "OR_ZERO": 8,
-      "S3": 1,
-      "S8": 1
+      "S7": 1
     },
     "src/engine/metrics.py": {
       "S1": 1

@@ -60,7 +60,7 @@ from __future__ import annotations
 import logging
 import math
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from engine.ratios.credit_pack import CREDIT_PACK_FILE, credit_pack, share_percent, x4_materiality_share
 
@@ -201,41 +201,30 @@ def _operands(bs: Dict[str, Any], interest: float, ebit: float, ebitda: float,
     }
 
 
-def statement_operands(statements: Dict[str, Any]) -> Dict[str, Any]:
+def statement_operands(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     """`_operands` from a served statements block — the entry point a
-    served block uses to run the SAME predicates the model ran."""
-    bs = statements["balanceSheet"]
-    pl = statements["incomeStatement"]
-    gross_profit = pl["revenue"] - pl["costOfGoodsSold"]
-    ebit = gross_profit - pl["operatingExpenses"] - pl["depreciationAmortization"] + pl["otherIncome"]
-    return _operands(bs, pl["interestExpense"], ebit, ebit + pl["depreciationAmortization"], pl["revenue"])
+    served block uses to run the SAME predicates the model ran.
 
-
-def operands_from_rows(rows_by_name: Dict[str, Any]) -> Dict[str, Any]:
-    """The operands recovered from the model's OWN rows, for a caller that
-    holds rows and no statements (a block read back off persisted rows).
-    Every field is read from a row the model emits; `current_liab_positive`
-    is read off the current-ratio row (None exactly when current liabilities
-    are zero), `tl_material` off the X4 row and `interest_positive` off the
-    EBITDA-to-interest row (None exactly when interest is zero). It is the
-    documented fallback, never the served path's source: both live callers
-    pass the statements."""
-    cur = _num(rows_by_name.get("current_ratio"))
-    return {
-        "total_assets": _num(rows_by_name.get("total_assets")) or 0.0,
-        "current_liab_positive": cur is not None and cur >= 0,
-        "total_liab": None,
-        "tl_material": _num(rows_by_name.get("altman_x4")) is not None,
-        "total_debt": _num(rows_by_name.get("total_debt")) or 0.0,
-        "interest_positive": _num(rows_by_name.get("ebitda_to_interest")) is not None,
-        "interest_zero": _num(rows_by_name.get("ebitda_to_interest")) is None,
-        "ebit": _num(rows_by_name.get("operating_profit")) or 0.0,
-        "ebitda": _num(rows_by_name.get("ebitda")) or 0.0,
-        "net_debt": _num(rows_by_name.get("net_debt")) or 0.0,
-        "total_equity": _num(rows_by_name.get("total_equity")) or 0.0,
-        "equity_ratio": _num(rows_by_name.get("equity_ratio")),
-        "revenue": _num(rows_by_name.get("revenue")) or 0.0,
-    }
+    None when the block does not carry both statements with every leaf the
+    operands read. There is NO fallback to the model's own rows: a row
+    absent from persisted rows is absent, never 0.0, and a rung declared
+    from a 0.0 that was never measured is a labelled top rung on a book
+    with debt (the B8 verifier's probe: agras with its total_debt row
+    removed was declared "no interest-bearing debt"). With no operands,
+    nothing is declared and every withheld row refuses as
+    `credit_inputs_absent`."""
+    if not isinstance(statements, Mapping):
+        return None
+    bs = statements.get("balanceSheet")
+    pl = statements.get("incomeStatement")
+    if not isinstance(bs, Mapping) or not isinstance(pl, Mapping):
+        return None
+    try:
+        gross_profit = pl["revenue"] - pl["costOfGoodsSold"]
+        ebit = gross_profit - pl["operatingExpenses"] - pl["depreciationAmortization"] + pl["otherIncome"]
+        return _operands(bs, pl["interestExpense"], ebit, ebit + pl["depreciationAmortization"], pl["revenue"])
+    except (KeyError, TypeError):
+        return None
 
 
 def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
@@ -1077,21 +1066,26 @@ def serve_credit_rows(
 
 
 def _refused_subscores(rows_by_name: Dict[str, Any],
-                       statements: Optional[Dict[str, Any]] = None) -> Dict[str, Dict[str, Any]]:
+                       statements: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
     """Every sub-score whose row the model EMITTED with no value, with its
     refusal (`subscore_refusal`). The reason is the ONE predicate
-    (`component_refusals`) run over the statements the rows came from — or,
-    for a caller holding rows alone, over the operands recovered from the
-    rows (`operands_from_rows`). A row absent with no predicate refusing
-    it, and no declared rung, left its range after composition
-    (`credit_out_of_range`), and the figure that left it is named from the
-    rows. A row that is missing altogether is not a component refusal: the
-    model did not run (total assets not positive)."""
-    ops = statement_operands(statements) if statements else operands_from_rows(rows_by_name)
-    predicate = component_refusals(ops)
+    (`component_refusals`) run over the statements the rows came from —
+    `statements` is REQUIRED; there is no operands-from-rows fallback
+    (an absent row read as 0.0 declared rungs the book never earned). A
+    row absent with no predicate refusing it, and no declared rung, left
+    its range after composition (`credit_out_of_range`), and the figure
+    that left it is named from the rows. With statements the operands
+    cannot be read from, every withheld row refuses as
+    `credit_inputs_absent`. A row that is missing altogether is not a
+    component refusal: the model did not run (total assets not positive)."""
+    ops = statement_operands(statements)
+    predicate = component_refusals(ops) if ops is not None else {}
     out: Dict[str, Dict[str, Any]] = {}
     for key, name in CREDIT_SUBSCORE_METRICS:
         if name not in rows_by_name or _num(rows_by_name.get(name)) is not None:
+            continue
+        if ops is None:
+            out[key] = subscore_refusal(key, CREDIT_INPUTS_ABSENT)
             continue
         if key in predicate:
             out[key] = subscore_refusal(key, predicate[key])
@@ -1112,7 +1106,9 @@ def _out_of_range_figure(key: str, m: Dict[str, Any]) -> str:
     if key == "liquidity":
         for name in ("current_ratio", "quick_ratio", "cash_ratio"):
             v = _num(m.get(name))
-            if v is not None and v < 0:
+            # a negative term rounded to the row's precision prints -0.0:
+            # the sign is the evidence, so read it, not `v < 0`
+            if v is not None and math.copysign(1.0, v) < 0:
                 return name
     return "credit_subscore_%s" % key
 
@@ -1157,8 +1153,8 @@ def credit_reason(rows_by_name: Dict[str, Any],
 
 def credit_block(
     rows: List[Dict[str, Any]],
+    statements: Mapping[str, Any],
     as_filed_rows: Optional[List[Dict[str, Any]]] = None,
-    statements: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The served CreditBlock for one period, read off ITS OWN
     `compute_period_metrics` rows (the serve-time model), with the
@@ -1170,8 +1166,8 @@ def credit_block(
 
     Revision 2: `refused_subscores` names every sub-score the model refused,
     with its `{code, component, inputs, text}` — the reason found by running
-    the model's own predicate over `statements` (pass them; both live
-    callers do) — and the block RE-CHECKS every served figure against the
+    the model's own predicate over `statements` (REQUIRED: the rows-only
+    fallback that read an absent row as 0.0 is gone) — and the block RE-CHECKS every served figure against the
     pack ranges (`ranges`), withholding any that left them; any refusal
     leaves the composite and the letter null, and `reason` lists every
     refused component. `declared_rungs` labels each sub-score the model
@@ -1206,8 +1202,11 @@ def credit_block(
     letter = composite_to_letter_grade(composite)
     subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
     refused_subscores = _refused_subscores(m, statements)
-    ops = statement_operands(statements) if statements else operands_from_rows(m)
-    rungs = {k: v for k, v in declared_rungs(ops).items() if subscores.get(k) is not None}
+    ops = statement_operands(statements)
+    # No operands -> nothing is declared: a rung is stated only over
+    # measured operands (R-D1: debt == 0, interest == 0, EBIT > 0, all read).
+    rungs = ({k: v for k, v in declared_rungs(ops).items() if subscores.get(k) is not None}
+             if ops is not None else {})
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {
@@ -1223,7 +1222,8 @@ def credit_block(
         "refused_subscores": refused_subscores,
         "declared_rungs": rungs,
         "profitability_disclosure": (profitability_disclosure(ops)
-                                     if subscores.get("profitability") is not None else None),
+                                     if ops is not None and subscores.get("profitability") is not None
+                                     else None),
         "weights": dict(CREDIT_COMPOSITE_WEIGHTS),
         "ranges": credit_ranges(_num(m.get("altman_x2")), _num(m.get("altman_x3"))),
         "composite": composite,
@@ -1239,6 +1239,10 @@ def credit_block(
     f_z = _num(filed.get("altman_z_score"))
     f_c = _num(filed.get("credit_composite"))
     f_rev = _num(filed.get(CREDIT_MODEL_REVISION_METRIC))
+    # What was FILED, before any withdrawal: a filed 1584.89 beside a
+    # served None differs, and the withdrawal note must be served — a
+    # comparison after nulling read "None == None" and dropped it.
+    filed_z, filed_c = f_z, f_c
     withdrawn: List[Dict[str, Any]] = []
     filed_bad = _served_out_of_range(filed)
     rev_word = "revision %d" % int(f_rev) if f_rev is not None else "an unknown revision"
@@ -1257,7 +1261,8 @@ def credit_block(
     def _q(v: Optional[float], places: int) -> Optional[str]:
         return None if v is None else "%.*f" % (places, round(v, places))
 
-    differs = (_q(f_z, 2) != _q(z, 2)) or (_q(f_c, 1) != _q(composite, 1)) or (f_l != letter)
+    differs = ((_q(filed_z, 2) != _q(z, 2)) or (_q(filed_c, 1) != _q(composite, 1))
+               or (composite_to_letter_grade(filed_c) != letter) or bool(withdrawn))
     block["as_filed_differs"] = bool(differs)
     if differs:
         block["as_filed"] = {
