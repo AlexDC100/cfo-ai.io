@@ -402,6 +402,32 @@ def _engine_gates() -> List[Gate]:
                        "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
                        "test_a_lower_is_better_crossing_is_classified_by_direction",
                        "test_a_ratio_that_did_not_cross_produces_no_finding")),
+        # THE SERVED-RANGE LAW (ruling R-RANGE; owner 2026-09-18: range gate
+        # absolute). An independent law file that imports nothing from the
+        # product, read against the real GET /api/period route over eight
+        # books: the five scoring books, imbalance_03pct and
+        # synthetic_thin_equity (no liabilities) and the thin book carrying
+        # exactly 1 RON of liabilities. Plant log: docs/engine_book/gates.md.
+        Gate("served-range",
+             [PY, "-m", "pytest", "tests/engine/test_served_range.py", "-q"],
+             work_junit=True, floor=25, units="tests",
+             canaries=("test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason",
+                       "test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter",
+                       "test_one_ron_of_liabilities_is_not_a_capital_structure",
+                       "test_the_law_is_independent_of_the_product")),
+        # THE FLOOR CENSUS, engine half (owner rule: absent is never zero and
+        # never a floor). stdlib-ast over a printed 14-file scope for the
+        # eight substitute classes of the floor sweep; the credit tier is
+        # red on any unlisted site, the rest of the scope is a two-way
+        # ratchet. Self-tests its own detection on a committed fixture every
+        # run. Plant log: docs/engine_book/gates.md.
+        Gate("floor-census", [PY, "scripts/check_floor_census.py"],
+             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=100,
+             units="candidate sites",
+             canaries=("self-test S1 DIVISOR_FLOOR",
+                       "self-test S8 CONSTANT_PERIOD",
+                       "credit   src/engine/ratios/credit_model.py",
+                       "credit tier clean")),
         # The route the Ratios tab and the exports call, UN-INTERCEPTED:
         # create_app() itself over the tenancy double, a real ES256 bearer,
         # two corpus books as two periods of one workspace. Every FE ratio

@@ -2917,6 +2917,167 @@ committed fixture's current_ratio prior `1.82` -> `1.83` (`{'current_ratio':
 **REVERT** — `PASS comparatives-route (5.9s, 6 tests)` after each plant.
 Verdict: proven RED.
 
+## served-range
+
+THE SERVED-RANGE LAW (ruling R-RANGE, 2026-09-15; owner 2026-09-18: the
+range gate is absolute). Credit model revision 2 refuses instead of
+flooring — but a refusal that lives only in the product can be undone by
+the product. `tests/engine/served_range_law.py` states every credit score's
+bound, domain and refusal vocabulary as literals with their source and
+IMPORTS NOTHING from the engine (pinned by
+`test_the_law_is_independent_of_the_product`), so the product's own
+`score_out_of_range` cannot pass its own bug. The domain predicates read
+operands from the SERVED statements' leaves, never from a served total or
+ratio.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_served_range.py -q` |
+| work count | junit-xml, floor **25** tests (measured 28: 3 parametrised laws × 8 books + 4 named gates) |
+| canary | `test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason`, `test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter`, `test_one_ron_of_liabilities_is_not_a_capital_structure`, `test_the_law_is_independent_of_the_product` |
+
+Eight books through the real `GET /api/period` router over the
+projection-faithful Supabase double: agras, carniprod, realestate, retail,
+the Scandia FY2025 regression baseline, `corpus/imbalance_03pct` (no
+liabilities, empty P&L), `synthetic_thin_equity` (no liabilities) and the
+same thin book assembled through the production write seam with ONE
+planted 401 row of exactly 1 RON (R-D4: a divisor that is rounding, not a
+capital structure).
+
+**Reds on, after the repair (TC-11):** a zero-liability book (or the 1-RON
+book) serving any Altman figure, a liquidity score or a composite; a
+composite or letter beside a refused component; a sub-score outside
+[0, 100]; X1 above 1, X4 above 1 / share, Z'' above the bound derived from
+the component bounds with the book's own X2 and X3; a refused score with
+no reason or a reason outside the law's vocabulary; ROIC served with
+invested capital <= 0; the composite envelope disagreeing with the
+ratio-table credit block; fewer than five scoring books (non-vacuity).
+
+**What it cannot see (TC-13):** whether an in-range value is the RIGHT
+value (ratio-credit-model's golden), the FE reader (creditRefusedSubscores
+in vitest re-checks the range there), any book outside these eight.
+
+**GREEN** — exit `0`: `28 passed in 3.25s`.
+
+**PLANT A** — `credit_model.py`: `tl_material` forced true and X4 back on
+`max(ops["total_liab"], 1)` (the revision-1 divisor). **RED** — exit `1`,
+`1 failed, 27 passed`: only the 1-RON gate trips, because the model's own
+range check withholds the exploded X4 (`credit_out_of_range` where the law
+demands `total_liabilities_below_materiality`):
+
+```
+FAILED tests/engine/test_served_range.py::test_one_ron_of_liabilities_is_not_a_capital_structure
+E   AssertionError: assert 'credit_out_of_range' == 'total_liabil...w_materiality'
+```
+
+**PLANT A3** — Plant A plus the model's Altman range check off
+(`bad = None`) plus the served block's re-check off
+(`_served_out_of_range` returning `{}`): three independent guards down, so
+the zero-liability book RENDERS an Altman value. **RED** — exit `1`,
+`5 failed, 23 passed`:
+
+```
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[imbalance_03pct]
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[synthetic_thin_equity]
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[thin_plus_1_ron]
+FAILED ...::test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter
+FAILED ...::test_one_ron_of_liabilities_is_not_a_capital_structure
+E   AssertionError: imbalance_03pct credit_subscore_altman (subscores.altman): served 100.0 outside its domain (absent is never a value)
+```
+
+**PLANT B** — `credit_model.py`: the coverage refusal removed and the
+revision-1 sentinel restored (`ic = (operating_profit / interest) if
+interest > 0 else 999`). **RED** — exit `1`, `3 failed, 25 passed`:
+
+```
+E   AssertionError: imbalance_03pct credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+E   AssertionError: synthetic_thin_equity credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+```
+
+**REVERT** — exit `0`: `28 passed in 3.23s`. Verdict: proven RED. The gate
+is independent of all three product-side guards: with every one of them
+down it still reds, and with one of them up it reds on the refusal code.
+
+## floor-census
+
+THE FLOOR CENSUS, engine half (owner rule 2026-09-15 / 2026-09-18: absent
+is never zero and never a floor). Measured before the repair:
+`max(total_liabilities, 1)` served X4 1500.0 and Z'' 1584.89 on a book
+with no liabilities; the `999` sentinel scored coverage 95 on a book with
+no interest and no EBIT; ROIC over a 1-RON floor printed 1,299,072,170.8 %.
+A stdlib-`ast` census over an explicit, printed 14-file scope
+(`scripts/check_floor_census.py`, scope from the floor sweep's
+`synth.census_gate`) for the eight substitute classes — S1 divisor floor,
+S2 or-floor, S3 sentinel-on-undefined, S4 epsilon swap, S5 helper floor,
+S6 none-to-constant, S7 domain replacement, S8 constant period — plus the
+soft CLAMP class and the OR_ZERO ratchet. Denominator reach is computed
+inside each function (direct, through a local, inside a denominator
+expression, or as the denominator argument of a registered division
+helper).
+
+| | |
+|---|---|
+| command | `python scripts/check_floor_census.py` |
+| work count | `GATE-WORK floor-census units=(\d+)`, floor **100** candidate sites (measured 131 over 14 files) |
+| canary | `self-test S1 DIVISOR_FLOOR`, `self-test S8 CONSTANT_PERIOD`, `credit   src/engine/ratios/credit_model.py`, `credit tier clean` |
+
+Two tiers, printed on every run. The CREDIT TIER (credit_model.py,
+credit_pack.py, ratios/table.py, comparatives/ratio_compare.py) is RED on
+any S1-S7 or CLAMP site without an allow-list entry
+(`scripts/floor_census_allowlist.json`: 14 entries — the 13 band
+saturations of the documented 0-100 piecewise map, each naming its domain
+guard by CODE TEXT, and the Decimal precision context in
+`quantize_display`). The RATCHET TIER (the other ten files, and S8 /
+OR_ZERO everywhere) holds every (file, class) count to
+`scripts/floor_census_baseline.json` and reds when a count moves in
+EITHER direction — a baseline left stale would hide the next regression
+back up to the old count. A self-test over
+`tests/engine/fixtures/floor_census/substitutes.py` (one verbatim pre-fix
+instance per class) runs first; a class going undetected is DISCOVERY
+BROKEN (exit 2), as is a missing scope file.
+
+**Reds on, after the repair (TC-11):** `max(total_liab, 1)` back in
+credit_model.py; a `999` sentinel back on coverage; an unlisted clamp in
+the credit tier; a stale allow-list row (its code no longer matches, its
+guard text gone from the file, or its legitimacy outside the vocabulary);
+any ratchet row rising or falling without its baseline; any of the eight
+classes going undetected on the fixture.
+
+**What it cannot see (TC-13):** a floor written as arithmetic (`x + 1` as
+a divisor), a literal fed through a name defined in another function, the
+FE half (a TypeScript census, not yet built), anything outside the printed
+scope.
+
+**GREEN** — exit `0`:
+`PASS floor-census — 131 candidate site(s) over 14 files; credit tier clean; ratchet held.`
+
+**PLANT A** — `credit_model.py`: X4 back on `max(ops["total_liab"], 1)`.
+**RED** — exit `1`:
+
+```
+GATE-WORK floor-census units=132 label=candidate-sites scope=14 files credit_tier=4 ratchet_tier=10
+FAIL floor-census — 1 problem(s):
+  FLOOR in the credit tier: src/engine/ratios/credit_model.py:825 [S1 DIVISOR_FLOOR] in compute_period_metrics: max(ops['total_liab'], 1)
+```
+
+**PLANT B** — the coverage `999` sentinel restored. **RED** — exit `1`:
+
+```
+  FLOOR in the credit tier: src/engine/ratios/credit_model.py:899 [S3 SENTINEL_ON_UNDEFINED] in compute_period_metrics: operating_profit / interest if interest > 0 else 999
+```
+
+**PLANT C** — a new `x / max(total_assets, 1)` appended to
+`src/engine/api/_valuation.py` (ratchet tier). **RED** — exit `1`:
+
+```
+FAIL floor-census — 1 problem(s):
+  ratchet: src/engine/api/_valuation.py [S1 DIVISOR_FLOOR] rose 1 -> 2 (a new floor)
+```
+
+**REVERT** — exit `0`:
+`PASS floor-census — 131 candidate site(s) over 14 files; credit tier clean; ratchet held.`
+Verdict: proven RED.
+
 ## ratio-byte-match
 
 The owner's brief as one assertion: every ratio's six cells — [current]

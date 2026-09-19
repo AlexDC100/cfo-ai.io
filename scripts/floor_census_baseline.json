@@ -1,0 +1,61 @@
+{
+  "_": "floor-census ratchet baseline: (file, class) site counts outside the credit tier's hard classes. Rewritten only by `scripts/check_floor_census.py --write-baseline` in a named commit; the gate reds when a count moves in EITHER direction.",
+  "counts": {
+    "src/engine/actions.py": {
+      "OR_ZERO": 7,
+      "S2": 1,
+      "S3": 2
+    },
+    "src/engine/api/_benchmark_engine.py": {
+      "OR_ZERO": 1
+    },
+    "src/engine/api/_valuation.py": {
+      "CLAMP": 7,
+      "S1": 1,
+      "S3": 4,
+      "S7": 1
+    },
+    "src/engine/api/cfo_ai.py": {
+      "OR_ZERO": 2,
+      "S2": 3,
+      "S3": 2
+    },
+    "src/engine/api/frontend.py": {
+      "CLAMP": 2,
+      "OR_ZERO": 7,
+      "S2": 3,
+      "S3": 4
+    },
+    "src/engine/api/pipeline.py": {
+      "CLAMP": 3,
+      "OR_ZERO": 16,
+      "S1": 2,
+      "S3": 8,
+      "S4": 1,
+      "S8": 2
+    },
+    "src/engine/comparatives/ratio_compare.py": {
+      "S8": 1
+    },
+    "src/engine/country_packs/ro_romania/chart_of_accounts.py": {
+      "CLAMP": 7,
+      "OR_ZERO": 8,
+      "S3": 1,
+      "S8": 1
+    },
+    "src/engine/metrics.py": {
+      "S1": 1
+    },
+    "src/engine/public/intelligence/risk_scoring_engine.py": {
+      "CLAMP": 7,
+      "S6": 2
+    },
+    "src/engine/ratios/credit_model.py": {
+      "OR_ZERO": 3,
+      "S8": 6
+    },
+    "src/engine/ratios/table.py": {
+      "S8": 1
+    }
+  }
+}
