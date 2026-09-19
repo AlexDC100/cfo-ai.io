@@ -75,6 +75,8 @@ export function statementsFor(book: Book): BookStatements {
   const fx = JSON.parse(readFileSync(firm(`saga_10_col_${book}.json`), "utf-8")) as {
     statements: BookStatements;
     envelope?: { canonical_bs?: unknown };
+    period_start?: string | null;
+    period_end?: string | null;
   };
   const cbs = fx.envelope?.canonical_bs;
   if (cbs === undefined) {
@@ -83,7 +85,44 @@ export function statementsFor(book: Book): BookStatements {
         `is incomplete, and rendering without it prints an unbalanced balance sheet.`,
     );
   }
-  return { ...fx.statements, canonical_bs: cbs } as BookStatements;
+  return {
+    ...fx.statements,
+    canonical_bs: cbs,
+    supplementary: {
+      ...fx.statements.supplementary,
+      periodDays: servedPeriodDays(fx),
+    },
+  } as BookStatements;
+}
+
+/**
+ * THE SERVED DAY COUNT — the second half of the served-shape join above.
+ *
+ * The fixture snapshots the WRITE seam, and since fc37e23 the assembler
+ * does not claim a period length it was not given: every fixture carries
+ * `supplementary.periodDays: null`. What a customer's page receives is
+ * the SERVED rebuild, where `_served_supplementary` (pipeline.py)
+ * establishes the count from the period row's stated span — every firm
+ * fixture states 01-01 → 12-31, so the served page prints 365 and the
+ * DSO / DIO / DPO the ratio card divides by it.
+ *
+ * Rendering the write-seam null would print "period day count (not
+ * established)" on books whose period IS established — a shape no
+ * customer sees for these books (it is the shape of a `fallback_today`
+ * filing, which `ratioRefusal` and the engine's `test_floor_period_days`
+ * cover). And a `?? 365` here would be the floor the card just stopped
+ * making, moved into the harness. So: the same arithmetic as the served
+ * seam, `(end − start) + 1` in whole days, from the fixture's own dates;
+ * null when the fixture states no span.
+ */
+export function servedPeriodDays(fx: {
+  period_start?: string | null;
+  period_end?: string | null;
+}): number | null {
+  const start = fx.period_start ? Date.parse(`${fx.period_start}T00:00:00Z`) : NaN;
+  const end = fx.period_end ? Date.parse(`${fx.period_end}T00:00:00Z`) : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return Math.round((end - start) / 86_400_000) + 1;
 }
 
 /** The WRITE-path half alone, with no served canonical BS. Kept for the

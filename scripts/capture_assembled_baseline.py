@@ -131,6 +131,11 @@ def _capture(name: str, accounts: List[Dict], ro_coa) -> Dict[str, Any]:
         currency="RON",
         period_label="2025-12-31",
         industry=None,
+        # Both baselines are FY2025 annual trial balances; the stated span
+        # is what establishes `supplementary.periodDays` (365) — the
+        # assembler no longer claims a period length it was not given.
+        period_start="2025-01-01",
+        period_end="2025-12-31",
     )
     # Make floats JSON-serializable with full precision; round at 4
     # decimal places to absorb meaningless trailing noise but catch

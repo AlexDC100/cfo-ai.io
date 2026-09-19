@@ -3212,6 +3212,315 @@ before writing to be the ONLY difference.
 is off everywhere and there is no `/radar` surface. The gate says so rather
 than implying coverage it does not have.
 
+## floor-valuation
+
+Floor substitutes, batch C3 of the 2026-09-15 sweep (owner rulings R-D5,
+R-D6, R-OTHER): the valuation DCF, `POST /api/period/{id}/valuation/
+recompute`, the AI briefing's citable ratio block, the RO pack's ROA check
+and the served period day count. Every defect it covers served a believable
+number built on a figure the book never yielded — book equity floored at
+1 RON (an insolvent book valued 2.5x the same book at +5M equity), a 5%
+cost of debt that overrode a measured 2% rate, an effective tax rate clamped
+into [0, 25%], a base FCF floored at 0 (EV exactly 0 and equity = −net debt
+served as a valuation on three corpus books), a WACC nudged to g + 0.5%
+(terminal_growth 0.2 served EV 692.6M), an operating EBITDA of zero divided
+as 1e-9 (Debt/EBITDA 2e15x handed to the model), margins of 0.00% on no
+revenue, ROA graded FAIL at an invented 0.00% on a zero asset base, and a
+hard-coded `periodDays: 365` at both served-rebuild seams (a June
+year-to-date book's DSO / DIO / DPO at 365/181 times their value). Each is
+now a stated refusal (`{code, inputs, text}`, the text is the sentence the
+page shows) or a DECLARED assumption served with its source and range,
+rendered from pack data (`country_packs/ro_romania/parameters.py`, TC-10).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_floor_dcf.py tests/engine/test_floor_period_days.py tests/engine/test_floor_briefing_ratios.py -q` |
+| work count | junit-xml, floor **54** tests (measured 59: 37 DCF / wiring / recompute / valuation-assumptions, 16 period days / ROA of which 1 is a strict xfail, 6 briefing ratios; the recompute, valuation-assumptions, period-days and stage_narrate tests run over the REAL router and the real `stage_narrate` on corpus books through the anchor test's projection-faithful double — no network, no paid call) |
+| canary | `test_dcf_refuses_when_book_equity_is_not_positive`, `test_a_measured_implied_cost_of_debt_is_used_even_below_the_old_floor`, `test_recompute_answers_400_on_an_out_of_domain_override`, `test_a_31_december_corpus_book_serves_exactly_the_bytes_it_served_before`, `test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios` |
+
+**Reds on, after the repair (TC-11):** a non-positive or absent equity, a
+negative debt, a non-positive base FCF, an absent FCF input, or a WACC at or
+below g ever yielding an enterprise value, an equity value or a sensitivity
+band again (every refusal asserts the values are None, never 0 and never
+−net debt); a measured implied cost of debt (2% on the skeptic's book)
+serving the same Kd and EV as an absent one; an unmeasurable Kd served as a
+number without `kd_source: methodology_assumption`, the range from
+`METHODOLOGY_KD_AFTER_TAX_RANGE` rendered in `kd_note`, or 5% on a book with
+no debt; an effective tax rate of 55%, a negative one, one on a pre-tax loss
+or an absent one served as anything but the statutory rate with its bound in
+the label, or an in-range one (12.5%) not used; a WC-approximated book whose
+DCF text or tiles do not say so, or whose numbers move because of the label;
+the recompute endpoint computing (200) at `forecast_years` 0 or 2.5,
+`terminal_growth` 0.2 or `rf` NaN instead of answering 400 with the domain
+sentence, or answering anything but 200 with a computed DCF at in-domain
+overrides on corpus agras; a 31 December corpus book serving anything but
+exactly `{"periodDays": 365}` and the DSO operand `{"period_days": 365.0,
+"source": "supplementary.periodDays"}` (the corpus regression); a June book
+serving 365 or a DSO other than 181/365 of December's; a `fallback_today`
+filing serving any day count or no `periodDaysRefusal`; the assembler
+claiming a length it was not given; ROA on a zero or negative asset base
+graded pass or fail, or counted in the score; a positive asset base graded
+differently than before; a zero or absent EBITDA or revenue reaching the
+briefing model as a numeral `facts_from_briefing` would let it cite, or the
+Scandia-figure ratio block changing by a cent.
+
+Repair round (2026-09-19), also reds on: the `compute_valuation` WIRING —
+the layer every served / recompute path calls — re-flooring an absent
+equity, debt, cash or working-capital change before the DCF sees it
+(statements with the key REMOVED, asserted at the served envelope, so the
+`_dcf_cross_check` tests can no longer stay green over a floor one layer
+up); a net income BUILT from `pretax - tax` when either is unreported (the
+same envelope declaring "tax expense not reported" and serving an NI that
+read the tax as 0); a nil interest charge on positive debt served as a 0%
+Kd, or as the methodology range without the ruling sentence from
+`METHODOLOGY_KD_ZERO_INTEREST_RULING` on `kd_note`; an absent total debt or
+cash reaching the briefing block as `debt_to_ebitda 0.0` / `debt_to_equity
+0.0` / `net_debt 0.0` (or an explicit None raising TypeError); PUT or DELETE
+`/api/period/{id}/valuation-assumptions` persisting a valuations row without
+the DCF the GET path serves for the same period (the bucket-only rebuild).
+STRICT XFAIL, not a red: the DSO row of a `fallback_today` book still
+carries a value multiplied by `constant.period_days_default` — lane 1 owns
+`src/engine/ratios/table.py`; the marker turns red the day it refuses and is
+removed then.
+
+**GREEN** — exit `0`:
+
+```
+tests/engine/test_floor_dcf.py .............................
+tests/engine/test_floor_period_days.py ...............
+tests/engine/test_floor_briefing_ratios.py .....
+49 passed in 2.18s
+```
+
+**PLANT 1 (C3)** — `src/engine/api/_valuation.py`: the shipped
+`equity_book = max(total_equity, 1.0)` restored (`elif total_equity <= 0`
+made unreachable; `wd = total_debt / (total_debt + max(total_equity, 1.0))`).
+
+**RED** — exit `1`, `2 failed` (both parametrisations of the canary):
+
+```
+    assert _codes(d) == ["dcf_equity_not_positive"]
+E   AssertionError: assert [] == ['dcf_equity_not_positive']
+E     Right contains one more item: 'dcf_equity_not_positive'
+FAILED tests/engine/test_floor_dcf.py::test_dcf_refuses_when_book_equity_is_not_positive[-5000000.0]
+FAILED tests/engine/test_floor_dcf.py::test_dcf_refuses_when_book_equity_is_not_positive[0.0]
+```
+
+**REVERT** — the refusal branch restored; `49 passed in 2.18s`, exit `0`.
+
+**PLANT 2 (C4)** — `src/engine/api/pipeline.py::_briefing_ratios`: the
+shipped `round(total_debt / (ebitda or 1e-9), 2)` restored in place of the
+refusal.
+
+**RED** — exit `1`, `3 failed`:
+
+```
+    assert ratios[key] is None and refusals[key]
+E   assert (2000000000000000.0 is None)
+    assert ratios[key] is None and refusals[key]
+E   assert (-0.0 is None)
+    assert facts["ratios"][key] is None, (key, facts["ratios"][key])
+E   AssertionError: ('debt_to_ebitda', 0.0)
+FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_instead_of_substituting[pl0-bs0-expect_none0]
+FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_instead_of_substituting[pl1-bs1-expect_none1]
+FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_instead_of_substituting[pl2-bs2-expect_none2]
+```
+
+**REVERT** — the refusal restored; `49 passed`, exit `0`.
+
+**PLANT 3 (C5)** — `src/engine/api/pipeline.py::_served_supplementary`: the
+shipped `return {"periodDays": 365}` placeholder restored at the served seam.
+
+**RED** — exit `1`, `2 failed`:
+
+```
+    assert june["statements"]["supplementary"] == {"periodDays": 181}
+E   AssertionError: assert {'periodDays': 365} == {'periodDays': 181}
+    assert sup["periodDays"] is None
+E   assert 365 is None
+FAILED tests/engine/test_floor_period_days.py::test_a_june_year_to_date_book_serves_its_true_day_count
+FAILED tests/engine/test_floor_period_days.py::test_a_fallback_filed_period_serves_no_day_count_and_says_why
+```
+
+**REVERT** — `_served_supplementary` reads the period again; `49 passed`,
+exit `0` (the 31 December corpus book still serves exactly
+`{"periodDays": 365}`).
+
+**PLANT 4 (C3, wiring — P5b)** — `src/engine/api/_valuation.py::compute_valuation`:
+`dcf_cash = _first(..., 0.0)`, legacy debt `else 0.0`, legacy equity
+`else 1.0` — the re-floor one layer above `_dcf_cross_check` that left the
+first 49 tests green.
+
+**RED** — exit `1`, `3 failed`:
+
+```
+E   assert [] == ['dcf_equity_absent']
+E   assert [] == ['dcf_debt_absent']
+E   assert [] == ['dcf_cash_absent']
+FAILED tests/engine/test_floor_dcf.py::test_compute_valuation_refuses_an_absent_balance_or_wc_input[assembled_bs.total_equity-dcf_equity_absent]
+FAILED tests/engine/test_floor_dcf.py::test_compute_valuation_refuses_an_absent_balance_or_wc_input[assembled_bs.total_debt-dcf_debt_absent]
+FAILED tests/engine/test_floor_dcf.py::test_compute_valuation_refuses_an_absent_balance_or_wc_input[assembled_bs.cash-dcf_cash_absent]
+3 failed, 55 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**PLANT 5 (C3, wiring — P5c)** — `dcf_net_wc_change = _first(cf_canonical.get("net_wc_change"), 0.0)`.
+
+**RED** — exit `1`, `1 failed`:
+
+```
+E   assert [] == ['dcf_fcf_input_absent']
+FAILED tests/engine/test_floor_dcf.py::test_compute_valuation_refuses_an_absent_balance_or_wc_input[assembled_cf.net_wc_change-dcf_fcf_input_absent]
+1 failed, 57 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**PLANT 6 (C3, wiring — net income from an absent tax)** — the shipped
+`dcf_net_income = _first(pl_canonical.get("net_income_statutory"), pretax - tax)`
+with `pretax` / `tax` `_safe`d, and `pretax=pretax` handed to the DCF.
+
+**RED** — exit `1`, `1 failed`:
+
+```
+E   AssertionError: assert [] == ['dcf_fcf_input_absent']
+FAILED tests/engine/test_floor_dcf.py::test_compute_valuation_never_builds_net_income_from_an_absent_tax
+1 failed, 57 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**PLANT 7 (C3 — Kd on a nil interest charge)** — `_cost_of_debt_for_dcf`:
+the `interest_expense == 0` note without the ruling sentence.
+
+**RED** — exit `1`, `1 failed`:
+
+```
+E   AssertionError: assert 'a nil interest charge on interest-bearing debt is read as an unstated cost of debt (shareholder loan, capitalised or reclassified interest), not as a measured 0%' in 'The book carries 10.00M RON of debt but no interest expense (class 666) is booked, so its cost of debt cannot be meas...'
+FAILED tests/engine/test_floor_dcf.py::test_a_nil_interest_charge_on_positive_debt_is_the_declared_range_not_a_measured_zero
+1 failed, 57 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**PLANT 8 (C4 — absent debt / cash)** — `pipeline.py::_briefing_ratios`:
+`total_debt = bs_canonical.get("total_debt", 0.0)` / `cash_val = bs_canonical.get("cash", 0.0)` restored.
+
+**RED** — exit `1`, `1 failed`:
+
+```
+E   AssertionError: ({}, 'debt_to_ebitda', {'debt_to_ebitda': 0.0, 'debt_to_equity': 0.0, 'ebitda_margin_pct': 10.0, 'net_debt': 0.0, ...})
+E   assert 0.0 is None
+FAILED tests/engine/test_floor_briefing_ratios.py::test_briefing_ratios_refuse_an_absent_debt_or_cash_instead_of_reading_zero
+1 failed, 57 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**PLANT 9 (C3 — the sibling routes)** — PUT / DELETE
+`/api/period/{id}/valuation-assumptions` back on the bucket-only
+`_rebuild_assembled(line_items, period)`.
+
+**RED** — exit `1`, `2 failed`:
+
+```
+E   AssertionError: {'cash_used': 1168047.04, 'confidence': 'low', 'dcf_enterprise_value': None, 'dcf_equity_value': None, ...}
+E   assert (None is not None)
+FAILED tests/engine/test_floor_dcf.py::test_saving_or_resetting_assumptions_persists_the_dcf_the_get_path_serves[put]
+FAILED tests/engine/test_floor_dcf.py::test_saving_or_resetting_assumptions_persists_the_dcf_the_get_path_serves[delete]
+2 failed, 56 passed, 1 xfailed
+```
+
+**REVERT** — restored; `58 passed, 1 xfailed`, exit `0`.
+
+**Measured blast radius** (GET /api/period over the six RO corpus books
+through the real router, main → this batch; `scripts` scratch
+`blast_radius_served.py`): `saga_10_col`, `saga_10_col_realestate` and
+`imbalance_03pct` had DCF EV 0.0 and equity −31.7M / −17.4M / +1.0M
+(= −net debt) served as a valuation — now `enterprise_value`,
+`equity_value` and both sensitivities are null with
+`dcf_base_fcf_not_positive` in `cross_checks.dcf.refusals` and
+`method_warnings`; `fcf_breakdown.stabilized_fcf` 0.0 → −301,904.65 /
+−4,017,685.40 (signed). WACC 6.46% → 6.91% (`saga_10_col`: effective tax
+55.2% → statutory 16% labelled, was clamped to 25%) and 11.73% → 11.41%
+(`realestate`: pre-tax loss → statutory 16% labelled, was 0%); both Kd
+implied (6.16% / 6.24%) and unchanged. `saga_10_col_agras`,
+`saga_10_col_carniprod`, `saga_10_col_retail`: byte-identical (Kd above the
+old floor, effective tax in range, positive base FCF). `statements.
+supplementary` identical (`{"periodDays": 365}`) on all six.
+`measure_bs_drift.py` GREEN on all seven fixtures (Scandia 0.00);
+`check_assembled_parity.py` RED on inventory leaves identically on main
+(pre-existing, untouched here); `check_cross_view_consistency.py`: the DCF
+gates 18 / 19 / 19b pass, the two failures (BS balance 2,827,483.85; the
+`risk_inventory_leverage` EBITDA citation) are identical on main.
+
+**Repair round, measured blast radius (2026-09-19; the same probe, main →
+branch tip, six corpus books):** the served GET /api/period envelope
+changes are EXACTLY the paragraph above — this round adds none on the
+canonical path. The DCF wiring change is latent there (`assemble_statements`
+always emits `pretax`, `tax` and `net_income_statutory`); the Kd ruling
+changes only `kd_note` on a book with positive debt and a nil class-666
+charge, and no corpus book is one (measured on the write-seam statements:
+`kd_source` implied on saga_10_col / agras / realestate / retail,
+`not_applicable_no_debt` on carniprod / imbalance_03pct). Outside the six:
+(a) a **leap-year** book — an established FY2024 period (period_end
+2024-12-31 with a real signal) serves `periodDays 366`
+(`(end - fy_start).days + 1`), was 365, so DSO / DIO / DPO move by 1/365 on
+every FY2024 book; correct, and the earlier "no RO period with an
+established length changes" was wrong for those. (b) The **persisted
+`valuations` row** written by PUT / DELETE `/valuation-assumptions` now
+carries the DCF the GET path serves (agras / carniprod / retail: an EV;
+saga_10_col / realestate / imbalance_03pct: the same
+`dcf_base_fcf_not_positive` refusal as GET) — before, every save / reset
+persisted `dcf_fcf_input_absent`; the FE reads only `res.ok`, so no page
+changed. (c) The **Valuation tab equity tile** on the three refused books
+renders the engine's refusal sentence (`data-testid="dcf-equity-refused"`)
+instead of the FE `runDcf` figure (−31.7M / −17.4M / +1.0M = −net debt) it
+fell through to beside a `method_warnings` line saying the DCF was not
+computed. (d) The **Statements page day-count ratios** on a period whose
+length is not established — a `fallback_today` filing, or any row persisted
+before 2026-08-30 (`c568098` first stamped `period_detection`;
+`stage_persist` wrote `period_start == period_end`) — now REFUSE DSO / DIO /
+DPO / CCC ("Not reported — this filing does not carry the period's day
+count"); the page used to fall back to the engine's `metrics.dso` etc.,
+multiplied by `constant.period_days_default`. Established periods (every
+31 December corpus book: `periodDays 365`) print byte-identical values and
+captions (G4 `exportRatioFormulas` and F2 `ratioRefusal` green; G4 no
+longer carries its own `?? 365`). The FE fixture harnesses
+(`exportBooks.statementsFor`, `reportBooks.periodResponse`) render the
+SERVED shape: the write-seam fixtures carry `periodDays: null` since
+`b45739f`, and the harness joins the day count from the fixture's own
+stated span exactly as `_served_supplementary` does — the same join it
+already made for `canonical_bs`, never a `?? 365` (with the card's floor
+gone, 19 vitest gates over the four firm books had started printing "not
+established" on periods that ARE established).
+
+**UNDONE — C5 end-to-end (lane 1):** the engine's own ratio table on the
+same GET response still serves DSO at 365 under
+`constant.period_days_default` (`src/engine/ratios/table.py:628`, lane 1)
+and DIO / DPO from `metrics.*` beside `supplementary.periodDaysRefusal`;
+`periodDaysRefusal` has no consumer in the engine. The batch's page is
+honest because the FE no longer reads those rows when the day count is
+absent; the API row is not, and exports or callers reading
+`assembled_metrics.ratio_table` directly still get the substitute. Pinned
+as a STRICT xfail (`test_the_dso_row_on_a_fallback_filed_period_carries_no_
+value`) that turns red the day lane 1 refuses. Blast radius when it lands:
+every pre-2026-08-30 persisted row and every `fallback_today` filing loses
+its DSO / DIO / DPO / CCC values in the served ratio table (byte-identical
+today only because of the constant).
+
+**What it cannot see:** the FE's own client-side DCF
+(`frontend/lib/financialValuation.ts` `runDcf`, sweep cluster C9) still
+carries the 1 RON equity, 5% Kd, 0 FCF and g + 0.5% substitutes; the
+Valuation tab's equity tile is now guarded by `cross_checks.dcf.refusals`
+(empty or absent → it still renders `equity_value ?? dcf.equityValue`), but
+the base-FCF / WACC line and the year table beside it are still the FE's
+`runDcf` until C9 lands. The Piotroski half of C5.2 (cfo_positive /
+cfo_gt_ni graded on the approximated CFO) is NOT in this batch: it changes
+a lender-facing score on every single-period book and is held for its own
+batch with a measurement.
+
 ## vitest
 
 `scripts/check_vitest.mjs` — the frontend unit suite, 2,784 tests across 751
