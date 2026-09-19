@@ -113,6 +113,8 @@ export const RATIO_CMP_UI_KEYS = [
   "asFiled",
   "asFiledRevisionUnknown",
   "asFiledValueAbsent",
+  "asFiledValueWithdrawn",
+  "asFiledWithdrawnNote",
   "unlabelled",
 ] as const;
 
