@@ -319,7 +319,10 @@ class RiskItem:
     key: str
     label: str
     severity: Severity
-    score_contribution: int      # 0–100 — how much this risk lifts the overall score
+    # 0–100 — how much this risk lifts the overall score: severity points x
+    # the risk's most-relevant category score. None when every category the
+    # risk's channels map to is refused — there is no overall for it to lift.
+    score_contribution: Optional[int]
     channels: list[FinancialImpactChannel]
     source_signal_ids: list[str] = field(default_factory=list)  # IntelligenceSignal.id refs
 

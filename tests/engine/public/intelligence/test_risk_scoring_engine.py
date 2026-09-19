@@ -293,3 +293,48 @@ def test_zero_interest_expense_refuses_coverage():
     score = compute_risk_score(_semis_profile(), fin, [])
     assert score.categories.financial is None
     assert "interest expense is zero" in _refusal(score, "financial").text
+
+
+# ─── top_risks[].score_contribution over refused categories ─────────────────
+
+
+def _mapped_categories(item, categories):
+    """The category scores a risk's channels map to, as _risk_to_category_weight reads them."""
+    channel_to_cat = {
+        "supply_availability": "supply_chain", "inventory": "supply_chain",
+        "valuation_multiple": "valuation", "debt_cost": "financial",
+        "capex": "operational", "fx": "macro", "working_capital": "operational",
+        "revenue": "macro", "gross_margin": "operational", "ebitda_margin": "financial",
+    }
+    return [getattr(categories, channel_to_cat[c]) for c in item.channels if c in channel_to_cat]
+
+
+def test_top_risk_contribution_is_null_when_every_mapped_category_is_refused():
+    """Measured 2026-09-19 on f68d45a: AAPL with an empty snapshot served
+    top_risks contributions 48/39/34 (severity x the 0.3 relevance floor)
+    beside overall None, while the field is documented as how much the risk
+    lifts the overall score."""
+    from engine.public.intelligence.risk_scoring_engine import _risk_to_category_weight
+    score = compute_risk_score(_semis_profile(), {}, [])
+    assert score.overall_risk_score is None
+    assert _risk_to_category_weight(["capex"], score.categories) is None
+    assert _risk_to_category_weight(["ebitda_margin", "valuation_multiple"], score.categories) is None
+    assert score.top_risks, "the sector model always carries risks"
+    for item in score.top_risks:
+        mapped = _mapped_categories(item, score.categories)
+        if mapped and all(c is None for c in mapped):
+            assert item.score_contribution is None, item
+        else:
+            assert isinstance(item.score_contribution, int), item
+
+
+def test_top_risk_contribution_control_is_severity_times_relevance():
+    from engine.public.intelligence.risk_scoring_engine import _risk_to_category_weight
+    score = compute_risk_score(_semis_profile(), STRONG_FIN, [])
+    assert score.overall_risk_score is not None
+    for item in score.top_risks:
+        w = _risk_to_category_weight(item.channels, score.categories)
+        assert w is not None
+        assert item.score_contribution == int(round(SEVERITY_POINTS[item.severity] * w))
+    # The relevance floor still applies among MEASURED categories.
+    assert _risk_to_category_weight(["fx"], score.categories) >= 0.3

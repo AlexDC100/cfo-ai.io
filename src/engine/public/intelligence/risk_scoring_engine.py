@@ -118,9 +118,15 @@ EBITDA_MARGIN_TIERS_INVERSE: list[tuple[float, int]] = [
     (-1.00, 95), # negative    → 95
 ]
 
-# Top-risk ordering: a sector risk whose channels map to no scored category
-# still ranks at this relevance, so the sector library's risks always show.
-# It orders the list; it is not an input to any score.
+# Top-risk relevance floor: a sector risk whose channels map to no MEASURED
+# category scoring above this still ranks at this relevance, so the sector
+# library's risks always show. It applies only when at least one mapped
+# category is measured; when every mapped category is refused the weight —
+# and the served score_contribution — is None (measured 2026-09-19 on
+# f68d45a: a fully refused AAPL served contributions 48/39/34 from
+# severity x 0.3 beside overall None, while models.py documents the field
+# as "how much this risk lifts the overall score"). Ordering then falls
+# back to severity, which is the order the floor produced anyway.
 TOP_RISK_MIN_RELEVANCE = 0.3
 
 
@@ -655,7 +661,9 @@ def _top_risks(
         # the channels. supply_availability → supply_chain, valuation_multiple
         # → valuation, etc. Defaults to macro.
         cat_weight = _risk_to_category_weight(risk.channels, categories)
-        score_contrib = int(round(sev_pts * cat_weight))
+        score_contrib = (
+            int(round(sev_pts * cat_weight)) if cat_weight is not None else None
+        )
         related_signal_ids = [
             s.id for s in signals
             if any(c in s.financial_impact_channels for c in risk.channels)
@@ -669,7 +677,15 @@ def _top_risks(
             source_signal_ids=related_signal_ids,
         ))
 
-    items.sort(key=lambda i: i.score_contribution, reverse=True)
+    # Measured contributions first, then severity: the order the relevance
+    # floor produced when it was still served as a number.
+    items.sort(
+        key=lambda i: (
+            i.score_contribution if i.score_contribution is not None else -1,
+            SEVERITY_POINTS[i.severity],
+        ),
+        reverse=True,
+    )
     return items[:n]
 
 
@@ -700,13 +716,14 @@ def _top_opportunities(
 def _risk_to_category_weight(
     channels: list[str],
     categories: RiskCategoryScores,
-) -> float:
+) -> Optional[float]:
     """Map a risk's financial-impact channels → the most-relevant category score.
 
     Returns a 0–1 weight in the spirit of "how relevant is this risk to the
     overall picture?" A risk in a high-scoring category gets a higher weight
     so the top-N selection emphasizes the company's actual pain points. A
-    refused (None) category contributes nothing to the relevance.
+    refused (None) category contributes nothing to the relevance, and when
+    NO mapped category is measured the weight is None — not the floor.
     """
     channel_to_cat = {
         "supply_availability": ("supply_chain", categories.supply_chain),
@@ -722,12 +739,14 @@ def _risk_to_category_weight(
     }
     # Pick the maximum category score across the risk's channels — that's
     # the "loudest" alignment between the risk and the company's pressure.
-    best = 0.0
+    best: Optional[float] = None
     for ch in channels:
         if ch in channel_to_cat:
             _, score = channel_to_cat[ch]
             if score is not None:
-                best = max(best, score / 100.0)
+                best = max(best if best is not None else 0.0, score / 100.0)
+    if best is None:
+        return None
     return max(TOP_RISK_MIN_RELEVANCE, best)
 
 

@@ -444,7 +444,15 @@ def _deterministic_fallback(
     if _measured_at_or_above(risk.categories.valuation, 60):
         watch.append("Watch peer-relative valuation — multiple compression risk.")
     if not watch:
-        watch.append("No specific watch flags — score is composite-low.")
+        # "composite-low" is a claim about the composite; it is only made
+        # when there is one. (Measured 2026-09-19: an unknown-sector shell
+        # with no snapshot served this sentence beside "composite risk
+        # unavailable".)
+        watch.append(
+            "No watch flags: composite risk unavailable."
+            if risk.overall_risk_score is None
+            else "No specific watch flags — score is composite-low."
+        )
 
     return AIMarketRead(
         subject=ticker,
