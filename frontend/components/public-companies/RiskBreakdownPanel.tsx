@@ -14,14 +14,23 @@
 // on a null category (`null >= 25` is false, so "low") and draw a 2% bar,
 // which styled "Financial / Operational — low" on every universe ticker
 // while the explanation said the composite was unavailable.
+//
+// R-PUBLIC-ABSENT (2026-09-19): a category the row's data producer can
+// never fill is DROPPED (null, refusal code `risk_category_dropped`), its
+// weight redistributed, and the engine states what the composite covers in
+// `coverage`. This reader renders that as "not scored" with the reason and
+// prints the applied weights from the block (TC-10) — never a level, never
+// a bar, never "unavailable" (that word is this company's own gap).
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, TrendingUp } from "lucide-react";
 import {
+  categoryDropFor,
   fetchTickerRiskScore,
   scoreRefusalFor,
   type PublicCompanyRiskScore,
   type RiskCategoryScores,
+  type ScoreCoverage,
   severityToBgClass,
   severityToTextClass,
 } from "@/lib/publicCompanyIntelligence";
@@ -125,8 +134,38 @@ export function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
       <p className="text-[12.5px] text-ink-soft mt-3 leading-relaxed">
         {score.explanation}
       </p>
+      <CoverageNote coverage={score.coverage ?? null} />
     </div>
   );
+}
+
+/** What the composite covers, rendered from the served block: the dropped
+ *  categories with the producer's reason and the weights actually applied.
+ *  Renders nothing when nothing was dropped (the declared weights apply). */
+export function CoverageNote({ coverage }: { coverage: ScoreCoverage | null }) {
+  if (!coverage || coverage.dropped.length === 0) return null;
+  const total = coverage.scored.length + coverage.dropped.length;
+  const dropped = coverage.dropped.map((d) => CATEGORY_LABEL[d.category] ?? d.category);
+  const reasons = Array.from(new Set(coverage.dropped.map((d) => d.reason)));
+  const weights = coverage.scored
+    .map((cat) => `${CATEGORY_LABEL[cat] ?? cat} ${fmtWeight(coverage.applied_weights[cat])}`)
+    .join(" · ");
+  return (
+    <div
+      className="mt-3 rounded-lg border border-rule/60 bg-bg-2/30 px-3 py-2 text-[11px] text-ink-mute leading-snug"
+      data-testid="risk-coverage"
+    >
+      <span className="text-ink-soft">
+        Scored over {coverage.scored.length} of {total} categories.
+      </span>{" "}
+      Not scored: {dropped.join(", ")} — {reasons.join("; ")}.{" "}
+      Weights applied: {weights}.
+    </div>
+  );
+}
+
+function fmtWeight(w: number | undefined): string {
+  return w === undefined || !Number.isFinite(w) ? "—" : `${(w * 100).toFixed(1)}%`;
 }
 
 // ─── Category grid ──────────────────────────────────────────────────────
@@ -154,7 +193,7 @@ const CATEGORY_LABEL: Record<keyof RiskCategoryScores, string> = {
 export function CategoryGrid({
   score: parent,
 }: {
-  score: Pick<PublicCompanyRiskScore, "categories" | "refusals">;
+  score: Pick<PublicCompanyRiskScore, "categories" | "refusals" | "coverage">;
 }) {
   const categories = parent.categories;
   return (
@@ -166,6 +205,29 @@ export function CategoryGrid({
         {CATEGORY_ORDER.map((cat) => {
           const score = categories[cat];
           if (score === null) {
+            const dropped = categoryDropFor(parent, cat);
+            if (dropped) {
+              // The engine's full sentence when it served one (names the
+              // input and the redistributed weight), else the block's reason.
+              const droppedText = scoreRefusalFor(parent, cat)?.text ?? dropped.reason;
+              // Dropped by the producer's coverage: "not scored" with the
+              // reason. No number, no bar, no level — and not "unavailable",
+              // which would read as this company's gap.
+              return (
+                <div
+                  key={cat}
+                  className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-rule/60 bg-bg-2/30"
+                  data-testid={`risk-category-${cat}`}
+                  data-state="dropped"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[12px] text-ink-soft">{CATEGORY_LABEL[cat]}</span>
+                    <span className="text-[11px] text-ink-mute">not scored</span>
+                  </div>
+                  <span className="text-[11px] text-ink-mute leading-snug">{droppedText}</span>
+                </div>
+              );
+            }
             // No number, no bar, no level: the refusal sentence instead.
             const refusal = scoreRefusalFor(parent, cat);
             return (
