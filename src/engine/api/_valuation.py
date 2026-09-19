@@ -267,7 +267,10 @@ def _cost_of_debt_for_dcf(interest_expense: Optional[float], debt: float,
     if interest_expense is None:
         missing = "interest expense (class 666) is not reported"
     elif interest_expense == 0:
-        missing = "no interest expense (class 666) is booked"
+        # A measured 0 on positive debt is NOT served as a 0% Kd — the
+        # ruling in parameters.py says why, and the note states it.
+        missing = ("no interest expense (class 666) is booked; "
+                   + _ro_params.METHODOLOGY_KD_ZERO_INTEREST_RULING)
     else:
         missing = f"interest expense is negative ({_fmt_ron(interest_expense)})"
     return {"kd_source": "methodology_assumption", "cost_of_debt_pre_tax": None,
@@ -619,7 +622,15 @@ def compute_valuation(
     dcf_interest = _first(pl_canonical.get("interest_expense"), pl.get("interestExpense"))
     dcf_tax = _first(pl_canonical.get("tax"), pl.get("taxExpense"))
     dcf_depreciation = _first(pl_canonical.get("depreciation"), pl.get("depreciationAmortization"))
-    dcf_net_income = _first(pl_canonical.get("net_income_statutory"), pretax - tax)
+    # The pre-tax figure the DCF reads is the reported one, never the
+    # `_safe`-built reconstruction above: `pretax - tax` stood in for an
+    # absent statutory net income with `tax` read as 0 when it was not
+    # reported, so the same envelope declared "tax expense not reported"
+    # in `tax_label` and served a net income that assumed it was nil.
+    dcf_pretax = _first(pl_canonical.get("pretax"))
+    dcf_net_income = _first(
+        pl_canonical.get("net_income_statutory"),
+        None if dcf_pretax is None or dcf_tax is None else dcf_pretax - dcf_tax)
     dcf_cash = _first(bs_canonical.get("cash"), bs.get("cash"))
     _legacy_debt = [v for v in (_first(bs.get("shortTermDebt")), _first(bs.get("longTermDebt")))
                     if v is not None]
@@ -727,7 +738,7 @@ def compute_valuation(
         cash=_first(ua.get("cash_used"), dcf_cash),
         interest_expense=dcf_interest,
         tax_expense=dcf_tax,
-        pretax=pretax,
+        pretax=dcf_pretax,
         # The REAL book equity from the canonical BS view, signed and
         # unfloored: a non-positive or absent equity refuses the DCF.
         total_equity=dcf_total_equity,

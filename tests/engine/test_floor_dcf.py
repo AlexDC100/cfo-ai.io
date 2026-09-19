@@ -228,6 +228,85 @@ def test_compute_valuation_serves_signed_stabilized_fcf_and_states_the_refusal(m
     assert out["dcf_refusals"][0]["text"] in out["method_warnings"]
 
 
+# ── The production wiring: absent inputs reach the DCF as absent ────────
+#
+# `_dcf_cross_check` refuses an absent input; `compute_valuation` is the
+# layer every served / recompute path calls, and it is where a re-floor
+# would hide (`_first(..., 0.0)`, a legacy `else 1.0`). These tests pass
+# statements with the key REMOVED — not set to 0 — and assert the refusal
+# code and a null EV at the served envelope.
+
+
+def _wired(**drop_or_set: Any) -> Dict[str, Any]:
+    """A solvent, profitable canonical envelope; `drop_or_set` maps
+    `"assembled_bs.total_equity"` to `None` (delete the key) or a value."""
+    statements: Dict[str, Any] = {
+        "balanceSheet": {}, "incomeStatement": {},
+        "assembled_pl": {"net_income_statutory": 1_400_000.0, "depreciation": 300_000.0,
+                         "interest_expense": 200_000.0, "tax": 300_000.0, "pretax": 1_700_000.0,
+                         "ebitda_statutory": 2_200_000.0},
+        "assembled_bs": {"cash": 500_000.0, "total_debt": 3_000_000.0,
+                         "total_equity": 12_000_000.0, "total_assets": 20_000_000.0},
+        "assembled_cf": {"capex_real": 0.0, "net_wc_change": 300_000.0, "is_approximated": False},
+    }
+    for dotted, value in drop_or_set.items():
+        view, key = dotted.split(".")
+        if value is None:
+            statements[view].pop(key, None)
+        else:
+            statements[view][key] = value
+    return statements
+
+
+@pytest.mark.parametrize("dropped,code", [
+    ("assembled_bs.total_equity", "dcf_equity_absent"),
+    ("assembled_bs.total_debt", "dcf_debt_absent"),
+    ("assembled_bs.cash", "dcf_cash_absent"),
+    ("assembled_cf.net_wc_change", "dcf_fcf_input_absent"),
+])
+def test_compute_valuation_refuses_an_absent_balance_or_wc_input(monkeypatch, dropped, code):
+    """Plant P5b (`dcf_cash = _first(..., 0.0)`, legacy debt `else 0.0`,
+    legacy equity `else 1.0`) and P5c (`net_wc_change` `_first(..., 0.0)`)
+    left every `_dcf_cross_check` test green: the re-floor sat one layer up."""
+    monkeypatch.setattr(V, "load_valuation_benchmarks", _stub_benchmarks)
+    control = V.compute_valuation(industry_key=None, statements=_wired())
+    assert control["dcf_refusals"] == [] and control["dcf_enterprise_value"] > 0
+    out = V.compute_valuation(industry_key=None, statements=_wired(**{dropped: None}))
+    assert [r["code"] for r in out["dcf_refusals"]] == [code], out["dcf_refusals"]
+    assert out["dcf_enterprise_value"] is None and out["dcf_equity_value"] is None
+    assert out["dcf_sensitivity_low"] is None and out["dcf_sensitivity_high"] is None
+    assert out["dcf_refusals"][0]["text"] in out["method_warnings"]
+
+
+def test_compute_valuation_never_builds_net_income_from_an_absent_tax(monkeypatch):
+    """Measured before the fix: `assembled_pl` with only ebitda_statutory /
+    depreciation / interest_expense served `dcf_refusals []`, base FCF
+    1,700,000, EV 18,665,048.19 and `fcf_breakdown.net_income 1,400,000`
+    beside `tax_label: 'statutory 16.0% (effective rate not measurable: tax
+    expense not reported ...)'` — the same envelope declared the tax
+    unreported and served an NI that read it as 0."""
+    monkeypatch.setattr(V, "load_valuation_benchmarks", _stub_benchmarks)
+    out = V.compute_valuation(industry_key=None, statements=_wired(**{
+        "assembled_pl.net_income_statutory": None, "assembled_pl.tax": None,
+        "assembled_pl.pretax": None}))
+    assert [r["code"] for r in out["dcf_refusals"]] == ["dcf_fcf_input_absent"]
+    assert out["dcf_refusals"][0]["inputs"] == ["incomeStatement.net_income"]
+    assert out["dcf_enterprise_value"] is None
+    assert out["fcf_breakdown"]["net_income"] is None
+    assert out["fcf_breakdown"]["stabilized_fcf"] is None
+    assert "tax expense not reported" in out["dcf_wacc_components"]["tax_label"]
+    # Both reported and no statutory line: the legacy difference is used.
+    legacy = V.compute_valuation(industry_key=None, statements=_wired(**{
+        "assembled_pl.net_income_statutory": None}))
+    assert legacy["dcf_refusals"] == []
+    assert legacy["fcf_breakdown"]["net_income"] == 1_400_000.0
+    # Tax reported, pre-tax not: still no invented net income.
+    half = V.compute_valuation(industry_key=None, statements=_wired(**{
+        "assembled_pl.net_income_statutory": None, "assembled_pl.pretax": None}))
+    assert [r["code"] for r in half["dcf_refusals"]] == ["dcf_fcf_input_absent"]
+    assert "pre-tax profit not reported" in half["dcf_wacc_components"]["tax_label"]
+
+
 # ── POST /api/period/{id}/valuation/recompute ───────────────────────────
 
 
@@ -295,3 +374,19 @@ def test_an_approximated_wc_change_is_labelled_on_the_dcf_and_the_tiles(monkeypa
     assert "approximated" not in out2["dcf_refusals"][0]["text"]
     # The label never moves a number.
     assert out["fcf_breakdown"]["stabilized_fcf"] == out2["fcf_breakdown"]["stabilized_fcf"] == -500_000.0
+
+
+# ── A nil interest charge on positive debt is a ruling, not a measured 0% ─
+
+
+def test_a_nil_interest_charge_on_positive_debt_is_the_declared_range_not_a_measured_zero():
+    """The book yielded a figure (0), so this is a substitute — an explicit
+    one: the ruling in parameters.py is rendered on the served kd_note."""
+    d = _dcf(interest_expense=0.0)
+    wc = d["wacc_components"]
+    assert wc["kd_source"] == "methodology_assumption"
+    lo, hi = PARAMS.METHODOLOGY_KD_AFTER_TAX_RANGE
+    assert wc["cost_of_debt_after_tax"] == (lo + hi) / 2
+    assert "no interest expense (class 666) is booked" in wc["kd_note"]
+    assert PARAMS.METHODOLOGY_KD_ZERO_INTEREST_RULING in wc["kd_note"]
+    assert "not as a measured 0%" in wc["kd_note"]

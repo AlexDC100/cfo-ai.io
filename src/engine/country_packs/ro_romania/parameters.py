@@ -29,6 +29,22 @@ METHODOLOGY_KD_SOURCE: str = (
     "cost of debt 5.5-7.5% after tax for a Romanian SME"
 )
 
+#: Ruling (sweep C3, 2026-09-19): a book that carries interest-bearing debt
+#: but books NO interest expense (class 666 = 0) does not yield a measured
+#: 0% cost of debt. Zero booked interest on positive debt is most often a
+#: shareholder loan, interest capitalised into an asset, or interest booked
+#: under another class — a rate the book did not state, not a rate of 0.
+#: Reading it as 0% would LOWER the WACC and raise the enterprise value on
+#: exactly the books whose financing cost is least visible, so the DCF
+#: keeps the declared methodology range here (labelled
+#: `kd_source: methodology_assumption`, the conservative direction) rather
+#: than the best-case rung. The served `kd_note` renders this sentence.
+METHODOLOGY_KD_ZERO_INTEREST_RULING: str = (
+    "a nil interest charge on interest-bearing debt is read as an unstated "
+    "cost of debt (shareholder loan, capitalised or reclassified interest), "
+    "not as a measured 0%"
+)
+
 #: Start of the financial year the trial balance's cumulative (year-to-date)
 #: movements run from. The accounting law sets the financial year to the
 #: calendar year as the rule; an entity on a different financial year is the
