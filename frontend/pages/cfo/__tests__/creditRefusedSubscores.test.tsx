@@ -391,3 +391,72 @@ describe.each(CASES)("$name", (c) => {
     if (c.name !== "compact_serve_renormalised_composite_planted") expect(Math.abs(ceilings - 100)).toBeLessThan(1e-6);
   });
 });
+
+// ─── R-RANGE on a FULLY SCORED envelope (C9.4; B8 verifier D7) ──────────────
+// Over the compact cases a planted composite 140 is withheld by the
+// beside-refused branch anyway, so the reader's own range re-check was
+// pinned by nothing. agras scores every component: with the range branch
+// off, the planted 140 / AAA would print on every surface.
+describe("a served composite outside the model's range on a fully scored envelope (agras)", () => {
+  const raw = JSON.parse(JSON.stringify(RAW.agras_serve));
+  const statements = raw.statements as Statements;
+  const metrics: Record<string, number | null> = {};
+  for (const r of raw.metrics) metrics[r.name] = r.value;
+  const planted = { ...raw.credit, composite_score: 140, letter_grade: "AAA" };
+  const plantedMetrics = { ...metrics, credit_composite: 140 };
+
+  it("non-vacuity: the served envelope scores every component with a composite and a letter", () => {
+    expect(raw.credit.refused_subscores).toEqual({});
+    const r = computeCreditScore(statements, raw.credit, undefined, metrics);
+    expect(r.score).toBe(raw.credit.composite_score);
+    expect(r.rating).toBe(raw.credit.letter_grade);
+    expect(r.components.every((c) => !c.refusal)).toBe(true);
+    expect(r.compositeRefusal ?? null).toBeNull();
+  });
+
+  it("the reader withholds the planted 140 / AAA with credit_out_of_range and no refused component", () => {
+    const r = computeCreditScore(statements, planted, undefined, plantedMetrics);
+    expect(r.score).toBeNull();
+    expect(r.rating).toBeNull();
+    expect(r.grade).toBeNull();
+    expect(r.compositeRefusal?.code).toBe("credit_out_of_range");
+    expect(r.compositeRefusal?.sentence).toContain("140");
+    expect(r.compositeRefusal?.sentence).toContain("[0, 100]");
+    expect(r.compositeRefusal?.components).toEqual([]);
+    expect(r.components.every((c) => !c.refusal)).toBe(true);
+  });
+
+  it("the hero and the Risks tab print no score and no letter", () => {
+    const r = computeCreditScore(statements, planted, undefined, plantedMetrics);
+    render(
+      <TooltipProvider>
+        <HeroVerdictCard credit={r} companyName="agras" />
+      </TooltipProvider>,
+    );
+    const hero = screen.getByTestId("hero-verdict");
+    expect(hero.getAttribute("data-band")).toBe("pending");
+    expect(hero.getAttribute("data-score")).toBeNull();
+    expect(hero.textContent).not.toMatch(/\b(AAA|AA|BBB|BB|CCC|CC)\b/);
+    expect(hero.textContent).not.toContain("140");
+    render(<RisksPanel statements={statements} creditEnvelope={planted} metricsByName={plantedMetrics} />);
+    expect(screen.getByTestId("credit-composite").textContent).toContain(r.compositeRefusal!.sentence);
+    expect(screen.getByTestId("credit-rating").textContent).not.toMatch(/^(AAA|AA|A|BBB|BB|B|CCC|CC)$/);
+  });
+
+  it("the exported report and the workbook print no score and no letter", () => {
+    const r = computeCreditScore(statements, planted, undefined, plantedMetrics);
+    const envelopes = { credit: planted, piotroski: undefined, metricsByName: plantedMetrics };
+    const html = buildReportHtml(statements, envelopes);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    expect(doc.querySelector("[data-report-credit-score]")?.textContent?.trim()).toBe("not reported");
+    expect(doc.querySelector("[data-report-credit-letter]")?.textContent?.trim() ?? "not reported").toBe("not reported");
+    expect(doc.querySelector("[data-report-credit-composite-refusal]")?.textContent).toContain(r.compositeRefusal!.sentence);
+    const wb = buildExcelWorkbook(statements, undefined, envelopes);
+    const sheet = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets["Credit & Risk"], { header: 1 });
+    const cellOf = (label: string) => sheet.find((row) => String(row[0]) === label)?.[1];
+    expect(cellOf("Score (0–100)")).toBe("not reported");
+    expect(cellOf("Rating")).toBe("not reported");
+    const flat = sheet.map((row) => row.map((v) => String(v ?? "")).join("|")).join("\n");
+    expect(flat).toContain(r.compositeRefusal!.sentence);
+  });
+});

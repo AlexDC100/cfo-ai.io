@@ -78,6 +78,15 @@ def _capture(monkeypatch) -> Dict[str, Any]:
         filed = SB.routed_body(bk, metrics=persisted)
     out["compact_as_filed"] = {"credit": filed["assembled_metrics"]["credit"],
                                "metrics": _credit_rows(filed["metrics"])}
+    # A FULLY SCORED envelope (agras: every component scored, a composite
+    # and a letter), for the FE's planted out-of-range case: over the
+    # compact cases a planted composite 140 is withheld by the
+    # beside-refused branch anyway, so the FE's own range re-check (C9.4)
+    # was pinned by nothing (B8 verifier D7).
+    agras = SB.served_body("agras")
+    out["agras_serve"] = {"credit": agras["assembled_metrics"]["credit"],
+                          "metrics": _credit_rows(agras["metrics"]),
+                          "statements": agras["statements"]}
     return json.loads(json.dumps(out, sort_keys=True))
 
 
@@ -94,6 +103,9 @@ def test_the_fe_credit_fixture_is_what_the_route_serves_today(monkeypatch):
     assert {r["name"]: r["value"] for r in got["compact_metrics_only"]["metrics"]}[
         CM.CREDIT_MODEL_REVISION_METRIC] == CM.CREDIT_MODEL_REVISION
     assert set(got["compact_as_filed"]["credit"]["refused_subscores"]) == {"altman", "liquidity"}
+    assert got["agras_serve"]["credit"]["refused_subscores"] == {} and \
+        got["agras_serve"]["credit"]["composite_score"] is not None and \
+        got["agras_serve"]["credit"]["letter_grade"] is not None
     text = json.dumps(got, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
     if os.environ.get("CREDIT_FE_FIXTURE_WRITE") == "1":
         FIXTURE.write_text(text, encoding="utf-8")
