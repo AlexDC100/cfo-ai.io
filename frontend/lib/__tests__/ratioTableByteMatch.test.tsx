@@ -59,6 +59,8 @@
 // beyond the handle ratioCompareTab.test.tsx already holds equal to the
 // table row.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
@@ -400,3 +402,159 @@ for (const [name, make] of Object.entries(DOCUMENTS)) {
     );
   });
 }
+
+// ── B6 ── the export-side served-row paths compute nothing (source gate) ──
+//
+// The B8 verifier's plant A8: the workbook's pp change recomputed in the
+// browser as Number(current.value_q) − Number(prior.value_q), printed with
+// toFixed(1) — the SAME bytes as the served cell, so B1–B5 above stay green
+// and so does every other ratio gate. The rule "no FE arithmetic on served
+// values" was enforced on the tab (ratioCompareTab G6, whole files) and on
+// reportComparatives.ts (whole module), but the report and the workbook
+// build their six cells inside closures of two very large files that DO
+// compute elsewhere (`computeRatios`, the cash-flow walk), so a whole-file
+// scan cannot hold them. This gate extracts exactly the served-row code
+// paths — each closure's body by balanced braces from source with comments
+// and quoted strings blanked (template literals are kept: their `${…}` are
+// code) — and asserts no number is parsed, rounded, formatted or operated
+// on inside them. Non-vacuity: every extracted body must be the real path
+// (it prints through `printRatioCompareRow` / the served `printed` cells,
+// and is longer than a stub).
+//
+// Reds on: `toFixed`, `toPrecision`, `Math.*`, `parseFloat`, `parseInt`,
+// `Number(`, unary `+` coercion of a served value, `Intl.NumberFormat`,
+// `toLocaleString`, or an arithmetic operator applied to a served `.value`
+// / `.value_q`, anywhere inside `sixCells`, the workbook Band-movements
+// region, `ratioCmpCells`, `ratioCmpCardTable`, `servedOnlyRatioTable`,
+// `bandMovementsBlock`, `ratioCmpBasisClause`, `creditMovementBlock` or
+// `buildBandMovements`; a named path that no longer exists (renamed or
+// inlined out of the scan). Cannot see: arithmetic in a helper these paths
+// call from another module (ratioCompareView.ts is under G6; a new helper
+// module would need adding here), or a recompute outside the named paths
+// that is then fed in as a string.
+
+describe("B6 the export-side served-row paths print the served row and compute nothing (source gate)", () => {
+  const REPO = resolve(__dirname, "../../..");
+  const read = (rel: string): string => readFileSync(resolve(REPO, rel), "utf8");
+
+  /** Comments and quoted strings blanked; template literals kept. */
+  function codeOnly(src: string): string {
+    let out = "";
+    let i = 0;
+    while (i < src.length) {
+      const two = src.slice(i, i + 2);
+      if (two === "//") {
+        while (i < src.length && src[i] !== "\n") i += 1;
+        continue;
+      }
+      if (two === "/*") {
+        const end = src.indexOf("*/", i + 2);
+        i = end === -1 ? src.length : end + 2;
+        continue;
+      }
+      const ch = src[i];
+      if (ch === '"' || ch === "'") {
+        i += 1;
+        while (i < src.length && src[i] !== ch && src[i] !== "\n") i += src[i] === "\\" ? 2 : 1;
+        i += 1;
+        out += '""';
+        continue;
+      }
+      out += ch;
+      i += 1;
+    }
+    return out;
+  }
+
+  /** The `{…}` body starting at the first `{` at or after `from`, by balanced braces. */
+  function braced(code: string, from: number, what: string): string {
+    const open = code.indexOf("{", from);
+    expect(open, `${what}: no body`).toBeGreaterThan(-1);
+    let depth = 0;
+    for (let i = open; i < code.length; i += 1) {
+      if (code[i] === "{") depth += 1;
+      else if (code[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return code.slice(open, i + 1);
+      }
+    }
+    throw new Error(`${what}: unbalanced braces`);
+  }
+
+  /** The body of `const <name> = (…) => {…}`. */
+  function closure(code: string, name: string): string {
+    const at = code.indexOf(`const ${name} = (`);
+    expect(at, `${name}: the closure is gone from the scan (renamed or inlined?)`).toBeGreaterThan(-1);
+    const arrow = code.indexOf("=>", at);
+    expect(arrow, `${name}: not an arrow closure`).toBeGreaterThan(at);
+    return braced(code, arrow, name);
+  }
+
+  /** The code between two anchors (both must exist, in order). */
+  function region(code: string, from: string, to: string, what: string): string {
+    const a = code.indexOf(from);
+    expect(a, `${what}: start anchor gone`).toBeGreaterThan(-1);
+    const b = code.indexOf(to, a);
+    expect(b, `${what}: end anchor gone`).toBeGreaterThan(a);
+    return code.slice(a, b);
+  }
+
+  const ARITHMETIC: readonly RegExp[] = [
+    /\.toFixed\(/,
+    /\.toPrecision\(/,
+    /\bMath\.\w+\(/,
+    /\bparseFloat\(/,
+    /\bparseInt\(/,
+    /\bNumber\(/,
+    /\bIntl\.NumberFormat\b/,
+    /\.toLocaleString\(/,
+    // a served value operated on: `x.value - y.value`, `row.delta.value * 100`
+    /\.value(?:_q)?\s*[-+*/%](?!=)/,
+    /[-+*/%]\s*[\w.]*\.value(?:_q)?\b/,
+    // unary-plus coercion of a served string: `+row.current.value_q`
+    /[(=,?:]\s*\+[\w.]+\.value(?:_q)?\b/,
+  ];
+
+  const exportsCode = codeOnly(read("frontend/lib/financialExports.ts"));
+  const reportCode = codeOnly(read("frontend/lib/financialReport.ts"));
+  const summaryCode = codeOnly(read("frontend/lib/executiveSummary.ts"));
+
+  const PATHS: Record<string, string> = {
+    "financialExports.ts sixCells": closure(exportsCode, "sixCells"),
+    "financialExports.ts Band movements region": region(
+      exportsCode,
+      "const bands = buildBandMovements(",
+      'XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "")',
+      "workbook Band movements",
+    ),
+    "financialReport.ts ratioCmpCells": closure(reportCode, "ratioCmpCells"),
+    "financialReport.ts ratioCmpCardTable": closure(reportCode, "ratioCmpCardTable"),
+    "financialReport.ts servedOnlyRatioTable": closure(reportCode, "servedOnlyRatioTable"),
+    "financialReport.ts bandMovementsBlock": closure(reportCode, "bandMovementsBlock"),
+    "financialReport.ts ratioCmpBasisClause": closure(reportCode, "ratioCmpBasisClause"),
+    "financialReport.ts creditMovementBlock": closure(reportCode, "creditMovementBlock"),
+    "executiveSummary.ts buildBandMovements": braced(
+      summaryCode,
+      summaryCode.indexOf("export function buildBandMovements("),
+      "buildBandMovements",
+    ),
+  };
+
+  it("B6 non-vacuity: every named path is extracted whole and is the real served-row path", () => {
+    expect(Object.keys(PATHS).length).toBe(9);
+    for (const [name, body] of Object.entries(PATHS)) {
+      expect(body.length, `${name}: too short to be the real path`).toBeGreaterThan(200);
+      expect(
+        /printRatioCompareRow\(|printedRatioCells\(|ratioCmpCells\(|\.printed\b|ratioCmpRows\.get\(|ratioCmp\.(stamps|rows)|band_movements|servedMovableRows\(/.test(body),
+        `${name}: does not read the served row`,
+      ).toBe(true);
+    }
+  });
+
+  it.each(Object.entries(PATHS))("B6 %s parses, rounds, formats and operates on no number", (name, body) => {
+    for (const rx of ARITHMETIC) {
+      const hit = body.match(rx);
+      expect(hit, `${name}: browser arithmetic on a served value — ${rx} matched ${JSON.stringify(hit?.[0])}`).toBeNull();
+    }
+  });
+});

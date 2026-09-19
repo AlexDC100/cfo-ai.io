@@ -3230,8 +3230,8 @@ the page's own join.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/ratioTableByteMatch.test.tsx --reporter=verbose` |
-| work count | stdout `Tests N passed`, floor **120** (measured 134: 2 documents x (31 rows x {six cells, name} + non-vacuity + handles + headings + 2 lists)) |
-| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells`, `B5 altman_z: the same name beside the six cells`, `B5 the six column headings are one string` |
+| work count | stdout `Tests N passed`, floor **120** (measured 144: 2 documents x (31 rows x {six cells, name} + non-vacuity + handles + headings + 2 lists) + the 10 B6 source-gate tests) |
+| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells`, `B5 altman_z: the same name beside the six cells`, `B5 the six column headings are one string`, `B6 non-vacuity: every named path is extracted whole and is the real served-row path` |
 
 **Reds on, after the repair (TC-11):** any census row or composite whose six
 cells differ by one byte between the tab table, the report (card table,
@@ -3248,7 +3248,18 @@ Ratio" / "Current ratio", "Δ" / "Change", "Band now" / "Band, 2025-12-31";
 one label authority: `statements.ratioCmp.label.<key>`, resolved by the
 report's `row()` helper into `Ratio.label` so the cover line, rail, charts,
 cards and workbook move together, and by `altmanLabelOf` for the credit
-reader). **Cannot see:** the one formatter printing a figure
+reader); **B6 (2026-09-19, the export-side source gate)** browser
+arithmetic on a served value inside the export paths that print the six
+cells — `financialExports.ts` `sixCells` and its Band-movements region,
+`financialReport.ts` `ratioCmpCells` / `ratioCmpCardTable` /
+`servedOnlyRatioTable` / `bandMovementsBlock` / `ratioCmpBasisClause` /
+`creditMovementBlock`, `executiveSummary.ts` `buildBandMovements` — each
+body extracted by balanced braces from comment/string-blanked source and
+scanned for `toFixed`, `toPrecision`, `Math.*`, `parseFloat`, `parseInt`,
+`Number(`, unary `+`, `Intl.NumberFormat`, `toLocaleString` or an operator
+on `.value` / `.value_q`; a named path renamed or inlined out of the scan
+(the B8 verifier's plant A8: a same-bytes recompute that every byte gate
+passed). **Cannot see:** the one formatter printing a figure
 wrongly on every surface at once (ratioTableFormat.test.ts owns that); the
 Romanian tab (the exports print English); the PDF; the live route
 (comparatives-route).
@@ -3287,8 +3298,16 @@ second string → `current_ratio: the tile's change is not the table's one
 cell: expected '+0.28×+15.4%' to be '+0.28× (+15.4%)'`; the same on the
 drawer; reverted, 1 passed).
 
-**REVERT** — `Tests 70 passed (70)` after each plant; no `# PLANT` marker
-left. Verdict: proven RED.
+**PLANT (B6, 2026-09-19)** — applied, run, reverted (144 passed after each):
+
+| plant | red |
+|---|---|
+| `financialExports.ts` `sixCells`: the pp change recomputed as `Number(current.value_q) − Number(prior.value_q)` printed `toFixed(1)` — the SAME bytes as the served cell (verifier plant A8; B1–B5 stay green) | `1 failed \| 143 passed`: `B6 financialExports.ts sixCells parses, rounds, formats and operates on no number` — `browser arithmetic on a served value — /\.toFixed\(/ matched ".toFixed("` |
+| `financialReport.ts` `ratioCmpCardTable`: the prior cell re-rounded from `row.prior.value` with `Math.round(x * 100) / 100` | B6 (`-t B6`): `financialReport.ts ratioCmpCardTable … /\bMath\.\w+\(/ matched "Math.round("`; and, unfiltered, B1/B2 on 22 rows (`current_ratio: … expected [ '2.10×', '1.82', …] to deeply equal [ '2.10×', '1.82×', …]`) because this plant also moved the bytes |
+
+**REVERT** — `Tests 70 passed (70)` after each of the first plants,
+`144 passed (144)` after the B5 and B6 plants; no `# PLANT` marker left.
+Verdict: proven RED.
 
 ## cron-auth
 
