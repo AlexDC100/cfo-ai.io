@@ -3710,6 +3710,93 @@ E    +  where 36 = RiskCategoryScores(macro=65, supply_chain=66, geopolitical=40
 **REVERT** — all four restored; exit `0`, `33 passed`. Verdict: proven RED
 four ways.
 
+### floor-public-score — repair round (2026-09-19)
+
+**The live keyed path is exactly as dark as the offline one — stated
+plainly.** The 2026-09-18 entry above measured the 291 OFFLINE universe rows
+and read as if a keyed deployment differed. It does not: the live producers
+write `"revenueGrowth": None` for every row (`universe_service.py:484`,
+`normalizer.py:337`) and never write `interestExpense`, so `_score_financial`
+refuses on `interest_coverage` and `_score_operational` on `revenue_growth`
+for every ticker on every deployment. **The composite risk score and
+risk_level are null universe-wide in production until the producers carry
+interest expense and revenue growth.** That is what the ruling mandates
+(absent is never a neutral number), and it retires the composite risk
+feature as a served figure. Measured on this branch against the main probe
+(`wt-floor-c1-main-probe` @1f3ff4b) with the stated command
+`PYTHONPATH=<tree>/src python scratchpad/c6_public_blast.py <tree> out.json`
+(88 BVB seed + 203 NASDAQ demo rows, no keys):
+
+| | main | branch |
+|---|---|---|
+| composite risk numeric | 291 / 291 | **0 / 291** |
+| opportunity numeric | 291 / 291 | 174 / 291 |
+| financial / operational / valuation category null | 0 / 0 / 0 | 291 / 101 / 107 |
+| top_risks[] with a null `score_contribution` | 0 of 844 | 61 of 844 (61 tickers) |
+
+**Owner ruling required before merge (open):** refuse (this branch) versus
+*drop-with-redistribution-and-say-so* for the two inputs `interest_expense`
+and `revenue_growth`. **Producer work, filed here as the ticket
+`PT-PUBLIC-1`:** `universe_service.py` and `normalizer.py` carry
+`interestExpense` (SF1 `intexp` / EDGAR `InterestExpense`) and
+`revenueGrowth` (prior-period revenue), after which the financial and
+operational categories measure again without any engine change.
+
+The Risk tab (`RiskBreakdownPanel.tsx`) now renders the refusal: its types
+were `number` (the FE could not see the null), so `null >= 25` minted "low"
+with a 2 % bar on Financial / Operational for every ticker. Pinned by
+`frontend/components/public-companies/__tests__/riskBreakdownRefusal.test.tsx`
+(runs under the `vitest` battery gate's include glob): a null category
+renders "unavailable" plus its refusal text, no bar, no level word, no digit;
+a null composite renders the "overall" refusal, no "/ 100". `tsc --noEmit -p
+tsconfig.app.json` reports 0 errors in touched files; its 10 errors are all
+in `capsuleEmpty/capsuleAskGuard(.test).ts`, identical to main.
+
+`RiskItem.score_contribution` is served `null` when every category the
+risk's channels map to is refused (it was severity × the 0.3 relevance floor:
+48 / 39 / 34 beside overall None); the fallback read's watch sentence says
+"No watch flags: composite risk unavailable." instead of "score is
+composite-low."; `routes._build_watchlist` and `_derive_categories_for_profile`
+(zero callers) are deleted.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/public/intelligence/test_risk_scoring_engine.py tests/engine/public/intelligence/test_opportunity_scoring_engine.py tests/engine/public/intelligence/test_public_score_refusal_route.py tests/engine/public/intelligence/test_ai_market_read.py -q` |
+| work count | junit-xml, floor **42** tests (measured 47) |
+| added canaries | `test_top_risk_contribution_is_null_when_every_mapped_category_is_refused`, `test_fallback_watch_flags_state_a_refused_composite_not_composite_low` |
+
+**Reds on, after the repair (TC-11), added:** a numeric `score_contribution`
+on a risk whose mapped categories are all refused; a "composite-low"
+sentence beside a refused composite; a level word, bar or digit rendered
+for a null category on the Risk tab.
+
+**GREEN** — exit `0`: `47 passed`.
+
+**PLANT E** — `risk_scoring_engine.py` `_risk_to_category_weight`:
+`return max(TOP_RISK_MIN_RELEVANCE, best or 0.0)` (the floor over refused
+categories).
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert 0.3 is None
+E    +  where 0.3 = <function _risk_to_category_weight>(['capex'], RiskCategoryScores(macro=65, supply_chain=66, geopolitical=40, financial=None, valuation=None, operational=None, regulatory=38))
+FAILED tests/engine/public/intelligence/test_risk_scoring_engine.py::test_top_risk_contribution_is_null_when_every_mapped_category_is_refused
+```
+
+**PLANT F** — `ai_market_read.py` `_deterministic_fallback`: the
+unconditional `watch.append("No specific watch flags — score is composite-low.")`.
+
+**RED** — exit `1`:
+
+```
+E     At index 0 diff: 'No specific watch flags — score is composite-low.' != 'No watch flags: composite risk unavailable.'
+FAILED tests/engine/public/intelligence/test_ai_market_read.py::test_fallback_watch_flags_state_a_refused_composite_not_composite_low
+```
+
+**REVERT** — both restored; exit `0`, `47 passed`.
+
+
 ## floor-sku-portfolio
 
 Floor sweep cluster C7 (`wave/floor-c6-public-sku`, 2026-09-18). The SKU /
@@ -3816,6 +3903,90 @@ else 0.0`) and stayed GREEN — that line is behind the guard, so the plant
 was dead code. The plant was re-aimed at the guard itself, which is the
 repair; that is the one recorded above.
 
+### floor-sku-portfolio — repair round (2026-09-19)
+
+Two verifier plants on f68d45a had left this gate GREEN: `anchor_share =
+0.0` served on a zero/loss total (a headline on `/run-daily`,
+`/classify-rows` and the upload payload that no test read) and the DIO-sheet
+banner span clamped into `DIO_SHEET_PERIOD_DAYS_RANGE` instead of refused.
+Two more sites were found while closing them: the analysis narrative
+formatted `run.get("roicPct", 0)` — a PRESENT None is not defaulted, so
+`POST /api/analyze` and `/upload-excel` answered **500** for exactly the
+portfolios whose figures refused; and `sku_pipeline.compute_sku_metrics`
+(the CLI loader path) floored the SKU's share of category NIV at `total or
+1.0` — measured, a 1,000 kRON SKU in a category netting to zero took a
+1,000× share (500,000 kRON of a 500 kRON parent WOCA). `frontend/lib/engine.ts`
+carried a dead browser mirror of the engine with the same floors and a
+[0, 1] clamp on anchorProfitShare; nothing imported it but a type, and it is
+now that type alone.
+
+**Blast radius on the Scandia trading workbook, reproducible.** Stated
+command: `PYTHONPATH=<tree>/src CFO_AI_SKIP_BOOT_VERIFY=1
+LEGACY_SKU_AI_ENABLED=1 python scratchpad/c6_sku_blast.py <tree> out.json`
+— `POST /api/upload-excel?period_months=10` on
+`engine.api.create_app(config_path=<tree>/config.yaml)` (the app's own
+canonical calibration, so the workbook's uncalibrated categories fall to the
+labelled DIO=90 default), no model key, `GENERAL_BODY_LIMIT_BYTES` lifted to
+64 MiB for the 12.4 MB file. The 2026-09-18 entry's 38.8 / 0.833 / 10.57
+came from a bare `create_frontend_router` with the workbook passed as its
+own canonical file — a different calibration, not a different engine.
+Measured main probe @1f3ff4b versus this branch: headline **byte-identical**
+(roicPct 31.3, anchorProfitShare 0.83, workingCapitalMRon 13.03, confidence
+high, 24 categories, 220 SKUs, flag counts equal, no run refusals); **8 SKU
+rows lose their share**, all in the three categories whose SKU profit nets
+to ≤ 0 — Calamar (1 row, −3.16 kRON), SUC DE ROSII (1 row, −0.67) and
+MURATURI (all 6 rows; the category nets −7.42 kRON from −31.36, −3.43,
+−2.19, +1.55, +5.58, +22.43) — each with `share_of_category_profit_refusal`;
+served share extremes go from [−302.3, +422.6] (2 rows beyond ±100) to
+[−72.1, 100.0] (0). Note the consequence: a mixed category netting to a
+loss refuses every SKU's share in it, the profitable rows included — a share
+of a loss is not a share.
+
+| | |
+|---|---|
+| command | unchanged |
+| work count | junit-xml, floor **42** tests (measured 48) |
+| added canaries | `test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss`, `test_dio_sheet_out_of_range_banner_span_is_not_used`, `test_analyze_route_states_refused_roic_and_share_instead_of_500` |
+
+**Reds on, after the repair (TC-11), added:** a numeric anchorProfitShare
+served over a zero or loss total; a banner span outside the declared range
+used as a period; a 500 or a "0.0% ROIC" from the narrative for a refused
+figure; a parent WOCA or inventory allocated over a non-positive category
+NIV total.
+
+**GREEN** — exit `0`: `48 passed`.
+
+**PLANT I** (verifier V3) — `frontend.py` `_to_daily_run`: `anchor_share =
+0.0` on a non-positive total, refusal still appended.
+
+**RED** — exit `1`: `tests/engine/test_floor_sku_portfolio.py: assert 0.0 is None` — `test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss`.
+
+**PLANT J** (verifier V4) — `frontend.py` `_load_dio_from_workbook`:
+`period_days = min(max(diff, lo_p), hi_p)` in place of the range check.
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert {'SUC': 15} == {}       (10-day banner)
+E   AssertionError: assert {'SUC': 183} == {}      (400-day banner)
+```
+
+**PLANT K** — `frontend.py` `_run_figure`: `value = run.get(key) or 0.0`.
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: assert 'ROIC unavailable (Portfolio ROIC unavailable: capital trapped is zero.)' in '0 eliminations, 0 anchor alerts, 0 scale opportunities. Working capital 0.0M RON at 0.0% ROIC.'
+```
+
+**PLANT L** — `sku_pipeline.py` `compute_sku_metrics`: `cat_total_niv = … or
+1.0` and the unguarded division restored.
+
+**RED** — exit `1`: `E   AssertionError: assert (500000.0 is None)` — `woca_kron=500000.0` on a 1,000 kRON SKU.
+
+**REVERT** — all four restored; exit `0`, `48 passed`.
+
+
 ## floor-industry-absent
 
 Floor sweep cluster C8 (`wave/floor-c6-public-sku`, 2026-09-18).
@@ -3877,3 +4048,59 @@ E   AssertionError: assert 'professional...vices_generic' == 'manufacturing_gene
 
 **REVERT** — all three restored; exit `0`, `14 passed`. Verdict: proven RED
 three ways.
+
+### floor-industry-absent — repair round (2026-09-19)
+
+**The C8.1 refusal was bypassed on the served benchmark path.**
+`_benchmarks._load_period_signals` kept its own flattening that pre-filled
+`cogs`, `depreciation_amortization` and the four opex lines with 0 when the
+period had no PL line items; `_resolve_effective_caen` step 2 then called
+`suggest_caen_code` on six "measured" zeros, rule 6820 fired at 0.7 — exactly
+`_AUTODETECT_MIN_CONFIDENCE` — and `GET /api/benchmarks/report/{period_id}`
+auto-assigned real estate to a period with no cost lines: the defect the
+batch fixed, one caller over. The loader now delegates to
+`_industry_classifier.cost_structure_metrics` (the one flattening
+`detect_industry_for_period` reads), the resolver reads
+`classify_cost_structure` and returns `(caen, source, refusal)`, and the
+`caen_not_set` gate serves the refusal and appends its sentence to the
+message.
+
+**Blast radius.** Every committed firm fixture (agras, carniprod ×2, retail,
+realestate, imbalance_03pct, the two synthetic books) carries 0 PL line
+items: through `/report` each would previously have been served a
+real-estate benchmark report wherever CAEN 6820 is seeded; each is now gated
+with `cost_structure_classification_unavailable` naming the six absent
+lines (or "operating revenue is not positive" for the three zero-revenue
+books). `scandia_fy2025` (653 line items) auto-detects 1012 at 0.7, as before
+the loader change. **Open, to measure before intl periods go live:** line
+items without `ro_account_code` sum the four opex prefixes to a true 0 in
+both loaders — a measured zero, not an absence — so a non-RO period with
+PL items could still match a rule on zero personnel; the classifier cannot
+tell that case from an RO period with no payroll accounts.
+
+| | |
+|---|---|
+| command | unchanged |
+| work count | junit-xml, floor **15** tests (measured 18) |
+| added canary | `test_report_route_gates_a_no_line_items_period_with_the_refusal` |
+
+**Reds on, after the repair (TC-11), added:** a CAEN auto-detected through
+`/report` for a period with no PL line items; a `caen_not_set` gate without
+the classifier's refusal; the benchmark loader's flattening diverging from
+the classifier's.
+
+**GREEN** — exit `0`: `18 passed`.
+
+**PLANT D** — `_benchmarks.py` `_load_period_signals`: the six cost lines
+pre-filled with 0 after the classifier flattening.
+
+**RED** — exit `1`:
+
+```
+E   AssertionError: ('6820', 'auto_detected')
+E   assert ('6820', 'auto_detected') == ('', 'unknown')
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_report_route_gates_a_no_line_items_period_with_the_refusal
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_the_benchmark_loader_is_the_classifier_flattening
+```
+
+**REVERT** — restored; exit `0`, `18 passed`.
