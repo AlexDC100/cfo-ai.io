@@ -182,11 +182,17 @@ describe("FC2 — magnitude sanity against the source period", () => {
       .filter((f) => String(f.line).endsWith(".revenue") && horizon.includes(String(f.period)))
       .reduce((sum, f) => sum + Number(f.amount_minor || 0) / 100, 0);
 
-    // The source period's revenue, from the driver that names it.
+    // The source period's revenue, from the driver that names it: the
+    // figure that FOLLOWS the word "revenue" in a basis sentence. (plan/2
+    // B4b: the first revenue-naming driver used to be the cost-of-sales
+    // share, whose first figure was the cost; with the cost pools that
+    // driver is gone and the first such sentence is days sales
+    // outstanding, whose first figure is the receivables — so the figure
+    // is taken by its label, not by its position.)
     const basis = ((PAYLOAD.assumptions ?? []) as Array<Record<string, unknown>>)
       .map((a) => String(a.basis ?? ""))
-      .find((b) => /revenue/i.test(b) && /\d[\d,]{6,}/.test(b)) ?? "";
-    const match = basis.match(/([\d,]{7,}(?:\.\d+)?)/);
+      .find((b) => /revenue\s+\d[\d,]{6,}/i.test(b)) ?? "";
+    const match = basis.match(/revenue\s+([\d,]{7,}(?:\.\d+)?)/i);
     if (!match) return;                                   // no stated source revenue
     const sourceRevenue = Number(match[1].replace(/,/g, ""));
     if (!Number.isFinite(sourceRevenue) || sourceRevenue <= 0) return;

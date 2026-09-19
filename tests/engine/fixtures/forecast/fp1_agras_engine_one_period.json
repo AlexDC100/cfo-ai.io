@@ -11,42 +11,25 @@
    }
   },
   {
-   "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-   "derived_from": [
-    "assembled_pl.cogs",
-    "assembled_pl.revenue"
-   ],
-   "id": "cogs_pct_of_revenue",
-   "label": "cogs pct of revenue",
+   "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+   "derived_from": [],
+   "id": "inflation",
+   "label": "inflation",
    "unit": "ratio",
    "values": {
-    "FY2028": 0.636807
+    "FY2028": 0.025
    }
   },
   {
-   "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
+   "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
    "derived_from": [
-    "assembled_pl.opex_excluding_cogs_and_da",
-    "assembled_pl.revenue"
+    "assembled_pl.other_operating_income"
    ],
-   "id": "opex_pct_of_revenue",
-   "label": "opex pct of revenue",
-   "unit": "ratio",
+   "id": "other_operating_income_annual",
+   "label": "other operating income annual",
+   "unit": "money_minor",
    "values": {
-    "FY2028": 0.269453
-   }
-  },
-  {
-   "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-   "derived_from": [
-    "assembled_pl.other_operating_income",
-    "assembled_pl.revenue"
-   ],
-   "id": "other_operating_income_pct_of_revenue",
-   "label": "other operating income pct of revenue",
-   "unit": "ratio",
-   "values": {
-    "FY2028": 0.003521
+    "FY2028": 39009055
    }
   },
   {
@@ -244,6 +227,36 @@
    }
   },
   {
+   "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.cost_of_sales",
+   "label": "pool fixed share.cost of sales",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.operating_costs",
+   "label": "pool fixed share.operating costs",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.operating_costs",
+   "label": "pool level.operating costs",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
    "basis": "balance-sheet lines this model does not drive are HELD at their opening balance: they neither grow with the business nor decay. Nothing in a single trial balance implies a rate at which they move, and inventing one would move a total no assumption stated. [engine_default]",
    "derived_from": [],
    "id": "held_at_opening_balance",
@@ -353,11 +366,11 @@
    "projected": true
   },
   {
-   "amount_minor": -7598232135,
-   "amount_minor_projected": -7598232135,
+   "amount_minor": -7598229533,
+   "amount_minor_projected": -7598229533,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue"
+    "pool_fixed_share.cost_of_sales"
    ],
    "basis": [
     {
@@ -369,15 +382,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     }
    ],
    "currency": "RON",
@@ -445,13 +455,15 @@
    "projected": true
   },
   {
-   "amount_minor": 859126004,
-   "amount_minor_projected": 859126004,
+   "amount_minor": 856129146,
+   "amount_minor_projected": 856129146,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -467,37 +479,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -547,13 +568,15 @@
    "projected": true
   },
   {
-   "amount_minor": 1160495497,
-   "amount_minor_projected": 1160495497,
+   "amount_minor": 1157498639,
+   "amount_minor_projected": 1157498639,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue"
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual"
    ],
    "basis": [
     {
@@ -565,37 +588,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     }
    ],
    "currency": "RON",
@@ -606,13 +638,15 @@
    "projected": true
   },
   {
-   "amount_minor": -139248106,
-   "amount_minor_projected": -139248106,
+   "amount_minor": -138768609,
+   "amount_minor_projected": -138768609,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -639,37 +673,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -878,9 +921,11 @@
     "min_cash",
     "interest_charged_on_opening_balance",
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "intangible_additions_pct_of_revenue",
@@ -943,37 +988,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1188,13 +1242,15 @@
    "projected": true
   },
   {
-   "amount_minor": 731052557,
-   "amount_minor_projected": 731052557,
+   "amount_minor": 728535196,
+   "amount_minor_projected": 728535196,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -1221,37 +1277,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1407,11 +1472,13 @@
    "projected": true
   },
   {
-   "amount_minor": -3215050154,
-   "amount_minor_projected": -3215050154,
+   "amount_minor": -3215046921,
+   "amount_minor_projected": -3215046921,
    "assumption_ids": [
     "revenue_growth",
-    "opex_pct_of_revenue"
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs"
    ],
    "basis": [
     {
@@ -1423,15 +1490,28 @@
      "value": 0.025
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
+    },
+    {
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
     }
    ],
    "currency": "RON",
@@ -1494,31 +1574,21 @@
    "projected": true
   },
   {
-   "amount_minor": 42011748,
-   "amount_minor_projected": 42011748,
+   "amount_minor": 39009055,
+   "amount_minor_projected": 39009055,
    "assumption_ids": [
-    "revenue_growth",
-    "other_operating_income_pct_of_revenue"
+    "other_operating_income_annual"
    ],
    "basis": [
     {
-     "basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume [engine_default]",
-     "derived_from": [],
-     "id": "revenue_growth",
-     "label": "revenue growth",
-     "unit": "ratio",
-     "value": 0.025
-    },
-    {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
      "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
+      "assembled_pl.other_operating_income"
      ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
-     "unit": "ratio",
-     "value": 0.003521
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     }
    ],
    "currency": "RON",
@@ -1529,13 +1599,15 @@
    "projected": true
   },
   {
-   "amount_minor": 870300663,
-   "amount_minor_projected": 870300663,
+   "amount_minor": 867303805,
+   "amount_minor_projected": 867303805,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -1559,37 +1631,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -1744,11 +1825,11 @@
    "projected": true
   },
   {
-   "amount_minor": 771779655,
-   "amount_minor_projected": 771779655,
+   "amount_minor": 771779390,
+   "amount_minor_projected": 771779390,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dpo_cogs_days",
     "days_basis"
    ],
@@ -1762,15 +1843,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -1844,13 +1922,15 @@
    "projected": true
   },
   {
-   "amount_minor": 2134432677,
-   "amount_minor_projected": 2134432677,
+   "amount_minor": 2129441495,
+   "amount_minor_projected": 2129441495,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -1881,37 +1961,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -2177,13 +2266,15 @@
    "projected": true
   },
   {
-   "amount_minor": 2877481407,
-   "amount_minor_projected": 2877481407,
+   "amount_minor": 2872490161,
+   "amount_minor_projected": 2872490161,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -2211,37 +2302,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -2459,11 +2559,11 @@
    "projected": true
   },
   {
-   "amount_minor": 959394040,
-   "amount_minor_projected": 959394040,
+   "amount_minor": 959393711,
+   "amount_minor_projected": 959393711,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dio_cogs_days",
     "days_basis"
    ],
@@ -2477,15 +2577,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -2738,9 +2835,11 @@
     "min_cash",
     "revolver_rate",
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -2789,37 +2888,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3137,9 +3245,11 @@
     "days_basis",
     "interest_charged_on_opening_balance",
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "intangible_additions_pct_of_revenue",
@@ -3195,37 +3305,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3438,13 +3557,15 @@
    "projected": true
   },
   {
-   "amount_minor": 1008491541,
-   "amount_minor_projected": 1008491541,
+   "amount_minor": 1005974181,
+   "amount_minor_projected": 1005974181,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -3474,37 +3595,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -3693,11 +3823,11 @@
    "projected": true
   },
   {
-   "amount_minor": -20835487,
-   "amount_minor_projected": -20835487,
+   "amount_minor": -20835480,
+   "amount_minor_projected": -20835480,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dio_cogs_days",
     "days_basis"
    ],
@@ -3711,15 +3841,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -3749,11 +3876,11 @@
    "projected": true
   },
   {
-   "amount_minor": 16761002,
-   "amount_minor_projected": 16761002,
+   "amount_minor": 16760996,
+   "amount_minor_projected": 16760996,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dpo_cogs_days",
     "days_basis"
    ],
@@ -3767,15 +3894,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -3849,13 +3973,15 @@
    "projected": true
   },
   {
-   "amount_minor": 2134432677,
-   "amount_minor_projected": 2134432677,
+   "amount_minor": 2129441495,
+   "amount_minor_projected": 2129441495,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -3886,37 +4012,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4264,9 +4399,11 @@
    "amount_minor_projected": 0,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -4294,37 +4431,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4494,9 +4640,11 @@
     "min_cash",
     "revolver_rate",
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -4545,37 +4693,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -4784,13 +4941,15 @@
    "projected": true
   },
   {
-   "amount_minor": 690235545,
-   "amount_minor_projected": 690235545,
+   "amount_minor": 687718185,
+   "amount_minor_projected": 687718185,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -4821,37 +4980,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5048,13 +5216,15 @@
    "projected": true
   },
   {
-   "amount_minor": 731052557,
-   "amount_minor_projected": 731052557,
+   "amount_minor": 728535196,
+   "amount_minor_projected": 728535196,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -5081,37 +5251,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5267,13 +5446,15 @@
    "projected": true
   },
   {
-   "amount_minor": 1444197132,
-   "amount_minor_projected": 1444197132,
+   "amount_minor": 1441723310,
+   "amount_minor_projected": 1441723310,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -5304,37 +5485,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5531,13 +5721,15 @@
    "projected": true
   },
   {
-   "amount_minor": 6115330332,
-   "amount_minor_projected": 6115330332,
+   "amount_minor": 6110338821,
+   "amount_minor_projected": 6110338821,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -5569,37 +5761,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -5804,13 +6005,15 @@
    "projected": true
   },
   {
-   "amount_minor": 4898910820,
-   "amount_minor_projected": 4898910820,
+   "amount_minor": 4893919309,
+   "amount_minor_projected": 4893919309,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -5842,37 +6045,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -6077,11 +6289,11 @@
    "projected": true
   },
   {
-   "amount_minor": 1354439955,
-   "amount_minor_projected": 1354439955,
+   "amount_minor": 1354439690,
+   "amount_minor_projected": 1354439690,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dpo_cogs_days",
     "days_basis",
     "interest_rate_debt",
@@ -6100,15 +6312,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -6186,13 +6395,15 @@
    "projected": true
   },
   {
-   "amount_minor": 4522685017,
-   "amount_minor_projected": 4522685017,
+   "amount_minor": 4517693771,
+   "amount_minor_projected": 4517693771,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "days_basis",
@@ -6221,37 +6432,46 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
@@ -6423,19 +6643,21 @@
    "projected": true
   },
   {
-   "amount_minor": 6115330332,
-   "amount_minor_projected": 6115330332,
+   "amount_minor": 6110338821,
+   "amount_minor_projected": 6110338821,
    "assumption_ids": [
     "revenue_growth",
-    "cogs_pct_of_revenue",
+    "pool_fixed_share.cost_of_sales",
     "dpo_cogs_days",
     "days_basis",
     "interest_rate_debt",
     "interest_charged_on_opening_balance",
     "min_cash",
     "revolver_rate",
-    "opex_pct_of_revenue",
-    "other_operating_income_pct_of_revenue",
+    "inflation",
+    "pool_fixed_share.operating_costs",
+    "pool_level.operating_costs",
+    "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
     "intangible_additions_pct_of_revenue",
@@ -6459,15 +6681,12 @@
      "value": 0.025
     },
     {
-     "basis": "cost of sales as a share of revenue = 70,557,114.68 (assembled_pl.cogs) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.cogs",
-      "assembled_pl.revenue"
-     ],
-     "id": "cogs_pct_of_revenue",
-     "label": "cogs pct of revenue",
+     "basis": "cost_of_sales: cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it (anchor base 70,557,114.68) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.cost_of_sales",
+     "label": "pool fixed share.cost of sales",
      "unit": "ratio",
-     "value": 0.636807
+     "value": 0.0
     },
     {
      "basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name [derived]",
@@ -6529,26 +6748,38 @@
      "value": 0.07635
     },
     {
-     "basis": "operating costs (excluding cost of sales and depreciation) as a share of revenue = 29,854,906.77 (assembled_pl.opex_excluding_cogs_and_da) / 110,798,309.14 (assembled_pl.revenue), from this book's own period [derived]",
-     "derived_from": [
-      "assembled_pl.opex_excluding_cogs_and_da",
-      "assembled_pl.revenue"
-     ],
-     "id": "opex_pct_of_revenue",
-     "label": "opex pct of revenue",
+     "basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08) [engine_default]",
+     "derived_from": [],
+     "id": "inflation",
+     "label": "inflation",
      "unit": "ratio",
-     "value": 0.269453
+     "value": 0.025
     },
     {
-     "basis": "other operating income as a share of revenue = 390,090.55 (assembled_pl.other_operating_income) / 110,798,309.14 (assembled_pl.revenue), from this book's own period. It is projected on the same basis as cost of sales and operating costs, and is treated as cash in the period [derived]",
-     "derived_from": [
-      "assembled_pl.other_operating_income",
-      "assembled_pl.revenue"
-     ],
-     "id": "other_operating_income_pct_of_revenue",
-     "label": "other operating income pct of revenue",
+     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.operating_costs",
+     "label": "pool fixed share.operating costs",
      "unit": "ratio",
-     "value": 0.003521
+     "value": 0.0
+    },
+    {
+     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.operating_costs",
+     "label": "pool level.operating costs",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days [derived]",
+     "derived_from": [
+      "assembled_pl.other_operating_income"
+     ],
+     "id": "other_operating_income_annual",
+     "label": "other operating income annual",
+     "unit": "money_minor",
+     "value": 39009055.0
     },
     {
      "basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent [derived]",
