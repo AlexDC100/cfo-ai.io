@@ -2759,13 +2759,17 @@ export function formatNumber(n: number, decimals = 0): string {
 }
 
 export function formatRatio(r: Ratio): string {
+  // A row read off the served table prints the served string — never a
+  // toFixed of the served full-precision value — and, for a side the
+  // engine refused, the served REASON: the card's headline is its own
+  // current cell ("Needs your input: the figure for the annual lease
+  // expense has not been entered…"), never "not reported" above a table
+  // that states why (B8 verifier, adjusted_dscr).
+  if (r.printed !== undefined) return r.printed;
   // A refused ratio has no spelling as a number. Every caller — the HTML
   // report, the Excel export, the drawer — gets the same word, so none of
   // them can print "0.00×" for a figure nothing computed.
   if (r.value === null || !Number.isFinite(r.value)) return UNREPORTED_WORD;
-  // A row read off the served table prints the served string — never a
-  // toFixed of the served full-precision value.
-  if (r.printed !== undefined) return r.printed;
   switch (r.unit) {
     case "x":
       return `${r.value.toFixed(2)}×`;
@@ -3156,6 +3160,9 @@ function overlayOne(rt: Ratio, row: RatioCompareRow): Ratio {
     return {
       ...base,
       value: null,
+      // The served reason IS the headline (the same string the card's
+      // current cell prints), so the two cannot disagree.
+      printed: reason,
       verdict: "unknown",
       bandLabel,
       benchmark: reason,

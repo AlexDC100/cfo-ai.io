@@ -297,6 +297,7 @@ describe("§4 a card never prints one figure, verdict or ladder in its headline 
     expect(pairs.length).toBe(12);
     let checked = 0;
     let laddersChecked = 0;
+    let refusedChecked = 0;
     for (const [cur, pri] of pairs) {
       const doc = new DOMParser().parseFromString(
         buildReportHtml(corpusPairStatements(cur, pri), corpusPairEnvelopes(cur)),
@@ -306,8 +307,14 @@ describe("§4 a card never prints one figure, verdict or ladder in its headline 
       expect(cards.length, `${cur}|${pri}`).toBe(CENSUS_CARDS + 3);
       for (const c of cards) {
         const where = `${cur}|${pri} ${c.row.key}`;
+        // A refused served current: the headline is the served REASON,
+        // the very string the card's current cell prints — never
+        // "not reported" above a table that states why (B8 verifier,
+        // adjusted_dscr). A valued one: the served figure.
         if (c.row.current.value_q === null) {
-          expect(c.headline, `${where}: served current refused, the card prints a figure`).toBe("not reported");
+          expect(c.headline, `${where}: served current refused, the headline is not the current cell`).toBe(c.current);
+          expect(c.headline, `${where}: served current refused, the headline is the bare word`).not.toBe("not reported");
+          refusedChecked += 1;
         } else {
           expect(c.headline, `${where}: headline ${c.headline}, served current ${c.current}`).toBe(c.current);
         }
@@ -325,6 +332,7 @@ describe("§4 a card never prints one figure, verdict or ladder in its headline 
     }
     expect(checked).toBe(12 * (CENSUS_CARDS + 3));
     expect(laddersChecked).toBeGreaterThan(12 * 10);
+    expect(refusedChecked, "non-vacuity: no corpus pair serves a refused current").toBeGreaterThan(0);
   });
 
   it("non-vacuity: the FE ladders really disagree with the served band on these pairs", () => {
