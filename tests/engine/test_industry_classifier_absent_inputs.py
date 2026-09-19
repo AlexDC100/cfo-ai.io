@@ -186,3 +186,107 @@ def test_detect_industry_for_period_without_line_items_refuses_the_rule(monkeypa
     assert r.primary.industry_key != "real_estate_commercial_rental"
     assert r.primary.source == det.SOURCE_FALLBACK
     assert r.inputs["refusals"][0]["code"] == COST_STRUCTURE_UNAVAILABLE
+
+
+# ─── the served benchmark path: GET /api/benchmarks/report/{period_id} ─────
+#
+# `_benchmarks._load_period_signals` kept its own flattening that pre-filled
+# the six cost lines with 0 when a period had no PL line items; measured
+# 2026-09-19 on f68d45a, a Scandia-shaped revenue-only period then reached
+# the classifier as six "measured" zeros, rule 6820 fired at 0.7 (exactly
+# `_AUTODETECT_MIN_CONFIDENCE`) and /report auto-assigned real estate to a
+# period with no cost lines — the C8.1 defect, one caller over.
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from engine.api import _benchmarks
+
+
+class _BenchClient(_SeedClient):
+    """The four extra tables the /report route reads before the CAEN gate."""
+
+    def __init__(self, metric_rows=(), line_items=(), seeded_caens=("6820", "1012")):
+        super().__init__(metric_rows=metric_rows, line_items=line_items)
+        self._seeded = set(seeded_caens)
+
+    def select(self, table, filters=None, columns="*", **kw):
+        f = filters or {}
+        if table == "financial_periods":
+            self.tables_read.append(table)
+            return [{"id": "p1", "org_id": "o1"}]
+        if table == "organizations":
+            self.tables_read.append(table)
+            return [{"id": "o1", "name": "Test SRL"}]
+        if table == "company_industry_assignments":
+            self.tables_read.append(table)
+            return []
+        if table == "industry_benchmarks":
+            self.tables_read.append(table)
+            caen = f.get("caen_code", "").split(".", 1)[-1]
+            return [{"caen_code": caen}] if caen in self._seeded else []
+        if table == "benchmark_reports":
+            self.tables_read.append(table)
+            return []
+        return super().select(table, filters=filters, columns=columns, **kw)
+
+
+@pytest.fixture
+def bench_app(monkeypatch):
+    def _make(metric_rows=(), line_items=()):
+        store = _BenchClient(metric_rows=metric_rows, line_items=line_items)
+        monkeypatch.setattr(_benchmarks._supabase, "per_user", lambda jwt: store)
+        monkeypatch.setattr(_benchmarks._supabase, "admin", lambda: store)
+        monkeypatch.setattr(_benchmarks._org, "resolve_org", lambda jwt, org_id=None: ("u1", "o1"))
+        app = FastAPI()
+        app.include_router(_benchmarks.build_router())
+        return TestClient(app, raise_server_exceptions=False), store
+    return _make
+
+
+_SCANDIA_METRIC_ROWS = [{"name": k, "value": v} for k, v in SCANDIA_CALCULATED.items()]
+
+
+def test_report_route_gates_a_no_line_items_period_with_the_refusal(bench_app):
+    """Before: `{"error": ...}` never came back — the route served a real-estate
+    benchmark report (source auto_detected, CAEN 6820) for this period."""
+    client, store = bench_app(metric_rows=_SCANDIA_METRIC_ROWS, line_items=[])
+    caen, source, refusal = _benchmarks._resolve_effective_caen(jwt="x", period_id="p1")
+    assert (caen, source) == ("", "unknown"), (caen, source)
+    assert refusal["code"] == COST_STRUCTURE_UNAVAILABLE
+    r = client.get("/api/benchmarks/report/p1", headers={"Authorization": "Bearer x"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("error") == "caen_not_set", body
+    assert body["refusal"]["code"] == COST_STRUCTURE_UNAVAILABLE
+    assert body["refusal"]["inputs"] == list(COST_STRUCTURE_INPUTS)
+    assert body["message"].endswith(
+        "Cost-structure classification unavailable: cost of goods, personnel, D&A, "
+        "external services, energy and rent are not in this period's metrics.")
+    assert "statement_line_items" in store.tables_read
+
+
+def test_resolver_auto_detects_a_single_rule_match_over_measured_line_items(bench_app):
+    """Control: EEI-shaped PL line items (no COGS rows, external services 44% of
+    revenue) match exactly the 6820 rule and the seeded CAEN is served."""
+    eei_items = [_pl("706", "revenue", 4_911_000), _pl("641", "personnel", 125_808),
+                 _pl("622", "otherOpex", 2_172_788), _pl("6811", "depreciation", 355_606)]
+    _client, _store = bench_app(metric_rows=[], line_items=eei_items)
+    assert _benchmarks._resolve_effective_caen(jwt="x", period_id="p1") == (
+        "6820", "auto_detected", None)
+
+
+def test_resolver_auto_detects_scandia_from_its_own_pl_line_items(bench_app):
+    """The same metric rows that refused above, WITH their PL line items:
+    COGS 40% and personnel 19% of revenue match the 1012 rule alone."""
+    _client, _store = bench_app(metric_rows=_SCANDIA_METRIC_ROWS, line_items=SCANDIA_PL_ITEMS)
+    assert _benchmarks._resolve_effective_caen(jwt="x", period_id="p1") == (
+        "1012", "auto_detected", None)
+
+
+def test_the_benchmark_loader_is_the_classifier_flattening(bench_app):
+    _client, _store = bench_app(metric_rows=_SCANDIA_METRIC_ROWS, line_items=SCANDIA_PL_ITEMS)
+    assert _benchmarks._load_period_signals("x", "p1") == cost_structure_metrics(
+        _SCANDIA_METRIC_ROWS, SCANDIA_PL_ITEMS)
+    _client, _store = bench_app(metric_rows=_SCANDIA_METRIC_ROWS, line_items=[])
+    assert not set(COST_STRUCTURE_INPUTS) & set(_benchmarks._load_period_signals("x", "p1"))

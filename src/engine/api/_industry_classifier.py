@@ -206,10 +206,12 @@ def cost_structure_metrics(
     persist-time writer, credit_model.compute_period_metrics, emits no
     cogs / opex_* / D&A names), so the cost lines come from the PL line
     items: bucket sums for COGS and D&A, account-prefix sums for the opex
-    breakdown. Mirrors ``_benchmarks._load_period_signals`` field for field,
-    with one difference: a period WITHOUT PL line items leaves the cost
-    lines ABSENT (the classifier then refuses), where that loader writes 0.
-    With line items present, a bucket with no rows is a true empty sum.
+    breakdown. This is the ONE flattening both readers use —
+    ``_industry_detection.detect_industry_for_period`` and
+    ``_benchmarks._load_period_signals`` (which kept its own copy until
+    2026-09-19 and pre-filled the cost lines with 0). A period WITHOUT PL
+    line items leaves the cost lines ABSENT, so the classifier refuses; with
+    line items present, a bucket with no rows is a true empty sum.
     """
     from ._benchmark_engine import (
         OPEX_ENERGY_PREFIXES,
