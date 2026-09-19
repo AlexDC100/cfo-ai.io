@@ -64,8 +64,8 @@ def _capture(monkeypatch) -> Dict[str, Any]:
     out["statements"] = statements
     ltd = copy.deepcopy(statements)
     ltd["balanceSheet"]["longTermDebt"] = 1000.0
-    rows = CM.compute_period_metrics(ltd)
-    out["compact_ltd_only"] = {"credit": CM.serve_credit_envelope(CM.credit_block(rows)),
+    rows = CM.compute_period_metrics(copy.deepcopy(ltd))
+    out["compact_ltd_only"] = {"credit": CM.serve_credit_envelope(CM.credit_block(rows, statements=ltd)),
                                "metrics": _credit_rows(rows)}
 
     import engine.ratios.table as T
@@ -84,7 +84,12 @@ def _capture(monkeypatch) -> Dict[str, Any]:
 def test_the_fe_credit_fixture_is_what_the_route_serves_today(monkeypatch):
     got = _capture(monkeypatch)
     assert set(got["compact_serve"]["credit"]["refused_subscores"]) == {"altman", "liquidity"}
-    assert set(got["compact_ltd_only"]["credit"]["refused_subscores"]) == {"liquidity"}
+    # 1,000 of long-term debt with NO interest expense: R-D1's rung does not
+    # apply (debt != 0), so coverage and DSCR refuse beside liquidity, and
+    # X4 is defined (1,000 / 1,500 total assets is above the 1% share).
+    assert set(got["compact_ltd_only"]["credit"]["refused_subscores"]) == {"liquidity", "coverage", "dscr"}
+    assert got["compact_ltd_only"]["credit"]["composite_score"] is None
+    assert set(got["compact_serve"]["credit"]["declared_rungs"]) == {"coverage", "dscr"}
     assert got["compact_as_filed"]["credit"]["basis"] == "as_filed"
     assert {r["name"]: r["value"] for r in got["compact_metrics_only"]["metrics"]}[
         CM.CREDIT_MODEL_REVISION_METRIC] == CM.CREDIT_MODEL_REVISION
