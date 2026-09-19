@@ -344,19 +344,20 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   // ── Coverage ────────────────────────────────────────────────────
   interest_coverage: {
     category: "coverage",
-    // ── THE ROW WHOSE OWN CARD SAYS "NOT EBIT ÷ INTEREST" ───────────
+    // ── ONE BASIS: EBIT ÷ INTEREST, THE METHODOLOGY'S ─────────────────
     //
-    // The card is labelled "Interest Coverage (EBITDA / Interest)" and
-    // its formula reads "EBITDA (statutory) ÷ interest expense — NOT
-    // EBIT ÷ interest, which the credit component below bands on and
-    // which is a different number on every levered book". This entry
-    // said "EBIT ÷ Interest expense" — the negated basis, verbatim —
-    // and the drawer prints it one click from the badge. On the retail
+    // Until 2026-09-19 the engine's `interest_coverage` row divided
+    // EBITDA (so it printed the same figure as `ebitda_to_interest`
+    // under a second name — 17.70× twice on Scandia FY2025) while this
+    // entry, the credit sub-score and the methodology (CLAUDE.md
+    // Appendix A section 5) all said EBIT ÷ interest. The row now
+    // divides EBIT (13.27× on that book); the label — the one authority
+    // every surface prints — says "(EBIT / interest)". On the retail
     // book the two bases do not merely differ in size, they differ in
     // SIGN: EBITDA ÷ interest is +0.09×, EBIT ÷ interest is −0.52×.
     definition:
-      "How many times operating cash earnings before depreciation cover interest expense. The credit model's own interest-coverage term uses EBIT instead, which is a different number on any book carrying depreciation — the two are not interchangeable.",
-    formula: "EBITDA (statutory) ÷ Interest expense — NOT EBIT ÷ interest",
+      "How many times operating profit (EBIT) covers interest expense — the methodology's interest coverage, and the basis the credit model's coverage term bands on. EBITDA ÷ interest is the separate 'EBITDA to interest' row; on any book carrying depreciation the two are different numbers and are not interchangeable.",
+    formula: "EBIT ÷ Interest expense (EBITDA ÷ interest is the separate 'EBITDA to interest' row)",
     whyItMatters:
       "Below 1.5× the business has almost no cushion against rate hikes or earnings compression — a top early-warning indicator.",
     goodRange: "≥ 3× healthy · ≥ 6× strong",

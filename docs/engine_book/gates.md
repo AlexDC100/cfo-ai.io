@@ -2525,12 +2525,16 @@ from a different model, and nothing crashes.
 |---|---|
 | command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py tests/engine/test_credit_model_rungs_and_ranges.py tests/engine/test_credit_refusal_fe_fixture.py -q` |
 | work count | junit-xml, floor **60** tests (measured 70: the purity claims, the ladder scan, the refusal gates, the 35 rung / range / withdrawal / pack gates and the FE fixture capture) |
-| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_the_composite_and_the_letter_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_below_the_model`, `test_the_block_and_the_refusals_take_no_rows_only_fallback`, `test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted`, `test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves`, `test_the_fe_credit_fixture_is_what_the_route_serves_today` |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_the_composite_and_the_letter_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_below_the_model`, `test_the_block_and_the_refusals_take_no_rows_only_fallback`, `test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted`, `test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves`, `test_the_fe_credit_fixture_is_what_the_route_serves_today`, `test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda` |
 
 **Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
 mapping, Altman coefficient, rounding, operand, unit, direction, order) on
 any of the seven cases differing from the golden captured from
-`stage_compute` BEFORE the extraction; an I/O call or client import in
+`stage_compute` BEFORE the extraction; an `interest_coverage` row that is
+not EBIT ÷ interest by operands, an `ebitda_to_interest` row that is not
+statutory EBITDA ÷ interest, or the two rows printing one figure on an
+interest-paying book with D&A (the basis gate, added 2026-09-19 — it reds by
+operands, so a re-captured golden cannot carry the EBITDA basis back); an I/O call or client import in
 `credit_model.py`; `stage_compute` inserting anything but the pure rows; a
 second ladder literal in `pipeline.py` or `engine/ratios`. It proves no
 change against the pre-extraction commit, not that the numbers are right,
@@ -2542,6 +2546,34 @@ stays green — recorded by the B1 verifier; not re-measured by this section).
 **PLANT** — `src/engine/ratios/credit_model.py`: the Altman weight in the
 composite raised by 0.01
 (`(CREDIT_COMPOSITE_WEIGHTS["altman"] + 0.01) * altman_subscore`).
+
+**PLANT 2 (2026-09-19, the interest-coverage basis)** —
+`src/engine/ratios/credit_model.py` `compute_period_metrics`: the
+`interest_coverage` row restored to `safe(ebitda, interest)` (the basis it
+carried until 2026-09-19; the methodology, CLAUDE.md Appendix A section 5,
+defines interest coverage as EBIT ÷ interest expense, and `ebitda_to_interest`
+is the EBITDA row).
+
+**RED 2** — exit `1`, `11 failed, 62 passed` on
+`tests/engine/test_credit_model_pure.py` (the golden's five interest-paying
+cases ×2 and the basis gate):
+
+```
+E   AssertionError: scandia_fy2025_baseline: interest_coverage 17.704 is not EBIT / interest = 13.2654 (EBITDA / interest would be 17.704)
+E       scandia_fy2025_baseline: interest_coverage and ebitda_to_interest print one figure 17.704 under two names
+E       saga_10_col_retail: interest_coverage 0.0909 is not EBIT / interest = -0.519 (EBITDA / interest would be 0.0909)
+E   AssertionError: [saga_10_col_agras] compute_period_metrics drifted from what stage_compute persisted before the extraction:
+E     interest_coverage: pure {'name': 'interest_coverage', 'value': 66.2774, ...} vs persisted {'name': 'interest_coverage', 'value': 55.644, ...}
+FAILED tests/engine/test_credit_model_pure.py::test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda
+FAILED tests/engine/test_credit_model_pure.py::test_pure_rows_are_the_pre_extraction_rows_byte_for_byte[scandia_fy2025_baseline]
+```
+
+**REVERT 2** — exit `0`: `18 passed` on the file. Verdict: proven RED. The
+golden was re-captured deliberately in the same commit
+(`rows_moved_on_recapture_2026_09_19_interest_coverage_ebit` inside the
+file): scandia 17.704 → 13.2654, agras 66.2774 → 55.644 (both cases),
+realestate −25.0795 → −25.1332, retail 0.0909 → −0.519 (a sign flip),
+carniprod unchanged (no interest expense: the R-D1 rung, not a division).
 
 **RED** — exit `1`, `10 failed, 12 passed`, battery record `FAIL`:
 

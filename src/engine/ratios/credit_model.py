@@ -629,7 +629,14 @@ def compute_period_metrics(
         {"name": "current_ratio",      "value": safe(current_assets, current_liab), "unit": "ratio", "direction": "higher"},
         {"name": "debt_to_equity",     "value": safe(total_debt, total_equity),     "unit": "ratio", "direction": "lower"},
         {"name": "debt_to_ebitda",     "value": safe(total_debt, ebitda),           "unit": "ratio", "direction": "lower"},
-        {"name": "interest_coverage",  "value": safe(ebitda, interest),             "unit": "ratio", "direction": "higher"},
+        # Interest coverage = EBIT / interest expense — the methodology's
+        # definition (CLAUDE.md Appendix A, section 5: "Interest coverage |
+        # EBIT / Interest expense"), the basis the coverage sub-score below
+        # already banded on. EBITDA / interest is the SEPARATE
+        # `ebitda_to_interest` row; until 2026-09-19 both rows divided
+        # EBITDA and printed one figure under two names (17.70x twice on
+        # Scandia FY2025; on EBIT it is 13.27x).
+        {"name": "interest_coverage",  "value": safe(operating_profit, interest),   "unit": "ratio", "direction": "higher"},
         {"name": "roa",                "value": safe(net_income_statutory, total_assets),  "unit": "ratio", "direction": "higher"},
         {"name": "roe",                "value": safe(net_income_statutory, total_equity),  "unit": "ratio", "direction": "higher"},
         # ROIC = NOPAT / invested capital (debt + equity), DEFINED only for

@@ -1998,19 +1998,19 @@ export function computeRatios(
             : "Limited equity headroom against pledged assets."),
     ],
     coverage: [
-      // THE LABEL IS THE THING THAT WAS WRONG, NOT THE VALUE. The engine's
-      // canonical `interest_coverage` is EBITDA ÷ interest (pipeline.py
-      // :2226, `safe(ebitda, interest)`) and every other surface reads it,
-      // so moving the number would move the dashboard, the covenant
-      // screens and the capsule with it. What the document could not do
-      // was print "Interest Coverage 66.28×" three pages above a credit
-      // component labelled "Interest Coverage (EBIT / Interest)" whose
-      // basis is 55.64× on the same book. Two bases, two numbers, one
-      // name. The card now says which one it is.
-      row("interest_coverage", "Interest Coverage (EBITDA / Interest)", "x", interestCoverage,
+      // ONE BASIS. Interest coverage is EBIT ÷ interest expense — the
+      // methodology's definition (CLAUDE.md Appendix A section 5) and the
+      // basis the credit component below bands on. Until 2026-09-19 the
+      // engine's `interest_coverage` row divided EBITDA, so this card and
+      // the `ebitda_to_interest` row printed one figure under two names
+      // (17.70× twice on Scandia FY2025); the card carried "(EBITDA /
+      // Interest)" in its name to say so. The engine row now divides EBIT
+      // (13.27× on that book); EBITDA ÷ interest is the separate "EBITDA to
+      // interest" row, and the name — the one label authority — says which.
+      row("interest_coverage", "Interest coverage (EBIT / interest)", "x", interestCoverage,
         { strong: 6, healthy: 3, watch: 1.5 }, true,
         "≥ 3× healthy",
-        "EBITDA (statutory) ÷ interest expense — NOT EBIT ÷ interest, which the credit component below bands on and which is a different number on every levered book",
+        "EBIT ÷ interest expense (the methodology's interest coverage; EBITDA ÷ interest is the separate 'EBITDA to interest' row)",
         (v) =>
           v >= 3
             ? "Earnings comfortably absorb interest load."

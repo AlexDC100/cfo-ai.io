@@ -177,3 +177,52 @@ the leaf 1621 maps) — a reconciliation matter for the pack wave.
   main merge: `frontend/lib/__tests__/reportBooks.tsx:88` (`supplementary`
   on `Statements`) from main's floor-c3 harness commit 4826c06, untouched
   here.
+
+## D14 — interest coverage is EBIT ÷ interest: the stated methodology applied, not a new definition
+
+`credit_model.compute_period_metrics` served `interest_coverage` as
+EBITDA ÷ interest while `ebitda_to_interest` was statutory EBITDA ÷
+interest: two census rows, two names, one figure on every book (17.70×
+twice on Scandia FY2025; 66.28× twice on agras). The methodology this
+project runs on (CLAUDE.md Appendix A, section 5, Coverage: "Interest
+coverage | EBIT / Interest expense"; "EBITDA / Interest" is the separate
+row) and the credit sub-score (`ic = operating_profit / interest`, R-D1
+rung text "EBIT / interest") already said EBIT. So this is the methodology
+applied to the one row that had drifted from it — not a new definition,
+and not a credit revision: no sub-score, weight, rung or range moved
+(`CREDIT_MODEL_REVISION` stays 2).
+
+What moved: the engine row (`credit_model.py`), the no-metric fallback
+(`ratios/table.py`, which now agrees with the FE's `computeRatios`
+fallback that always divided EBIT), the band-finding subject bucket
+(`c_bands.py`: EBIT operands), and the ONE label authority
+(`statements.ratioCmp.label.interest_coverage` = "Interest coverage
+(EBIT / interest)", EN and RO; `ebitda_to_interest` = "EBITDA to interest
+(EBITDA / interest)") so the basis is printed on the tab, the drawer, the
+report and the workbook. `RATIO_KNOWLEDGE` and the report card's tooltip
+say the same.
+
+Blast radius, served figure per book (EBITDA basis → EBIT basis):
+scandia_fy2025_baseline 17.70× → 13.27×; agras 66.28× → 55.64×;
+realestate −25.08× → −25.13×; retail 0.09× → −0.52× (sign flip: retail's
+EBIT is negative, its EBITDA barely positive — the row now reads as the
+covenant-breach it is); carniprod unchanged (no interest: the labelled
+R-D1 rung). Bands (pack rungs strong 6× / healthy 3× / watch 1.5×):
+UNCHANGED on every book — scandia stays `strong`, agras `strong`,
+realestate and retail `critical` (0.09× was already below the watch
+rung). Sub-scores, composites and letters: UNCHANGED on every book (the
+coverage sub-score already banded on EBIT).
+
+Fixtures re-captured deliberately, each by its own writer:
+`credit_model/stage_compute_rows_pre_extraction.json` (scratch script
+mirroring `_case_input`; moves recorded inside the file),
+`ratio_parity/{agras,realestate,retail}.json` (CAPTURE=1
+ratioParityCapture), `firm/served_metrics.json`,
+`firm/served_ratio_pair(s).json`, the FE `comparatives/pair_served.json`
+and `pair_prior_blocks.json`. Gates: `test_ratio_table` (operands name
+depreciation on `interest_coverage`, not on `ebitda_to_interest`),
+`test_credit_model_pure::test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda`
+(by operands, on the seven golden cases). Out of scope: the public-market
+`risk_scoring_engine.py` (its own EBITDA-based tiers on filings, not the
+RAS ratio census) and the scenarios covenant key `ebitda_to_interest`
+(its own metric, correctly named).

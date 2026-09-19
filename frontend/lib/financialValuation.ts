@@ -2099,7 +2099,10 @@ export function computeCreditScore(
   // book doesn't carry an explicit annual principal schedule — matches the
   // SME-CRE convention used by Romanian banks for 10-year amortizing loans.
   const dte = safeDiv(c.totalDebt, c.ebitdaStatutory);
-  const intCov = safeDiv(c.ebitdaStatutory, c.interestExpense);
+  // Interest coverage = EBIT / interest (the methodology, CLAUDE.md
+  // Appendix A section 5) — the basis the engine's coverage sub-score bands
+  // on and, since 2026-09-19, the engine's `interest_coverage` row too.
+  const intCov = safeDiv(c.ebitStatutory, c.interestExpense);
   // DSCR — EBITDA / (interest + principal). Principal proxy: 10% of LT debt
   // (typical 10-year amortizing CRE term).
   const principalProxy = c.totalDebt * 0.10;
@@ -2199,7 +2202,7 @@ export function computeCreditScore(
             : "Elevated",
     },
     {
-      label: "Interest coverage (EBITDA / Interest)",
+      label: "Interest coverage (EBIT / interest)",
       value: intCov,
       subscore: intCovScore,
       weight: 0.1,

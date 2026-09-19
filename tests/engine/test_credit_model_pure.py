@@ -262,3 +262,50 @@ def test_stage_compute_inserts_exactly_the_pure_rows(name, case, monkeypatch):
     # extraction, plus the one deliberate revision row.
     assert _dump(inserted[:-1]) == _dump(case["rows"])
     assert inserted[-1] == {"period_id": "period-gate", "org_id": "org-gate", **_revision_row()}
+
+
+# ── the interest-coverage basis is the methodology's, by operands ────────
+
+
+def test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda(io_forbidden):
+    """Interest coverage = EBIT / interest expense (CLAUDE.md Appendix A,
+    section 5: "Interest coverage | EBIT / Interest expense"); EBITDA /
+    interest is the SEPARATE `ebitda_to_interest` row. Until 2026-09-19 both
+    rows divided EBITDA and printed one figure under two names (17.70x twice
+    on the Scandia FY2025 baseline; EBIT gives 13.27x). The golden above
+    pins the figures; this reds by OPERANDS, so a re-captured golden cannot
+    quietly carry the EBITDA basis back in.
+
+    Reds on: an `interest_coverage` row that is not round(operating_profit /
+    interest, 4); an `ebitda_to_interest` row that is not
+    round(ebitda_statutory / interest, 4); the two rows agreeing on any
+    interest-paying book whose EBIT and statutory EBITDA differ (D&A > 0);
+    fewer than three such books (vacuity). Cannot see: the served route
+    (test_ratio_table's operand check) or the FE labels (ratio-byte-match).
+    """
+    from engine.ratios import credit_model as CM
+
+    distinct = []
+    failures = []
+    for name, case in CASES:
+        statements, sq = _case_input(case)
+        interest = statements["incomeStatement"]["interestExpense"]
+        rows = {r["name"]: r["value"] for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
+        ebit, ebitda_stat = rows["operating_profit"], rows["ebitda_statutory"]
+        if not interest:
+            if rows["interest_coverage"] is not None or rows["ebitda_to_interest"] is not None:
+                failures.append("%s: no interest expense yet a coverage figure is served" % name)
+            continue
+        if rows["interest_coverage"] != round(ebit / interest, 4):
+            failures.append("%s: interest_coverage %r is not EBIT / interest = %r (EBITDA / interest would be %r)"
+                            % (name, rows["interest_coverage"], round(ebit / interest, 4), round(ebitda_stat / interest, 4)))
+        if rows["ebitda_to_interest"] != round(ebitda_stat / interest, 4):
+            failures.append("%s: ebitda_to_interest %r is not statutory EBITDA / interest = %r"
+                            % (name, rows["ebitda_to_interest"], round(ebitda_stat / interest, 4)))
+        if ebit != ebitda_stat:
+            distinct.append(name)
+            if rows["interest_coverage"] == rows["ebitda_to_interest"]:
+                failures.append("%s: interest_coverage and ebitda_to_interest print one figure %r under two names"
+                                % (name, rows["interest_coverage"]))
+    assert not failures, "\n  ".join(failures)
+    assert len(distinct) >= 3, "vacuous: interest-paying books with D&A: %r" % distinct

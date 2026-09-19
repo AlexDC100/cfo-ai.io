@@ -12149,12 +12149,12 @@
        {
         "name": "interest_coverage",
         "source": "metrics.interest_coverage",
-        "value": 66.2774
+        "value": 55.644
        }
       ],
       "reason": null,
-      "value": 66.2774,
-      "value_q": "66.28"
+      "value": 55.644,
+      "value_q": "55.64"
      },
      "delta": {
       "favourable": null,
@@ -12208,6 +12208,11 @@
         "name": "otherIncome",
         "source": "incomeStatement.otherIncome",
         "value": 1406221.07
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
        },
        {
         "name": "interestExpense",
@@ -14911,12 +14916,12 @@
        {
         "name": "interest_coverage",
         "source": "metrics.interest_coverage",
-        "value": 66.2774
+        "value": 55.644
        }
       ],
       "reason": null,
-      "value": 66.2774,
-      "value_q": "66.28"
+      "value": 55.644,
+      "value_q": "55.64"
      },
      {
       "band": "strong",
@@ -15327,7 +15332,7 @@
      "dscr": 7.4345,
      "dscr_with_lt_principal": 40.2209,
      "ebitda_to_interest": 66.2774,
-     "interest_coverage": 66.2774
+     "interest_coverage": 55.644
     },
     "efficiency": {
      "asset_turnover": 3.0193,
@@ -16181,7 +16186,7 @@
     "direction": "higher",
     "name": "interest_coverage",
     "unit": "ratio",
-    "value": 66.2774
+    "value": 55.644
    },
    {
     "direction": "higher",

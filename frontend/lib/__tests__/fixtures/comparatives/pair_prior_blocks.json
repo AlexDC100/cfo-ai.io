@@ -6406,12 +6406,12 @@
        {
         "name": "interest_coverage",
         "source": "metrics.interest_coverage",
-        "value": 66.2774
+        "value": 55.644
        }
       ],
       "reason": null,
-      "value": 66.2774,
-      "value_q": "66.28"
+      "value": 55.644,
+      "value_q": "55.64"
      },
      "delta": {
       "favourable": null,
@@ -6465,6 +6465,11 @@
         "name": "otherIncome",
         "source": "incomeStatement.otherIncome",
         "value": 1406221.07
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
        },
        {
         "name": "interestExpense",

@@ -608,11 +608,20 @@ def test_a_period_with_no_metric_rows_serves_the_metrics_own_formula(route_bodie
         if "assembled_pl.net_income_statutory" not in sources("net_margin") \
                 or "incomeStatement.taxExpense" in sources("net_margin"):
             failures.append("%s net_margin numerator is not the anchor: %s" % (book, sources("net_margin")))
+        # Interest coverage is EBIT ÷ interest (the methodology, CLAUDE.md
+        # Appendix A section 5): EBIT = EBITDA − D&A, so the operands name
+        # depreciation. EBITDA ÷ interest is the separate ebitda_to_interest
+        # row, whose operands must NOT name depreciation.
         if rows["interest_coverage"]["value"] is not None and (
-                "incomeStatement.depreciationAmortization" in sources("interest_coverage")
+                "incomeStatement.depreciationAmortization" not in sources("interest_coverage")
                 or "incomeStatement.interestExpense" not in sources("interest_coverage")):
-            failures.append("%s interest_coverage is not EBITDA ÷ interest: %s" % (
+            failures.append("%s interest_coverage is not EBIT ÷ interest: %s" % (
                 book, sources("interest_coverage")))
+        if rows["ebitda_to_interest"]["value"] is not None and (
+                "incomeStatement.depreciationAmortization" in sources("ebitda_to_interest")
+                or "incomeStatement.interestExpense" not in sources("ebitda_to_interest")):
+            failures.append("%s ebitda_to_interest is not EBITDA ÷ interest: %s" % (
+                book, sources("ebitda_to_interest")))
         for key in ("dscr", "dscr_with_lt_principal"):
             if "assembled_pl.ebitda_statutory" not in sources(key):
                 failures.append("%s %s does not divide statutory EBITDA: %s" % (book, key, sources(key)))

@@ -116,7 +116,7 @@ SUBJECT_BUCKETS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {
     "lt_debt_to_equity": (("ltDebt",), _EQ),
     "equity_ratio": (_EQ, _TA),
     "debt_to_assets": (_DEBT, _TA),
-    "interest_coverage": (_EBITDA, ("interestExpense",)),
+    "interest_coverage": (_EBIT, ("interestExpense",)),
     "ebitda_to_interest": (_EBITDA, ("interestExpense",)),
     "dscr": (_EBITDA, ("interestExpense", "stDebt")),
     "adjusted_dscr": (_EBITDA, ("interestExpense", "stDebt")),

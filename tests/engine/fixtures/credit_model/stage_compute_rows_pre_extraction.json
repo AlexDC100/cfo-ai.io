@@ -3,7 +3,7 @@
   "captured_at_commit": "cfd2117 (main), BEFORE the credit-model extraction",
   "captured_by": "originally pipeline.stage_compute with a recording admin double; re-captured from credit_model.compute_period_metrics on the same statements, revision row stripped",
   "note": "rows carry no credit_model_revision row because the golden predates the stamp; the test asserts the stamp by value. Every book with liabilities, revenue and interest is byte-identical to the revision-1 capture; the two synthetic books moved exactly where the rulings say (ROIC on non-positive invested capital refuses; equity rung 0; net-cash leverage 100; coverage/DSCR/profitability refuse on a loss-making, revenue-less, interest-free book)",
-  "recaptured": "2026-09-18 under CREDIT_MODEL_REVISION 2 (ratios wave 3: rulings R-D1, R-D2, R-D3, R-D4, R-RANGE, R-OTHER C1.9), in a named commit",
+  "recaptured": "2026-09-18 under CREDIT_MODEL_REVISION 2 (ratios wave 3: rulings R-D1, R-D2, R-D3, R-D4, R-RANGE, R-OTHER C1.9), in a named commit; 2026-09-19 after interest_coverage moved to EBIT / interest (the methodology, CLAUDE.md Appendix A section 5; the coverage sub-score already banded on EBIT), in a named commit",
   "rows_moved_on_recapture": {
    "saga_10_col_agras_zero_balance_sheet": [
     {
@@ -47,6 +47,43 @@
      "name": "credit_subscore_equity",
      "revision_1": -500.0,
      "revision_2": 0
+    }
+   ]
+  },
+  "rows_moved_on_recapture_2026_09_19_interest_coverage_ebit": {
+   "saga_10_col_agras": [
+    {
+     "ebit_basis": 55.644,
+     "ebitda_basis": 66.2774,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_agras_zero_balance_sheet": [
+    {
+     "ebit_basis": 55.644,
+     "ebitda_basis": 66.2774,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_realestate": [
+    {
+     "ebit_basis": -25.1332,
+     "ebitda_basis": -25.0795,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_retail": [
+    {
+     "ebit_basis": -0.519,
+     "ebitda_basis": 0.0909,
+     "name": "interest_coverage"
+    }
+   ],
+   "scandia_fy2025_baseline": [
+    {
+     "ebit_basis": 13.2654,
+     "ebitda_basis": 17.704,
+     "name": "interest_coverage"
     }
    ]
   }
@@ -244,7 +281,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 55.644
     },
     {
      "direction": "higher",
@@ -804,7 +841,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 55.644
     },
     {
      "direction": "higher",
@@ -1818,7 +1855,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -25.0795
+     "value": -25.1332
     },
     {
      "direction": "higher",
@@ -2377,7 +2414,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0909
+     "value": -0.519
     },
     {
      "direction": "higher",
@@ -2936,7 +2973,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 17.704
+     "value": 13.2654
     },
     {
      "direction": "higher",

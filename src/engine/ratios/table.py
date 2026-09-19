@@ -42,11 +42,13 @@ reads, and each is gated on its own:
     ``calculated_metrics`` are absent), the FE fallback computes a
     DIFFERENT formula under the same key: ``net_margin`` over the class-6/7
     reconstruction while ROA/ROE beside it read account 121, and
-    ``interest_coverage`` on EBIT while the metric is EBITDA ÷ interest,
-    and ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
+    ``interest_coverage`` on EBIT while the metric divided EBITDA (until
+    2026-09-19; the metric is now EBIT ÷ interest, the methodology's
+    definition, and ``ebitda_to_interest`` is the EBITDA row), and
+    ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
     metric is statutory EBITDA. The engine's fallback is the metric's own
     definition (``pipeline.stage_compute``): ``net_margin`` =
-    anchored net income ÷ revenue; ``interest_coverage`` = cash EBITDA ÷
+    anchored net income ÷ revenue; ``interest_coverage`` = EBIT ÷
     interest; the two DSCRs = ``assembled_pl.ebitda_statutory`` (else the
     metric, else cash EBITDA + ``incomeStatement.capitalizedOwnWork``) ÷
     their debt service. ``test_ratio_table.py`` holds the no-metric route
@@ -712,9 +714,10 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
     figs["debt_to_assets"] = bsPctOr("debt_to_assets", _pct_of(total_debt, total_assets, "total assets"))
 
-    # Fallback = the metric's definition: cash EBITDA ÷ interest (the FE
-    # fallback divides EBIT — a different ratio under the same key).
-    figs["interest_coverage"] = mOr("interest_coverage", _div(ebitda, interest, "interest expense"))
+    # Fallback = the metric's definition: EBIT ÷ interest (the methodology's
+    # interest coverage, CLAUDE.md Appendix A section 5). EBITDA ÷ interest
+    # is the separate `ebitda_to_interest` row below.
+    figs["interest_coverage"] = mOr("interest_coverage", _div(ebit, interest, "interest expense"))
     debt_service = _add(interest, B("shortTermDebt"))
     figs["dscr"] = mOr("dscr", _div(ebitda_statutory, debt_service, "interest + short-term debt"))
     lease = sup.get("annualLeaseExpense")
