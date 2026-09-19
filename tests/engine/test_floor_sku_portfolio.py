@@ -36,6 +36,7 @@ from fastapi.testclient import TestClient
 from engine.actions import build_output
 from engine.api import create_app
 from engine.api.frontend import (
+    DIO_SHEET_PERIOD_DAYS_RANGE,
     DIO_SHEET_PLAUSIBLE_DAYS,
     SkuRowIn,
     _aggregate_to_categories,
@@ -409,3 +410,58 @@ def test_sku_share_of_category_niv_control_allocates_pro_rata():
     assert out["a"].woca_kron == pytest.approx(125.0)
     assert out["b"].woca_kron == pytest.approx(375.0)
     assert out["a"].avg_inventory_kron == pytest.approx(4000.0 * 40 / 365.0 * 0.25)
+
+
+# ─── api/frontend.py _to_daily_run: anchorProfitShare over a non-positive total ─
+
+
+def test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss(client):
+    """Verifier plant V3 (2026-09-19) left the gates GREEN with `anchor_share =
+    0.0` served on a zero/loss total — the figure is a headline on
+    /run-daily, /classify-rows and the upload payload, and no test read it."""
+    r = client.post("/api/classify-rows", json={"rows": [
+        _row("ZZLOSS", "s1", 5, 1000.0, -30.0), _row("ZZTHIN", "s2", 5, 100.0, 2.0)]})
+    assert r.status_code == 200, r.text
+    run = r.json()
+    total = sum(x["absoluteProfit"] for b in ("anchors", "eliminate", "review", "scale")
+                for x in run[b])
+    assert total < 0
+    assert run["anchorProfitShare"] is None
+    refusal = next(x for x in run["refusals"] if x["component"] == "anchorProfitShare")
+    assert refusal["code"] == ANCHOR_PROFIT_SHARE_UNDEFINED
+    assert refusal["text"].startswith(
+        "Anchor profit share unavailable: the portfolio's absolute profit nets to a loss")
+    assert refusal["inputs"]["total_abs_profit_kron"] == pytest.approx(round(total, 2))
+
+
+def test_classify_rows_anchor_profit_share_control_is_anchor_over_total(client):
+    r = client.post("/api/classify-rows", json={"rows": [
+        _row("ZZBIG", "s1", 50, 50000.0, 30.0, dio=20),
+        _row("ZZSMALL", "s2", 5, 1000.0, 20.0, dio=20)]})
+    run = r.json()
+    total = sum(x["absoluteProfit"] for b in ("anchors", "eliminate", "review", "scale")
+                for x in run[b])
+    anchor = sum(x["absoluteProfit"] for x in run["anchors"])
+    assert total > 0 and run["anchors"], run
+    assert run["anchorProfitShare"] == pytest.approx(round(anchor / total, 3))
+    assert not [x for x in run["refusals"] if x["component"] == "anchorProfitShare"]
+
+
+# ─── api/frontend.py DIO sheet: an out-of-range banner span refuses, never clamps ─
+
+
+@pytest.mark.parametrize("banner, span", [
+    (["01.01.2026", "11.01.2026"], 10),
+    (["01.01.2025", "05.02.2026"], 400),
+])
+def test_dio_sheet_out_of_range_banner_span_is_not_used(tmp_path, banner, span):
+    """Verifier plant V4 (2026-09-19): `min(max(diff, 30), 366)` in place of the
+    range check left the gates GREEN — a 10- or 400-day banner was served as a
+    confirmed 30- or 366-day period and every category DIO computed over it."""
+    path = _dio_workbook(tmp_path, banner, [("SUC", 500.0, 500.0)])
+    notes = []
+    assert _load_dio_from_workbook(path, {"SUC": 1.0}, notes) == {}
+    assert [n["code"] for n in notes] == ["dio_sheet_period_unconfirmed"]
+    lo, hi = DIO_SHEET_PERIOD_DAYS_RANGE
+    assert f"spans {span} days, outside the {lo}-{hi} day range" in notes[0]["text"]
+    assert notes[0]["inputs"] == {"banner_dates_found": 2, "banner_span_days": span}
