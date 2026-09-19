@@ -326,8 +326,12 @@ def test_b4_every_derived_default_names_the_authority_it_was_read_from(book):
     # `assembled_bands.*` is a legitimate authority: a case driver that did
     # NOT move still records the band rungs it was compared against, and
     # that comparison is the reason it held.
+    # plan/2 B4b: `line_items` — the anchor's statement_line_items rows, the
+    # ONLY source of the cost pools (contract 5.1); gross_margin and
+    # opex_rate are read off the engine's pool facts measured from them.
     known = ("assembled_pl", "canonical_bs", "envelope", "pack",
-             "methodology.ratios", "statements", "assembled_bands", "book")
+             "methodology.ratios", "statements", "assembled_bands", "book",
+             "line_items")
     for case in build_case_set([_load(book)]).cases:
         for driver in case.drivers:
             if driver.status != "derived":

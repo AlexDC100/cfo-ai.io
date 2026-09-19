@@ -77,7 +77,10 @@ def compare_book(name, payload, base=None):
     reds = []
     comparisons = 0
     for concept in CONCEPTS:
-        if concept.status != "supplied":
+        # plan/2 B4b: `read` concepts (the pool facts forecast_drivers reads
+        # off the engine, contract 4) are compared like supplied ones —
+        # one integer, one tier, on both paths; they hand nothing over.
+        if concept.status not in ("supplied", "read"):
             continue
         driver = base.driver(concept.driver_key)
         assert driver is not None, concept.driver_key
@@ -113,7 +116,10 @@ def compare_book(name, payload, base=None):
     # tier and one integer for every shared concept (contract 4)
     after = assumptions_for_payload(payload, **model_overrides(base))
     for concept in CONCEPTS:
-        if concept.status != "supplied":
+        # plan/2 B4b: `read` concepts (the pool facts forecast_drivers reads
+        # off the engine, contract 4) are compared like supplied ones —
+        # one integer, one tier, on both paths; they hand nothing over.
+        if concept.status not in ("supplied", "read"):
             continue
         for model_key in concept.model_keys:
             comparisons += 1
@@ -144,7 +150,7 @@ def test_every_shared_concept_holds_one_integer_on_the_book(name):
     _WORK["comparisons"] += comparisons
     _WORK["books"].add(name)
     for concept in CONCEPTS:
-        if concept.status == "supplied":
+        if concept.status in ("supplied", "read"):
             _WORK["concepts"].add(concept.concept_id)
     _WORK["concepts"].add("macro_anchor")
     assert comparisons > 0
@@ -257,7 +263,7 @@ def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE forecast-authority (plan/2 B3, contract 4): books %s; "
               "one period each (history is B7); SYNTHETIC books %s; shared "
-              "concepts from authority.CONCEPTS (status supplied) plus the "
+              "concepts from authority.CONCEPTS (status supplied or read) plus the "
               "macro anchor; each concept compared alone and after the "
               "hand-over" % (", ".join(BOOKS),
                              ", ".join(sorted(_WORK["synthetic"]))))

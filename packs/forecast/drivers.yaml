@@ -111,7 +111,7 @@ drivers:
     unit: rate
     kind: level
     favourable_direction: up
-    authority: "the engine.forecast cost_of_sales pool base ÷ assembled_pl.revenue (pools.cost_of_sales_share, plan/2 B4b)"
+    authority: "line_items.cogs (the engine.forecast cost_of_sales pool base) ÷ assembled_pl.revenue — read as pools.cost_of_sales_share (plan/2 B4b)"
     band_key: gross_margin
     case_rule: band_traverse
     why: >-
@@ -140,7 +140,7 @@ drivers:
     unit: rate
     kind: level
     favourable_direction: down
-    authority: "the engine.forecast operating-cost pools, summed ÷ assembled_pl.revenue (pools.operating_cost_share, plan/2 B4b)"
+    authority: "line_items.operatingExpenses (the engine.forecast operating-cost pools, summed) ÷ assembled_pl.revenue — read as pools.operating_cost_share (plan/2 B4b)"
     case_rule: hold
     why: >-
       Read from engine.forecast, which owns the derivation (plan/2 contract
