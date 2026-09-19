@@ -141,3 +141,24 @@ def test_roa_on_a_positive_asset_base_is_graded_as_before():
     assert out["score"] == 4
 
 
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "UNDONE — lane 1 owns src/engine/ratios: `ratios/table.py` substitutes "
+    "`constant.period_days_default` (365) for an absent periodDays, so the DSO "
+    "row of the SAME GET /api/period response carries a value beside "
+    "`supplementary.periodDaysRefusal` (the FE's `bsOr` then falls back to "
+    "that engine metric). Strict: this goes red the day lane 1 refuses, and "
+    "the marker is removed then."))
+def test_the_dso_row_on_a_fallback_filed_period_carries_no_value(monkeypatch):
+    """Measured (2026-09-19, corpus agras, signal_used='fallback_today'):
+    `supplementary: {'periodDays': None, 'periodDaysRefusal': 'Day-count
+    ratios unavailable: ...'}` beside `dso 26.205674261074325` with the
+    operand `{"name": "period_days", "value": 365.0, "source":
+    "constant.period_days_default"}` — the refusal re-floored one layer down."""
+    bk = _with_period(_corpus_book("agras"), signal="fallback_today")
+    body = _served(monkeypatch, bk)
+    assert body["statements"]["supplementary"]["periodDays"] is None
+    row = [r for r in body["assembled_metrics"]["ratio_table"]["rows"] if r["key"] == "dso"][0]
+    assert row["value"] is None, row["value"]
+    assert not any(o.get("source") == "constant.period_days_default" for o in row["operands"])

@@ -170,8 +170,15 @@ export interface SupplementaryData {
   propertyMarketValue?: number;
   /** Number of FTEs — drives revenue-per-employee. */
   employees?: number;
-  /** Period-end day count (default 365). */
-  periodDays?: number;
+  /** Day count of the period the statements cover, established by the
+   *  engine from the period's start and end (`supplementary.periodDays`).
+   *  `null` when the period's length is not established (a `fallback_today`
+   *  filing, a row persisted with start == end) — then `periodDaysRefusal`
+   *  says why, and every day-count ratio (DSO / DIO / DPO) is absent rather
+   *  than computed at an assumed 365. */
+  periodDays?: number | null;
+  /** The engine's stated reason when `periodDays` is null. */
+  periodDaysRefusal?: string | null;
   /** Capex outflow for the period. Defaults to D&A if absent. */
   capex?: number;
   /** Risk-free rate for valuation (default 4.5%). */
@@ -967,7 +974,19 @@ const INPUT_WORDS: Partial<Record<StatementInput | keyof SupplementaryData, stri
   // checking their own inputs, and `annualLeaseExpense` is not a phrase
   // that appears anywhere in their data.
   annualLeaseExpense: "an annual lease expense",
+  // The engine establishes this from the period's start and end; it is
+  // null on a filing whose length it could not establish (a
+  // `fallback_today` filing, a row persisted with start == end). The
+  // refusal it produces is read beside "supplementary.periodDaysRefusal".
+  periodDays: "the period's day count",
 };
+
+/** The one wording for the day count a day-count ratio was multiplied
+ *  by, on the ratio card's formula caption and in the gate that recomputes
+ *  it (TC-10: the caption and the arithmetic read the same figure). */
+export function periodDaysLabel(days: number | null | undefined): string {
+  return typeof days === "number" ? `${days} days` : "period day count (not established)";
+}
 
 function inputWord(name: string): string {
   return INPUT_WORDS[name as StatementInput] ?? name;
@@ -1096,7 +1115,12 @@ export function computeRatios(
   /** The engine's assembled P&L, when the source carries one. Read only
    *  by `anchored()` below — the resolver every caption quotes through. */
   const apl = s.assembled_pl ?? {};
-  const days = sup.periodDays ?? 365;
+  // The period's day count is a served fact, not a constant: an absent one
+  // used to be re-floored here as `?? 365`, which turned the engine's
+  // `periodDaysRefusal` into a confident DSO one layer down. `days` is
+  // what the source carries; the captions below say when it is absent.
+  const days = sup.periodDays ?? null;
+  const daysLabel = periodDaysLabel(days);
   // THE ONE AUTHORITY, asked once. Never re-derived from `s.industry` or
   // from `agreement` at a call site — a second spelling of this question
   // is how a header ends up saying "unconfirmed" while the cards below
@@ -1490,22 +1514,35 @@ export function computeRatios(
     I("operatingExpenses"),
     I("depreciationAmortization"),
   );
-  const dayCount = known(days);
-  const dso = bsOr("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount));
-  const dio = mOr(
+  // NOT `known(...)`: a day count the source did not establish is a reason
+  // for a refusal, so it enters the arithmetic as a named figure.
+  const dayCount = num("periodDays", days);
+  // A day-count ratio with NO established day count is refused outright —
+  // it must not fall back to the engine's `metrics.dso` / `.dio` / `.dpo`
+  // / `.ccc` the way `bsOr` / `mOr` would, because the engine's ratio
+  // table still multiplies by `constant.period_days_default` (365) on
+  // such a period (src/engine/ratios/table.py, lane 1): the fallback
+  // would print the very substitute the refusal exists to refuse, under
+  // a caption saying the day count is not established.
+  const dayRatio = (key: string, computed: Fig, viaBs: boolean): Fig =>
+    dayCount.value === null ? computed : viaBs ? bsOr(key, computed) : mOr(key, computed);
+  const dso = dayRatio("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount), true);
+  const dio = dayRatio(
     "dio",
     mul(div(B("inventory"), totalOperatingExpense, "total operating expense"), dayCount),
+    false,
   );
-  const dpo = mOr(
+  const dpo = dayRatio(
     "dpo",
     mul(div(B("accountsPayable"), totalOperatingExpense, "total operating expense"), dayCount),
+    false,
   );
   // NO SIGN GUARD, DELIBERATELY. `ccc` is a difference, not a quotient —
   // a negative cash conversion cycle means the company is paid before it
   // pays, which is the best thing this scale can say, and a refusal here
   // would delete a real strength. It inherits the refusals of its three
   // terms through `sub`/`add`, which is the correct propagation.
-  const ccc = mOr("ccc", sub(add(dso, dio), dpo));
+  const ccc = dayRatio("ccc", sub(add(dso, dio), dpo), false);
   const assetTurnover = bsOr("asset_turnover", div(revenue, totalAssets, "total assets"));
 
   // ── THE THIRD ALTMAN LIVED HERE AND IS DELETED ──────────────────────
@@ -1950,12 +1987,12 @@ export function computeRatios(
       row("dso", "Days Sales Outstanding", "days", dso,
         { strong: 30, healthy: 45, watch: 75 }, false,
         "≤ 45 days healthy",
-        `trade receivables ÷ revenue × ${days} days`,
+        `trade receivables ÷ revenue × ${daysLabel}`,
         (v) => `Average ${v.toFixed(0)}-day collection cycle on receivables.`),
       row("dio", "Days Inventory Outstanding", "days", dio,
         { strong: 30, healthy: 60, watch: 100 }, false,
         "≤ 60 days for FMCG · varies by industry",
-        `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
+        `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${daysLabel} — not narrow COGS`,
         (v) => `Inventory turns every ${v.toFixed(0)} days.`),
       // ── N2: A DISTRESS VERDICT ON A SCALE THAT HAS NO DISTRESS END ──
       //
@@ -2009,7 +2046,7 @@ export function computeRatios(
       row("dpo", "Days Payables Outstanding (on total operating cost)", "days", dpo,
         { strong: 60, healthy: 45 }, true,
         "supplier float, not a solvency test — paying faster than the benchmark forgoes free credit, so this scale declares no critical rung; the rungs are general-SME defaults measured on cost of goods sold while this figure divides by total operating cost, so read them as indicative",
-        `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${days} days — not narrow COGS`,
+        `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${daysLabel} — not narrow COGS`,
         (v) => `${v.toFixed(0)}-day average to settle suppliers.`),
       row("ccc", "Cash Conversion Cycle", "days", ccc,
         { strong: 30, healthy: 60, watch: 100 }, false,
