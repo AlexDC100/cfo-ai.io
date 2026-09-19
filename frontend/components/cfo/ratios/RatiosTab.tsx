@@ -50,6 +50,7 @@ import {
   serializePrintedRow,
   servedIdentityOf,
 } from "@/lib/ratioCompareView";
+import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 
 // Wrapper around all 6 RatioGroupSections that owns the selected-ratio
 // state and renders the premium explainer drawer. Owning state here
@@ -261,10 +262,19 @@ export function RatioTile({
               {t("statements.ratioCmp.ui.priorEyebrow", { label: view?.priorLabel ?? "" })}
             </span>
             <span data-col="prior">{printed.prior}</span>
-            <span className={`ml-2 ${toneText(printed.deltaTone)}`} data-col="delta">{printed.delta}</span>
-            {printed.deltaSecondary ? (
-              <span className="ml-1 text-ink-mute" data-col="delta_secondary">{printed.deltaSecondary}</span>
-            ) : null}
+            {/* ONE change cell: "+0.28× (+15.4%)", the same bytes the
+                table, the lists, the report and the workbook print
+                (`joinRatioDelta`) — not two strings a margin apart. */}
+            <span className="ml-2" data-cell="delta">
+              <span className={toneText(printed.deltaTone)} data-col="delta">{printed.delta}</span>
+              {printed.deltaSecondary ? (
+                <span className="text-ink-mute">
+                  {RATIO_DELTA_SECONDARY_OPEN}
+                  <span data-col="delta_secondary">{printed.deltaSecondary}</span>
+                  {RATIO_DELTA_SECONDARY_CLOSE}
+                </span>
+              ) : null}
+            </span>
           </div>
           <div>
             <span className="text-ink-mute" data-col="band_prior">{printed.bandPrior}</span>

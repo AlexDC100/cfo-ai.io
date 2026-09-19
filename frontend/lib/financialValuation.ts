@@ -27,6 +27,17 @@ import {
 // exports. deriveTotals survives for P&L concepts and the debt/cash
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
+import { ratioLabelForKey } from "./ratioTable";
+
+/** The Altman row's name: the one label authority ("Altman Z″", what the
+ *  Ratios tab, the report cards and the workbook Ratios sheet print) for
+ *  the Z″ variant the engine serves; the variant-spelled fallback for any
+ *  other. Two spellings of one measure — `Altman Z"-Score` (U+0022) on one
+ *  sheet, `Altman Z″` (U+2033) on another — read as two measures. */
+function altmanLabelOf(variant: string): string {
+  const fallback = `Altman ${variant}-Score`;
+  return variant.replace(/"/g, "″") === "Z″" ? (ratioLabelForKey("altman_z", "en") ?? fallback) : fallback;
+}
 
 // ─── FCF / CFO ──────────────────────────────────────────────────────────────
 
@@ -1954,7 +1965,7 @@ export function engineCreditResult(
     const altmanZone = altman.zone;
     const components: CreditScoreResult["components"] = [
       {
-        label: `Altman ${altman.variant}-Score`,
+        label: altmanLabelOf(altman.variant),
         value: altmanValue,
         // The Z" is what the row DISPLAYS; the engine's 0–100
         // `subscores.altman` is what the composite consumes.
@@ -2112,7 +2123,7 @@ export function computeCreditScore(
 
   const components: CreditScoreResult["components"] = [
     {
-      label: `Altman ${altman.variant}-Score`,
+      label: altmanLabelOf(altman.variant),
       value: altman.score,
       subscore: altmanScore,
       weight: 0.4,

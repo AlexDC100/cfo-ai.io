@@ -129,6 +129,8 @@ import {
   formatRatioMovement,
   formatRatioSide,
   movementTone,
+  ratioCompareHeadingsFor,
+  ratioLabelForKey,
   reasonText,
   type RatioCompareRow,
   type RatioComparisonV1,
@@ -1718,7 +1720,12 @@ export function computeRatios(
   // ratio can be added on the wrong side of.
   const row = (
     key: string,
-    label: string,
+    /** The card's own words — the fallback for a key the one label
+     *  authority (`ratioLabelForKey`, the i18n table the Ratios tab reads)
+     *  does not name. Every export surface reads `Ratio.label`, so the
+     *  cover line, the rail, the charts, the cards and the workbook move
+     *  together and print the tab's name. */
+    fallbackLabel: string,
     unit: Ratio["unit"],
     f: Fig,
     bands: { critical?: number; watch?: number; healthy?: number; strong?: number },
@@ -1739,6 +1746,7 @@ export function computeRatios(
      *  produced it, never typed as a cutoff (TC-10). */
     extra?: { absenceNote?: string; ungradedBecause?: string },
   ): Ratio => {
+    const label = ratioLabelForKey(servedRatioKey(key), RATIO_CMP_EXPORT_LOCALE) ?? fallbackLabel;
     if (f.value === null) {
       const absence = f.absence ?? { kind: "missing", inputs: [] };
       const note = extra?.absenceNote;
@@ -2920,12 +2928,18 @@ export function servedMovableRows(cmp: RatioComparisonV1): RatioCompareRow[] {
   return [...cmp.rows, ...cmp.composites];
 }
 
-/** The printed name of a served row. */
+/** The printed name of a served row: the ONE label authority every
+ *  surface prints (`ratioLabelForKey`, the i18n table the Ratios tab
+ *  reads, in the export locale). The bundle's card label and the credit
+ *  reader's Altman label are reached only for a key the table does not
+ *  label, so a name is never the raw key. */
 export function servedRatioLabel(
   key: string,
   bundle: RatioBundle | null,
   altmanLabel: string | null,
 ): string {
+  const shared = ratioLabelForKey(key, RATIO_CMP_EXPORT_LOCALE);
+  if (shared !== null) return shared;
   if (key === ALTMAN_RATIO_KEY && altmanLabel) return altmanLabel;
   if (bundle) {
     for (const group of [bundle.liquidity, bundle.profitability, bundle.leverage, bundle.coverage, bundle.efficiency]) {
@@ -2939,10 +2953,11 @@ export function servedRatioLabel(
 /** The `data-cell` id of each of the six cells, in heading order. */
 export const RATIO_CMP_CELL_IDS = ["current", "prior", "delta", "band-now", "band-prior", "movement"] as const;
 
-/** The six column headings, in order. The two period headings are the
+/** The six column headings, in order — the one heading set the Ratios
+ *  tab prints (`ratioCompareHeadingsFor`). The two period headings are the
  *  served labels, verbatim. */
 export function ratioCompareHeadings(cmp: RatioComparisonV1): string[] {
-  return [cmp.current_label, cmp.prior_label, "Δ", "Band now", "Band prior", "Band movement"];
+  return ratioCompareHeadingsFor(cmp.current_label, cmp.prior_label, RATIO_CMP_EXPORT_LOCALE);
 }
 
 /** One served row as the six printed cells, plus its handle. */
@@ -4975,8 +4990,8 @@ export function renderReportHtml(
       ratioCmp.prior_label,
     )}:</strong>${escapeHtml(ratioCmpBasisClause())}<ul class="credit-movement">${part(
       "letter_grade",
-      "Letter grade",
-    )}${part("credit_composite", "Composite credit score")}${part(ALTMAN_RATIO_KEY, altman.label)}</ul></div>`;
+      servedRatioLabel("letter_grade", null, null),
+    )}${part("credit_composite", servedRatioLabel("credit_composite", null, null))}${part(ALTMAN_RATIO_KEY, servedRatioLabel(ALTMAN_RATIO_KEY, null, altman.label))}</ul></div>`;
   };
 
   const creditSection = (): string => {
@@ -5010,16 +5025,16 @@ export function renderReportHtml(
     return `
     <div class="grid grid-3">
       <div class="ratio-card">
-        <div class="label">Composite credit score</div>
+        <div class="label">${escapeHtml(servedRatioLabel("credit_composite", null, null))}</div>
         <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(creditScoreFigure)}</div>
         <div class="meta">${escapeHtml(credit.model)}</div>
-        ${ratioCmpCardTable("credit_composite", "Composite credit score", creditScoreFigure, "Not banded")}
+        ${ratioCmpCardTable("credit_composite", servedRatioLabel("credit_composite", null, null), creditScoreFigure, "Not banded")}
       </div>
       <div class="ratio-card">
-        <div class="label">Letter grade</div>
+        <div class="label">${escapeHtml(servedRatioLabel("letter_grade", null, null))}</div>
         <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(credit.rating ?? UNREPORTED_WORD)}</div>
         <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
-        ${ratioCmpCardTable("letter_grade", "Letter grade", credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
+        ${ratioCmpCardTable("letter_grade", servedRatioLabel("letter_grade", null, null), credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
       </div>
       ${ratioCard(altman)}
     </div>

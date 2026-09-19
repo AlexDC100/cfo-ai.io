@@ -49,6 +49,7 @@
 //  · whether the workbook OPENS correctly in Excel proper — SheetJS
 //    round-trips through its own reader here.
 
+import { ratioCompareHeadingsFor } from "@/lib/ratioTable";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 
@@ -151,13 +152,15 @@ describe("G-C3 — the workbook and the document print the same figures", () => 
 });
 
 describe("G-C3b — the Ratios sheet names its prior column, or states there is none", () => {
-  const MOVEMENT_COLUMNS = ["Δ", "Band now", "Band prior", "Band movement"];
+  // The four movement headings are the one heading set every surface
+  // prints (`ratioCompareHeadingsFor`), named with the period labels.
+  const movementColumns = (current: string, prior: string): string[] => ratioCompareHeadingsFor(current, prior, "en").slice(2);
 
   it.each(BOOKS)("%s: no comparison — the prior column is headed with the stated absence", (b: Book) => {
     const header = sheetRows(workbook(b), "Ratios")[0];
     expect(header[2]).toBe(statementsFor(b).periodLabel);
     expect(header[3], `${b}: the prior column heading`).toBe(NO_COMPARATIVES_NOTE);
-    expect(header.slice(4, 8)).toEqual(MOVEMENT_COLUMNS);
+    expect(header.slice(4, 8)).toEqual(movementColumns(statementsFor(b).periodLabel, NO_COMPARATIVES_NOTE));
   });
 
   it("a served two-period table — the prior column is headed with the served prior label", () => {
@@ -165,7 +168,7 @@ describe("G-C3b — the Ratios sheet names its prior column, or states there is 
     const header = sheetRows(wb, "Ratios")[0];
     expect(header[2]).toBe(servedRatioPair().ratios.current_label);
     expect(header[3], "the prior column heading").toBe(servedRatioPair().ratios.prior_label);
-    expect(header.slice(4, 8)).toEqual(MOVEMENT_COLUMNS);
+    expect(header.slice(4, 8)).toEqual(movementColumns(servedRatioPair().ratios.current_label, servedRatioPair().ratios.prior_label));
     expect(header[3]).not.toBe("—");
   });
 });

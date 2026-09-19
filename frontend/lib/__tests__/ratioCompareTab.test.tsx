@@ -965,3 +965,35 @@ describe("G8 the export statements carry the served comparatives document", () =
     expect(statementsForExportOf(null, p.comparatives)).toBeNull();
   });
 });
+
+// ── G13 ───────────────────────────────────────────────────────────────
+//
+// The tile and the drawer printed a turns row's change as TWO strings a
+// margin apart ("+0.28×" then "+15.4%") while the table, the lists, the
+// report and the workbook print the one joined cell "+0.28× (+15.4%)"
+// (B8 verifier). The change is one cell on every tab surface.
+
+describe("G13 the tile and the drawer print a turns change as the table's one joined cell", () => {
+  const joined = (root: ParentNode): string =>
+    (root.querySelector('[data-cell="delta"]')?.textContent ?? "").replace(/\s+/g, " ").trim();
+
+  it("on every served turns row with a percent, the tile's and the drawer's delta cell equal the table's — including the percent", () => {
+    const p = fresh();
+    renderTab(p);
+    // Served-only keys (net_debt_to_ebitda, …) have no tile; the rows the
+    // tab tiles are the ones this gate walks.
+    const turns = p.comparatives.ratios.rows.filter(
+      (r) => r.delta.unit === "turns" && r.delta.pct_change !== null && document.querySelector(`[data-testid="ratio-tile"][data-ratio-key="${r.key}"]`),
+    );
+    expect(turns.length, "non-vacuity: no tiled turns row carries a percent").toBeGreaterThan(0);
+    for (const row of turns) {
+      const tableCell = joined(tableRow(row.key));
+      expect(tableCell, `${row.key}: the table's cell carries no percent`).toMatch(/\(.+%\)$/);
+      expect(joined(tile(row.key)), `${row.key}: the tile's change is not the table's one cell`).toBe(tableCell);
+      fireEvent.click(tile(row.key));
+      const drawer = screen.getByTestId("ratio-detail-drawer");
+      expect(joined(within(drawer).getByTestId("ratio-detail-vs-prior")), `${row.key}: the drawer's change is not the table's one cell`).toBe(tableCell);
+      fireEvent.keyDown(drawer, { key: "Escape" });
+    }
+  });
+});

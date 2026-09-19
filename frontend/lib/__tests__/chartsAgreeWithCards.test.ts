@@ -129,10 +129,10 @@ function cards(doc: Document): CardDom[] {
  *  The working-capital rows carry the ratio KEY as their label ("DSO",
  *  "plus DIO"), the rail carries the ratio's full label. */
 const WC_ROW_TO_CARD: Record<string, string> = {
-  DSO: "Days Sales Outstanding",
-  "plus DIO": "Days Inventory Outstanding",
-  "less DPO": "Days Payables Outstanding (on total operating cost)",
-  "equals CCC": "Cash Conversion Cycle",
+  DSO: "Days sales outstanding",
+  "plus DIO": "Days inventory outstanding",
+  "less DPO": "Days payables outstanding (on total operating cost)",
+  "equals CCC": "Cash conversion cycle",
 };
 
 // ══════════════════════════════════════════════════════════════════════

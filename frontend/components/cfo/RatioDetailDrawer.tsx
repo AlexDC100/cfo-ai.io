@@ -66,6 +66,7 @@ import {
   type PrintedRatioRow,
   type RatioCompareView,
 } from "@/lib/ratioCompareView";
+import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 
 // ── ONE ROW, ONE DRAWER (TC-10) ─────────────────────────────────────────
 //
@@ -330,8 +331,17 @@ function DrawerBody({
                 <span data-col="current">{printed.current}</span>
               </div>
               <div className="mt-0.5 font-mono tabular-nums text-ink-soft">
-                <span data-col="delta">{printed.delta}</span>
-                {printed.deltaSecondary ? <span className="ml-1 text-ink-mute" data-col="delta_secondary">{printed.deltaSecondary}</span> : null}
+                {/* One joined change cell, the table's bytes (`joinRatioDelta`). */}
+                <span data-cell="delta">
+                  <span data-col="delta">{printed.delta}</span>
+                  {printed.deltaSecondary ? (
+                    <span className="text-ink-mute">
+                      {RATIO_DELTA_SECONDARY_OPEN}
+                      <span data-col="delta_secondary">{printed.deltaSecondary}</span>
+                      {RATIO_DELTA_SECONDARY_CLOSE}
+                    </span>
+                  ) : null}
+                </span>
               </div>
               <div className="mt-0.5 text-ink-soft">
                 <span data-col="band_prior">{printed.bandPrior}</span>

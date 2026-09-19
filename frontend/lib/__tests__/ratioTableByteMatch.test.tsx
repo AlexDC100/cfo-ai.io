@@ -42,7 +42,13 @@
 //     in the workbook's Band movements block;
 //  B4 non-vacuity: fewer than every served census row and composite
 //     compared, no turns row with its percent, no refused prior, no numeric
-//     prior Altman, an empty list.
+//     prior Altman, an empty list;
+//  B5 the NAME beside the six cells, or any of the six column headings,
+//     differing by one byte between the tab, the report and the workbook —
+//     or the tab's name not being the i18n label the one authority
+//     (`ratioLabelForKey`) prints, or a heading not being its i18n word
+//     ("Current Ratio" / "Current ratio", "Δ" / "Change", "Band now" /
+//     "Band, 2025-12-31": the B8 verifier's 31 mismatched rows).
 //
 // ── WHAT IT CANNOT SEE ────────────────────────────────────────────────
 //
@@ -71,7 +77,13 @@ import {
 import { computeCreditScore } from "@/lib/financialValuation";
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { ratioSurfacesOf, type RatioSurfaces } from "@/lib/useRatioSurfaces";
-import { serializeRatioCompareRow, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
+import {
+  ratioCompareHeadingsFor,
+  ratioLabelForKey,
+  serializeRatioCompareRow,
+  type RatioCompareRow,
+  type RatioComparisonV1,
+} from "@/lib/ratioTable";
 
 import pairJson from "./fixtures/comparatives/pair_served.json";
 import priorBlocksJson from "./fixtures/comparatives/pair_prior_blocks.json";
@@ -110,6 +122,11 @@ interface Surfaces {
   reportHandles: { key: string; handle: string }[];
   workbook: Map<string, Cells>;
   lists: Record<"improved" | "deteriorated", { tab: ListItem[]; report: ListItem[]; workbook: ListItem[] }>;
+  /** B5: the name printed beside the six cells, per surface. */
+  labels: { tab: Map<string, string>; report: Map<string, string[]>; workbook: Map<string, string> };
+  /** B5: the six column headings, per surface (the report's every
+   *  heading set — one per card table and the served-only table). */
+  headings: { tab: string[]; report: string[][]; workbook: string[] };
 }
 
 interface ListItem {
@@ -166,12 +183,17 @@ function readSurfaces(p: Pair): Surfaces {
     </>,
   );
   const tab = new Map<string, { handle: string | null; cells: Cells }>();
+  const tabLabels = new Map<string, string>();
   for (const tr of Array.from(document.querySelectorAll('[data-testid="ratio-compare-row"]'))) {
     tab.set(tr.getAttribute("data-ratio-key") as string, {
       handle: tr.getAttribute("data-ratio-cmp-json"),
       cells: cellsOf(tr, RATIO_CMP_CELL_IDS),
     });
+    tabLabels.set(tr.getAttribute("data-ratio-key") as string, text(tr.querySelector('th[scope="row"] > div:first-child')));
   }
+  const tabHeadings = Array.from(
+    document.querySelectorAll('[data-testid="ratio-compare-table"] thead th'),
+  ).map((th) => text(th)).slice(1);
   const tabList = (kind: "improved" | "deteriorated"): ListItem[] => {
     const section = document.querySelector(`[data-testid="band-movements"]`);
     const lists = section ? Array.from(section.querySelectorAll("ol")) : [];
@@ -192,11 +214,27 @@ function readSurfaces(p: Pair): Surfaces {
   if (!statements) throw new Error("the page join built no export statements");
   const doc = new DOMParser().parseFromString(buildReportHtml(statements, s.creditEnvelopes), "text/html");
   const report = new Map<string, { handle: string | null; cells: Cells }[]>();
+  const reportLabels = new Map<string, string[]>();
+  const reportHeadings: string[][] = [];
   for (const el of Array.from(doc.querySelectorAll("[data-ratio-cmp]"))) {
     const key = el.getAttribute("data-ratio-cmp") as string;
     const list = report.get(key) ?? [];
     list.push({ handle: el.getAttribute("data-ratio-cmp-json"), cells: cellsOf(el, RATIO_CMP_CELL_IDS) });
     report.set(key, list);
+    // The name beside the cells: the card's headline for a card table, the
+    // first cell for a served-only row. The headings: the card table's row
+    // headings, or the served-only table's column headings.
+    const card = el.closest(".ratio-card");
+    if (card) {
+      reportLabels.set(key, [...(reportLabels.get(key) ?? []), text(card.querySelector(".label"))]);
+      reportHeadings.push(Array.from(el.querySelectorAll('th[scope="row"]')).map((th) => text(th)));
+    } else if (el.tagName === "TR") {
+      reportLabels.set(key, [...(reportLabels.get(key) ?? []), text(el.querySelector("td"))]);
+      const head = el.closest("table")?.querySelector("thead tr");
+      if (head) reportHeadings.push(Array.from(head.querySelectorAll("th")).map((th) => text(th)).slice(1));
+    } else {
+      reportLabels.set(key, [...(reportLabels.get(key) ?? []), `<no name beside ${key}>`]);
+    }
   }
   const reportHandles = Array.from(doc.querySelectorAll("[data-ratio-cmp-json]")).map((el) => {
     const handle = el.getAttribute("data-ratio-cmp-json") as string;
@@ -228,10 +266,15 @@ function readSurfaces(p: Pair): Surfaces {
     byLabel.set(label, [...(byLabel.get(label) ?? []), r.slice(2, 8).map((c) => String(c))]);
   }
   const workbook = new Map<string, Cells>();
+  const workbookLabels = new Map<string, string>();
   for (const key of keys) {
     const hits = byLabel.get(servedRatioLabel(key, bundle, altmanLabel)) ?? [];
-    if (hits.length === 1) workbook.set(key, hits[0]);
+    if (hits.length === 1) {
+      workbook.set(key, hits[0]);
+      workbookLabels.set(key, servedRatioLabel(key, bundle, altmanLabel));
+    }
   }
+  const workbookHeadings = rows[0].slice(2, 8).map((c) => String(c));
   const labelToKey = new Map(keys.map((k) => [servedRatioLabel(k, bundle, altmanLabel), k]));
   const workbookList = (title: string): ListItem[] =>
     rows
@@ -259,6 +302,8 @@ function readSurfaces(p: Pair): Surfaces {
         workbook: workbookList("Deteriorated"),
       },
     },
+    labels: { tab: tabLabels, report: reportLabels, workbook: workbookLabels },
+    headings: { tab: tabHeadings, report: reportHeadings, workbook: workbookHeadings },
   };
 }
 
@@ -302,6 +347,26 @@ for (const [name, make] of Object.entries(DOCUMENTS)) {
       for (const cell of tab!.cells) {
         expect(cell, `${key}: a blank or dash cell`).not.toMatch(/^(|—|-|–)$/);
       }
+    });
+
+    it.each(keys)("B5 %s: the same name beside the six cells on the tab, in the report and in the workbook — the i18n label", (key) => {
+      const authority = ratioLabelForKey(key, "en");
+      expect(authority, `${key}: the one label authority names no label for a served key`).not.toBeNull();
+      expect(read.labels.tab.get(key), `${key}: the tab's name is not the authority's`).toBe(authority);
+      const inReport = read.labels.report.get(key) ?? [];
+      expect(inReport.length, `${key}: no name beside the six cells in the report`).toBeGreaterThan(0);
+      for (const name of inReport) expect(name, `${key}: the report's name differs from the tab's`).toBe(authority);
+      expect(read.labels.workbook.get(key), `${key}: the workbook's name differs from the tab's`).toBe(authority);
+    });
+
+    it("B5 the six column headings are one string on the tab, in the report and in the workbook — the i18n words", () => {
+      const authority = ratioCompareHeadingsFor(served.current_label, served.prior_label, "en");
+      expect(authority[2]).toBe(i18n.getFixedT("en")("statements.ratioCmp.ui.colChange"));
+      expect(authority.every((h) => h.length > 0)).toBe(true);
+      expect(read.headings.tab).toEqual(authority);
+      expect(read.headings.workbook).toEqual(authority);
+      expect(read.headings.report.length, "no heading set in the report").toBeGreaterThanOrEqual(keys.length);
+      for (const set of read.headings.report) expect(set, "a report heading set differs from the tab's").toEqual(authority);
     });
 
     it("B2 every report element embedding a served row embeds it byte for byte", () => {

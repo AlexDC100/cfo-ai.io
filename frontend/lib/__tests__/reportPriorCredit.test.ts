@@ -81,7 +81,7 @@ import {
   type Statements,
 } from "@/lib/financialReport";
 import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "@/lib/reportComparatives";
-import { formatRatioBand, reasonText, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
+import { formatRatioBand, ratioCompareHeadingsFor, reasonText, type RatioCompareRow, type RatioComparisonV1 } from "@/lib/ratioTable";
 
 import { metricsFor, statementsFor } from "./exportBooks";
 import {
@@ -238,7 +238,7 @@ describe("§3 plant one served row: every export surface prints the plant", () =
     expect(text(li)).toContain("4.56×");
     expect(text(doc.querySelector('[data-credit-movement="altman_z"]'))).toContain("1.23");
     expect(cardCells(doc, "altman_z")[1]).toBe("1.23");
-    const wbRow = ratiosSheet(planted).find((r) => r[1] === "Current Ratio") as string[];
+    const wbRow = ratiosSheet(planted).find((r) => r[1] === "Current ratio") as string[];
     expect(wbRow.slice(2, 5)).toEqual(["4.56×", "9.87×", "-5.31× (+15.4%)"]);
   });
 
@@ -377,7 +377,7 @@ describe("§6 a prior that cannot be computed states why — never a dash", () =
     expect(row.prior.value_q).toBeNull();
     const sentence = reasonText(row.prior.reason?.code, "en", row.prior.reason?.inputs);
     expect(cardCells(doc, "interest_coverage")[1]).toBe(sentence);
-    const wb = ratiosSheet().find((r) => r[1] === "Interest Coverage (EBITDA / Interest)") as string[];
+    const wb = ratiosSheet().find((r) => r[1] === "Interest coverage (EBITDA / interest)") as string[];
     expect(wb[3]).toBe(sentence);
   });
 
@@ -463,9 +463,9 @@ describe("§6 a prior that cannot be computed states why — never a dash", () =
     const doc = reportDoc(planted);
     const t = doc.querySelector('table.ratio-cmp[data-ratio-cmp="quick_ratio"][data-ratio-cmp-absent="row"]') as Element;
     const cells = Array.from(t.querySelectorAll("td")).map(text);
-    const reason = ratioRowAbsence("Quick Ratio");
+    const reason = ratioRowAbsence("Quick ratio");
     expect([cells[1], cells[2], cells[4], cells[5]]).toEqual([reason, reason, reason, reason]);
-    const wb = ratiosSheet(planted).find((r) => r[1] === "Quick Ratio") as string[];
+    const wb = ratiosSheet(planted).find((r) => r[1] === "Quick ratio") as string[];
     expect(wb.slice(2, 8)).toEqual(cells);
   });
 });
@@ -481,8 +481,8 @@ describe("§7 a book with no comparison claims none", () => {
     expect(doc.querySelector("table.ratio-cmp, [data-band-movements], [data-report-credit-movement]")).toBeNull();
     const wb = buildExcelWorkbook(statementsFor("agras"), undefined, { metricsByName: metricsFor("agras") });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets.Ratios, { header: 1, raw: false, defval: "" }) as string[][];
-    expect(rows[0].slice(2, 8)).toEqual(["Imported period", NO_COMPARATIVES_NOTE, "Δ", "Band now", "Band prior", "Band movement"]);
-    const current = rows.find((r) => r[1] === "Current Ratio") as string[];
+    expect(rows[0].slice(2, 8)).toEqual(ratioCompareHeadingsFor("Imported period", NO_COMPARATIVES_NOTE, "en"));
+    const current = rows.find((r) => r[1] === "Current ratio") as string[];
     expect([current[3], current[4], current[6], current[7]]).toEqual(Array(4).fill(NO_COMPARATIVE_CELL));
     expect(rows.some((r) => r[0] === "no prior period was supplied with this book")).toBe(true);
   });
@@ -567,7 +567,7 @@ describe("§9 workbook — the six columns and the band movements, same as the d
 
   it("the header names both served periods and the four movement columns", () => {
     expect(rows[0]).toEqual([
-      "Group", "Ratio", "Dec 2025", "Dec 2024", "Δ", "Band now", "Band prior", "Band movement", "Benchmark", "Commentary",
+      "Group", "Ratio", ...ratioCompareHeadingsFor("Dec 2025", "Dec 2024", "en"), "Benchmark", "Commentary",
     ]);
   });
 
@@ -701,7 +701,7 @@ describe("§12 a malformed served block is absent-with-a-reason on every surface
       const t = doc.querySelector('table.ratio-cmp[data-ratio-cmp="current_ratio"]') as Element;
       expect(text(t.querySelectorAll("td")[1])).toBe(reason);
       expect(text(doc.querySelector('[data-band-movements="absent"]'))).toContain(reason);
-      const wb = ratiosSheet(planted, s).find((r) => r[1] === "Current Ratio") as string[];
+      const wb = ratiosSheet(planted, s).find((r) => r[1] === "Current ratio") as string[];
       expect(wb[3]).toBe(reason);
     });
   }

@@ -89,14 +89,14 @@ const div = (a: number | undefined, b: number | undefined): number | null =>
 const SPECS: Spec[] = [
   {
     key: "current_ratio",
-    label: "Current Ratio",
+    label: "Current ratio",
     formula: "current assets ÷ current liabilities",
     unit: "x",
     recompute: (e) => div(e.bs.total_current_assets, e.bs.total_current_liabilities),
   },
   {
     key: "quick_ratio",
-    label: "Quick Ratio",
+    label: "Quick ratio",
     formula:
       "(cash + trade receivables) ÷ current liabilities — the acid test; other current assets are excluded, which is why this can sit a full band below (current assets − inventory) ÷ current liabilities",
     unit: "x",
@@ -104,7 +104,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "cash_ratio",
-    label: "Cash Ratio",
+    label: "Cash ratio",
     // ⚠ THE OLD ENTRY PINNED THE DEFECT. It read "cash ÷ current
     // liabilities" — the words the card printed — and this gate passed,
     // because the gate only ever asked whether the words matched the
@@ -123,7 +123,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "gross_margin",
-    label: "Gross Margin",
+    label: "Gross margin",
     formula: "gross profit ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -133,7 +133,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "ebitda_margin",
-    label: "EBITDA Margin",
+    label: "EBITDA margin",
     formula: "EBITDA (statutory) ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -143,7 +143,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "net_margin",
-    label: "Net Margin",
+    label: "Net margin",
     formula: "net profit as filed (account 121) ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -157,7 +157,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roa",
-    label: "Return on Assets",
+    label: "Return on assets",
     formula: "net profit as filed (account 121) ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -171,7 +171,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roe",
-    label: "Return on Equity",
+    label: "Return on equity",
     formula: "net profit as filed (account 121) ÷ total equity",
     unit: "%",
     recompute: (e) => {
@@ -185,7 +185,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roic",
-    label: "Return on Invested Capital",
+    label: "Return on invested capital",
     formula:
       "EBIT × (1 − 16% tax) ÷ (total debt + total equity) — NOPAT over invested capital. Net profit is NOT an input: this ratio does not move with the account-121 anchor and is not expected to.",
     unit: "%",
@@ -196,21 +196,21 @@ const SPECS: Spec[] = [
   },
   {
     key: "debt_to_ebitda",
-    label: "Debt / EBITDA",
+    label: "Debt to EBITDA",
     formula: "total debt ÷ EBITDA (statutory)",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.pl.ebitda_statutory),
   },
   {
     key: "debt_to_equity",
-    label: "Debt / Equity",
+    label: "Debt to equity",
     formula: "total debt ÷ total equity",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.bs.total_equity),
   },
   {
     key: "equity_ratio",
-    label: "Equity Ratio",
+    label: "Equity ratio",
     formula: "total equity ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -220,7 +220,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "ltv",
-    label: "Debt-to-Assets",
+    label: "Debt to assets",
     formula: "total debt ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -230,7 +230,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "interest_coverage",
-    label: "Interest Coverage (EBITDA / Interest)",
+    label: "Interest coverage (EBITDA / interest)",
     formula:
       "EBITDA (statutory) ÷ interest expense — NOT EBIT ÷ interest, which the credit component below bands on and which is a different number on every levered book",
     unit: "x",
@@ -238,14 +238,14 @@ const SPECS: Spec[] = [
   },
   {
     key: "dscr",
-    label: "DSCR (interest + ST debt)",
+    label: "Debt service coverage",
     formula: "EBITDA (statutory) ÷ (interest expense + short-term debt)",
     unit: "x",
     recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.short_term_debt),
   },
   {
     key: "adjusted_dscr",
-    label: "Adjusted DSCR (incl. lease)",
+    label: "Debt service coverage, lease-adjusted",
     // ⚠ THE OLD ENTRY PINNED THE DEFECT, AND PINNED IT WORD FOR WORD.
     // It asserted the card printed "no lease supplied — identical to
     // DSCR above" and recomputed the plain DSCR to match it, so a green
@@ -267,7 +267,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "dscr_with_lt_principal",
-    label: "DSCR (incl. LT principal proxy)",
+    label: "Debt service coverage with long-term principal",
     formula:
       "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
     unit: "x",
@@ -276,7 +276,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "dso",
-    label: "Days Sales Outstanding",
+    label: "Days sales outstanding",
     formula: (e) => `trade receivables ÷ revenue × ${periodDaysLabel(e.days)}`,
     unit: "days",
     recompute: (e) => {
@@ -286,7 +286,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "dio",
-    label: "Days Inventory Outstanding",
+    label: "Days inventory outstanding",
     formula: (e) =>
       `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
@@ -303,7 +303,7 @@ const SPECS: Spec[] = [
     // and reads 37.2 days on this same agras book, against the 26.6 days
     // this row computes. Two bases cannot share one name in one
     // document.
-    label: "Days Payables Outstanding (on total operating cost)",
+    label: "Days payables outstanding (on total operating cost)",
     formula: (e) =>
       `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
@@ -314,7 +314,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "ccc",
-    label: "Cash Conversion Cycle",
+    label: "Cash conversion cycle",
     formula: "DSO + DIO − DPO",
     unit: "days",
     recompute: (e) => {
@@ -327,7 +327,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "asset_turnover",
-    label: "Asset Turnover",
+    label: "Asset turnover",
     formula: "revenue ÷ total assets",
     unit: "x",
     recompute: (e) => div(e.pl.revenue, e.bs.total_assets),
@@ -431,7 +431,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       "Net Income (account 121, as filed)",
       "Total Debt",
       "Composite credit score",
-      "Letter grade",
+      "Credit letter grade",
     ];
     const cards = ratioCards(doc).map((c) => c.label);
     const unaccounted = cards.filter(

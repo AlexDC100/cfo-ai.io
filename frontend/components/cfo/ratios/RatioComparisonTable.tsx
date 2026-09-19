@@ -17,6 +17,7 @@ import type { ChipTone } from "@/components/instrument/Panel";
 import {
   RATIO_DELTA_SECONDARY_CLOSE,
   RATIO_DELTA_SECONDARY_OPEN,
+  ratioCompareHeadingsFor,
 } from "@/lib/ratioTable";
 import {
   printRatioRow,
@@ -139,6 +140,7 @@ export function RatioComparisonTable({ view }: { view: RatioCompareView }) {
   const subscores = print(keys.subscores);
   const cols = compared ? 7 : 3;
   const priorLabel = view.priorLabel ?? "";
+  const headings = ratioCompareHeadingsFor(view.currentLabel, priorLabel, i18n.language);
   return (
     <section
       className="space-y-2"
@@ -161,14 +163,16 @@ export function RatioComparisonTable({ view }: { view: RatioCompareView }) {
               <th scope="col" className="py-2 px-3 text-right font-medium">{view.currentLabel}</th>
               {compared ? (
                 <>
-                  <th scope="col" className="py-2 px-3 text-right font-medium">{priorLabel}</th>
-                  <th scope="col" className="py-2 px-3 text-right font-medium">{t("statements.ratioCmp.ui.colChange")}</th>
-                  <th scope="col" className="py-2 px-3 text-left font-medium">{t("statements.ratioCmp.ui.colBandNow", { label: view.currentLabel })}</th>
-                  <th scope="col" className="py-2 px-3 text-left font-medium">{t("statements.ratioCmp.ui.colBandPrior", { label: priorLabel })}</th>
-                  <th scope="col" className="py-2 pl-3 text-left font-medium">{t("statements.ratioCmp.ui.colMovement")}</th>
+                  {/* The heading words are the one authority the report
+                      and the workbook print (`ratioCompareHeadingsFor`). */}
+                  <th scope="col" className="py-2 px-3 text-right font-medium">{headings[1]}</th>
+                  <th scope="col" className="py-2 px-3 text-right font-medium">{headings[2]}</th>
+                  <th scope="col" className="py-2 px-3 text-left font-medium">{headings[3]}</th>
+                  <th scope="col" className="py-2 px-3 text-left font-medium">{headings[4]}</th>
+                  <th scope="col" className="py-2 pl-3 text-left font-medium">{headings[5]}</th>
                 </>
               ) : (
-                <th scope="col" className="py-2 px-3 text-left font-medium">{t("statements.ratioCmp.ui.colBandNow", { label: view.currentLabel })}</th>
+                <th scope="col" className="py-2 px-3 text-left font-medium">{headings[3]}</th>
               )}
             </tr>
           </thead>

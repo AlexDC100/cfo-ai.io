@@ -39,7 +39,7 @@
 
 import i18n from "@/i18n";
 import type { ChipTone } from "@/components/instrument/Panel";
-import { RATIO_CMP_SURFACE_KEYS } from "@/lib/ratioCompareKeys";
+import { RATIO_CMP_SURFACE_KEYS, RATIO_LABELLED_KEYS } from "@/lib/ratioCompareKeys";
 
 // ─── Enumerations (closed, mirrored from the served schema) ─────────────
 
@@ -570,6 +570,39 @@ type T = ReturnType<typeof i18n.getFixedT>;
 
 function tFor(locale: string | null | undefined): T {
   return i18n.getFixedT(ratioLocale(locale ?? i18n.language));
+}
+
+// ─── ONE LABEL, ONE HEADING SET, EVERY SURFACE ──────────────────────────
+//
+// The Ratios tab resolved a row's name from the served `label_key` through
+// `statements.ratioCmp.label.<key>`, while the report and the workbook
+// borrowed the `computeRatios` card's own words ("Current Ratio",
+// "Interest Coverage (EBITDA / Interest)", "Altman Z\"-Score") and spelled
+// their headings by hand ("Δ", "Band now"). The six cells byte-matched; the
+// names beside them did not, on all 31 rows (B8 verifier). These two
+// functions are the authority every surface prints from; the byte-match
+// gate holds the tab, the report and the workbook to them.
+
+/** The printed name of a served ratio key, from the i18n table the tab
+ *  reads — or null for a key the table does not label, so a caller falls
+ *  back to whatever name it has rather than printing the raw key. */
+export function ratioLabelForKey(key: string, locale?: string | null): string | null {
+  if (!(RATIO_LABELLED_KEYS as readonly string[]).includes(key)) return null;
+  return tFor(locale)(`statements.ratioCmp.label.${key}`);
+}
+
+/** The six column headings, in cell order: the two period labels verbatim,
+ *  then the change, band-now, band-prior and movement words. */
+export function ratioCompareHeadingsFor(currentLabel: string, priorLabel: string, locale?: string | null): string[] {
+  const t = tFor(locale);
+  return [
+    currentLabel,
+    priorLabel,
+    t("statements.ratioCmp.ui.colChange"),
+    t("statements.ratioCmp.ui.colBandNow", { label: currentLabel }),
+    t("statements.ratioCmp.ui.colBandPrior", { label: priorLabel }),
+    t("statements.ratioCmp.ui.colMovement"),
+  ];
 }
 
 /** A served enum value this reader does not recognise, named. */

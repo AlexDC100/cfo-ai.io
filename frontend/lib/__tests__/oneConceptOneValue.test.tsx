@@ -330,9 +330,9 @@ const CAPTION_FACTS: Array<{
   concept: string;
   field: string;
 }> = [
-  { card: "Net Margin", concept: "net profit as filed (account 121)", field: "net_income_statutory" },
-  { card: "EBITDA Margin", concept: "EBITDA (statutory)", field: "ebitda_statutory" },
-  { card: "Gross Margin", concept: "revenue", field: "revenue" },
+  { card: "Net margin", concept: "net profit as filed (account 121)", field: "net_income_statutory" },
+  { card: "EBITDA margin", concept: "EBITDA (statutory)", field: "ebitda_statutory" },
+  { card: "Gross margin", concept: "revenue", field: "revenue" },
 ];
 
 /**
@@ -353,7 +353,7 @@ const CAPTION_FACTS: Array<{
  * near-cash it excludes — instead of pointing at "other current assets",
  * which was RON 8,861,293 and about ten times the real figure.
  */
-const BS_CAPTION_CARDS: ReadonlySet<string> = new Set(["Cash Ratio"]);
+const BS_CAPTION_CARDS: ReadonlySet<string> = new Set(["Cash ratio"]);
 
 /** The prose block the document prints for a ratio card, if any. */
 function captionFor(doc: Document, card: string): string | null {

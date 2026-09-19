@@ -3198,8 +3198,8 @@ the page's own join.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/ratioTableByteMatch.test.tsx --reporter=verbose` |
-| work count | stdout `Tests N passed`, floor **64** (measured 70: 2 documents x (31 rows + non-vacuity + handles + 2 lists)) |
-| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells` |
+| work count | stdout `Tests N passed`, floor **120** (measured 134: 2 documents x (31 rows x {six cells, name} + non-vacuity + handles + headings + 2 lists)) |
+| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells`, `B5 altman_z: the same name beside the six cells`, `B5 the six column headings are one string` |
 
 **Reds on, after the repair (TC-11):** any census row or composite whose six
 cells differ by one byte between the tab table, the report (card table,
@@ -3208,7 +3208,15 @@ surface's `data-ratio-cmp-json` that is not the served row serialised, or a
 row absent from a surface; a blank or dash cell; the lists in another order
 or with other cells on any of the three; fewer than every served row
 compared, no turns row with its percent, no refused prior, no numeric prior
-Altman, an empty list. **Cannot see:** the one formatter printing a figure
+Altman, an empty list; **B5 (2026-09-19)** the NAME beside the six cells, or
+any of the six headings, differing by one byte between the three surfaces,
+or the tab's name not being the i18n label `ratioLabelForKey` prints, or a
+heading not its i18n word (the B8 verifier's 31 mismatched rows: "Current
+Ratio" / "Current ratio", "Δ" / "Change", "Band now" / "Band, 2025-12-31";
+one label authority: `statements.ratioCmp.label.<key>`, resolved by the
+report's `row()` helper into `Ratio.label` so the cover line, rail, charts,
+cards and workbook move together, and by `altmanLabelOf` for the credit
+reader). **Cannot see:** the one formatter printing a figure
 wrongly on every surface at once (ratioTableFormat.test.ts owns that); the
 Romanian tab (the exports print English); the PDF; the live route
 (comparatives-route).
@@ -3232,6 +3240,20 @@ Romanian tab (the exports print English); the PDF; the live route
 → current_ratio: the report's six cells differ from the tab's: expected [ '2.10×', '1.8×', …(4) ] to deeply equal [ '2.10×', '1.82×', …(4) ]
 → altman_z: the report's six cells differ from the tab's: expected [ '7.31', '6.6', '+0.69', …(3) ] to deeply equal [ '7.31', '6.62', '+0.69', …(3) ]
 ```
+
+**PLANT (B5, 2026-09-19)** — applied, run, reverted (134 passed after each):
+
+| plant | red |
+|---|---|
+| `financialReport.ts` `row()`: `const label = fallbackLabel` (the card keeps its own words) | `current_ratio: no single row in the workbook Ratios sheet: expected undefined to be defined` (B1/B2, 22 rows) plus B5 `the report's name differs from the tab's` |
+| `financialValuation.ts` `altmanLabelOf`: `return fallback` (the reader spells `Altman Z"-Score`) | `altman_z: the report's name differs from the tab's: expected 'Altman Z"-Score' to be 'Altman Z″'` |
+| `financialExports.ts` `cmpHeadings`: `"Δ", "Band now", …` spelled by hand | `B5 the six column headings …: expected [ 'Dec 2025', 'Dec 2024', 'Δ', …(3) ] to deeply equal [ 'Dec 2025', 'Dec 2024', …(4) ]` |
+
+The tile and the drawer are held to the table's one joined change cell by
+`ratioCompareTab.test.tsx` G13 (plant: the tile prints the percent as a
+second string → `current_ratio: the tile's change is not the table's one
+cell: expected '+0.28×+15.4%' to be '+0.28× (+15.4%)'`; the same on the
+drawer; reverted, 1 passed).
 
 **REVERT** — `Tests 70 passed (70)` after each plant; no `# PLANT` marker
 left. Verdict: proven RED.

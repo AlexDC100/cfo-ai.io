@@ -26,6 +26,7 @@ import {
   VERDICT_UNAVAILABLE_NOTE,
   saveHtmlReport,
   ALTMAN_RATIO_KEY,
+  RATIO_CMP_EXPORT_LOCALE,
   printedRatioCells,
   printRatioCompareRow,
   priorRatioAbsence,
@@ -41,7 +42,7 @@ import {
 // SAME model the report's executive summary renders, so the workbook's
 // improved / deteriorated lists cannot differ from the document's.
 import { buildBandMovements } from "./executiveSummary";
-import type { RatioCompareRow } from "./ratioTable";
+import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // servedFacts gateway — BS totals + the balance-status wording. The Excel
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
@@ -396,7 +397,7 @@ export function buildExcelWorkbook(
   );
   const cmpHeadings = ratioCmp
     ? ratioCompareHeadings(ratioCmp)
-    : [s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ", "Band now", "Band prior", "Band movement"];
+    : ratioCompareHeadingsFor(s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, RATIO_CMP_EXPORT_LOCALE);
   const cmpAbsent = ratioCmp === null && (s.prior !== undefined || (s.comparatives ?? null) !== null)
     ? priorRatioAbsence(s)
     : null;
@@ -447,6 +448,9 @@ export function buildExcelWorkbook(
   ];
   for (const [groupName, group] of groups) {
     for (const r of group) {
+      // `r.label` is the one label authority (the `row` helper in
+      // financialReport.ts resolves it from the i18n table the tab reads),
+      // so this cell, the report card and the tab print one name.
       ratioRows.push([
         groupName,
         r.label,
@@ -501,7 +505,7 @@ export function buildExcelWorkbook(
     // Column order keeps the current figure right after the name, as in
     // the table above: [list, ratio, current, prior, Δ, movement, rung,
     // finding].
-    ratioRows.push(["List", "Ratio", cmpHeadings[0], cmpHeadings[1], "Δ", "Band movement", "Rung crossed", "Finding"]);
+    ratioRows.push(["List", "Ratio", cmpHeadings[0], cmpHeadings[1], cmpHeadings[2], cmpHeadings[5], "Rung crossed", "Finding"]);
     for (const [title, entries, absence] of [
       ["Improved", bands.improved, bands.improvedAbsence],
       ["Deteriorated", bands.deteriorated, bands.deterioratedAbsence],
@@ -806,6 +810,10 @@ function altmanRowFor(
   // Critical — the words the served Altman ladder uses). It used to print
   // the zone word "Safe" here while the document printed "Healthy" in the
   // same cell for the same state; the zones stay spelled in the benchmark.
+  // `r.label` is the reader's label, which is the one label authority
+  // (i18n "Altman Z″" — `altmanLabelOf` in financialValuation.ts), so the
+  // Ratios sheet, the Credit & Risk sheet, the card and the tab print one
+  // name.
   return [
     "Bankruptcy",
     r.label,
