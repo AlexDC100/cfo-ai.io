@@ -148,21 +148,37 @@ export interface RiskRadarResponse {
 
 // ─── Per-ticker risk score ───────────────────────────────────────────────
 
+/** Why a score, or one of its categories, is not served. `component` is the
+ *  category key or "overall"; `inputs` names the absent snapshot fields (or,
+ *  for "overall", the refused categories); `text` is the sentence a reader
+ *  sees in place of the number. Mirrors models.ScoreRefusal. */
+export interface ScoreRefusal {
+  code: string;
+  component: string;
+  inputs: string[];
+  text: string;
+}
+
+/** 0–100 per category, or null where the engine had no measured input for
+ *  it — never a neutral stand-in. The reason for every null is a
+ *  ScoreRefusal on the parent score's `refusals` (same `component` key). */
 export interface RiskCategoryScores {
-  macro: number;
-  supply_chain: number;
-  geopolitical: number;
-  financial: number;
-  valuation: number;
-  operational: number;
-  regulatory: number;
+  macro: number | null;
+  supply_chain: number | null;
+  geopolitical: number | null;
+  financial: number | null;
+  valuation: number | null;
+  operational: number | null;
+  regulatory: number | null;
 }
 
 export interface RiskItem {
   key: string;
   label: string;
   severity: Severity;
-  score_contribution: number;
+  /** How much this risk lifts the overall score; null when every category
+   *  its channels map to is refused (there is no overall for it to lift). */
+  score_contribution: number | null;
   channels: FinancialImpactChannel[];
   source_signal_ids: string[];
 }
@@ -178,14 +194,24 @@ export interface OpportunityItem {
 
 export interface PublicCompanyRiskScore {
   ticker: string;
-  overall_risk_score: number;
-  risk_level: Severity;
+  /** null unless EVERY weighted category is measured; `refusals` says why. */
+  overall_risk_score: number | null;
+  risk_level: Severity | null;
   categories: RiskCategoryScores;
   top_risks: RiskItem[];
   top_opportunities: OpportunityItem[];
   explanation: string;
   confidence: number;
   computed_at: string;
+  refusals: ScoreRefusal[];
+}
+
+/** The refusal recorded for a component ("overall" or a category key). */
+export function scoreRefusalFor(
+  score: Pick<PublicCompanyRiskScore, "refusals">,
+  component: string,
+): ScoreRefusal | null {
+  return (score.refusals ?? []).find((r) => r.component === component) ?? null;
 }
 
 // ─── Company exposure ────────────────────────────────────────────────────
@@ -371,16 +397,21 @@ export function postRefreshSignals(): Promise<{ cache_keys_invalidated: number; 
 
 // ─── Universe-wide risk-scores batch ────────────────────────────────────
 
-/** One row in the universe-wide risk-score batch response — what the
- *  PublicCompaniesUniverseTable renders per ticker. */
+/** One row in the universe-wide risk-score batch response
+ *  (GET /api/public/intelligence/risk-scores). No component renders it
+ *  today (2026-09-19); the shape mirrors routes.py's batch row so the
+ *  first consumer inherits the refusals. A null score carries its reason
+ *  in the matching `*_refusal` sentence. */
 export interface UniverseRiskScoreRow {
   ticker: string;
-  risk_score: number;
-  risk_level: Severity;
+  risk_score: number | null;
+  risk_level: Severity | null;
+  risk_refusal: string | null;
   main_risk: string | null;
   main_risk_severity: Severity | null;
-  opportunity_score: number;
-  opportunity_level: Severity;
+  opportunity_score: number | null;
+  opportunity_level: Severity | null;
+  opportunity_refusal: string | null;
   exposure_source: ExposureSource;
   confidence: number;
 }

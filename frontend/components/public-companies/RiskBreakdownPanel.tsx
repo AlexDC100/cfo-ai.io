@@ -7,11 +7,19 @@
 // Calls /api/public/intelligence/companies/{ticker}/risk-score. The
 // endpoint returns the deterministic risk score from risk_scoring_engine.py
 // + top 3 risks + top 3 opportunities + a deterministic explanation.
+//
+// A refused score is null with its reason on `refusals` (engine ruling
+// 2026-09-15: absent is never a neutral number). This reader renders the
+// refusal sentence in place of the number — it used to run the level ladder
+// on a null category (`null >= 25` is false, so "low") and draw a 2% bar,
+// which styled "Financial / Operational — low" on every universe ticker
+// while the explanation said the composite was unavailable.
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, TrendingUp } from "lucide-react";
 import {
   fetchTickerRiskScore,
+  scoreRefusalFor,
   type PublicCompanyRiskScore,
   type RiskCategoryScores,
   severityToBgClass,
@@ -56,7 +64,7 @@ export function RiskBreakdownPanel({ ticker }: Props) {
   return (
     <div className="space-y-5">
       <HeadlineCard score={score} />
-      <CategoryGrid categories={score.categories} />
+      <CategoryGrid score={score} />
       <TopRisksList score={score} />
       <TopOpportunitiesList score={score} />
       <Disclosure confidence={score.confidence} />
@@ -66,7 +74,28 @@ export function RiskBreakdownPanel({ ticker }: Props) {
 
 // ─── Headline card ──────────────────────────────────────────────────────
 
-function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
+export function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
+  if (score.overall_risk_score === null || score.risk_level === null) {
+    const refusal = scoreRefusalFor(score, "overall");
+    return (
+      <div
+        className="rounded-2xl border border-rule bg-surface/80 p-5"
+        data-testid="risk-composite-unavailable"
+      >
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium">
+            Composite risk
+          </span>
+          <span className="inline-flex items-center text-[10.5px] uppercase tracking-[0.1em] font-medium px-2 py-0.5 rounded-full border border-rule text-ink-mute">
+            unavailable
+          </span>
+        </div>
+        <p className="text-[12.5px] text-ink-soft leading-relaxed">
+          {refusal?.text ?? score.explanation}
+        </p>
+      </div>
+    );
+  }
   const sevText = severityToTextClass(score.risk_level);
   const sevBg = severityToBgClass(score.risk_level);
   return (
@@ -122,7 +151,12 @@ const CATEGORY_LABEL: Record<keyof RiskCategoryScores, string> = {
   regulatory:    "Regulatory",
 };
 
-function CategoryGrid({ categories }: { categories: RiskCategoryScores }) {
+export function CategoryGrid({
+  score: parent,
+}: {
+  score: Pick<PublicCompanyRiskScore, "categories" | "refusals">;
+}) {
+  const categories = parent.categories;
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-2">
@@ -131,6 +165,26 @@ function CategoryGrid({ categories }: { categories: RiskCategoryScores }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {CATEGORY_ORDER.map((cat) => {
           const score = categories[cat];
+          if (score === null) {
+            // No number, no bar, no level: the refusal sentence instead.
+            const refusal = scoreRefusalFor(parent, cat);
+            return (
+              <div
+                key={cat}
+                className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-rule/60 bg-bg-2/30"
+                data-testid={`risk-category-${cat}`}
+                data-state="unavailable"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] text-ink-soft">{CATEGORY_LABEL[cat]}</span>
+                  <span className="text-[11px] text-ink-mute">unavailable</span>
+                </div>
+                {refusal && (
+                  <span className="text-[11px] text-ink-mute leading-snug">{refusal.text}</span>
+                )}
+              </div>
+            );
+          }
           const level: "low" | "medium" | "high" | "critical" =
             score >= 75 ? "critical" :
             score >= 50 ? "high" :
