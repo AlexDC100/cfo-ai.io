@@ -4943,9 +4943,14 @@ export function renderReportHtml(
   };
 
   const creditSection = (): string => {
+    // R-COMPOSITE: a refused composite carries its reason and every refused
+    // component into the printed document; only a period the engine never
+    // scored prints the extraction note.
     const letterBlock =
       credit.rating === null
-        ? `<div class="risk"><strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(VERDICT_UNAVAILABLE_NOTE)}</div>`
+        ? credit.compositeRefusal?.stated
+          ? `<div class="risk" data-report-credit-composite-refusal><strong>Composite and letter grade: refused.</strong> ${escapeHtml(credit.compositeRefusal.sentence)} <span class="meta">${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</span></div>`
+          : `<div class="risk"><strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(VERDICT_UNAVAILABLE_NOTE)}</div>`
         : `<div class="commentary"><strong>Scoring model:</strong> ${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</div>`;
     // THE LADDER, SPELLED — so a re-band is visible on the page and not
     // only inside the letter. It comes off the reader's `letterBands`, so

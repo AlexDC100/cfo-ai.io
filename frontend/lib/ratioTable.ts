@@ -227,27 +227,78 @@ export interface CreditAsFiled {
   credit_model_revision: number | "unknown";
 }
 
-/** A sub-score the credit model refused beside a computed composite
- *  (credit_model.CREDIT_SUBSCORE_REFUSALS, revision 2). */
+/** A sub-score the credit model refused (credit_model revision 2,
+ *  `subscore_refusal`): its code, the inputs it names and the served
+ *  sentence. `materiality` travels with the Altman refusal (the pack share
+ *  it was read against, TC-10) and `range` with an out-of-range one. */
 export interface CreditSubscoreRefusal {
-  code: "current_liabilities_not_positive" | "total_liabilities_not_positive" | "credit_inputs_absent";
+  code:
+    | "current_liabilities_not_positive"
+    | "total_liabilities_below_materiality"
+    | "revenue_not_positive"
+    | "interest_expense_not_positive"
+    | "credit_out_of_range"
+    | "credit_inputs_absent";
+  component: CreditSubscoreKey;
   inputs: string[];
+  text: string;
+  materiality?: { share: string; basis: string; source: string; file: string };
+  range?: string;
+}
+
+/** A sub-score the model STATED rather than measured (rulings R-D1, R-D2,
+ *  R-D3): the pack rung, its label and source, served so no surface prints
+ *  it as a measurement. */
+export interface CreditDeclaredRung {
+  rung: string;
+  score: number;
+  when: string;
+  label: string;
+  source: string;
+  file: string;
+}
+
+/** Why the composite and the letter are absent (R-COMPOSITE): every
+ *  refused component listed with its own refusal, or the composed value
+ *  outside its range, or a model that did not run. */
+export interface CreditCompositeRefusal {
+  code: "credit_component_undefined" | "credit_out_of_range" | "credit_inputs_absent";
+  inputs: string[];
+  components?: Array<CreditSubscoreRefusal & { cause: string }>;
+  range?: string;
+  text?: string;
+}
+
+/** The pack-declared ranges every served figure was read against
+ *  (R-RANGE), with the Z'' bound derived for this book. */
+export interface CreditRanges {
+  subscore: { min: number; max: number; source: string; file: string };
+  composite: { min: number; max: number; source: string; file: string };
+  altman_x1: { max: number; source: string; file: string };
+  altman_x4: { max: number; max_is: string; source: string; file: string };
+  altman_z: { bound: number | null; bound_is: string; derivation: string | null; source: string; file: string };
 }
 
 export interface CreditBlock {
   revision: number;
   altman: CreditAltman;
   subscores: Record<CreditSubscoreKey, number | null>;
-  /** Sub-scores that refused while the composite was computed, with why. */
+  /** Sub-scores the model refused, with why. Any entry here means
+   *  `composite` and `letter` are null (R-COMPOSITE). */
   refused_subscores: Partial<Record<CreditSubscoreKey, CreditSubscoreRefusal>>;
-  /** The weights the served composite multiplied by: the model table when
-   *  nothing refused, else the computed sub-scores' weights renormalised to
-   *  sum to one (a refused sub-score has no entry). */
-  weights: Partial<Record<CreditSubscoreKey, number>>;
-  /** The model's weight table the applied weights were renormalised from. */
-  model_weights: Record<CreditSubscoreKey, number>;
+  /** Sub-scores stated by declared rule rather than measured, labelled. */
+  declared_rungs: Partial<Record<CreditSubscoreKey, CreditDeclaredRung>>;
+  /** R-D2: set when ROE was dropped from the profitability blend. */
+  profitability_disclosure: { formula: string; label: string; source: string; file: string } | null;
+  /** THE MODEL'S WEIGHT TABLE — the only weights a composite is ever
+   *  multiplied by. Never renormalised: with a refused component there is
+   *  no composite at all. */
+  weights: Record<CreditSubscoreKey, number>;
+  ranges: CreditRanges;
   composite: number | null;
   letter: CreditLetter | null;
+  /** Null beside a composite; otherwise why there is none. */
+  reason: CreditCompositeRefusal | null;
   ladder: CreditLadderRung[];
   as_filed: CreditAsFiled | null;
   as_filed_differs: boolean;
@@ -370,6 +421,7 @@ export const RATIO_REASON_CODES = [
   // refused (no value)
   "operand_absent",
   "zero_denominator",
+  "nonpositive_denominator",
   "non_finite",
   "engine_metric_absent",
   "user_input_absent",
@@ -400,7 +452,11 @@ export const RATIO_COMPARE_REASON_CODES = [
   "credit_inputs_absent",
   "piotroski_prior_capped",
   "current_liabilities_not_positive",
-  "total_liabilities_not_positive",
+  "total_liabilities_below_materiality",
+  "revenue_not_positive",
+  "interest_expense_not_positive",
+  "credit_out_of_range",
+  "credit_component_undefined",
 ] as const;
 
 export type RatioCompareReasonCode = (typeof RATIO_COMPARE_REASON_CODES)[number];
@@ -409,6 +465,7 @@ export type RatioCompareReasonCode = (typeof RATIO_COMPARE_REASON_CODES)[number]
 export const RATIO_REASON_CODES_WITH_INPUTS: ReadonlySet<string> = new Set([
   "operand_absent",
   "zero_denominator",
+  "nonpositive_denominator",
   "negative_denominator",
   "user_input_absent",
 ]);

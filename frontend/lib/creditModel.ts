@@ -83,10 +83,12 @@ export interface WeightedComponent {
 export function spellWeights(
   components: ReadonlyArray<WeightedComponent>,
 ): string | null {
-  const scored = components.filter((c) => !c.refusal);
-  if (scored.length === 0) return null;
-  if (scored.some((c) => c.weight === null || !Number.isFinite(c.weight))) return null;
-  return scored.map((c) => Math.round((c.weight as number) * 100)).join("/");
+  // EVERY row, refused or not: the weights are the model's constants and
+  // are never renormalised (R-COMPOSITE). NULL when any row carries no
+  // weight (a partial vector is not a vector).
+  if (components.length === 0) return null;
+  if (components.some((c) => c.weight === null || !Number.isFinite(c.weight))) return null;
+  return components.map((c) => Math.round((c.weight as number) * 100)).join("/");
 }
 
 /** The sub-scores the composite was scored without, named — NULL when
@@ -112,9 +114,8 @@ export function creditModelLabel(
   const parts = [CREDIT_MODEL_NAME[model]];
   const w = spellWeights(components);
   const refused = refusedSubscores(components);
-  const scoredCount = components.filter((c) => !c.refusal).length;
-  if (w) parts.push(refused ? `weights ${w} over ${scoredCount} of ${components.length} sub-scores` : `weights ${w}`);
-  if (refused) parts.push(`not scored: ${refused}`);
+  if (w) parts.push(`weights ${w}`);
+  if (refused) parts.push(`not scored: ${refused} — no composite and no letter`);
   const ladder = spellLadder(bands);
   parts.push(ladder ? `ladder ${ladder}` : "no band ladder reported for this period");
   const s = parts.join(" · ");
@@ -135,9 +136,9 @@ export function creditCaveat(
   const w = spellWeights(components);
   const refused = refusedSubscores(components);
   const refusedSentence = refused
-    ? ` The composite was scored without ${refused}, which the model could not score for this ` +
-      `period; the weights above are renormalised over the remaining sub-scores, so this ` +
-      `composite is not weighted like one that scored all ${components.length}.`
+    ? ` The composite and the letter are REFUSED for this period: the model could not score ` +
+      `${refused}, and its weights are never redistributed over the remaining sub-scores — a ` +
+      `composite scored over part of the model would be a different model wearing its name.`
     : "";
   const ladder = spellLadder(bands);
   const ladderSentence = ladder

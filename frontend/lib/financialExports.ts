@@ -628,8 +628,12 @@ export function buildExcelWorkbook(
     ["Model", credit.modelLabel],
     // A workbook is forwarded; the reason a verdict is missing has to
     // travel with it, because the recipient cannot ask the app.
+    // R-COMPOSITE: a refused composite ships its reason and the refused
+    // components; the extraction note is for a period the engine never scored.
     ...(credit.score === null || credit.rating === null
-      ? [[EXPORT_UNAVAILABLE_NOTE]]
+      ? credit.compositeRefusal?.stated
+        ? [["Composite and rating refused", credit.compositeRefusal.sentence]]
+        : [[EXPORT_UNAVAILABLE_NOTE]]
       : []),
     [],
     // ── THE VERDICT WORDS BELONG BESIDE THE AUTHORITY'S NUMBER ──────

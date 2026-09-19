@@ -40,11 +40,16 @@ import {
 type SubKey = "altman" | "profitability" | "leverage" | "coverage" | "dscr" | "liquidity" | "equity";
 
 export interface CreditScoreData {
-  composite: number;          // 0-100
+  /** 0-100, or NULL when the composite is REFUSED (credit model revision
+   *  2, R-COMPOSITE: any unscored component, or a composite outside its
+   *  declared range) — the card still renders, and `compositeRefusal`
+   *  says why there is no score and no letter. */
+  composite: number | null;
+  /** The reader's sentence for a refused composite; NULL beside a score. */
+  compositeRefusal: string | null;
   /** Raw Z″. NULL when the engine refused it (credit model revision 2:
-   *  total liabilities not positive, so X4 has no base) — the composite
-   *  beside it is still computed, over the other sub-scores, and the card
-   *  still renders; `altmanRefusal` says why there is no Z″. */
+   *  total liabilities below the pack's materiality share of total assets,
+   *  so X4 has no base); `altmanRefusal` says why there is no Z″. */
   altmanZ: number | null;
   /** The reader's sentence for a refused Altman sub-score; NULL when the
    *  Z″ was scored (or is simply absent with no stated refusal). */
@@ -115,10 +120,10 @@ export interface CreditScoreData {
     liquidity: number | null;
     equity: number | null;
   };
-  /** THE WEIGHT EACH BAR CARRIED, off the reader's rows — never a table
-   *  in this file. The bars printed a hardcoded 30/20/15/10/10/10/5 beside
-   *  a composite the engine had renormalised over five sub-scores. NULL on
-   *  a refused (or unreported) row. */
+  /** THE WEIGHT EACH BAR CARRIES, off the reader's rows — never a table
+   *  in this file. Since R-COMPOSITE the weights are the model's constants
+   *  on every row, refused or not (never renormalised); NULL only on a row
+   *  the reader could give no weight. */
   weights: Record<SubKey, number | null>;
   /** The reader's refusal sentence per row; NULL on a scored row. */
   refusals: Record<SubKey, string | null>;
@@ -202,9 +207,12 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
   // the composite over the other sub-scores, so that rule told /report's
   // reader "Credit score not available — re-run the pipeline" while the
   // dashboard hero and the exported report printed 97.5 / AAA for the same
-  // period. A refused Z″ is stated inside the card; only a period with no
-  // composite has no card.
-  if (composite === null) return null;
+  // period. A refused Z″ is stated inside the card. Since R-COMPOSITE a
+  // refused COMPOSITE is stated inside the card too (score and letter
+  // absent, the reason and every refused component printed) — the card
+  // exists for every engine period; only "the engine never spoke" — no
+  // composite AND no stated refusal — has no card.
+  if (composite === null && !result.compositeRefusal?.stated) return null;
   const ladder = result.letterBands;
   const letter = result.rating;
   // The seven weighted rows, in the reader's own order.
@@ -216,6 +224,7 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
   const keys = Object.keys(rows) as SubKey[];
   return {
     composite,
+    compositeRefusal: composite === null ? (result.compositeRefusal?.sentence ?? LETTER_ABSENT_NOTE) : null,
     altmanZ,
     altmanRefusal: altman?.refusal?.sentence ?? null,
     weights: Object.fromEntries(keys.map((k) => [k, rows[k]?.weight ?? null])) as Record<SubKey, number | null>,
@@ -280,7 +289,8 @@ export function CreditScoreCard({ data }: Props) {
   // Semantic band color from tokens only — red stays reserved for the
   // genuinely distressed band.
   const gradeColor =
-    data.composite >= 70 ? "text-success"
+    data.composite === null ? "text-ink-mute"
+    : data.composite >= 70 ? "text-success"
     : data.composite >= 50 ? "text-caution"
     : "text-alert";
 
@@ -316,12 +326,23 @@ export function CreditScoreCard({ data }: Props) {
             Credit score
           </div>
           <div className="mt-2 flex items-baseline gap-2 sm:gap-3 flex-wrap">
-            <span className={`font-mono tabular-nums text-[clamp(30px,7vw,44px)] font-medium leading-none ${gradeColor}`}>
-              <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
-                {Math.round(data.composite)}
-              </LearnableNumber>
-            </span>
-            <span className="text-[16px] sm:text-[20px] text-ink-mute">/ 100</span>
+            {data.composite === null ? (
+              <span
+                className={`font-mono text-[clamp(22px,5vw,32px)] font-medium leading-none ${gradeColor}`}
+                data-testid="report-credit-refused"
+              >
+                refused
+              </span>
+            ) : (
+              <>
+                <span className={`font-mono tabular-nums text-[clamp(30px,7vw,44px)] font-medium leading-none ${gradeColor}`}>
+                  <LearnableNumber conceptKey="composite_credit_score" value={data.composite}>
+                    {Math.round(data.composite)}
+                  </LearnableNumber>
+                </span>
+                <span className="text-[16px] sm:text-[20px] text-ink-mute">/ 100</span>
+              </>
+            )}
             {grade !== null && (
               <span
                 className={`font-mono tabular-nums text-[clamp(22px,5vw,32px)] font-medium leading-none ${gradeColor}`}
@@ -334,8 +355,15 @@ export function CreditScoreCard({ data }: Props) {
             )}
           </div>
           <div className="mt-2 text-[12px] text-ink-soft">
-            Composite score · weighted average of the risk dimensions the model scored
+            {data.composite === null
+              ? "Composite score refused · the model's weights are never redistributed over the components that scored"
+              : "Composite score · weighted average of the seven risk dimensions, at the model's weights"}
           </div>
+          {data.compositeRefusal !== null ? (
+            <p className="mt-1.5 max-w-[440px] text-[11px] leading-snug text-ink-mute" data-testid="report-credit-composite-refusal">
+              {data.compositeRefusal}
+            </p>
+          ) : null}
           {/* THE LETTER NEVER APPEARS WITHOUT ITS MODEL — the same rule
               the Risks tab, the hero card and the workbook already
               carry, now on the fourth surface. When there is no letter,
@@ -439,7 +467,9 @@ function CreditModelNote({
       {data.model !== null && data.letter === null ? (
         <>
           {" · "}
-          <span data-testid="report-credit-letter-absent">{LETTER_ABSENT_NOTE}</span>
+          <span data-testid="report-credit-letter-absent">
+            {data.compositeRefusal ?? LETTER_ABSENT_NOTE}
+          </span>
         </>
       ) : null}
       {ladderText ? (

@@ -1,20 +1,20 @@
-// A REFUSED SUB-SCORE CARRIES NO WEIGHT, ON EVERY SURFACE THAT PRINTS ONE.
+// A REFUSED SUB-SCORE REFUSES THE COMPOSITE AND THE LETTER, ON EVERY
+// SURFACE THAT PRINTS ONE — AND THE WEIGHTS ARE NEVER RENORMALISED.
 //
-// ─── THE DEFECT (R2b critic, 2026-09-15) ───────────────────────────────
+// ─── THE DEFECT (R2b critic, 2026-09-15; corrected by ruling Q2 /
+// R-COMPOSITE the same day) ─────────────────────────────────────────────
 //
-// Credit model revision 2 refuses a sub-score whose base is not positive
-// (liquidity with no current liabilities, Altman with no liabilities at all)
-// and computes the composite over the rest, renormalised. The GET
-// /api/period credit envelope then serves `composite_weights` with NO entry
-// for the refused sub-score. The one FE reader read
-// `numOrNull(weights.x) ?? <model default>`, so on the served
-// `saga_compact_6_col` envelope every credit surface printed
-//
-//     weights 30/33/25/17/17/10/8          (140%)   beside composite 97.5
-//
-// and `/report` Section 7 said "Credit score not available — re-run the
-// pipeline" (the card refused whenever Z″ was null) while the hero and the
-// exported report printed 97.5 / AAA for the same period.
+// An earlier cut of credit model revision 2 refused a sub-score whose
+// base was not positive and computed the composite over the rest,
+// renormalised. Measured on the real route: `corpus/imbalance_03pct`
+// served 39.2 CCC over 60% of the model; `saga_compact_6_col` served
+// 97.5 AAA over five terms, and one FE reader printed 30/33/25/17/17/10/8
+// (140%) beside it. A composite scored over part of its model is a
+// different model wearing its name. Revision 2 as shipped REFUSES: any
+// unscored component -> no composite, no letter, the refused components
+// listed with their reasons; the weights stay the model's seven constants
+// on every row (R-COMPOSITE), and the reader re-checks a served composite
+// against the model's declared range before rendering (R-RANGE, C9.4).
 //
 // ─── WHAT THIS FILE READS ──────────────────────────────────────────────
 //
@@ -27,18 +27,21 @@
 //
 // ─── WHAT THIS REDS ON, AFTER THE REPAIR (TC-11) ───────────────────────
 //
-//   · the reader giving a refused row a weight or a contribution, or no
-//     refusal; a scored row's weight differing from the served weight; the
-//     scored weights not summing to one;
-//   · the model sentence spelling a vector whose integers do not sum to 100,
-//     or not naming what was not scored;
+//   · the reader minting a score or a letter for a period with a refused
+//     component (or from a served composite beside one, or from a served
+//     composite outside [0, 100]); a refused row carrying a contribution
+//     or a value, or no refusal sentence; any row's weight differing from
+//     the model's constant (served `composite_weights` verbatim); the
+//     seven weights not summing to one;
+//   · the model sentence spelling anything but the seven-term vector, or
+//     not naming what was not scored and that there is no composite;
 //   · the Risks tab, the hero, /report's card, the exported report, the
-//     workbook or the credit-contribution chart printing a weight on a
-//     refused row, or a weight column that does not sum to 100%;
-//   · /report printing no card, or a composite / letter different from the
-//     hero's and the exported report's, for a period with a composite;
-//   · with no served weights (revision-2 rows, a sub-score absent) any row
-//     printing the model table's weight.
+//     workbook or the credit-contribution chart printing a score, a
+//     letter, or a renormalised weight, or omitting the composite's
+//     refusal sentence and its refused components;
+//   · /report printing no card for an engine period whose composite refused;
+//   · the served declared rung (coverage / DSCR on the compact book) not
+//     read as "declared, not measured".
 
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -91,9 +94,13 @@ interface Case {
   metrics: Record<string, number | null>;
   /** The sub-scores the composite was scored without. */
   refused: Set<Key>;
-  /** True when the envelope served the weights the composite used. */
+  /** True when the envelope served its `composite_weights` object. */
   weightsServed: boolean;
 }
+
+const MODEL: Record<Key, number> = {
+  altman: 0.3, profitability: 0.2, leverage: 0.15, coverage: 0.1, dscr: 0.1, liquidity: 0.1, equity: 0.05,
+};
 
 function caseOf(name: string, label = name, strip?: (credit: any) => void): Case {
   const c = JSON.parse(JSON.stringify(RAW[name]));
@@ -105,20 +112,29 @@ function caseOf(name: string, label = name, strip?: (credit: any) => void): Case
     credit
       ? credit.refused_subscores
         ? (Object.keys(credit.refused_subscores) as Key[])
-        : KEYS.filter((k) => !(k in (credit.composite_weights ?? {})))
+        : KEYS.filter((k) => credit.subscores?.[k] === null)
       : KEYS.filter((k) => metrics[`credit_subscore_${k}`] === null),
   );
   return { name: label, credit, metrics, refused, weightsServed: !!credit?.composite_weights };
 }
 const CASES = [
   ...["compact_serve", "compact_as_filed", "compact_ltd_only", "compact_metrics_only"].map((n) => caseOf(n)),
-  // The shape the defect was measured on: renormalised weights with no
-  // reasons beside them (an envelope from before the passthrough, or a
-  // consumer that forwards `weights` alone). A key missing from the served
-  // weights beside an absent sub-score is itself the refusal.
-  caseOf("compact_serve", "compact_serve_weights_without_reasons", (credit) => {
-    delete credit.refused_subscores;
-    delete credit.model_weights;
+  // (An envelope stripped of BOTH its reasons and its refused entries is
+  // not a case here: the engine then states nothing about credit, and the
+  // completeness law — financialCompletenessLaw.test.tsx — holds that
+  // shape to "no card, no invented figure".)
+  // THE RENORMALISED SHAPE ITSELF, planted: a composite and a letter served
+  // beside a refused component, with five renormalised weights. The reader
+  // must withhold the composite and the letter and print the model weights.
+  caseOf("compact_serve", "compact_serve_renormalised_composite_planted", (credit) => {
+    credit.composite_score = 97.5;
+    credit.letter_grade = "AAA";
+    credit.composite_weights = { profitability: 0.333, leverage: 0.25, coverage: 0.167, dscr: 0.167, equity: 0.083 };
+  }),
+  // A composite outside the model's declared range, planted (R-RANGE, C9.4).
+  caseOf("compact_ltd_only", "compact_ltd_composite_out_of_range_planted", (credit) => {
+    credit.composite_score = 140;
+    credit.letter_grade = "AAA";
   }),
 ];
 
@@ -129,78 +145,120 @@ function reader(c: Case): CreditScoreResult {
 /** "30%" -> 30; "refused" / anything else -> null. */
 const pct = (t: string): number | null => (/^\d+%$/.test(t.trim()) ? Number(t.trim().slice(0, -1)) : null);
 
-/** Weight cells of a printed component table, keyed by row label. */
-function assertWeightColumn(where: string, r: CreditScoreResult, c: Case, cellOf: (label: string) => string | null) {
+/** Weight cells of a printed component table, keyed by row label: EVERY
+ *  row prints the model's constant, refused or not, and the seven sum to
+ *  100% (R-COMPOSITE: never renormalised). */
+function assertWeightColumn(where: string, r: CreditScoreResult, _c: Case, cellOf: (label: string) => string | null) {
   let sum = 0;
   r.components.forEach((row, i) => {
     const cell = cellOf(row.label);
     expect(cell, `${where}: no printed row for "${row.label}"`).not.toBeNull();
-    if (c.refused.has(KEYS[i])) {
-      expect(pct(cell as string), `${where}: refused "${row.label}" prints weight "${cell}"`).toBeNull();
-      expect((cell as string).trim(), where).toBe("refused");
-    } else if (c.weightsServed) {
-      const p = pct(cell as string);
-      expect(p, `${where}: scored "${row.label}" prints no weight ("${cell}")`).not.toBeNull();
-      sum += p as number;
-    }
+    const p = pct(cell as string);
+    expect(p, `${where}: "${row.label}" prints no weight ("${cell}")`).not.toBeNull();
+    expect(p, `${where}: "${row.label}" prints a weight that is not the model's`).toBe(Math.round(MODEL[KEYS[i]] * 100));
+    sum += p as number;
   });
-  if (c.weightsServed) {
-    expect(Math.abs(sum - 100), `${where}: printed weights sum to ${sum}%`).toBeLessThanOrEqual(1);
-  }
+  expect(sum, `${where}: printed weights sum to ${sum}%`).toBe(100);
 }
 
-describe("non-vacuity: the served fixture carries refusals of both kinds", () => {
-  it("the four cases, their refusals and their composites", () => {
+describe("non-vacuity: the served fixture carries refusals of both kinds, and every composite refuses", () => {
+  it("the cases, their refusals and their composites", () => {
     expect(CASES.map((c) => [c.name, [...c.refused].sort()])).toEqual([
       ["compact_serve", ["altman", "liquidity"]],
       ["compact_as_filed", ["altman", "liquidity"]],
-      ["compact_ltd_only", ["liquidity"]],
+      ["compact_ltd_only", ["coverage", "dscr", "liquidity"]],
       ["compact_metrics_only", ["altman", "liquidity"]],
-      ["compact_serve_weights_without_reasons", ["altman", "liquidity"]],
+      ["compact_serve_renormalised_composite_planted", ["altman", "liquidity"]],
+      ["compact_ltd_composite_out_of_range_planted", ["coverage", "dscr", "liquidity"]],
     ]);
-    for (const c of CASES) expect(reader(c).score, c.name).not.toBeNull();
+    for (const c of CASES) {
+      const r = reader(c);
+      expect(r.score, c.name).toBeNull();
+      expect(r.rating, c.name).toBeNull();
+      expect(r.compositeRefusal?.sentence, c.name).toMatch(/^No composite and no letter/);
+    }
+    // the served envelope carries the model table, never a renormalised one
+    expect(RAW.compact_serve.credit.composite_weights).toEqual(MODEL);
+    expect(RAW.compact_serve.credit.reason.code).toBe("credit_component_undefined");
+    expect(RAW.compact_serve.credit.reason.components.map((x: any) => x.component)).toEqual(["altman", "liquidity"]);
+    // the R-D1 declared rung is served labelled on the compact book
+    expect(Object.keys(RAW.compact_serve.credit.declared_rungs).sort()).toEqual(["coverage", "dscr"]);
+  });
+
+  it("the planted shapes are withheld with their own reason", () => {
+    const renorm = reader(CASES[4]);
+    expect(renorm.compositeRefusal?.code).toBe("credit_component_undefined");
+    expect(renorm.compositeRefusal?.sentence).toContain("97.5");
+    expect(renorm.compositeRefusal?.components).toEqual(["Altman Z″", "liquidity"]);
+    const oor = reader(CASES[5]);
+    expect(oor.compositeRefusal?.code).toBe("credit_out_of_range");
+    expect(oor.compositeRefusal?.sentence).toContain("[0, 100]");
+  });
+
+  it("the served declared rung reads as declared, not measured", () => {
+    const r = reader(CASES[0]);
+    const coverage = r.components[3];
+    const dscr = r.components[4];
+    expect(coverage.declaredRung?.score).toBe(95);
+    expect(dscr.declaredRung?.score).toBe(90);
+    expect(coverage.read).toMatch(/^Declared rung 95, not measured — no interest-bearing debt/);
+    expect(r.components[1].declaredRung ?? null).toBeNull();
   });
 });
 
 describe.each(CASES)("$name", (c) => {
-  it("the reader: a refused row carries no weight and says why; the scored weights are the served ones", () => {
+  it("the reader: a refused row keeps the model weight, contributes nothing and says why; no composite, no letter", () => {
     const r = reader(c);
     expect(r.model).toBe("engine-canonical-v1");
-    let scoredSum = 0;
+    let sum = 0;
     r.components.forEach((row, i) => {
       const key = KEYS[i];
+      // THE WEIGHT IS THE MODEL'S CONSTANT ON EVERY ROW — served verbatim
+      // when the envelope carries the table; the planted renormalised
+      // table is not read as a weight (its keys are absent or wrong).
+      if (c.name === "compact_serve_renormalised_composite_planted") {
+        expect(row.weight === null || row.weight === c.credit.composite_weights[key], row.label).toBe(true);
+      } else {
+        expect(row.weight, row.label).toBe(MODEL[key]);
+        sum += row.weight as number;
+      }
       if (c.refused.has(key)) {
-        expect([row.label, row.weight, row.contribution]).toEqual([row.label, null, null]);
+        expect([row.value, row.subscore, row.contribution], `${row.label}: a refused row carries a figure`).toEqual([null, null, null]);
         expect(row.refusal?.sentence, `${row.label}: refused without a sentence`).toMatch(/^Not scored — /);
         expect(row.refusal?.code ?? null).toBe(c.credit?.refused_subscores?.[key]?.code ?? null);
+        const servedText = c.credit?.refused_subscores?.[key]?.text;
+        if (servedText) expect(row.refusal?.sentence).toBe(`Not scored — ${servedText}`);
       } else {
         expect(row.refusal ?? null, `${row.label} is scored but carries a refusal`).toBeNull();
-        if (c.weightsServed) {
-          expect(row.weight, row.label).toBe(c.credit.composite_weights[key]);
-          scoredSum += row.weight as number;
-        } else {
-          // Weights not served and the composite was renormalised over
-          // weights this period did not ship: no row may print the table's.
-          expect(row.weight, `${row.label} printed a model-table weight`).toBeNull();
-        }
+        expect(row.contribution, row.label).not.toBeNull();
       }
     });
-    if (c.weightsServed) expect(Math.abs(scoredSum - 1)).toBeLessThan(1e-9);
+    if (c.name !== "compact_serve_renormalised_composite_planted") expect(Math.abs(sum - 1)).toBeLessThan(1e-9);
+    expect(r.score).toBeNull();
+    expect(r.rating).toBeNull();
+    expect(r.grade).toBeNull();
+    const refusal = r.compositeRefusal!;
+    expect(refusal.sentence).toMatch(/^No composite and no letter/);
+    for (const key of c.refused) expect(refusal.sentence + refusal.components.join(" ")).toContain(
+      key === "altman" ? "Altman" : key === "coverage" ? "coverage" : key === "dscr" ? "DSCR" : key,
+    );
   });
 
-  it("the model sentence spells the vector the composite used and names what was not scored", () => {
+  it("the model sentence spells the seven-term model vector and says there is no composite", () => {
     const r = reader(c);
     const w = spellWeights(r.components);
-    if (c.weightsServed) {
-      expect(w, r.modelLabel).not.toBeNull();
-      const total = (w as string).split("/").map(Number).reduce((a, b) => a + b, 0);
-      expect(Math.abs(total - 100), `${r.modelLabel}: the spelled weights sum to ${total}`).toBeLessThanOrEqual(1);
-      expect(r.modelLabel).toContain(`weights ${w} over ${7 - c.refused.size} of 7 sub-scores`);
-    } else {
+    if (c.name === "compact_serve_renormalised_composite_planted") {
+      // a planted partial table is not a vector: nothing is spelled
       expect(w).toBeNull();
       expect(r.modelLabel).not.toMatch(/weights \d/);
+    } else {
+      expect(w).toBe("30/20/15/10/10/10/5");
+      expect(r.modelLabel).toContain("weights 30/20/15/10/10/10/5");
+      expect(r.modelLabel).not.toContain(" over ");
     }
     expect(r.modelLabel).toContain("not scored: ");
+    expect(r.modelLabel).toContain("no composite and no letter");
+    expect(r.caveat).toContain("never redistributed");
     if (c.refused.has("altman")) {
       expect(r.modelLabel).toContain("Altman Z″");
       expect(r.caveat).not.toContain("as the dominant signal");
@@ -208,13 +266,16 @@ describe.each(CASES)("$name", (c) => {
     if (c.refused.has("liquidity")) expect(r.modelLabel).toContain("liquidity");
   });
 
-  it("the Risks tab prints no weight on a refused row and its weight column sums to 100%", () => {
+  it("the Risks tab prints the refusal, no rating, and the model weights on every row", () => {
     const r = reader(c);
     const { container } = render(
       <RisksPanel statements={STATEMENTS} creditEnvelope={c.credit} metricsByName={c.metrics} />,
     );
     expect(screen.getByTestId("credit-model").textContent?.trim()).toBe(r.modelLabel);
+    expect(screen.getByTestId("credit-composite").textContent).toContain(r.compositeRefusal!.sentence);
+    expect(screen.getByTestId("credit-rating").textContent).not.toMatch(/^(AAA|AA|A|BBB|BB|B|CCC|CC)$/);
     const rows = Array.from(container.querySelectorAll("tr"));
+    if (c.name === "compact_serve_renormalised_composite_planted") return;
     assertWeightColumn("Risks tab", r, c, (label) => {
       const tr = rows.find((x) => x.querySelector("td")?.textContent?.trim() === label);
       return tr ? (tr.querySelectorAll("td")[2]?.textContent ?? "") : null;
@@ -226,18 +287,20 @@ describe.each(CASES)("$name", (c) => {
     }
   });
 
-  it("the hero prints the same composite and model sentence", () => {
+  it("the hero prints no score and no letter for a refused composite", () => {
     const r = reader(c);
     render(
       <TooltipProvider>
         <HeroVerdictCard credit={r} companyName="saga_compact_6_col" />
       </TooltipProvider>,
     );
-    expect(screen.getByTestId("hero-credit-model").textContent?.trim()).toBe(r.modelLabel);
-    expect(Number(screen.getByTestId("hero-verdict").getAttribute("data-score"))).toBe(r.score);
+    const hero = screen.getByTestId("hero-verdict");
+    expect(hero.getAttribute("data-band")).toBe("pending");
+    expect(hero.getAttribute("data-score")).toBeNull();
+    expect(hero.textContent).not.toMatch(/\b(AAA|AA|BBB|BB|CCC|CC)\b/);
   });
 
-  it("/report renders the card for a period with a composite, with the hero's composite and letter", async () => {
+  it("/report renders the card with the composite refused, its reason, and no letter", async () => {
     const r = reader(c);
     vi.stubGlobal(
       "fetch",
@@ -263,41 +326,32 @@ describe.each(CASES)("$name", (c) => {
     await screen.findByTestId("comprehensive-report");
     const card = await screen.findByTestId("credit-score-card");
     expect(container.textContent).not.toContain("Credit score not available");
-    // Revision-2 rows with no envelope ship no ladder, so no letter is
-    // minted anywhere — /report included.
-    expect(screen.queryByTestId("report-credit-letter")?.textContent?.trim() ?? null).toBe(r.rating);
-    expect(card.textContent).toContain(String(Math.round(r.score as number)));
+    expect(screen.queryByTestId("report-credit-letter")).toBeNull();
+    expect(screen.getByTestId("report-credit-refused").textContent).toBe("refused");
+    expect(screen.getByTestId("report-credit-composite-refusal").textContent).toBe(r.compositeRefusal!.sentence);
     expect(screen.getByTestId("report-credit-model").textContent).toContain(r.modelLabel);
     if (c.refused.has("altman")) {
       expect(screen.getByTestId("report-altman-refused").textContent).toContain(
         r.components[0].refusal?.sentence as string,
       );
     }
-    let sum = 0;
-    for (const el of Array.from(card.querySelectorAll("[data-weight]"))) {
-      const w = el.getAttribute("data-weight");
-      if (w !== "none") sum += Number(w);
-    }
     for (const [i, key] of KEYS.entries()) {
       if (!c.refused.has(key)) continue;
       const label = ["Altman Z″", "Profitability", "Leverage", "Interest coverage", "DSCR", "Liquidity", "Equity ratio"][i];
-      const bar = screen.getByTestId(`score-bar-absent-${label}`);
-      expect(bar.getAttribute("data-weight"), `/report bar "${label}" carries a weight`).toBe("none");
       expect(screen.getByTestId(`score-bar-refusal-${label}`).textContent).toBe(r.components[i].refusal?.sentence);
     }
-    if (c.weightsServed) expect(Math.abs(sum - 1), `/report bars sum to ${sum}`).toBeLessThan(1e-9);
   });
 
-  it("the exported report and the workbook print the same weights, and no weight on a refused row", () => {
+  it("the exported report and the workbook print the refusal, no letter, and the model weights", () => {
     const r = reader(c);
     const envelopes = { credit: c.credit, piotroski: undefined, metricsByName: c.metrics };
     const html = buildReportHtml(STATEMENTS, envelopes);
     const doc = new DOMParser().parseFromString(html, "text/html");
-    expect(doc.querySelector("[data-report-credit-score]")?.textContent?.trim()).toBe(
-      `${(r.score as number).toFixed(1)} / 100`,
-    );
-    expect(doc.querySelector("[data-report-credit-letter]")?.textContent?.trim()).toBe(r.rating ?? "not reported");
+    expect(doc.querySelector("[data-report-credit-score]")?.textContent?.trim()).toBe("not reported");
+    expect(doc.querySelector("[data-report-credit-letter]")?.textContent?.trim() ?? "not reported").toBe("not reported");
+    expect(doc.querySelector("[data-report-credit-composite-refusal]")?.textContent).toContain(r.compositeRefusal!.sentence);
     const trs = Array.from(doc.querySelectorAll("tr"));
+    if (c.name === "compact_serve_renormalised_composite_planted") return;
     assertWeightColumn("exported report", r, c, (label) => {
       const tr = trs.find((x) => x.querySelector("td")?.textContent?.trim() === label);
       return tr ? (tr.querySelectorAll("td")[2]?.textContent ?? "") : null;
@@ -317,21 +371,23 @@ describe.each(CASES)("$name", (c) => {
       const row = rows.find((x) => String(x[0]) === label);
       return row ? String(row[2] ?? "") : null;
     });
+    const refusedRow = rows.find((x) => String(x[0]) === "Composite and rating refused");
+    expect(refusedRow?.[1]).toBe(r.compositeRefusal!.sentence);
+    expect(rows.find((x) => String(x[0]) === "Rating")?.[1]).toBe("not reported");
   });
 
-  it("the credit-contribution chart draws no ceiling for a refused term", () => {
+  it("the credit-contribution chart keeps the model ceiling and draws no contribution for a refused term", () => {
     const r = reader(c);
     const block = creditContributions({ credit: r } as unknown as ChartInputs);
     let ceilings = 0;
     block.rows.forEach((row: any, i: number) => {
       if (c.refused.has(KEYS[i])) {
-        expect(row.ceiling, `chart term ${row.label} draws a ceiling`).toBeNull();
-        expect(row.source).toContain("not scored, no weight");
-      } else if (c.weightsServed) {
-        ceilings += row.ceiling;
+        expect(row.value, `chart term ${row.label} draws a contribution`).toBeNull();
+        expect(row.printed).toBe("refused");
+        expect(row.source).toContain("not scored: ");
       }
+      if (row.ceiling !== null) ceilings += row.ceiling;
     });
-    if (c.weightsServed) expect(Math.abs(ceilings - 100)).toBeLessThan(1e-6);
-    expect(block.caption).not.toContain("seven terms");
+    if (c.name !== "compact_serve_renormalised_composite_planted") expect(Math.abs(ceilings - 100)).toBeLessThan(1e-6);
   });
 });

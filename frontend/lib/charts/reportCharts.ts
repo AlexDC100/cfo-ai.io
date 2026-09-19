@@ -452,12 +452,14 @@ export function creditContributions(i: ChartInputs): ChartBlock {
       value: c.contribution,
       printed: c.contribution === null ? (c.refusal ? "refused" : "not reported") : c.contribution.toFixed(1),
       ceiling,
-      ceilingPrinted: ceiling === null ? (c.refusal ? "no weight" : "not reported") : ceiling.toFixed(1),
+      ceilingPrinted: ceiling === null ? "not reported" : ceiling.toFixed(1),
       // The CEILING is drawn on the bar ("of 20.0"), so it has to be
       // printed in a table too — the same law every other figure obeys.
+      // A refused term keeps its model weight (never renormalised) and
+      // contributes nothing: the composite is refused with it.
       source:
         c.refusal
-          ? `not scored, no weight: ${c.refusal.sentence}`
+          ? `not scored: ${c.refusal.sentence}`
           : c.weight === null
           ? "weight not reported"
           : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)}`,

@@ -1154,6 +1154,11 @@ export interface CreditScoreResult {
   /** NULL when the engine emitted no composite and the FE fallback could
    *  not complete one. A lender reads this number; 0 is not "unknown". */
   score: number | null;
+  /** WHY `score` and `rating` are null on an engine period (R-COMPOSITE,
+   *  R-RANGE): a refused component (every one listed), a composite outside
+   *  the model's declared range (re-checked here, C9.4), or a model that
+   *  did not run. Null beside a score; absent on the client fallback. */
+  compositeRefusal?: CreditCompositeRefusalRead | null;
   /** NULL when there is no score to band. Never "—" as a value — the
    *  render layer decides how to SPELL an absence, this layer decides
    *  whether there IS one. */
@@ -1198,6 +1203,9 @@ export interface CreditScoreResult {
      *  place of a read. Absent / null on every row that was scored, and on
      *  every client-fallback row. */
     refusal?: CreditSubscoreRefusal | null;
+    /** R-D1/D2/D3: the row's score was STATED by a declared rule, not
+     *  measured; the served label says why. Null on a measured row. */
+    declaredRung?: { score: number; label: string; source: string; file: string } | null;
     /** NULL when there is no value to read. A "read" sentence is a
      *  verdict; six rows reading "weak" off absent sub-scores, under a
      *  headline that still said 82 / A, is what this lane removed. */
@@ -1254,22 +1262,44 @@ export interface CreditEnvelope {
   altman_components?: {
     x1?: number | null; x2?: number | null; x3?: number | null; x4?: number | null;
   } | null;
-  /** THE WEIGHTS THE COMPOSITE WAS MULTIPLIED BY. Since credit model
-   *  revision 2 a sub-score the engine refused has NO ENTRY here and the
-   *  remaining entries are renormalised to sum to one — so a missing key is
-   *  a statement ("scored without it"), never a cue to reach for the model
-   *  table's weight. */
+  /** THE MODEL'S WEIGHT TABLE — the only weights a composite is ever
+   *  multiplied by. NEVER renormalised (R-COMPOSITE): with a refused
+   *  component the engine serves no composite and no letter, and this
+   *  reader mints none. An earlier cut of revision 2 served renormalised
+   *  weights here; that shape is refused below, never re-weighted. */
   composite_weights?: {
     altman?: number | null; profitability?: number | null; leverage?: number | null;
     coverage?: number | null; dscr?: number | null; liquidity?: number | null; equity?: number | null;
   } | null;
-  /** Revision 2: each sub-score the composite was scored without, with the
-   *  engine's reason. Absent on envelopes that predate the passthrough. */
-  refused_subscores?: Partial<Record<CreditSubscoreKey, { code?: string | null; inputs?: string[] | null } | null>> | null;
+  /** Revision 2: each sub-score the model refused, with the engine's code,
+   *  inputs and sentence. Any entry means no composite and no letter. */
+  refused_subscores?: Partial<Record<CreditSubscoreKey, {
+    code?: string | null; inputs?: string[] | null; text?: string | null;
+  } | null>> | null;
+  /** Why the composite and the letter are absent (every refused component
+   *  listed), or null beside a composite. */
+  reason?: {
+    code?: string | null; inputs?: string[] | null; text?: string | null; range?: string | null;
+    components?: Array<{ component?: string | null; code?: string | null; cause?: string | null;
+                         text?: string | null; inputs?: string[] | null }> | null;
+  } | null;
+  /** Sub-scores STATED by declared rule rather than measured (R-D1/D2/D3),
+   *  each with its label, source and pack file. */
+  declared_rungs?: Partial<Record<CreditSubscoreKey, {
+    rung?: string | null; score?: number | null; when?: string | null; label?: string | null;
+    source?: string | null; file?: string | null;
+  } | null>> | null;
+  /** R-D2: the disclosed net-margin-only profitability variant, when used. */
+  profitability_disclosure?: { formula?: string | null; label?: string | null; source?: string | null; file?: string | null } | null;
+  /** The pack-declared ranges every served figure was read against
+   *  (R-RANGE). The reader re-checks the composite and the sub-scores
+   *  against these before rendering (C9.4). */
+  ranges?: {
+    subscore?: { min?: number | null; max?: number | null } | null;
+    composite?: { min?: number | null; max?: number | null } | null;
+  } | null;
   /** The credit model revision that produced this envelope's composite. */
   credit_model_revision?: number | null;
-  /** The model table the served `composite_weights` were renormalised from. */
-  model_weights?: Partial<Record<CreditSubscoreKey, number | null>> | null;
   subscores?: {
     altman?: number | null; profitability?: number | null; leverage?: number | null;
     coverage?: number | null; dscr?: number | null; liquidity?: number | null; equity?: number | null;
@@ -1523,13 +1553,46 @@ export function engineLetterGrade(
   return stated ?? letterFromEngineBands(e.letter_grade_bands, composite);
 }
 
-/** The engine model's weight table, used ONLY for an envelope that
- *  carries no `composite_weights` object at all (it predates the served
- *  weights). A served object is always authoritative: a key missing from
- *  it is never filled from here. */
+/** The engine model's weight table (credit_model.CREDIT_COMPOSITE_WEIGHTS),
+ *  used for an envelope that carries no `composite_weights` object (it
+ *  predates the served weights). The weights are CONSTANTS of the model —
+ *  never renormalised (R-COMPOSITE) — so a served object carries these
+ *  same seven numbers; a served object is still read verbatim. */
 const ENGINE_MODEL_WEIGHTS: Record<CreditSubscoreKey, number> = {
   altman: 0.30, profitability: 0.20, leverage: 0.15, coverage: 0.10, dscr: 0.10, liquidity: 0.10, equity: 0.05,
 };
+
+/** The composite refusal as this reader states it. */
+export interface CreditCompositeRefusalRead {
+  code: string;
+  sentence: string;
+  /** The refused components' subjects, in the model's order. */
+  components: string[];
+  /** TRUE when the ENGINE stated the refusal (a served reason, a served
+   *  refused component, a row the model emitted with no value, a served
+   *  composite withheld here for range or for sitting beside a refused
+   *  component). FALSE when the envelope simply carries no composite and
+   *  names nothing — the engine said nothing about credit, which is the
+   *  one case a surface may treat as "no card" rather than "refused". */
+  stated: boolean;
+}
+
+/** The range a served score is re-checked against before it renders
+ *  (C9.4): the envelope's pack range when served, else the model's own
+ *  [0, 100] (CLAUDE.md Appendix A §7). */
+function scoreRangeOf(
+  e: CreditEnvelope,
+  which: "subscore" | "composite",
+): { min: number; max: number } {
+  const r = e.ranges?.[which];
+  const min = numOrNull(r?.min);
+  const max = numOrNull(r?.max);
+  return min !== null && max !== null && min < max ? { min, max } : { min: 0, max: 100 };
+}
+
+function outOfRange(v: number | null, r: { min: number; max: number }): boolean {
+  return v !== null && (!Number.isFinite(v) || v < r.min || v > r.max);
+}
 
 const SUBSCORE_SUBJECT: Record<CreditSubscoreKey, string> = {
   altman: "Altman Z″",
@@ -1541,16 +1604,23 @@ const SUBSCORE_SUBJECT: Record<CreditSubscoreKey, string> = {
   equity: "equity ratio",
 };
 
-/** Why the engine scored the composite without a sub-score, in words.
- *  Keyed by the engine's reason code; a code this reader does not know
- *  still states the refusal and names the code rather than guessing. */
+/** Why the engine refused a sub-score, in words — used ONLY when the
+ *  envelope served a code without its sentence. A served `text` wins. A
+ *  code this reader does not know still states the refusal and names the
+ *  code rather than guessing. */
 const REFUSAL_BECAUSE: Record<string, string> = {
-  total_liabilities_not_positive:
-    "total liabilities are not positive, so Altman X4 (equity ÷ liabilities) has no base",
+  total_liabilities_below_materiality:
+    "total liabilities are below the model's materiality share of total assets, so Altman X4 (equity ÷ liabilities) is not defined",
   current_liabilities_not_positive:
     "current liabilities are not positive, so the current, quick and cash ratios have no base",
+  revenue_not_positive: "revenue is not positive, so net margin and the profitability blend are not defined",
+  interest_expense_not_positive:
+    "interest expense is not positive and the no-interest-bearing-debt rule does not apply, so coverage is not measured",
+  credit_out_of_range: "the figure lies outside the range the model declares for it",
   credit_inputs_absent: "the model's inputs for it were not filed",
 };
+
+const COMPOSITE_REFUSED_TAIL = "; with a component unscored there is no composite and no letter.";
 
 /** The weight a row carried and, when the engine scored the composite
  *  without it, the refusal — from the ENVELOPE ONLY.
@@ -1571,56 +1641,146 @@ function engineWeightOf(
   e: CreditEnvelope,
   key: CreditSubscoreKey,
   subscore: number | null,
-  basis: "served" | "model_table" | "unknown",
+  basis: "served" | "model_table",
+  metricsByName?: Record<string, number | null>,
 ): { weight: number | null; refusal: CreditSubscoreRefusal | null } {
   const refused = e.refused_subscores?.[key];
   const weights = e.composite_weights ?? {};
-  const scoredWithout =
-    (basis === "served" && numOrNull(weights[key]) === null && subscore === null) ||
-    (basis === "unknown" && subscore === null);
-  if (refused || scoredWithout) {
-    const code = typeof refused?.code === "string" && refused.code.length > 0 ? refused.code : null;
+  // THE WEIGHT IS A CONSTANT OF THE MODEL and it stays on the row, refused
+  // or not (R-COMPOSITE: never renormalised). What a refused row loses is
+  // its contribution and, with it, the composite.
+  const weight = basis === "served" ? numOrNull(weights[key]) : ENGINE_MODEL_WEIGHTS[key];
+  const rangeBreach = outOfRange(subscore, scoreRangeOf(e, "subscore"));
+  // A REFUSAL IS SOMETHING THE ENGINE SAID, not a hole in the envelope:
+  //   · a served `refused_subscores` entry;
+  //   · a served weights object that OMITS this key — the renormalised
+  //     shape an earlier cut served, refused here, never re-weighted;
+  //   · the model's own row (`credit_subscore_<key>`, revision 2 or later)
+  //     PRESENT with no value: revision 2 emits every row, so a null row is
+  //     the model's refusal even when its reason was not persisted;
+  //   · a served sub-score outside its declared range (withheld here).
+  // A sub-score that is simply absent from BOTH emissions is an envelope
+  // gap: the row prints no figure and no verdict, and the served
+  // composite is NOT withheld for it (the completeness law: a headline
+  // must not move because a field failed to arrive).
+  const metricName = `credit_subscore_${key}`;
+  const revision = numOrNull(metricsByName?.credit_model_revision) ?? numOrNull(e.credit_model_revision);
+  const rowSaysRefused =
+    subscore === null &&
+    revision !== null && revision >= 2 &&
+    metricsByName !== undefined && metricName in metricsByName && numOrNull(metricsByName[metricName]) === null;
+  const weightsOmit = basis === "served" && subscore === null && numOrNull(weights[key]) === null;
+  if (refused || rowSaysRefused || weightsOmit || rangeBreach) {
+    const code =
+      typeof refused?.code === "string" && refused.code.length > 0
+        ? refused.code
+        : rangeBreach
+          ? "credit_out_of_range"
+          : null;
+    const served = typeof refused?.text === "string" && refused.text.trim().length > 0 ? refused.text.trim() : null;
     const because =
-      code === null
-        ? "the composite was weighted without it and no reason was reported"
-        : REFUSAL_BECAUSE[code] ?? `the engine refused it (${code})`;
+      served !== null
+        ? served
+        : code === null
+          ? weightsOmit && !rowSaysRefused
+            ? "the served weights omit it (a renormalised table), so the model did not score it"
+            : "the model served no score for it and its reason was not persisted"
+          : REFUSAL_BECAUSE[code] ?? `the engine refused it (${code})`;
     return {
-      weight: null,
+      weight,
       refusal: {
         code,
         subject: SUBSCORE_SUBJECT[key],
-        sentence: `Not scored — ${because}; the composite is weighted over the other sub-scores.`,
+        sentence: served !== null ? `Not scored — ${served}` : `Not scored — ${because}${COMPOSITE_REFUSED_TAIL}`,
       },
     };
   }
-  if (basis === "served") return { weight: numOrNull(weights[key]), refusal: null };
-  if (basis === "model_table") return { weight: ENGINE_MODEL_WEIGHTS[key], refusal: null };
-  return { weight: null, refusal: null };
+  return { weight, refusal: null };
 }
 
-/** Which weights the composite on this envelope was multiplied by.
- *
- *  `served` — the envelope carries `composite_weights`: those, verbatim.
- *  `model_table` — no weights object, and nothing says the composite was
- *  renormalised: the model table (every envelope before revision 2).
- *  `unknown` — no weights object, the rows are stamped revision 2 or
- *  later, and a sub-score is absent: the composite was renormalised over
- *  weights this period did not serve. The rows then print NO weight
- *  rather than the model table's, and the absent sub-scores state that
- *  the composite was scored without them. This is the production shape
- *  CLAUDE.md §14 records (credit envelope null, `calculated_metrics`
- *  intact); the reader does no renormalising arithmetic of its own. */
-function weightBasisOf(
-  e: CreditEnvelope,
-  metricsByName?: Record<string, number | null>,
-): "served" | "model_table" | "unknown" {
+/** Which weight table the rows print: the served `composite_weights`
+ *  verbatim when the envelope carries the object, else the model table
+ *  (every envelope before the served weights; revision-2 rows read off
+ *  `calculated_metrics` alone). Both are the same seven constants. */
+function weightBasisOf(e: CreditEnvelope): "served" | "model_table" {
   const w = e.composite_weights;
-  if (w !== null && w !== undefined && typeof w === "object") return "served";
-  const revision =
-    numOrNull(metricsByName?.credit_model_revision) ?? numOrNull(e.credit_model_revision);
-  const keys = Object.keys(ENGINE_MODEL_WEIGHTS) as CreditSubscoreKey[];
-  const anyAbsent = keys.some((k) => numOrNull(e.subscores?.[k]) === null);
-  return revision !== null && revision >= 2 && anyAbsent ? "unknown" : "model_table";
+  return w !== null && w !== undefined && typeof w === "object" ? "served" : "model_table";
+}
+
+/** The composite's refusal as the reader states it (R-COMPOSITE, R-RANGE,
+ *  C9.4). Order of authority: a served composite outside its declared
+ *  range is withheld here whatever the engine said; a served composite
+ *  beside a refused component is withheld (an as-filed composite computed
+ *  under an older model, or a renormalised one, must never render); a
+ *  null composite states the served `reason`, else the refused rows. */
+function compositeRefusalOf(
+  e: CreditEnvelope,
+  score: number | null,
+  components: CreditScoreResult["components"],
+): { score: number | null; refusal: CreditCompositeRefusalRead | null } {
+  const refusedSubjects = components.filter((c) => c.refusal).map((c) => c.refusal!.subject);
+  const range = scoreRangeOf(e, "composite");
+  if (score !== null && outOfRange(score, range)) {
+    const also =
+      refusedSubjects.length > 0
+        ? ` ${joinSubjects(refusedSubjects)} ${refusedSubjects.length === 1 ? "was" : "were"} not scored either.`
+        : "";
+    return {
+      score: null,
+      refusal: {
+        code: "credit_out_of_range",
+        sentence: `No composite and no letter: the served composite ${score} lies outside the model's declared range [${range.min}, ${range.max}], so it is withheld.${also}`,
+        components: refusedSubjects,
+        stated: true,
+      },
+    };
+  }
+  if (score !== null && refusedSubjects.length > 0) {
+    return {
+      score: null,
+      refusal: {
+        code: "credit_component_undefined",
+        sentence:
+          `No composite and no letter: the served composite ${score} was scored beside unscored ` +
+          `${joinSubjects(refusedSubjects)}; the model's weights are never redistributed over the ` +
+          `components that scored, so a composite computed without them is withheld.`,
+        components: refusedSubjects,
+        stated: true,
+      },
+    };
+  }
+  if (score !== null) return { score, refusal: null };
+  const served = e.reason;
+  const servedCode = typeof served?.code === "string" && served.code.length > 0 ? served.code : null;
+  const servedText = typeof served?.text === "string" && served.text.trim().length > 0 ? served.text.trim() : null;
+  if (refusedSubjects.length > 0) {
+    return {
+      score: null,
+      refusal: {
+        code: servedCode ?? "credit_component_undefined",
+        sentence:
+          servedText ??
+          `No composite and no letter: ${joinSubjects(refusedSubjects)} ${refusedSubjects.length === 1 ? "was" : "were"} not scored for this period, and the model's weights are never redistributed over the components that scored.`,
+        components: refusedSubjects,
+        stated: true,
+      },
+    };
+  }
+  return {
+    score: null,
+    refusal: {
+      code: servedCode ?? "credit_inputs_absent",
+      sentence: servedText ?? "No composite and no letter: the engine served no credit composite for this period and named no refused component.",
+      components: [],
+      stated: servedCode !== null,
+    },
+  };
+}
+
+function joinSubjects(subjects: string[]): string {
+  return subjects.length <= 1
+    ? subjects.join("")
+    : `${subjects.slice(0, -1).join(", ")} and ${subjects[subjects.length - 1]}`;
 }
 
 /** ONE constructor for the six weighted sub-score rows, so a value, its
@@ -1630,10 +1790,15 @@ function subscoreRow(
   label: string,
   e: CreditEnvelope,
   key: CreditSubscoreKey,
-  basis: "served" | "model_table" | "unknown",
+  basis: "served" | "model_table",
+  metricsByName?: Record<string, number | null>,
 ): CreditScoreResult["components"][number] {
-  const value = numOrNull(e.subscores?.[key]);
-  const { weight, refusal } = engineWeightOf(e, key, value, basis);
+  const served = numOrNull(e.subscores?.[key]);
+  const { weight, refusal } = engineWeightOf(e, key, served, basis, metricsByName);
+  // A refused row carries NO value: an out-of-range served figure is
+  // withheld here, not printed beside its refusal.
+  const value = refusal ? null : served;
+  const rung = declaredRungOf(e, key, value);
   return {
     label,
     value,
@@ -1644,8 +1809,24 @@ function subscoreRow(
     weight,
     contribution: contributionOf(value, weight),
     refusal,
-    read: readForSubscore(value),
+    declaredRung: rung,
+    read: rung ? `Declared rung ${rung.score}, not measured — ${rung.label}` : readForSubscore(value),
   };
+}
+
+/** The served declared rung for a scored row (R-D1/D2/D3), or null. Only
+ *  a rung whose score is the served sub-score is honoured: a label beside
+ *  a different number would be a second authority. */
+function declaredRungOf(
+  e: CreditEnvelope,
+  key: CreditSubscoreKey,
+  value: number | null,
+): CreditScoreResult["components"][number]["declaredRung"] {
+  const r = e.declared_rungs?.[key];
+  const score = numOrNull(r?.score);
+  if (!r || value === null || score === null || score !== value) return null;
+  const label = typeof r.label === "string" && r.label.length > 0 ? r.label : "declared by rule";
+  return { score, label, source: r.source ?? "", file: r.file ?? "" };
 }
 
 /** THE ENGINE-CANONICAL READER — the whole engine path, on its own, and
@@ -1729,8 +1910,9 @@ export function engineCreditResult(
     // fields survived.
     const altman = altmanFromEngine(e, metricsByName);
     const subs = e.subscores ?? {};
-    const weightBasis = weightBasisOf(e, metricsByName);
-    const altmanWeight = engineWeightOf(e, "altman", numOrNull(subs.altman), weightBasis);
+    const weightBasis = weightBasisOf(e);
+    const altmanWeight = engineWeightOf(e, "altman", numOrNull(subs.altman), weightBasis, metricsByName);
+    const altmanSubscore = altmanWeight.refusal ? null : numOrNull(subs.altman);
 
     // ── F1 — THE SEVEN SUBSTITUTIONS ────────────────────────────────
     // Each row below carried THREE `?? 0`s: on the value, on the
@@ -1776,9 +1958,9 @@ export function engineCreditResult(
         value: altmanValue,
         // The Z" is what the row DISPLAYS; the engine's 0–100
         // `subscores.altman` is what the composite consumes.
-        subscore: numOrNull(subs.altman),
+        subscore: altmanSubscore,
         weight: altmanWeight.weight,
-        contribution: contributionOf(numOrNull(subs.altman), altmanWeight.weight),
+        contribution: contributionOf(altmanSubscore, altmanWeight.weight),
         refusal: altmanWeight.refusal,
         read:
           altmanValue === null || altmanZone === null
@@ -1801,22 +1983,29 @@ export function engineCreditResult(
       // states the EBITDA basis; the model bands the EBIT one, and they
       // are 66.28× against 55.64× on agras) — but the name is now the
       // sub-score's, so no name carries two arithmetics.
-      subscoreRow("Profitability sub-score 0–100 (ROE + net margin)", e, "profitability", weightBasis),
-      subscoreRow("Leverage sub-score 0–100 (net debt ÷ EBITDA)", e, "leverage", weightBasis),
-      subscoreRow("Interest-coverage sub-score 0–100 (EBIT ÷ interest)", e, "coverage", weightBasis),
-      subscoreRow("DSCR sub-score 0–100 (EBITDA ÷ debt service)", e, "dscr", weightBasis),
-      subscoreRow("Liquidity sub-score 0–100 (current + quick + cash)", e, "liquidity", weightBasis),
-      subscoreRow("Equity-ratio sub-score 0–100", e, "equity", weightBasis),
+      subscoreRow("Profitability sub-score 0–100 (ROE + net margin)", e, "profitability", weightBasis, metricsByName),
+      subscoreRow("Leverage sub-score 0–100 (net debt ÷ EBITDA)", e, "leverage", weightBasis, metricsByName),
+      subscoreRow("Interest-coverage sub-score 0–100 (EBIT ÷ interest)", e, "coverage", weightBasis, metricsByName),
+      subscoreRow("DSCR sub-score 0–100 (EBITDA ÷ debt service)", e, "dscr", weightBasis, metricsByName),
+      subscoreRow("Liquidity sub-score 0–100 (current + quick + cash)", e, "liquidity", weightBasis, metricsByName),
+      subscoreRow("Equity-ratio sub-score 0–100", e, "equity", weightBasis, metricsByName),
     ];
 
-    const engineScore = numOrNull(e.composite_score);
+    // THE COMPOSITE IS RE-CHECKED BEFORE IT RENDERS (R-RANGE, C9.4): out
+    // of its declared range, or served beside a refused component, it is
+    // withheld with the reason; a null composite states the served reason
+    // listing every refused component (R-COMPOSITE).
+    const { score: engineScore, refusal: compositeRefusal } = compositeRefusalOf(
+      e, numOrNull(e.composite_score), components,
+    );
     // ONE LADDER, AND IT IS THE ENGINE'S. `e.letter_grade ?? null` threw
     // away the `letter_grade_bands` the engine ships beside it, so an
     // envelope carrying the ladder but not the letter refused a verdict
     // it had everything to state. `engineLetterGrade` is the same
     // function `/report`'s card calls, so the two surfaces cannot mint
-    // different letters from the same envelope.
-    const engineLetter = engineLetterGrade(e, engineScore);
+    // different letters from the same envelope. NO SCORE, NO LETTER: a
+    // served letter beside a withheld composite is not repeated.
+    const engineLetter = engineScore === null ? null : engineLetterGrade(e, engineScore);
     const engineBands = Array.isArray(e.letter_grade_bands) ? e.letter_grade_bands : null;
     return {
       model: "engine-canonical-v1",
@@ -1825,6 +2014,7 @@ export function engineCreditResult(
       // the seven rows above carry. A re-band moves the sentence.
       modelLabel: creditModelLabel("engine-canonical-v1", engineBands, components),
       score: engineScore,
+      compositeRefusal,
       rating: engineLetter,
       // F2.4 — `grade` becomes a mirror of letter_grade (no separate tier
       // descriptor — "investment_strong" / "speculative" disappear per

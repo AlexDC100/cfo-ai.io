@@ -6000,6 +6000,10 @@ export function RisksPanel({
             </div>
             <div className="text-[12px] mt-2 opacity-80" data-testid="credit-composite">
               {credit.score === null ? (
+                // R-COMPOSITE: a refused composite states its reason and
+                // every refused component; only a period the engine never
+                // scored falls to the extraction note.
+                (credit.compositeRefusal?.stated ? credit.compositeRefusal.sentence : null) ??
                 t("dash.creditNotComputable", {
                   defaultValue:
                     "Not enough of the source book was recognised to compute a rating.",
