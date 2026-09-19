@@ -61,28 +61,13 @@ round_dp:
   count: 0
   years: 2
 
-# The expense-nature split behind `opex_fixed_share`. A regression split
-# needs 3+ periods; with one period the only honest split is by NATURE,
-# and the classification has to be visible rather than buried in code.
-# Leaves are `envelope.leaves` keys. A leaf absent from BOTH lists is
-# counted in neither and shrinks the base — never silently called fixed.
+# The expense-nature split behind `opex_fixed_share`. plan/2 B4b (contract
+# 4, 5.2): re-keyed to the PREFIX classification of the cost-behaviour pack
+# — the engine's pool split over the anchor's line items is the one
+# authority, and this package reads its amount-weighted share. The leaf
+# lists that lived here are gone with the second derivation.
 opex_nature_split:
-  fixed:
-    - personnel_wages
-    - personnel_social_security
-    - personnel_benefits
-    - personnel_other_contributions
-    - rent_operating_lease
-    - insurance
-    - other_operating_taxes
-  variable:
-    - energy_utilities
-    - transport_logistics
-    - maintenance_repairs
-    - third_party_services
-    - travel_protocol
-    - materials_non_inventory
-    - other_operating_expenses
+  authority: "packs/forecast/cost_behaviour.yaml#nature"
 
 # Gross depreciable base for `depreciation_rate`. Land is excluded because
 # it is not depreciated; assets under construction are excluded because
@@ -126,7 +111,7 @@ drivers:
     unit: rate
     kind: level
     favourable_direction: up
-    authority: "assembled_pl.cogs ÷ assembled_pl.revenue (engine.forecast cogs_pct_of_revenue)"
+    authority: "the engine.forecast cost_of_sales pool base ÷ assembled_pl.revenue (pools.cost_of_sales_share, plan/2 B4b)"
     band_key: gross_margin
     case_rule: band_traverse
     why: >-
@@ -155,7 +140,7 @@ drivers:
     unit: rate
     kind: level
     favourable_direction: down
-    authority: "assembled_pl.opex_excluding_cogs_and_da ÷ assembled_pl.revenue (engine.forecast opex_pct_of_revenue)"
+    authority: "the engine.forecast operating-cost pools, summed ÷ assembled_pl.revenue (pools.operating_cost_share, plan/2 B4b)"
     case_rule: hold
     why: >-
       Read from engine.forecast, which owns the derivation (plan/2 contract
@@ -174,7 +159,7 @@ drivers:
     unit: rate
     kind: level
     favourable_direction: neutral
-    authority: "envelope.leaves (opex_nature_split)"
+    authority: "engine.forecast pools (packs/forecast/cost_behaviour.yaml#nature)"
     case_rule: hold
     why: >-
       The operating-leverage lever: it is what makes a downside case bite

@@ -24,7 +24,8 @@
     "B3": [
       "F3"
     ],
-    "B4a": []
+    "B4a": [],
+    "B4b": []
   },
   "required_gates": {
     "B0": [
@@ -44,6 +45,9 @@
     ],
     "B4a": [
       "statements-anchor-gap"
+    ],
+    "B4b": [
+      "forecast-pools"
     ]
   },
   "gates": [
@@ -136,12 +140,14 @@
       "registration_only": false,
       "test_files": [
         "tests/engine/test_forecast_base_parity.py",
-        "tests/engine/fixtures/forecast/base_get_b0.json"
+        "tests/engine/fixtures/forecast/base_b3_growth0.json"
       ],
       "canaries": [
-        "SCOPE forecast-base-parity (delta mode)",
-        "366-day plan year per book"
-      ]
+        "SCOPE forecast-base-parity (parity mode, plan/2 B4b)",
+        "366-day plan year per book",
+        "bound inputs"
+      ],
+      "plant_log": "forecast-base-parity"
     },
     {
       "id": "forecast-authority",
@@ -197,6 +203,25 @@
         "mirrored contra rows checked"
       ],
       "plant_log": "statements-anchor-gap"
+    },
+    {
+      "id": "forecast-pools",
+      "gate": "forecast-pools",
+      "rows": [
+        "S1"
+      ],
+      "landed_in": "B4b",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_pools.py",
+        "packs/forecast/cost_behaviour.yaml"
+      ],
+      "canaries": [
+        "SCOPE forecast-pools (plan/2 B4b, contract 5.6)",
+        "capped pools per book",
+        "nil pools per book"
+      ],
+      "plant_log": "forecast-pools"
     }
   ]
 }

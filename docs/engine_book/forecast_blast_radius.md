@@ -764,3 +764,161 @@ horizons 5 and 3.
   on every book with production variation whatever the parser does; the
   anchor-gap gate reads `net_income_unexplained_vs_121` instead. Not repaired
   here (not the 609 defect; flagged for the owner).
+
+## B4b — cost pools, held other operating income, inflation on fixed costs (plan/2, contract 5)
+
+Cost of sales and operating costs are no longer shares of revenue. Each is a
+POOL split from the anchor's `statement_line_items` rows
+(`engine.forecast.pools`, `packs/forecast/cost_behaviour.yaml#prefix_to_pool`,
+longest prefix wins; the pools plus the unallocated residual equal
+`assembled_pl.opex_excluding_cogs_and_da` to the cent on all four books,
+unallocated 0.00 on each). Every opex pool splits into a fixed part that
+follows the `inflation` driver and a variable part that follows
+`revenue_growth` (5.3, one exact product rounded once); cost of sales follows
+revenue growth in full (fixed share 0 by convention). Other operating income
+is HELD at the anchor's own amount (`other_operating_income_annual`, 5.5),
+sliced by days, growing with nothing. Gates: `forecast-pools` (new),
+`forecast-base-parity` re-pointed to parity mode against
+`base_b3_growth0.json`, `forecast-route` canary (GET 200, no clause
+violation, on the four books at horizons 3 and 5).
+
+### What moves at the default GET, and why
+
+At the default GET on the RO corpus books the `inflation` driver takes the
+SAME macro anchor as `revenue_growth` (3.4), so a pool's fixed part and its
+variable part grow by the same factor and every pool reproduces the B3
+share-of-revenue cost to within the rounding the parity gate bounds. The one
+figure that moves is other operating income: B3 grew it with revenue, B4b
+holds it. Plan-year-one EBITDA deltas are that line's growth on each book
+(agras -9,727.79 on 390,120.85 of other operating income at the anchor's
+2.494 percent; carniprod -35,176.21; retail -18,154.19; realestate -414.91),
+compounding through cash in later years. Revenue is byte-identical on every
+book and plan year; no funding-line first-shortfall period moves; realestate's
+peak funding rises by the same held-income shortfall (+426.96 in plan year 1).
+
+Under a REVENUE MOVE the change is the whole point of the batch and is not in
+this table: at revenue_growth -0.20 and inflation 0, plan-year-one cost of
+sales falls by exactly 20 percent and operating costs fall only by their
+variable parts (agras 29,854,906.77 -> 28,300,097.59: personnel and rent
+fixed, energy, transport, third-party services and materials variable;
+forecast-pools prints every pool). The Scenarios page still runs its own
+cascade until B13.
+
+Baseline for this section: `base_get_b0.json` as re-recorded by B4a (the B3
+engine over the repaired books), so the delta below is B4b's alone.
+
+### agras  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 113,568,266.87 | 113,568,266.87 | 0 |
+| 1 | EBITDA | 11,045,763.22 | 11,036,035.43 | -9,727.79 |
+| 1 | closing cash | 7,729,408.10 | 7,721,237.38 | -8,170.72 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 116,407,473.54 | 116,407,473.54 | 0 |
+| 2 | EBITDA | 11,321,907.28 | 11,302,184.05 | -19,723.23 |
+| 2 | closing cash | 14,441,971.32 | 14,417,233.10 | -24,738.22 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 119,317,660.38 | 119,317,660.38 | 0 |
+| 3 | EBITDA | 11,604,954.97 | 11,574,986.39 | -29,968.58 |
+| 3 | closing cash | 21,344,326.77 | 21,294,414.95 | -49,911.82 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 122,300,601.89 | 122,300,601.89 | 0 |
+| 4 | EBITDA | 11,895,078.84 | 11,854,608.79 | -40,470.05 |
+| 4 | closing cash | 28,349,836.61 | 28,265,929.98 | -83,906.63 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 125,358,116.94 | 125,358,116.94 | 0 |
+| 5 | EBITDA | 12,192,455.82 | 12,141,221.75 | -51,234.07 |
+| 5 | closing cash | 35,555,505.80 | 35,428,562.58 | -126,943.22 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |
+
+### carniprod  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 96,872,688.46 | 96,872,688.46 | 0 |
+| 1 | EBITDA | 5,118,849.76 | 5,083,673.55 | -35,176.21 |
+| 1 | closing cash | 11,238,097.48 | 11,208,548.35 | -29,549.13 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 99,294,505.67 | 99,294,505.67 | 0 |
+| 2 | EBITDA | 5,246,820.98 | 5,175,609.87 | -71,211.11 |
+| 2 | closing cash | 12,359,676.48 | 12,270,309.98 | -89,366.50 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 101,776,868.31 | 101,776,868.31 | 0 |
+| 3 | EBITDA | 5,377,991.50 | 5,269,844.57 | -108,146.93 |
+| 3 | closing cash | 13,514,646.86 | 13,334,436.92 | -180,209.94 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 104,321,290.02 | 104,321,290.02 | 0 |
+| 4 | EBITDA | 5,512,441.28 | 5,366,435.18 | -146,006.10 |
+| 4 | closing cash | 14,633,349.97 | 14,330,494.88 | -302,855.09 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 106,929,322.27 | 106,929,322.27 | 0 |
+| 5 | EBITDA | 5,650,252.32 | 5,465,440.53 | -184,811.79 |
+| 5 | closing cash | 15,785,357.65 | 15,327,260.63 | -458,097.02 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |
+
+### realestate  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 166,424.60 | 166,424.60 | 0 |
+| 1 | EBITDA | -29,764,809.67 | -29,765,224.58 | -414.91 |
+| 1 | closing cash | 0.00 | 0.00 | 0 |
+| 1 | peak funding | 30,771,633.35 | 30,772,060.31 | +426.96 |
+| 1 | first shortfall | 2026-01 | 2026-01 | same |
+| 2 | revenue | 170,585.22 | 170,585.21 | -0.01 |
+| 2 | EBITDA | -30,508,930.85 | -30,509,770.71 | -839.86 |
+| 2 | closing cash | 0.00 | 0.00 | 0 |
+| 2 | peak funding | 64,557,688.81 | 64,558,982.27 | +1,293.46 |
+| 2 | first shortfall | FY2027 | FY2027 | same |
+| 3 | revenue | 174,849.85 | 174,849.84 | -0.01 |
+| 3 | EBITDA | -31,271,654.03 | -31,272,930.47 | -1,276.44 |
+| 3 | closing cash | 0.00 | 0.00 | 0 |
+| 3 | peak funding | 101,231,109.23 | 101,233,760.10 | +2,650.87 |
+| 3 | first shortfall | FY2028 | FY2028 | same |
+| 4 | revenue | 179,221.10 | 179,221.09 | -0.01 |
+| 4 | EBITDA | -32,053,446.05 | -32,055,169.24 | -1,723.19 |
+| 4 | closing cash | 0.00 | 0.00 | 0 |
+| 4 | peak funding | 140,963,044.06 | 140,967,583.58 | +4,539.52 |
+| 4 | first shortfall | FY2029 | FY2029 | same |
+| 5 | revenue | 183,701.63 | 183,701.61 | -0.02 |
+| 5 | EBITDA | -32,854,782.65 | -32,856,963.99 | -2,181.34 |
+| 5 | closing cash | 0.00 | 0.00 | 0 |
+| 5 | peak funding | 183,977,958.66 | 183,984,962.86 | +7,004.20 |
+| 5 | first shortfall | FY2030 | FY2030 | same |
+
+### retail  GET status 200
+| plan year | metric | baseline B0 | now | delta |
+|---|---|---:|---:|---:|
+| 1 | revenue | 80,993,764.44 | 80,993,764.44 | 0 |
+| 1 | EBITDA | 2,319,985.40 | 2,301,831.21 | -18,154.19 |
+| 1 | closing cash | 4,536,725.98 | 4,518,570.44 | -18,155.54 |
+| 1 | peak funding | 0.00 | 0.00 | 0 |
+| 1 | first shortfall | none | none | same |
+| 2 | revenue | 83,018,608.55 | 83,018,608.55 | 0 |
+| 2 | EBITDA | 2,377,985.02 | 2,341,205.27 | -36,779.75 |
+| 2 | closing cash | 7,959,941.07 | 7,905,005.75 | -54,935.32 |
+| 2 | peak funding | 0.00 | 0.00 | 0 |
+| 2 | first shortfall | none | none | same |
+| 3 | revenue | 85,094,073.76 | 85,094,073.76 | 0 |
+| 3 | EBITDA | 2,437,434.64 | 2,381,563.67 | -55,870.97 |
+| 3 | closing cash | 11,381,174.01 | 11,270,367.69 | -110,806.32 |
+| 3 | peak funding | 0.00 | 0.00 | 0 |
+| 3 | first shortfall | none | none | same |
+| 4 | revenue | 87,221,425.60 | 87,221,425.61 | +0.01 |
+| 4 | EBITDA | 2,498,370.51 | 2,422,931.07 | -75,439.44 |
+| 4 | closing cash | 14,875,709.94 | 14,689,464.15 | -186,245.79 |
+| 4 | peak funding | 0.00 | 0.00 | 0 |
+| 4 | first shortfall | none | none | same |
+| 5 | revenue | 89,401,961.24 | 89,401,961.25 | +0.01 |
+| 5 | EBITDA | 2,560,829.78 | 2,465,332.61 | -95,497.17 |
+| 5 | closing cash | 18,376,168.35 | 18,094,425.36 | -281,742.99 |
+| 5 | peak funding | 0.00 | 0.00 | 0 |
+| 5 | first shortfall | none | none | same |

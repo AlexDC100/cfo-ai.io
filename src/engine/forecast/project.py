@@ -52,10 +52,13 @@ Python 3.9 — no ``match``, no ``X | Y``.
 from __future__ import annotations
 
 from datetime import date
+from fractions import Fraction
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .assumptions import (AssumptionSet, BookContext, NoStatutoryTaxRate,
                           derive_assumptions)
+from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, TEMPLATE_FIXED_SHARE,
+                    TEMPLATE_LEVEL, refused_split)
 from .errors import AssumptionError, BalanceViolation
 from .history import PlHistory, pl_history_from_payload
 from .levers_pack import tax_conventions
@@ -137,12 +140,18 @@ MODEL_CONVENTIONS = tuple(c.sentence for c in _TAX_CONVENTIONS) + (
     "depreciation is capped at the net book value actually available, and "
     "the capped figure is the one that reaches the profit and loss "
     "account, the cash-flow add-back and the roll-forward alike.",
-    "other operating income is projected as a share of revenue, on the "
-    "same basis as cost of sales and operating costs, and is treated as "
-    "CASH in the period it arises. Where the source figure contains "
-    "provision reversals, this model turns a non-cash credit into "
-    "projected cash; the amount at stake is stated beside this note when "
-    "the book discloses it.",
+    "other operating income is HELD at the source period's own annual "
+    "amount, spread across each plan year by days: it scales with "
+    "neither volume, growth nor inflation, and is treated as CASH in the "
+    "period it arises. Where the source figure contains provision "
+    "reversals, this model turns a non-cash credit into projected cash; "
+    "the amount at stake is stated beside this note when the book "
+    "discloses it.",
+    "cost of sales and operating costs are POOLS split from the anchor's "
+    "line items: cost of sales follows volume in full; each operating "
+    "cost pool splits into a fixed part that follows inflation and a "
+    "variable part that follows revenue growth, so at neutral growth and "
+    "inflation the pools reproduce the anchor's own costs to the cent.",
     "financial income and expense other than interest are HELD at the "
     "source period's own annual amounts and repeated every year. Nothing "
     "in a trial balance says foreign-exchange movement or income from "
@@ -189,9 +198,16 @@ FP1_CONVENTIONS = (
 #: EBITDA and this map changes with it. A hand-written list would have
 #: been correct on the day it was written and wrong on the next one.
 _REVENUE = ("revenue_growth",)
-_COGS = _REVENUE + ("cogs_pct_of_revenue",)
-_OPEX = _REVENUE + ("opex_pct_of_revenue",)
-_OOI = _REVENUE + ("other_operating_income_pct_of_revenue",)
+#: plan/2 B4b (contract 5, 3a.2): cost of sales is the cost_of_sales POOL
+#: (its fixed share, nil by convention unless overridden, and revenue
+#: growth); operating costs are the opex pools — each pool's fixed share
+#: and level, revenue growth on the variable parts, inflation on the fixed
+#: parts. The two template ids expand per book, over the SERVED opex
+#: pools, in Projection.line_assumptions(); other operating income is
+#: HELD at the anchor's own amount (5.5) and names only that driver.
+_COGS = _REVENUE + (FIXED_SHARE_PREFIX + "cost_of_sales",)
+_OPEX = _REVENUE + ("inflation", TEMPLATE_FIXED_SHARE, TEMPLATE_LEVEL)
+_OOI = ("other_operating_income_annual",)
 _EBITDA = _REVENUE + _COGS + _OPEX + _OOI
 _CAPEX = _REVENUE + ("capex_pct_of_revenue",)
 _INTANGIBLE_ADD = _REVENUE + ("intangible_additions_pct_of_revenue",)
@@ -310,6 +326,47 @@ LINE_ASSUMPTIONS = {
 }
 
 
+def is_pool_id(assumption_id: str) -> bool:
+    """A pool template id or one of its per-book expansions (3a.2)."""
+    return (assumption_id in (TEMPLATE_FIXED_SHARE, TEMPLATE_LEVEL)
+            or assumption_id.startswith(FIXED_SHARE_PREFIX)
+            or assumption_id.startswith(LEVEL_PREFIX))
+
+
+def expand_line_assumptions(assumptions: "AssumptionSet") -> Dict[str, List[str]]:
+    """LINE_ASSUMPTIONS with the two pool templates expanded over the
+    book's SERVED opex pools (pool_fixed_share.* -> the opex pools' fixed
+    shares; pool_level.* -> their levels), in served order. The
+    cost_of_sales pool is named literally where it applies."""
+    pools = assumptions.pools
+    if pools is None:
+        fixed = tuple(k for k in assumptions.pool_keys()
+                      if k.startswith(FIXED_SHARE_PREFIX) and k != FIXED_SHARE_PREFIX + "cost_of_sales")
+        level = tuple(k for k in assumptions.pool_keys() if k.startswith(LEVEL_PREFIX))
+    else:
+        fixed = tuple(FIXED_SHARE_PREFIX + p.name for p in pools.opex)
+        level = pools.level_keys()
+    out = {}  # type: Dict[str, List[str]]
+    for line, ids in LINE_ASSUMPTIONS.items():
+        expanded = []  # type: List[str]
+        for aid in ids:
+            if aid == TEMPLATE_FIXED_SHARE:
+                expanded.extend(fixed)
+            elif aid == TEMPLATE_LEVEL:
+                expanded.extend(level)
+            else:
+                expanded.append(aid)
+        seen = set()  # type: set
+        out[line] = [i for i in expanded if not (i in seen or seen.add(i))]
+    return out
+
+
+def _round(value: Fraction) -> int:
+    """An exact rational rounded ONCE to the minor unit, half away from
+    zero (contract 5.3)."""
+    return mul_div(value.numerator, 1, value.denominator)
+
+
 def _assert_attribution_covers_every_line():
     """Every emitted line names at least one reason, and every reason is
     a driver or a convention that actually exists.
@@ -342,7 +399,8 @@ def _assert_attribution_covers_every_line():
             "LINE_ASSUMPTIONS attributes lines this model does not "
             "project: %s" % ", ".join(extra))
     for line in sorted(LINE_ASSUMPTIONS):
-        unknown = sorted(set(LINE_ASSUMPTIONS[line]) - known)
+        unknown = sorted(i for i in set(LINE_ASSUMPTIONS[line]) - known
+                         if not is_pool_id(i))
         if unknown:
             raise AssertionError(
                 "%s names %s, which is neither a driver nor a declared "
@@ -526,8 +584,11 @@ class Projection(object):
             # `engine.forecast_serving.adapter` reads this key and REFUSES
             # every figure that is not in it, so an unattributed line
             # cannot reach a reader as a number with no reason.
-            "line_assumptions": dict(
-                (line, list(ids)) for line, ids in LINE_ASSUMPTIONS.items()),
+            "line_assumptions": expand_line_assumptions(self.assumptions),
+            # The cost pools this projection ran on (plan/2 B4b, section
+            # 5): bases, fixed shares, tiers and rules. B6 serves them.
+            "pools": (self.assumptions.pools.as_dict()
+                      if self.assumptions.pools is not None else None),
             "debt_schedule": self.assumptions.debt_schedule.as_list(),
             "notes": list(self.notes),
             "periods": [p.as_dict() for p in self.periods],
@@ -586,11 +647,41 @@ def project(opening: OpeningPosition, history: PlHistory,
     # one of them says so in the driver's own basis, and that sentence is
     # what the AssumptionError carries to the caller.
     growth = assumptions.micros("revenue_growth")
-    cogs_pct = assumptions.micros("cogs_pct_of_revenue")
-    opex_pct = assumptions.micros("opex_pct_of_revenue")
+    inflation = assumptions.micros("inflation")
     capex_pct = assumptions.micros("capex_pct_of_revenue")
     intangible_pct = assumptions.micros("intangible_additions_pct_of_revenue")
-    ooi_pct = assumptions.micros("other_operating_income_pct_of_revenue")
+    ooi_annual = assumptions.cents("other_operating_income_annual")
+    # The cost pools (contract 5): the set carries the split it was derived
+    # with; a set built without a book refuses the split by name (one pool
+    # that follows volume in full — never a guessed split).
+    pools = assumptions.pools
+    if pools is None:
+        pools = refused_split("no_line_items",
+                              opex_total_cents=history.opex or 0,
+                              cogs_total_cents=history.cogs or 0,
+                              revenue_cents=history.revenue or 0)
+
+    def _pool_share(pool):
+        key = FIXED_SHARE_PREFIX + pool.name
+        try:
+            return assumptions.micros(key)
+        except AssumptionError:
+            return pool.fixed_share_micros
+
+    def _pool_level(pool):
+        key = LEVEL_PREFIX + pool.name
+        try:
+            return assumptions.micros(key)
+        except AssumptionError:
+            return MICRO
+
+    fixed_share_of = dict((p.name, _pool_share(p)) for p in pools.pools())
+    level_of = dict((p.name, _pool_level(p)) for p in pools.opex)
+    for name, share in fixed_share_of.items():
+        if share < 0 or share > MICRO:
+            raise AssumptionError(FIXED_SHARE_PREFIX + name,
+                                  "a fixed share is a decimal in [0, 1], got %s"
+                                  % _pct(share))
     tax_driver = assumptions["tax_rate"]
     if tax_driver.exact is None and tax_driver.tier == "absent":
         # R16: the book's effective rate is not measured and no statutory
@@ -652,15 +743,40 @@ def project(opening: OpeningPosition, history: PlHistory,
     revenue_of = {}  # type: Dict[int, int]
     capex_of = {}  # type: Dict[int, int]
     intangible_of = {}  # type: Dict[int, int]
+    #: The pool parts per period (5.3): fixed_p and variable_p of each
+    #: pool, sliced by days from the plan year's F_jn and V_jn.
+    pool_fixed_of = {}  # type: Dict[Tuple[str, int], int]
+    pool_variable_of = {}  # type: Dict[Tuple[str, int], int]
+    ooi_of = {}  # type: Dict[int, int]
     #: The three P&L lines the model HOLDS rather than drives. Each is the
     #: source period's own annual amount, spread across the year's periods
     #: by day count and repeated unchanged every year — held, not grown.
     interest_income_of = {}  # type: Dict[int, int]
     other_fin_income_of = {}  # type: Dict[int, int]
     other_fin_expense_of = {}  # type: Dict[int, int]
-    running_revenue = history.revenue or 0
+    anchor_revenue = history.revenue or 0
+    #: G(n) and C(n) of contract 5.3: the cumulative growth and inflation
+    #: factors, exact rationals; every annual amount is one product rounded
+    #: once, so at neutral growth and inflation each pool reproduces its
+    #: anchor base to the cent.
+    growth_factor = Fraction(1)
+    inflation_factor = Fraction(1)
     for _year, periods in by_year:
-        running_revenue = apply_rate(running_revenue, MICRO + growth)
+        growth_factor *= Fraction(MICRO + growth, MICRO)
+        inflation_factor *= Fraction(MICRO + inflation, MICRO)
+        running_revenue = _round(anchor_revenue * growth_factor)
+        for pool in pools.pools():
+            share = Fraction(fixed_share_of[pool.name], MICRO)
+            fixed_total = _round(pool.base_cents * share * inflation_factor)
+            variable_total = (_round(pool.base_cents * growth_factor)
+                              - _round(pool.base_cents * share * growth_factor))
+            for period, fixed_slice, variable_slice in zip(
+                    periods, _slice_by_days(fixed_total, periods),
+                    _slice_by_days(variable_total, periods)):
+                pool_fixed_of[(pool.name, period.index)] = fixed_slice
+                pool_variable_of[(pool.name, period.index)] = variable_slice
+        for period, ooi_slice in zip(periods, _slice_by_days(ooi_annual, periods)):
+            ooi_of[period.index] = ooi_slice
         annual_capex = apply_rate(running_revenue, capex_pct)
         annual_intangible = apply_rate(running_revenue, intangible_pct)
         for (period, slice_revenue, slice_capex, slice_intangible,
@@ -710,13 +826,21 @@ def project(opening: OpeningPosition, history: PlHistory,
 
         # ── P&L ────────────────────────────────────────────────────────
         revenue = revenue_of[period.index]
-        cost_of_sales = apply_rate(revenue, cogs_pct)
-        operating_costs = apply_rate(revenue, opex_pct)
-        # An operating INCOME the source statement names, on the same
-        # basis as the two operating COSTS above. Without it the model's
+        # The pools (5.3): cost of sales has no level index; each opex
+        # pool is (fixed_p + variable_p) x its level, levels neutral until
+        # a shock moves them (B5).
+        cost_of_sales = (pool_fixed_of[(pools.cost_of_sales.name, period.index)]
+                         + pool_variable_of[(pools.cost_of_sales.name, period.index)])
+        operating_costs = 0
+        for pool in pools.opex:
+            parts = (pool_fixed_of[(pool.name, period.index)]
+                     + pool_variable_of[(pool.name, period.index)])
+            operating_costs += mul_div(parts, level_of[pool.name], MICRO)
+        # An operating INCOME the source statement names, HELD at its own
+        # annual amount and sliced by days (5.5). Without it the model's
         # EBITDA is the book's EBITDA less exactly this line, on every
         # book that has one, with nothing on the projection saying so.
-        other_operating_income = apply_rate(revenue, ooi_pct)
+        other_operating_income = ooi_of[period.index]
         ebitda = (revenue - cost_of_sales - operating_costs
                   + other_operating_income)
 
@@ -1027,7 +1151,7 @@ def _notes(assumptions: AssumptionSet, history: PlHistory) -> Tuple[str, ...]:
             "measured against account 121: %s of this book's profit and "
             "loss account is not attributable to any line on it — the "
             "reconstruction reaches %s where the company filed %s. EVERY "
-            "driver measured from this statement, the cost and "
+            "driver measured from this statement, the cost pools and "
             "working-capital ratios included, is measured from that "
             "build-up; only the tax rate is displaced by it, because only "
             "the tax rate claims to reproduce a figure filed beside it."

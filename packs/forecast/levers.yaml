@@ -99,8 +99,8 @@ other_financial_expense_annual:
     sentence: >-
       this book names no financial expense, so none is carried
 other_operating_income_annual:
-  # Stamped on other_operating_income_pct_of_revenue until B4 renames that
-  # key to this one (contract 3.4).
+  # The held other operating income (5.5; plan/2 B4b renamed the key from
+  # other_operating_income_pct_of_revenue to this one, contract 3.4).
   terminal_rung:
     value: "0"
     sentence: >-
@@ -112,3 +112,36 @@ min_cash:
       the cash floor below which the funding line draws; nil means the plan
       may run the account down to nothing but never below it
 # ── end plan/2 B3 ───────────────────────────────────────────────────────
+
+# ── plan/2 B4b: inflation, the neutral index rung and the pool templates
+# (contract 3.4, 3a.2, 3a.4, 5) ─────────────────────────────────────────
+# inflation moves the FIXED part of every operating-cost pool (5.3); its
+# macro rung is the same ro_macro anchor revenue_growth takes, and this is
+# the rung below it. index_neutral is the convention rung of every index
+# driver (volume_index, price_index, input_price_index, pool_level.<pool>):
+# the anchor level holds until a shock moves it. The two pool template
+# entries are declared ONCE here and expanded per book by the engine over
+# the pools packs/forecast/cost_behaviour.yaml serves (3a.2).
+inflation:
+  terminal_rung:
+    value: "0"
+    sentence: >-
+      no macro anchor for this jurisdiction, so fixed costs are held at
+      their book level
+index_neutral:
+  value: "1"
+  sentence: >-
+    no index move is assumed, so the anchor level holds
+pools:
+  templates:
+    pool_fixed_share:
+      unit: ratio
+      expands_over: >-
+        cost_of_sales first, then every served operating-cost pool in the
+        cost-behaviour pack's order, unallocated_operating last (or the
+        single operating_costs pool when the split refused)
+    pool_level:
+      unit: index
+      expands_over: >-
+        every served operating-cost pool, never cost_of_sales
+# ── end plan/2 B4b ───────────────────────────────────────────────────────

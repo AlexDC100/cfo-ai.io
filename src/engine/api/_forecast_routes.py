@@ -108,6 +108,9 @@ def _load_period(jwt: str, org_id: str, period_id: str) -> Dict[str, Any]:
     return {
         "envelope": row.get("assembled_canonical_v1"),
         "statements": statements,
+        # plan/2 B4b (contract 5.1): the anchor's line items are the ONLY
+        # pool source, so the loader no longer drops them.
+        "line_items": line_items,
         "period_end": row.get("period_end"),
         "period_label": row.get("period_label"),
         "currency": row.get("currency") or "RON",

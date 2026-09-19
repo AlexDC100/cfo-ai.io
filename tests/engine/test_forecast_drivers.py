@@ -831,8 +831,10 @@ def _model_assumptions(payload, **overrides):
 
 
 def _model_keys():
-    from engine.forecast.assumptions import KEYS
-    return tuple(KEYS)
+    """KEYS plus the pool FACTS the model publishes for the `read` concepts
+    (plan/2 B4b, contract 4): measured by the pool split, read by key."""
+    from engine.forecast.assumptions import KEYS, AssumptionSet
+    return tuple(KEYS) + tuple(AssumptionSet.POOL_FACTS)
 
 
 def _base(book):

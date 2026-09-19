@@ -1088,14 +1088,15 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_own_ebitda(nam
     book = _book_pl(name)
     # plan/2 B3: base growth is the macro anchor on these RO books (R1), so
     # "at zero growth" is now a stated override, not the default.
-    projection = plan(name, horizon_years=1, revenue_growth=0)
+    # plan/2 B4b (contract 5.3, rewritten as it names): with revenue growth
+    # AND inflation overridden to 0 and no shocks, the cost pools reproduce
+    # the anchor's own costs and the held other operating income its own
+    # amount — so plan year one re-earns the book's EBITDA TO THE CENT, no
+    # share-of-revenue rounding left to tolerate.
+    projection = plan(name, horizon_years=1, revenue_growth=0, inflation=0)
     modelled = _year_one(projection, "ebitda")
     reported = cents_from(book["ebitda"])
-    # Three micro-rounded rates stand between revenue and EBITDA — cost
-    # of sales, operating costs, other operating income — and each period
-    # rounds to the cent.
-    allowed = resolution_bound((cents_from(book["revenue"]), 3),
-                               periods=len(projection.periods))
+    allowed = 0
     assert abs(modelled - reported) <= allowed, (
         "%s: model EBITDA %s vs the book's own %s, short by %s — the "
         "book names other operating income of %s"
@@ -1110,14 +1111,16 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_pretax_result(
     the plan, not of the history — so it is added back explicitly rather
     than absorbed into a tolerance."""
     book = _book_pl(name)
-    projection = plan(name, horizon_years=1, revenue_growth=0)
+    # plan/2 B4b (5.3): growth and inflation at 0 — the operating lines are
+    # exact; only the two balance-priced rates below still round.
+    projection = plan(name, horizon_years=1, revenue_growth=0, inflation=0)
     modelled = _year_one(projection, "pretax_result")
     funding_charge = -_year_one(projection, "interest_expense_funding_line")
     reported = cents_from(book["pretax"])
     opening = projection.opening
     allowed = resolution_bound(
-        # cost of sales, operating costs, other operating income, capex
-        (cents_from(book["revenue"]), 4),
+        # capex (the one remaining share of revenue on the operating side)
+        (cents_from(book["revenue"]), 1),
         # the depreciation rate, against the net book value it is charged on
         (opening.cents("ppe_net") + opening.cents("intangibles_net"), 1),
         # the borrowing rate, against the debt it is charged on
@@ -1148,7 +1151,7 @@ def test_every_named_income_the_payload_carries_reaches_a_projected_line(name):
     # and each one owns a driver whose basis names where it came from
     projection = plan(name, horizon_years=1)
     for key, field in (
-            ("other_operating_income_pct_of_revenue",
+            ("other_operating_income_annual",
              "assembled_pl.other_operating_income"),
             ("other_financial_income_annual", "assembled_pl.financial_income"),
             ("other_financial_expense_annual",
@@ -1388,7 +1391,9 @@ def test_a_profitable_plan_is_actually_taxed():
     121 with a nil charge and no class-69 account, so its rate is a
     MEASURED book 0 (the hx2b law) and a profitable retail plan is charged
     nothing; the companion test below pins that consequence by name."""
-    projection = plan("agras", horizon_years=5, opex_pct_of_revenue=0.12)
+    # plan/2 B4b: opex_pct_of_revenue left KEYS; agras is profitable at the
+    # default GET, so no lever is needed for the assertion.
+    projection = plan("agras", horizon_years=5)
     assert projection.assumptions["tax_rate"].exact > 0
     pretax = sum(p.pl["pretax_result"] for p in projection.periods)
     charged = sum(-p.pl["income_tax"] for p in projection.periods)
@@ -1671,9 +1676,13 @@ def test_no_plan_ever_draws_a_funding_line_that_costs_nothing(name):
 #: driver -> the assembled_pl key whose removal makes it unmeasurable,
 #: and the book that carries a figure big enough for the zero to matter.
 #: Nothing is hand-typed: the consequence is read off the book itself.
+#: plan/2 B4b: cogs_pct_of_revenue and opex_pct_of_revenue left this table
+#: with KEYS — cost of sales and operating costs are pools with an amount,
+#: never a share that can fail to be measured (a missing line is a nil
+#: pool, and projects).
+from engine.forecast.money import MICRO as MICRO_ONE
+
 _UNMEASURABLE = (
-    ("cogs_pct_of_revenue", "retail", "cogs"),
-    ("opex_pct_of_revenue", "retail", "opex_excluding_cogs_and_da"),
     ("depreciation_rate", "agras", "depreciation"),
     ("interest_rate_debt", "retail", "interest_expense"),
 )
@@ -1723,61 +1732,47 @@ def test_the_same_plan_runs_once_that_rate_is_supplied(key, name, pl_key):
     assert len(projection.periods) > 0
 
 
-def test_a_book_with_no_revenue_is_refused_rather_than_costed_at_zero():
+def test_a_book_with_no_revenue_carries_its_costs_at_their_own_base():
     """The measured case the platform actually serves (CLAUDE.md §5,
     'Revenue <500K RON or no operating activity').
 
-    Before this repair the same payload projected five years of ZERO
+    Before the first repair the same payload projected five years of ZERO
     operating costs and ZERO EBITDA against a book reporting its own
     annual operating cost, because `opex_pct_of_revenue` was
-    `unavailable` and spent as 0. The size of what was being hidden is
-    read off the book, not typed.
+    `unavailable` and spent as 0; the repair then REFUSED the plan (a
+    share of nil revenue). RESTATED (plan/2 B4b, contract 5): operating
+    costs are POOLS with an amount, not shares of revenue, so a book with
+    no revenue projects, carrying every pool at its own base — and with
+    nil revenue every pool's variable base exceeds the cap, so each is
+    served fully fixed and follows inflation only. The size of what was
+    once hidden is read off the book, not typed.
     """
     payload = load("realestate")
     reported_opex = cents_from(
         payload["statements"]["assembled_pl"]["opex_excluding_cogs_and_da"])
     assert reported_opex > 0
     payload["statements"]["assembled_pl"]["revenue"] = 0.0
-    try:
-        projected = project_payload(payload, horizon_years=5,
-                                    revolver_rate=_CALLER_REVOLVER_RATE)
-    except AssumptionError as exc:
-        assert "cogs_pct_of_revenue" in str(exc), str(exc)
-    else:
-        charged = sum(-p.pl["operating_costs"] for p in projected.periods)
-        raise AssertionError(
-            "this book reports %s of operating cost a year and the plan "
-            "was projected anyway, charging %s of operating cost across "
-            "five years and printing %s of EBITDA"
-            % (fmt(reported_opex), fmt(cents_from(charged)),
-               fmt(cents_from(sum(p.pl["ebitda"] for p in projected.periods)))))
+    projected = project_payload(payload, horizon_years=5, inflation=0,
+                                revolver_rate=_CALLER_REVOLVER_RATE)
+    charged = sum(-p.pl["operating_costs"] for p in projected.periods)
+    assert charged == reported_opex * 5, (
+        "this book reports %s of operating cost a year and a five-year plan "
+        "at neutral inflation charged %s" % (fmt(reported_opex), fmt(charged)))
+    assert sum(p.pl["revenue"] for p in projected.periods) == 0
+    assert all(p.tier == "convention" and p.fixed_share_micros == MICRO_ONE
+               for p in projected.assumptions.pools.opex if p.base_cents > 0), (
+        "with nil revenue every non-nil opex pool is capped fully fixed")
     # …and each remaining unmeasurable rate refuses in its own name.
     # plan/2 B3 (3.4): capex_pct_of_revenue LEFT this list. A nil revenue
     # stays nil under every lever, so no rate could size a spend, and the
     # convention terminal rung spends nothing and says what runs down.
     from engine.forecast.levers_pack import capex_rules
-    capex = project_payload(payload, horizon_years=5,
-                            opex_pct_of_revenue=1.0,
-                            revolver_rate=_CALLER_REVOLVER_RATE,
-                            cogs_pct_of_revenue=0.0,
-                            other_operating_income_pct_of_revenue=0.0
-                            ).assumptions["capex_pct_of_revenue"]
+    capex = projected.assumptions["capex_pct_of_revenue"]
     assert (capex.tier, capex.exact) == ("convention", 0)
     assert capex.rule_id == capex_rules()[2].rule_id
     assert fmt(cents_from(payload["statements"]["assembled_pl"]
                           ["depreciation"])) in capex.basis
     assert capex.fallback_steps[0]["outcome"] == "rejected"
-    supplied = {"revolver_rate": _CALLER_REVOLVER_RATE,
-                "cogs_pct_of_revenue": 0.0}
-    for expected in ("other_operating_income_pct_of_revenue",):
-        with pytest.raises(AssumptionError) as caught:
-            project_payload(payload, horizon_years=5,
-                            opex_pct_of_revenue=1.0, **supplied)
-        assert expected in str(caught.value), str(caught.value)
-        supplied[expected] = 0.0
-    projected = project_payload(payload, horizon_years=5,
-                                opex_pct_of_revenue=1.0, **supplied)
-    assert len(projected.periods) > 0
 
 
 def test_an_absent_line_projects_rather_than_refusing():
@@ -1789,7 +1784,8 @@ def test_an_absent_line_projects_rather_than_refusing():
     payload = load("agras")
     del payload["statements"]["assembled_pl"]["other_operating_income"]
     projection = project_payload(payload, horizon_years=1)
-    driver = projection.assumptions["other_operating_income_pct_of_revenue"]
+    # plan/2 B4b: the held amount, other_operating_income_annual (5.5)
+    driver = projection.assumptions["other_operating_income_annual"]
     assert driver.source == "engine_default"
     assert driver.exact == 0
     assert sum(p.pl["other_operating_income"] for p in projection.periods) == 0
@@ -1848,7 +1844,10 @@ def test_micros_refuses_a_refusal_and_micros_or_none_reports_it():
 #: The unavailable-rate branch count the plan/2 B3 derivation leaves,
 #: measured when B3 landed (it was >= 8 before): a scan finding fewer has
 #: stopped matching the derivation.
-FLOOR_UNAVAILABLE_RATE_BRANCHES = 10
+#: plan/2 B4b: the four cogs_pct / opex_pct refusal branches are deleted
+#: with their keys (cost pools have an amount, never a refused share), so
+#: the floor is the branch count this commit leaves, measured and printed.
+FLOOR_UNAVAILABLE_RATE_BRANCHES = 7
 
 
 def test_no_branch_of_the_derivation_stores_a_number_behind_a_refusal():
@@ -1889,6 +1888,8 @@ def test_no_branch_of_the_derivation_stores_a_number_behind_a_refusal():
     # cost-share and the two debt-rate refusal branches were each merged
     # into one put, and the tax rate gained its R16 refusal branch.
     print("unavailable-rate branches scanned: %d" % (seen,))
+    print("unavailable-rate branches in derive_assumptions: %d (floor %d)"
+          % (seen, FLOOR_UNAVAILABLE_RATE_BRANCHES))
     assert seen >= FLOOR_UNAVAILABLE_RATE_BRANCHES, (
         "only %d unavailable-rate branches found — the scan stopped "
         "matching the derivation" % (seen,))
@@ -2279,7 +2280,7 @@ def test_every_rate_that_prices_a_balance_is_read_as_a_value_not_a_word():
 #: no lever a caller has can give the BOOK either one. That is a
 #: MEASUREMENT, not a judgement, so it has a gate.
 _DEFAULTS_THAT_SURVIVE_THE_PLAN = (
-    ("other_operating_income_pct_of_revenue", "pl", "other_operating_income",
+    ("other_operating_income_annual", "pl", "other_operating_income",
      lambda p: _without(p, "other_operating_income")),
     ("capex_pct_of_revenue", "cf", "capital_expenditure",
      lambda p: _without(_no_fixed_assets(p), "depreciation")),

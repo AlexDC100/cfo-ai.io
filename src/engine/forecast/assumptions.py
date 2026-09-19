@@ -50,7 +50,7 @@ a statement can be falsified by the plan it is handed to. Ask of every
 0 stored here: **can any lever a caller has — an override, or the debt
 schedule — make the sentence this branch prints false?**
 
-  · ``other_operating_income_pct_of_revenue`` says the LINE is absent
+  · ``other_operating_income_annual`` (plan/2 B4b, held) says the LINE is absent
     from this company's income statement, and ``capex_pct_of_revenue``
     says the book names no depreciation charge to replace. No lever
     gives the BOOK either one, and the base both divide by (revenue) is
@@ -118,7 +118,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .errors import AssumptionError
-from .levers_pack import (capex_rules, dividend_book_rung_absent, macro_pack,
+from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, PoolSplit, refused_split,
+                    split_for_payload)
+from .levers_pack import (capex_rules, dividend_book_rung_absent, index_neutral, macro_pack,
                           min_cash_default, terminal_rung)
 from .money import (MICRO, MICRO_DAY, cents_from, days_fmt, days_to_float,
                     micro_days_from, micros_from, mul_div, rate_to_float,
@@ -213,7 +215,7 @@ class BookContext(object):
     rows, which a working-capital basis quotes beside the engine's driver
     (contract 4, R8). Frozen; built once per payload."""
 
-    __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table")
+    __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table", "pools")
 
     #: The ratio-table rows a days basis quotes: engine.ratios.table's own
     #: keys (its _Spec ids), never the methodology pack's ratios, which
@@ -222,10 +224,14 @@ class BookContext(object):
 
     def __init__(self, jurisdiction: Optional[str] = None,
                  jurisdiction_source: Optional[str] = None,
-                 ratio_table: Optional[Dict[str, Any]] = None) -> None:
+                 ratio_table: Optional[Dict[str, Any]] = None,
+                 pools: Optional[PoolSplit] = None) -> None:
         object.__setattr__(self, "jurisdiction", jurisdiction)
         object.__setattr__(self, "jurisdiction_source", jurisdiction_source)
         object.__setattr__(self, "ratio_table", dict(ratio_table or {}))
+        #: The anchor's cost pools split from its line items (plan/2 B4b,
+        #: 5.1); None when the payload carried none.
+        object.__setattr__(self, "pools", pools)
 
     def __setattr__(self, name, value):  # pragma: no cover - frozen
         raise AttributeError("BookContext is frozen")
@@ -236,7 +242,8 @@ class BookContext(object):
         envelope = envelope if isinstance(envelope, dict) else (
             payload if isinstance(payload, dict) else {})
         jurisdiction, source = jurisdiction_of(envelope)
-        return cls(jurisdiction, source, ratio_table_days(payload))
+        return cls(jurisdiction, source, ratio_table_days(payload),
+                   split_for_payload(payload) if isinstance(payload, dict) else None)
 
     def ratio_row(self, key: str) -> Optional[Dict[str, Any]]:
         """The ratio table's row for ``key`` when it carries a value."""
@@ -530,9 +537,15 @@ class DebtSchedule(object):
 #: would have shown two values.
 _DEFAULTS = (
     ("revenue_growth", _RATIO),
-    ("cogs_pct_of_revenue", _RATIO),
-    ("opex_pct_of_revenue", _RATIO),
-    ("other_operating_income_pct_of_revenue", _RATIO),
+    # plan/2 B4b: inflation moves the FIXED part of every opex pool (5.3);
+    # cogs_pct_of_revenue and opex_pct_of_revenue left KEYS — cost of
+    # sales and operating costs are POOLS split from the anchor's line
+    # items (section 5), served as pool_fixed_share.<pool> and
+    # pool_level.<opex pool> per book; other_operating_income_annual is
+    # the renamed other_operating_income_pct_of_revenue: the anchor's own
+    # amount, HELD (5.5), never a share of revenue.
+    ("inflation", _RATIO),
+    ("other_operating_income_annual", _MONEY),
     ("dso_days", _DAYS),
     ("dio_cogs_days", _DAYS),
     ("dpo_cogs_days", _DAYS),
@@ -556,6 +569,21 @@ _DAYS_KEYS = tuple(k for k, u in _DEFAULTS if u == _DAYS)
 _MONEY_KEYS = tuple(k for k, u in _DEFAULTS if u == _MONEY)
 _COUNT_KEYS = tuple(k for k, u in _DEFAULTS if u == _COUNT)
 _UNIT_OF = dict(_DEFAULTS)
+
+
+def is_pool_key(key: str) -> bool:
+    """A per-book pool driver (plan/2 B4b, 3a.2): pool_fixed_share.<pool>
+    or pool_level.<opex pool>, expanded per book from the two template
+    entries of packs/forecast/levers.yaml."""
+    return key.startswith(FIXED_SHARE_PREFIX) or key.startswith(LEVEL_PREFIX)
+
+
+def unit_of(key: str) -> str:
+    if key in _UNIT_OF:
+        return _UNIT_OF[key]
+    if is_pool_key(key):
+        return _RATIO
+    raise AssumptionError(key, "no such driver")
 #: Every driver. The horizon is NOT one: ``total_years`` and
 #: ``monthly_months`` are request fields that ``project()`` takes as
 #: arguments (plan_contract_v2 2.2), so no override can move them and no
@@ -567,24 +595,104 @@ KEYS = tuple(k for k, _u in _DEFAULTS)
 class AssumptionSet(object):
     """Every driver of one projection, each with its pedigree."""
 
-    __slots__ = ("_by_key", "debt_schedule")
+    __slots__ = ("_by_key", "debt_schedule", "pools", "_pool_keys")
 
     def __init__(self, assumptions: Sequence[Assumption],
-                 debt_schedule: Optional[DebtSchedule] = None) -> None:
+                 debt_schedule: Optional[DebtSchedule] = None,
+                 pools: Optional[PoolSplit] = None) -> None:
         by_key = {}  # type: Dict[str, Assumption]
+        pool_keys = []  # type: List[str]
         for item in assumptions:
             by_key[item.key] = item
+            if item.key not in _UNIT_OF:
+                if not is_pool_key(item.key):
+                    raise AssumptionError(item.key, "no such driver")
+                pool_keys.append(item.key)
         missing = sorted(set(KEYS) - set(by_key))
         if missing:
             raise AssumptionError("assumption_set",
                                   "missing driver(s): %s" % ", ".join(missing))
         self._by_key = by_key
         self.debt_schedule = debt_schedule or DebtSchedule()
+        #: The anchor's cost pools (plan/2 B4b, section 5): the bases the
+        #: pool_fixed_share.* / pool_level.* drivers apply to. None on a
+        #: set built without a book (a forged set in a test); project()
+        #: then refuses the split by name (#no_line_items).
+        self.pools = pools
+        self._pool_keys = tuple(pool_keys)
+
+    #: The pool FACTS the model publishes for engine.forecast_drivers
+    #: (contract 4, plan/2 B4b): measured from the anchor's line items by
+    #: the pool split, read by key like a driver, never overridable and
+    #: never served in KEYS. ``pools.cost_of_sales_share`` is the
+    #: cost_of_sales pool base over revenue; ``pools.operating_cost_share``
+    #: the opex pools' sum over revenue; ``pools.opex_fixed_share`` the
+    #: amount-weighted fixed share of the served opex pools.
+    POOL_FACTS = ("pools.cost_of_sales_share", "pools.operating_cost_share",
+                  "pools.opex_fixed_share")
 
     def __getitem__(self, key: str) -> Assumption:
         if key not in self._by_key:
+            if key in self.POOL_FACTS:
+                return self._pool_fact(key)
             raise AssumptionError(key, "no such driver")
         return self._by_key[key]
+
+    def _pool_fact(self, key: str) -> Assumption:
+        from .money import fmt
+
+        pools = self.pools
+        if pools is None:
+            why = "this set was built without a book, so no pool split exists"
+            return Assumption(key, _RATIO, None, "unavailable", why, tier="absent",
+                              fallback_steps=(_step("book", "absent", why),))
+        revenue = pools.revenue_cents
+        if key == "pools.opex_fixed_share":
+            share = pools.aggregate_fixed_share_micros()
+            if share is None:
+                why = ("the pooled operating-cost base of this book is not "
+                       "positive, so no fixed share can be weighted")
+                return Assumption(key, _RATIO, None, "unavailable", why, tier="absent",
+                                  fallback_steps=(_step("book", "absent", why),))
+            pooled = [p for p in pools.opex if p.base_cents > 0]
+            rule_ids = sorted(set(p.rule_id for p in pooled))
+            return Assumption(
+                key, _RATIO, share, "engine_default",
+                "the amount-weighted fixed share of this book's operating-cost "
+                "pools (%s), each pool's share resolved down its own ladder "
+                "(%s)" % (", ".join("%s %s of which %s fixed"
+                                    % (p.name, fmt(p.base_cents),
+                                       fmt(mul_div(p.base_cents, p.fixed_share_micros, MICRO)))
+                                    for p in pooled), "; ".join(rule_ids)),
+                tuple("line_items.%s" % p.name for p in pooled),
+                tier="convention", rule_id=rule_ids[0] if rule_ids else None,
+                evidence={"rule_id": rule_ids[0] if rule_ids else None,
+                          "pack_address": rule_ids[0] if rule_ids else None,
+                          "evidence": [{"fact": "line_items.%s" % p.name,
+                                        "value_minor": p.base_cents,
+                                        "fixed_share_micros": p.fixed_share_micros}
+                                       for p in pooled]})
+        if key == "pools.cost_of_sales_share":
+            base, fact = pools.cost_of_sales.base_cents, "line_items.cogs"
+            label = "cost of sales (the cost_of_sales pool base)"
+        else:
+            base, fact = pools.opex_sum_cents, "line_items.operating_costs"
+            label = "operating costs (the sum of the operating-cost pools)"
+        if revenue <= 0:
+            why = ("this book reports revenue of %s, so %s cannot be measured "
+                   "as a share of it" % (fmt(revenue), label))
+            return Assumption(key, _RATIO, None, "unavailable", why, tier="absent",
+                              fallback_steps=(_step("book", "absent", why),))
+        share = mul_div(base, MICRO, revenue)
+        return Assumption(
+            key, _RATIO, share, "derived",
+            _pct_basis("%s as a share of revenue" % label, base, revenue, fact,
+                       "assembled_pl.revenue"),
+            (fact, "assembled_pl.revenue"), tier="book",
+            evidence={"method": "level", "periods_used": [],
+                      "inputs": [{"fact": fact, "value_minor": base, "authority": "line_items"},
+                                 {"fact": "assembled_pl.revenue", "value_minor": revenue,
+                                  "authority": "assembled_pl"}]})
 
     def get(self, key: str) -> Assumption:
         return self[key]
@@ -667,20 +775,29 @@ class AssumptionSet(object):
     def text(self, key: str) -> str:
         return str(self[key].text)
 
+    def keys(self) -> Tuple[str, ...]:
+        """Every driver of this set: KEYS in served order, then this
+        book's expanded pool keys (pool_fixed_share.cost_of_sales, the
+        opex pools' fixed shares, then their levels — 3a.2)."""
+        return tuple(KEYS) + self._pool_keys
+
+    def pool_keys(self) -> Tuple[str, ...]:
+        return self._pool_keys
+
     def items(self) -> Tuple[Assumption, ...]:
-        return tuple(self._by_key[k] for k in KEYS)
+        return tuple(self._by_key[k] for k in self.keys())
 
     def as_list(self) -> List[Dict[str, Any]]:
         return [item.as_dict() for item in self.items()]
 
     def unavailable(self) -> Tuple[str, ...]:
-        return tuple(k for k in KEYS if self._by_key[k].source == "unavailable")
+        return tuple(k for k in self.keys() if self._by_key[k].source == "unavailable")
 
     def with_overrides(self, **overrides: Any) -> "AssumptionSet":
         """A copy with caller-supplied drivers replacing derived ones.
         Every replaced driver is re-stamped ``source='caller'`` — an
         override never inherits a derivation's pedigree."""
-        return _build(self._by_key, overrides, self.debt_schedule)
+        return _build(self._by_key, overrides, self.debt_schedule, self.pools)
 
 
 def _coerce(key: str, unit: str, value: Any) -> Tuple[Optional[int], Optional[str]]:
@@ -766,14 +883,16 @@ def _exact_of_handover(key: str, unit: str, value: Any) -> Optional[int]:
 
 
 def _build(base: Dict[str, Assumption], overrides: Dict[str, Any],
-           debt_schedule: Optional[DebtSchedule]) -> AssumptionSet:
-    unknown = sorted(set(overrides) - set(KEYS) - {"debt_schedule"})
+           debt_schedule: Optional[DebtSchedule],
+           pools: Optional[PoolSplit] = None) -> AssumptionSet:
+    keys = tuple(KEYS) + tuple(k for k in base if k not in _UNIT_OF)
+    unknown = sorted(set(overrides) - set(keys) - {"debt_schedule"})
     if unknown:
         raise AssumptionError("overrides", "unknown driver(s): %s. Known: %s"
-                              % (", ".join(unknown), ", ".join(KEYS)))
+                              % (", ".join(unknown), ", ".join(keys)))
     schedule = overrides.get("debt_schedule", debt_schedule)
     out = []  # type: List[Assumption]
-    for key in KEYS:
+    for key in keys:
         current = base[key]
         if key not in overrides:
             out.append(current)
@@ -824,7 +943,7 @@ def _build(base: Dict[str, Assumption], overrides: Dict[str, Any],
             derived_from=getattr(value, "pedigree_from", ()),
             tier="user", original=current,
             fallback_steps=current.fallback_steps))
-    return AssumptionSet(out, schedule)
+    return AssumptionSet(out, schedule, pools)
 
 
 def _absent_over(current: Assumption, handover: Any) -> Assumption:
@@ -977,9 +1096,9 @@ def derive_assumptions(opening: Any, history: Any, *,
             rule_id=None, evidence=None, steps=()):
         if key in derived:
             raise AssumptionError(key, "resolved twice")
-        if unit != _UNIT_OF[key]:
+        if unit != unit_of(key):
             raise AssumptionError(key, "resolved as %s, declared %s"
-                                  % (unit, _UNIT_OF[key]))
+                                  % (unit, unit_of(key)))
         steps = tuple(steps)
         if key in authority_absent and not any(
                 s["tier"] == "book" for s in steps):
@@ -995,104 +1114,52 @@ def derive_assumptions(opening: Any, history: Any, *,
         authority, so a measurement here would be a second authority."""
         return key in authority_absent
 
-    # ── ratios measurable from the source P&L ──────────────────────────
-    # An ``unavailable`` RATE is not the number zero. Each branch below
-    # separates the two causes, because they are different facts:
-    #
-    #   · the rate cannot be MEASURED (no base, or no numerator named)
-    #     -> the driver carries None, tier absent, and ``project``
-    #        refuses the plan rather than printing a zero cost against a
-    #        book that reports one;
-    #   · the LINE is genuinely absent -> the convention terminal rung
-    #     carries the absence forward, and says so.
-    cogs_pct = ratio(cogs, revenue)
-    if cogs is None or cogs_pct is None or refused_by_authority(
-            "cogs_pct_of_revenue"):
-        why = ("this book names no cost of sales, so its share of revenue "
-               "cannot be measured. 0% would assert that this company has "
-               "no cost of sales at all, which is an invented rate and the "
-               "most favourable one; supply cogs_pct_of_revenue to project "
-               "this plan" if cogs is None else
-               "this book reports revenue of %s, so cost of sales cannot be "
-               "measured as a share of it. 0%% would project no cost of "
-               "sales at all against a book that reports %s; supply "
-               "cogs_pct_of_revenue to project this plan"
-               % (fmt(revenue or 0), fmt(cogs)))
-        put("cogs_pct_of_revenue", _RATIO, None, "unavailable", why,
-            tier="absent", steps=(_step("book", "absent", why),))
-    else:
-        put("cogs_pct_of_revenue", _RATIO, cogs_pct, "derived",
-            _pct_basis("cost of sales as a share of revenue", cogs, revenue,
-                       "assembled_pl.cogs", "assembled_pl.revenue"),
-            ("assembled_pl.cogs", "assembled_pl.revenue"),
-            tier="book", evidence=book(
-                ("assembled_pl.cogs", cogs, "value_minor"),
-                ("assembled_pl.revenue", revenue, "value_minor")))
+    # ── the cost POOLS of this book (plan/2 B4b, contract 5) ───────────
+    # Cost of sales and operating costs are no longer shares of revenue:
+    # each is a pool split from the anchor's line items, with a fixed
+    # share resolved down its own ladder (pools.py). The engine is the one
+    # authority for the split; engine.forecast_drivers reads it (contract
+    # 4). A context with no split (a caller that built no payload) refuses
+    # the split BY NAME — one pool that follows volume in full, the rule's
+    # own sentence as its basis — never a guessed split.
+    pools = getattr(context, "pools", None)
+    if pools is None:
+        pools = refused_split("no_line_items", opex_total_cents=opex or 0,
+                              cogs_total_cents=cogs or 0,
+                              revenue_cents=revenue or 0)
+    index_rung = index_neutral()
 
-    opex_pct = ratio(opex, revenue)
-    if opex is None or opex_pct is None or refused_by_authority(
-            "opex_pct_of_revenue"):
-        why = ("this book names no operating costs, so their share of "
-               "revenue cannot be measured. 0% would assert that this "
-               "company has no operating costs at all, which is an invented "
-               "rate and the most favourable one; supply opex_pct_of_revenue "
-               "to project this plan" if opex is None else
-               "this book reports revenue of %s, so operating costs cannot "
-               "be measured as a share of it. 0%% would project no operating "
-               "costs at all against a book that reports %s a year; supply "
-               "opex_pct_of_revenue to project this plan"
-               % (fmt(revenue or 0), fmt(opex)))
-        put("opex_pct_of_revenue", _RATIO, None, "unavailable", why,
-            tier="absent", steps=(_step("book", "absent", why),))
-    else:
-        put("opex_pct_of_revenue", _RATIO, opex_pct, "derived",
-            _pct_basis("operating costs (excluding cost of sales and "
-                       "depreciation) as a share of revenue", opex, revenue,
-                       "assembled_pl.opex_excluding_cogs_and_da",
-                       "assembled_pl.revenue"),
-            ("assembled_pl.opex_excluding_cogs_and_da",
-             "assembled_pl.revenue"),
-            tier="book", evidence=book(
-                ("assembled_pl.opex_excluding_cogs_and_da", opex,
-                 "value_minor"),
-                ("assembled_pl.revenue", revenue, "value_minor")))
+    def put_pool(key, pool):
+        put(key, _RATIO, pool.fixed_share_micros, "engine_default",
+            "%s: %s (anchor base %s)" % (pool.name, pool.sentence,
+                                          fmt(pool.base_cents)),
+            tier=pool.tier, rule_id=pool.rule_id, evidence=pool.evidence,
+            steps=pool.fallback_steps)
 
-    # ── the named OPERATING INCOME the book carries ────────────────────
-    # Stamped on the rung of other_operating_income_annual until B4 renames
-    # the key (contract 3.4): book level, else the convention terminal rung.
+    # ── the named OPERATING INCOME the book carries, HELD (5.5) ────────
+    # The anchor's own amount, tier book: it scales with neither volume,
+    # growth nor inflation and is sliced by days. Renamed from
+    # other_operating_income_pct_of_revenue (3a.2); the convention that it
+    # followed revenue is retired with the rename.
     other_op_income = history.other_operating_income
-    ooi_pct = ratio(other_op_income, revenue)
     if other_op_income is None:
         rung = terminal_rung("other_operating_income_annual")
         why = ("assembled_pl.other_operating_income is not carried by this "
                "book")
-        put("other_operating_income_pct_of_revenue", _RATIO,
-            _micros_of(rung.value), "engine_default", rung.sentence,
-            tier="convention", rule_id=rung.rule_id,
-            evidence=convention(rung.rule_id),
-            steps=(_step("book", "absent", why),))
-    elif ooi_pct is None:
-        why = ("this book reports revenue of %s, so the other operating "
-               "income it does report, %s, cannot be measured as a share of "
-               "it; supply other_operating_income_pct_of_revenue to project "
-               "this plan" % (fmt(revenue or 0), fmt(other_op_income)))
-        put("other_operating_income_pct_of_revenue", _RATIO, None,
-            "unavailable", why, tier="absent",
+        put("other_operating_income_annual", _MONEY, _cents_of(rung.value),
+            "engine_default", rung.sentence, tier="convention",
+            rule_id=rung.rule_id, evidence=convention(rung.rule_id),
             steps=(_step("book", "absent", why),))
     else:
-        put("other_operating_income_pct_of_revenue", _RATIO, ooi_pct,
+        put("other_operating_income_annual", _MONEY, int(other_op_income),
             "derived",
-            _pct_basis("other operating income as a share of revenue",
-                       other_op_income, revenue,
-                       "assembled_pl.other_operating_income",
-                       "assembled_pl.revenue")
-            + ". It is projected on the same basis as cost of sales and "
-              "operating costs, and is treated as cash in the period",
-            ("assembled_pl.other_operating_income", "assembled_pl.revenue"),
+            "other operating income held at this book's own amount of %s: "
+            "it scales with neither volume, growth nor inflation, and is "
+            "spread across each plan year by days" % fmt(other_op_income),
+            ("assembled_pl.other_operating_income",),
             tier="book", evidence=book(
                 ("assembled_pl.other_operating_income", other_op_income,
-                 "value_minor"),
-                ("assembled_pl.revenue", revenue, "value_minor")))
+                 "value_minor")))
 
     # ── working-capital days ───────────────────────────────────────────
     # contract 4 / R8: engine.forecast's formulas are the authority
@@ -1482,6 +1549,27 @@ def derive_assumptions(opening: Any, history: Any, *,
             rule_id=rung.rule_id, evidence=convention(rung.rule_id),
             steps=growth_steps)
 
+    # inflation (3.4): macro pack_anchor for the jurisdiction, else the
+    # convention terminal rung. It moves the FIXED part of every opex pool
+    # (5.3); the same anchor is revenue_growth's macro rung above, so a
+    # nominal plan grows fixed and variable costs alike at neutral volume.
+    if anchor is not None:
+        inflation = _micros_of(anchor.value)
+        put("inflation", _RATIO, inflation, "engine_default",
+            "fixed costs follow the %s of %s for jurisdiction %s (%s, "
+            "stated as of %s)"
+            % (anchor.label.lower(), _pct4(inflation), jurisdiction,
+               anchor.source, anchor.stated_as_of),
+            tier="macro", rule_id=anchor.pack_address,
+            evidence=anchor.evidence())
+    else:
+        rung = terminal_rung("inflation")
+        put("inflation", _RATIO, _micros_of(rung.value), "engine_default",
+            rung.sentence, tier="convention", rule_id=rung.rule_id,
+            evidence=convention(rung.rule_id),
+            steps=(_step("macro", "absent",
+                         jurisdiction_reason("macro anchor")),))
+
     rung = terminal_rung("dividend_payout_pct")
     put("dividend_payout_pct", _RATIO, _micros_of(rung.value),
         "engine_default", rung.sentence, tier="convention",
@@ -1504,7 +1592,17 @@ def derive_assumptions(opening: Any, history: Any, *,
             "assumption_set", "no ladder resolved %s — a driver with no "
             "rung would ship as a silent default" % (", ".join(missing),))
 
-    return _build(derived, overrides, overrides.get("debt_schedule"))
+    # The per-book pool drivers, after KEYS (3a.2 order): fixed shares over
+    # cost_of_sales first then the served opex pools, then the opex pools'
+    # levels at the neutral index rung.
+    for pool in pools.pools():
+        put_pool(FIXED_SHARE_PREFIX + pool.name, pool)
+    for pool in pools.opex:
+        put(LEVEL_PREFIX + pool.name, _RATIO, MICRO, "engine_default",
+            "%s: %s" % (pool.name, index_rung.sentence), tier="convention",
+            rule_id=index_rung.rule_id, evidence=convention(index_rung.rule_id))
+
+    return _build(derived, overrides, overrides.get("debt_schedule"), pools)
 
 
 def _check_pedigree(key: str, exact: Optional[int], tier: str,

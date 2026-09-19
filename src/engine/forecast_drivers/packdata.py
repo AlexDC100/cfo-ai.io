@@ -144,7 +144,8 @@ class MacroAnchor(object):
 
 class ForecastPack(object):
     __slots__ = ("schema_version", "pack_id", "pack_version", "round_dp",
-                 "opex_fixed", "opex_variable", "depreciable_rows",
+                 "opex_fixed", "opex_variable", "opex_nature_authority",
+                 "depreciable_rows",
                  "debt_rows", "fx_materiality_of_revenue", "_drivers",
                  "_by_key", "macro_pack_id", "macro_pack_version",
                  "_anchors")
@@ -166,16 +167,18 @@ class ForecastPack(object):
                 "determinism" % (where, ", ".join(missing)))
         self.round_dp = dict((str(k), int(v)) for k, v in round_dp.items())
 
+        # plan/2 B4b: the split is the engine's (cost_behaviour.yaml#nature);
+        # this pack names that authority and carries no leaf lists.
         split = _req(drivers_raw, "opex_nature_split", where)
-        self.opex_fixed = tuple(str(x) for x in (split.get("fixed") or []))
-        self.opex_variable = tuple(str(x) for x in (split.get("variable") or []))
-        overlap = sorted(set(self.opex_fixed) & set(self.opex_variable))
-        if overlap:
+        if not isinstance(split, dict) or not str(split.get("authority") or ""):
+            raise PackError("%s: opex_nature_split names its authority" % where)
+        if split.get("fixed") or split.get("variable"):
             raise PackError(
-                "%s: opex leaf in BOTH fixed and variable: %s"
-                % (where, ", ".join(overlap)))
-        if not self.opex_fixed or not self.opex_variable:
-            raise PackError("%s: opex_nature_split needs both sides" % where)
+                "%s: opex_nature_split carries no leaf lists since plan/2 B4b — "
+                "the engine's pool split is the one authority" % where)
+        self.opex_nature_authority = str(split["authority"])
+        self.opex_fixed = ()
+        self.opex_variable = ()
 
         self.depreciable_rows = tuple(
             str(x) for x in _req(drivers_raw, "depreciable_rows", where))

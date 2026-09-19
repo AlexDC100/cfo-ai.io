@@ -4644,3 +4644,226 @@ because stornos outweigh the reductions they reverse; non-mirrored rows;
 the served statements of periods persisted before this repair (they need
 re-processing; the count is owed by the owner, forecast_blast_radius.md
 under 609).
+
+## forecast-pools
+
+plan/2 B4b (plan_contract_v2 5.1, 5.2, 5.3, 5.6; 28.3 B4, the pools half
+after the B4a statements repair). `tests/engine/test_forecast_pools.py`,
+registered in `scripts/run_battery.py` under the plan/2 B4b anchor; pack
+`packs/forecast/cost_behaviour.yaml` (new), engine `src/engine/forecast/pools.py`
+(new).
+
+THE DEFECT (0.1, the engine half). The engine priced cost of sales and
+operating costs as SHARES of each period's revenue (`cogs_pct_of_revenue`,
+`opex_pct_of_revenue`), so every cost was fully variable: a revenue fall took
+personnel and rent down with it, the opposite error to the page cascade's
+flat cost of sales. The measured fixed share of operating cost (agras
+0.739606 by the pack's prefix classification) never reached the model, and
+forecast_drivers held a SECOND derivation of it (a leaf-based nature split in
+`drivers.yaml`) that disagreed with anything the engine could have said.
+Other operating income was grown with revenue.
+
+THE REPAIR. The anchor's `statement_line_items` rows are the only pool
+source: `operatingExpenses` rows split into the pools of
+`cost_behaviour.yaml#prefix_to_pool` by longest account prefix (a prefix under
+two pools refuses at load; a pooled prefix with no `nature` refuses at load),
+`cogs` rows are the cost_of_sales pool, `envelope.leaves` is never read. Each
+opex pool resolves a fixed share down the 5.2 ladder — nil pool (base 0) ->
+fixed 0 by convention; a NET-CREDIT pool (retail materials_non_inventory,
+-1,071,951.53, where the 609 supplier discounts outweigh the materials) ->
+fixed 0 by convention `#negative_pool` (a credit that scales with purchases
+follows volume; the classification share of a negative base is meaningless);
+book two_point_fit recorded absent ("prior periods are not read in this
+build", B7); sector absent; convention classification = fixed-classified
+amount / pool amount; then the cap: a variable base above
+`#variable_base_max_share_of_revenue` x revenue is served fully fixed with the
+rejected rung kept. `unallocated_operating` follows the amount-weighted share
+of the pooled costs. A split that cannot be made refuses BY NAME into one
+pool `operating_costs` (`#max_unallocated_share`, `#rows_disagree`,
+`#no_line_items`), never a guessed split. `project()` then carries, per plan
+year n, F = round(B x f x C(n)) and V = round(B x G(n)) - round(B x f x G(n)),
+each ONE exact rational rounded once (5.3), sliced by days; cost of sales is
+fixed share 0 by convention `#cogs_variable`; other operating income is held
+(`other_operating_income_annual`, 5.5). `inflation` joins KEYS (macro anchor,
+else `levers.yaml#inflation.terminal_rung`); `cogs_pct_of_revenue`,
+`opex_pct_of_revenue` and `other_operating_income_pct_of_revenue` leave it.
+The per-book drivers `pool_fixed_share.<pool>` (cost_of_sales first) and
+`pool_level.<opex pool>` (neutral, `levers.yaml#index_neutral`) expand from
+the two `levers.yaml#pools.templates` entries; forecast_drivers reads the
+engine's `pools.opex_fixed_share` / `pools.cost_of_sales_share` /
+`pools.operating_cost_share` facts (concept status `read`, contract 4) and its
+leaf split is deleted.
+
+WHAT THE GATE CHECKS (5.6, no shocks): on the four books the pools plus
+unallocated equal `opex_excluding_cogs_and_da` to the cent and the projection
+runs on that split (shares printed, unallocated amount and share printed
+beside the refusal cutoff rendered from the pack); the amount-weighted fixed
+share computed in the test equals the engine fact equals forecast_drivers
+`opex_fixed_share`, to the micro; the cap checked DIRECTLY on every non-user
+pool (capped names and counts printed; realestate must cap, and must cap
+third_party_services); at revenue_growth -0.20 and inflation 0, plan-year-one
+cost of sales equals mul_div(base, 800000, MICRO) and operating costs equal
+the 5.3 formula evaluated in the test per pool; nil-pool counts printed; a
+test-built agras without its 624 rows serves transport_logistics on the
+nil_pool rung (fixed 0, convention, book and sector absent, classification
+rejected "nil pool") and projects; the pack refuses a duplicate prefix and an
+unclassified prefix at load.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-pools units=(\d+)` (sum, share, cap, growth and nil checks; measured 53), floor 50 |
+| canaries | `SCOPE forecast-pools (plan/2 B4b, contract 5.6)`, `capped pools per book`, `nil pools per book` |
+
+**SCOPE** — printed: `SCOPE forecast-pools (plan/2 B4b, contract 5.6): books
+agras, carniprod, realestate, retail; horizon 1 for the year-one checks (2 for
+the nil shape); no shocks; SYNTHETIC agras without its 624 rows
+(transport_logistics nil); pack packs/forecast/cost_behaviour.yaml`, then
+`capped pools per book: agras 0 (none); carniprod 0 (none); realestate 3
+(energy_utilities, third_party_services, materials_non_inventory); retail 0
+(none)` and `nil pools per book: ... 1 (unallocated_operating)` on each.
+
+**GREEN** — `25 passed`. Measured fixed shares (amount-weighted): agras
+0.739606, carniprod 0.749519, realestate 0.999978 (three pools capped against
+revenue of 162,365.46), retail 0.808766.
+
+**RED (parent commit)** — the gate file on fa2a04c (the B3 engine over the
+repaired books): `ERROR collecting tests/engine/test_forecast_pools.py —
+ModuleNotFoundError: No module named 'engine.forecast.pools'` — the parent has
+no pool split; its operating cost is one share of revenue.
+
+**PLANT P1** — the nil_pool rung deleted (`_classified_pool` no longer
+branches on base 0). **RED (plant)** `1 failed, 24 passed`:
+
+```
+FAILED tests/engine/test_forecast_pools.py::test_a_book_whose_pool_is_nil_serves_the_nil_pool_rung_and_projects
+E   ValueError: denominator must be positive, got 0
+```
+
+(the test-built book refuses instead of projecting). **REVERT** byte copy restored, sha verified.
+
+**PLANT P2** — one 641 row dropped from the pool input. **RED (plant)**
+`7 failed, 18 passed`:
+
+```
+E   AssertionError: agras: the split did not come from the line items (rows_disagree, packs/forecast/cost_behaviour.yaml#rows_disagree)
+```
+
+(every book's sum check reds: the rows no longer tie to the assembled figure
+and the split refuses by name). **REVERT** ok.
+
+**PLANT P3** — forecast_drivers derives its own opex fixed share (reads a
+different fact than the pool split). **RED (plant)** `4 failed, 21 passed`:
+
+```
+E   AssertionError: agras: forecast_drivers opex_fixed_share 636807, the engine's pool split 739606 — two derivations of one concept (contract 4)
+```
+
+**REVERT** ok.
+
+**PLANT P4** — the cap removed (`_cap` returns every pool). **RED (plant)**
+`2 failed, 23 passed`:
+
+```
+E   AssertionError: realestate energy_utilities: variable base 210,740.84 exceeds 1.0 x revenue 162,365.46 = 162,365.46 and the pool was left variable
+```
+
+**REVERT** ok.
+
+**PLANT P5** — cost of sales grown with the inflation index instead of
+revenue growth. **RED (plant)** `3 failed, 22 passed`:
+
+```
+E   AssertionError: agras: plan-year-one cost of sales 70,557,114.68, expected 70,557,114.68 x 0.8 = 56,445,691.74
+```
+
+(realestate, whose cost of sales is nil, cannot see this plant — the TC-3
+companion asserts a book with cost of sales is in scope). **REVERT** ok.
+
+**PLANT P6** — fixed shares ignored (every pool fully variable). **RED
+(plant)** `4 failed, 21 passed`:
+
+```
+E   AssertionError: agras: plan-year-one operating costs 23,883,925.42, the 5.3 formula gives 28,300,097.59 (delta -4,416,172.17)
+E     personnel base 20,642,734.00 fixed 100.0000% -> fixed part 20,642,734.00 + variable part 0.00
+```
+
+**REVERT** ok.
+
+**IT CANNOT SEE:** a shock (B5, scenario-cost-behaviour); the two-point fit
+rung (B7); the served bytes of the pools (B6); a wrong prefix-to-pool map
+that still ties to the cent (the classification is pack data, argued in
+`cost_behaviour.yaml`, not measured here).
+
+### forecast-base-parity — plan/2 B4b: parity mode
+
+Re-pointed from delta mode (B2/B3) to PARITY MODE (contract 5.3). Reference
+`tests/engine/fixtures/forecast/base_b3_growth0.json` (recorded fa2a04c: the
+B3 engine over the B4a-repaired books, `revenue_growth` 0, four books,
+total_years 5, windows 12 and 24). Today's engine runs with `revenue_growth`
+AND `inflation` at 0 and no shocks; revenue must match exactly in every
+period and plan year; every other cell may differ only within a bound
+RENDERED FROM THE RUN and printed beside it: per share-priced line and period
+`ceil(|revenue_p| / (2 x MICRO))` (the B3 share rounded to micros) +
+`ceil(share_micros / MICRO)` (the revenue slice's minor-unit rounding
+multiplied through the share — on realestate operating cost is 180x revenue,
+so one minor unit of revenue moved the B3 line by 180) + 1 (final rounding)
++ 2 per pool (a pool sliced in two parts); EBITDA the sum of the three;
+balances and every line downstream of a balance the accumulation since the
+anchor; the year-to-date tax line and what it reaches twice the accumulation
+(a period's charge is the difference of two accumulated figures). The bound
+inputs (revenue, the three B3 shares in micros, pool counts) are printed per
+book and window.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-base-parity units=(\d+)` (measured 12084 over both windows), floor 12000 (was 4700 in delta mode) |
+| canaries | `SCOPE forecast-base-parity (parity mode, plan/2 B4b)`, `366-day plan year per book`, `bound inputs` |
+
+**GREEN** — `7 passed`; differences w12 1504, w24 2284, 0 outside bound; the
+tightest cell is carniprod w12 pl.operating_costs FY2027 delta -4720 against
+bound 4744 (the share rounding at its theoretical maximum on an annual
+period), then realestate pl.ebitda 2026-02 +135 against 207 (the slice
+multiplied through the 180x share). Revenue exact on 16 + 28 periods per book.
+
+**RED (parent commit)** — the file on fa2a04c, `5 failed, 2 passed`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'overrides': unknown driver(s): inflation. Known: revenue_growth, cogs_pct_of_revenue, opex_pct_of_revenue, other_operating_income_pct_of_revenue, ...
+```
+
+(the parent knows no `inflation` driver and still carries the three share
+keys, so the parity run cannot even be made against it).
+
+**PLANT** (held in the file) — one minor unit above the bound on agras
+pl.cost_of_sales 2026-01 reds naming `agras w12 pl.cost_of_sales 2026-01 ...
+[OUTSIDE BOUND]`; revenue sliced by `days_m / days_basis` reds the 366-day
+plan year (`agras w12 pl.revenue plan year 3`); a move inside the bound is
+printed, not red.
+
+**RETIRED** with the re-point: `test_base_parity_delta_mode_moves_only_the_changed_closure`
+and the CHANGED-closure law (its B2 plant, one minor unit of other financial
+expense outside the closure, is replaced by the bound plant above; B4b's held
+other operating income and the pools move every operating line, so a closure
+law over `base_get_b0.json` would have needed every line in CHANGED).
+`base_get_b0.json` stays as the blast-radius baseline only.
+
+### forecast-route — plan/2 B4b: the GET canary (28.3 B4)
+
+`test_get_through_the_real_app_answers_200_with_no_clause_violation`: GET
+through `create_app()` (the org and per-user seams replaced as
+`scripts/measure_plan_blast_radius.py` replaces them) on the four books at
+horizons 3 and 5 answers 200, `contract.clause_violations(body) == []`, and
+the served assumptions carry the EXPANDED pool ids (`pool_fixed_share.<pool>`,
+`pool_level.<pool>`), never a `.*` template. Floor 22 -> 30 (31 tests).
+
+**PLANT P7** — one pool template (`pool_level.*`) dropped from
+`Projection.fp1_assumptions`. **RED (plant)** `8 failed`:
+
+```
+ERROR engine.api._forecast_routes: [forecast] contract refused period blast-radius-period: fp1 contract broken — figure_names_unknown_assumption: figure 'pl.ebit'/'2026-01' ...
+E   AssertionError: ('agras', 3, 500, "{'detail': 'The projection did not satisfy its own serving contract, so it was not served.'}")
+```
+
+**REVERT** ok. **RED (parent commit)**: on fa2a04c the GET answers 200 but no
+served assumption id starts with `pool_fixed_share.` (the parent has no
+pools), so the canary reds on its id check.

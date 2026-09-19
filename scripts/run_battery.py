@@ -349,8 +349,12 @@ def _engine_gates() -> List[Gate]:
         # Plant log: docs/engine_book/gates.md
         Gate("forecast-route",
              [PY, "-m", "pytest", "tests/engine/test_forecast_route.py", "-q"],
-             work_junit=True, floor=22, units="tests",
+             work_junit=True, floor=30, units="tests",
              canaries=("test_the_route_is_mounted_on_the_real_app",
+                       # plan/2 B4b (28.3 B4): GET through create_app on the
+                       # four books at horizons 3 and 5 answers 200 with no
+                       # clause violation, the pool drivers expanded
+                       "test_get_through_the_real_app_answers_200_with_no_clause_violation",
                        "test_the_route_resolves_the_workspace_and_scopes_the_read_to_it",
                        "test_the_period_read_filters_on_the_resolved_workspace",
                        "test_an_anonymous_call_is_refused",
@@ -406,16 +410,19 @@ def _engine_gates() -> List[Gate]:
                        "coverage of the 18 contract rows")),
         # ── end plan/2 B0 ────────────────────────────────────────────────
         # ── plan/2 B2 (plan_contract_v2 28.3): forecast-base-parity ──────
-        # Delta mode (contract 5.3): today's engine against the B0 reference
-        # base_get_b0.json on the four books at total_years 5; a difference
-        # outside the downstream closure of the test's CHANGED set reds.
-        # B3 extends CHANGED; B4 re-points the gate to parity mode.
+        # Delta mode (B2, B3): today's engine against the B0 reference. Re-
+        # pointed by plan/2 B4b to PARITY MODE (contract 5.3): the engine at
+        # revenue_growth 0 and inflation 0 against base_b3_growth0.json (the
+        # B3 engine over the repaired books at growth 0) on the four books,
+        # total_years 5, windows 12 and 24; revenue exact, every other cell
+        # within a bound rendered from the run and printed beside it.
         Gate("forecast-base-parity",
              [PY, "-m", "pytest", "tests/engine/test_forecast_base_parity.py", "-q"],
-             work_rx=r"GATE-WORK forecast-base-parity units=(\d+)", floor=4700,
+             work_rx=r"GATE-WORK forecast-base-parity units=(\d+)", floor=12000,
              units="(line, period) and plan-year cells compared",
-             canaries=("SCOPE forecast-base-parity (delta mode)",
-                       "366-day plan year per book")),
+             canaries=("SCOPE forecast-base-parity (parity mode, plan/2 B4b)",
+                       "366-day plan year per book",
+                       "bound inputs")),
         # ── end plan/2 B2 ────────────────────────────────────────────────
         # ── plan/2 B3 (plan_contract_v2 28.3): one driver authority and tier
         # pedigree. forecast-authority (section 4): the integers the two
@@ -464,6 +471,22 @@ def _engine_gates() -> List[Gate]:
                        "convention per document",
                        "mirrored contra rows checked")),
         # ── end plan/2 B4a ───────────────────────────────────────────────
+        # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
+        # The cost pools of section 5 on the four books, no shocks: pools
+        # plus unallocated equal the assembled operating cost to the cent;
+        # the aggregate fixed share is the one forecast_drivers publishes
+        # (contract 4); the cap checked directly (realestate must cap);
+        # revenue -20% at inflation 0 moves cost of sales in full and each
+        # pool by its variable part (5.3); nil pools by count and on a
+        # test-built agras. B5 adds the shock half (scenario-cost-behaviour).
+        Gate("forecast-pools",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_pools.py", "-q"],
+             work_rx=r"GATE-WORK forecast-pools units=(\d+)", floor=50,
+             units="pool checks (sums, shares, caps, growth, nil pools)",
+             canaries=("SCOPE forecast-pools (plan/2 B4b, contract 5.6)",
+                       "capped pools per book",
+                       "nil pools per book")),
+        # ── end plan/2 B4b ───────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

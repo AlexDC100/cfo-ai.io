@@ -77,9 +77,10 @@ HORIZONS = (3, 5)
 #: refusal refuses the plan); B4 removes them.
 LADDERS = {
     "revenue_growth": ("book", "sector", "macro", "convention"),
-    "cogs_pct_of_revenue": ("book", "absent"),
-    "opex_pct_of_revenue": ("book", "absent"),
-    "other_operating_income_pct_of_revenue": ("book", "convention", "absent"),
+    # plan/2 B4b (3.4): inflation is macro then convention; the cost shares
+    # left KEYS for the pools; other operating income is HELD (5.5).
+    "inflation": ("macro", "convention"),
+    "other_operating_income_annual": ("book", "convention"),
     "dso_days": ("book", "absent"),
     "dio_cogs_days": ("book", "absent"),
     "dpo_cogs_days": ("book", "absent"),
@@ -112,6 +113,8 @@ STEPS = {
     ("tax_rate", "macro", None): (_ABSENT,),
     ("tax_rate", "absent", None): (_ABSENT, ("macro", "absent")),
     ("dividend_payout_pct", "convention", None): (_ABSENT,),
+    ("inflation", "macro", None): (),
+    ("inflation", "convention", None): (("macro", "absent"),),
     ("capex_pct_of_revenue", "convention",
      "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation"): (),
     ("capex_pct_of_revenue", "convention",
@@ -123,19 +126,75 @@ STEPS = {
 }
 for _key in ("interest_income_annual", "other_financial_income_annual",
              "other_financial_expense_annual",
-             "other_operating_income_pct_of_revenue"):
+             "other_operating_income_annual"):
     STEPS[(_key, "book", None)] = ()
     STEPS[(_key, "convention", None)] = (_ABSENT,)
-for _key in ("cogs_pct_of_revenue", "opex_pct_of_revenue",
-             "other_operating_income_pct_of_revenue", "dso_days",
-             "dio_cogs_days", "dpo_cogs_days", "depreciation_rate",
+for _key in ("dso_days", "dio_cogs_days", "dpo_cogs_days", "depreciation_rate",
              "interest_rate_debt", "revolver_rate", "interest_income_rate"):
     STEPS[(_key, "book", None)] = ()
     STEPS[(_key, "absent", None)] = (_ABSENT,)
 
 
+#: plan/2 B4b (contract 3a.2, 5.2): the per-book POOL drivers, expanded
+#: from the two levers.yaml templates over the pools the book serves. Every
+#: pool_fixed_share.<pool> ends on convention in this build (the book
+#: two_point_fit rung lands in B7; sector is absent), and the rung it ends
+#: on is named by its rule: the ladder is keyed by the pack rule, because
+#: one tier (convention) has six rungs a pool may end on. pool_level.<opex
+#: pool> ends on the neutral index rung (levers.yaml#index_neutral).
+_POOL_PACK = "packs/forecast/cost_behaviour.yaml#"
+_POOL_PASSED = (_ABSENT, ("sector", "absent"))
+POOL_LADDERS = {
+    "pool_fixed_share.": ("convention",),
+    "pool_level.": ("convention",),
+}
+POOL_STEPS = {
+    # cost_of_sales: fixed by convention, no ladder climbed (5.2)
+    (_POOL_PACK + "cogs_variable"): (),
+    # the classification rung, after book and sector were passed over
+    (_POOL_PACK + "classification"): _POOL_PASSED,
+    (_POOL_PACK + "unallocated_follows_allocated"): _POOL_PASSED,
+    # rung 0 and the cap: the classification rung is REJECTED by name
+    (_POOL_PACK + "nil_pool"): _POOL_PASSED + (("convention", "rejected"),),
+    (_POOL_PACK + "negative_pool"): _POOL_PASSED + (("convention", "rejected"),),
+    (_POOL_PACK + "variable_base_max_share_of_revenue"):
+        _POOL_PASSED + (("convention", "rejected"),),
+    # a split that refused by name: one pool operating_costs
+    (_POOL_PACK + "max_unallocated_share"): _POOL_PASSED + (("convention", "rejected"),),
+    (_POOL_PACK + "no_line_items"): _POOL_PASSED + (("convention", "rejected"),),
+    (_POOL_PACK + "rows_disagree"): _POOL_PASSED + (("convention", "rejected"),),
+    "packs/forecast/levers.yaml#index_neutral": (),
+}
+
+
+def _pool_template(key):
+    for prefix in POOL_LADDERS:
+        if key.startswith(prefix):
+            return prefix
+    return None
+
+
+def ladder_of(key):
+    """The 3.4 ladder of a driver: KEYS by name, pool drivers by template."""
+    template = _pool_template(key)
+    if template is not None:
+        return POOL_LADDERS[template]
+    return LADDERS.get(key, ())
+
+
 def step_violations(item):
     """The rungs this driver passed over, against the STEPS table."""
+    if _pool_template(item.key) is not None:
+        expected = POOL_STEPS.get(item.rule_id)
+        got = tuple((step["tier"], step["outcome"])
+                    for step in item.fallback_steps)
+        if expected is None:
+            return ["ends on %s (rule %s), a pool rung the POOL_STEPS table "
+                    "does not name" % (item.tier, item.rule_id)]
+        if got != expected:
+            return ["fallback_steps %s, the pool ladder passed over %s"
+                    % (list(got), list(expected))]
+        return []
     rule = item.rule_id if item.key == "capex_pct_of_revenue" else None
     expected = STEPS.get((item.key, item.tier, rule))
     got = tuple((step["tier"], step["outcome"])
@@ -168,9 +227,9 @@ def pedigree_violations(item):
     bad = []
     if item.tier not in TIERS:
         bad.append("tier %r is not one of the six" % (item.tier,))
-    if item.tier not in LADDERS.get(item.key, ()):
+    if item.tier not in ladder_of(item.key):
         bad.append("tier %s is not on the 3.4 ladder %s"
-                   % (item.tier, LADDERS.get(item.key)))
+                   % (item.tier, ladder_of(item.key)))
     ev = item.evidence
     if item.tier == "book":
         if not (isinstance(ev, dict) and ev.get("method") in

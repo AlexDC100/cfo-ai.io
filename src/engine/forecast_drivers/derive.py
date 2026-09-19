@@ -445,37 +445,11 @@ def _plain(value):
 # the per-driver rules
 # ──────────────────────────────────────────────────────────────────────
 
-def _opex_fixed_share(spec, pack, period):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod) -> Driver
-    fixed, fixed_found = period.leaves_sum(pack.opex_fixed)
-    variable, variable_found = period.leaves_sum(pack.opex_variable)
-    if fixed is None and variable is None:
-        return _absent(
-            spec, "This book carries none of the operating-cost leaves the "
-                  "nature split is defined over.", period.period_end)
-    fixed_value = 0.0 if fixed is None else fixed
-    variable_value = 0.0 if variable is None else variable
-    base = fixed_value + variable_value
-    if base <= 0.0:
-        return _absent(
-            spec, "The classified operating-cost base is not positive.",
-            period.period_end)
-    inputs = [
-        DerivationInput("fixed_by_nature", period.period_end, fixed_value,
-                        "envelope.leaves (%s)" % ", ".join(fixed_found)),
-        DerivationInput("variable_by_nature", period.period_end,
-                        variable_value,
-                        "envelope.leaves (%s)" % ", ".join(variable_found)),
-    ]
-    note = (
-        "Split by expense NATURE from this book's own leaves, not by "
-        "regression: a regression split needs three or more periods. The "
-        "classification is data in packs/forecast/drivers.yaml, so it can "
-        "be argued with."
-    )
-    return _make(spec, pack, fixed_value / base, "nature_split",
-                 "expense-nature split of this book's operating costs",
-                 (period.period_end,), inputs, note=note)
+# plan/2 B4b: the leaf-based `_opex_fixed_share` (packs/forecast/drivers.yaml
+# opex_nature_split over envelope.leaves) is retired — the engine's pool
+# split (packs/forecast/cost_behaviour.yaml#nature over the anchor's line
+# items) is the one authority (contract 4), read above through
+# `pools.opex_fixed_share`.
 
 
 def _depreciation_rate(spec, pack, period):
@@ -669,13 +643,12 @@ def _build_one(spec, pack, history, newest, engine):
             "assembled_pl.opex_excluding_cogs_and_da")
     if key == "opex_rate":
         return _from_engine(
-            spec, pack, newest, engine, "opex_pct_of_revenue",
-            "the engine's own operating cost excluding cost of sales and "
-            "depreciation, over revenue")
+            spec, pack, newest, engine, "pools.operating_cost_share",
+            "the engine's own operating-cost pools, summed, over revenue")
     if key == "gross_margin":
         return _from_engine(
-            spec, pack, newest, engine, "cogs_pct_of_revenue",
-            "one minus the engine's own cost-of-sales share of revenue",
+            spec, pack, newest, engine, "pools.cost_of_sales_share",
+            "one minus the engine's own cost_of_sales pool base over revenue",
             complement=True)
     if key == "dso":
         return _from_engine(spec, pack, newest, engine, "dso_days",
@@ -693,7 +666,10 @@ def _build_one(spec, pack, history, newest, engine):
                             "capex_pct_of_revenue",
                             "the engine's own maintenance-capital rate")
     if key == "opex_fixed_share":
-        return _opex_fixed_share(spec, pack, newest)
+        return _from_engine(
+            spec, pack, newest, engine, "pools.opex_fixed_share",
+            "the engine's own amount-weighted fixed share of its "
+            "operating-cost pools")
     if key == "personnel_rate":
         return _ratio_of(
             spec, pack, newest,

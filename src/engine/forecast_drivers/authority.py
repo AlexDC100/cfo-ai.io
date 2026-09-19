@@ -217,7 +217,12 @@ OWNER_MODEL = "engine.forecast.assumptions"
 #: ``model_only`` a property of the projection, not of the company. The
 #:               model owns it outright and this package must never
 #:               publish one.
-STATUSES_OF_CONCEPT = ("supplied", "blocked", "model_only")
+#: ``read``       the model owns the MEASUREMENT (plan/2 B4b: the cost
+#:               pools split from the anchor's line items, contract 5);
+#:               this package publishes it under its own driver key by
+#:               reading the model's integer, and hands nothing back —
+#:               there is no model driver to hand it to.
+STATUSES_OF_CONCEPT = ("supplied", "blocked", "model_only", "read")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -274,6 +279,12 @@ class Concept(object):
                 raise AuthorityError(
                     "concept %r is model_only, so it cannot also be "
                     "published here" % (concept_id,))
+        elif status == "read":
+            if owner != OWNER_MODEL or not driver_key or not model_keys:
+                raise AuthorityError(
+                    "concept %r is read from the model, so it names the "
+                    "model fact it reads and the driver key it is "
+                    "published under" % (concept_id,))
         else:
             if owner != OWNER_DRIVERS or not driver_key:
                 raise AuthorityError(
@@ -338,21 +349,27 @@ CONCEPTS = (
         but a claim that the company's prices fall in real terms every
         projected year. One concept cannot carry both answers."""),
     Concept(
-        "cost_of_sales_share", OWNER_DRIVERS, "supplied",
-        "gross_margin", ("cogs_pct_of_revenue",), "complement",
-        """The engine already publishes a gross margin through its
-        methodology pack, and the rest of the product prints it. The
-        model recomputed the cost share from a different cost field, so
-        the projection's cost structure and the printed margin were two
-        different statements about one company."""),
+        "cost_of_sales_share", OWNER_MODEL, "read",
+        "gross_margin", ("pools.cost_of_sales_share",), "complement",
+        """plan/2 B4b (contract 4, 5.1): cost of sales is the model's
+        cost_of_sales POOL, split from the anchor's line items; its base
+        over revenue is the one cost share, and this package's gross
+        margin is one minus it. Nothing crosses back: the model has no
+        share driver any more, only the pool."""),
     Concept(
-        "operating_cost_share", OWNER_DRIVERS, "supplied",
-        "opex_rate", ("opex_pct_of_revenue",), "identity",
-        """This package had a growth RATE for operating cost but no
-        LEVEL, so the model had to measure the level itself. The level
-        driver now exists here and the model consumes it; without it the
-        two packages would go on reading the same field separately, one
-        renaming away from disagreeing."""),
+        "operating_cost_share", OWNER_MODEL, "read",
+        "opex_rate", ("pools.operating_cost_share",), "identity",
+        """plan/2 B4b: operating costs are the model's opex POOLS; their
+        sum over revenue is the level this package publishes as
+        opex_rate. Read from the model, never re-measured, never handed
+        back."""),
+    Concept(
+        "opex_fixed_share", OWNER_MODEL, "read",
+        "opex_fixed_share", ("pools.opex_fixed_share",), "identity",
+        """plan/2 B4b (contract 4): the engine.forecast pool split of
+        section 5 is the ONE authority for how much of operating cost is
+        fixed; this package reads the amount-weighted share of the served
+        pools. Its former leaf-based nature split is retired with it."""),
     Concept(
         "days_sales_outstanding", OWNER_DRIVERS, "supplied",
         "dso", ("dso_days",), "identity",
@@ -566,7 +583,7 @@ def _pedigree(concept, driver, model_key):
     holding the MODEL's key may be shown — the same thing when the
     translation is the identity, and the translated statement when it is
     not. The two are separate fields on purpose: `gross_margin` 0.396283
-    crosses to `cogs_pct_of_revenue` 0.603717, and printing "the engine's
+    is read off `pools.cost_of_sales_share` 0.603717 (plan/2 B4b), and printing "the engine's
     own gross margin" beside 0.603717 is precisely the unattributed
     figure this file exists to end.
     """

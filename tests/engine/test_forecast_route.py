@@ -275,12 +275,20 @@ def test_every_projected_line_names_a_driver_or_a_stated_convention():
     P = importlib.import_module("engine.forecast.project")
     from engine.forecast.assumptions import KEYS
 
-    known = set(KEYS) | set(cid for cid, _b in P.FP1_CONVENTIONS)
+    # plan/2 B4b (28.3 B4): the known set is KEYS, FP1_CONVENTIONS and the
+    # two pool template keys declared in levers.yaml, whose per-book
+    # expansions (pool_fixed_share.<pool>, pool_level.<opex pool>) the
+    # attribution may name.
+    from engine.forecast.levers_pack import pool_templates
+    templates = set(t["id"] for t in pool_templates().values())
+    assert templates == {"pool_fixed_share.*", "pool_level.*"}, templates
+    known = set(KEYS) | set(cid for cid, _b in P.FP1_CONVENTIONS) | templates
     assert P.LINE_ASSUMPTIONS, "the attribution map is empty"
     for line in sorted(P.LINE_ASSUMPTIONS):
         ids = P.LINE_ASSUMPTIONS[line]
         assert ids, "%s names no reason" % line
-        assert set(ids) <= known, (line, sorted(set(ids) - known))
+        unknown = set(i for i in ids if i not in known and not P.is_pool_id(i))
+        assert not unknown, (line, sorted(unknown))
 
     # And it covers what the model actually emits — the same assertion the
     # module runs at import, restated here so a `try/except ImportError`
@@ -304,3 +312,37 @@ def test_a_convention_is_served_without_a_number():
         assert a["basis"].strip(), a["id"]
         assert set(a["values"].values()) == {None}, (
             "%s carries a number; a convention has none" % a["id"])
+
+
+# ── plan/2 B4b (contract 28.3 B4): the GET answers on every book at every
+# horizon with the pool drivers expanded ────────────────────────────────
+
+
+@pytest.mark.parametrize("horizon", (3, 5))
+@pytest.mark.parametrize("name", BOOKS)
+def test_get_through_the_real_app_answers_200_with_no_clause_violation(name, horizon):
+    """RED ON: a pool template id (pool_fixed_share.*, pool_level.*) or one
+    of its per-book expansions reaching a figure's assumption_ids without an
+    fp1_assumptions entry — contract.py CLAUSE_FIGURE_UNKNOWN_ASSUMPTION
+    refuses it and the route answers 500 (the plant: drop one pool entry
+    from fp1_assumptions). The GET goes through create_app and the route's
+    own loader, rebuild, engine, adapter, contract and boundary guard, with
+    the org and per-user seams replaced as scripts/measure_plan_blast_radius
+    replaces them."""
+    import sys
+    scripts = str(REPO / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import measure_plan_blast_radius as M
+    previous = M.HORIZON_YEARS
+    M.HORIZON_YEARS = horizon
+    try:
+        status, body = M.default_get(M._corpus_book(name))
+    finally:
+        M.HORIZON_YEARS = previous
+    assert status == 200, (name, horizon, status, str(body)[:400])
+    assert contract.clause_violations(body) == [], (name, horizon)
+    ids = set(a["id"] for a in body["assumptions"])
+    assert any(i.startswith("pool_fixed_share.") for i in ids), sorted(ids)
+    assert any(i.startswith("pool_level.") for i in ids), sorted(ids)
+    assert not any(i.endswith(".*") for i in ids), sorted(ids)

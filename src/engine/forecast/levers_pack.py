@@ -158,6 +158,7 @@ class LeversPack(object):
 
     __slots__ = ("path", "tax", "rungs", "dividend_book_absent",
                  "capex_no_charge", "capex_nil_revenue", "capex_maintenance",
+                 "index_neutral", "pool_templates",
                  "min_cash")
 
     #: The keys whose ``terminal_rung`` B3 reads (contract 3a.4). Each is
@@ -167,6 +168,8 @@ class LeversPack(object):
         "intangible_additions_pct_of_revenue", "interest_income_annual",
         "other_financial_income_annual", "other_financial_expense_annual",
         "other_operating_income_annual",
+        # plan/2 B4b (3.4): the rung below the macro anchor
+        "inflation",
     )
 
     #: The tax conventions of contract 6.3, in the order they are served.
@@ -226,6 +229,31 @@ class LeversPack(object):
         self.min_cash = Rung(where, _exact_value(rule, where),
                              _sentence(rule, "sentence", where))
         # ── end plan/2 B3 ────────────────────────────────────────────────
+
+        # ── plan/2 B4b: the neutral index rung and the pool templates ────
+        where = "%s#index_neutral" % PACK_FILE
+        rule = _mapping(body.get("index_neutral"), where)
+        self.index_neutral = Rung(where, _exact_value(rule, where),
+                                  _sentence(rule, "sentence", where))
+        where = "%s#pools.templates" % PACK_FILE
+        templates = _mapping(_mapping(body.get("pools"), "%s#pools" % PACK_FILE)
+                             .get("templates"), where)
+        expected = ("pool_fixed_share", "pool_level")
+        if tuple(templates) != expected:
+            raise PackError("%s: exactly %s, in that order; got %s"
+                            % (where, ", ".join(expected), ", ".join(templates)))
+        pool_templates = {}  # type: Dict[str, Dict[str, str]]
+        for name in expected:
+            entry = _mapping(templates.get(name), "%s.%s" % (where, name))
+            unit = entry.get("unit")
+            if unit not in ("ratio", "index"):
+                raise PackError("%s.%s: unit must be ratio or index" % (where, name))
+            pool_templates[name] = {
+                "id": name + ".*", "unit": str(unit),
+                "expands_over": _sentence(entry, "expands_over",
+                                          "%s.%s" % (where, name))}
+        self.pool_templates = pool_templates
+        # ── end plan/2 B4b ───────────────────────────────────────────────
 
 
 def _pack_path():
@@ -291,6 +319,20 @@ def min_cash_default(path=None):
     # type: (Optional[str]) -> Rung
     """``levers.yaml#min_cash.default_rule``."""
     return load_levers(path).min_cash
+
+
+def index_neutral(path=None):
+    # type: (Optional[str]) -> Rung
+    """``levers.yaml#index_neutral`` (plan/2 B4b, 3.4): the convention rung
+    of every index driver — the anchor level holds."""
+    return load_levers(path).index_neutral
+
+
+def pool_templates(path=None):
+    # type: (Optional[str]) -> Dict[str, Dict[str, str]]
+    """``levers.yaml#pools.templates`` (plan/2 B4b, 3a.2): the two template
+    entries the engine expands per book: {name: {id, unit, expands_over}}."""
+    return dict(load_levers(path).pool_templates)
 
 
 class MacroSeries(object):
