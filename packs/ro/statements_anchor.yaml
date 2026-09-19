@@ -1,0 +1,37 @@
+# THE ACCOUNT-121 ANCHOR PACK — pure data, no code (plan/2 B4a, contract 5.1).
+#
+# Account 121 ("profit si pierdere") is the filed net result; the assembled
+# P&L rebuilds it from every class-6/7 row. The distance between the two is
+# the one independent witness that the statement buckets read every row
+# with the right sign. This pack holds the ONLY numbers the anchor-gap gate
+# (tests/engine/test_statements_anchor_gap.py, battery gate
+# statements-anchor-gap) is allowed to judge with (TC-10: the floor renders
+# from this data and the book, never from a code literal).
+#
+# WHY THE FLOOR IS PER BOOK
+# -------------------------
+# Exporters that close class 6/7 into 121 print each P&L row's cumulative
+# value on BOTH turnover sides ("mirrored"). For the production-variation
+# accounts (711/712) that hides the NET of the year — a mirrored 711 prints
+# its gross stocking turnover on each side and the destocking against it is
+# invisible — so the reconstruction, which routes 711 to a memo, can miss
+# 121 by at most that turnover. The floor for a book is therefore
+# `cent_tolerance` plus the turnover of its rows under `hidden_net_prefixes`.
+# On a book with no such rows (retail) the floor is one cent: the
+# reconstruction must reproduce 121 exactly.
+schema_version: "statements_anchor/1"
+pack_id: "ro-statements-anchor"
+anchor_gap:
+  # Half-up rounding of two-decimal cents can leave one cent between two
+  # sums of the same rows; anything above it is a real row read wrongly.
+  cent_tolerance: "0.01"
+  # Account prefixes whose year net a mirrored exporter hides behind gross
+  # turnover on both sides. Longest prefix wins; one entry per family.
+  hidden_net_prefixes: ["711", "712"]
+  sentence_within: >-
+    the reconstruction reaches account 121 within what the production-variation
+    turnover of this book can hide
+  sentence_beyond: >-
+    the reconstruction misses account 121 by more than the production-variation
+    turnover of this book can hide, so a class-6/7 row entered a statement
+    bucket with the wrong sign
