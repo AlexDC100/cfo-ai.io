@@ -3487,7 +3487,14 @@ count"); the page used to fall back to the engine's `metrics.dso` etc.,
 multiplied by `constant.period_days_default`. Established periods (every
 31 December corpus book: `periodDays 365`) print byte-identical values and
 captions (G4 `exportRatioFormulas` and F2 `ratioRefusal` green; G4 no
-longer carries its own `?? 365`).
+longer carries its own `?? 365`). The FE fixture harnesses
+(`exportBooks.statementsFor`, `reportBooks.periodResponse`) render the
+SERVED shape: the write-seam fixtures carry `periodDays: null` since
+`b45739f`, and the harness joins the day count from the fixture's own
+stated span exactly as `_served_supplementary` does — the same join it
+already made for `canonical_bs`, never a `?? 365` (with the card's floor
+gone, 19 vitest gates over the four firm books had started printing "not
+established" on periods that ARE established).
 
 **UNDONE — C5 end-to-end (lane 1):** the engine's own ratio table on the
 same GET response still serves DSO at 365 under
