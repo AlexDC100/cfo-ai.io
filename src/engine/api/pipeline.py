@@ -67,6 +67,9 @@ from . import _valuation
 # swapped at runtime in F3.3+. Importing the ro_romania subpackage as
 # a side-effect registers the Romania pack with the registry.
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
+# The day-count rule (`period_days_covered`) is pack data + a pure function;
+# read directly, like the net-income anchor helpers below.
+from engine.country_packs.ro_romania import chart_of_accounts as _ro_chart_of_accounts
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
 # Account-121 anchor provenance — the SAME code object the offline seam
@@ -2716,6 +2719,83 @@ def _briefing_grand_totals(assembled: Dict[str, Any],
     return out
 
 
+def _briefing_ratios(
+    pl_canonical: Dict[str, Any],
+    bs_canonical: Dict[str, Any],
+    total_equity: Optional[float],
+) -> Tuple[Dict[str, Optional[float]], Dict[str, str]]:
+    """The `briefing_facts.ratios` block and the stated reason for every
+    ratio in it that does not compute.
+
+    These are citable numerals (`numerals.facts_from_briefing`), so a value
+    here must be a measurement. It used to hold two substitutes: a zero or
+    absent operating EBITDA divided as 1e-9 (debt 2,000,000 over no EBITDA
+    served Debt/EBITDA 2e15x), and margins of 0.00% on zero or absent
+    revenue (a loss of 150,000 on no revenue handed to the model as
+    break-even). Each now refuses.
+    """
+    def num(v: Any) -> Optional[float]:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        return float(v)
+
+    ebitda = num(pl_canonical.get("operating_ebitda"))
+    revenue = num(pl_canonical.get("total_operating_revenue"))
+    net_income = num(pl_canonical.get("net_income_statutory"))
+    # Absent debt or cash is absent — it used to be read as 0.0, which
+    # served a citable Debt/EBITDA 0.0, Debt/Equity 0.0 and net debt 0.0
+    # on a book that reported neither (and a TypeError on an explicit None).
+    total_debt = num(bs_canonical.get("total_debt"))
+    cash_val = num(bs_canonical.get("cash"))
+    refusals: Dict[str, str] = {}
+
+    def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
+        if revenue is None:
+            refusals[key] = "margin not computable: operating revenue not reported"
+            return None
+        if revenue <= 0:
+            refusals[key] = "margin not computable: no operating revenue in this period"
+            return None
+        if numerator is None:
+            refusals[key] = "margin not computable: %s not reported" % what
+            return None
+        return round(100 * numerator / revenue, 2)
+
+    ratios: Dict[str, Optional[float]] = {
+        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "operating EBITDA"),
+        "net_margin_pct": margin("net_margin_pct", net_income, "net income"),
+    }
+    if ebitda is None or ebitda == 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is zero or not reported for this period")
+        ratios["debt_to_ebitda"] = None
+    elif ebitda < 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
+        ratios["debt_to_ebitda"] = None
+    elif total_debt is None:
+        refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: total debt not reported for this period"
+        ratios["debt_to_ebitda"] = None
+    else:
+        ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
+    if total_debt is None:
+        refusals["debt_to_equity"] = "Debt/Equity unavailable: total debt not reported for this period"
+        ratios["debt_to_equity"] = None
+    elif not total_equity:
+        refusals["debt_to_equity"] = ("Debt/Equity unavailable: book equity is %s for this period"
+                                      % ("not reported" if total_equity is None else "zero"))
+        ratios["debt_to_equity"] = None
+    else:
+        ratios["debt_to_equity"] = round(total_debt / total_equity, 2)
+    if total_debt is None or cash_val is None:
+        missing = [n for n, v in (("total debt", total_debt), ("cash", cash_val)) if v is None]
+        refusals["net_debt"] = "Net debt unavailable: %s not reported for this period" % " and ".join(missing)
+        ratios["net_debt"] = None
+    else:
+        ratios["net_debt"] = round(total_debt - cash_val, 2)
+    return ratios, refusals
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -2936,12 +3016,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    operating_ebitda = pl_canonical.get("operating_ebitda", 0.0)
-    total_operating_revenue = pl_canonical.get("total_operating_revenue", 0.0)
+    # ABSENT != ZERO: a missing operating EBITDA or revenue stays None here
+    # (it used to default to 0.0, the same value as a measured zero).
+    operating_ebitda = pl_canonical.get("operating_ebitda")
+    total_operating_revenue = pl_canonical.get("total_operating_revenue")
     total_debt = bs_canonical.get("total_debt", 0.0)
     total_equity = grand_totals["total_equity"]
     cash_val = bs_canonical.get("cash", 0.0)
-    ebitda_for_ratios = operating_ebitda if operating_ebitda else 1e-9
+    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
+        pl_canonical, bs_canonical, total_equity)
 
     briefing_facts_raw = {
         # P&L — operating view (matches the frontend P&L tab + KPI tiles).
@@ -2974,20 +3057,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "bs_balance_delta": grand_totals["bs_balance_delta"],
         # Key derived ratios — operating-view based, so the briefing's
         # leverage / coverage commentary stays consistent with the tab.
-        "ratios": {
-            "ebitda_margin_pct": (
-                round(100 * operating_ebitda / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "net_margin_pct": (
-                round(100 * pl_canonical.get("net_income_statutory", 0.0) / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "debt_to_ebitda": round(total_debt / ebitda_for_ratios, 2),
-            "debt_to_equity": round(total_debt / total_equity, 2) if total_equity else None,
-            "net_debt": round(total_debt - cash_val, 2),
-        },
+        # A ratio that cannot be computed is None (numerals.facts_from_
+        # briefing types it RatioFact(None), so it can never be cited).
+        "ratios": briefing_ratios,
     }
+    if briefing_ratio_refusals:
+        # Why each None ratio is None — the model reads the reason instead
+        # of inventing a figure. Present only when something refused, so a
+        # book whose ratios all compute sends the same payload as before.
+        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
@@ -4886,6 +4964,36 @@ def _rebuild_assembled(
     return {"balanceSheet": bs, "incomeStatement": pl}
 
 
+def _served_supplementary(period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """`statements.supplementary` for a served period row — ONE rule for
+    every served-rebuild seam (/api/period and `_rebuild_assembled_for_
+    briefing`, which the Capsule, Radar, Forecast and the firm lane read).
+
+    `periodDays` is established from the row: a stated span
+    (`period_start` before `period_end`), or the period end with the
+    detection record `stage_persist` stamped on the envelope
+    (`period_detection.signal_used`), counted from the pack's financial-
+    year start — `chart_of_accounts.period_days_covered`. Otherwise it is
+    None and `periodDaysRefusal` says why. It was a hard-coded 365 at both
+    seams, which served a June year-to-date book's DSO / DIO / DPO at
+    twice their value under a provenance that read like a measured field.
+
+    An established period serves exactly `{"periodDays": n}` — the same
+    bytes as before for every 31 December book on the corpus.
+    """
+    row = period or {}
+    env = row.get("assembled_canonical_v1")
+    record = env.get("period_detection") if isinstance(env, dict) else None
+    signal = record.get("signal_used") if isinstance(record, dict) else None
+    covered = _ro_chart_of_accounts.period_days_covered(
+        row.get("period_end"), period_start=row.get("period_start"),
+        signal_used=signal if isinstance(signal, str) else None,
+    )
+    if covered["days"] is not None:
+        return {"periodDays": covered["days"]}
+    return {"periodDays": None, "periodDaysRefusal": covered["refusal"]}
+
+
 def _rebuild_assembled_for_briefing(
     line_items: List[Dict[str, Any]],
     period: Dict[str, Any],
@@ -4970,7 +5078,7 @@ def _rebuild_assembled_for_briefing(
             **{k: round(v, 2) for k, v in pl.items()},
             "inventoryVariationMemo": round(inv_var_memo, 2),
         },
-        "supplementary": {"periodDays": 365},
+        "supplementary": _served_supplementary(period),
     }
 
     # ── Canonical reassembly via assemble_statements ─────────────────
@@ -5254,6 +5362,9 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                 "equity_value": f("dcf_equity_value"),
                 "sensitivity_low": f("dcf_sensitivity_low"),
                 "sensitivity_high": f("dcf_sensitivity_high"),
+                # Why the DCF refused ([] when it computed; None on the
+                # legacy persisted-row path, which carries no reasons).
+                "refusals": src.get("dcf_refusals"),
             },
         },
         "football_field": football_field,
@@ -7119,9 +7230,9 @@ def build_router() -> APIRouter:
                 "inventoryVariationMemo": round(inv_var_memo, 2),
             },
             # Required by the TS Statements interface so computeRatios() can
-            # read supplementary.periodDays. Real enrichment values arrive
-            # later via Settings.
-            "supplementary": {"periodDays": 365},
+            # read supplementary.periodDays — established from the period
+            # row or refused with its reason, never a 365 placeholder.
+            "supplementary": _served_supplementary(period),
         }
 
         # ── Re-assemble the canonical views from line items ──────────────
@@ -7745,7 +7856,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -7799,7 +7916,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -7862,13 +7985,26 @@ def build_router() -> APIRouter:
             v = (body or {}).get(k)
             if v is None:
                 continue
+            if isinstance(v, bool):
+                raise HTTPException(
+                    400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
+                )
             try:
-                # forecast_years is an int; everything else is a float.
-                overrides[k] = int(v) if k == "forecast_years" else float(v)
+                overrides[k] = float(v)
             except (TypeError, ValueError):
                 raise HTTPException(
                     400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
                 )
+        # OUT-OF-DOMAIN OVERRIDES ARE A 400, never a computation at a
+        # substitute: the domains are `_valuation.DCF_OVERRIDE_DOMAINS`
+        # (a non-finite value, fewer than one forecast year, a fractional
+        # year, a growth rate at or below -100%). `forecast_years` used to be
+        # `int()`-truncated here, so 2.5 years silently became 2.
+        domain_errors = _valuation.dcf_override_domain_errors(overrides)
+        if domain_errors:
+            raise HTTPException(400, "valuation/recompute: " + " ".join(domain_errors))
+        if "forecast_years" in overrides:
+            overrides["forecast_years"] = int(overrides["forecast_years"])
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(
@@ -7891,7 +8027,13 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+            # The SAME served-rebuild seam GET /api/period's valuation reads
+            # (canonical assembled_pl / _bs / _cf). The bucket-only
+            # `_rebuild_assembled` carries no working-capital change, and the
+            # DCF no longer reads an absent ΔWC as 0 — on that shape every
+            # recompute would refuse, and before this it computed a DCF the
+            # GET path never served.
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
 
             # Layer the user's saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
@@ -7925,6 +8067,19 @@ def build_router() -> APIRouter:
                 raise HTTPException(
                     500, f"Valuation recompute failed: {type(exc).__name__}"
                 ) from exc
+
+        # The Gordon terminal is undefined when the central WACC does not
+        # exceed terminal growth. With the caller's overrides in play that
+        # is an out-of-domain request, answered 400 with the engine's own
+        # sentence — the old code nudged WACC to g + 0.5% and served an EV
+        # (692.6M against 72.2M at defaults, measured) at a rate nobody chose.
+        if overrides:
+            undefined = [r for r in (result.get("dcf_refusals") or [])
+                         if r.get("code") in ("dcf_wacc_not_above_growth",
+                                              "dcf_override_out_of_domain")]
+            if undefined:
+                raise HTTPException(
+                    400, "valuation/recompute: " + " ".join(r["text"] for r in undefined))
 
         return {
             "valuation": result,
