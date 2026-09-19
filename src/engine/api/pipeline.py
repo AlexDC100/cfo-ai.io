@@ -7842,7 +7842,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -7896,7 +7902,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,

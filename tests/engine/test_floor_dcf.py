@@ -390,3 +390,44 @@ def test_a_nil_interest_charge_on_positive_debt_is_the_declared_range_not_a_meas
     assert "no interest expense (class 666) is booked" in wc["kd_note"]
     assert PARAMS.METHODOLOGY_KD_ZERO_INTEREST_RULING in wc["kd_note"]
     assert "not as a measured 0%" in wc["kd_note"]
+# ── PUT / DELETE /api/period/{id}/valuation-assumptions ─────────────────
+#
+# The two sibling routes of the recompute seam (§21: grep every sibling).
+# Both persist a valuations row for the period; both rebuilt the statements
+# through the bucket-only `_rebuild_assembled` (no assembled_pl / _bs /
+# _cf), so every save / reset persisted `dcf_fcf_input_absent` — a DCF
+# refusal on a period whose GET computes a DCF.
+
+
+def _valuation_assumptions(monkeypatch, method: str):
+    monkeypatch.setattr(V, "load_valuation_benchmarks", _stub_benchmarks)
+    bk = _corpus_book("agras")
+    with ANCHOR._routed(bk, monkeypatch) as (client, db):
+        # The double carries no `get_user` / `upsert`; the routes need both.
+        db.tables.setdefault("user_valuation_assumptions", [])
+        db.get_user = lambda _jwt: {"id": ANCHOR.REANALYZE_USER}
+        db.upsert = lambda table, row, on_conflict=None: db.insert(table, row)
+        url = "/api/period/%s/valuation-assumptions" % bk.period_id
+        headers = ANCHOR._member_bearer()
+        if method == "put":
+            resp = client.put(url, json={"notes": "saved by the test"}, headers=headers)
+        else:
+            resp = client.delete(url, headers=headers)
+        rows = list(db.tables.get("valuations", []))
+    return resp, rows
+
+
+@pytest.mark.parametrize("method", ["put", "delete"])
+def test_saving_or_resetting_assumptions_persists_the_dcf_the_get_path_serves(monkeypatch, method):
+    """Measured before the fix (corpus agras, whose GET and recompute both
+    compute a DCF): the persisted valuations row carried
+    `dcf_enterprise_value None` after every save / reset, because the
+    bucket-only rebuild handed the DCF no working-capital change."""
+    resp, rows = _valuation_assumptions(monkeypatch, method)
+    assert resp.status_code == 200 and resp.json() == {"ok": True}, resp.text[:400]
+    assert len(rows) == 1, rows
+    row = rows[0]
+    assert row["dcf_enterprise_value"] is not None and row["dcf_enterprise_value"] > 0, row
+    assert row["dcf_equity_value"] is not None
+
+
