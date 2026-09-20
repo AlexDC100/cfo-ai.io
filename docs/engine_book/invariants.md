@@ -47,8 +47,8 @@ it (bare single-letter markers are file-level attributions).
 | invariant | meaning | defined in | enforced by |
 |---|---|---|---|
 | `P0` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_tenancy.py`, `tests/engine/test_launch_anonymous_egress.py`, `tests/engine/test_launch_survival.py`, `tests/engine/test_period_id_tenant_boundary.py`, `tests/engine/test_service_role_tenant_filter.py`, `tests/engine/test_storage_tenant_paths.py` |
-| `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
-| `P2` | Adjustments are strictly additive. | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
+| `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
+| `P2` | Adjustments are strictly additive. | — | `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
 | `P3` | Conservation, including unclassified value (AI-lane half under P8). | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_route.py`, `tests/engine/test_properties.py` |
 | `P4` | Auto-reconcile triggers iff 0 < ratio <= 0.001. | — | `tests/engine/test_properties.py`, `tests/engine/test_report_pdf_route.py` |
 | `P5` | RECONCILED is never serialized as BALANCED, on any surface. | — | `tests/engine/test_properties.py` |
@@ -86,7 +86,7 @@ it (bare single-letter markers are file-level attributions).
 |---|---|---|---|
 | `V1` | Status invariance: machine status with the advisory pass ON == OFF; served payload byte-identical. | — | `tests/engine/test_ai_advisory.py` |
 | `V2` | Byte-invariance: gateway facts identical ON/OFF. | — | `tests/engine/test_ai_advisory.py` |
-| `V3` | Failure isolation: model timeout / API error / credits-out -> ai_review absent + degraded flag, all else byte-identical. | — | `tests/engine/test_ai_advisory.py`, `tests/engine/test_floor_sku_portfolio.py` |
+| `V3` | Failure isolation: model timeout / API error / credits-out -> ai_review absent + degraded flag, all else byte-identical. | — | `tests/engine/test_ai_advisory.py`, `tests/engine/test_floor_sku_portfolio.py`, `tests/engine/test_unmetered_users.py` |
 | `V4` | needs_review escalation accepts atom/account IDs only; a value raises TypeError by signature. | — | `tests/engine/test_ai_advisory.py`, `tests/engine/test_floor_sku_portfolio.py` |
 | `V5` | Findings cannot flip status; forged keys are stripped by the whitelist projection. | — | `tests/engine/test_ai_advisory.py` |
 | `V6` | Reconcile quarantine: the reconcile flow never constructs the ai_validator client. | — | `tests/engine/test_ai_advisory.py` |
