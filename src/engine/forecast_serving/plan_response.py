@@ -29,7 +29,6 @@ from .blocks import (ACCEPTED_WANT_KEYS, BLOCK_FIELD_CONSUMERS, DEFAULT_WANT,
                      DRIVER_ECHO_FIELDS)
 from .blocks.drivers import _text as exact_text
 from .blocks.drivers import build_client, build_drivers
-from .blocks import figures as figures_block
 from .blocks.figures import Attribution, build_figures, monthly_years
 from .blocks.series import build_series
 from .blocks.strip import build_strip
@@ -192,7 +191,6 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
     unknown = [k for k in wanted if k not in ACCEPTED_WANT_KEYS]
     if unknown:
         raise PlanResponseError([("want_key_unknown", ", ".join(unknown))])
-    figures_block._TOTALS["of"] = inputs["totals"]
 
     projection = plan.projection
     inert = dict(inputs["inert"])
@@ -210,7 +208,8 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
             static_levers.setdefault(key, []).append(lever_id)
     line_assumptions = dict(plan.line_assumptions)
     attribution = Attribution(line_assumptions, inert, projection.periods,
-                              plan.base.periods, removals, static_levers)
+                              plan.base.periods, removals, static_levers,
+                              inputs["totals"])
 
     timeline = projection.timeline
     years = monthly_years(timeline)
@@ -288,7 +287,8 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
     if "series" in wanted:
         body["series"] = build_series(
             projection, attribution, min_cash,
-            [] if inert.get("min_cash") else ["min_cash"], partial)
+            [] if inert.get("min_cash") else ["min_cash"], partial,
+            min_cash != inputs["min_cash_base_minor"])
     if "summary" in wanted or "strip" in wanted:
         summary = build_summary(plan, attribution, formulas,
                                 inputs["revolver_rate_basis"])

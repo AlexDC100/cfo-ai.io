@@ -20,21 +20,16 @@ FLOW_SECTIONS = ("pl", "cf")
 CF_OPENING, CF_CLOSING = "cf.opening_cash", "cf.closing_cash"
 
 
-#: Set per response by plan_response.build_response from the producer's
-#: serving inputs: period -> the five balance-sheet totals, summed BY THE
-#: ENGINE in integer minor units (F2: the browser never sums). This package
-#: imports no producer module, so the sum is handed in, not imported.
-_TOTALS = {"of": None}
-
-
-def _totals(period: Any) -> Dict[str, int]:
-    return _TOTALS["of"](period)
-
-
-def amount_of(period: Any, line: str) -> int:
+def amount_of(period: Any, line: str, totals: Any) -> int:
+    """``totals``: period -> the five balance-sheet totals, summed BY THE
+    ENGINE in integer minor units (F2: the browser never sums). This package
+    imports no producer module, so the callable is handed in by the producer
+    and carried by the response's Attribution - never a module global (a
+    request-scoped value in a module global is a cross-request race the day
+    it captures anything per plan)."""
     section, name = line.split(".", 1)
     if section == "bs_totals":
-        return _totals(period)[name]
+        return totals(period)[name]
     return getattr(period, section)[name]
 
 
@@ -52,7 +47,8 @@ class Attribution(object):
     """driver_ids and lever_ids of a (line, period) for one response."""
 
     def __init__(self, line_assumptions, inert, plan_periods, base_periods,
-                 removals, static_levers):
+                 removals, static_levers, totals):
+        self._totals = totals
         self._static = line_assumptions
         self._inert = inert
         self._plan = dict((p.label, p) for p in plan_periods)
@@ -66,15 +62,33 @@ class Attribution(object):
     def driver_ids(self, line: str) -> List[str]:
         return [i for i in self._static.get(line, ()) if not self._inert.get(i)]
 
+    def amount(self, period: Any, line: str) -> int:
+        return amount_of(period, line, self._totals)
+
     def lever_ids(self, line: str, label: str) -> Tuple[List[str], bool]:
         return self.lever_ids_of(line, lambda periods: (
-            None if label not in periods else amount_of(periods[label], line)))
+            None if label not in periods else self.amount(periods[label], line)))
 
-    def lever_ids_of(self, line: str, read) -> Tuple[List[str], bool]:
+    def levers_naming(self, driver: str) -> List[str]:
+        """The levers of this request that set ``driver``, plus every lever
+        whose removal run refused (it changed the plan everywhere)."""
+        out = [lever_id for lever_id, periods in self._removals if periods is None]
+        for lever_id in self._levers_of_driver.get(driver, ()):
+            if lever_id not in out:
+                out.append(lever_id)
+        order = [lever_id for lever_id, _p in self._removals]
+        return sorted(out, key=order.index)
+
+    def refused_removals(self) -> List[str]:
+        return [lever_id for lever_id, periods in self._removals if periods is None]
+
+    def lever_ids_of(self, line, read) -> Tuple[List[str], bool]:
         """3.6: a lever reaches a served amount when removing it changes THAT
         amount. ``read`` takes {label: period} of one run and returns the
         amount (a period figure, or an FY aggregate computed the way the
         served one is), or None when that run does not reach it."""
+        # ``line``: one line, or the lines a derived value is read off (a
+        # series point); used only for the joint fallback's static reach.
         served = read(self._plan)
         found = []  # type: List[str]
         for lever_id, periods in self._removals:
@@ -86,7 +100,8 @@ class Attribution(object):
             return found, False
         if self._removals and read(self._base) != served:
             reach = []  # type: List[str]
-            for driver in self._static.get(line, ()):
+            lines = (line,) if isinstance(line, str) else tuple(line)
+            for driver in [d for l in lines for d in self._static.get(l, ())]:
                 for lever_id in self._levers_of_driver.get(driver, ()):
                     if lever_id not in reach:
                         reach.append(lever_id)
@@ -109,7 +124,7 @@ def build_figures(lines: Sequence[Tuple[str, str]], projection: Any,
             if item is not None:
                 lever_ids, joint = attribution.lever_ids(line, period.label)
                 out.append({"line": line, "period": period.label, "kind": "projected",
-                            "amount_minor": amount_of(item, line),
+                            "amount_minor": attribution.amount(item, line),
                             "driver_ids": attribution.driver_ids(line),
                             "lever_ids": lever_ids, "joint": joint,
                             "formula": formula})
@@ -134,9 +149,9 @@ def _aggregate(line, fy, months, served, attribution, formulas,
         if any(m.label not in periods for m in months):
             return None
         if is_flow:
-            return sum(amount_of(periods[m.label], line) for m in months)
+            return sum(attribution.amount(periods[m.label], line) for m in months)
         edge = months[0] if line == CF_OPENING else months[-1]
-        return amount_of(periods[edge.label], line)
+        return attribution.amount(periods[edge.label], line)
 
     amount = read(served)
     # the aggregate's OWN removal test, never the union of its months: a

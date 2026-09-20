@@ -960,6 +960,9 @@ def serving_inputs(plan: Plan) -> Dict[str, Any]:
         "registry": registry, "pedigree": pedigree, "inert": inert,
         "removals": removal_runs(plan), "totals": totals,
         "conventions": conventions, "min_cash_minor": min_cash,
+        # the book's own resolved floor, before any lever of this request:
+        # series.min_cash names a lever only when the served floor left it
+        "min_cash_base_minor": plan.base.assumptions.cents("min_cash"),
         "fixed_share_prefix": FIXED_SHARE_PREFIX,
         "revolver_rate_basis": {"code": rate.rule_id or "revolver_rate",
                                 "text": rate.basis},

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Sequence, Tuple
 
-from .figures import Attribution, amount_of
+from .figures import Attribution
 
 __all__ = ["SERIES", "build_series"]
 
@@ -37,7 +37,8 @@ SERIES = (
 )
 
 
-def _value(key: str, item: Any, min_cash: int, running: int) -> int:
+def _value(key: str, item: Any, min_cash: int, running: int,
+           attribution: Attribution) -> int:
     if key == "funding_draw":
         return item.checks["funding_line_draw_cents"]
     if key == "cash_before_funding":
@@ -49,38 +50,64 @@ def _value(key: str, item: Any, min_cash: int, running: int) -> int:
     if key == "fcf_cumulative":
         return running
     lines = dict(SERIES)[key]
-    return amount_of(item, lines[0])
+    return attribution.amount(item, lines[0])
+
+
+def _read(key: str, label: str, walk: Sequence[str], min_cash: int,
+          attribution: Attribution) -> Callable[[Dict[str, Any]], Any]:
+    """The point's value recomputed from ANY run's {label: period}, the way
+    the served one is computed; None when that run does not reach it. This is
+    what makes the point's lever_ids its OWN removal test (3.7, rule of 3.6):
+    a running sum still carries a lever whose window has ended, and a
+    difference of two lines can stand still while both move."""
+    def read(periods: Dict[str, Any]) -> Any:
+        if any(l not in periods for l in walk):
+            return None
+        running = 0
+        if key == "fcf_cumulative":
+            running = sum(periods[l].cf["cash_from_operating"]
+                          + periods[l].cf["cash_from_investing"] for l in walk)
+        return _value(key, periods[label], min_cash, running, attribution)
+    return read
 
 
 def build_series(projection: Any, attribution: Attribution, min_cash: int,
-                 min_cash_ids: Sequence[str], partial: Any) -> Dict[str, List[Dict[str, Any]]]:
+                 min_cash_ids: Sequence[str], partial: Any,
+                 min_cash_moved: bool) -> Dict[str, List[Dict[str, Any]]]:
+    """``min_cash_moved``: the served floor differs from the book's own
+    resolved one (a lever of this request set it). The floor is not a line of
+    a projected period, so its removal test is that comparison."""
     served = dict((p.label, p) for p in projection.periods)
     out = dict((key, []) for key, _lines in SERIES)  # type: Dict[str, List[Dict[str, Any]]]
     running = 0
+    walk = []  # type: List[str]
     for period in projection.timeline:
         item = served.get(period.label)
         if item is not None:
             running += item.cf["cash_from_operating"] + item.cf["cash_from_investing"]
+            walk.append(period.label)
         for key, lines in SERIES:
             if item is None:
                 out[key].append({"period": period.label, "refused": dict(partial)})
                 continue
             driver_ids = []  # type: List[str]
-            lever_ids = []  # type: List[str]
-            joint = False
             for line in lines:
                 for i in attribution.driver_ids(line):
                     if i not in driver_ids:
                         driver_ids.append(i)
-                ids, j = attribution.lever_ids(line, period.label)
-                joint = joint or j
-                for i in ids:
-                    if i not in lever_ids:
-                        lever_ids.append(i)
             if key == "min_cash":
                 driver_ids = list(min_cash_ids)
+                lever_ids = (attribution.levers_naming("min_cash") if min_cash_moved
+                             else attribution.refused_removals())
+                joint = False
+            else:
+                lever_ids, joint = attribution.lever_ids_of(
+                    lines, _read(key, period.label,
+                                 tuple(walk) if key == "fcf_cumulative" else (period.label,),
+                                 min_cash, attribution))
             out[key].append({"period": period.label,
-                             "amount_minor": _value(key, item, min_cash, running),
+                             "amount_minor": _value(key, item, min_cash, running,
+                                                    attribution),
                              "driver_ids": driver_ids, "lever_ids": lever_ids,
                              "joint": joint})
     return out
