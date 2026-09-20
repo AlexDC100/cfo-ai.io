@@ -1478,8 +1478,17 @@ def project_payload(payload: Dict[str, Any], horizon_years: int = 5,
     ``horizon_years`` is kept only as ``total_years`` with a monthly window
     of twelve months (plan_contract_v2 2.2) — the one shape the route
     serves today — and is never an assumption override.
+
+    Since plan/2 B5 (contract 1.1) this is a thin wrapper: nothing projects
+    except ``engine.forecast.levers.project_plan``, called here with a base
+    request. ``overrides`` stay what they always were on this API,
+    caller-stamped assumptions, and an unpriceable funding line still
+    refuses the whole plan (the partial serve of 6.5 reaches readers with
+    fp1.2 in B6).
     """
-    opening, history = _opening_and_history(payload)
-    return project(opening, history, total_years=horizon_years,
-                   monthly_months=12, context=context_for_payload(payload),
-                   **overrides)
+    from .levers import PlanRequest, project_plan  # levers imports this module
+    plan = project_plan(payload, (), PlanRequest(total_years=horizon_years,
+                                                 monthly_months=12),
+                        None, stop_at_unpriced_draw=False,
+                        assumption_overrides=overrides)
+    return plan.projection
