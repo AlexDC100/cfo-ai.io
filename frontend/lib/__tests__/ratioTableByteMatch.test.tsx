@@ -424,8 +424,9 @@ for (const [name, make] of Object.entries(DOCUMENTS)) {
 // Reds on: `toFixed`, `toPrecision`, `Math.*`, `parseFloat`, `parseInt`,
 // `Number(`, unary `+` coercion of a served value, `Intl.NumberFormat`,
 // `toLocaleString`, or an arithmetic operator applied to a served `.value`
-// / `.value_q`, anywhere inside `sixCells`, the workbook Band-movements
-// region, `ratioCmpCells`, `ratioCmpCardTable`, `servedOnlyRatioTable`,
+// / `.value_q`, a cast to `number`, or ANY binary `-` `*` `/` `%` between two
+// operands (an alias of a served value carries no `.value` to match),
+// anywhere inside `sixCells`, the workbook's whole Ratios-sheet builder, `ratioCmpCells`, `ratioCmpCardTable`, `servedOnlyRatioTable`,
 // `bandMovementsBlock`, `ratioCmpBasisClause`, `creditMovementBlock` or
 // `buildBandMovements`; a named path that no longer exists (renamed or
 // inlined out of the scan). Cannot see: arithmetic in a helper these paths
@@ -437,12 +438,43 @@ describe("B6 the export-side served-row paths print the served row and compute n
   const REPO = resolve(__dirname, "../../..");
   const read = (rel: string): string => readFileSync(resolve(REPO, rel), "utf8");
 
-  /** Comments and quoted strings blanked; template literals kept. */
+  /** Comments and quoted strings blanked. A template literal keeps its
+   *  `${…}` expressions (they are code) and loses its TEXT (markup like
+   *  `data-ratio-key`, `</td>` is not arithmetic). */
   function codeOnly(src: string): string {
+    return scan(src, 0, false).out;
+  }
+
+  /** Scans from `start`; when `inExpr`, stops at the `}` closing a `${`. */
+  function scan(src: string, start: number, inExpr: boolean): { out: string; end: number } {
     let out = "";
-    let i = 0;
+    let i = start;
+    let depth = 0;
     while (i < src.length) {
       const two = src.slice(i, i + 2);
+      if (src[i] === "`") {
+        // template literal: keep only its expressions
+        i += 1;
+        out += "`";
+        while (i < src.length && src[i] !== "`") {
+          if (src[i] === "\\") { i += 2; continue; }
+          if (src[i] === "$" && src[i + 1] === "{") {
+            const inner = scan(src, i + 2, true);
+            out += "${" + inner.out + "}";
+            i = inner.end + 1;
+            continue;
+          }
+          i += 1;
+        }
+        i += 1;
+        out += "`";
+        continue;
+      }
+      if (inExpr && src[i] === "{") depth += 1;
+      if (inExpr && src[i] === "}") {
+        if (depth === 0) return { out, end: i };
+        depth -= 1;
+      }
       if (two === "//") {
         while (i < src.length && src[i] !== "\n") i += 1;
         continue;
@@ -463,7 +495,7 @@ describe("B6 the export-side served-row paths print the served row and compute n
       out += ch;
       i += 1;
     }
-    return out;
+    return { out, end: i };
   }
 
   /** The `{…}` body starting at the first `{` at or after `from`, by balanced braces. */
@@ -513,6 +545,13 @@ describe("B6 the export-side served-row paths print the served row and compute n
     /[-+*/%]\s*[\w.]*\.value(?:_q)?\b/,
     // unary-plus coercion of a served string: `+row.current.value_q`
     /[(=,?:]\s*\+[\w.]+\.value(?:_q)?\b/,
+    // AN ALIAS GETS PAST `.value` RULES (repair-round plant A8-alias:
+    // `const cq = row.current.value_q as unknown as number; cq * 1 - pq * 1`).
+    // So: nothing is cast to a number, and no binary `-`, `*`, `/` or `%`
+    // stands between two operands anywhere in a served-row path. (`+` is
+    // left to the rules above: these paths concatenate strings.)
+    /\bas\s+(?:unknown\s+as\s+)?number\b/,
+    /[\w)\]]\s*[-*/%]\s*[\w(]/,
   ];
 
   const exportsCode = codeOnly(read("frontend/lib/financialExports.ts"));
@@ -521,11 +560,15 @@ describe("B6 the export-side served-row paths print the served row and compute n
 
   const PATHS: Record<string, string> = {
     "financialExports.ts sixCells": closure(exportsCode, "sixCells"),
-    "financialExports.ts Band movements region": region(
+    // THE WHOLE Ratios-sheet builder, not two pieces of it: the served-only
+    // census loop and the credit_composite / letter_grade loop print served
+    // rows too, and sat between the two scanned pieces (repair-round plant
+    // X_b6gap: the pp change recomputed in the served-only loop, all green).
+    "financialExports.ts Ratios-sheet builder": region(
       exportsCode,
-      "const bands = buildBandMovements(",
+      "const ratioCmp = servedRatioComparison(s);",
       'XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "")',
-      "workbook Band movements",
+      "workbook Ratios sheet",
     ),
     "financialReport.ts ratioCmpCells": closure(reportCode, "ratioCmpCells"),
     "financialReport.ts ratioCmpCardTable": closure(reportCode, "ratioCmpCardTable"),
