@@ -4923,7 +4923,8 @@
     "leverage": 100,
     "liquidity": null,
     "profitability": 100
-   }
+   },
+   "withdrawn": []
   },
   "metrics": [
    {
