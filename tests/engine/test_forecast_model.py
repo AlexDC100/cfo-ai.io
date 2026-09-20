@@ -1632,16 +1632,43 @@ def test_a_book_with_no_debt_cannot_price_a_funding_line():
 
 def test_an_unpriced_funding_line_is_refused_rather_than_charged_nothing():
     """0% is not the absence of a rate: it is an invented rate, and the
-    most favourable one available. The refusal names the period and the
-    amount so the reader can act on it."""
+    most favourable one available.
+
+    plan/2 B5 (contract 6.5, 28.3 B5 "Retires"): the blanket refusal of the
+    whole plan became the PARTIAL refusal. ``project_plan`` serves the
+    periods before the first draw it cannot price and returns a
+    ShortfallRefusal naming the period and the amount, which needs no rate
+    (the line opens at zero, so the first shortfall accrues no funding
+    interest). RED ON: the draw charged at 0%; the plan served past the
+    draw; a refusal that names no period or no amount; the fp1 wrapper
+    serving the truncated plan (GET keeps its 422 until B6)."""
+    from engine.forecast import PlanRequest, project_plan
+    drivers = dict(dividend_payout_pct=0.95, min_cash=2_000_000.0,
+                   capex_pct_of_revenue=0.20)
+    plan = project_plan(load("carniprod"), (), PlanRequest(total_years=5), None,
+                        assumption_overrides=drivers)
+    refusal = plan.refusal
+    assert refusal is not None, "the plan draws a line this book cannot price"
+    shape = refusal.as_dict()
+    assert shape["driver_key"] == "revolver_rate"
+    assert shape["from_period"] == refusal.period.label
+    assert shape["shortfall_minor"] > 0
+    assert shape["shortfall_minor"] == 200_000_000 - shape["cash_before_funding_minor"]
+    assert "funding line" in shape["sentence"]["text"]
+    served = [p.label for p in plan.projection.periods]
+    assert served == [p.label for p in plan.projection.timeline[:refusal.period.index]]
+    assert all(p.bs["revolver"] == 0 and p.pl["interest_expense_funding_line"] == 0
+               for p in plan.projection.periods)
+    assert "refused" in plan.summary["peak_funding_gap_minor"]
+    # the fp1 wrapper never serves the truncated plan: it refuses, naming
+    # the same period
     with pytest.raises(AssumptionError) as excinfo:
-        project_payload(load("carniprod"), horizon_years=5,
-                        dividend_payout_pct=0.95, min_cash=2_000_000.0,
-                        capex_pct_of_revenue=0.20)
+        project_payload(load("carniprod"), horizon_years=5, **drivers)
     message = str(excinfo.value)
     assert "revolver_rate" in message
     assert "draws" in message and "funding line" in message
     assert "0%" in message
+    assert excinfo.value.period_label == refusal.period.label
 
 
 def test_the_same_plan_runs_and_is_charged_once_a_rate_is_supplied():
