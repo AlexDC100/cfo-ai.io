@@ -253,14 +253,35 @@ def compute_company_metrics(
     ebitda_operating = ebitda_cash + cap_own_bucket
     net_income = out.get("net_income") or 0
     net_income_operating = net_income + cap_own_bucket
+    out["net_income_operating"] = net_income_operating
+
+    # ── ONE PROFIT PER PAGE ─────────────────────────────────────────────
+    # `headline_metrics` decided on 2026-09-20 which profit the headline
+    # tile prints: the account-121 anchor when the period carries one, the
+    # operating view only when it does not. The MARGIN under that tile — the
+    # one graded against the sector percentile bands and repeated in the
+    # gap-vs-leader table — kept dividing the reconstruction, so the page
+    # printed one profit and graded a different one. Measured on the four
+    # committed firm books:
+    #
+    #   book         headline tile     margin was    margin is
+    #   agras         7,533,676.02        11.90 %       6.35 %
+    #   carniprod     1,435,533.59         5.88 %       1.44 %
+    #   realestate     -801,604.14   -18,717.91 %    -493.70 %
+    #   retail        3,205,212.62         1.46 %       4.03 %
+    #
+    # Only the NUMERATOR's source changes. The denominator stays operating
+    # revenue and the no-anchor fallback stays `net_income + 722` — both are
+    # the deliberate EEI decision recorded above, and neither is what this
+    # was about.
+    headline_net_income = headline_net_income_of(out)
 
     out["ebitda_margin"] = (ebitda_operating / rev_denom) * 100.0
-    out["net_margin"] = (net_income_operating / rev_denom) * 100.0
+    out["net_margin"] = (headline_net_income / rev_denom) * 100.0
     # Surface both views explicitly so the FE / future surfaces can show
     # cash-vs-operating side by side without re-deriving.
     out["ebitda_margin_cash"] = (ebitda_cash / rev_denom) * 100.0
     out["ebitda_operating"] = ebitda_operating
-    out["net_income_operating"] = net_income_operating
 
     # 4. Derived ratio metrics (the comparison engine's bread and butter).
     if cogs_bucket > 0:
@@ -368,7 +389,33 @@ NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 #: generated on 9 September.
 #:
 #: BUMP THIS whenever a change alters what this module puts on screen.
-REPORT_REVISION = 2
+REPORT_REVISION = 3
+
+
+def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:
+    """WHICH net-income view this period is shown in — the one decision.
+
+    Statutory (account 121's closing balance, the filed result) when the
+    period carries it; the operating view only when it does not. A statutory
+    ZERO is a figure, not an absence, so the test is `is not None`.
+
+    Every surface on the benchmark page resolves through this function, not
+    through its own copy of the rule: the headline tile (`headline_metrics`),
+    the graded `net_margin` (`compute_company_metrics`) and the "Compania ta"
+    row of the named-peer table (`_build_deep_section`). Three copies is how
+    the 2026-09-20 headline repair left two of them behind.
+    """
+    preferred, fallback = NET_INCOME_SLOT
+    return preferred if company_metrics.get(preferred) is not None else fallback
+
+
+def headline_net_income_of(company_metrics: Dict[str, Any]) -> float:
+    """The VALUE in that slot, 0.0 when the period carries neither view."""
+    v = company_metrics.get(headline_net_income_key(company_metrics))
+    try:
+        return float(v) if v is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def headline_metrics(company_metrics: Dict[str, Any]) -> List[str]:
@@ -379,8 +426,8 @@ def headline_metrics(company_metrics: Dict[str, Any]) -> List[str]:
     operating view for legacy periods with no statutory row — never to zero,
     and never silently: the label says which view is on screen.
     """
-    preferred, fallback = NET_INCOME_SLOT
-    chosen = preferred if company_metrics.get(preferred) is not None else fallback
+    _, fallback = NET_INCOME_SLOT
+    chosen = headline_net_income_key(company_metrics)
     return [chosen if m == fallback else m for m in HEADLINE_METRICS]
 
 
@@ -496,9 +543,15 @@ def _build_deep_section(
         "company_name": company_name,
         "fiscal_year": company_metrics.get("__fiscal_year__"),
         "revenue_mlei": round(cur_year_revenue_mlei, 1) if cur_year_revenue_mlei else None,
+        # The other rows in this column are peers' FILED net profits from
+        # Ministry of Finance accounts. The company's own row read
+        # `net_income` — the class-6/7 reconstruction — so it was the only
+        # row in the table on a different basis, and it disagreed with the
+        # headline tile one scroll above it (agras: 14.1 M vs 7.5 M).
         "net_profit_mlei": (
-            round(company_metrics.get("net_income", 0) / 1_000_000, 1)
-            if company_metrics.get("net_income") is not None else None
+            round(headline_net_income_of(company_metrics) / 1_000_000, 1)
+            if company_metrics.get(headline_net_income_key(company_metrics)) is not None
+            else None
         ),
         "net_margin_pct": company_metrics.get("net_margin"),
         "ebitda_margin_pct": company_metrics.get("ebitda_margin"),

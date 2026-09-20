@@ -191,3 +191,112 @@ def test_a_cached_report_at_the_CURRENT_revision_is_still_served(monkeypatch):
     body = TestClient(app).get(f"/api/benchmarks/report/{PERIOD}",
                                headers={"Authorization": "Bearer x"}).json()
     assert body.get("cached") is True
+
+
+# ── the two surfaces BELOW the headline, on the same page ───────────────────
+#
+# The 2026-09-20 repair above moved the headline tile onto the account-121
+# anchor and stopped there. Two other figures on the SAME benchmark page kept
+# reading `net_income`, the class-6/7 reconstruction:
+#
+#   · the "Compania ta" row of the named-peer table (`net_profit_mlei`) —
+#     printed in a column whose other rows are peers' FILED net profits from
+#     Ministry of Finance accounts, so the company's own row was the only
+#     one in the table on a different basis;
+#   · `net_margin`, which is then graded against the sector percentile bands
+#     and repeated in the gap-vs-leader table.
+#
+# Measured on the four committed firm books (tests/engine/fixtures/firm/
+# served_metrics.json, real `calculated_metrics` as the route reads them):
+#
+#   book         headline tile     "Compania ta"   net margin   was graded as
+#   agras         7,533,676.02          14.1 M        6.35 %        11.90 %
+#   carniprod     1,435,533.59           5.8 M        1.44 %         5.88 %
+#   realestate     -801,604.14         -30.4 M     -493.70 %    -18,717.91 %
+#   retail        3,205,212.62           1.2 M        4.03 %         1.46 %
+#
+# CLAUDE.md §21: when a hardening fix lands in one place, grep for every
+# sibling that reads the same thing.
+#
+# Fails on: either surface dropping back to the reconstruction when the period
+# carries the anchor; the two disagreeing with the headline tile; the
+# legacy (no-anchor) fallback losing the operating view; and the denominator
+# or the 722 operating-view adjustment being changed, which are deliberate and
+# are NOT what this gate is about.
+
+FIRM_BOOKS = ("agras", "carniprod", "realestate", "retail")
+
+
+def _firm_metrics(book):
+    import json, pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "engine" / "fixtures" / "firm"
+    served = json.loads((root / "served_metrics.json").read_text(encoding="utf-8"))[book]
+    fx = json.loads((root / f"saga_10_col_{book}.json").read_text(encoding="utf-8"))
+    rows = [{"name": k, "value": v, "unit": None} for k, v in served.items() if v is not None]
+    return rows, fx["line_items"], served
+
+
+@pytest.mark.parametrize("book", FIRM_BOOKS)
+def test_the_company_row_prints_the_profit_the_headline_prints(book):
+    rows, line_items, _ = _firm_metrics(book)
+    cm = be.compute_company_metrics(rows, line_items)
+    head = cm[be.headline_metrics(cm)[-1]]
+    r = be.build_benchmark_report(
+        period_id="p1", caen_code="1013", caen_label="Meat",
+        industry_category="manufacturing_consumer", calculated_metrics=rows,
+        line_items=line_items, benchmarks={}, company_name="Compania",
+        peers=[{"company_name": "Peer", "tier": "leader", "net_profit_mlei": 1.0,
+                "display_order": 1}],
+    )
+    deep = r.get("sections", {}).get("deep") or r.get("deep") or {}
+    me = next(p for p in deep["peers"] if p.get("tier") == "self")
+    assert me["net_profit_mlei"] == pytest.approx(round(head / 1_000_000, 1)), (
+        "the peer table's own row prints a different profit from the headline tile "
+        "on the same page"
+    )
+
+
+@pytest.mark.parametrize("book", FIRM_BOOKS)
+def test_the_graded_net_margin_is_built_on_that_same_profit(book):
+    rows, line_items, served = _firm_metrics(book)
+    cm = be.compute_company_metrics(rows, line_items)
+    head = cm[be.headline_metrics(cm)[-1]]
+    rev_denom = cm.get("total_operating_revenue") or cm.get("revenue")
+    assert cm["net_margin"] == pytest.approx(head / rev_denom * 100.0, rel=1e-9), (
+        "the margin the percentile bands grade is not the profit the page prints"
+    )
+
+
+@pytest.mark.parametrize("book", FIRM_BOOKS)
+def test_that_margin_is_the_one_every_other_surface_shows(book):
+    """The engine already serves `net_margin` as a ratio for the dashboard and
+    the report. The benchmark's own recompute differs only by its operating
+    denominator, so on a book where the two denominators agree the two figures
+    must agree too — otherwise one screen grades a margin the next screen does
+    not print."""
+    rows, line_items, served = _firm_metrics(book)
+    cm = be.compute_company_metrics(rows, line_items)
+    if cm.get("total_operating_revenue") != cm.get("revenue"):
+        pytest.skip("operating revenue differs from turnover on this book")
+    # The served row is a ROUNDED ratio; compare at the precision it was
+    # stored with, read off the row itself rather than asserted as a cutoff.
+    decimals = len(repr(served["net_margin"]).partition(".")[2])
+    assert round(cm["net_margin"] / 100.0, decimals) == pytest.approx(served["net_margin"])
+
+
+def test_a_legacy_period_without_the_anchor_keeps_the_operating_view():
+    """No `net_income_statutory` row: both surfaces fall back to
+    `net_income + 722`, the documented EEI operating view — never to zero and
+    never to the bare cash figure."""
+    rows = [{"name": "revenue", "value": 1_000.0, "unit": None},
+            {"name": "net_income", "value": 100.0, "unit": None}]
+    line_items = [{"statement": "PL", "bucket": "capitalizedOwnWork", "amount": 40.0},
+                  {"statement": "PL", "bucket": "revenue", "amount": 1_000.0}]
+    cm = be.compute_company_metrics(rows, line_items)
+    assert cm["net_income_operating"] == pytest.approx(140.0)
+    assert be.headline_metrics(cm)[-1] == "net_income_operating"
+    # The denominator stays the operating one (1,000 turnover + 40 of 722) —
+    # this gate is about the NUMERATOR, and changing that denominator is a
+    # deliberate decision recorded in `compute_company_metrics`.
+    assert cm["total_operating_revenue"] == pytest.approx(1_040.0)
+    assert cm["net_margin"] == pytest.approx(140.0 / 1_040.0 * 100.0)
