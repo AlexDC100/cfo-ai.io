@@ -666,7 +666,11 @@ export default function Forecast() {
             // first answer there is no served period yet, and the context
             // is the honest stand-in; it can still be absent, which is what
             // the dash is for.
-            { period: ready?.basePeriodLabel ?? period.label ?? "—" },
+            // `shown`, not `ready`: when a recompute is refused the page
+            // deliberately keeps the last projection the SERVER produced on
+            // screen, and the sentence explaining what those figures stand
+            // on must stay true for exactly as long as they are visible.
+            { period: shown?.basePeriodLabel ?? period.label ?? "—" },
           )}
         </p>
       </div>

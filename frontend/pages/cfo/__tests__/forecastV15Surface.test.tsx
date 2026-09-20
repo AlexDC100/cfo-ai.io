@@ -672,4 +672,37 @@ describe("the banner names the period the PROJECTION stands on", () => {
     expect(banner.textContent, "and never renders its anchor as an em dash")
       .not.toContain("of —");
   });
+
+  it("keeps naming it while a REFUSED recompute holds the projection on screen", async () => {
+    // The refusal repair keeps the last SERVED projection rendered. The
+    // sentence that explains what those figures stand on has to stay true
+    // for exactly as long as they are visible — it reads off the held view,
+    // not off the query that just errored.
+    forecast.mockResolvedValue(SERVED);
+    const sentence = "dso_days: 400 is outside 0 to 365";
+    forecastRecompute.mockRejectedValue(
+      new CfoApiError(sentence, 422, { code: "out_of_bounds", text: sentence, field: "dso_days" }),
+    );
+    renderPage();
+    await screen.findByTestId("forecast-levers");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.change(screen.getByTestId("forecast-lever-input-dso_days-0"), {
+      target: { value: "400" },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(SERVED.client.debounce_ms + 25);
+    });
+    await waitFor(() => expect(forecastRecompute).toHaveBeenCalled());
+    vi.useRealTimers();
+
+    await waitFor(() => expect(screen.getByTestId("forecast-stale-notice")).toBeTruthy());
+    expect(screen.queryByTestId("forecast-strip"), "the projection is still on screen")
+      .not.toBeNull();
+    const banner = screen.getByTestId("forecast-banner");
+    expect(
+      banner.textContent,
+      "the held projection still stands on a named period, not on an em dash",
+    ).toContain(SERVED.base_period.label as string);
+    expect(banner.textContent).not.toContain("of —");
+  });
 });
