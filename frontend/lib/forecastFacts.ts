@@ -268,6 +268,149 @@ export interface BalanceCheckRow {
   readonly balances: boolean;
 }
 
+// ─── v1.5: the blocks the page reads besides `figures` ──────────────────
+//
+// `strip`, `series`, `summary`, `client` and `history` have been on the wire
+// since fp1.2 and no reader read them, which is why the page had no strip, no
+// charts and no levers while the engine was already serving all three. NOTHING
+// NEW IS COMPUTED HERE. Every amount below is an engine-served figure and comes
+// back as a `ProjectedResult` — the same union the statement table paints — so a
+// chart axis and a strip headline go through `<ProjectedAmount>` exactly as a
+// table cell does, and a refused one paints its own sentence rather than a zero.
+
+/** One point of a served chart series. `result` is a figure or the engine's
+ *  own refusal at that period — on a partial refusal the engine serves three
+ *  keys at the cut and nothing after it (6.5), and a chart must show that
+ *  break rather than smoothing over it. */
+export interface SeriesPoint {
+  readonly period: string;
+  readonly result: ProjectedResult;
+}
+
+/** A served amount that may instead be a standing refusal — `strip
+ *  .first_breach_period` and `strip.dcf_ev` are refusals in this build, by
+ *  the engine's own decision, and the page renders the engine's words. */
+export interface StripSlot {
+  readonly result: ProjectedResult;
+  /** The period the figure belongs to, when the slot names one (the peak
+   *  funding gap does). `null` is a real answer for a plan with no draw. */
+  readonly period: string | null;
+}
+
+export interface StripView {
+  readonly peakFundingGap: StripSlot;
+  readonly cumulativeFcf: StripSlot;
+  readonly closingCash: StripSlot;
+  /** Both standing refusals in this build (B8/B12). Rendered as the engine's
+   *  sentence; "none in horizon" would be an absent read as a negative. */
+  readonly firstBreachPeriod: StripSlot;
+  readonly dcfEv: StripSlot;
+}
+
+export interface SummaryView {
+  readonly cashTrough: StripSlot;
+  readonly firstShortfallPeriod: string | null;
+  readonly firstShortfallAmount: ProjectedResult | null;
+  /** The periods the plan stands on the funding line — the shaded band of the
+   *  cash curve. Served, never derived from the revolver series here. */
+  readonly fundingGapPeriods: readonly string[];
+  readonly fundingInterestTotal: ProjectedResult | null;
+  readonly fundingRateSentence: string;
+  readonly runwaySentence: string;
+}
+
+/** fp1.2 `client`: the pack's own latency numbers and the levers it does NOT
+ *  serve, each with its sentence. Typing 300 on the page instead of reading
+ *  `debounce_ms` would be a cut-off written as prose (TC-10). */
+export interface ClientView {
+  readonly debounceMs: number;
+  readonly analysisDebounceMs: number;
+  readonly unserved: readonly { key: string; sentence: string }[];
+}
+
+/** fp1.2 `history` (B7): every candidate prior period the engine considered,
+ *  with the verdict it left. `held` is what the growth was measured from. */
+export interface HistoryView {
+  readonly held: readonly HistoryRow[];
+  readonly eligible: readonly HistoryRow[];
+  readonly excluded: readonly HistoryRow[];
+}
+
+export interface HistoryRow {
+  readonly periodId: string;
+  readonly label: string;
+  readonly sentence: string;
+}
+
+/** One book fact a driver was fitted on — for revenue growth, the two
+ *  turnovers. `valueMinor` is a plain number and NOT a `ProjectedMinor`: it is
+ *  an ACTUAL the engine measured, quoted inside the driver's basis, and the
+ *  engine already writes it into the basis sentence. */
+export interface BookInput {
+  readonly fact: string;
+  readonly periodEnd: string;
+  readonly valueMinor: number | null;
+}
+
+export interface LeverBasisView {
+  readonly tier: DriverTier | null;
+  readonly sentence: string;
+  readonly bookMethod: string | null;
+  readonly bookInputs: readonly BookInput[];
+  readonly bookPeriodsUsed: readonly string[];
+  /** Each rung the ladder tried and what happened — the honest answer when
+   *  the page is asked "why is this tier and not book?". */
+  readonly fallbackSteps: readonly {
+    tier: string;
+    outcome: string;
+    reason: string;
+  }[];
+}
+
+/** What the lever this driver is reset TO stands on. `values` are exact
+ *  decimal strings in the driver's own natural unit, ready to be sent back. */
+export interface LeverAlternativeView {
+  readonly tier: DriverTier;
+  readonly values: readonly string[];
+  readonly sentence: string;
+}
+
+/** ONE LEVER, as the engine declares it.
+ *
+ *  Separate from `AssumptionRef` on purpose: `AssumptionRef` is what a FIGURE
+ *  resolves to and it rides inside every `ProjectedMarker`, so widening it
+ *  with control metadata would put slider bounds inside every painted number's
+ *  provenance. A lever is a different question about the same driver. */
+export interface LeverRef {
+  readonly key: string;
+  readonly label: string;
+  /** The display unit, and the divisor that turns the served integer into it.
+   *  Both from the wire (`WIRE_UNITS`); the page invents no second table. */
+  readonly unit: AssumptionUnit | string;
+  readonly scale: number;
+  readonly shape: "scalar" | "per_year" | string;
+  /** Per plan year (or one entry when `shape` is scalar), in natural units. */
+  readonly values: readonly (number | null)[];
+  /** The same values as EXACT decimal strings, which is what the request body
+   *  takes — the engine refuses "1e-1" and anything not exact at the unit's
+   *  own scale (3.12: no float ever enters the engine). */
+  readonly valueTexts: readonly (string | null)[];
+  readonly bounds: { readonly minText: string | null; readonly maxText: string | null };
+  readonly stepText: string | null;
+  readonly setVia: string;
+  readonly allowedOps: readonly string[];
+  readonly panel: string | null;
+  readonly railGroup: string | null;
+  readonly favourableDirection: string | null;
+  readonly inert: string | null;
+  readonly basis: LeverBasisView;
+  /** fp1.2: the WHOLE pre-user basis, served the moment a user sets the
+   *  lever. Reset-to-book needs no extra wire field — it is dropping the
+   *  override and re-POSTing, and this is what the value goes back to. */
+  readonly original: { values: readonly string[]; basis: LeverBasisView } | null;
+  readonly alternatives: readonly LeverAlternativeView[];
+}
+
 export interface ProjectionView {
   readonly contract: typeof FORECAST_CONTRACT_VERSION;
   readonly currency: string;
@@ -296,6 +439,21 @@ export interface ProjectionView {
   figure(line: string, period: string): ProjectedResult;
   figures(): readonly ProjectedResult[];
   lines(): readonly string[];
+  /** v1.5. The four blocks the page's strip, charts and levers stand on. */
+  readonly strip: StripView;
+  readonly summary: SummaryView;
+  readonly client: ClientView;
+  readonly history: HistoryView;
+  /** The served keys of `series`, sorted. */
+  seriesKeys(): readonly string[];
+  /** One served chart series. An unknown key is an EMPTY array — the caller
+   *  asked about something this build does not serve (`dscr` until B8), and
+   *  a chart with no points renders its own "not served" rather than a flat
+   *  line at zero. */
+  series(key: string): readonly SeriesPoint[];
+  /** The levers, in `driver_order`. Conventions are not levers. */
+  readonly levers: readonly LeverRef[];
+  lever(key: string): LeverRef | null;
 }
 
 /** The composite-key separator, and the "no period" sentinel.
@@ -525,6 +683,129 @@ function driverRef(
   };
 }
 
+/** An integer at a stated scale as its EXACT decimal string.
+ *
+ *  Integer string arithmetic, never `value / scale` back into a decimal: the
+ *  engine refuses a value that is not exact at the driver's own scale, and
+ *  `(46213147 / 1e6).toString()` is an IEEE-754 result being asked to round
+ *  trip through a contract that forbids floats. 28045424 at 1e6 is
+ *  "28.045424", and that is what goes back on the wire. */
+export function exactDecimal(value: number, scale: number): string {
+  if (!Number.isInteger(value) || !Number.isInteger(scale) || scale < 1) return "";
+  if (scale === 1) return String(value);
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  const digits = String(scale).length - 1;
+  const whole = Math.floor(abs / scale);
+  const frac = String(abs - whole * scale).padStart(digits, "0").replace(/0+$/, "");
+  return frac ? `${sign}${whole}.${frac}` : `${sign}${whole}`;
+}
+
+const bookInputsOf = (book: RawRecord | null): BookInput[] => {
+  const inputs = book && Array.isArray(book.inputs) ? book.inputs : [];
+  return inputs.flatMap((i) => {
+    const rec = asRecord(i);
+    if (!rec) return [];
+    return [
+      {
+        fact: asString(rec.fact),
+        periodEnd: asString(rec.period_end),
+        valueMinor: asInt(rec.value_minor),
+      },
+    ];
+  });
+};
+
+function leverBasis(basis: RawRecord): LeverBasisView {
+  const book = asRecord(basis.book);
+  const tier = asString(basis.tier);
+  return {
+    tier: (DRIVER_TIERS as readonly string[]).includes(tier)
+      ? (tier as DriverTier)
+      : null,
+    sentence: sentenceText(basis.sentence),
+    bookMethod: book ? asString(book.method) || null : null,
+    bookInputs: bookInputsOf(book),
+    bookPeriodsUsed:
+      book && Array.isArray(book.periods_used)
+        ? book.periods_used.map((p) => String(p))
+        : [],
+    fallbackSteps: (Array.isArray(basis.fallback_steps) ? basis.fallback_steps : [])
+      .flatMap((s) => {
+        const rec = asRecord(s);
+        if (!rec) return [];
+        return [
+          {
+            tier: asString(rec.tier),
+            outcome: asString(rec.outcome),
+            reason: sentenceText(rec.reason),
+          },
+        ];
+      }),
+  };
+}
+
+/** One served DRIVER read as a CONTROL. Same record as `driverRef`, different
+ *  question: that one asks what a figure resolves to, this one asks what the
+ *  reader may move and what it goes back to. */
+function leverRef(raw: RawRecord): LeverRef {
+  const wire = asString(raw.unit);
+  const [unit, scale] = WIRE_UNITS[wire] ?? [wire, 1];
+  const served = Array.isArray(raw.values) ? raw.values : [];
+  const ints = served.map((v) => asInt(v));
+  const basis = asRecord(raw.basis) ?? {};
+  const original = asRecord(basis.original);
+  const alternatives = asRecord(raw.alternatives) ?? {};
+  const alts: LeverAlternativeView[] = [];
+  for (const tier of DRIVER_TIERS) {
+    const alt = asRecord(alternatives[tier]);
+    if (!alt) continue;
+    const altBasis = asRecord(alt.basis) ?? {};
+    alts.push({
+      tier,
+      values: (Array.isArray(alt.values) ? alt.values : []).map((v) => {
+        const i = asInt(v);
+        return i === null ? "" : exactDecimal(i, scale);
+      }),
+      sentence: sentenceText(altBasis.sentence),
+    });
+  }
+  const bounds = asRecord(raw.bounds) ?? {};
+  return {
+    key: asString(raw.key),
+    label: sentenceText(raw.label) || asString(raw.key),
+    unit,
+    scale,
+    shape: asString(raw.shape),
+    values: ints.map((v) => (v === null ? null : v / scale)),
+    valueTexts: ints.map((v) => (v === null ? null : exactDecimal(v, scale))),
+    bounds: {
+      minText: typeof bounds.min === "string" ? bounds.min : null,
+      maxText: typeof bounds.max === "string" ? bounds.max : null,
+    },
+    stepText: typeof raw.reach_step === "string" ? raw.reach_step : null,
+    setVia: asString(raw.set_via),
+    allowedOps: (Array.isArray(raw.allowed_ops) ? raw.allowed_ops : []).map((o) =>
+      String(o),
+    ),
+    panel: asString(raw.panel) || null,
+    railGroup: asString(raw.rail_group) || null,
+    favourableDirection: asString(raw.favourable_direction) || null,
+    inert: sentenceText(raw.inert_in_this_plan) || null,
+    basis: leverBasis(basis),
+    original: original
+      ? {
+          values: (Array.isArray(original.values) ? original.values : []).map((v) => {
+            const i = asInt(v);
+            return i === null ? "" : exactDecimal(i, scale);
+          }),
+          basis: leverBasis(asRecord(original.basis) ?? {}),
+        }
+      : null,
+    alternatives: alts,
+  };
+}
+
 function conventionRef(raw: RawRecord, period: string): AssumptionRef {
   return {
     id: asString(raw.id),
@@ -633,36 +914,22 @@ export function readProjection(payload: unknown): ProjectionView | null {
     return out;
   };
 
-  const figure = (line: string, period: string): ProjectedResult => {
-    if (
-      horizon.length > 0 &&
-      !horizon.includes(period) &&
-      !horizonAnnual.includes(period)
-    ) {
-      return {
-        projected: true,
-        refused: true,
-        line,
-        period,
-        code: "outside_horizon",
-        detail: `the projection runs ${horizon.join(", ")}`,
-      };
-    }
-    const raw = figureByKey.get(`${line}${KEY_SEP}${period}`);
-    if (!raw) {
-      return {
-        projected: true,
-        refused: true,
-        line,
-        period,
-        code: "not_projected",
-        detail: `this projection does not carry ${line} for ${period}`,
-      };
-    }
+  /** One served amount block -> a figure or the engine's own refusal.
+   *
+   *  `figures[]` rows, `series` points, `strip` slots and `summary` amounts
+   *  are the SAME shape on the wire — `{amount_minor, driver_ids, formula}` or
+   *  `{refused:{code,text}}` — so they are read by one function. A second
+   *  reader for the strip is how a hand-composed block drifts from the
+   *  engine's own (B6RV2-5, which cost the cash curve a hole). */
+  const amountOf = (
+    raw: RawRecord,
+    line: string,
+    period: string,
+  ): ProjectedResult => {
     const refusedBy = asRecord(raw.refused);
     if (refusedBy) {
-      // 6.5: a period or FY aggregate the partial serve does not reach. The
-      // engine's sentence, verbatim; never a zero.
+      // 6.5: a period the partial serve does not reach, or a slot this build
+      // does not serve at all. The engine's sentence, verbatim; never a zero.
       return {
         projected: true,
         refused: true,
@@ -708,6 +975,35 @@ export function readProjection(payload: unknown): ProjectionView | null {
     };
   };
 
+  const figure = (line: string, period: string): ProjectedResult => {
+    if (
+      horizon.length > 0 &&
+      !horizon.includes(period) &&
+      !horizonAnnual.includes(period)
+    ) {
+      return {
+        projected: true,
+        refused: true,
+        line,
+        period,
+        code: "outside_horizon",
+        detail: `the projection runs ${horizon.join(", ")}`,
+      };
+    }
+    const raw = figureByKey.get(`${line}${KEY_SEP}${period}`);
+    if (!raw) {
+      return {
+        projected: true,
+        refused: true,
+        line,
+        period,
+        code: "not_projected",
+        detail: `this projection does not carry ${line} for ${period}`,
+      };
+    }
+    return amountOf(raw, line, period);
+  };
+
   const balanceCheck: BalanceCheckRow[] = (
     Array.isArray(root.balance_check) ? root.balance_check : []
   ).flatMap((raw) => {
@@ -726,6 +1022,139 @@ export function readProjection(payload: unknown): ProjectionView | null {
   const failing = new Set(
     balanceCheck.filter((r) => !r.balances).map((r) => r.period),
   );
+
+  // ── v1.5 blocks ───────────────────────────────────────────────────────
+
+  /** The period a headline figure belongs to when the slot names none. The
+   *  last period the engine actually SERVED, not the last one asked for: on a
+   *  partial refusal those differ, and a closing-cash headline stamped with a
+   *  period the plan never reached is a figure wearing the wrong date. */
+  const lastServed = servedThrough || horizon[horizon.length - 1] || "";
+
+  const slot = (raw: unknown, line: string, period: string | null): StripSlot => {
+    const rec = asRecord(raw);
+    if (!rec) {
+      return {
+        result: {
+          projected: true,
+          refused: true,
+          line,
+          period: period ?? lastServed,
+          code: "not_projected",
+          detail: `this projection does not carry ${line}`,
+        },
+        period,
+      };
+    }
+    // `{amount: {...}, period: ...}` (the peak gap, the trough) or a bare
+    // amount block. The nested period is the engine's, never inferred.
+    const nested = asRecord(rec.amount);
+    const at =
+      "period" in rec ? (asString(rec.period) || null) : period;
+    const body = nested ?? rec;
+    return { result: amountOf(body, line, at ?? lastServed), period: at };
+  };
+
+  const stripRaw = asRecord(root.strip) ?? {};
+  const strip: StripView = {
+    peakFundingGap: slot(stripRaw.peak_funding_gap, "strip.peak_funding_gap", null),
+    cumulativeFcf: slot(stripRaw.cumulative_fcf, "strip.cumulative_fcf", lastServed),
+    closingCash: slot(stripRaw.closing_cash, "strip.closing_cash", lastServed),
+    firstBreachPeriod: slot(
+      stripRaw.first_breach_period,
+      "strip.first_breach_period",
+      null,
+    ),
+    dcfEv: slot(stripRaw.dcf_ev, "strip.dcf_ev", null),
+  };
+
+  const summaryRaw = asRecord(root.summary) ?? {};
+  const runway = asRecord(summaryRaw.runway) ?? {};
+  const firstShortfallPeriod = asString(summaryRaw.first_shortfall_period) || null;
+  const summary: SummaryView = {
+    cashTrough: slot(summaryRaw.cash_trough, "summary.cash_trough", null),
+    firstShortfallPeriod,
+    firstShortfallAmount: asRecord(summaryRaw.first_shortfall_amount)
+      ? amountOf(
+          asRecord(summaryRaw.first_shortfall_amount) as RawRecord,
+          "summary.first_shortfall_amount",
+          firstShortfallPeriod ?? lastServed,
+        )
+      : null,
+    fundingGapPeriods: (Array.isArray(summaryRaw.funding_gap_periods)
+      ? summaryRaw.funding_gap_periods
+      : []
+    ).map((p) => String(p)),
+    fundingInterestTotal: asRecord(summaryRaw.funding_interest_total)
+      ? amountOf(
+          asRecord(summaryRaw.funding_interest_total) as RawRecord,
+          "summary.funding_interest_total",
+          lastServed,
+        )
+      : null,
+    fundingRateSentence: sentenceText(
+      asRecord(summaryRaw.funding_rate_basis)?.sentence,
+    ),
+    runwaySentence: sentenceText(runway.sentence),
+  };
+
+  const seriesRaw = asRecord(root.series) ?? {};
+  const seriesByKey = new Map<string, SeriesPoint[]>();
+  for (const key of Object.keys(seriesRaw)) {
+    const points = Array.isArray(seriesRaw[key]) ? (seriesRaw[key] as unknown[]) : [];
+    seriesByKey.set(
+      key,
+      points.flatMap((p) => {
+        const rec = asRecord(p);
+        if (!rec) return [];
+        const at = asString(rec.period);
+        return [{ period: at, result: amountOf(rec, `series.${key}`, at) }];
+      }),
+    );
+  }
+
+  const clientRaw = asRecord(root.client) ?? {};
+  const client: ClientView = {
+    // The pack's own latency, read from the payload. A hand-typed 300 here
+    // would be a cut-off written as prose (TC-10).
+    debounceMs: asInt(clientRaw.debounce_ms) ?? 0,
+    analysisDebounceMs: asInt(clientRaw.analysis_debounce_ms) ?? 0,
+    unserved: (Array.isArray(clientRaw.unserved) ? clientRaw.unserved : []).flatMap(
+      (u) => {
+        const rec = asRecord(u);
+        if (!rec) return [];
+        return [{ key: asString(rec.key), sentence: sentenceText(rec.sentence) }];
+      },
+    ),
+  };
+
+  const historyRaw = asRecord(root.history) ?? {};
+  const historyRows = (bucket: unknown): HistoryRow[] =>
+    (Array.isArray(bucket) ? bucket : []).flatMap((r) => {
+      const rec = asRecord(r);
+      if (!rec) return [];
+      return [
+        {
+          periodId: asString(rec.period_id) || asString(rec.id),
+          label: asString(rec.label) || asString(rec.period_end),
+          sentence: sentenceText(rec.reason) || sentenceText(rec.sentence),
+        },
+      ];
+    });
+  const history: HistoryView = {
+    held: historyRows(historyRaw.held),
+    eligible: historyRows(historyRaw.eligible),
+    excluded: historyRows(historyRaw.excluded),
+  };
+
+  const leverByKey = new Map<string, LeverRef>();
+  const leverOrder: string[] = [];
+  for (const key of order) {
+    const rec = asRecord(drivers[String(key)]);
+    if (!rec) continue;
+    leverByKey.set(String(key), leverRef(rec));
+    leverOrder.push(String(key));
+  }
 
   return {
     contract: FORECAST_CONTRACT_VERSION,
@@ -763,5 +1192,16 @@ export function readProjection(payload: unknown): ProjectionView | null {
     figures: () => figureOrder.map(([line, period]) => figure(line, period)),
     lines: () =>
       Array.from(new Set(figureOrder.map(([line]) => line))).sort(),
+    strip,
+    summary,
+    client,
+    history,
+    seriesKeys: () => Array.from(seriesByKey.keys()).sort(),
+    // A key this build does not serve comes back EMPTY, never as a zero
+    // line: `dscr` is absent until B8 and a chart drawn flat along the axis
+    // would be the page inventing a ratio the engine refused to state.
+    series: (key: string) => seriesByKey.get(key) ?? [],
+    levers: leverOrder.map((k) => leverByKey.get(k) as LeverRef),
+    lever: (key: string) => leverByKey.get(key) ?? null,
   };
 }
