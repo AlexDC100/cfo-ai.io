@@ -7639,6 +7639,18 @@ def build_router() -> APIRouter:
                 metrics or [], _serve_rows)
             assembled_metrics_envelope["credit"] = _credit_model.serve_credit_envelope(
                 ratio_table_block["credit"])
+            # The typed ratios block was composed from the PERSISTED rows
+            # above. A definition-revised row (interest_coverage: EBITDA
+            # basis as filed before 2026-09-19, EBIT since) must carry the
+            # figure `metrics[]` and `ratio_table` carry — one key, one
+            # value, on every surface of this body.
+            _served_by_name = {m.get("name"): m.get("value") for m in served_metric_rows}
+            for _group in assembled_metrics_envelope["ratios"].values():
+                if not isinstance(_group, dict):
+                    continue
+                for _name in _credit_model.DEFINITION_REVISED_METRICS:
+                    if _name in _group:
+                        _group[_name] = _served_by_name.get(_name)
 
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract

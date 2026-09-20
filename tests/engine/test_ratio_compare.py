@@ -523,7 +523,7 @@ def test_a_credit_card_reads_one_model_from_the_served_body(stale):
     assert read["composite"] is not None
     assert env["letter_grade"] == CM.composite_to_letter_grade(read["composite"]), (
         "the card prints composite %s beside letter %s" % (read["composite"], env["letter_grade"]))
-    family = set(CM.CREDIT_FAMILY_METRICS)
+    family = set(CM.SERVE_REPLACED_METRICS)
     want_filed = [{"name": r["name"], "value": r["value"], "unit": r["unit"], "direction": r.get("direction")}
                   for r in persisted if r["name"] in family]
     assert body["credit_metrics_as_filed"] == want_filed

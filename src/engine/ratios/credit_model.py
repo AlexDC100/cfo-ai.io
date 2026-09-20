@@ -1032,6 +1032,22 @@ CREDIT_FAMILY_METRICS: Tuple[str, ...] = (
 ) + tuple(name for _k, name in CREDIT_SUBSCORE_METRICS) + (CREDIT_MODEL_REVISION_METRIC,)
 
 
+#: Rows whose DEFINITION was revised after periods were persisted under
+#: the old one. `interest_coverage` divided EBITDA until 2026-09-19 and is
+#: EBIT / interest since (the stated methodology; `ebitda_to_interest` is
+#: the EBITDA row). A reanalyze never recomputes metrics, so a period
+#: persisted before the change still carries the EBITDA figure under this
+#: name, while `ratio_table` serves the EBIT one: two figures, one key,
+#: and on a book whose EBIT and EBITDA straddle zero a SIGN FLIP between
+#: two surfaces of one period. These rows are therefore served from the
+#: serve-time model exactly like the credit family, and the filed value
+#: is disclosed, verbatim, in `credit_metrics_as_filed`.
+DEFINITION_REVISED_METRICS: Tuple[str, ...] = ("interest_coverage",)
+
+#: Every persisted row a serve-basis response replaces.
+SERVE_REPLACED_METRICS: Tuple[str, ...] = CREDIT_FAMILY_METRICS + DEFINITION_REVISED_METRICS
+
+
 def serve_credit_rows(
     persisted_rows: Optional[List[Dict[str, Any]]],
     serve_rows: List[Dict[str, Any]],
@@ -1048,10 +1064,13 @@ def serve_credit_rows(
     persisted credit row serves none, and every card then reads the
     envelope, which is the same serve-time result (and a period with no
     persisted rows at all keeps serving `metrics: []`, which the ratio
-    fallbacks are keyed on). Every other row is untouched.
-    `as_filed_rows` are the persisted credit-family rows, verbatim — the
-    as-filed evidence `credit_block` discloses from."""
-    family = set(CREDIT_FAMILY_METRICS)
+    fallbacks are keyed on). The definition-revised rows
+    (`DEFINITION_REVISED_METRICS`) are replaced the same way, so one key
+    carries one figure on every surface of the response. Every other row
+    is untouched.
+    `as_filed_rows` are the persisted rows that were replaced, verbatim —
+    the as-filed evidence `credit_block` discloses from."""
+    family = set(SERVE_REPLACED_METRICS)
     serve_by_name = {r["name"]: r for r in serve_rows
                      if isinstance(r, dict) and r.get("name") in family}
     served: List[Dict[str, Any]] = []
