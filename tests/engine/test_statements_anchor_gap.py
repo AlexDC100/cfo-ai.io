@@ -280,6 +280,8 @@ def test_b_retail_reproduces_account_121_to_the_cent():
         _convention(shaped)
 
 
+_WORK_RULE = {"checks": 0, "documents": set()}  # type: Dict[str, Any]
+
 _CREDIT_POS_PL = {"revenue", "otherIncome", "inventoryVariationMemo",
                   "financialIncome", "financial_income", "interest_income",
                   "fx_gain", "capitalizedOwnWork"}
@@ -391,9 +393,125 @@ def test_d_every_mirrored_contra_row_enters_as_a_reduction_and_both_conventions_
 _WORK = {"rows_checked": 0, "metamorphic": 0}  # type: Dict[str, int]
 
 
+# ── the decision RULE itself (plan/2 B4 repair, B4V-7b/c) ───────────────
+# Every real book prints both families on one sign, so deciding from the
+# 709 rows only, or by row count instead of the net, passed this gate. The
+# documents below are TEST-BUILT from the retail corpus rows (SYNTHETIC,
+# TC-13): the same ledger with one family re-printed or removed. The law
+# each holds: whatever the exporter prints, the statement is the retail
+# statement to the cent — revenue, cost of sales, operating cost and the
+# tie to account 121.
+
+SYNTHETIC_DOCS = ("609-only", "709-only", "mixed (709 natural-signed, 609 magnitudes)",
+                  "storno-heavy (many small natural-signed 709 rows beside one large magnitude row)")
+
+
+def _family_codes(rows):
+    cost, revenue = set(), set()
+    for r in _mirrored_contra(rows):
+        code = (r.get("cont") or "").strip()
+        rule = coa.bucket_for(code)
+        family = tbp._pl_contra_family(code, rule.bucket, credit_pos_pl=_CREDIT_POS_PL,
+                                       debit_pos_pl=_DEBIT_POS_PL)
+        (cost if family == tbp.CONTRA_FAMILY_COST else revenue).add(code)
+    return cost, revenue
+
+
+def test_e_a_mixed_family_document_reads_each_family_by_its_own_rows(capsys):
+    rows = _parse("saga_10_col_retail")
+    _shaped, want = _assemble(rows)
+    cost, revenue = _family_codes(rows)
+    assert cost and revenue, "retail no longer carries both contra families (TC-3)"
+    mixed = _rewrite(rows, revenue)  # the 709 family printed natural-signed
+    shaped, got = _assemble(mixed)
+    convention = _convention(shaped)
+    _WORK_RULE["documents"].add(SYNTHETIC_DOCS[2])
+    assert convention["convention"] == tbp.CONTRA_MIXED, convention
+    fam = convention["families"]
+    assert fam[tbp.CONTRA_FAMILY_COST]["convention"] == tbp.CONTRA_ENTRY_MAGNITUDE, fam
+    assert fam[tbp.CONTRA_FAMILY_REVENUE]["convention"] == tbp.CONTRA_NATURAL_SIGNED, fam
+    for key in PL_KEYS:
+        _WORK_RULE["checks"] += 1
+        assert round(got[key] - want[key], 2) == 0, (
+            "SYNTHETIC %s: %s %.2f, the same ledger printed in one convention "
+            "gives %.2f (delta %.2f) — a natural-signed 709 was negated because "
+            "the 609 rows print magnitudes" % (SYNTHETIC_DOCS[2], key, got[key],
+                                               want[key], got[key] - want[key]))
+    assert round(got["net_income_unexplained_vs_121"], 2) == 0, got
+    with capsys.disabled():
+        print("SYNTHETIC %s: convention %s (%s); revenue %.2f, unexplained vs 121 %.2f"
+              % (SYNTHETIC_DOCS[2], convention["convention"],
+                 ", ".join("%s %s" % (k, v["convention"]) for k, v in sorted(fam.items())),
+                 got["revenue"], got["net_income_unexplained_vs_121"]))
+
+
+@pytest.mark.parametrize("keep", ("609-only", "709-only"))
+def test_f_a_document_with_one_contra_family_decides_that_family(keep, capsys):
+    rows = _parse("saga_10_col_retail")
+    cost, revenue = _family_codes(rows)
+    drop = revenue if keep == "609-only" else cost
+    kept_family = tbp.CONTRA_FAMILY_COST if keep == "609-only" else tbp.CONTRA_FAMILY_REVENUE
+    only = [r for r in copy.deepcopy(rows) if (r.get("cont") or "").strip() not in drop]
+    shaped, got = _assemble(only)
+    convention = _convention(shaped)
+    _WORK_RULE["documents"].add(keep)
+    assert convention["convention"] == tbp.CONTRA_ENTRY_MAGNITUDE, (keep, convention)
+    assert list(convention["families"]) == [kept_family], convention
+    # the kept family still enters as a reduction: every mirrored row negated
+    by_code = dict(((a.get("ro_account_code") or a.get("code")), a) for a in shaped)
+    for r in _mirrored_contra(only):
+        code = (r.get("cont") or "").strip()
+        _WORK_RULE["checks"] += 1
+        assert round(float(by_code[code]["amount"]) + float(r["st_c"]), 2) == 0, (
+            keep, code, by_code[code]["amount"], r["st_c"])
+    with capsys.disabled():
+        print("SYNTHETIC %s: %d mirrored contra rows, convention %s"
+              % (keep, convention["mirrored_contra_rows"], convention["convention"]))
+
+
+def test_g_the_net_decides_never_the_row_count(capsys):
+    """Storno-heavy: the 709 family keeps its large magnitude row and gains
+    many small NEGATIVE mirrored rows (stornos of reductions). By row count
+    the family looks natural-signed; by its net it is entry-magnitude."""
+    rows = copy.deepcopy(_parse("saga_10_col_retail"))
+    _cost, revenue = _family_codes(rows)
+    template = max((r for r in rows if (r.get("cont") or "").strip() in revenue),
+                   key=lambda r: float(r["st_c"]))
+    big = float(template["st_c"])
+    assert big > 100, "the shape proves nothing: largest mirrored 709 row is %.2f" % big
+    n_real = len(revenue)
+    for i in range(n_real + 3):
+        storno = dict(template)
+        storno["cont"] = "%s.S%02d" % (template["cont"], i)
+        for col in ("r_d", "r_c", "st_d", "st_c"):
+            if storno.get(col) not in (None, ""):
+                storno[col] = -0.01
+        for col in ("si_d", "si_c", "sf_d", "sf_c"):
+            if col in storno:
+                storno[col] = 0.0
+        rows.append(storno)
+    decision = tbp.contra_reading(rows).convention
+    fam = decision["families"][tbp.CONTRA_FAMILY_REVENUE]
+    _WORK_RULE["documents"].add(SYNTHETIC_DOCS[3])
+    _WORK_RULE["checks"] += 1
+    negative = sum(1 for r in rows if (r.get("cont") or "").startswith(template["cont"] + ".S"))
+    assert negative > n_real, (negative, n_real)  # TC-3: a row-count majority WOULD say natural
+    assert fam["convention"] == tbp.CONTRA_ENTRY_MAGNITUDE, (
+        "SYNTHETIC %s: %d negative rows against %d positive, net %.2f — the "
+        "family was decided by row count" % (SYNTHETIC_DOCS[3], negative, n_real,
+                                             fam["mirrored_contra_sum"]))
+    with capsys.disabled():
+        print("SYNTHETIC %s: %d negative rows, %d positive, net %.2f -> %s"
+              % (SYNTHETIC_DOCS[3], negative, n_real, fam["mirrored_contra_sum"],
+                 fam["convention"]))
+
+
 def test_zz_scope_and_work(capsys):
     books = len([c for c in _xlsx_cases() if _parse(c) is not None]) + 1 + len(_local_books())
-    units = books + _WORK["rows_checked"] + _WORK["metamorphic"]
+    units = books + _WORK["rows_checked"] + _WORK["metamorphic"] + _WORK_RULE["checks"]
     with capsys.disabled():
+        print("SYNTHETIC decision-rule documents (test-built from the retail corpus rows): %s"
+              % "; ".join(sorted(_WORK_RULE["documents"])))
         print("GATE-WORK statements-anchor-gap units=%d" % units)
+    assert len(_WORK_RULE["documents"]) == len(SYNTHETIC_DOCS), _WORK_RULE["documents"]
     assert units > 0

@@ -49,6 +49,9 @@ PARSER_VERSION = "tb_parser_v6"
 # reductions counted twice (retail missed account 121 by 2.04M); the bump
 # is what lets a re-processing sweep tell a repaired period from a stale
 # one, and clears the reconcile suppression key as any version change does.
+# Same version, same repair round: each contra FAMILY (609 cost reductions,
+# 709 revenue reductions) is decided by its own mirrored rows, so a mixed
+# document is read correctly on both and served as `mixed` (B4V-7c).
 # v5 (2026-08-19, found by the Hypothesis property suite P3/P4): sign=−1
 # contra rules (129/169/269, 28x/29x/39x/49x/59x) now emit SIGNED closing
 # math in `accounts_to_assemble_shape` instead of the magnitude of
@@ -162,6 +165,36 @@ def _is_mirrored(eff_d: float, eff_c: float) -> bool:
     return eff_d != 0 and round(eff_d - eff_c, 2) == 0
 
 
+#: The two contra FAMILIES a document prints (plan/2 B4 repair, B4V-7c):
+#: reductions received against cost (609, expense_negative) and reductions
+#: granted against revenue (709, revenue_negative). Each family's OWN
+#: mirrored rows decide how that family is read — still the document
+#: deciding, never a row — so a file whose 709 rows print natural-signed
+#: while its 609 rows print entry magnitudes is read correctly on both,
+#: and is served as CONTRA_MIXED rather than forced onto one net.
+CONTRA_FAMILY_COST = "cost_reductions"
+CONTRA_FAMILY_REVENUE = "revenue_reductions"
+CONTRA_MIXED = "mixed"
+
+
+def _pl_contra_family(code: str, bucket: str, *, credit_pos_pl,
+                      debit_pos_pl) -> Optional[str]:
+    """The contra family of an account that is contra to its bucket, else
+    None. Same declared-nature reading as :func:`_pl_contra_to_bucket`."""
+    from engine.canonical import SignMeaning, bucket_by_name
+    from .canonical_adapter import _canonical_bucket_for_ras
+
+    leaf = _canonical_bucket_for_ras(code)
+    declared = bucket_by_name(leaf) if leaf else None
+    if declared is None:
+        return None
+    if declared.sign_meaning == SignMeaning.EXPENSE_NEGATIVE and bucket in debit_pos_pl:
+        return CONTRA_FAMILY_COST
+    if declared.sign_meaning == SignMeaning.REVENUE_NEGATIVE and bucket in credit_pos_pl:
+        return CONTRA_FAMILY_REVENUE
+    return None
+
+
 def _pl_contra_to_bucket(code: str, bucket: str, *, credit_pos_pl,
                          debit_pos_pl) -> bool:
     """True when the account's economic nature is opposite to its statement
@@ -189,11 +222,22 @@ def _pl_contra_to_bucket(code: str, bucket: str, *, credit_pos_pl,
     return False
 
 
+def _convention_of(rows: int, total: float) -> str:
+    if rows == 0 or total == 0:
+        return CONTRA_NOT_DECIDED
+    return CONTRA_ENTRY_MAGNITUDE if total > 0 else CONTRA_NATURAL_SIGNED
+
+
 def decide_contra_convention(tb_rows, has_any_cumulative: bool, bucket_for,
-                             contra_to_bucket) -> Dict[str, Any]:
-    """The document's mirrored-contra sign convention, with its evidence."""
+                             contra_to_bucket, family_of=None) -> Dict[str, Any]:
+    """The document's mirrored-contra sign convention, with its evidence.
+
+    With ``family_of`` each contra family is decided from its OWN mirrored
+    rows (``families``); ``convention`` is the families' common decision,
+    CONTRA_MIXED when they disagree."""
     rows = 0
     total = 0.0
+    fam = {}  # type: Dict[str, List[float]]
     if has_any_cumulative:
         for r in tb_rows:
             code = (r.get("cont") or "").strip()
@@ -208,15 +252,28 @@ def decide_contra_convention(tb_rows, has_any_cumulative: bool, bucket_for,
                 continue
             rows += 1
             total += st_c
+            family = family_of(code, rule.bucket) if family_of else None
+            if family:
+                entry = fam.setdefault(family, [0, 0.0])
+                entry[0] += 1
+                entry[1] += st_c
     total = round(total, 2)
-    if rows == 0 or total == 0:
-        convention = CONTRA_NOT_DECIDED
-    elif total > 0:
-        convention = CONTRA_ENTRY_MAGNITUDE
-    else:
-        convention = CONTRA_NATURAL_SIGNED
+    convention = _convention_of(rows, total)
+    families = dict(
+        (name, {"convention": _convention_of(n, round(t, 2)),
+                "mirrored_contra_rows": n, "mirrored_contra_sum": round(t, 2)})
+        for name, (n, t) in sorted(fam.items()))
+    if family_of is not None:
+        decided = set(f["convention"] for f in families.values()
+                      if f["convention"] != CONTRA_NOT_DECIDED)
+        if len(decided) > 1:
+            convention = CONTRA_MIXED
+        elif len(decided) == 1:
+            convention = decided.pop()
+        else:
+            convention = CONTRA_NOT_DECIDED
     return {"convention": convention, "mirrored_contra_rows": rows,
-            "mirrored_contra_sum": total}
+            "mirrored_contra_sum": total, "families": families}
 
 
 #: The statement buckets a class-6/7 row lands in, by natural side. Module
@@ -257,8 +314,6 @@ class ContraReading:
     def reads_as_reduction(self, code: str, eff_d: float, eff_c: float) -> bool:
         """True when the printed value of this mirrored row is the
         reduction itself and must enter its bucket negated."""
-        if self.convention["convention"] != CONTRA_ENTRY_MAGNITUDE:
-            return False
         if not _is_mirrored(eff_d, eff_c):
             return False
         from . import chart_of_accounts as _ro_coa  # lazy: the package imports this module
@@ -266,9 +321,17 @@ class ContraReading:
         rule = _ro_coa.bucket_for(code)
         if not rule:
             return False
-        return _pl_contra_to_bucket(
+        family = _pl_contra_family(
             code, rule.bucket, credit_pos_pl=PL_CREDIT_BUCKETS,
             debit_pos_pl=PL_DEBIT_BUCKETS)
+        if family is None:
+            return False
+        # The row's OWN family decides (B4V-7c): a natural-signed 709 is
+        # never negated because the document's 609 rows print magnitudes.
+        decided = (self.convention.get("families") or {}).get(family)
+        if decided is None:
+            return self.convention["convention"] == CONTRA_ENTRY_MAGNITUDE
+        return decided["convention"] == CONTRA_ENTRY_MAGNITUDE
 
 
 def contra_reading(tb_rows) -> ContraReading:
@@ -283,8 +346,13 @@ def contra_reading(tb_rows) -> ContraReading:
             code, bucket, credit_pos_pl=PL_CREDIT_BUCKETS,
             debit_pos_pl=PL_DEBIT_BUCKETS)
 
+    def _family(code: str, bucket: str) -> Optional[str]:
+        return _pl_contra_family(
+            code, bucket, credit_pos_pl=PL_CREDIT_BUCKETS,
+            debit_pos_pl=PL_DEBIT_BUCKETS)
+
     return ContraReading(decide_contra_convention(
-        rows, has_cumulative_block(rows), _ro_coa.bucket_for, _contra))
+        rows, has_cumulative_block(rows), _ro_coa.bucket_for, _contra, _family))
 
 
 # ─── Format detection (magic bytes, not extension) ──────────────────────────
