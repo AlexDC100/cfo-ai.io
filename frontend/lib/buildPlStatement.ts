@@ -405,16 +405,30 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   void cleanEbitda;
   void operatingRevenueExclCIP;
   const cm = args.canonicalMargins;
+  // PER MARGIN, NOT PER OBJECT (2026-09-21). `canonicalMargins` is a memo that
+  // always returns an OBJECT whose fields may be null, so `cm ? canonical :
+  // arithmetic` always took the canonical branch and the arithmetic branch
+  // below was dead code — the real fallback was `?? 0`, and an absent margin
+  // rendered as 0.00%. Each margin now falls back on its own, and refuses
+  // (null) when neither the engine row nor the operands are there.
+  const marginOrNull = (canonical: number | null | undefined,
+                        numerator: number, denominator: number): number | null => {
+    if (typeof canonical === "number" && Number.isFinite(canonical)) return canonical;
+    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0) {
+      return numerator / denominator;
+    }
+    return null;
+  };
   const keyMargins: PLKeyMargin[] = cm
     ? [
         {
           label: "EBITDA margin",
-          value: cm.ebitdaMargin ?? 0,
+          value: marginOrNull(cm.ebitdaMargin, ebitda, totalOperatingRevenue),
           pct: true,
         },
         {
           label: "Net margin",
-          value: cm.netMargin ?? 0,
+          value: marginOrNull(cm.netMargin, netProfitStatutory, totalOperatingRevenue),
           pct: true,
         },
       ]
@@ -754,16 +768,25 @@ export function buildPLStatementFromAggregates(
   // Aggregates-path mirror.
   void cleanEbitda;
   void operatingRevExclCIP;
+  // Per margin, not per object — see the same repair in buildPLStatement above.
+  const marginOrNullAgg = (canonical: number | null | undefined,
+                           numerator: number, denominator: number): number | null => {
+    if (typeof canonical === "number" && Number.isFinite(canonical)) return canonical;
+    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0) {
+      return numerator / denominator;
+    }
+    return null;
+  };
   const keyMargins: PLKeyMargin[] = canonicalMargins
     ? [
         {
           label: "EBITDA margin",
-          value: canonicalMargins.ebitdaMargin ?? 0,
+          value: marginOrNullAgg(canonicalMargins.ebitdaMargin, ebitda, totalOperatingRevenue),
           pct: true,
         },
         {
           label: "Net margin",
-          value: canonicalMargins.netMargin ?? 0,
+          value: marginOrNullAgg(canonicalMargins.netMargin, netProfitStatutory, totalOperatingRevenue),
           pct: true,
         },
       ]

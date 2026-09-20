@@ -26,7 +26,10 @@
 //   · EBITDA     `assembled_pl.ebitda_statutory` when the engine served
 //                it, else the builder's subtotal. The field path IS the
 //                source; a reader with the /api/period JSON can open it.
-//   · profit     `calculated_metrics.net_income_statutory`. Account 121
+//   · profit     `assembled_pl.net_income_statutory` when the engine
+//                served it, else `calculated_metrics.net_income_statutory`
+//                — the same rung order `headlineFigures` picks the
+//                VALUE with. Account 121
 //                is claimed ONLY when the envelope's own
 //                `source_anchor.closing_result` names the codes AND its
 //                cents equal the figure — the anchor is the payload's
@@ -156,6 +159,21 @@ function closingAnchor(cbs: CanonicalBs | undefined): { codes: string[]; cents: 
 
 function profitProvenance(input: HeadlineProvenanceInput): AmountProvenance | null {
   const { pl, statements, metrics, values, sourceDocumentFilename, periodLabel } = input;
+  // The envelope's own anchored figure, FIRST — the same rung order
+  // `headlineFigures.resolveHeadlineNetProfit` picks the VALUE with, so
+  // the card cannot print a figure this module then fails to place.
+  // Account 121 is still claimed only when the envelope's own
+  // `source_anchor.closing_result` names the codes AND its cents equal
+  // the figure; the field path alone is claimed otherwise.
+  const served = statements?.assembled_pl?.net_income_statutory;
+  if (typeof served === "number" && sameCents(served, values.profit)) {
+    const a = closingAnchor(statements?.canonical_bs);
+    return provenanceOf({
+      source: joinSource(sourceDocumentFilename, "assembled_pl.net_income_statutory"),
+      accounts: a && sameCents(a.cents / 100, values.profit) ? a.codes.join(", ") : undefined,
+      period: periodLabel ?? undefined,
+    });
+  }
   const row = metrics.find((m) => m.name === "net_income_statutory");
   if (row && typeof row.value === "number" && sameCents(row.value, values.profit)) {
     const anchor = closingAnchor(statements?.canonical_bs);

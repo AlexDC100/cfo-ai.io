@@ -49,7 +49,11 @@ export interface PLSection {
 
 export interface PLKeyMargin {
   label: string;
-  value: number;
+  /** null = REFUSED. A margin whose operands the payload does not carry has no
+   *  value, and 0.00% is a different claim: it says the company earned nothing.
+   *  Measured 2026-09-21 — with the canonical rows absent this block printed
+   *  "Net margin 0.00%" beside a net profit of 7,533,676 on the same screen. */
+  value: number | null;
   pct: boolean;
 }
 
