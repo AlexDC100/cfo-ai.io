@@ -31,19 +31,37 @@ function finite(v: unknown): number | null {
 /**
  * The net profit the dashboard prints.
  *
- * Order:
+ * Order — the SAME order `financialReport`'s `anchored()` resolver has
+ * used since 2026-09-07, so the card and the sentence under it ("… net
+ * profit as filed") cannot name two numbers:
+ *
  *   1. `assembled_pl.net_income_statutory` — the engine's account-121
- *      anchor, re-resolved on every request.
- *   2. `calculated_metrics.net_income_statutory` — the persisted snapshot
- *      of the same concept.
- *   3. the P&L builder's own statutory figure, then its operational one —
- *      all a source with no envelope ever has.
+ *      anchor. Re-resolved on EVERY request, which is why it outranks
+ *      rung 2: `calculated_metrics` is a snapshot `stage_compute` wrote
+ *      once, and a period analysed before the anchor shipped still
+ *      carries the pre-anchor value there while its envelope is served
+ *      anchored.
+ *   2. `calculated_metrics.net_income_statutory` — that snapshot.
+ *   3. the P&L builder's own figure. This is a class-6/7 RECONSTRUCTION
+ *      wearing the word "statutory", and on the four firm books it is
+ *      not the filed result:
+ *
+ *        book        account 121      builder      factor
+ *        agras       7,533,676.02   14,106,102.03   1.87x
+ *        carniprod   1,435,533.59    5,843,449.04   4.07x
+ *        realestate   −801,604.14  −30,391,418.38  37.91x
+ *        retail      3,205,212.62    1,161,957.98   0.36x
+ *
+ *      It is the right answer only for a source that has no envelope at
+ *      all (the public-company adapter), never a preference over one.
  */
 export function resolveHeadlineNetProfit(
   statements: HeadlineStatementsLike | null | undefined,
   metrics: readonly PeriodMetric[] | null | undefined,
   pl: HeadlinePlLike,
 ): number {
+  const fromEnvelope = finite((statements?.assembled_pl ?? {})["net_income_statutory"]);
+  if (fromEnvelope !== null) return fromEnvelope;
   const row = (metrics ?? []).find((m) => m.name === "net_income_statutory");
   const fromMetrics = finite(row?.value);
   if (fromMetrics !== null) return fromMetrics;
