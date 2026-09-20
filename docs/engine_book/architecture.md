@@ -47,7 +47,7 @@ graph LR
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
-    pkg_forecast["forecast (9 modules)"]
+    pkg_forecast["forecast (11 modules)"]
     pkg_forecast_drivers["forecast_drivers (7 modules)"]
     pkg_forecast_serving["forecast_serving (6 modules)"]
     pkg_frontends["frontends (11 modules)"]
@@ -107,11 +107,12 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_comparatives -->|1| pkg_serving
     pkg_consensus -->|1| pkg_core
     pkg_consensus -->|1| pkg_frontends
     pkg_consensus -->|1| pkg_interp
     pkg_consensus -->|1| pkg_passes
-    pkg_country_packs -->|2| pkg_canonical
+    pkg_country_packs -->|3| pkg_canonical
     pkg_country_packs -->|1| pkg_comparatives
     pkg_country_packs -->|1| pkg_confidence
     pkg_country_packs -->|1| pkg_consensus
@@ -128,7 +129,9 @@ graph LR
     pkg_firm -->|2| pkg_api
     pkg_firm -->|1| pkg_serving
     pkg_forecast -->|1| pkg_canonical
+    pkg_forecast -->|1| pkg_ratios
     pkg_forecast -->|1| pkg_serving
+    pkg_forecast_drivers -->|2| pkg_forecast
     pkg_forecast_drivers -->|1| pkg_insights
     pkg_forecast_serving -->|1| pkg_ai
     pkg_frontends -->|1| pkg_ai_lane
@@ -355,6 +358,7 @@ declaration is the supply-chain lock's job to reject).
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas) |
 | `firm` | yaml (pyyaml) |
+| `forecast` | yaml (pyyaml) |
 | `forecast_drivers` | yaml (pyyaml) |
 | `frontends` | pandas (pandas) |
 | `insights` | yaml (pyyaml) |
