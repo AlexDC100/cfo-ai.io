@@ -29,10 +29,11 @@ from pydantic import BaseModel
 
 from . import _supabase
 from . import _org
+from . import _benchmark_engine
 from ._benchmark_engine import build_benchmark_report
 # F3.1e: CAEN map moved into the Romania country pack.
 from engine.country_packs.ro_romania.caen_industry_map import caen_to_category, caen_label_fallback
-from ._industry_classifier import suggest_caen_code
+from ._industry_classifier import classify_cost_structure, cost_structure_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -46,21 +47,20 @@ def _require_jwt(authorization: Optional[str]) -> str:
 
 
 def _load_period_signals(jwt: str, period_id: str) -> Dict[str, float]:
-    """Load and flatten the per-period signals the industry classifier needs.
+    """Load the per-period signals the industry classifier reads.
 
-    Shared by `/api/benchmarks/suggest/{period_id}` (user-facing suggest
-    endpoint) and the internal confident auto-detect inside
-    `_resolve_effective_caen`. Single-sourcing the input shape keeps
-    suggest and auto-resolve in lock-step — a change in classifier
-    inputs only edits one site.
+    One authority for the shape: ``_industry_classifier.cost_structure_metrics``
+    — the same flattening ``_industry_detection.detect_industry_for_period``
+    uses. This loader used to keep its own copy that pre-filled ``cogs``,
+    ``depreciation_amortization`` and the four opex lines with 0 when the
+    period had NO PL line items; measured 2026-09-19, a Scandia-shaped
+    revenue-only period then reached ``suggest_caen_code`` as six "measured"
+    zeros, rule 6820 (`cogs < 0.05 and personnel < 0.10`) fired at 0.7 —
+    exactly ``_AUTODETECT_MIN_CONFIDENCE`` — and GET /api/benchmarks/report
+    auto-assigned real estate to a period with no cost lines at all. With
+    no PL line items the cost lines are now ABSENT and the classifier
+    refuses with their names.
     """
-    # Imported lazily to keep the module-level import surface small —
-    # `_benchmark_engine` pulls heavyweight statistics deps.
-    from ._benchmark_engine import (
-        OPEX_PERSONNEL_PREFIXES, OPEX_ENERGY_PREFIXES, OPEX_RENT_PREFIXES,
-        OPEX_EXTERNAL_SERVICES_PREFIXES, _sum_line_items_by_prefix,
-    )
-
     with _supabase.per_user(jwt) as client:
         metrics_rows = client.select(
             "calculated_metrics",
@@ -72,38 +72,7 @@ def _load_period_signals(jwt: str, period_id: str) -> Dict[str, float]:
             filters={"period_id": f"eq.{period_id}"},
             columns="statement,bucket,ro_account_code,amount",
         )
-
-    flat: Dict[str, float] = {}
-    for r in metrics_rows:
-        name = r.get("name")
-        val = r.get("value")
-        if name and val is not None:
-            try:
-                flat[name] = float(val)
-            except (TypeError, ValueError):
-                pass
-    bucket_sums: Dict[str, float] = {}
-    for li in line_items:
-        if li.get("statement") != "PL":
-            continue
-        b = (li.get("bucket") or "").strip()
-        try:
-            bucket_sums[b] = bucket_sums.get(b, 0.0) + float(li.get("amount") or 0)
-        except (TypeError, ValueError):
-            pass
-    if "revenue" in bucket_sums and "total_operating_revenue" not in flat:
-        flat["total_operating_revenue"] = (
-            bucket_sums["revenue"]
-            + bucket_sums.get("capitalizedOwnWork", 0)
-            + bucket_sums.get("otherIncome", 0)
-        )
-    flat.setdefault("cogs", bucket_sums.get("cogs", 0))
-    flat.setdefault("depreciation_amortization", bucket_sums.get("depreciation", 0))
-    flat["opex_personnel"] = _sum_line_items_by_prefix(line_items, OPEX_PERSONNEL_PREFIXES)
-    flat["opex_energy"] = _sum_line_items_by_prefix(line_items, OPEX_ENERGY_PREFIXES)
-    flat["opex_rent"] = _sum_line_items_by_prefix(line_items, OPEX_RENT_PREFIXES)
-    flat["opex_external_services"] = _sum_line_items_by_prefix(line_items, OPEX_EXTERNAL_SERVICES_PREFIXES)
-    return flat
+    return cost_structure_metrics(metrics_rows, line_items)
 
 
 # Minimum confidence the per-period auto-detect must achieve before a
@@ -114,7 +83,9 @@ def _load_period_signals(jwt: str, period_id: str) -> Dict[str, float]:
 _AUTODETECT_MIN_CONFIDENCE = 0.7
 
 
-def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
+def _resolve_effective_caen(
+    *, jwt: str, period_id: str,
+) -> tuple[str, str, Optional[Dict[str, Any]]]:
     """Resolve the CAEN to render benchmarks against for a single period.
 
     Resolution order — there is intentionally NO silent fallback to the
@@ -129,16 +100,22 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
        the chosen industry has a CAEN that exists in the legacy
        `industry_benchmarks` catalog.
 
-    2. **Confident auto-detect** — run `suggest_caen_code()` against
-       THIS period's own metrics + line items. Accepted only at
+    2. **Confident auto-detect** — run `classify_cost_structure()` against
+       THIS period's own metrics + PL line items (the
+       `cost_structure_metrics` flattening). Accepted only at
        confidence ≥ `_AUTODETECT_MIN_CONFIDENCE` (single-rule match)
        AND when the suggested CAEN is seeded in the benchmark catalog.
 
     3. **Unknown** — return `("", "unknown")`. The caller fires the
        `caen_not_set` gate so the FE opens IndustryPicker.
 
-    Returns ``(caen_code, source)`` where ``source`` is one of
-    ``"period_assignment"``, ``"auto_detected"``, or ``"unknown"``.
+    Returns ``(caen_code, source, refusal)`` where ``source`` is one of
+    ``"period_assignment"``, ``"period_assignment_unseeded"``,
+    ``"auto_detected"``, or ``"unknown"``, and ``refusal`` is the
+    classifier's ``{code, component, inputs, text}`` when step 2 could not
+    evaluate its rules (absent cost lines, no revenue) — served on the
+    ``caen_not_set`` gate so the picker can say why no industry was
+    suggested — else None.
     """
     try:
         # ── Step 1: per-period user choice (authoritative) ──────────
@@ -187,18 +164,23 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
                         limit=1,
                     )
                     if hits:
-                        return str(caen), "period_assignment"
+                        return str(caen), "period_assignment", None
                 if first_caen:
                     # User-picked industry exists but has no seeded
                     # benchmarks. Return the picked CAEN so the FE shows
                     # the honest "not calibrated" disclosure, not a
                     # silently-different auto-detected industry.
-                    return first_caen, "period_assignment_unseeded"
+                    return first_caen, "period_assignment_unseeded", None
 
         # ── Step 2: confident auto-detect from this period's data ───
+        # The classifier evaluates its rules only over MEASURED cost lines;
+        # a refusal (absent lines, no revenue) is carried to the gate.
+        refusal: Optional[Dict[str, Any]] = None
         try:
             signals = _load_period_signals(jwt, period_id)
-            caen, _label, confidence = suggest_caen_code(signals)
+            classification = classify_cost_structure(signals)
+            caen, confidence = classification.caen, classification.confidence
+            refusal = classification.refusal
         except Exception:
             logger.exception(
                 "auto-detect failed for period=%s; deferring to picker",
@@ -218,10 +200,10 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
                     limit=1,
                 )
                 if hits:
-                    return str(caen), "auto_detected"
+                    return str(caen), "auto_detected", None
 
         # ── Step 3: unknown — defer to user via the picker gate ─────
-        return "", "unknown"
+        return "", "unknown", refusal
     except Exception:
         # Belt-and-braces: any failure here MUST NOT serve a wrong
         # industry. Surfacing the picker is the safe default.
@@ -229,7 +211,7 @@ def _resolve_effective_caen(*, jwt: str, period_id: str) -> tuple[str, str]:
             "_resolve_effective_caen failed for period=%s; treating as unknown",
             period_id,
         )
-        return "", "unknown"
+        return "", "unknown", None
 
 
 def _resolve_user_org(jwt: str, org_id: Optional[str] = None) -> tuple[str, str]:
@@ -255,6 +237,7 @@ def _resolve_user_org(jwt: str, org_id: Optional[str] = None) -> tuple[str, str]
 # assignment/{period_id}` instead, which IS what's live). `_load_period_
 # signals` stayed — `_resolve_effective_caen` below still calls it for the
 # Step-2 confident-auto-detect fallback, so it wasn't actually orphaned.
+# Since 2026-09-19 it delegates to `_industry_classifier.cost_structure_metrics`.
 
 
 def build_router() -> APIRouter:
@@ -306,20 +289,25 @@ def build_router() -> APIRouter:
                 single=True,
             )
 
-        caen_code, caen_source = _resolve_effective_caen(
+        caen_code, caen_source, caen_refusal = _resolve_effective_caen(
             jwt=jwt, period_id=period_id,
         )
 
         # Gate — surface the picker when we have no confident industry.
+        # `refusal` says why no industry could be suggested from the
+        # period's own cost lines (None when the rules ran and none, or
+        # more than one, matched).
         if not caen_code:
             return {
                 "error": "caen_not_set",
                 "message": (
                     "Industry is not set for this period. Open the "
                     "industry picker to choose one."
+                    + (f" {caen_refusal['text']}" if caen_refusal else "")
                 ),
                 "period_id": period_id,
                 "org_id": org_id,
+                "refusal": caen_refusal,
             }
         logger.info(
             "benchmark_report period=%s caen=%s source=%s",
@@ -353,7 +341,26 @@ def build_router() -> APIRouter:
                         payload = json.loads(payload)
                     except json.JSONDecodeError:
                         payload = None
-                if payload and not payload.get("error"):
+                # REVISION CHECK (2026-09-20). The comment above claims the
+                # key "never goes stale incorrectly" because re-analysis mints
+                # a new period_id — no longer true (CLAUDE.md §16: replace-month
+                # and adopt-empty-period reuse the SAME id), and never true for
+                # an ENGINE change, which mints nothing. The headline
+                # net-income fix shipped that day was still serving a report
+                # generated on 9 September. A cached row from an older engine
+                # is dropped and recomputed; `_benchmark_engine.REPORT_REVISION`
+                # is bumped whenever what reaches the screen changes.
+                stale_revision = (
+                    isinstance(payload, dict)
+                    and payload.get("report_revision") != _benchmark_engine.REPORT_REVISION
+                )
+                if stale_revision:
+                    logger.info(
+                        "[benchmarks] cached report for %s is revision %r, engine is %r — recomputing",
+                        period_id, (payload or {}).get("report_revision"),
+                        _benchmark_engine.REPORT_REVISION,
+                    )
+                elif payload and not payload.get("error"):
                     payload["cached"] = True
                     payload["generated_at"] = cached[0].get("generated_at")
                     return payload

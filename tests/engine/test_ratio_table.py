@@ -118,11 +118,18 @@ DIVERGENT_LADDER_KEYS = frozenset({"dpo", "ccc", "asset_turnover", "debt_to_asse
 #: Every verdict the divergence changes on the committed books, MEASURED
 #: (book, variant, engine key) -> (engine verdict, FE verdict). Moving the
 #: badge to the pack changes exactly these, and nothing else.
+#:
+#: BAND RULING 2026-09-14 (ratios B4 step 1; CLAUDE.md Appendix A section 5).
+#: The pack table is the one band authority. debt_to_assets and
+#: asset_turnover keep the pack rungs (the methodology's "<40%" and
+#: "1.0-1.5x" support them); ccc keeps pack watch 90; dpo keeps its watch
+#: rung 30 but floors at `watch` (the methodology names no DPO failure
+#: threshold). So the agras (27 days) and retail (29 days) dpo rows, which
+#: graded critical on the pack before the floor, now agree with the FE, and
+#: the ONE verdict the switch still moves is retail debt_to_assets 39.7%,
+#: FE strong -> pack healthy. On the Scandia FY2025 book the switch moves
+#: no verdict (measured in ratios wave r1; no FE capture of it is committed).
 MEASURED_VERDICT_DIFFERENCES: Dict[Tuple[str, str, str], Tuple[str, str]] = {
-    ("agras", "served", "dpo"): ("critical", "watch"),
-    ("agras", "disputed", "dpo"): ("critical", "watch"),
-    ("retail", "served", "dpo"): ("critical", "watch"),
-    ("retail", "disputed", "dpo"): ("critical", "watch"),
     ("retail", "served", "debt_to_assets"): ("healthy", "strong"),
     ("retail", "disputed", "debt_to_assets"): ("healthy", "strong"),
 }
@@ -601,11 +608,20 @@ def test_a_period_with_no_metric_rows_serves_the_metrics_own_formula(route_bodie
         if "assembled_pl.net_income_statutory" not in sources("net_margin") \
                 or "incomeStatement.taxExpense" in sources("net_margin"):
             failures.append("%s net_margin numerator is not the anchor: %s" % (book, sources("net_margin")))
+        # Interest coverage is EBIT ÷ interest (the methodology, CLAUDE.md
+        # Appendix A section 5): EBIT = EBITDA − D&A, so the operands name
+        # depreciation. EBITDA ÷ interest is the separate ebitda_to_interest
+        # row, whose operands must NOT name depreciation.
         if rows["interest_coverage"]["value"] is not None and (
-                "incomeStatement.depreciationAmortization" in sources("interest_coverage")
+                "incomeStatement.depreciationAmortization" not in sources("interest_coverage")
                 or "incomeStatement.interestExpense" not in sources("interest_coverage")):
-            failures.append("%s interest_coverage is not EBITDA ÷ interest: %s" % (
+            failures.append("%s interest_coverage is not EBIT ÷ interest: %s" % (
                 book, sources("interest_coverage")))
+        if rows["ebitda_to_interest"]["value"] is not None and (
+                "incomeStatement.depreciationAmortization" in sources("ebitda_to_interest")
+                or "incomeStatement.interestExpense" not in sources("ebitda_to_interest")):
+            failures.append("%s ebitda_to_interest is not EBITDA ÷ interest: %s" % (
+                book, sources("ebitda_to_interest")))
         for key in ("dscr", "dscr_with_lt_principal"):
             if "assembled_pl.ebitda_statutory" not in sources(key):
                 failures.append("%s %s does not divide statutory EBITDA: %s" % (book, key, sources(key)))
@@ -751,6 +767,95 @@ BOUNDARY_CASES = (
 @pytest.mark.parametrize("ladder,higher,value,band", BOUNDARY_CASES)
 def test_a_value_on_a_rung_takes_that_rung(ladder, higher, value, band):
     assert T._grade(value, ladder, higher) == band
+
+
+def test_the_dpo_floor_is_pack_data_and_the_grader_reads_it(tables):
+    """A DPO below the watch rung grades watch, never critical, because the
+    PACK DEFINITION says so — not because the grader special-cases a key.
+
+    Reds AFTER the ruling on: the floor leaving the dpo definition (the
+    agras 27-day and retail 29-day rows go critical here AND in the verdict
+    gate above), a second key declaring a floor nobody ruled, the grader
+    ignoring a declared floor, or a floor outside LADDER_FLOORS being
+    accepted silently."""
+    floors = {k: v["floor"] for k, v in _GENERAL_SME_BAND_DEFINITIONS.items() if "floor" in v}
+    assert floors == {"dpo": "watch"}, floors
+    assert _GENERAL_SME_BAND_DEFINITIONS["dpo"]["watch"] == 30, "the watch rung forecast traversal walks to moved"
+    ladder = {"strong": "60", "healthy": "45", "watch": "30"}
+    assert T._grade(27.0, ladder, True, T.ladder_floor({"floor": "watch"}, ladder)) == "watch"
+    assert T._grade(27.0, ladder, True, T.ladder_floor({}, ladder)) == "critical"
+    with pytest.raises(ValueError):
+        T.ladder_floor({"floor": "strong"}, ladder)
+    seen = 0
+    for book in ("agras", "retail"):
+        for variant in VERDICT_VARIANTS:
+            row = _rows(tables[(book, variant)])["dpo"]
+            assert row["band_status"] == "graded" and float(row["value"]) < 30, (book, variant, row)
+            assert row["band"] == "watch", "%s/%s dpo %s days grades %s below the floor" % (
+                book, variant, row["value_q"], row["band"])
+            seen += 1
+    assert seen == 4
+
+
+def _regrade_from_the_served_row(row: Dict[str, Any]) -> str:
+    """The band a reader holding ONLY the served row would print: the first
+    rung (strong, healthy, watch — best first) the value reaches in the
+    row's direction, else the served `ladder_floor`. Spelled here, not
+    borrowed from the grader, so a grader and a row that agree by sharing a
+    mistake still meet a second reading."""
+    value = float(row["value"])
+    for name in ("strong", "healthy", "watch"):
+        if name not in row["ladder"]:
+            continue
+        rung = float(row["ladder"][name])
+        if (value >= rung) if row["higher_is_better"] else (value <= rung):
+            return name
+    return row["ladder_floor"]
+
+
+def _served_graded_rows(tables) -> List[Tuple[str, Dict[str, Any]]]:
+    import sys
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import _served_books as SB
+
+    out = [("%s/%s" % bv, r) for bv, t in tables.items() for r in t["rows"] if r["band_status"] == "graded"]
+    for name in SB.ALL_BOOKS:
+        table = SB.served_body(name)["assembled_metrics"]["ratio_table"]
+        out += [("%s/route" % name, r) for r in table["rows"] if r["band_status"] == "graded"]
+    return out
+
+
+def test_every_graded_row_regrades_from_its_served_ladder_and_floor_alone(tables):
+    """TC-10: the served document is enough to reproduce its own verdict.
+
+    Reds AFTER the repair on: a graded row serving no `ladder_floor` or one
+    outside LADDER_FLOORS; any graded row — firm fixtures in every variant,
+    and the REAL GET /api/period ratio_table of the four corpus books and
+    the Scandia baseline — whose served band is not what its served ladder
+    plus served floor give (the agras and retail dpo rows below watch 30 are
+    the rows a ladder-only reading gets wrong); the battery no longer
+    meeting a row that sits past its last rung on a declared floor (TC-3);
+    or a row that is not graded serving a floor."""
+    rows = _served_graded_rows(tables)
+    missing = sorted({(where, r["key"]) for where, r in rows if r.get("ladder_floor") not in T.LADDER_FLOORS})
+    assert not missing, "graded rows serving no floor: %s" % missing[:12]
+    wrong = sorted((where, r["key"], r["value_q"], r["band"], _regrade_from_the_served_row(r))
+                   for where, r in rows if _regrade_from_the_served_row(r) != r["band"])
+    assert not wrong, "served band is not the served ladder + floor (where, key, value, band, regrade): %s" % wrong
+    past_last_on_declared = sorted({(where, r["key"]) for where, r in rows
+                                    if r["ladder_floor"] == "watch" and r["band"] == "watch"
+                                    and "watch" in r["ladder"]
+                                    and not ((float(r["value"]) >= float(r["ladder"]["watch"]))
+                                             if r["higher_is_better"]
+                                             else (float(r["value"]) <= float(r["ladder"]["watch"])))})
+    assert {w.split("/")[0] for w, k in past_last_on_declared if k == "dpo"} >= {"agras", "retail"}, (
+        past_last_on_declared)
+    for table in tables.values():
+        for r in table["rows"]:
+            if r["band_status"] != "graded":
+                assert r["ladder_floor"] is None, (r["key"], r["band_status"], r["ladder_floor"])
 
 
 # ── the legacy tier ─────────────────────────────────────────────────────────

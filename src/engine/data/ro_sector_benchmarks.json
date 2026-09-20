@@ -1,0 +1,3310 @@
+{
+ "all_sizes_key": "all_sizes",
+ "min_peers": 5,
+ "prior_year": 2023,
+ "provenance": {
+  "build_command": "python scripts/build_ro_sector_benchmarks.py --manifest src/engine/benchmarks_ro/sources_fy2024.json --filings-dir <dir> --out src/engine/data/ro_sector_benchmarks.json",
+  "caen_revision": "CAEN Rev.2, as filed for the year",
+  "citation": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+  "counts": {
+   "rows_in_scope": 13660,
+   "rows_without_positive_turnover": 3786
+  },
+  "datasets": [
+   {
+    "dataset_id": "d3caacb6-2c08-445e-94e6-8d36d00ab250",
+    "dataset_slug": "situatii_financiare_2024",
+    "family": "BL",
+    "file_sha256": "6426a132816841ea7974ca1dc85370b6d2027662e71e228a2a252f8c7a8fd4d3",
+    "license_id": "CC-BY-4.0",
+    "resource_id": "f89140dc-20dd-494f-912a-d1a482188885",
+    "resource_url": "https://data.gov.ro/dataset/d3caacb6-2c08-445e-94e6-8d36d00ab250/resource/f89140dc-20dd-494f-912a-d1a482188885/download/web_bl_bs_sl_an2024.txt",
+    "row_count": 77669,
+    "spec_sha256": "07f42f7f7ef309036563a4963731a2fe7730ce52b573c7352c7b98d7b9bd4269",
+    "year": 2024
+   },
+   {
+    "dataset_id": "d3caacb6-2c08-445e-94e6-8d36d00ab250",
+    "dataset_slug": "situatii_financiare_2024",
+    "family": "UU",
+    "file_sha256": "0cc2496a17b3a7bf3405294ac26cda85f5aa2e258717027d63119e78492d21aa",
+    "license_id": "CC-BY-4.0",
+    "resource_id": "25098618-f6a5-4610-8c7f-c0bdb801635f",
+    "resource_url": "https://data.gov.ro/dataset/d3caacb6-2c08-445e-94e6-8d36d00ab250/resource/25098618-f6a5-4610-8c7f-c0bdb801635f/download/web_uu_an2024.txt",
+    "row_count": 822292,
+    "spec_sha256": "c24bcdbd423ebc5c6d619ac0a9ce5bb2ff21121c151336609d1fb6c4cfa0d8ef",
+    "year": 2024
+   },
+   {
+    "dataset_id": "7861a98f-4d5c-4faa-90d4-8e934ebd1782",
+    "dataset_slug": "situatii_financiare2023",
+    "family": "BL",
+    "file_sha256": "472c5966a01901f2ed0762506169ffa5c989b71d0060103aa21bda342e83a85a",
+    "license_id": "CC-BY-4.0",
+    "resource_id": "8c914899-cf2a-494c-9d3b-7f9f7faa47a3",
+    "resource_url": "https://data.gov.ro/dataset/7861a98f-4d5c-4faa-90d4-8e934ebd1782/resource/8c914899-cf2a-494c-9d3b-7f9f7faa47a3/download/web_bl_bs_sl_an2023.txt",
+    "row_count": 84173,
+    "spec_sha256": "07f42f7f7ef309036563a4963731a2fe7730ce52b573c7352c7b98d7b9bd4269",
+    "year": 2023
+   },
+   {
+    "dataset_id": "7861a98f-4d5c-4faa-90d4-8e934ebd1782",
+    "dataset_slug": "situatii_financiare2023",
+    "family": "UU",
+    "file_sha256": "aaea14932bff7eabfd14671e031a759146cc7c6e7f16c71bb99286c95ca94383",
+    "license_id": "CC-BY-4.0",
+    "resource_id": "ee5b6665-c096-4582-ada7-cc51a62c3c40",
+    "resource_url": "https://data.gov.ro/dataset/7861a98f-4d5c-4faa-90d4-8e934ebd1782/resource/ee5b6665-c096-4582-ada7-cc51a62c3c40/download/web_uu_an2023.txt",
+    "row_count": 860374,
+    "spec_sha256": "c24bcdbd423ebc5c6d619ac0a9ce5bb2ff21121c151336609d1fb6c4cfa0d8ef",
+    "year": 2023
+   }
+  ],
+  "license": "CC-BY-4.0",
+  "manifest": "src/engine/benchmarks_ro/sources_fy2024.json",
+  "method": {
+   "arithmetic": "decimal, precision 28, round half even; fractions to 6 places, days to 2",
+   "invalid_rows": "the strict reader aborts the build on any malformed row; none are skipped quietly",
+   "natural_person_forms": "absent by construction: families UU and BL are 'societati comerciale' per the portal's description file; any other family is refused",
+   "peer_set": "every filer in families UU and BL with a positive filed net turnover (I13) in the sector for the year; the subject company, if it filed there, is included",
+   "per_ratio_drop": "a row with an absent operand or a non-positive denominator is dropped from that ratio only and counted; nothing is imputed, an empty field is never zero",
+   "percentile": "linear interpolation between closest ranks",
+   "total_assets": "I1 + I2 + I6, all three required"
+  },
+  "publisher": "Ministerul Finantelor (CKAN organisation mfp), data.gov.ro",
+  "reader": "engine.public_ro (specs.resolve_spec, ingest.parse_bilant, ingest.derive_fields, ingest.check_license)"
+ },
+ "ratios": {
+  "current_asset_share": {
+   "company_basis": "current assets / total assets",
+   "filed_lines": [
+    "ACTIVE CIRCULANTE - TOTAL (I2)",
+    "ACTIVE IMOBILIZATE - TOTAL (I1)",
+    "ACTIVE CIRCULANTE - TOTAL (I2)",
+    "CHELTUIELI IN AVANS (I6)"
+   ],
+   "formula": "I2 / (I1 + I2 + I6)",
+   "unit": "fraction"
+  },
+  "equity_ratio": {
+   "company_basis": "total equity / total assets; same definition as the ratio card",
+   "filed_lines": [
+    "CAPITALURI - TOTAL (I10)",
+    "ACTIVE IMOBILIZATE - TOTAL (I1)",
+    "ACTIVE CIRCULANTE - TOTAL (I2)",
+    "CHELTUIELI IN AVANS (I6)"
+   ],
+   "formula": "I10 / (I1 + I2 + I6)",
+   "unit": "fraction"
+  },
+  "inventory_days_on_turnover": {
+   "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+   "filed_lines": [
+    "Stocuri (I3)",
+    "Cifra de afaceri neta (I13)"
+   ],
+   "formula": "I3 / I13 x 365",
+   "unit": "days"
+  },
+  "liabilities_to_assets": {
+   "company_basis": "TOTAL liabilities (datorii) / total assets. Deferred income (I8) and provisions (I9) sit outside I7. This is NOT the ratio card's debt / assets, which reads financial debt only",
+   "filed_lines": [
+    "DATORII (I7)",
+    "ACTIVE IMOBILIZATE - TOTAL (I1)",
+    "ACTIVE CIRCULANTE - TOTAL (I2)",
+    "CHELTUIELI IN AVANS (I6)"
+   ],
+   "formula": "I7 / (I1 + I2 + I6)",
+   "unit": "fraction"
+  },
+  "net_margin": {
+   "company_basis": "net result / net turnover; same definition as the ratio card",
+   "filed_lines": [
+    "Profit net (I18)",
+    "Pierdere neta (I19)",
+    "Cifra de afaceri neta (I13)"
+   ],
+   "formula": "(I18 - I19) / I13",
+   "unit": "fraction"
+  },
+  "receivables_days": {
+   "company_basis": "ALL receivables (creante) / net turnover x 365, not trade receivables only",
+   "filed_lines": [
+    "Creante (I4)",
+    "Cifra de afaceri neta (I13)"
+   ],
+   "formula": "I4 / I13 x 365",
+   "unit": "days"
+  },
+  "revenue_growth": {
+   "company_basis": "net turnover growth year on year",
+   "filed_lines": [
+    "Cifra de afaceri neta (I13)"
+   ],
+   "formula": "I13 (year) / I13 (prior year) - 1, joined by CUI, prior I13 > 0",
+   "unit": "fraction"
+  },
+  "roa": {
+   "company_basis": "net result / year-end total assets",
+   "filed_lines": [
+    "Profit net (I18)",
+    "Pierdere neta (I19)",
+    "ACTIVE IMOBILIZATE - TOTAL (I1)",
+    "ACTIVE CIRCULANTE - TOTAL (I2)",
+    "CHELTUIELI IN AVANS (I6)"
+   ],
+   "formula": "(I18 - I19) / (I1 + I2 + I6)",
+   "unit": "fraction"
+  },
+  "roe": {
+   "company_basis": "net result / YEAR-END equity. The ratio card uses average equity when a prior period exists; the company figure must be restated on year-end equity before it is set beside this band",
+   "filed_lines": [
+    "Profit net (I18)",
+    "Pierdere neta (I19)",
+    "CAPITALURI - TOTAL (I10)"
+   ],
+   "formula": "(I18 - I19) / I10, year-end equity, I10 > 0",
+   "unit": "fraction"
+  }
+ },
+ "refused_ratios": {
+  "cash_ratio": {
+   "reason": "the summary-level filing does not publish current liabilities"
+  },
+  "ccc": {
+   "reason": "the summary-level filing does not publish trade payables or cost of goods sold"
+  },
+  "current_ratio": {
+   "reason": "the summary-level filing does not publish current liabilities (I7 is total liabilities)"
+  },
+  "debt_to_assets": {
+   "reason": "the summary-level filing does not publish financial debt; see liabilities_to_assets"
+  },
+  "debt_to_equity": {
+   "reason": "the summary-level filing does not publish financial debt (I7 is total liabilities)"
+  },
+  "dio": {
+   "reason": "the summary-level filing does not publish operating cost; see inventory_days_on_turnover"
+  },
+  "dpo": {
+   "reason": "the summary-level filing does not publish trade payables or cost of goods sold"
+  },
+  "dscr": {
+   "reason": "the summary-level filing does not publish interest expense or debt service"
+  },
+  "ebit_margin": {
+   "reason": "the summary-level filing does not publish operating result"
+  },
+  "ebitda_margin": {
+   "reason": "the summary-level filing does not publish operating result or depreciation"
+  },
+  "gross_margin": {
+   "reason": "the summary-level filing does not publish cost of goods sold"
+  },
+  "interest_coverage": {
+   "reason": "the summary-level filing does not publish interest expense"
+  },
+  "net_debt_ebitda": {
+   "reason": "the summary-level filing does not publish financial debt or EBITDA"
+  },
+  "quick_ratio": {
+   "reason": "the summary-level filing does not publish current liabilities"
+  }
+ },
+ "schema": "ro_sector_benchmarks/1",
+ "sectors": {
+  "10": {
+   "caen": "10",
+   "cells": {
+    "10m_50m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 182,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.542867,
+       "n": 321,
+       "p25": 0.34044,
+       "p75": 0.736604,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 182,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.411607,
+       "n": 321,
+       "p25": 0.233739,
+       "p75": 0.603736,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 28.11,
+       "n": 501,
+       "p25": 13.84,
+       "p75": 55.79,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 182,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.541641,
+       "n": 321,
+       "p25": 0.361044,
+       "p75": 0.70732,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.0518,
+       "n": 503,
+       "p25": 0.018696,
+       "p75": 0.113122,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 36.12,
+       "n": 503,
+       "p25": 16.36,
+       "p75": 68.42,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 1,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.067598,
+       "n": 502,
+       "p25": -0.015772,
+       "p75": 0.196488,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 182,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.088685,
+       "n": 321,
+       "p25": 0.029303,
+       "p75": 0.193453,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 23
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.248222,
+       "n": 480,
+       "p25": 0.103803,
+       "p75": 0.462109,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 503
+    },
+    "1m_10m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 1512,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.525659,
+       "n": 1014,
+       "p25": 0.339392,
+       "p75": 0.734213,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 1512,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.422412,
+       "n": 1014,
+       "p25": 0.186465,
+       "p75": 0.648702,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 46,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 18.22,
+       "n": 2480,
+       "p25": 7.44,
+       "p75": 43.41,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 1512,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.548413,
+       "n": 1014,
+       "p25": 0.323785,
+       "p75": 0.789139,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.047056,
+       "n": 2526,
+       "p25": 0.007068,
+       "p75": 0.123921,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 6,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 25.34,
+       "n": 2520,
+       "p25": 9.02,
+       "p75": 62.45,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 47,
+        "nonpositive_denominator": 3
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.045794,
+       "n": 2476,
+       "p25": -0.049772,
+       "p75": 0.225912,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 1512,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.08644,
+       "n": 1014,
+       "p25": 0.008382,
+       "p75": 0.238967,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 293
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.274367,
+       "n": 2233,
+       "p25": 0.077985,
+       "p75": 0.731564,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 2526
+    },
+    "50m_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 40,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.525126,
+       "n": 164,
+       "p25": 0.359151,
+       "p75": 0.65638,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 40,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.473267,
+       "n": 164,
+       "p25": 0.290842,
+       "p75": 0.601198,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 31.34,
+       "n": 204,
+       "p25": 19.48,
+       "p75": 61.91,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 40,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.483369,
+       "n": 164,
+       "p25": 0.352573,
+       "p75": 0.671477,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.051062,
+       "n": 204,
+       "p25": 0.018828,
+       "p75": 0.097664,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 39.77,
+       "n": 204,
+       "p25": 23.12,
+       "p75": 66.77,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.056726,
+       "n": 204,
+       "p25": -0.014773,
+       "p75": 0.146524,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 40,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.077963,
+       "n": 164,
+       "p25": 0.028077,
+       "p75": 0.169287,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 4
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.19872,
+       "n": 200,
+       "p25": 0.084997,
+       "p75": 0.348749,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 204
+    },
+    "all_sizes": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 7084,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.534461,
+       "n": 2785,
+       "p25": 0.325248,
+       "p75": 0.767107,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 7084,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.332879,
+       "n": 2785,
+       "p25": 0.012716,
+       "p75": 0.598367,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 1327,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 25.66,
+       "n": 8547,
+       "p25": 8.95,
+       "p75": 73.69,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 7084,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.614761,
+       "n": 2785,
+       "p25": 0.354223,
+       "p75": 0.923571,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.022924,
+       "n": 9874,
+       "p25": -0.115957,
+       "p75": 0.117171,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 898,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 26.56,
+       "n": 8976,
+       "p25": 7.25,
+       "p75": 81.86,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 1000,
+        "nonpositive_denominator": 65
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.038123,
+       "n": 8809,
+       "p25": -0.124736,
+       "p75": 0.300225,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 7084,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.05218,
+       "n": 2785,
+       "p25": -0.021717,
+       "p75": 0.194132,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 3508
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.255634,
+       "n": 6366,
+       "p25": 0.050711,
+       "p75": 0.758401,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 9874
+    },
+    "gte_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 6,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.50028,
+       "n": 51,
+       "p25": 0.354736,
+       "p75": 0.602705,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 6,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.535071,
+       "n": 51,
+       "p25": 0.391705,
+       "p75": 0.701095,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 36.11,
+       "n": 57,
+       "p25": 21.16,
+       "p75": 60.61,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 6,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.42841,
+       "n": 51,
+       "p25": 0.253501,
+       "p75": 0.567436,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.062837,
+       "n": 57,
+       "p25": 0.028063,
+       "p75": 0.090875,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 44.93,
+       "n": 57,
+       "p25": 28.71,
+       "p75": 65.84,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.052217,
+       "n": 57,
+       "p25": 0.004107,
+       "p75": 0.107682,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 6,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.114135,
+       "n": 51,
+       "p25": 0.043559,
+       "p75": 0.162638,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.206456,
+       "n": 57,
+       "p25": 0.08389,
+       "p75": 0.307781,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 57
+    },
+    "lt_1m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 5344,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.550481,
+       "n": 1235,
+       "p25": 0.289637,
+       "p75": 0.839533,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 5344,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.072502,
+       "n": 1235,
+       "p25": -0.49743,
+       "p75": 0.493128,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 1279,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 30.71,
+       "n": 5305,
+       "p25": 8.99,
+       "p75": 103.51,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 5344,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.789936,
+       "n": 1235,
+       "p25": 0.403751,
+       "p75": 1.412875,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.005095,
+       "n": 6584,
+       "p25": -0.320896,
+       "p75": 0.115286,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 892,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 24.56,
+       "n": 5692,
+       "p25": 5.5,
+       "p75": 108.19,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 952,
+        "nonpositive_denominator": 62
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.020601,
+       "n": 5570,
+       "p25": -0.216674,
+       "p75": 0.391357,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 5344,
+        "nonpositive_denominator": 5
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.007121,
+       "n": 1235,
+       "p25": -0.216429,
+       "p75": 0.162261,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 3188
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.262552,
+       "n": 3396,
+       "p25": 0.017043,
+       "p75": 0.864998,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 6584
+    }
+   },
+   "label": "Industria alimentara",
+   "level": "caen2"
+  },
+  "1011": {
+   "caen": "1011",
+   "cells": {
+    "10m_50m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 23,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.613909,
+       "n": 42,
+       "p25": 0.347241,
+       "p75": 0.763373,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 23,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.439666,
+       "n": 42,
+       "p25": 0.18668,
+       "p75": 0.553144,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 1,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 17.11,
+       "n": 64,
+       "p25": 8.05,
+       "p75": 39.63,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 23,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.556109,
+       "n": 42,
+       "p25": 0.411282,
+       "p75": 0.801258,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.031193,
+       "n": 65,
+       "p25": 0.015143,
+       "p75": 0.0659,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 29.92,
+       "n": 65,
+       "p25": 11.88,
+       "p75": 47.61,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.087344,
+       "n": 65,
+       "p25": 0.006037,
+       "p75": 0.166967,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 23,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.096004,
+       "n": 42,
+       "p25": 0.041367,
+       "p75": 0.239194,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 2
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.29193,
+       "n": 63,
+       "p25": 0.123876,
+       "p75": 0.474805,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 65
+    },
+    "1m_10m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 96,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.59894,
+       "n": 35,
+       "p25": 0.472595,
+       "p75": 0.847703,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 96,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.363092,
+       "n": 35,
+       "p25": 0.150826,
+       "p75": 0.676768,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 3,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 15.0,
+       "n": 128,
+       "p25": 5.66,
+       "p75": 35.91,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 96,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.562757,
+       "n": 35,
+       "p25": 0.310283,
+       "p75": 0.844104,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.02949,
+       "n": 131,
+       "p25": 0.004808,
+       "p75": 0.074862,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 1,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 27.49,
+       "n": 130,
+       "p25": 7.44,
+       "p75": 69.9,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 4,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.043827,
+       "n": 127,
+       "p25": -0.051856,
+       "p75": 0.213554,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 96,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.062699,
+       "n": 35,
+       "p25": 0.009629,
+       "p75": 0.272641,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 15
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.229244,
+       "n": 116,
+       "p25": 0.049762,
+       "p75": 0.606234,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 131
+    },
+    "50m_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 11,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.595658,
+       "n": 24,
+       "p25": 0.514232,
+       "p75": 0.684126,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 11,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.389413,
+       "n": 24,
+       "p25": 0.138971,
+       "p75": 0.542225,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 21.13,
+       "n": 35,
+       "p25": 13.28,
+       "p75": 41.61,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 11,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.532613,
+       "n": 24,
+       "p25": 0.405951,
+       "p75": 0.829001,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.031036,
+       "n": 35,
+       "p25": 0.01326,
+       "p75": 0.058596,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 32.33,
+       "n": 35,
+       "p25": 17.34,
+       "p75": 50.7,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.054094,
+       "n": 35,
+       "p25": -0.013927,
+       "p75": 0.156079,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 11,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.063262,
+       "n": 24,
+       "p25": 0.016943,
+       "p75": 0.1218,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 1
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.229685,
+       "n": 34,
+       "p25": 0.083232,
+       "p75": 0.400868,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 35
+    },
+    "all_sizes": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 254,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.580541,
+       "n": 135,
+       "p25": 0.395231,
+       "p75": 0.762659,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 254,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.382278,
+       "n": 135,
+       "p25": 0.115755,
+       "p75": 0.600854,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 45,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 18.71,
+       "n": 344,
+       "p25": 7.54,
+       "p75": 57.35,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 254,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.560324,
+       "n": 135,
+       "p25": 0.340446,
+       "p75": 0.857981,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.031193,
+       "n": 389,
+       "p25": 0.002524,
+       "p75": 0.095462,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 13,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 34.86,
+       "n": 376,
+       "p25": 10.24,
+       "p75": 96.05,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 27,
+        "nonpositive_denominator": 3
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.038104,
+       "n": 359,
+       "p25": -0.10709,
+       "p75": 0.207988,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 254,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.061373,
+       "n": 135,
+       "p25": 0.008753,
+       "p75": 0.153495,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 68
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.230914,
+       "n": 321,
+       "p25": 0.060035,
+       "p75": 0.553651,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 389
+    },
+    "gte_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.310884,
+       "n": 7,
+       "p25": 0.258113,
+       "p75": 0.471409,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.416865,
+       "n": 7,
+       "p25": 0.287167,
+       "p75": 0.786022,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 18.33,
+       "n": 9,
+       "p25": 12.89,
+       "p75": 25.41,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.197852,
+       "n": 7,
+       "p25": 0.152397,
+       "p75": 0.637502,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.052775,
+       "n": 9,
+       "p25": 0.017136,
+       "p75": 0.086165,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 35.43,
+       "n": 9,
+       "p25": 23.79,
+       "p75": 44.93,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.157509,
+       "n": 9,
+       "p25": 0.053316,
+       "p75": 0.211367,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.065809,
+       "n": 7,
+       "p25": 0.028145,
+       "p75": 0.115138,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.181007,
+       "n": 9,
+       "p25": 0.083699,
+       "p75": 0.233782,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 9
+    },
+    "lt_1m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 122,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.42919,
+       "n": 27,
+       "p25": 0.218507,
+       "p75": 0.887646,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 122,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.066611,
+       "n": 27,
+       "p25": -0.340863,
+       "p75": 0.582221,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 41,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 37.79,
+       "n": 108,
+       "p25": 6.24,
+       "p75": 132.65,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 122,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.695733,
+       "n": 27,
+       "p25": 0.340446,
+       "p75": 1.245909,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.031388,
+       "n": 149,
+       "p25": -0.296756,
+       "p75": 0.224846,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 12,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 66.53,
+       "n": 137,
+       "p25": 10.11,
+       "p75": 352.77,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 23,
+        "nonpositive_denominator": 3
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": -0.057787,
+       "n": 123,
+       "p25": -0.363054,
+       "p75": 0.261169,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 122,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.007427,
+       "n": 27,
+       "p25": -0.154971,
+       "p75": 0.072903,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 50
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.204648,
+       "n": 99,
+       "p25": 0.014969,
+       "p75": 0.817183,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 149
+    }
+   },
+   "label": "Prelucrarea si conservarea carnii",
+   "level": "caen4",
+   "parent_caen2": "10"
+  },
+  "1013": {
+   "caen": "1013",
+   "cells": {
+    "10m_50m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 21,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.542867,
+       "n": 37,
+       "p25": 0.340203,
+       "p75": 0.679285,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 21,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.467574,
+       "n": 37,
+       "p25": 0.246534,
+       "p75": 0.56808,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 16.85,
+       "n": 58,
+       "p25": 13.05,
+       "p75": 30.1,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 21,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.531999,
+       "n": 37,
+       "p25": 0.361044,
+       "p75": 0.705583,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.04836,
+       "n": 58,
+       "p25": 0.027488,
+       "p75": 0.098074,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 29.8,
+       "n": 58,
+       "p25": 8.51,
+       "p75": 50.06,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.063506,
+       "n": 58,
+       "p25": -0.013594,
+       "p75": 0.200057,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 21,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.129388,
+       "n": 37,
+       "p25": 0.046383,
+       "p75": 0.212715,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 4
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.327867,
+       "n": 54,
+       "p25": 0.156715,
+       "p75": 0.608519,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 58
+    },
+    "1m_10m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 97,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.604109,
+       "n": 53,
+       "p25": 0.39129,
+       "p75": 0.802475,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 97,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.508079,
+       "n": 53,
+       "p25": 0.355445,
+       "p75": 0.68544,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 13.95,
+       "n": 148,
+       "p25": 6.38,
+       "p75": 38.33,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 97,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.491921,
+       "n": 53,
+       "p25": 0.290732,
+       "p75": 0.641115,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.050492,
+       "n": 150,
+       "p25": 0.020672,
+       "p75": 0.106257,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 16.19,
+       "n": 150,
+       "p25": 5.58,
+       "p75": 47.95,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 3,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.085331,
+       "n": 147,
+       "p25": -0.022032,
+       "p75": 0.267432,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 97,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.090028,
+       "n": 53,
+       "p25": 0.035638,
+       "p75": 0.24454,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 13
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.340751,
+       "n": 137,
+       "p25": 0.164392,
+       "p75": 0.709322,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 150
+    },
+    "50m_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 4,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.471593,
+       "n": 23,
+       "p25": 0.324775,
+       "p75": 0.560117,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 4,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.482536,
+       "n": 23,
+       "p25": 0.372544,
+       "p75": 0.580205,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 31.24,
+       "n": 27,
+       "p25": 22.86,
+       "p75": 41.35,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 4,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.504226,
+       "n": 23,
+       "p25": 0.415114,
+       "p75": 0.601578,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.036239,
+       "n": 27,
+       "p25": 0.015426,
+       "p75": 0.060594,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 30.52,
+       "n": 27,
+       "p25": 13.92,
+       "p75": 45.0,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.056152,
+       "n": 27,
+       "p25": 0.007101,
+       "p75": 0.121098,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 4,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.055316,
+       "n": 23,
+       "p25": 0.024528,
+       "p75": 0.161514,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.141966,
+       "n": 27,
+       "p25": 0.065845,
+       "p75": 0.31058,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 27
+    },
+    "all_sizes": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 274,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.534461,
+       "n": 153,
+       "p25": 0.357446,
+       "p75": 0.731139,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 274,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.484202,
+       "n": 153,
+       "p25": 0.272524,
+       "p75": 0.679129,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 46,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 22.36,
+       "n": 381,
+       "p25": 9.01,
+       "p75": 55.33,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 274,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.501991,
+       "n": 153,
+       "p25": 0.290732,
+       "p75": 0.682366,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.042154,
+       "n": 427,
+       "p25": 0.002676,
+       "p75": 0.100667,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 24,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 25.88,
+       "n": 403,
+       "p25": 7.91,
+       "p75": 72.85,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 32,
+        "nonpositive_denominator": 4
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.066243,
+       "n": 391,
+       "p25": -0.045662,
+       "p75": 0.321324,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 274,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.075939,
+       "n": 153,
+       "p25": 0.012166,
+       "p75": 0.212715,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 91
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.299046,
+       "n": 336,
+       "p25": 0.097997,
+       "p75": 0.686942,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 427
+    },
+    "gte_250m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.46485,
+       "n": 9,
+       "p25": 0.362119,
+       "p75": 0.534461,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.628926,
+       "n": 9,
+       "p25": 0.547618,
+       "p75": 0.723899,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 28.37,
+       "n": 11,
+       "p25": 19.62,
+       "p75": 38.05,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.371074,
+       "n": 9,
+       "p25": 0.230942,
+       "p75": 0.450484,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.073914,
+       "n": 11,
+       "p25": 0.015852,
+       "p75": 0.103262,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 38.91,
+       "n": 11,
+       "p25": 19.93,
+       "p75": 71.11,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.051528,
+       "n": 11,
+       "p25": 0.039038,
+       "p75": 0.082533,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 2,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.127333,
+       "n": 9,
+       "p25": 0.05894,
+       "p75": 0.27282,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.17314,
+       "n": 11,
+       "p25": 0.049502,
+       "p75": 0.35799,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 11
+    },
+    "lt_1m": {
+     "figures": {
+      "current_asset_share": {
+       "dropped": {
+        "absent_operand": 150,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.651242,
+       "n": 31,
+       "p25": 0.369806,
+       "p75": 0.93062,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "equity_ratio": {
+       "dropped": {
+        "absent_operand": 150,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "CAPITALURI - TOTAL (I10)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.2996,
+       "n": 31,
+       "p25": -0.373312,
+       "p75": 0.710172,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "inventory_days_on_turnover": {
+       "dropped": {
+        "absent_operand": 44,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Stocuri (I3)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 35.44,
+       "n": 137,
+       "p25": 8.56,
+       "p75": 144.28,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "liabilities_to_assets": {
+       "dropped": {
+        "absent_operand": 150,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "DATORII (I7)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": 0.614161,
+       "n": 31,
+       "p25": 0.202039,
+       "p75": 1.060238,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "net_margin": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.014247,
+       "n": 181,
+       "p25": -0.266897,
+       "p75": 0.115735,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "receivables_days": {
+       "dropped": {
+        "absent_operand": 24,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Creante (I4)",
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 45.93,
+       "n": 157,
+       "p25": 8.92,
+       "p75": 208.65,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "days",
+       "year": 2024
+      },
+      "revenue_growth": {
+       "dropped": {
+        "absent_operand": 29,
+        "nonpositive_denominator": 4
+       },
+       "filed_lines": [
+        "Cifra de afaceri neta (I13)"
+       ],
+       "median": 0.049866,
+       "n": 148,
+       "p25": -0.325082,
+       "p75": 0.52228,
+       "prior_year": 2023,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roa": {
+       "dropped": {
+        "absent_operand": 150,
+        "nonpositive_denominator": 0
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "ACTIVE IMOBILIZATE - TOTAL (I1)",
+        "ACTIVE CIRCULANTE - TOTAL (I2)",
+        "CHELTUIELI IN AVANS (I6)"
+       ],
+       "median": -0.001065,
+       "n": 31,
+       "p25": -0.185044,
+       "p75": 0.067959,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      },
+      "roe": {
+       "dropped": {
+        "absent_operand": 0,
+        "nonpositive_denominator": 74
+       },
+       "filed_lines": [
+        "Profit net (I18)",
+        "Pierdere neta (I19)",
+        "CAPITALURI - TOTAL (I10)"
+       ],
+       "median": 0.407522,
+       "n": 107,
+       "p25": 0.026945,
+       "p75": 0.917598,
+       "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+       "unit": "fraction",
+       "year": 2024
+      }
+     },
+     "n_companies": 181
+    }
+   },
+   "label": "Fabricarea produselor din carne (inclusiv din carne de pasare)",
+   "level": "caen4",
+   "parent_caen2": "10"
+  }
+ },
+ "size_bands": [
+  {
+   "key": "lt_1m",
+   "max_ron": 1000000,
+   "min_ron": 1
+  },
+  {
+   "key": "1m_10m",
+   "max_ron": 10000000,
+   "min_ron": 1000000
+  },
+  {
+   "key": "10m_50m",
+   "max_ron": 50000000,
+   "min_ron": 10000000
+  },
+  {
+   "key": "50m_250m",
+   "max_ron": 250000000,
+   "min_ron": 50000000
+  },
+  {
+   "key": "gte_250m",
+   "max_ron": null,
+   "min_ron": 250000000
+  }
+ ],
+ "year": 2024
+}

@@ -28,7 +28,10 @@ value so the dashboard can render a horizontal-bar chart.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Dict, List, Optional, Tuple
+
+from engine.country_packs.ro_romania import parameters as _ro_params
 
 from . import _supabase
 
@@ -137,28 +140,163 @@ def load_valuation_benchmarks(industry_key: Optional[str]) -> Dict[str, Any]:
 
 
 # ─── DCF cross-check ─────────────────────────────────────────────────────────
+#
+# ABSENT IS NEVER ZERO AND NEVER A FLOOR (owner rulings R-D5, R-D6, R-OTHER,
+# 2026-09-15). This section used to keep every division defined by
+# substituting a figure the book did not yield: book equity floored at 1 RON
+# (so an insolvent book was discounted at the cost of debt and valued ~2.5x
+# higher than the same book at +5M equity), a 5% pre-tax cost of debt that
+# overrode a measured 2% rate and stood in for absent interest, an effective
+# tax rate clamped into [0, 25%], a negative free cash flow floored to 0 (an
+# EV of exactly 0 and a zero-width band served as a valuation), and a WACC at
+# or below terminal growth nudged to g + 0.5%. Each is now either a stated
+# refusal (`refusals`, every applicable one, each with a code, the inputs it
+# read and the sentence the page shows) or a DECLARED assumption served with
+# its source (`kd_source`, `tax_source`) — never a silent substitute.
+
+
+#: Romania-corrected WACC and growth inputs. Each is overridable through
+#: POST /api/period/{id}/valuation/recompute (F1.j); the override keys are
+#: the keys of this table.
+DCF_DEFAULTS: Dict[str, float] = {
+    "rf": 0.0675,                   # Romanian 10Y sovereign, RON
+    "equity_risk_premium": 0.075,   # Romania mature-EM premium (Damodaran)
+    "beta": 1.0,
+    "forecast_growth": 0.035,       # years 1-N (CPI + small lease-up)
+    "terminal_growth": 0.030,       # mature CRE indexation
+    "forecast_years": 5,
+}
+
+#: WACC shift of each sensitivity scenario around the central rate.
+DCF_SCENARIO_SHIFTS: Tuple[Tuple[str, float], ...] = (
+    ("Optimistic", -0.010),
+    ("Central", 0.0),
+    ("Conservative", 0.015),
+)
+
+#: The mathematical domain of each recompute override. A value outside it
+#: makes the DCF formula itself undefined, so the endpoint answers 400 with
+#: the sentence rendered from this row — it never computes at a substitute.
+#: `gt` / `ge` are exclusive / inclusive lower bounds; every value must be a
+#: finite number.
+DCF_OVERRIDE_DOMAINS: Dict[str, Dict[str, Any]] = {
+    "forecast_years": {"ge": 1, "integer": True,
+                       "why": "the explicit forecast needs at least one whole year"},
+    "forecast_growth": {"gt": -1.0,
+                        "why": "a growth rate at or below -100% has no compounding meaning"},
+    "terminal_growth": {"gt": -1.0,
+                        "why": "a growth rate at or below -100% has no compounding meaning"},
+    "rf": {"why": "the risk-free rate must be a finite number"},
+    "equity_risk_premium": {"why": "the equity risk premium must be a finite number"},
+    "beta": {"why": "beta must be a finite number"},
+}
+
+
+def _pct(x: float, places: int = 1) -> str:
+    return f"{x * 100:.{places}f}%"
+
+
+def _refusal(code: str, inputs: List[str], text: str) -> Dict[str, Any]:
+    return {"code": code, "inputs": list(inputs), "text": text}
+
+
+def dcf_override_domain_errors(overrides: Dict[str, Any]) -> List[str]:
+    """Every override outside `DCF_OVERRIDE_DOMAINS`, as the sentence the
+    recompute endpoint returns with its 400. Empty list = all in domain."""
+    errors: List[str] = []
+    for key, value in (overrides or {}).items():
+        dom = DCF_OVERRIDE_DOMAINS.get(key)
+        if dom is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            errors.append(f"'{key}' must be a finite number (got {value!r}); {dom['why']}.")
+            continue
+        if dom.get("integer") and float(value) != int(value):
+            errors.append(f"'{key}' must be a whole number (got {value!r}); {dom['why']}.")
+            continue
+        if "ge" in dom and value < dom["ge"]:
+            errors.append(f"'{key}' must be at least {dom['ge']} (got {value!r}); {dom['why']}.")
+        if "gt" in dom and value <= dom["gt"]:
+            errors.append(f"'{key}' must be greater than {dom['gt']} (got {value!r}); {dom['why']}.")
+    return errors
+
+
+def _tax_rate_for_dcf(tax_expense: Optional[float], pretax: Optional[float]) -> Dict[str, Any]:
+    """R-D6. The book's effective rate when it is measurable and inside
+    [0, statutory]; otherwise the statutory rate from pack data, labelled
+    with why the effective rate was not used. Never clamped."""
+    statutory = _ro_params.STATUTORY_PROFIT_TAX_RATE
+    bound = f"[0, {_pct(statutory)}]"
+    if tax_expense is None:
+        why = "effective rate not measurable: tax expense not reported"
+        effective = None
+    elif pretax is None or pretax <= 0:
+        why = ("effective rate not measurable: pre-tax profit not reported" if pretax is None
+               else f"effective rate not measurable: pre-tax profit {_fmt_ron(pretax)} is not positive")
+        effective = None
+    else:
+        effective = tax_expense / pretax
+        if 0.0 <= effective <= statutory:
+            return {"tax_rate": effective, "tax_source": "effective",
+                    "tax_label": f"effective ({_fmt_ron(tax_expense)} tax / {_fmt_ron(pretax)} pre-tax)",
+                    "effective_tax_rate": effective}
+        why = f"effective rate {_pct(effective)} outside {bound}"
+    return {"tax_rate": statutory, "tax_source": "statutory",
+            "tax_label": f"statutory {_pct(statutory)} ({why}; {_ro_params.STATUTORY_PROFIT_TAX_SOURCE})",
+            "effective_tax_rate": effective}
+
+
+def _cost_of_debt_for_dcf(interest_expense: Optional[float], debt: float,
+                          tax_rate: float) -> Dict[str, Any]:
+    """R-D5. The book's implied rate (interest / debt) when it is
+    measurable; the methodology's Romanian SME assumption, served with its
+    range and source, when it is not. No floor."""
+    if debt == 0:
+        return {"kd_source": "not_applicable_no_debt", "cost_of_debt_pre_tax": None,
+                "cost_of_debt_after_tax": None, "cost_of_debt_after_tax_range": None,
+                "kd_note": "No interest-bearing debt on the balance sheet: the debt weight is 0."}
+    if interest_expense is not None and interest_expense > 0:
+        implied = interest_expense / debt
+        return {"kd_source": "implied", "cost_of_debt_pre_tax": implied,
+                "cost_of_debt_after_tax": implied * (1 - tax_rate),
+                "cost_of_debt_after_tax_range": None,
+                "kd_note": (f"Implied from interest expense {_fmt_ron(interest_expense)} "
+                            f"on debt {_fmt_ron(debt)}.")}
+    lo, hi = _ro_params.METHODOLOGY_KD_AFTER_TAX_RANGE
+    central = (lo + hi) / 2
+    if interest_expense is None:
+        missing = "interest expense (class 666) is not reported"
+    elif interest_expense == 0:
+        # A measured 0 on positive debt is NOT served as a 0% Kd — the
+        # ruling in parameters.py says why, and the note states it.
+        missing = ("no interest expense (class 666) is booked; "
+                   + _ro_params.METHODOLOGY_KD_ZERO_INTEREST_RULING)
+    else:
+        missing = f"interest expense is negative ({_fmt_ron(interest_expense)})"
+    return {"kd_source": "methodology_assumption", "cost_of_debt_pre_tax": None,
+            "cost_of_debt_after_tax": central,
+            "cost_of_debt_after_tax_range": [lo, hi],
+            "kd_note": (f"The book carries {_fmt_ron(debt)} of debt but {missing}, so its cost of "
+                        f"debt cannot be measured. The DCF uses the methodology assumption "
+                        f"{_pct(lo)}-{_pct(hi)} after tax, central {_pct(central, 2)} "
+                        f"({_ro_params.METHODOLOGY_KD_SOURCE}).")}
 
 
 def _dcf_cross_check(
     *,
-    ebitda: float,
-    depreciation: float,
-    net_income: float,
-    total_debt: float,
-    cash: float,
-    revenue: float,
-    interest_expense: float,
-    tax_expense: float,
-    pretax: float,
-    total_equity: float = 0.0,
-    real_capex: float = 0.0,
-    net_wc_change: float = 0.0,
+    net_income: Optional[float],
+    depreciation: Optional[float],
+    total_debt: Optional[float],
+    cash: Optional[float],
+    interest_expense: Optional[float],
+    tax_expense: Optional[float],
+    pretax: Optional[float],
+    total_equity: Optional[float],
+    real_capex: Optional[float] = None,
+    net_wc_change: Optional[float] = None,
     use_stabilized_fcf: bool = False,
-    # ── F1.j — interactive recompute overrides ──────────────────────────
-    # All optional; each defaults to None which means "use the engine
-    # default constant below". The new `POST /api/period/:id/valuation/
-    # recompute` endpoint pipes user inputs through these. Engine
-    # defaults stay literal in this function — single source of truth.
+    wc_change_approximated: bool = False,
+    # ── F1.j — interactive recompute overrides (None = DCF_DEFAULTS) ────
     rf_override: Optional[float] = None,
     erp_override: Optional[float] = None,
     beta_override: Optional[float] = None,
@@ -168,153 +306,229 @@ def _dcf_cross_check(
 ) -> Dict[str, Any]:
     """5-year FCF growth + Gordon terminal, ROMANIA-CORRECTED inputs.
 
-    WACC inputs reflect Romanian risk environment (2025-26):
-      • Rf  = 6.75% — Romanian 10Y sovereign in RON
-      • ERP = 7.50% — Romania mature EM premium (Damodaran)
-      • Beta = 1.00 — sector-typical for leveraged real estate
-    These replace the Western European defaults (4.5% / 5.5%) that previously
-    produced WACC ~6.26% and crushed the DCF for any RON-denominated entity.
+    WACC = E/(D+E) x Ke + D/(D+E) x Kd_after, book-value weights from the
+    canonical balance sheet. Ke = Rf + beta x ERP (`DCF_DEFAULTS`). Kd is
+    the book's implied rate or the declared methodology assumption
+    (`_cost_of_debt_for_dcf`); the tax rate is the book's effective rate
+    or the declared statutory rate (`_tax_rate_for_dcf`).
 
-    Growth assumptions also corrected for mature CRE rental businesses:
-      • Forecast growth (years 1-5): 3.5% (CPI + small lease-up)
-      • Terminal growth:             3.0% (mature CRE indexation)
+    `use_stabilized_fcf=True` (or no real capex figure) values the business
+    on NI + ΔWC — maintenance capex taken as D&A — instead of CFO + capex.
 
-    `total_equity` is now passed in from the canonical BS view — replaces
-    the previous `revenue * 0.5` placeholder that systematically miscalibrated
-    the D/V capital-structure weights.
-
-    `use_stabilized_fcf=True` substitutes maintenance capex (≈ D&A) for the
-    one-time CIP capex when valuing a development-phase business.
-
-    Returns three scenarios (optimistic / central / conservative) plus the
-    central WACC components for the FE to surface in the methodology table.
+    Refuses, with every applicable reason in `refusals`, when: debt is
+    negative; book equity is not positive or not reported (the weights are
+    undefined); a base-FCF input is not reported; base FCF is not positive
+    (a perpetuity DCF is undefined); WACC does not exceed terminal growth
+    (the Gordon terminal is undefined — per scenario, so an Optimistic shift
+    that crosses g refuses that scenario alone). A refused DCF serves null
+    values, never 0 and never -net debt.
     """
-    # ── Romania-corrected WACC inputs ────────────────────────────────────
-    # F1.j — engine defaults below are overridable via the recompute
-    # endpoint. Defaults stay as the spec'd Romanian-market constants.
-    rf = float(rf_override) if rf_override is not None else 0.0675
-    erp = float(erp_override) if erp_override is not None else 0.075
-    beta = float(beta_override) if beta_override is not None else 1.0
-    cost_of_equity = rf + beta * erp  # 14.25% at defaults
+    refusals: List[Dict[str, Any]] = []
 
-    implied_tax = (tax_expense / pretax) if pretax > 0 else 0.0
-    tax_rate = max(0.0, min(0.25, implied_tax))
+    given = {k: v for k, v in (
+        ("rf", rf_override), ("equity_risk_premium", erp_override), ("beta", beta_override),
+        ("forecast_years", forecast_years_override),
+        ("forecast_growth", forecast_growth_override),
+        ("terminal_growth", terminal_growth_override)) if v is not None}
+    domain = dcf_override_domain_errors(given)
+    if domain:
+        # The formula is undefined at these inputs: refuse the whole DCF and
+        # compute nothing at them (the recompute endpoint answers 400 first).
+        refusals.append(_refusal("dcf_override_out_of_domain", sorted(given),
+                                 "DCF unavailable: " + " ".join(domain)))
+        given = {}
+    inputs = {**DCF_DEFAULTS, **{k: float(v) for k, v in given.items()}}
+    rf = inputs["rf"]
+    erp = inputs["equity_risk_premium"]
+    beta = inputs["beta"]
+    horizon = int(inputs["forecast_years"])
+    g_forecast = inputs["forecast_growth"]
+    g_terminal = inputs["terminal_growth"]
+    cost_of_equity = rf + beta * erp
 
-    implied_kd = (interest_expense / total_debt) if total_debt > 0 else 0.0
-    # Pre-tax Kd floor at 5.0% — accounts for currency-risk premium when
-    # the lender carries EUR debt against RON cash flow (the EEI pattern).
-    kd_pre = max(0.050, implied_kd)
-    kd_after = kd_pre * (1 - tax_rate)
+    tax = _tax_rate_for_dcf(tax_expense, pretax)
+    tax_rate = tax["tax_rate"]
 
-    # Real total equity from canonical BS — no more `revenue * 0.5` proxy.
-    debt = max(total_debt, 0.0)
-    equity_book = max(total_equity, 1.0)
-    wd = debt / (debt + equity_book) if (debt + equity_book) > 0 else 0.0
-    we = 1.0 - wd
-    wacc_central = we * cost_of_equity + wd * kd_after
-
-    # ── Stabilized FCF for perpetuity ────────────────────────────────────
-    cfo = net_income + depreciation + net_wc_change
-    if use_stabilized_fcf or real_capex == 0.0:
-        # Stabilized: maintenance capex ≈ D&A → FCF ≈ NI + ΔWC.
-        base_fcf = max(net_income + net_wc_change, 0.0)
+    # ── Capital structure ────────────────────────────────────────────────
+    we: Optional[float] = None
+    wd: Optional[float] = None
+    kd: Dict[str, Any] = {"kd_source": None, "cost_of_debt_pre_tax": None,
+                          "cost_of_debt_after_tax": None, "cost_of_debt_after_tax_range": None,
+                          "kd_note": None}
+    if total_debt is None:
+        refusals.append(_refusal(
+            "dcf_debt_absent", ["balanceSheet.total_debt"],
+            "DCF cross-check unavailable: total debt is not reported, so the "
+            "capital-structure weights for WACC are undefined."))
+    elif total_debt < 0:
+        refusals.append(_refusal(
+            "dcf_debt_negative", ["balanceSheet.total_debt"],
+            f"DCF cross-check unavailable: total debt is negative ({_fmt_ron(total_debt)}), "
+            f"so the capital-structure weights for WACC are undefined; debt classification "
+            f"needs review."))
     else:
-        base_fcf = max(cfo + real_capex, 0.0)
+        kd = _cost_of_debt_for_dcf(interest_expense, total_debt, tax_rate)
+    if total_equity is None:
+        refusals.append(_refusal(
+            "dcf_equity_absent", ["balanceSheet.total_equity"],
+            "DCF cross-check unavailable: book equity is not reported, so the "
+            "capital-structure weights for WACC are undefined; use asset-based / NAV."))
+    elif total_equity <= 0:
+        refusals.append(_refusal(
+            "dcf_equity_not_positive", ["balanceSheet.total_equity"],
+            f"DCF cross-check unavailable: book equity is not positive "
+            f"({_fmt_ron(total_equity)}), so the capital-structure weights for WACC are "
+            f"undefined; use asset-based / NAV."))
+    wacc_central: Optional[float] = None
+    if total_debt is not None and total_debt >= 0 and total_equity is not None and total_equity > 0:
+        wd = total_debt / (total_debt + total_equity)
+        we = 1.0 - wd
+        kd_after = kd["cost_of_debt_after_tax"] if wd > 0 else 0.0
+        wacc_central = we * cost_of_equity + wd * kd_after
 
-    # F1.j — engine defaults overridable via recompute endpoint.
-    horizon = int(forecast_years_override) if forecast_years_override is not None else 5
-    g_forecast = (
-        float(forecast_growth_override) if forecast_growth_override is not None else 0.035
-    )  # 3.5% over years 1-N (CPI + lease-up) at default
-    g_terminal = (
-        float(terminal_growth_override) if terminal_growth_override is not None else 0.030
-    )  # 3.0% mature CRE indexation at default
+    # ── Base free cash flow ──────────────────────────────────────────────
+    # The working-capital change a single-period book yields is the RO
+    # pack's approximation (assembled_cf.is_approximated — ±5% of the
+    # closing balances, no prior-period balance sheet). It is labelled at
+    # its source; the label travels with it here (sweep C5.2), so a base
+    # FCF built on it is never stated as a measurement.
+    wc_label = ("working-capital change" if not wc_change_approximated
+                else "working-capital change [approximated: no prior-period balance sheet]")
+    base_fcf: Optional[float] = None
+    stabilized = use_stabilized_fcf or real_capex is None or real_capex == 0.0
+    if stabilized:
+        missing = [n for n, v in (("incomeStatement.net_income", net_income),
+                                  ("cashFlow.net_wc_change", net_wc_change)) if v is None]
+        formula = "net income + " + wc_label
+        if not missing:
+            base_fcf = net_income + net_wc_change
+    else:
+        missing = [n for n, v in (("incomeStatement.net_income", net_income),
+                                  ("incomeStatement.depreciation", depreciation),
+                                  ("cashFlow.net_wc_change", net_wc_change)) if v is None]
+        formula = "net income + D&A + " + wc_label + " + capex"
+        if not missing:
+            base_fcf = net_income + depreciation + net_wc_change + real_capex
+    if cash is None:
+        refusals.append(_refusal(
+            "dcf_cash_absent", ["balanceSheet.cash"],
+            "DCF not computed: cash is not reported, so net debt (and the equity "
+            "value it bridges to) is undefined."))
+    if missing:
+        refusals.append(_refusal(
+            "dcf_fcf_input_absent", missing,
+            "DCF not computed: %s not available for this period." % ", ".join(missing)))
+    elif base_fcf <= 0:
+        refusals.append(_refusal(
+            "dcf_base_fcf_not_positive", ["dcf.base_fcf"],
+            f"DCF not computed: base free cash flow is non-positive ({formula} = "
+            f"{_fmt_ron(base_fcf)}); a perpetuity DCF is undefined for this period."))
+
+    def _wacc_refusal(label: str, wacc: float) -> Dict[str, Any]:
+        return _refusal(
+            "dcf_wacc_not_above_growth", ["dcf.wacc", "dcf.terminal_growth"],
+            f"DCF unavailable{'' if label == 'Central' else ' (' + label + ' scenario)'}: "
+            f"discount rate (WACC {_pct(wacc)}) must exceed terminal growth "
+            f"(g {_pct(g_terminal)}); the Gordon terminal value is undefined.")
+
+    if wacc_central is not None and wacc_central <= g_terminal:
+        refusals.append(_wacc_refusal("Central", wacc_central))
 
     def _dcf_at(wacc: float) -> Dict[str, float]:
-        """Run a single DCF at the given WACC; return EV and equity."""
-        if wacc <= g_terminal:
-            wacc = g_terminal + 0.005  # avoid blow-up
+        """One DCF at `wacc` (> g_terminal, checked by the caller)."""
         total_pv = 0.0
         last = base_fcf
         for y in range(1, horizon + 1):
             fcf = base_fcf * ((1 + g_forecast) ** y)
             total_pv += fcf / ((1 + wacc) ** y)
             last = fcf
-        # Gordon terminal: TV uses FCF_{N+1} = last × (1 + g_T)
-        tv_undisc = (last * (1 + g_terminal)) / (wacc - g_terminal)
-        tv_pv = tv_undisc / ((1 + wacc) ** horizon)
+        tv_pv = ((last * (1 + g_terminal)) / (wacc - g_terminal)) / ((1 + wacc) ** horizon)
         ev = total_pv + tv_pv
         net_debt = total_debt - cash
-        return {
-            "wacc": wacc,
-            "explicit_pv": total_pv,
-            "terminal_pv": tv_pv,
-            "enterprise_value": ev,
-            "net_debt": net_debt,
-            "equity_value": ev - net_debt,
-        }
+        return {"enterprise_value": ev, "net_debt": net_debt, "equity_value": ev - net_debt}
 
-    # ── Three scenarios with WACC shifts ────────────────────────────────
-    central = _dcf_at(wacc_central)
-    optimistic = _dcf_at(max(wacc_central - 0.01, g_terminal + 0.005))   # −100 bps
-    conservative = _dcf_at(wacc_central + 0.015)                          # +150 bps
+    scenarios: Optional[List[Dict[str, Any]]] = None
+    central: Optional[Dict[str, float]] = None
+    by_label: Dict[str, Optional[Dict[str, float]]] = {}
+    if not refusals:
+        scenarios = []
+        for label, shift in DCF_SCENARIO_SHIFTS:
+            w = wacc_central + shift
+            if w <= g_terminal:
+                by_label[label] = None
+                scenarios.append({"label": label, "wacc": round(w, 4), "enterprise_value": None,
+                                  "net_debt": round(total_debt - cash, 2), "equity_value": None,
+                                  "refusal": _wacc_refusal(label, w)})
+                continue
+            r = _dcf_at(w)
+            by_label[label] = r
+            scenarios.append({"label": label, "wacc": round(w, 4),
+                              "enterprise_value": round(r["enterprise_value"], 2),
+                              "net_debt": round(r["net_debt"], 2),
+                              "equity_value": round(r["equity_value"], 2),
+                              "refusal": None})
+        central = by_label.get("Central")
+
+    def _eq(label: str) -> Optional[float]:
+        r = by_label.get(label)
+        return None if r is None else round(r["equity_value"], 2)
 
     return {
-        "wacc": round(wacc_central, 4),
+        "refusals": refusals,
+        "wacc": None if wacc_central is None else round(wacc_central, 4),
         "wacc_components": {
             "rf": rf,
             "erp": erp,
             "beta": beta,
             "cost_of_equity": round(cost_of_equity, 4),
-            "cost_of_debt_pre_tax": round(kd_pre, 4),
-            "cost_of_debt_after_tax": round(kd_after, 4),
+            "cost_of_debt_pre_tax": (None if kd["cost_of_debt_pre_tax"] is None
+                                     else round(kd["cost_of_debt_pre_tax"], 4)),
+            "cost_of_debt_after_tax": (None if kd["cost_of_debt_after_tax"] is None
+                                       else round(kd["cost_of_debt_after_tax"], 4)),
+            "cost_of_debt_after_tax_range": kd["cost_of_debt_after_tax_range"],
+            "kd_source": kd["kd_source"],
+            "kd_note": kd["kd_note"],
             "tax_rate": round(tax_rate, 4),
-            "weight_equity": round(we, 4),
-            "weight_debt": round(wd, 4),
-            "total_equity_used": round(equity_book, 2),
-            "total_debt_used": round(debt, 2),
+            "tax_source": tax["tax_source"],
+            "tax_label": tax["tax_label"],
+            "weight_equity": None if we is None else round(we, 4),
+            "weight_debt": None if wd is None else round(wd, 4),
+            "total_equity_used": None if total_equity is None else round(total_equity, 2),
+            "total_debt_used": None if total_debt is None else round(total_debt, 2),
         },
         "forecast_growth": g_forecast,
         "terminal_growth": g_terminal,
-        "base_fcf": round(base_fcf, 2),
-        "enterprise_value": round(central["enterprise_value"], 2),
-        "equity_value": round(central["equity_value"], 2),
+        "base_fcf": None if base_fcf is None else round(base_fcf, 2),
+        # How the base FCF was formed, with the approximation label when the
+        # working-capital change is the pack's single-period estimate.
+        "base_fcf_formula": formula,
+        "wc_change_source": "approximated" if wc_change_approximated else "measured",
+        "enterprise_value": None if central is None else round(central["enterprise_value"], 2),
+        "equity_value": None if central is None else round(central["equity_value"], 2),
         # The optimistic / conservative bookends become the FE
         # sensitivity_low / sensitivity_high band.
-        "sensitivity_low": round(conservative["equity_value"], 2),
-        "sensitivity_high": round(optimistic["equity_value"], 2),
-        # Full per-scenario detail for the FE 3-scenario table.
-        "scenarios": [
-            {
-                "label": "Optimistic",
-                "wacc": round(optimistic["wacc"], 4),
-                "enterprise_value": round(optimistic["enterprise_value"], 2),
-                "net_debt": round(optimistic["net_debt"], 2),
-                "equity_value": round(optimistic["equity_value"], 2),
-            },
-            {
-                "label": "Central",
-                "wacc": round(central["wacc"], 4),
-                "enterprise_value": round(central["enterprise_value"], 2),
-                "net_debt": round(central["net_debt"], 2),
-                "equity_value": round(central["equity_value"], 2),
-            },
-            {
-                "label": "Conservative",
-                "wacc": round(conservative["wacc"], 4),
-                "enterprise_value": round(conservative["enterprise_value"], 2),
-                "net_debt": round(conservative["net_debt"], 2),
-                "equity_value": round(conservative["equity_value"], 2),
-            },
-        ],
+        "sensitivity_low": _eq("Conservative"),
+        "sensitivity_high": _eq("Optimistic"),
+        "scenarios": scenarios,
     }
-
 
 # ─── Compute (the actual valuation) ──────────────────────────────────────────
 
 
 def _safe(n: Optional[float], default: float = 0.0) -> float:
     return default if n is None else float(n)
+
+
+def _first(*values: Any) -> Optional[float]:
+    """The first reported number among `values`, or None. Unlike `_safe`,
+    an absent figure stays absent — the DCF inputs must be able to tell a
+    measured 0 from a figure the statements never carried."""
+    for v in values:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        if math.isfinite(float(v)):
+            return float(v)
+    return None
 
 
 def compute_valuation(
@@ -400,6 +614,33 @@ def compute_valuation(
     investment_property_book = _safe(bs_canonical.get("ppe_net",
                                                        bs.get("propertyPlantEquipment", 0)))
 
+    # ── DCF inputs, absence preserved ────────────────────────────────────
+    # `_safe` above turns an absent figure into 0.0, which the asset-based /
+    # multiple methods have always read. The DCF may not: an absent interest
+    # expense is not a measured 0, absent equity is not 1 RON, an absent
+    # working-capital change is not "no change".
+    dcf_interest = _first(pl_canonical.get("interest_expense"), pl.get("interestExpense"))
+    dcf_tax = _first(pl_canonical.get("tax"), pl.get("taxExpense"))
+    dcf_depreciation = _first(pl_canonical.get("depreciation"), pl.get("depreciationAmortization"))
+    # The pre-tax figure the DCF reads is the reported one, never the
+    # `_safe`-built reconstruction above: `pretax - tax` stood in for an
+    # absent statutory net income with `tax` read as 0 when it was not
+    # reported, so the same envelope declared "tax expense not reported"
+    # in `tax_label` and served a net income that assumed it was nil.
+    dcf_pretax = _first(pl_canonical.get("pretax"))
+    dcf_net_income = _first(
+        pl_canonical.get("net_income_statutory"),
+        None if dcf_pretax is None or dcf_tax is None else dcf_pretax - dcf_tax)
+    dcf_cash = _first(bs_canonical.get("cash"), bs.get("cash"))
+    _legacy_debt = [v for v in (_first(bs.get("shortTermDebt")), _first(bs.get("longTermDebt")))
+                    if v is not None]
+    dcf_total_debt = _first(bs_canonical.get("total_debt"),
+                            sum(_legacy_debt) if _legacy_debt else None)
+    _legacy_equity = [v for v in (_first(bs.get("shareCapital")), _first(bs.get("retainedEarnings")),
+                                  _first(bs.get("otherEquity"))) if v is not None]
+    dcf_total_equity = _first(bs_canonical.get("total_equity"),
+                              sum(_legacy_equity) if _legacy_equity else None)
+
     # User overrides (Step 4)
     ua = user_assumptions or {}
     ebitda_used = _safe(ua.get("ebitda_used"), ebitda_computed)
@@ -481,31 +722,30 @@ def compute_valuation(
     # CRE companies in development phase have real one-time CIP capex that
     # would crush the DCF if treated as recurring. Use stabilized FCF for
     # the perpetuity (maintenance capex ≈ D&A).
-    real_capex = _safe(cf_canonical.get("capex_real", 0.0))
-    net_wc_change = _safe(cf_canonical.get("net_wc_change", 0.0))
+    dcf_real_capex = _first(cf_canonical.get("capex_real"))
+    dcf_net_wc_change = _first(cf_canonical.get("net_wc_change"))
+    real_capex = _safe(dcf_real_capex)
+    net_wc_change = _safe(dcf_net_wc_change)
     use_stabilized = is_cre and abs(real_capex) > depreciation * 2
     # F1.j — DCF overrides (rf / erp / beta / forecast_growth /
     # terminal_growth / forecast_years) thread through to _dcf_cross_check.
     # When absent, _dcf_cross_check applies its engine defaults.
     overrides = dcf_overrides or {}
     dcf = _dcf_cross_check(
-        ebitda=ebitda_used,
-        depreciation=depreciation,
-        net_income=net_income,
-        total_debt=total_debt_used,
-        cash=cash_used,
-        revenue=revenue,
-        interest_expense=interest,
-        tax_expense=tax,
-        pretax=pretax,
-        # Thread the REAL book equity from the canonical BS view so the
-        # WACC capital-structure weights are calibrated correctly. The
-        # prior `revenue * 0.5` placeholder produced over-weighted equity
-        # and under-stated WACC for any RON-denominated entity.
-        total_equity=total_equity,
-        real_capex=real_capex,
-        net_wc_change=net_wc_change,
+        depreciation=dcf_depreciation,
+        net_income=dcf_net_income,
+        total_debt=_first(ua.get("debt_used"), dcf_total_debt),
+        cash=_first(ua.get("cash_used"), dcf_cash),
+        interest_expense=dcf_interest,
+        tax_expense=dcf_tax,
+        pretax=dcf_pretax,
+        # The REAL book equity from the canonical BS view, signed and
+        # unfloored: a non-positive or absent equity refuses the DCF.
+        total_equity=dcf_total_equity,
+        real_capex=dcf_real_capex,
+        net_wc_change=dcf_net_wc_change,
         use_stabilized_fcf=use_stabilized,
+        wc_change_approximated=bool(cf_canonical.get("is_approximated")),
         rf_override=overrides.get("rf"),
         erp_override=overrides.get("equity_risk_premium"),
         beta_override=overrides.get("beta"),
@@ -517,24 +757,39 @@ def compute_valuation(
     # ── FCF BREAKDOWN for the Valuation tab tiles ────────────────────────
     # Mirrors the visible "Free cash flow" row on the Valuation tab. The
     # FE reads these verbatim — no client-side capex inference.
-    cfo_value = round(net_income + depreciation + net_wc_change, 2)
-    fcf_value = round(cfo_value + real_capex, 2)
+    # A tile whose inputs are absent is None, never a 0.00 built from
+    # zeroed operands; `stabilized_fcf` is SIGNED — it used to be floored at
+    # 0, so a development-phase banner read "net income + ΔWC ≈ RON 0.00"
+    # on a book whose NI + ΔWC was -3.5M.
+    cfo_value = (None if None in (dcf_net_income, dcf_depreciation, dcf_net_wc_change)
+                 else round(dcf_net_income + dcf_depreciation + dcf_net_wc_change, 2))
+    fcf_value = (None if cfo_value is None or dcf_real_capex is None
+                 else round(cfo_value + dcf_real_capex, 2))
     fcf_breakdown = {
-        "net_income": round(net_income, 2),
-        "depreciation": round(depreciation, 2),
-        "net_wc_change": round(net_wc_change, 2),
+        "net_income": None if dcf_net_income is None else round(dcf_net_income, 2),
+        "depreciation": None if dcf_depreciation is None else round(dcf_depreciation, 2),
+        "net_wc_change": None if dcf_net_wc_change is None else round(dcf_net_wc_change, 2),
         "cash_from_operating": cfo_value,
-        "capex_real": round(real_capex, 2),
+        "capex_real": None if dcf_real_capex is None else round(dcf_real_capex, 2),
         "free_cash_flow": fcf_value,
         "is_development_phase": bool(use_stabilized),
-        "stabilized_fcf": round(max(net_income + net_wc_change, 0.0), 2),
+        "stabilized_fcf": (None if dcf_net_income is None or dcf_net_wc_change is None
+                           else round(dcf_net_income + dcf_net_wc_change, 2)),
+        # The working-capital change (and so CFO, FCF and the stabilized
+        # tile) is the pack's single-period approximation when
+        # assembled_cf says so — stated here, beside the figures built on it.
+        "net_wc_change_source": ("approximated (assembled_cf.is_approximated: ±5% of closing "
+                                 "balances, no prior-period balance sheet)"
+                                 if cf_canonical.get("is_approximated") else "measured"),
     }
 
     # ── Confidence ───────────────────────────────────────────────────────
-    ebitda_margin = (ebitda_used / revenue) if revenue > 0 else 0.0
+    # The margin is undefined without revenue; such a book is low confidence
+    # for that reason, not because its margin "is 0%".
+    ebitda_margin = (ebitda_used / revenue) if revenue > 0 else None
     if ebitda_used <= 0 or industry_used in (None, "generic", "other", "unknown"):
         confidence = "low"
-    elif ebitda_margin < 0.05:
+    elif ebitda_margin is None or ebitda_margin < 0.05:
         confidence = "low"
     elif ebitda_margin < 0.10 or industry_used != industry_requested:
         confidence = "medium"
@@ -661,6 +916,13 @@ def compute_valuation(
             "NOI / cap rate, not from operating earnings. EV/EBITDA is not an appropriate "
             "primary method for this industry — using asset-based equity instead."
         )
+    # Every DCF refusal is stated where the page lists method warnings, and
+    # a declared cost-of-debt assumption is stated beside it.
+    for refusal in dcf["refusals"]:
+        method_warnings.append(refusal["text"])
+    wacc_components = dcf.get("wacc_components") or {}
+    if wacc_components.get("kd_source") == "methodology_assumption" and not dcf["refusals"]:
+        method_warnings.append(wacc_components["kd_note"])
 
     # ── Primary equity value + range — sourced from the right method ─────
     if primary_method == "asset_based":
@@ -727,6 +989,8 @@ def compute_valuation(
         # band (optimistic / central / conservative).
         "dcf_wacc_components": dcf.get("wacc_components"),
         "dcf_scenarios": dcf.get("scenarios"),
+        # Every reason the DCF refused ([] when it computed): {code, inputs, text}.
+        "dcf_refusals": dcf["refusals"],
         # FCF breakdown — the Valuation tab renders these tiles verbatim.
         # Real CapEx (CIP additions), NOT D&A. Statutory net income
         # (positive), NOT operational (negative). See spec rule 2.

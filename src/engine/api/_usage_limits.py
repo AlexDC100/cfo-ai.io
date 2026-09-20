@@ -120,6 +120,11 @@ def check_quota(user_id: str, action: ActionKind) -> Dict[str, Any]:
     """
     if not usage_limits_enabled():
         return {"enforced": False}
+    # Operator exemption (2026-09-20) — same list the V3 gate honours, so the
+    # legacy rail can never 429 a user the V3 rail lets through.
+    from . import _unmetered
+    if _unmetered.is_unmetered(user_id):
+        return {"enforced": False, "reason": "unmetered_user"}
 
     month = _pricing_tiers.current_month_bucket()
     tier, effective, counters = _fetch_active_tier_and_usage(user_id, month)

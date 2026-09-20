@@ -57,7 +57,7 @@ import {
 
 function cashRatioProse(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const found = proseBlocks(doc).find((t) => t.startsWith("Cash Ratio:"));
+  const found = proseBlocks(doc).find((t) => t.startsWith("Cash ratio:"));
   return found ?? "";
 }
 

@@ -45,8 +45,28 @@ _OPTIONAL: Tuple[Tuple[str, str], ...] = (
 )
 
 
+def verify_credit_pack() -> None:
+    """The credit model's pack (packs/credit/model.yaml) must load at boot:
+    a malformed or missing pack fails the container start here, with the
+    pack's own message, instead of refusing the credit block of every
+    period the running container serves (the route degrades, it does not
+    500 — but a container that cannot score credit should not come up)."""
+    from engine.ratios.credit_pack import CreditPackError, credit_pack, credit_pack_path
+
+    try:
+        credit_pack()
+    except CreditPackError as exc:
+        raise RuntimeError(
+            "[boot_verify] the credit pack at %s is unusable — fix the file and restart: %s"
+            % (credit_pack_path(), exc)
+        ) from exc
+    logger.warning("[boot_verify] credit pack OK: %s", credit_pack_path())
+
+
 def verify_config() -> None:
-    """Run on app boot. Raises RuntimeError on missing critical env."""
+    """Run on app boot. Raises RuntimeError on missing critical env or an
+    unusable credit pack."""
+    verify_credit_pack()
     missing_critical: List[str] = [k for k in _CRITICAL if not os.environ.get(k)]
     if missing_critical:
         raise RuntimeError(

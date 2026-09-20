@@ -22,6 +22,7 @@ depth can carry never moves against the other. This module only plumbs.
 """
 from __future__ import annotations
 
+import functools
 from dataclasses import asdict
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -32,6 +33,12 @@ from engine.comparatives.analysis import bs_bridge, canonical_totals, common_siz
 # pack lands it exposes its own detector and this import becomes a
 # pack lookup.
 from engine.country_packs.ro_romania.detail_level import classify_detail_level
+# The Piotroski checks are the pack's; the jurisdiction-blind composer takes
+# them as an argument rather than importing a pack.
+from engine.country_packs.ro_romania.chart_of_accounts import _piotroski_checks
+from engine.comparatives.ratio_compare import compare_ratio_tables
+# The seven-element band-crossing findings, injected the same way.
+from engine.api.findings.c_bands import build_band_findings
 
 __all__ = [
     "ComparativesRefused",
@@ -105,6 +112,22 @@ def _period_block(row: Mapping[str, Any], payload: Mapping[str, Any], level) -> 
     }
 
 
+def snapshot_id_of(row: Mapping[str, Any]) -> Optional[str]:
+    """The period's snapshot id: its envelope's content hash, never
+    `updated_at`. The same reading as `engine.api._radar.content_hash_of`
+    (not imported: that module pulls the whole radar lane into a route
+    core); `tests/engine/test_comparatives_bands.py` holds the two equal."""
+    value = row.get("snapshot_hash")
+    if value:
+        return str(value)
+    envelope = row.get("assembled_canonical_v1")
+    if isinstance(envelope, Mapping):
+        provenance = envelope.get("provenance") or {}
+        if isinstance(provenance, Mapping) and provenance.get("content_hash"):
+            return str(provenance["content_hash"])
+    return None
+
+
 def _canonical_bs_rows(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     """The prior period's canonical balance sheet, keyed for pairing by
     row id — the ids are stable leaf names, so the current period's rows
@@ -140,8 +163,14 @@ def compare_payloads(
     *,
     current_row: Mapping[str, Any],
     prior_row: Mapping[str, Any],
+    caen: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Everything the comparative surfaces render, JSON-ready.
+
+    `caen` is the workspace's CAEN code (`_org.caen_for_org`, read by the
+    route): the band findings' company profile is qualified by it exactly
+    as the single-period lanes qualify theirs. None when the workspace has
+    none — the profile then says it resolved from structure.
 
     Pure over its inputs: no clock, no I/O. Same payloads in, same
     document out."""
@@ -163,7 +192,22 @@ def compare_payloads(
     cs = common_size(table)
 
     prior_statements = prior_payload.get("statements") or {}
+    # The two-period ratio block (engine.comparatives.ratio_compare): both
+    # periods' ratios, bands, deltas, movements and credit composites,
+    # computed from these two served payloads under one model revision.
+    ratios = compare_ratio_tables(
+        current_payload, prior_payload,
+        current_label=str(cur_block["label"]), prior_label=str(pri_block["label"]),
+        piotroski_checks=_piotroski_checks,
+        # Read off the module at call time, so a gate that wraps the
+        # builder still sees this call; the CAEN rides along.
+        band_findings=functools.partial(build_band_findings, caen=caen),
+        current_period_id=current_row.get("id"), prior_period_id=prior_row.get("id"),
+        current_snapshot_id=snapshot_id_of(current_row),
+        prior_snapshot_id=snapshot_id_of(prior_row),
+    )
     return {
+        "ratios": ratios,
         "current": cur_block,
         "prior": pri_block,
         "comparability": asdict(table.comparability),

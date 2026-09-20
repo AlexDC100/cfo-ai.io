@@ -298,6 +298,11 @@ export function lookupFacts(index: FactIndex, terms: string[]): FactRef[] {
  *  this mirror has not drifted. */
 export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "affiliate_income",
+  // ── Band-crossing findings (2026-09-14) ────────────────────────────
+  // findings/c_bands.py cites a crossing's impact as headroom money: the
+  // ratio's numerator at the rung crossed and as held.
+  "band_numerator_at_rung",
+  "band_numerator_held",
   "bank_debt_total",
   "capex_real",
   "capitalized_construction",

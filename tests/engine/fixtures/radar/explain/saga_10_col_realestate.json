@@ -152,6 +152,7 @@
     },
     "dpo": {
      "direction": "higher",
+     "floor": "watch",
      "healthy": 45,
      "strong": 60,
      "watch": 30
@@ -2086,7 +2087,7 @@
    "otherNonCurrentAssets": 2500.0,
    "otherNonCurrentLiabilities": 260050.31,
    "propertyPlantEquipment": 6613498.11,
-   "retainedEarnings": -146569.25,
+   "retainedEarnings": -948173.39,
    "shareCapital": 14748500.0,
    "shortTermDebt": 3796000.08
   },

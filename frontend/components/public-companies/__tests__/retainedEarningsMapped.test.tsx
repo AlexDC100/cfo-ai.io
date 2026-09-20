@@ -28,6 +28,7 @@ import {
   buildPublicStatements,
   ratingRefusalFor,
   ratingRefusalSentence,
+  reportedInterestExpense,
   reportedRetainedEarnings,
 } from "@/lib/publicCompanyAdapters";
 import { computeCreditScore } from "@/lib/financialValuation";
@@ -159,8 +160,81 @@ describe("statements adapter — retained earnings is read from where the feed p
     expect(credit.altman.score).toBeNull();
     expect(credit.rating).toBeNull();
     const refusal = ratingRefusalFor(built.statements, credit);
-    expect(refusal?.figures).toEqual(["currentAssets", "currentLiabilities"]);
+    // ...and this fixture's period carries no interest-expense leaf (SF1
+    // `intexp` -> `interest_expense_bank`), so the coverage term refuses too
+    // and the sentence names it - it used to be scored as a coverage of 0.
+    expect(refusal?.figures).toEqual(["currentAssets", "currentLiabilities", "interestExpense"]);
     expect(refusal?.figures).not.toContain("retainedEarnings");
+  });
+
+  // INTEREST EXPENSE IS READ FROM WHERE THE FEED PUT IT (credit2 repair,
+  // medium). SF1 `intexp` normalises to the source name `interest_expense`
+  // toward `interest_expense_bank`, a leaf with no schema-v1 bucket - so the
+  // real normalizer shelves it under `unmapped` and never emits the leaf
+  // (measured: normalize(Fundamentals(interest_expense=2.935e9)) -> leaves
+  // ['cash_operating'], unmapped [... 'interest_expense' ...]). Reading the
+  // leaf alone made the public sentence say "interest expense not reported
+  // in this filing" about a filing that reported it.
+  // The record below is the normalizer's own `_emit` shape, field for field.
+  // REDS ON after the repair: a shelved interest expense read as absent; a
+  // debt-free listed company refused the declared rung because only the
+  // (always-shelved) debt legs were consulted.
+  // CANNOT SEE: whether SF1 itself carried `intexp` for a ticker (this
+  // committed AAPL capture does not - the last test above stays true).
+  const shelvedInterest = (amount: number) => ({
+    code: "sharadar:interest_expense",
+    name: "interest_expense",
+    amount,
+    reason: "canonical_leaf_not_in_schema_v1",
+    canonical_attempted: "interest_expense_bank",
+  });
+  const withPeriod0 = (over: (p: PublicCompanyEnvelope["periods"][number]) => PublicCompanyEnvelope["periods"][number]): PublicCompanyEnvelope => ({
+    ...sharadar,
+    periods: [over(sharadar.periods[0]), ...sharadar.periods.slice(1)],
+  });
+
+  it("an interest expense the feed shelved under unmapped is REPORTED, and the refusal does not name it", () => {
+    const env = withPeriod0((p) => ({
+      ...p,
+      unmapped: [...p.unmapped, shelvedInterest(2_935_000_000)] as typeof p.unmapped,
+    }));
+    expect(env.periods[0].leaves["interest_expense_bank"]).toBeUndefined();
+    expect(reportedInterestExpense(env.periods[0])).toBe(2_935_000_000);
+    const built = buildPublicStatements(env)!;
+    expect(built.statements.incomeStatement.interestExpense).toBe(2_935_000_000);
+    expect(built.statements.absentInputs).not.toContain("interestExpense");
+    const credit = computeCreditScore(built.statements);
+    const refusal = ratingRefusalFor(built.statements, credit)!;
+    expect(refusal.figures).toEqual(["currentAssets", "currentLiabilities"]);
+    expect(refusal.figures).not.toContain("interestExpense");
+    const coverage = credit.components.find((c) => /interest coverage/i.test(c.label));
+    expect(coverage, "the interest-coverage row is missing").toBeDefined();
+    expect(coverage!.refusal ?? null).toBeNull();
+    expect(coverage!.value).toBeCloseTo(123_216_000_000 / 2_935_000_000, 9);
+  });
+
+  it("a reported total debt of 0 beside a reported interest of 0 and a positive EBIT takes the DECLARED rung, labelled", () => {
+    const env = withPeriod0((p) => ({
+      ...p,
+      headline: { ...p.headline, total_debt: 0 },
+      unmapped: [
+        ...p.unmapped.filter((u) => u.name !== "long_term_debt" && u.name !== "st_debt_synthetic"),
+        shelvedInterest(0),
+      ] as typeof p.unmapped,
+    }));
+    const built = buildPublicStatements(env)!;
+    expect(built.statements.reportedTotals?.totalDebt).toBe(0);
+    expect(built.statements.absentInputs).not.toContain("interestExpense");
+    const credit = computeCreditScore(built.statements);
+    const rungs = credit.components.filter((c) => c.declaredRung);
+    expect(rungs.length).toBe(2); // interest coverage and DSCR
+    for (const c of rungs) {
+      expect(c.refusal ?? null).toBeNull();
+      expect(c.declaredRung!.label).toMatch(/declared rule, not measured/);
+    }
+    const refusal = ratingRefusalFor(built.statements, credit)!;
+    expect(refusal.undefinedCoverage ?? false).toBe(false);
+    expect(refusal.figures).not.toContain("interestExpense");
   });
 
   it("with the shelved record removed, retained earnings is truly absent and the sentence is the owner's, in both languages", () => {
@@ -216,6 +290,10 @@ describe("statements adapter — retained earnings is read from where the feed p
     const complete = {
       ...built.statements,
       absentInputs: [],
+      // the feed carries no interest expense; a complete statement does
+      // (Apple FY2023 10-K, for the shape only). Without it the coverage
+      // term refuses - the two tests below.
+      incomeStatement: { ...built.statements.incomeStatement, interestExpense: 3_933_000_000 },
       reportedTotals: {
         ...built.statements.reportedTotals,
         totalCurrentAssets: 152_987_000_000, // Apple FY2024 10-K, for the shape only
@@ -225,5 +303,59 @@ describe("statements adapter — retained earnings is read from where the feed p
     const credit = computeCreditScore(complete);
     expect(credit.rating).not.toBeNull();
     expect(ratingRefusalFor(complete, credit)).toBeNull();
+  });
+
+  // ABSENT IS NEVER ZERO ON THE STOREFRONT EITHER (owner floors ruling,
+  // 2026-09-18). The no-envelope model read `safeDiv(ebit, 0) = 0` as an
+  // interest coverage of zero - "Below covenant", sub-score 15 - and minted
+  // a letter on it for every feed that carries no interest expense.
+  // REDS ON after the repair: a letter minted while interest expense is
+  // declared absent or reported as not positive; a refusal with no reason.
+  // CANNOT SEE: whether the feed SHOULD have carried the line (the concept
+  // map, publicCompanyAdapters / edgar_concepts).
+  const completeBut = (over: Record<string, unknown>) => {
+    const built = buildPublicStatements(sharadar)!;
+    return {
+      ...built.statements,
+      absentInputs: [],
+      incomeStatement: { ...built.statements.incomeStatement, interestExpense: 3_933_000_000 },
+      reportedTotals: {
+        ...built.statements.reportedTotals,
+        totalCurrentAssets: 152_987_000_000,
+        totalCurrentLiabilities: 176_392_000_000,
+      },
+      ...over,
+    } as typeof built.statements;
+  };
+
+  it("an interest expense the filing does not report refuses the rating and names the figure", () => {
+    const base = completeBut({});
+    const s = completeBut({
+      absentInputs: ["interestExpense"],
+      incomeStatement: { ...base.incomeStatement, interestExpense: 0 },
+    });
+    const credit = computeCreditScore(s);
+    expect(credit.rating).toBeNull();
+    expect(credit.score).toBeNull();
+    const refusal = ratingRefusalFor(s, credit)!;
+    expect(refusal.figures).toEqual(["interestExpense"]);
+    render(<RatingRefusalNote refusal={refusal} />);
+    expect(screen.getByTestId("rating-refusal")).toHaveTextContent(
+      "Rating unavailable: interest expense not reported in this filing",
+    );
+  });
+
+  it("a reported interest expense of zero beside debt refuses with its own sentence, never 'not reported'", () => {
+    const base = completeBut({});
+    const s = completeBut({ incomeStatement: { ...base.incomeStatement, interestExpense: 0 } });
+    expect(s.balanceSheet.longTermDebt + s.balanceSheet.shortTermDebt).toBeGreaterThan(0);
+    const credit = computeCreditScore(s);
+    expect(credit.rating).toBeNull();
+    const refusal = ratingRefusalFor(s, credit)!;
+    expect(refusal).toEqual({ figures: [], undefinedCoverage: true });
+    render(<RatingRefusalNote refusal={refusal} />);
+    expect(screen.getByTestId("rating-refusal")).toHaveTextContent(
+      "Rating unavailable: the interest expense reported in this filing is not positive, so interest coverage is undefined",
+    );
   });
 });

@@ -261,6 +261,13 @@ function printedFigureText(doc: Document): string {
   take("table.fin td");
   take("table.chart-table td");
   take(".ratio-card .value");
+  // The six columns each ratio card carries when a served two-period table
+  // reached the export (B7). `table.fin td` already collects them today;
+  // they are named here too, so moving the card table off the `fin` class
+  // cannot silently take the prior, change and movement cells out of what
+  // must survive into the PDF.
+  take(".ratio-card .ratio-cmp td.num");
+  take("table.ratio-cmp-served-only td.num");
   take(".rec");
   return parts.join(" ").replace(/\s+/g, " ");
 }
@@ -450,9 +457,13 @@ beforeAll(async () => {
   }
 }, 300_000);
 
+// Closing the headless browser is as slow as opening it when the whole
+// suite is running beside it: the 10 s default hook timeout marked this
+// FILE failed (every test green) on three full-suite runs. Same allowance
+// as the setup that opened it.
 afterAll(async () => {
   await closePdfRenderer();
-});
+}, 300_000);
 
 const of = (book: Book): Built => {
   const b = built.get(book);

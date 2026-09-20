@@ -21,9 +21,19 @@ from .models import (
     IntelligenceSignal,
     OpportunityItem,
     PublicCompanyOpportunityScore,
+    ScoreRefusal,
     Severity,
 )
-from .risk_scoring_engine import SEVERITY_POINTS  # reuse the same scale
+from .risk_scoring_engine import (  # reuse the same scale and refusal vocabulary
+    INPUT_LABELS as _RISK_INPUT_LABELS,
+    SCORE_RANGE,
+    SEVERITY_POINTS,
+    InputGaps,
+    exposure_is_modelled,
+    join_names,
+    read_net_debt_to_ebitda,
+    read_positive_multiple,
+)
 
 
 OPPORTUNITY_CATEGORY_WEIGHTS: dict[str, float] = {
@@ -41,90 +51,146 @@ STRENGTH_LEVEL_CUTOFFS: list[tuple[int, Severity]] = [
     (0,  "low"),
 ]
 
+# Refusal codes. Every sub-score below used to score an absent input as
+# its worst reading (0 points) — or, for market cap, as a fixed 30 — so a
+# ticker with no financial data at all served 26/100 "medium", within two
+# points of a fully-measured worst case (measured 2026-09-15).
+OPPORTUNITY_CATEGORY_UNAVAILABLE = "opportunity_category_unavailable"
+OPPORTUNITY_COMPOSITE_UNAVAILABLE = "opportunity_composite_unavailable"
+OPPORTUNITY_SCORE_OUT_OF_RANGE = "opportunity_score_out_of_range"
 
-def _score_sector_tailwind(exposure: CompanyExposureProfile) -> int:
+CATEGORY_LABELS: dict[str, str] = {
+    "sector_tailwind": "Sector tailwind",
+    "financial_quality": "Financial quality",
+    "valuation_discount": "Valuation discount",
+    "market_position": "Market position",
+}
+
+INPUT_LABELS: dict[str, str] = {
+    **_RISK_INPUT_LABELS,
+    "fcf_yield": "FCF yield",
+    "roe": "ROE",
+    "market_cap": "market cap",
+}
+
+Scored = tuple[Optional[int], Optional[ScoreRefusal]]
+
+
+def _refusal(gaps: InputGaps, category: str) -> ScoreRefusal:
+    return gaps.refusal(
+        code=OPPORTUNITY_CATEGORY_UNAVAILABLE,
+        component=category,
+        subject=f"{CATEGORY_LABELS[category]} opportunity",
+        labels=INPUT_LABELS,
+    )
+
+
+def _score_sector_tailwind(exposure: CompanyExposureProfile) -> Scored:
+    if not exposure_is_modelled(exposure):
+        return None, ScoreRefusal(
+            code=OPPORTUNITY_CATEGORY_UNAVAILABLE,
+            component="sector_tailwind",
+            inputs=["sector_exposure_model"],
+            text=(
+                "Sector tailwind opportunity unavailable: sector "
+                f"'{exposure.sector}' has no exposure model."
+            ),
+        )
     if not exposure.main_opportunities:
-        return 0
+        # A modelled sector that lists no opportunities declares no tailwind.
+        return 0, None
     top = exposure.main_opportunities[:3]
-    return int(round(sum(SEVERITY_POINTS[o.severity] for o in top) / max(len(top), 1)))
+    return int(round(sum(SEVERITY_POINTS[o.severity] for o in top) / len(top))), None
 
 
-def _score_financial_quality(financials: dict[str, Any]) -> int:
-    """Strong FCF, low leverage, healthy margin → high quality score."""
+def _score_financial_quality(financials: dict[str, Any]) -> Scored:
+    """Strong FCF, low leverage, healthy margin → high quality score.
+
+    All four inputs required. A MEASURED value below every threshold adds
+    0 points — that is its reading; an absent one refuses the category.
+    """
+    gaps = InputGaps()
+    fcf_yield = gaps.read(financials, "fcf_yield")
+    nde = read_net_debt_to_ebitda(financials, gaps)
+    ebitda_margin = gaps.read(financials, "ebitda_margin")
+    roe = gaps.read(financials, "roe")
+    if gaps:
+        return None, _refusal(gaps, "financial_quality")
+
     score = 0
+    if fcf_yield >= 0.08:    score += 30
+    elif fcf_yield >= 0.05:  score += 22
+    elif fcf_yield >= 0.03:  score += 14
+    elif fcf_yield >= 0.00:  score += 6
 
-    fcf_yield = financials.get("fcf_yield")
-    if fcf_yield is not None:
-        if fcf_yield >= 0.08:    score += 30
-        elif fcf_yield >= 0.05:  score += 22
-        elif fcf_yield >= 0.03:  score += 14
-        elif fcf_yield >= 0.00:  score += 6
+    # EBITDA > 0 is guaranteed by read_net_debt_to_ebitda, so nde <= 0 is
+    # net cash.
+    if nde <= 0:        score += 30
+    elif nde <= 1.0:    score += 22
+    elif nde <= 2.0:    score += 14
+    elif nde <= 3.0:    score += 6
 
-    nde = financials.get("net_debt_to_ebitda")
-    if nde is not None:
-        if nde <= 0:        score += 30
-        elif nde <= 1.0:    score += 22
-        elif nde <= 2.0:    score += 14
-        elif nde <= 3.0:    score += 6
+    if ebitda_margin >= 0.30:    score += 25
+    elif ebitda_margin >= 0.20:  score += 18
+    elif ebitda_margin >= 0.10:  score += 10
+    elif ebitda_margin >= 0.05:  score += 4
 
-    ebitda_margin = financials.get("ebitda_margin")
-    if ebitda_margin is not None:
-        if ebitda_margin >= 0.30:    score += 25
-        elif ebitda_margin >= 0.20:  score += 18
-        elif ebitda_margin >= 0.10:  score += 10
-        elif ebitda_margin >= 0.05:  score += 4
-
-    roe = financials.get("roe")
-    if roe is not None and roe >= 0.20:
+    if roe >= 0.20:
         score += 15
-    elif roe is not None and roe >= 0.12:
+    elif roe >= 0.12:
         score += 8
 
-    return min(100, score)
+    # The point ladders top out at 30 + 30 + 25 + 15 = 100.
+    return score, None
 
 
-def _score_valuation_discount(financials: dict[str, Any]) -> int:
+def _score_valuation_discount(financials: dict[str, Any]) -> Scored:
     """Cheap on absolute valuation = opportunity score lift.
 
-    Phase A uses absolute thresholds. Phase B will use peer-median.
+    Phase A uses absolute thresholds. Phase B will use peer-median. Both
+    multiples required and positive.
     """
-    ev_ebitda = financials.get("ev_to_ebitda")
-    pe = financials.get("pe_ratio")
+    gaps = InputGaps()
+    ev_ebitda = read_positive_multiple(
+        financials, "ev_to_ebitda", "EBITDA or enterprise value is not positive", gaps)
+    pe = read_positive_multiple(financials, "pe_ratio", "earnings are not positive", gaps)
+    if gaps:
+        return None, _refusal(gaps, "valuation_discount")
 
-    ev_score = 0
-    if ev_ebitda is not None:
-        if ev_ebitda <= 6:    ev_score = 80
-        elif ev_ebitda <= 8:  ev_score = 65
-        elif ev_ebitda <= 10: ev_score = 45
-        elif ev_ebitda <= 12: ev_score = 25
-        else:                 ev_score = 10
+    if ev_ebitda <= 6:    ev_score = 80
+    elif ev_ebitda <= 8:  ev_score = 65
+    elif ev_ebitda <= 10: ev_score = 45
+    elif ev_ebitda <= 12: ev_score = 25
+    else:                 ev_score = 10
 
-    pe_score = 0
-    if pe is not None:
-        if pe <= 10:    pe_score = 80
-        elif pe <= 13:  pe_score = 65
-        elif pe <= 18:  pe_score = 45
-        elif pe <= 22:  pe_score = 25
-        else:           pe_score = 10
+    if pe <= 10:    pe_score = 80
+    elif pe <= 13:  pe_score = 65
+    elif pe <= 18:  pe_score = 45
+    elif pe <= 22:  pe_score = 25
+    else:           pe_score = 10
 
-    return int(round(0.5 * ev_score + 0.5 * pe_score))
+    return int(round(0.5 * ev_score + 0.5 * pe_score)), None
 
 
-def _score_market_position(financials: dict[str, Any]) -> int:
+def _score_market_position(financials: dict[str, Any]) -> Scored:
     """Market-cap proxy for 'too-big-to-ignore' positioning.
 
     Crude: large market cap → bias toward incumbency advantage. The
     accurate version uses market share + brand strength, which we don't
-    have at MVP. Phase B can refine.
+    have at MVP. Phase B can refine. Market cap is required: it used to
+    default to 30, the same score as a measured $10-50B cap.
     """
-    market_cap = financials.get("market_cap")
-    if market_cap is None:
-        return 30
-    if market_cap >= 500_000_000_000:    return 75  # ≥ $500B
-    if market_cap >= 100_000_000_000:    return 60
-    if market_cap >= 50_000_000_000:     return 45
-    if market_cap >= 10_000_000_000:     return 30
-    return 15
+    gaps = InputGaps()
+    market_cap = gaps.read(financials, "market_cap")
+    if market_cap is not None and market_cap <= 0:
+        gaps.reject("market_cap", "is not positive")
+    if gaps:
+        return None, _refusal(gaps, "market_position")
+    if market_cap >= 500_000_000_000:    return 75, None  # ≥ $500B
+    if market_cap >= 100_000_000_000:    return 60, None
+    if market_cap >= 50_000_000_000:     return 45, None
+    if market_cap >= 10_000_000_000:     return 30, None
+    return 15, None
 
 
 def compute_opportunity_score(
@@ -132,26 +198,56 @@ def compute_opportunity_score(
     financials: dict[str, Any],
     matched_signals: Optional[list[IntelligenceSignal]] = None,
 ) -> PublicCompanyOpportunityScore:
-    """Deterministic opportunity score, 0–100. Higher = stronger tailwind."""
-    sector_tail = _score_sector_tailwind(exposure)
-    fin_qual = _score_financial_quality(financials)
-    val_disc = _score_valuation_discount(financials)
-    mkt_pos = _score_market_position(financials)
+    """Deterministic opportunity score, 0–100. Higher = stronger tailwind.
 
-    overall = int(round(
-        OPPORTUNITY_CATEGORY_WEIGHTS["sector_tailwind"]    * sector_tail +
-        OPPORTUNITY_CATEGORY_WEIGHTS["financial_quality"]  * fin_qual +
-        OPPORTUNITY_CATEGORY_WEIGHTS["valuation_discount"] * val_disc +
-        OPPORTUNITY_CATEGORY_WEIGHTS["market_position"]    * mkt_pos
-    ))
-    overall = max(0, min(100, overall))
+    None — with ``refusals`` — unless every weighted category is measured.
+    """
+    scored: dict[str, Scored] = {
+        "sector_tailwind": _score_sector_tailwind(exposure),
+        "financial_quality": _score_financial_quality(financials),
+        "valuation_discount": _score_valuation_discount(financials),
+        "market_position": _score_market_position(financials),
+    }
+    refusals: list[ScoreRefusal] = [v[1] for v in scored.values() if v[1] is not None]
 
-    strength_level: Severity = "low"
-    for cutoff, label in STRENGTH_LEVEL_CUTOFFS:
-        if overall >= cutoff:
-            strength_level = label
-            break
+    overall: Optional[int] = None
+    strength_level: Optional[Severity] = None
+    refused = [k for k in OPPORTUNITY_CATEGORY_WEIGHTS if scored[k][0] is None]
+    if refused:
+        refusals.append(ScoreRefusal(
+            code=OPPORTUNITY_COMPOSITE_UNAVAILABLE,
+            component="overall",
+            inputs=refused,
+            text=(
+                "Opportunity score unavailable: "
+                f"{join_names([CATEGORY_LABELS[k].lower() for k in refused])} "
+                f"inputs not reported for {exposure.ticker}."
+            ),
+        ))
+    else:
+        overall = int(round(sum(
+            OPPORTUNITY_CATEGORY_WEIGHTS[k] * scored[k][0]
+            for k in OPPORTUNITY_CATEGORY_WEIGHTS
+        )))
+        lo, hi = SCORE_RANGE
+        if not (lo <= overall <= hi):
+            # Unreachable with the ladders above; out of range refuses.
+            refusals.append(ScoreRefusal(
+                code=OPPORTUNITY_SCORE_OUT_OF_RANGE,
+                component="overall",
+                inputs=list(OPPORTUNITY_CATEGORY_WEIGHTS),
+                text=f"Opportunity score unavailable: computed {overall} is outside {lo}-{hi}.",
+            ))
+            overall = None
+        else:
+            strength_level = "low"
+            for cutoff, label in STRENGTH_LEVEL_CUTOFFS:
+                if overall >= cutoff:
+                    strength_level = label
+                    break
 
+    fin_qual = scored["financial_quality"][0]
+    val_disc = scored["valuation_discount"][0]
     top_opportunities = _top_opps(exposure, fin_qual, val_disc, n=3)
 
     explanation = _build_explanation(
@@ -159,6 +255,9 @@ def compute_opportunity_score(
         overall=overall,
         strength_level=strength_level,
         top_opportunities=top_opportunities,
+        composite_refusal=next(
+            (r for r in reversed(refusals) if r.component == "overall"), None
+        ),
     )
 
     return PublicCompanyOpportunityScore(
@@ -169,13 +268,14 @@ def compute_opportunity_score(
         explanation=explanation,
         confidence=exposure.confidence,
         computed_at=datetime.now(timezone.utc),
+        refusals=refusals,
     )
 
 
 def _top_opps(
     exposure: CompanyExposureProfile,
-    fin_qual_score: int,
-    val_disc_score: int,
+    fin_qual_score: Optional[int],
+    val_disc_score: Optional[int],
     n: int = 3,
 ) -> list[OpportunityItem]:
     items: list[OpportunityItem] = []
@@ -192,7 +292,7 @@ def _top_opps(
         ))
 
     # Synthetic financial-quality opportunity if score is strong.
-    if fin_qual_score >= 60:
+    if fin_qual_score is not None and fin_qual_score >= 60:
         items.append(OpportunityItem(
             key="financial_quality",
             label="Strong financial quality (margin + FCF + low leverage)",
@@ -202,7 +302,7 @@ def _top_opps(
             source_signal_ids=[],
         ))
 
-    if val_disc_score >= 60:
+    if val_disc_score is not None and val_disc_score >= 60:
         items.append(OpportunityItem(
             key="valuation_discount",
             label="Trading at attractive valuation",
@@ -218,11 +318,16 @@ def _top_opps(
 
 def _build_explanation(
     ticker: str,
-    overall: int,
-    strength_level: Severity,
+    overall: Optional[int],
+    strength_level: Optional[Severity],
     top_opportunities: list[OpportunityItem],
+    composite_refusal: Optional[ScoreRefusal] = None,
 ) -> str:
-    parts = [f"{ticker} opportunity score {overall}/100 ({strength_level})."]
+    if overall is None:
+        parts = [composite_refusal.text if composite_refusal is not None
+                 else f"{ticker} opportunity score unavailable."]
+    else:
+        parts = [f"{ticker} opportunity score {overall}/100 ({strength_level})."]
     if top_opportunities:
         parts.append(f"Top driver: {top_opportunities[0].label}.")
     return " ".join(parts)

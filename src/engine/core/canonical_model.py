@@ -91,7 +91,7 @@ class IncomeStatementLegacyView(TypedDict, total=True):
 
 class SupplementaryFields(TypedDict, total=True):
     """Period-level helpers the FE's `computeRatios()` reads."""
-    periodDays: int   # 365 for FY, 90 for Q, etc.
+    periodDays: Optional[int]   # days the YTD movements cover; None when not established
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -597,10 +597,12 @@ def validate_canonical_envelope(envelope: Any) -> ValidationReport:
         errors.append(
             "envelope.statements.supplementary: expected dict with 'periodDays' key"
         )
-    elif not isinstance(supp["periodDays"], int):
+    elif supp["periodDays"] is not None and (
+        isinstance(supp["periodDays"], bool) or not isinstance(supp["periodDays"], int)
+    ):
         errors.append(
             f"envelope.statements.supplementary.periodDays: "
-            f"expected int, got {type(supp['periodDays']).__name__}"
+            f"expected int or None (not established), got {type(supp['periodDays']).__name__}"
         )
 
     # ── lineItems shape ────────────────────────────────────

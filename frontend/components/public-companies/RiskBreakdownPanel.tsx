@@ -7,13 +7,30 @@
 // Calls /api/public/intelligence/companies/{ticker}/risk-score. The
 // endpoint returns the deterministic risk score from risk_scoring_engine.py
 // + top 3 risks + top 3 opportunities + a deterministic explanation.
+//
+// A refused score is null with its reason on `refusals` (engine ruling
+// 2026-09-15: absent is never a neutral number). This reader renders the
+// refusal sentence in place of the number — it used to run the level ladder
+// on a null category (`null >= 25` is false, so "low") and draw a 2% bar,
+// which styled "Financial / Operational — low" on every universe ticker
+// while the explanation said the composite was unavailable.
+//
+// R-PUBLIC-ABSENT (2026-09-19): a category the row's data producer can
+// never fill is DROPPED (null, refusal code `risk_category_dropped`), its
+// weight redistributed, and the engine states what the composite covers in
+// `coverage`. This reader renders that as "not scored" with the reason and
+// prints the applied weights from the block (TC-10) — never a level, never
+// a bar, never "unavailable" (that word is this company's own gap).
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, TrendingUp } from "lucide-react";
 import {
+  categoryDropFor,
   fetchTickerRiskScore,
+  scoreRefusalFor,
   type PublicCompanyRiskScore,
   type RiskCategoryScores,
+  type ScoreCoverage,
   severityToBgClass,
   severityToTextClass,
 } from "@/lib/publicCompanyIntelligence";
@@ -56,7 +73,7 @@ export function RiskBreakdownPanel({ ticker }: Props) {
   return (
     <div className="space-y-5">
       <HeadlineCard score={score} />
-      <CategoryGrid categories={score.categories} />
+      <CategoryGrid score={score} />
       <TopRisksList score={score} />
       <TopOpportunitiesList score={score} />
       <Disclosure confidence={score.confidence} />
@@ -66,7 +83,28 @@ export function RiskBreakdownPanel({ ticker }: Props) {
 
 // ─── Headline card ──────────────────────────────────────────────────────
 
-function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
+export function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
+  if (score.overall_risk_score === null || score.risk_level === null) {
+    const refusal = scoreRefusalFor(score, "overall");
+    return (
+      <div
+        className="rounded-2xl border border-rule bg-surface/80 p-5"
+        data-testid="risk-composite-unavailable"
+      >
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium">
+            Composite risk
+          </span>
+          <span className="inline-flex items-center text-[10.5px] uppercase tracking-[0.1em] font-medium px-2 py-0.5 rounded-full border border-rule text-ink-mute">
+            unavailable
+          </span>
+        </div>
+        <p className="text-[12.5px] text-ink-soft leading-relaxed">
+          {refusal?.text ?? score.explanation}
+        </p>
+      </div>
+    );
+  }
   const sevText = severityToTextClass(score.risk_level);
   const sevBg = severityToBgClass(score.risk_level);
   return (
@@ -96,8 +134,38 @@ function HeadlineCard({ score }: { score: PublicCompanyRiskScore }) {
       <p className="text-[12.5px] text-ink-soft mt-3 leading-relaxed">
         {score.explanation}
       </p>
+      <CoverageNote coverage={score.coverage ?? null} />
     </div>
   );
+}
+
+/** What the composite covers, rendered from the served block: the dropped
+ *  categories with the producer's reason and the weights actually applied.
+ *  Renders nothing when nothing was dropped (the declared weights apply). */
+export function CoverageNote({ coverage }: { coverage: ScoreCoverage | null }) {
+  if (!coverage || coverage.dropped.length === 0) return null;
+  const total = coverage.scored.length + coverage.dropped.length;
+  const dropped = coverage.dropped.map((d) => CATEGORY_LABEL[d.category] ?? d.category);
+  const reasons = Array.from(new Set(coverage.dropped.map((d) => d.reason)));
+  const weights = coverage.scored
+    .map((cat) => `${CATEGORY_LABEL[cat] ?? cat} ${fmtWeight(coverage.applied_weights[cat])}`)
+    .join(" · ");
+  return (
+    <div
+      className="mt-3 rounded-lg border border-rule/60 bg-bg-2/30 px-3 py-2 text-[11px] text-ink-mute leading-snug"
+      data-testid="risk-coverage"
+    >
+      <span className="text-ink-soft">
+        Scored over {coverage.scored.length} of {total} categories.
+      </span>{" "}
+      Not scored: {dropped.join(", ")} — {reasons.join("; ")}.{" "}
+      Weights applied: {weights}.
+    </div>
+  );
+}
+
+function fmtWeight(w: number | undefined): string {
+  return w === undefined || !Number.isFinite(w) ? "—" : `${(w * 100).toFixed(1)}%`;
 }
 
 // ─── Category grid ──────────────────────────────────────────────────────
@@ -122,7 +190,12 @@ const CATEGORY_LABEL: Record<keyof RiskCategoryScores, string> = {
   regulatory:    "Regulatory",
 };
 
-function CategoryGrid({ categories }: { categories: RiskCategoryScores }) {
+export function CategoryGrid({
+  score: parent,
+}: {
+  score: Pick<PublicCompanyRiskScore, "categories" | "refusals" | "coverage">;
+}) {
+  const categories = parent.categories;
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-soft font-medium mb-2">
@@ -131,6 +204,49 @@ function CategoryGrid({ categories }: { categories: RiskCategoryScores }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {CATEGORY_ORDER.map((cat) => {
           const score = categories[cat];
+          if (score === null) {
+            const dropped = categoryDropFor(parent, cat);
+            if (dropped) {
+              // The engine's full sentence when it served one (names the
+              // input and the redistributed weight), else the block's reason.
+              const droppedText = scoreRefusalFor(parent, cat)?.text ?? dropped.reason;
+              // Dropped by the producer's coverage: "not scored" with the
+              // reason. No number, no bar, no level — and not "unavailable",
+              // which would read as this company's gap.
+              return (
+                <div
+                  key={cat}
+                  className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-rule/60 bg-bg-2/30"
+                  data-testid={`risk-category-${cat}`}
+                  data-state="dropped"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[12px] text-ink-soft">{CATEGORY_LABEL[cat]}</span>
+                    <span className="text-[11px] text-ink-mute">not scored</span>
+                  </div>
+                  <span className="text-[11px] text-ink-mute leading-snug">{droppedText}</span>
+                </div>
+              );
+            }
+            // No number, no bar, no level: the refusal sentence instead.
+            const refusal = scoreRefusalFor(parent, cat);
+            return (
+              <div
+                key={cat}
+                className="flex flex-col gap-1 px-3 py-2 rounded-lg border border-rule/60 bg-bg-2/30"
+                data-testid={`risk-category-${cat}`}
+                data-state="unavailable"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] text-ink-soft">{CATEGORY_LABEL[cat]}</span>
+                  <span className="text-[11px] text-ink-mute">unavailable</span>
+                </div>
+                {refusal && (
+                  <span className="text-[11px] text-ink-mute leading-snug">{refusal.text}</span>
+                )}
+              </div>
+            );
+          }
           const level: "low" | "medium" | "high" | "critical" =
             score >= 75 ? "critical" :
             score >= 50 ? "high" :

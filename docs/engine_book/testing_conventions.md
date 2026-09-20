@@ -432,3 +432,45 @@ Two worked examples now in the tree:
   **cannot** see, counted and named as unverifiable rather than folded
   into the pass. A gate that pretends to have checked what it cannot see
   is worse than one that says so.
+
+  **Correction (2026-09-15).** The deploy one-liner that wrapped this probe
+  was itself vacuous: `scripts/check_migrations_applied.sh` piped the
+  declarations into `python3 -`, which executes stdin as the program, so
+  the JSON ran as a do-nothing expression — no output, exit 0, for any
+  database. The scope-printing probe never ran through it, and two
+  operator reports disagreed about whether a migration was applied. A
+  wrapper is part of the gate: TC-3 applies to it too — "printed nothing"
+  is a failure, never a pass (`tests/engine/test_migrations_probe_invocation.py`).
+
+## TC-14 — A specification too large to verify in one pass is built in batches against measured reality, with deviations logged as-built
+
+The one-engine contract for Forecast and Scenarios (2026-09-14) folded 95
+review amendments into a single 215 KB document. Three rounds of
+check-then-repair did not converge: independent checkers reported
+2 / 6 / 2 unresolved items, 15 / 9 / 12 internal contradictions and
+7 / 4 / 3 batch breakages, and each round's contradictions were mostly
+NEW — found in sections the previous checker had passed. The document was
+not converging; it was oscillating, because no single reader could hold
+it whole, so every pass verified a different subset and every repair
+could introduce the next contradiction.
+
+**THE RULE.** When a specification cannot be verified by one reader in
+one pass, stop refining it as a whole. Freeze the part the first batch
+needs, build that batch against the real code, and measure: the tests,
+the served bytes and the blast radius are the verification the document
+could not give. Every place where the build had to differ from the text
+is appended to an AS-BUILT log (what the contract said, what was built,
+the evidence, which later batch it affects), and the as-built log wins
+over the contract for what it records. Each following batch reads the log
+before it starts. Known unresolved findings are handed to the batch they
+touch, not re-litigated globally.
+
+What it rules out: a fourth convergence round on a document of that size;
+a batch that silently "interprets" a contradiction without logging it;
+and the belief that a longer contract is a safer one — past the size one
+reader can check, more text is more unverified surface.
+
+Worked example: batches B0–B6 of the one-engine wave run against the
+frozen contract with an append-only as-built log seeded with the last
+checker's findings, each routed to the batch it touches; the log is
+committed beside the wave's code when the wave lands.

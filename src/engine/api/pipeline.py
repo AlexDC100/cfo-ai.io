@@ -67,12 +67,16 @@ from . import _valuation
 # swapped at runtime in F3.3+. Importing the ro_romania subpackage as
 # a side-effect registers the Romania pack with the registry.
 import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers RomaniaPack
+# The day-count rule (`period_days_covered`) is pack data + a pure function;
+# read directly, like the net-income anchor helpers below.
+from engine.country_packs.ro_romania import chart_of_accounts as _ro_chart_of_accounts
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
 # Account-121 anchor provenance — the SAME code object the offline seam
 # (RomaniaPack.assemble_parsed_tb) stamps with, so the served and
 # offline `assembled_pl` can never carry different field sets.
 from engine.core import net_income_anchor as _net_income_anchor
+from engine.ratios import credit_boundary as _credit_boundary
 from engine.ratios import credit_model as _credit_model
 # sv1 FACTS GATEWAY — the ONE typed reader of served (reconciliation-
 # adjusted) balance-sheet truth. Every totals-level read in this module
@@ -2087,7 +2091,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
 # `compositeToGrade()` in `CreditScoreCard.tsx` mirrors those rungs;
 # `tests/engine/test_credit_ladder_single_source.py` reds on a second
 # literal copy anywhere in this module or in `engine/ratios/`.
-def _composite_to_letter_grade(composite: float) -> str:
+def _composite_to_letter_grade(composite: Optional[float]) -> Optional[str]:
+    # None for a null, non-finite or out-of-range composite (R-RANGE): a
+    # letter is never minted from a score the model did not validly produce.
     return _credit_model.composite_to_letter_grade(composite)
 
 
@@ -2716,6 +2722,83 @@ def _briefing_grand_totals(assembled: Dict[str, Any],
     return out
 
 
+def _briefing_ratios(
+    pl_canonical: Dict[str, Any],
+    bs_canonical: Dict[str, Any],
+    total_equity: Optional[float],
+) -> Tuple[Dict[str, Optional[float]], Dict[str, str]]:
+    """The `briefing_facts.ratios` block and the stated reason for every
+    ratio in it that does not compute.
+
+    These are citable numerals (`numerals.facts_from_briefing`), so a value
+    here must be a measurement. It used to hold two substitutes: a zero or
+    absent operating EBITDA divided as 1e-9 (debt 2,000,000 over no EBITDA
+    served Debt/EBITDA 2e15x), and margins of 0.00% on zero or absent
+    revenue (a loss of 150,000 on no revenue handed to the model as
+    break-even). Each now refuses.
+    """
+    def num(v: Any) -> Optional[float]:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        return float(v)
+
+    ebitda = num(pl_canonical.get("operating_ebitda"))
+    revenue = num(pl_canonical.get("total_operating_revenue"))
+    net_income = num(pl_canonical.get("net_income_statutory"))
+    # Absent debt or cash is absent — it used to be read as 0.0, which
+    # served a citable Debt/EBITDA 0.0, Debt/Equity 0.0 and net debt 0.0
+    # on a book that reported neither (and a TypeError on an explicit None).
+    total_debt = num(bs_canonical.get("total_debt"))
+    cash_val = num(bs_canonical.get("cash"))
+    refusals: Dict[str, str] = {}
+
+    def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
+        if revenue is None:
+            refusals[key] = "margin not computable: operating revenue not reported"
+            return None
+        if revenue <= 0:
+            refusals[key] = "margin not computable: no operating revenue in this period"
+            return None
+        if numerator is None:
+            refusals[key] = "margin not computable: %s not reported" % what
+            return None
+        return round(100 * numerator / revenue, 2)
+
+    ratios: Dict[str, Optional[float]] = {
+        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "operating EBITDA"),
+        "net_margin_pct": margin("net_margin_pct", net_income, "net income"),
+    }
+    if ebitda is None or ebitda == 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is zero or not reported for this period")
+        ratios["debt_to_ebitda"] = None
+    elif ebitda < 0:
+        refusals["debt_to_ebitda"] = (
+            "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
+        ratios["debt_to_ebitda"] = None
+    elif total_debt is None:
+        refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: total debt not reported for this period"
+        ratios["debt_to_ebitda"] = None
+    else:
+        ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
+    if total_debt is None:
+        refusals["debt_to_equity"] = "Debt/Equity unavailable: total debt not reported for this period"
+        ratios["debt_to_equity"] = None
+    elif not total_equity:
+        refusals["debt_to_equity"] = ("Debt/Equity unavailable: book equity is %s for this period"
+                                      % ("not reported" if total_equity is None else "zero"))
+        ratios["debt_to_equity"] = None
+    else:
+        ratios["debt_to_equity"] = round(total_debt / total_equity, 2)
+    if total_debt is None or cash_val is None:
+        missing = [n for n, v in (("total debt", total_debt), ("cash", cash_val)) if v is None]
+        refusals["net_debt"] = "Net debt unavailable: %s not reported for this period" % " and ".join(missing)
+        ratios["net_debt"] = None
+    else:
+        ratios["net_debt"] = round(total_debt - cash_val, 2)
+    return ratios, refusals
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -2936,12 +3019,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    operating_ebitda = pl_canonical.get("operating_ebitda", 0.0)
-    total_operating_revenue = pl_canonical.get("total_operating_revenue", 0.0)
+    # ABSENT != ZERO: a missing operating EBITDA or revenue stays None here
+    # (it used to default to 0.0, the same value as a measured zero).
+    operating_ebitda = pl_canonical.get("operating_ebitda")
+    total_operating_revenue = pl_canonical.get("total_operating_revenue")
     total_debt = bs_canonical.get("total_debt", 0.0)
     total_equity = grand_totals["total_equity"]
     cash_val = bs_canonical.get("cash", 0.0)
-    ebitda_for_ratios = operating_ebitda if operating_ebitda else 1e-9
+    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
+        pl_canonical, bs_canonical, total_equity)
 
     briefing_facts_raw = {
         # P&L — operating view (matches the frontend P&L tab + KPI tiles).
@@ -2974,20 +3060,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "bs_balance_delta": grand_totals["bs_balance_delta"],
         # Key derived ratios — operating-view based, so the briefing's
         # leverage / coverage commentary stays consistent with the tab.
-        "ratios": {
-            "ebitda_margin_pct": (
-                round(100 * operating_ebitda / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "net_margin_pct": (
-                round(100 * pl_canonical.get("net_income_statutory", 0.0) / total_operating_revenue, 2)
-                if total_operating_revenue else 0.0
-            ),
-            "debt_to_ebitda": round(total_debt / ebitda_for_ratios, 2),
-            "debt_to_equity": round(total_debt / total_equity, 2) if total_equity else None,
-            "net_debt": round(total_debt - cash_val, 2),
-        },
+        # A ratio that cannot be computed is None (numerals.facts_from_
+        # briefing types it RatioFact(None), so it can never be cited).
+        "ratios": briefing_ratios,
     }
+    if briefing_ratio_refusals:
+        # Why each None ratio is None — the model reads the reason instead
+        # of inventing a figure. Present only when something refused, so a
+        # book whose ratios all compute sends the same payload as before.
+        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
@@ -3023,9 +3104,12 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "briefing_facts": briefing_facts,
         "balance_sheet": assembled["statements"]["balanceSheet"],
         "income_statement": assembled["statements"]["incomeStatement"],
+        # The narrator is a SURFACE (R-RANGE, absolute): persisted credit
+        # rows reach it only under the law - a filed Z'' 1584.89 handed to
+        # the model becomes a sentence about the company.
         "metrics": [
             {"name": m["name"], "value": m["value"], "unit": m["unit"], "direction": m["direction"]}
-            for m in metrics
+            for m in _credit_boundary.enforce_metric_rows(metrics, assembled["statements"])
         ],
         # Server-computed valuation. Briefing must reference equity_p50 and never
         # invent a different headline number. See VALUATION FRAMING in system.
@@ -4755,47 +4839,39 @@ def _attach_insights_block(
         logger.exception("[insights] block build failed (non-fatal, key stays absent)")
 
 
-def _rebuild_assembled(
-    line_items: List[Dict[str, Any]],
-    period: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Reconstruct the `assembled.statements`-shaped dict the valuation
-    engine expects, given the persisted statement_line_items for a period.
-    Mirrors the bucket map used in /api/period/:id."""
-    bs_buckets = {
-        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
-        "otherCurrentAssets": "otherCurrentAssets",
-        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
-        "otherNonCurrentAssets": "otherNonCurrentAssets",
-        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
-        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
-        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
-    }
-    pl_buckets = {
-        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
-        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
-        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
-        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
-    }
-    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
-    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
-    # 711 production-variation lines persist under bucket `otherIncome`
-    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
-    # the net-income reconstruction below doesn't inflate equity by it.
-    # The returned `otherIncome` bucket keeps including 711 (unchanged
-    # legacy behavior for the valuation consumers of this shape).
-    inv_var_711 = 0.0
-    for item in line_items:
-        bucket = item["bucket"]
-        amount = float(item["amount"] or 0)
-        code = (item.get("ro_account_code") or "").strip()
-        if bucket in bs_buckets:
-            bs[bs_buckets[bucket]] += amount
-        elif bucket in pl_buckets:
-            if bucket == "otherIncome" and code.startswith("711"):
-                inv_var_711 += amount
-            pl[pl_buckets[bucket]] += amount
+def _complete_bucket_equity(
+    bs: Dict[str, float],
+    pl: Dict[str, float],
+    period: Optional[Dict[str, Any]],
+    *,
+    inv_var_711: float = 0.0,
+) -> None:
+    """Complete the bucket-summed equity of a rebuild from line items, in
+    place, on `bs["retainedEarnings"]`. THE ONE COMPLETION: every seam
+    that rebuilds `balanceSheet` from `statement_line_items` calls this —
+    `_rebuild_assembled` (valuation routes), `get_period`
+    (GET /api/period/{id}, and through it the comparatives route) and
+    `_rebuild_assembled_for_briefing` (the Capsule tools, Radar, the firm
+    attention lane, briefing regenerate and the forecast route; joined
+    2026-09-15, ruling Q1).
 
+    `pl` is the P&L bucket dict of the same rebuild; `inv_var_711` is the
+    account-711 production variation still INCLUDED in `pl["otherIncome"]`
+    (0.0 when the caller already carved it out), subtracted from the
+    legacy net-income fallback only.
+
+    2026-09-14 (ratios B4, step 0): `get_period` summed the line items into
+    `statements.balanceSheet` WITHOUT this completion, so the served
+    `retainedEarnings` / bucket equity were short by exactly
+    `assembled_pl.net_income_statutory` (agras 7,533,676.02; carniprod
+    1,435,533.59; realestate -801,604.14; retail 3,205,212.62) beside a
+    served `canonical_bs` that carried the complete equity. Any reader of
+    the legacy view (the credit model's X2/X4, the equity sub-score, the
+    workbook's Retained earnings row) read a second equity. Now both
+    rebuilds share this code object;
+    `tests/engine/test_served_equity_completion.py` holds the served
+    bucket equity to the served canonical equity to the cent.
+    """
     # Equity completion (audit, persistence section): statement_line_items
     # never persist the current-year result — assemble_statements adds it
     # to retainedEarnings in-memory at write time only — so a rebuild from
@@ -4846,7 +4922,82 @@ def _rebuild_assembled(
         )
         bs["retainedEarnings"] += round(_ni, 2)
 
+
+
+def _rebuild_assembled(
+    line_items: List[Dict[str, Any]],
+    period: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Reconstruct the `assembled.statements`-shaped dict the valuation
+    engine expects, given the persisted statement_line_items for a period.
+    Mirrors the bucket map used in /api/period/:id."""
+    bs_buckets = {
+        "cash": "cash", "ar": "accountsReceivable", "inventory": "inventory",
+        "otherCurrentAssets": "otherCurrentAssets",
+        "ppe": "propertyPlantEquipment", "intangibles": "intangibles",
+        "otherNonCurrentAssets": "otherNonCurrentAssets",
+        "ap": "accountsPayable", "stDebt": "shortTermDebt", "otherCurrentLiab": "otherCurrentLiabilities",
+        "ltDebt": "longTermDebt", "otherNonCurrentLiab": "otherNonCurrentLiabilities",
+        "shareCapital": "shareCapital", "retainedEarnings": "retainedEarnings", "otherEquity": "otherEquity",
+    }
+    pl_buckets = {
+        "revenue": "revenue", "cogs": "costOfGoodsSold", "operatingExpenses": "operatingExpenses",
+        "depreciation": "depreciationAmortization", "interestExpense": "interestExpense",
+        "otherIncome": "otherIncome", "financialIncome": "financialIncome",
+        "financialExpense": "financialExpense", "taxExpense": "taxExpense",
+    }
+    bs: Dict[str, float] = {v: 0.0 for v in bs_buckets.values()}
+    pl: Dict[str, float] = {v: 0.0 for v in pl_buckets.values()}
+    # 711 production-variation lines persist under bucket `otherIncome`
+    # (DB CHECK constraint) but are a non-cash accrual — tracked apart so
+    # the net-income reconstruction below doesn't inflate equity by it.
+    # The returned `otherIncome` bucket keeps including 711 (unchanged
+    # legacy behavior for the valuation consumers of this shape).
+    inv_var_711 = 0.0
+    for item in line_items:
+        bucket = item["bucket"]
+        amount = float(item["amount"] or 0)
+        code = (item.get("ro_account_code") or "").strip()
+        if bucket in bs_buckets:
+            bs[bs_buckets[bucket]] += amount
+        elif bucket in pl_buckets:
+            if bucket == "otherIncome" and code.startswith("711"):
+                inv_var_711 += amount
+            pl[pl_buckets[bucket]] += amount
+
+    _complete_bucket_equity(bs, pl, period, inv_var_711=inv_var_711)
+
     return {"balanceSheet": bs, "incomeStatement": pl}
+
+
+def _served_supplementary(period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """`statements.supplementary` for a served period row — ONE rule for
+    every served-rebuild seam (/api/period and `_rebuild_assembled_for_
+    briefing`, which the Capsule, Radar, Forecast and the firm lane read).
+
+    `periodDays` is established from the row: a stated span
+    (`period_start` before `period_end`), or the period end with the
+    detection record `stage_persist` stamped on the envelope
+    (`period_detection.signal_used`), counted from the pack's financial-
+    year start — `chart_of_accounts.period_days_covered`. Otherwise it is
+    None and `periodDaysRefusal` says why. It was a hard-coded 365 at both
+    seams, which served a June year-to-date book's DSO / DIO / DPO at
+    twice their value under a provenance that read like a measured field.
+
+    An established period serves exactly `{"periodDays": n}` — the same
+    bytes as before for every 31 December book on the corpus.
+    """
+    row = period or {}
+    env = row.get("assembled_canonical_v1")
+    record = env.get("period_detection") if isinstance(env, dict) else None
+    signal = record.get("signal_used") if isinstance(record, dict) else None
+    covered = _ro_chart_of_accounts.period_days_covered(
+        row.get("period_end"), period_start=row.get("period_start"),
+        signal_used=signal if isinstance(signal, str) else None,
+    )
+    if covered["days"] is not None:
+        return {"periodDays": covered["days"]}
+    return {"periodDays": None, "periodDaysRefusal": covered["refusal"]}
 
 
 # ── plan/2 B5 (plan_contract_v2 1.4): the ONE period reader ─────────────
@@ -4992,6 +5143,17 @@ def _rebuild_assembled_for_briefing(
             else:
                 pl[pl_buckets[bucket]] += amount
 
+    # Equity completion — THE ONE COMPLETION (`_complete_bucket_equity`),
+    # exactly as `get_period` runs it: on the cent-rounded buckets, with
+    # 711 already carved out of `pl["otherIncome"]` (hence 0.0). Until
+    # 2026-09-15 (ratios R2b, ruling Q1) this seam summed the line items
+    # with no completion, so the Capsule tools, Radar, the firm attention
+    # lane, a regenerated briefing and the forecast route served a
+    # retainedEarnings short by the year's result beside the complete
+    # equity GET /api/period serves for the same period.
+    bs = {k: round(v, 2) for k, v in bs.items()}
+    _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
+
     statements: Dict[str, Any] = {
         "companyName": (org or {}).get("name") if org else None,
         "industry": (org or {}).get("industry_display_name") if org else None,
@@ -5002,7 +5164,7 @@ def _rebuild_assembled_for_briefing(
             **{k: round(v, 2) for k, v in pl.items()},
             "inventoryVariationMemo": round(inv_var_memo, 2),
         },
-        "supplementary": {"periodDays": 365},
+        "supplementary": _served_supplementary(period),
     }
 
     # ── Canonical reassembly via assemble_statements ─────────────────
@@ -5286,6 +5448,9 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                 "equity_value": f("dcf_equity_value"),
                 "sensitivity_low": f("dcf_sensitivity_low"),
                 "sensitivity_high": f("dcf_sensitivity_high"),
+                # Why the DCF refused ([] when it computed; None on the
+                # legacy persisted-row path, which carries no reasons).
+                "refusals": src.get("dcf_refusals"),
             },
         },
         "football_field": football_field,
@@ -6887,10 +7052,11 @@ def build_router() -> APIRouter:
         from datetime import datetime, timezone, timedelta
 
         recovered: List[Dict[str, Any]] = []
+        needs_confirmation: List[Dict[str, Any]] = []
         # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
         # on the sales-dataset handlers: an expired bearer must be a 401
         # from the verifier, not a PostgREST 401 escaping as a 500.
-        _org.verified_user_id(jwt)
+        caller_id = str(_org.verified_user_id(jwt))
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "documents",
@@ -6945,10 +7111,45 @@ def build_router() -> APIRouter:
                     except Exception:  # noqa: BLE001
                         logger.exception("[pipeline] failed to mark stale doc as failed")
                     continue
+                # THE SAME METER AS /api/pipeline/run (2026-09-20). A document
+                # whose run was REFUSED — 402 extra-document confirmation, 429
+                # blocked — is left exactly as the browser inserted it:
+                # status='queued', no pipeline_started_at. That is this
+                # watchdog's definition of "stuck", so it used to enqueue the
+                # very documents the meter had just refused, with no
+                # reservation: an unbilled extra on every page load (measured
+                # in production: two documents ran with metered_extra false
+                # after their 402). Recovery reserves under the CALLER's
+                # verified identity, as /run does; a refusal leaves the
+                # document queued and says so, and the FE's Retry sends it
+                # back through /run where the confirm dialog lives.
+                from . import _usage_gate as _ug
+                try:
+                    decision = _ug.reserve_document(caller_id)
+                except Exception:  # noqa: BLE001 — an unreachable meter refuses
+                    logger.exception("[pipeline] recover-stuck: meter unreachable for doc %s", d["id"])
+                    needs_confirmation.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"), "reason": "metering_unavailable",
+                    })
+                    continue
+                if decision.kind not in ("allowed", "disabled"):
+                    logger.info(
+                        "[pipeline] recover-stuck: doc %s not re-enqueued — meter says %s",
+                        d["id"], decision.kind,
+                    )
+                    needs_confirmation.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"), "reason": decision.kind,
+                    })
+                    continue
                 logger.warning(
                     "[pipeline] recover-stuck: doc %s (%s, scope=%s) stuck — re-enqueuing",
                     d["id"], d.get("original_filename"), d.get("scope"),
                 )
+                if decision.was_extra:
+                    with _supabase.admin() as ac:
+                        ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
                 _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
                 _enqueue(d["id"])
                 recovered.append({
@@ -6961,6 +7162,8 @@ def build_router() -> APIRouter:
             "recovered": recovered,
             "stale_failed_count": len(stale_failed),
             "stale_failed": stale_failed,
+            "needs_confirmation_count": len(needs_confirmation),
+            "needs_confirmation": needs_confirmation,
         }
 
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
@@ -7129,6 +7332,14 @@ def build_router() -> APIRouter:
                 else:
                     pl[pl_buckets[bucket]] += amount
 
+        # Equity completion — the SAME code object `_rebuild_assembled`
+        # runs (see `_complete_bucket_equity`). Applied to the cent-rounded
+        # buckets so the served bucket equity equals the served
+        # `canonical_bs` equity to the cent, not merely to the float.
+        # `pl["otherIncome"]` already excludes 711 here, hence 0.0.
+        bs = {k: round(v, 2) for k, v in bs.items()}
+        _complete_bucket_equity(bs, pl, period, inv_var_711=0.0)
+
         statements = {
             "companyName": (org or {}).get("name") if org else None,
             "industry": (org or {}).get("industry_display_name") if org else None,
@@ -7143,9 +7354,9 @@ def build_router() -> APIRouter:
                 "inventoryVariationMemo": round(inv_var_memo, 2),
             },
             # Required by the TS Statements interface so computeRatios() can
-            # read supplementary.periodDays. Real enrichment values arrive
-            # later via Settings.
-            "supplementary": {"periodDays": 365},
+            # read supplementary.periodDays — established from the period
+            # row or refused with its reason, never a 365 placeholder.
+            "supplementary": _served_supplementary(period),
         }
 
         # ── Re-assemble the canonical views from line items ──────────────
@@ -7340,6 +7551,15 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
+        # THE CREDIT CONTENT IS COMPOSED AND CHECKED AT THE SERVING BOUNDARY
+        # (engine.ratios.credit_boundary, owner 2026-09-20). This route hands
+        # the boundary the PERSISTED rows untouched; when the serve-time
+        # model below does not replace the credit block, the boundary
+        # composes the `basis: as_filed` envelope under the whole law
+        # (range, the model's own domain, no composite beside a refused
+        # component, a pack that cannot be read) at the moment the body
+        # leaves - so no fallback on this route can serve an unchecked
+        # figure. Nothing credit-family is read here.
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7389,46 +7609,10 @@ def build_router() -> APIRouter:
                 },
             },
             "bands": statements.get("assembled_bands"),
-            "credit": {
-                "altman_z_score":            _m("altman_z_score"),
-                "altman_variant":            "Z\"",
-                "altman_components": {
-                    "x1": _m("altman_x1"),
-                    "x2": _m("altman_x2"),
-                    "x3": _m("altman_x3"),
-                    "x4": _m("altman_x4"),
-                },
-                "composite_score":           _m("credit_composite"),
-                # F1.h — letter grade emitted as a canonical field on the
-                # envelope so the FE can be a pure reader (no FE-side
-                # mapping). Uses the same _composite_to_letter_grade helper
-                # as stage_compute, so engine logging and envelope agree.
-                "letter_grade": (
-                    None if _m("credit_composite") is None
-                    else _composite_to_letter_grade(float(_m("credit_composite")))
-                ),
-                # The rungs the letter above was read off — the same
-                # `CREDIT_LETTER_LADDER`, served, never a second copy.
-                "letter_grade_bands": _credit_model.letter_grade_bands(),
-                "composite_weights": {
-                    "altman":        0.30,
-                    "profitability": 0.20,
-                    "leverage":      0.15,
-                    "coverage":      0.10,
-                    "dscr":          0.10,
-                    "liquidity":     0.10,
-                    "equity":        0.05,
-                },
-                "subscores": {
-                    "altman":        _m("credit_subscore_altman"),
-                    "profitability": _m("credit_subscore_profitability"),
-                    "leverage":      _m("credit_subscore_leverage"),
-                    "coverage":      _m("credit_subscore_coverage"),
-                    "dscr":          _m("credit_subscore_dscr"),
-                    "liquidity":     _m("credit_subscore_liquidity"),
-                    "equity":        _m("credit_subscore_equity"),
-                },
-            },
+            # A stub: `credit_boundary.enforce_credit_boundary` composes the
+            # as-filed envelope from `metrics` + `statements` on the way out
+            # (or the serve-time model replaces this block below).
+            "credit": {"basis": "as_filed"},
             "piotroski": statements.get("assembled_piotroski"),
             # `valuation` is deferred to F1.j (new override endpoint) —
             # the existing `valuation` key on the response carries the
@@ -7468,7 +7652,75 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
 
-        return {
+        # ── The served ratio table + the serve-time credit model ─────────
+        # (ratios B4). `build_ratio_table(..., serve_time_metrics=True)`
+        # runs the credit model on these statements. The credit envelope
+        # AND the credit-family rows of `metrics` are then served from that
+        # one serve-time result: every FE credit reader (dashboard hero and
+        # Risks tab via computeCreditScore, /report CreditScoreCard, the
+        # workbook) takes composite, Altman and sub-scores from the metrics
+        # rows first and the letter from the envelope, so switching only the
+        # envelope printed a persisted composite beside a letter banded from
+        # a different one. The persisted rows move, verbatim, to
+        # `credit_metrics_as_filed` — the as-filed evidence, disclosed in
+        # `credit.as_filed` only where it differs (a reanalyze never
+        # recomputes them). When the serve-time model cannot run on these
+        # statements (a source that declares its absences) nothing is
+        # switched: the persisted block stays, labelled `basis: as_filed`,
+        # beside its own rows. Switched ON by measurement: on the four
+        # corpus books and the Scandia FY2025 baseline, once the served
+        # balance sheet carries complete equity, no Altman zone and no
+        # letter moves against the persisted rows (Scandia baseline
+        # composite 71.7 as filed -> 71.9 served: the account-121 anchor
+        # the capture predates; letter A both). Non-fatal: a failure keeps
+        # the as-filed block above, labelled `basis: as_filed`.
+        _persisted_env = period.get("assembled_canonical_v1")
+        _persisted_pack_provenance = (
+            _persisted_env.get("pack_provenance")
+            if isinstance(_persisted_env, dict) and isinstance(_persisted_env.get("pack_provenance"), dict)
+            else None
+        )
+        ratio_table_block = None
+        served_metric_rows = list(metrics or [])
+        credit_metrics_as_filed = None
+        _serve_rows = None
+        try:
+            from engine.ratios.table import build_ratio_table as _build_ratio_table
+            from engine.ratios.table import serve_time_metric_rows as _serve_time_metric_rows
+
+            _serve_rows = _serve_time_metric_rows(statements)
+
+            ratio_table_block = _build_ratio_table({
+                "statements": statements,
+                "metrics": metrics or [],
+                "industry_signal": industry_signal_block,
+                "period": {"id": period.get("id"),
+                           "methodology_version": period.get("methodology_version")},
+                "pack_provenance": _persisted_pack_provenance,
+            }, serve_time_metrics=True)
+        except Exception:  # noqa: BLE001
+            logger.exception("[/api/period] ratio table failed for period %s (non-fatal)", period.get("id"))
+        assembled_metrics_envelope["ratio_table"] = ratio_table_block
+        if (isinstance(ratio_table_block, dict) and isinstance(ratio_table_block.get("credit"), dict)
+                and _serve_rows is not None):
+            served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
+                metrics or [], _serve_rows)
+            assembled_metrics_envelope["credit"] = _credit_model.serve_credit_envelope(
+                ratio_table_block["credit"])
+            # The typed ratios block was composed from the PERSISTED rows
+            # above. A definition-revised row (interest_coverage: EBITDA
+            # basis as filed before 2026-09-19, EBIT since) must carry the
+            # figure `metrics[]` and `ratio_table` carry — one key, one
+            # value, on every surface of this body.
+            _served_by_name = {m.get("name"): m.get("value") for m in served_metric_rows}
+            for _group in assembled_metrics_envelope["ratios"].values():
+                if not isinstance(_group, dict):
+                    continue
+                for _name in _credit_model.DEFINITION_REVISED_METRICS:
+                    if _name in _group:
+                        _group[_name] = _served_by_name.get(_name)
+
+        _period_body = {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
             # bands, piotroski, F1.a/b/c canonical extras). v2.1 = F1.e
@@ -7486,6 +7738,10 @@ def build_router() -> APIRouter:
                 "period_end": period["period_end"],
                 "currency": period["currency"],
                 "extraction_confidence": period.get("extraction_confidence"),
+                # The stamp `assembled_metrics.ratio_table` carries; served
+                # here so a table rebuilt from this body (the comparatives
+                # block) stamps the same period the same way.
+                "methodology_version": period.get("methodology_version"),
                 "source_document": doc and {
                     "id": doc["id"],
                     "filename": doc["original_filename"],
@@ -7508,6 +7764,9 @@ def build_router() -> APIRouter:
             # `block_sector_content` is the one authority the report reads
             # before rendering anything calibrated by sector.
             "industry_signal": industry_signal_block,
+            # The PERSISTED envelope's pack provenance (never the serve-time
+            # re-assembly's): what the ratio table stamps, per period.
+            "pack_provenance": _persisted_pack_provenance,
             "statements": statements,
             # Per-account line items — drives the reference-format P&L
             # renderer (account codes + per-line drill-down). Each entry
@@ -7525,6 +7784,8 @@ def build_router() -> APIRouter:
                 }
                 for li in (line_items or [])
             ],
+            # Credit-family rows are the serve-time model's whenever
+            # `assembled_metrics.credit.basis` is "serve" (see above).
             "metrics": [
                 {
                     "name": m["name"],
@@ -7532,7 +7793,18 @@ def build_router() -> APIRouter:
                     "unit": m["unit"],
                     "direction": m.get("direction"),
                 }
-                for m in metrics
+                for m in served_metric_rows
+            ],
+            # The persisted credit-family rows those replaced, verbatim
+            # (null when nothing was replaced): the as-filed evidence.
+            "credit_metrics_as_filed": None if credit_metrics_as_filed is None else [
+                {
+                    "name": m["name"],
+                    "value": m["value"],
+                    "unit": m["unit"],
+                    "direction": m.get("direction"),
+                }
+                for m in credit_metrics_as_filed
             ],
             "briefing": briefing and {
                 "body": briefing["body"],
@@ -7588,6 +7860,10 @@ def build_router() -> APIRouter:
             # should switch to the canonical replacements before sunset.
             "deprecated_fields": _deprecated_fields_for_response(),
         }
+        # THE CHOKEPOINT: the credit content of this body is composed (the
+        # unswitched period) and read against the pack ranges HERE, as it
+        # leaves - whichever branch above produced it.
+        return _credit_boundary.enforce_credit_boundary(_period_body, surface="period")
 
     @router.get("/api/period/{period_id}/comparatives")
     def get_period_comparatives(
@@ -7616,12 +7892,80 @@ def build_router() -> APIRouter:
             with _supabase.per_user(jwt) as client:
                 cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
                 pri_row = _cmp.load_period_in_org(client, prior, org_id=org_id)
+                # The workspace's CAEN, from its ONE authority (ruling Q6):
+                # without it the band findings' company profile is inferred
+                # from the account mix alone, while the Capsule, Radar and
+                # the firm lane all qualify the same company by its code.
+                # Fails open to None, as `caen_for_org` documents.
+                caen = _org.caen_for_org(client, org_id)
             cur_payload = get_period(period_id, authorization)
             pri_payload = get_period(prior, authorization)
-            return _cmp.compare_payloads(
-                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row)
+            return _credit_boundary.enforce_credit_boundary(
+                _cmp.compare_payloads(
+                    cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
+                    caen=caen),
+                surface="comparatives")
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+
+    @router.get("/api/period/{period_id}/sector-benchmark")
+    def get_period_sector_benchmark(
+        period_id: str,
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """The company beside its sector, from the Ministry of Finance
+        annual filings (open data, CC-BY-4.0) — every figure with its
+        source, year and n, or a stated refusal.
+
+        Same wall as comparatives: the organization is resolved from the
+        VERIFIED bearer + X-Org-Id, the period (and the prior period, found
+        one year earlier in the SAME workspace) is loaded with the org IN
+        THE FILTER, and the company side is read off what `get_period`
+        serves — never a second assembly.
+        """
+        from . import _comparatives as _cmp
+        from . import _sector_benchmark as _sb
+        from engine.benchmarks_ro import sector as _sector
+
+        jwt = _require_jwt(authorization)
+        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        try:
+            with _supabase.per_user(jwt) as client:
+                cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
+                prior_id, prior_reason = _sb.find_prior_period(client, cur_row, org_id=org_id)
+                caen = _org.caen_for_org(client, org_id)
+        except _cmp.ComparativesRefused as exc:
+            raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+        # CAEN: the workspace's own code first (the ONE authority the
+        # comparatives, Capsule and Radar read — a workspace is one
+        # company); only when it is absent, the per-period industry choice
+        # the legacy benchmark report resolves. The document says which.
+        caen_source = "workspace" if caen else None
+        if not caen:
+            try:
+                from . import _benchmarks as _bm
+                picked, _src, _refusal = _bm._resolve_effective_caen(jwt=jwt, period_id=period_id)
+                if picked:
+                    caen, caen_source = picked, "period_industry_choice"
+            except Exception:  # noqa: BLE001 — a classification is not worth a 500
+                logger.exception("[sector-benchmark] period CAEN lookup failed for %s", period_id)
+        cur_payload = get_period(period_id, authorization)
+        pri_payload = None
+        if prior_id is not None:
+            try:
+                pri_payload = get_period(prior_id, authorization)
+            except HTTPException:
+                prior_reason = {"code": "prior_period_not_servable", "inputs": [prior_id]}
+        doc = _sector.build_sector_benchmark(
+            cur_payload, caen=caen, prior_payload=pri_payload, prior_reason=prior_reason)
+        doc["caen_source"] = caen_source
+        problems = _sector.check_document_law(doc)
+        if problems:
+            logger.error("[sector-benchmark] unlawful document for %s: %s", period_id, problems[:5])
+            raise HTTPException(500, {"code": "sector_benchmark_unlawful",
+                                      "message": "a sector figure lacked its source, year or n"})
+        return doc
 
     @router.put("/api/period/{period_id}/valuation-assumptions")
     def save_valuation_assumptions(
@@ -7681,7 +8025,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -7735,7 +8085,13 @@ def build_router() -> APIRouter:
                         "statement_line_items",
                         filters={"period_id": f"eq.{period_id}"},
                     )
-                    assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+                    # The SAME served-rebuild seam GET /api/period and
+                    # /valuation/recompute read (canonical assembled_pl /
+                    # _bs / _cf). The bucket-only `_rebuild_assembled` carries
+                    # no working-capital change, so on that shape every save /
+                    # reset persisted a `dcf_fcf_input_absent` refusal over a
+                    # period whose GET computes a DCF (the §21 sibling miss).
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=org.get("industry_key"),
                         statements=assembled,
@@ -7798,13 +8154,26 @@ def build_router() -> APIRouter:
             v = (body or {}).get(k)
             if v is None:
                 continue
+            if isinstance(v, bool):
+                raise HTTPException(
+                    400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
+                )
             try:
-                # forecast_years is an int; everything else is a float.
-                overrides[k] = int(v) if k == "forecast_years" else float(v)
+                overrides[k] = float(v)
             except (TypeError, ValueError):
                 raise HTTPException(
                     400, f"valuation/recompute: '{k}' must be numeric (got {v!r})."
                 )
+        # OUT-OF-DOMAIN OVERRIDES ARE A 400, never a computation at a
+        # substitute: the domains are `_valuation.DCF_OVERRIDE_DOMAINS`
+        # (a non-finite value, fewer than one forecast year, a fractional
+        # year, a growth rate at or below -100%). `forecast_years` used to be
+        # `int()`-truncated here, so 2.5 years silently became 2.
+        domain_errors = _valuation.dcf_override_domain_errors(overrides)
+        if domain_errors:
+            raise HTTPException(400, "valuation/recompute: " + " ".join(domain_errors))
+        if "forecast_years" in overrides:
+            overrides["forecast_years"] = int(overrides["forecast_years"])
 
         with _supabase.per_user(jwt) as client:
             periods = client.select(
@@ -7827,7 +8196,13 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
-            assembled = _rebuild_assembled(line_items, period)  # period → envelope-true equity completion
+            # The SAME served-rebuild seam GET /api/period's valuation reads
+            # (canonical assembled_pl / _bs / _cf). The bucket-only
+            # `_rebuild_assembled` carries no working-capital change, and the
+            # DCF no longer reads an absent ΔWC as 0 — on that shape every
+            # recompute would refuse, and before this it computed a DCF the
+            # GET path never served.
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
 
             # Layer the user's saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
@@ -7861,6 +8236,19 @@ def build_router() -> APIRouter:
                 raise HTTPException(
                     500, f"Valuation recompute failed: {type(exc).__name__}"
                 ) from exc
+
+        # The Gordon terminal is undefined when the central WACC does not
+        # exceed terminal growth. With the caller's overrides in play that
+        # is an out-of-domain request, answered 400 with the engine's own
+        # sentence — the old code nudged WACC to g + 0.5% and served an EV
+        # (692.6M against 72.2M at defaults, measured) at a rate nobody chose.
+        if overrides:
+            undefined = [r for r in (result.get("dcf_refusals") or [])
+                         if r.get("code") in ("dcf_wacc_not_above_growth",
+                                              "dcf_override_out_of_domain")]
+            if undefined:
+                raise HTTPException(
+                    400, "valuation/recompute: " + " ".join(r["text"] for r in undefined))
 
         return {
             "valuation": result,

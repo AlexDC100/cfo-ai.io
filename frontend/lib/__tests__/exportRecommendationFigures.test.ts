@@ -189,7 +189,7 @@ describe("G5 — every figure in a recommendation is a figure the report states"
       // pass by accident when a wrong DSCR happens to collide with some
       // other figure printed elsewhere on the page.
       const doc = exportDoc(book as Book);
-      const card = ratioCards(doc).find((c) => c.label === "DSCR (interest + ST debt)");
+      const card = ratioCards(doc).find((c) => c.label === "Debt service coverage");
       expect(card, `${book}: the document prints no DSCR card`).toBeTruthy();
       const stated = parsePrinted(card!.value);
       for (const text of recommendationTexts(doc)) {

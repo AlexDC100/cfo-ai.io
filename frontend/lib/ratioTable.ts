@@ -39,6 +39,7 @@
 
 import i18n from "@/i18n";
 import type { ChipTone } from "@/components/instrument/Panel";
+import { RATIO_CMP_SURFACE_KEYS, RATIO_LABELLED_KEYS } from "@/lib/ratioCompareKeys";
 
 // ─── Enumerations (closed, mirrored from the served schema) ─────────────
 
@@ -100,14 +101,20 @@ export interface RatioReason {
 }
 
 /** Rungs in the value's DISPLAY unit (pct rows are percent, not fractions),
- *  quantized strings. `critical` is optional: a ladder without it floors at
- *  watch. */
+ *  quantized strings: the entry rung of each band the pack definition
+ *  declares, best first. No served ladder carries a `critical` rung. A value
+ *  that reaches no rung takes the side's `ladder_floor` — `critical` for
+ *  most keys (dso, dio, ...), `watch` where the pack declares that floor
+ *  (dpo: below watch 30 stays watch). The Altman ladder serves only
+ *  `healthy` (safe from) and `watch` (grey from). */
 export interface RatioLadder {
-  strong: string;
-  healthy: string;
-  watch: string;
-  critical?: string;
+  strong?: string;
+  healthy?: string;
+  watch?: string;
 }
+
+/** The band a value past the last served rung takes. */
+export type RatioLadderFloor = "watch" | "critical";
 
 export interface RatioSide {
   /** Full precision. Never printed; carried for charts and audits. */
@@ -117,6 +124,9 @@ export interface RatioSide {
   band: RatioBand | CreditLetter | null;
   band_status: RatioBandStatus;
   ladder: RatioLadder | null;
+  /** Served beside every band ladder; null on a letter ladder (its last
+   *  rung, min 0, is its own floor) and wherever no ladder is served. */
+  ladder_floor: RatioLadderFloor | null;
   operands: RatioOperand[];
   reason: RatioReason | null;
 }
@@ -210,20 +220,97 @@ export interface CreditLadderRung {
   grade: CreditLetter;
 }
 
+/** A filed figure the engine WITHDREW: it was persisted outside its
+ *  pack range (a revision-1 X4 1500 / Z'' 1584.89 / composite 88.5 on a
+ *  zero-liability book), so `as_filed` carries null for it and this note
+ *  in its place. The value is served for the audit trail only — never
+ *  printed as a figure (R-RANGE, every surface). */
+export interface CreditAsFiledWithdrawn {
+  figure: "altman_z_score" | "credit_composite" | string;
+  value: number;
+  text: string;
+}
+
 export interface CreditAsFiled {
   composite: number | null;
   altman_z: number | null;
   letter: CreditLetter | null;
   credit_model_revision: number | "unknown";
+  withdrawn?: CreditAsFiledWithdrawn[];
+}
+
+/** A sub-score the credit model refused (credit_model revision 2,
+ *  `subscore_refusal`): its code, the inputs it names and the served
+ *  sentence. `materiality` travels with the Altman refusal (the pack share
+ *  it was read against, TC-10) and `range` with an out-of-range one. */
+export interface CreditSubscoreRefusal {
+  code:
+    | "current_liabilities_not_positive"
+    | "total_liabilities_below_materiality"
+    | "revenue_not_positive"
+    | "interest_expense_not_positive"
+    | "credit_out_of_range"
+    | "credit_inputs_absent";
+  component: CreditSubscoreKey;
+  inputs: string[];
+  text: string;
+  materiality?: { share: string; basis: string; source: string; file: string };
+  range?: string;
+}
+
+/** A sub-score the model STATED rather than measured (rulings R-D1, R-D2,
+ *  R-D3): the pack rung, its label and source, served so no surface prints
+ *  it as a measurement. */
+export interface CreditDeclaredRung {
+  rung: string;
+  score: number;
+  when: string;
+  label: string;
+  source: string;
+  file: string;
+}
+
+/** Why the composite and the letter are absent (R-COMPOSITE): every
+ *  refused component listed with its own refusal, or the composed value
+ *  outside its range, or a model that did not run. */
+export interface CreditCompositeRefusal {
+  code: "credit_component_undefined" | "credit_out_of_range" | "credit_inputs_absent";
+  inputs: string[];
+  components?: Array<CreditSubscoreRefusal & { cause: string }>;
+  range?: string;
+  text?: string;
+}
+
+/** The pack-declared ranges every served figure was read against
+ *  (R-RANGE), with the Z'' bound derived for this book. */
+export interface CreditRanges {
+  subscore: { min: number; max: number; source: string; file: string };
+  composite: { min: number; max: number; source: string; file: string };
+  altman_x1: { max: number; source: string; file: string };
+  altman_x4: { max: number; max_is: string; source: string; file: string };
+  altman_z: { bound: number | null; bound_is: string; derivation: string | null; source: string; file: string };
 }
 
 export interface CreditBlock {
   revision: number;
   altman: CreditAltman;
   subscores: Record<CreditSubscoreKey, number | null>;
+  /** Sub-scores the model refused, with why. Any entry here means
+   *  `composite` and `letter` are null (R-COMPOSITE). */
+  refused_subscores: Partial<Record<CreditSubscoreKey, CreditSubscoreRefusal>>;
+  /** Sub-scores stated by declared rule rather than measured, labelled. */
+  declared_rungs: Partial<Record<CreditSubscoreKey, CreditDeclaredRung>>;
+  /** R-D2: set when ROE was dropped from the profitability blend. */
+  profitability_disclosure: { formula: string; label: string; source: string; file: string } | null;
+  /** THE MODEL'S WEIGHT TABLE — the only weights a composite is ever
+   *  multiplied by. Never renormalised: with a refused component there is
+   *  no composite at all. */
   weights: Record<CreditSubscoreKey, number>;
+  ranges: CreditRanges;
   composite: number | null;
   letter: CreditLetter | null;
+  /** Null beside a composite; otherwise why there is none. */
+  reason: CreditCompositeRefusal | null;
   ladder: CreditLadderRung[];
   as_filed: CreditAsFiled | null;
   as_filed_differs: boolean;
@@ -281,9 +368,14 @@ export interface RatioBandMovements {
   improved: string[];
   deteriorated: string[];
   unchanged: { key: string; band: RatioBand | CreditLetter | null }[];
+  /** Valued on both sides and not comparable. With improved, deteriorated
+   *  and unchanged it partitions `coverage.both_sides`. */
   not_comparable: { key: string; reason_code: string }[];
-  /** Finding.to_payload() rows, or check rows when demoted, in rank order.
-   *  Typed loosely here: the findings contract owns that shape. */
+  /** Movable entries refused on either side (never dropped). */
+  refused: { key: string; reason_code: string }[];
+  /** ONE row per crossing (improved + deteriorated), in rank order:
+   *  Finding.to_payload() when surfaced, the check row it demotes to
+   *  otherwise. Typed loosely here: the findings contract owns that shape. */
   findings: Record<string, unknown>[];
 }
 
@@ -296,7 +388,12 @@ export interface RatioComparisonStamps {
 
 export interface RatioComparisonCoverage {
   census_count: number;
+  /** The composites the movement partition covers beside the census. */
+  movable_composites: string[];
+  /** Census rows plus `movable_composites`, valued on both sides. */
   both_sides: number;
+  /** Census rows alone, valued on both sides. */
+  both_sides_census: number;
   prior_refused: Record<string, string>;
   current_refused: Record<string, string>;
 }
@@ -322,9 +419,9 @@ export interface RatioComparisonV1 {
 // src/engine/ratios/table.py, same order, and ratioTableFormat.test.ts G5
 // parses that tuple and reds when the copy drifts or a code has no EN or
 // RO sentence. The two-period composer (src/engine/comparatives/
-// ratio_compare.py, batch B4) will declare the delta and movement codes;
-// until it does, those codes render through the `unlisted` sentence that
-// NAMES the code, and G5 goes live on that file the moment it exists.
+// ratio_compare.py, batch B4) declares the delta, movement and composite
+// codes; `RATIO_COMPARE_REASON_CODES` mirrors them and G5 reds when that
+// file declares a code this reader has no sentence for.
 //
 // `RATIO_READER_REASONS` are this reader's own sentences, never served:
 // `period_absent` (no side at all), `unstated` (a null where the contract
@@ -336,6 +433,7 @@ export const RATIO_REASON_CODES = [
   // refused (no value)
   "operand_absent",
   "zero_denominator",
+  "nonpositive_denominator",
   "non_finite",
   "engine_metric_absent",
   "user_input_absent",
@@ -349,10 +447,37 @@ export const RATIO_REASON_CODES = [
 
 export type RatioReasonCode = (typeof RATIO_REASON_CODES)[number];
 
+/** MIRROR of the two-period composer's declared codes
+ *  (src/engine/comparatives/ratio_compare.py DELTA_REASON_CODES,
+ *  MOVEMENT_REASON_CODES, COMPOSITE_REASON_CODES), de-duplicated in first
+ *  appearance order. A delta without a value or a direction, a movement
+ *  that is not comparable, a composite that is not scored, and the
+ *  Piotroski cap each carry one. ratioTableFormat.test.ts G5 reds when the
+ *  composer declares a code with no sentence here. */
+export const RATIO_COMPARE_REASON_CODES = [
+  "current_refused",
+  "prior_refused",
+  "both_refused",
+  "direction_withheld",
+  "ladder_differs",
+  "graded_by_letter",
+  "credit_inputs_absent",
+  "piotroski_prior_capped",
+  "current_liabilities_not_positive",
+  "total_liabilities_below_materiality",
+  "revenue_not_positive",
+  "interest_expense_not_positive",
+  "credit_out_of_range",
+  "credit_component_undefined",
+] as const;
+
+export type RatioCompareReasonCode = (typeof RATIO_COMPARE_REASON_CODES)[number];
+
 /** The codes whose sentence names the served `reason.inputs`. */
 export const RATIO_REASON_CODES_WITH_INPUTS: ReadonlySet<string> = new Set([
   "operand_absent",
   "zero_denominator",
+  "nonpositive_denominator",
   "negative_denominator",
   "user_input_absent",
 ]);
@@ -366,7 +491,7 @@ export const RATIO_READER_REASONS = [
   "unrecognised",
 ] as const;
 
-const REASON_SET: ReadonlySet<string> = new Set(RATIO_REASON_CODES);
+const REASON_SET: ReadonlySet<string> = new Set([...RATIO_REASON_CODES, ...RATIO_COMPARE_REASON_CODES]);
 
 export function reasonKey(reasonCode: string | null | undefined): string {
   if (reasonCode === null || reasonCode === undefined || reasonCode === "") {
@@ -445,6 +570,39 @@ type T = ReturnType<typeof i18n.getFixedT>;
 
 function tFor(locale: string | null | undefined): T {
   return i18n.getFixedT(ratioLocale(locale ?? i18n.language));
+}
+
+// ─── ONE LABEL, ONE HEADING SET, EVERY SURFACE ──────────────────────────
+//
+// The Ratios tab resolved a row's name from the served `label_key` through
+// `statements.ratioCmp.label.<key>`, while the report and the workbook
+// borrowed the `computeRatios` card's own words ("Current Ratio",
+// "Interest Coverage (EBITDA / Interest)", "Altman Z\"-Score") and spelled
+// their headings by hand ("Δ", "Band now"). The six cells byte-matched; the
+// names beside them did not, on all 31 rows (B8 verifier). These two
+// functions are the authority every surface prints from; the byte-match
+// gate holds the tab, the report and the workbook to them.
+
+/** The printed name of a served ratio key, from the i18n table the tab
+ *  reads — or null for a key the table does not label, so a caller falls
+ *  back to whatever name it has rather than printing the raw key. */
+export function ratioLabelForKey(key: string, locale?: string | null): string | null {
+  if (!(RATIO_LABELLED_KEYS as readonly string[]).includes(key)) return null;
+  return tFor(locale)(`statements.ratioCmp.label.${key}`);
+}
+
+/** The six column headings, in cell order: the two period labels verbatim,
+ *  then the change, band-now, band-prior and movement words. */
+export function ratioCompareHeadingsFor(currentLabel: string, priorLabel: string, locale?: string | null): string[] {
+  const t = tFor(locale);
+  return [
+    currentLabel,
+    priorLabel,
+    t("statements.ratioCmp.ui.colChange"),
+    t("statements.ratioCmp.ui.colBandNow", { label: currentLabel }),
+    t("statements.ratioCmp.ui.colBandPrior", { label: priorLabel }),
+    t("statements.ratioCmp.ui.colMovement"),
+  ];
 }
 
 /** A served enum value this reader does not recognise, named. */
@@ -585,6 +743,44 @@ export interface FormattedRatioDelta {
   /** Turns rows: the percent change, or the sentence for why there is none.
    *  Every other unit: null. */
   secondary: string | null;
+}
+
+/** How a turns row's percent change sits beside its turns change when the
+ *  two are printed as ONE cell: "+0.28× (+15.4%)". The report, the
+ *  workbook and the Ratios tab's change cell all print it this way, so a
+ *  change cell is the same bytes on every surface
+ *  (ratioTableByteMatch.test.tsx). A surface that lays the two parts out
+ *  on separate lines renders these same three strings in order. */
+export const RATIO_DELTA_SECONDARY_OPEN = " (";
+export const RATIO_DELTA_SECONDARY_CLOSE = ")";
+
+/** The one-cell text of a formatted delta. */
+export function joinRatioDelta(d: FormattedRatioDelta): string {
+  return d.secondary === null
+    ? d.primary
+    : `${d.primary}${RATIO_DELTA_SECONDARY_OPEN}${d.secondary}${RATIO_DELTA_SECONDARY_CLOSE}`;
+}
+
+function canonicalRatioJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalRatioJson).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canonicalRatioJson(obj[k])}`)
+    .join(",")}}`;
+}
+
+/** A served two-period row, serialised canonically: keys sorted at every
+ *  depth, no whitespace. THE BYTE-MATCH HANDLE: every surface that prints a
+ *  served row — the Ratios tab (table, tile, drawer, lists, credit strip),
+ *  the report (cards, served-only table, executive summary) — embeds this
+ *  string as `data-ratio-cmp-json`, so the same served row is the same
+ *  bytes on the dashboard and in the downloaded document. Nothing is
+ *  formatted, rounded or dropped on the way. */
+export function serializeRatioCompareRow(row: RatioCompareRow): string {
+  return canonicalRatioJson(row);
 }
 
 /** The served delta as printed text. */
@@ -759,6 +955,7 @@ export function formatRatioMovement(
 export function ratioCmpKeyCensus(): string[] {
   const keys = new Set<string>([
     "statements.ratioCmp.pctNoBase",
+    "statements.ratioCmp.rankBasis",
     "statements.ratioCmp.listAnd",
     "statements.ratioCmp.listComma",
     "statements.ratioCmp.listPlus",
@@ -775,12 +972,14 @@ export function ratioCmpKeyCensus(): string[] {
       keys.add(`statements.ratioCmp.unit.${u}Many`);
     }
   }
-  for (const c of [...RATIO_REASON_CODES, ...RATIO_READER_REASONS]) {
+  for (const c of [...RATIO_REASON_CODES, ...RATIO_COMPARE_REASON_CODES, ...RATIO_READER_REASONS]) {
     keys.add(`statements.ratioCmp.reason.${c}`);
   }
   for (const id of Object.values(RATIO_OPERAND_WORD)) keys.add(`statements.ratioCmp.operand.${id}`);
   for (const k of Object.values(BAND_WORD_KEY)) keys.add(k);
   for (const k of Object.values(BAND_STATUS_WORD_KEY)) keys.add(k);
   keys.add("dashV2.ratioVerdictUnknown");
+  // The surfaces' own words (labels, groups, headers): see ratioCompareKeys.ts.
+  for (const k of RATIO_CMP_SURFACE_KEYS) keys.add(k);
   return [...keys].sort();
 }

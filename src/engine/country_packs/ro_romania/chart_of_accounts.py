@@ -42,10 +42,89 @@ Ignored explicitly (NOT summed into ANY bucket, even via the `5`/`1` catchall):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Dict, List, Optional, Tuple
 
 from engine.packs import CompiledPack
 from engine.packs.runtime import active_pack
+
+from engine.country_packs.ro_romania import parameters as _params
+
+
+#: The stated reason every day-count refusal opens with.
+PERIOD_DAYS_REFUSAL_PREFIX = (
+    "Day-count ratios unavailable: the period length covered by this trial "
+    "balance's year-to-date movements is not established"
+)
+
+
+def _iso_date(value: object) -> Optional[date]:
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def period_days_covered(
+    period_end: object,
+    *,
+    period_start: object = None,
+    signal_used: Optional[str] = None,
+) -> Dict[str, object]:
+    """How many days the trial balance's year-to-date movements cover.
+
+    Returns ``{"days": int | None, "basis": str | None, "refusal": str | None}``
+    — exactly one of ``basis`` / ``refusal`` is set. Pure: no clock.
+
+    ESTABLISHED, in order:
+      1. a stated span — ``period_start`` strictly before ``period_end`` —
+         counts its own days, inclusive;
+      2. a period end resolved by a real signal (a human confirmation or a
+         detection read off the document / its filename) counts from the
+         financial-year start the pack declares (``parameters.
+         FISCAL_YEAR_START_*``, the calendar-year rule of Legea 82/1991) to
+         that end, inclusive. A 31 December end is 365 days, or 366 in a
+         leap year.
+
+    NOT ESTABLISHED, and refused rather than read as a year:
+      * no period end, or one that is not a date;
+      * a period end filed by a fallback signal
+        (``parameters.UNESTABLISHED_PERIOD_SIGNALS``);
+      * no signal at all and no stated span — nothing says where the date
+        came from.
+
+    365 is never a default here: a June year-to-date book narrated as a
+    year doubles every DSO / DIO / DPO it serves.
+    """
+    end = _iso_date(period_end)
+    if end is None:
+        return {"days": None, "basis": None,
+                "refusal": "%s: the period end is not a date (%r)." % (
+                    PERIOD_DAYS_REFUSAL_PREFIX, period_end)}
+    if signal_used in _params.UNESTABLISHED_PERIOD_SIGNALS:
+        return {"days": None, "basis": None,
+                "refusal": "%s: the period end %s was filed by the '%s' signal, "
+                           "not read from the document or confirmed." % (
+                               PERIOD_DAYS_REFUSAL_PREFIX, end.isoformat(), signal_used)}
+    start = _iso_date(period_start)
+    if start is not None and start < end:
+        return {"days": (end - start).days + 1,
+                "basis": "stated period %s to %s" % (start.isoformat(), end.isoformat()),
+                "refusal": None}
+    if not signal_used:
+        return {"days": None, "basis": None,
+                "refusal": "%s: the period end %s carries no detection record and "
+                           "no stated period start." % (
+                               PERIOD_DAYS_REFUSAL_PREFIX, end.isoformat())}
+    fy_start = date(end.year, _params.FISCAL_YEAR_START_MONTH, _params.FISCAL_YEAR_START_DAY)
+    if fy_start > end:
+        fy_start = date(end.year - 1, _params.FISCAL_YEAR_START_MONTH, _params.FISCAL_YEAR_START_DAY)
+    return {"days": (end - fy_start).days + 1,
+            "basis": "financial year from %s to period end %s (%s; period end signal '%s')" % (
+                fy_start.isoformat(), end.isoformat(), _params.FISCAL_YEAR_START_SOURCE, signal_used),
+            "refusal": None}
 
 
 @dataclass
@@ -552,7 +631,14 @@ _GENERAL_SME_BAND_DEFINITIONS: Dict[str, Dict[str, object]] = {
     # Efficiency (days)
     "dso":            {"strong": 30,   "healthy": 45,   "watch": 75,   "direction": "lower"},
     "dio":            {"strong": 30,   "healthy": 60,   "watch": 100,  "direction": "lower"},
-    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher"},
+    # DPO carries a declared FLOOR: a value below the watch rung grades
+    # `watch`, never `critical` (owner ruling 2026-09-14, ratios B4 step 1).
+    # CLAUDE.md Appendix A section 5 gives DPO a benchmark range and names
+    # no failure threshold, so no rung here may call a short payables cycle
+    # a distress reading. The watch rung value stays: forecast band
+    # traversal walks to it. Read by `engine.ratios.table` (`floor`), and
+    # ignored by every reader that picks strong/healthy/watch by name.
+    "dpo":            {"strong": 60,   "healthy": 45,   "watch": 30,   "direction": "higher", "floor": "watch"},
     "ccc":            {"strong": 30,   "healthy": 60,   "watch": 90,   "direction": "lower"},
     "asset_turnover": {"strong": 1.5,  "healthy": 1.0,  "watch": 0.5,  "direction": "higher"},
     "inventory_turnover": {"strong": 12, "healthy": 6,  "watch": 3,    "direction": "higher"},
@@ -566,6 +652,7 @@ def _piotroski_checks(
     cash_from_operating: float,
     prior: Optional[Dict[str, float]],
     currency: str,
+    current: Optional[Dict[str, float]] = None,
 ) -> Dict[str, object]:
     """F1.g — emit the Piotroski 9-check bundle.
 
@@ -578,15 +665,21 @@ def _piotroski_checks(
     The `prior` dict, when provided, should carry the prior-period
     equivalents: {net_income_statutory, total_assets, revenue,
     long_term_debt, share_capital, operating_ebit, asset_turnover}.
-    Plumbing prior-period lookup is a separate follow-up; today every
-    call site passes `None` so the FE renders the honest "5 checks
-    pending prior-period" state.
+    The assembler passes `None` (it never holds a prior), so the served
+    `assembled_piotroski` stays at the honest cap of 4.
+
+    2026-09-14 (ratios B4): the comparatives composer
+    (`engine.comparatives.ratio_compare`) HOLDS the prior and passes it,
+    with `current` carrying this period's
+    {revenue, long_term_debt, share_capital, operating_ebit}. Checks 5-9
+    then evaluate: ROA (net income / total assets) higher than the
+    prior's; long-term debt lower; share capital not higher; operating
+    margin (operating EBIT / revenue) higher; asset turnover (revenue /
+    total assets) higher. A check whose operand is absent on either side,
+    or whose base is not positive, is `uncertain`, never a pass or a fail.
     """
     checks: List[Dict[str, object]] = []
     has_prior = prior is not None
-    # `cur` carries the current values that downstream YoY checks
-    # would compare against if prior were available. Computed once.
-    cur_roa = (net_income_statutory / total_assets) if total_assets > 0 else 0.0
 
     def _add(key: str, label: str, result: str, detail: str) -> None:
         checks.append({"key": key, "label": label, "result": result, "detail": detail})
@@ -598,11 +691,21 @@ def _piotroski_checks(
         "pass" if ni_pass else "fail",
         f"{net_income_statutory:,.0f} {currency}",
     )
-    roa_pass = cur_roa > 0
+    # ROA is undefined on a non-positive asset base. It is `uncertain` and
+    # left out of the score — the same treatment `_ratio` / `_yoy` give the
+    # prior-period checks below — never a `fail` at an invented 0.00%.
+    roa_defined = total_assets > 0
+    roa_pass = roa_defined and (net_income_statutory / total_assets) > 0
     _add(
         "roa_positive", "ROA positive",
-        "pass" if roa_pass else "fail",
-        f"{cur_roa * 100:.2f}% on {total_assets:,.0f} {currency} total assets",
+        ("pass" if roa_pass else "fail") if roa_defined else "uncertain",
+        (
+            f"{net_income_statutory / total_assets * 100:.2f}% on "
+            f"{total_assets:,.0f} {currency} total assets"
+        ) if roa_defined else (
+            f"ROA not computable: total assets are not positive "
+            f"({total_assets:,.0f} {currency})."
+        ),
     )
     cfo_pass = cash_from_operating > 0
     _add(
@@ -637,12 +740,59 @@ def _piotroski_checks(
     }
     yoy_pass_count = 0
     if has_prior:
-        # When prior data plumbing lands, replace this branch with the
-        # actual comparisons (current vs prior on each metric). The
-        # spec already specifies inputs and pass conditions in §9.
-        for key in prior_required_keys:
-            _add(key, prior_labels[key], "uncertain",
-                 "Prior-period plumbing scheduled; check disabled.")
+        cur = current or {}
+        pri = prior or {}
+
+        def _n(bag: Dict[str, float], key: str) -> Optional[float]:
+            v = bag.get(key)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return None
+            return float(v)
+
+        def _ratio(num: Optional[float], den: Optional[float]) -> Optional[float]:
+            if num is None or den is None or den <= 0:
+                return None
+            return num / den
+
+        def _yoy(key: str, now: Optional[float], then: Optional[float],
+                 passes: bool, detail: str) -> None:
+            nonlocal yoy_pass_count
+            if now is None or then is None:
+                _add(key, prior_labels[key], "uncertain",
+                     "An operand is not reported for one of the two periods.")
+                return
+            if passes:
+                yoy_pass_count += 1
+            _add(key, prior_labels[key], "pass" if passes else "fail", detail)
+
+        roa_now = _ratio(net_income_statutory, total_assets)
+        roa_then = _ratio(_n(pri, "net_income_statutory"), _n(pri, "total_assets"))
+        _yoy("roa_improving", roa_now, roa_then,
+             roa_now is not None and roa_then is not None and roa_now > roa_then,
+             "" if roa_now is None or roa_then is None
+             else f"{roa_then * 100:.2f}% -> {roa_now * 100:.2f}%")
+        ltd_now, ltd_then = _n(cur, "long_term_debt"), _n(pri, "long_term_debt")
+        _yoy("debt_declining", ltd_now, ltd_then,
+             ltd_now is not None and ltd_then is not None and ltd_now < ltd_then,
+             "" if ltd_now is None or ltd_then is None
+             else f"{ltd_then:,.0f} -> {ltd_now:,.0f} {currency}")
+        sc_now, sc_then = _n(cur, "share_capital"), _n(pri, "share_capital")
+        _yoy("no_share_issuance", sc_now, sc_then,
+             sc_now is not None and sc_then is not None and sc_now <= sc_then,
+             "" if sc_now is None or sc_then is None
+             else f"{sc_then:,.0f} -> {sc_now:,.0f} {currency}")
+        om_now = _ratio(_n(cur, "operating_ebit"), _n(cur, "revenue"))
+        om_then = _ratio(_n(pri, "operating_ebit"), _n(pri, "revenue"))
+        _yoy("margin_improving", om_now, om_then,
+             om_now is not None and om_then is not None and om_now > om_then,
+             "" if om_now is None or om_then is None
+             else f"{om_then * 100:.2f}% -> {om_now * 100:.2f}%")
+        at_now = _ratio(_n(cur, "revenue"), total_assets)
+        at_then = _ratio(_n(pri, "revenue"), _n(pri, "total_assets"))
+        _yoy("asset_turnover_improving", at_now, at_then,
+             at_now is not None and at_then is not None and at_now > at_then,
+             "" if at_now is None or at_then is None
+             else f"{at_then:.3f}x -> {at_now:.3f}x")
     else:
         for key in prior_required_keys:
             _add(key, prior_labels[key], "uncertain",
@@ -704,6 +854,9 @@ def assemble_statements(
     extraction_meta: Optional[Dict[str, object]] = None,
     source_account_census: Optional[int] = None,
     extra_unmapped: Optional[List[Dict[str, object]]] = None,
+    period_end: Optional[str] = None,
+    period_start: Optional[str] = None,
+    period_signal: Optional[str] = None,
 ) -> Dict[str, object]:
     """Roll account-level amounts into BS + PL totals.
 
@@ -731,6 +884,13 @@ def assemble_statements(
       `extra_unmapped` — unmapped accounts dropped BEFORE this call
         (the deterministic parser skips unknown codes pre-assembly);
         merged into canonical_bs.unmapped for full census coverage.
+
+    Period kwargs (optional): `period_end` / `period_start` /
+    `period_signal` establish `supplementary.periodDays` through
+    `period_days_covered`. A caller that holds no period (the write seam
+    assembles before `stage_persist` resolves one) gets `periodDays: None`
+    — the assembler cannot read a period length off account rows, so it
+    does not claim one.
     """
     bs = _empty_bs()
     pl = _empty_pl()
@@ -1634,12 +1794,15 @@ def assemble_statements(
             currency=currency,
         ),
         # Required by the TS Statements interface — computeRatios() reads
-        # supplementary.periodDays. Empty defaults are fine; real values would
-        # come from a follow-up "enrichment" stage (employee count, lease
-        # obligations, market value of property — the user can fill these in
-        # via the Settings UI later).
+        # supplementary.periodDays. The day count is established from the
+        # period the caller holds (`period_days_covered`), or it is None:
+        # it was a hard-coded 365 placeholder, which served every non-
+        # December book's DSO / DIO / DPO at 365 / days-covered times its
+        # true value under a provenance that read like a measured field.
         "supplementary": {
-            "periodDays": 365,
+            "periodDays": period_days_covered(
+                period_end, period_start=period_start, signal_used=period_signal,
+            )["days"],
         },
     }
     result: Dict[str, object] = {

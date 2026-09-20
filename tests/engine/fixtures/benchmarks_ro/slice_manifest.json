@@ -1,0 +1,70 @@
+{
+ "caen4": [
+  "1011",
+  "1013"
+ ],
+ "caen_revision": "CAEN Rev.2, as filed for the year",
+ "files": [
+  {
+   "dataset_id": "d3caacb6-2c08-445e-94e6-8d36d00ab250",
+   "dataset_slug": "situatii_financiare_2024",
+   "family": "UU",
+   "file": "fy2024_web_uu.txt",
+   "full_file_sha256": "0cc2496a17b3a7bf3405294ac26cda85f5aa2e258717027d63119e78492d21aa",
+   "license_id": "CC-BY-4.0",
+   "resource_id": "25098618-f6a5-4610-8c7f-c0bdb801635f",
+   "resource_url": "https://data.gov.ro/dataset/d3caacb6-2c08-445e-94e6-8d36d00ab250/resource/25098618-f6a5-4610-8c7f-c0bdb801635f/download/web_uu_an2024.txt",
+   "sha256": "ddb2a065ff3ae4d8abf268187de11d368f749d7c4279859882bf93366722c00d",
+   "spec": "fy2024_web_uu.spec.csv",
+   "year": 2024
+  },
+  {
+   "dataset_id": "d3caacb6-2c08-445e-94e6-8d36d00ab250",
+   "dataset_slug": "situatii_financiare_2024",
+   "family": "BL",
+   "file": "fy2024_web_bl_bs_sl.txt",
+   "full_file_sha256": "6426a132816841ea7974ca1dc85370b6d2027662e71e228a2a252f8c7a8fd4d3",
+   "license_id": "CC-BY-4.0",
+   "resource_id": "f89140dc-20dd-494f-912a-d1a482188885",
+   "resource_url": "https://data.gov.ro/dataset/d3caacb6-2c08-445e-94e6-8d36d00ab250/resource/f89140dc-20dd-494f-912a-d1a482188885/download/web_bl_bs_sl_an2024.txt",
+   "sha256": "03ae880286b22c86cd73d154abb58fabbafe3e553a85659fa5b2e61ce5d8f106",
+   "spec": "fy2024_web_bl_bs_sl.spec.csv",
+   "year": 2024
+  },
+  {
+   "dataset_id": "7861a98f-4d5c-4faa-90d4-8e934ebd1782",
+   "dataset_slug": "situatii_financiare2023",
+   "family": "UU",
+   "file": "fy2023_web_uu_actualizat.txt",
+   "full_file_sha256": "aaea14932bff7eabfd14671e031a759146cc7c6e7f16c71bb99286c95ca94383",
+   "license_id": "CC-BY-4.0",
+   "resource_id": "ee5b6665-c096-4582-ada7-cc51a62c3c40",
+   "resource_url": "https://data.gov.ro/dataset/7861a98f-4d5c-4faa-90d4-8e934ebd1782/resource/ee5b6665-c096-4582-ada7-cc51a62c3c40/download/web_uu_an2023.txt",
+   "sha256": "8cc9bde85652ff524982551cceb1e8bf7dd64ad7ab27b574de857817cded0d7b",
+   "spec": "fy2023_web_uu.spec.csv",
+   "year": 2023
+  },
+  {
+   "dataset_id": "7861a98f-4d5c-4faa-90d4-8e934ebd1782",
+   "dataset_slug": "situatii_financiare2023",
+   "family": "BL",
+   "file": "fy2023_web_bl_bs_sl_actualizat.txt",
+   "full_file_sha256": "472c5966a01901f2ed0762506169ffa5c989b71d0060103aa21bda342e83a85a",
+   "license_id": "CC-BY-4.0",
+   "resource_id": "8c914899-cf2a-494c-9d3b-7f9f7faa47a3",
+   "resource_url": "https://data.gov.ro/dataset/7861a98f-4d5c-4faa-90d4-8e934ebd1782/resource/8c914899-cf2a-494c-9d3b-7f9f7faa47a3/download/web_bl_bs_sl_an2023.txt",
+   "sha256": "bacaeeef208b763c5a9844cce10d23559e9db71462910d0d1253a4c8e0cc9c8b",
+   "spec": "fy2023_web_bl_bs_sl.spec.csv",
+   "year": 2023
+  }
+ ],
+ "prior_year": 2023,
+ "publisher": "Ministerul Finantelor (CKAN organisation mfp), data.gov.ro",
+ "sector_labels": {
+  "10": "Industria alimentara",
+  "1011": "Prelucrarea si conservarea carnii",
+  "1013": "Fabricarea produselor din carne (inclusiv din carne de pasare)"
+ },
+ "slice_note": "REAL rows, byte-for-byte, cut from the full mass files by build_ro_sector_benchmarks.py --slice-out: every FY2024 filing under CAEN 1011/1013 and the FY2023 filings of the same CUIs. Public company filings, CC-BY-4.0.",
+ "year": 2024
+}

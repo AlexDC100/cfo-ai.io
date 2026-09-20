@@ -628,6 +628,148 @@ def _engine_gates() -> List[Gate]:
              units="POSTs (owner base/shocked/base, strangers) plus cache entries read",
              canaries=("SCOPE forecast-cache (plan/2 B6, contract 1.5)",)),
         # ── end plan/2 B6 ────────────────────────────────────────────────
+        # RATIOS: the engine as the one authority for ratio values, bands,
+        # deltas, band movements and credit composites (critic
+        # authority_decision). Four gates, one per batch, named separately
+        # from `pytest` because each defect they cover prints a believable
+        # number rather than crashing: a credit weight moved with no
+        # revision, an engine ratio one digit off the printed FE value, a
+        # prior composite silently absent, a band crossing that demotes and
+        # vanishes from the list that should name it.
+        # Plant log: docs/engine_book/gates.md
+        # + the rung / range / withdrawal gates and the FE fixture capture
+        # (B8 verifier repair round, 2026-09-19): statements required on the
+        # block, the as-filed withdrawal, the served re-check, a broken
+        # pack refusing the block (never the period) and failing boot.
+        Gate("ratio-credit-model",
+             [PY, "-m", "pytest",
+              "tests/engine/test_credit_model_pure.py",
+              "tests/engine/test_credit_ladder_single_source.py",
+              "tests/engine/test_credit_model_refusals.py",
+              "tests/engine/test_credit_model_rungs_and_ranges.py",
+              "tests/engine/test_credit_refusal_fe_fixture.py",
+              "tests/engine/test_period_route_revised_rows.py", "-q"],
+             work_junit=True, floor=60, units="tests",
+             canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
+                       "test_stage_compute_inserts_exactly_the_pure_rows",
+                       "test_there_is_exactly_one_literal_ladder",
+                       "test_a_book_with_no_liabilities_refuses_the_composite_and_the_letter_through_the_real_route",
+                       "test_every_book_refuses_exactly_where_its_liabilities_are_below_the_model",
+                       "test_the_block_and_the_refusals_take_no_rows_only_fallback",
+                       "test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted",
+                       "test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves",
+                       "test_the_fe_credit_fixture_is_what_the_route_serves_today",
+                       "test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda",
+                       "test_a_legacy_ebitda_basis_row_is_served_as_one_figure_on_every_surface",
+                       "test_an_absent_debt_or_interest_leaf_declares_nothing")),
+        Gate("ratio-table",
+             [PY, "-m", "pytest", "tests/engine/test_ratio_table.py", "-q"],
+             work_junit=True, floor=50, units="tests",
+             canaries=("test_census_is_every_fe_row_plus_every_pack_banded_key",
+                       "test_engine_value_is_the_printed_fe_value_on_every_shared_key",
+                       "test_a_legacy_period_reads_the_served_assembled_bs_totals",
+                       "test_a_value_on_a_rung_takes_that_rung")),
+        Gate("ratio-compare",
+             [PY, "-m", "pytest", "tests/engine/test_ratio_compare.py", "-q"],
+             work_junit=True, floor=30, units="tests",
+             canaries=("test_a_prior_with_no_persisted_metric_rows_still_carries_its_composite",
+                       "test_printed_prior_plus_printed_delta_is_printed_current_on_every_row",
+                       "test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair")),
+        Gate("ratio-band-findings",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_bands.py", "-q"],
+             work_junit=True, floor=55, units="tests",
+             canaries=("test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven",
+                       "test_a_two_period_finding_never_says_no_prior_period_was_supplied",
+                       "test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount",
+                       "test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served",
+                       "test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank",
+                       "test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces",
+                       "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
+                       "test_a_lower_is_better_crossing_is_classified_by_direction",
+                       "test_a_ratio_that_did_not_cross_produces_no_finding")),
+        # THE SERVED-RANGE LAW (ruling R-RANGE; owner 2026-09-18: range gate
+        # absolute). An independent law file that imports nothing from the
+        # product, read against the real GET /api/period route over eight
+        # books: the five scoring books, imbalance_03pct and
+        # synthetic_thin_equity (no liabilities), the thin book carrying
+        # exactly 1 RON of liabilities, the compact book with 1,000 of
+        # long-term debt (R-D1's debt leg), synthetic_negative_equity (ROIC)
+        # and the compact book with its revision-1 rows persisted (the
+        # as-filed withdrawal). Plant log: docs/engine_book/gates.md.
+        Gate("served-range",
+             [PY, "-m", "pytest", "tests/engine/test_served_range.py", "-q"],
+             work_junit=True, floor=44, units="tests",
+             canaries=("test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason",
+                       "test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter",
+                       "test_one_ron_of_liabilities_is_not_a_capital_structure",
+                       "test_the_law_is_independent_of_the_product",
+                       "test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route",
+                       "test_the_r_d1_debt_leg_declares_no_rung_on_the_route",
+                       "test_roic_refuses_on_the_route_when_invested_capital_is_not_positive")),
+        # THE CREDIT SERVING BOUNDARY (owner, 2026-09-20: "the credit range
+        # gate goes at the serving boundary so no fallback can bypass it").
+        # create_app() over the tenancy double, a period whose persisted
+        # revision-1 rows carry X4 1500 / Z'' 1584.89 / 88.5 AA, and the
+        # model broken three ways (compute_period_metrics raises,
+        # serve_time_metric_rows -> None, build_ratio_table raises): no such
+        # figure, no zone and no letter on GET /api/period, the comparatives
+        # prior or the narrator payload; the independent served_range_law on
+        # every surface of every path. The bypass plant lives IN the suite.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("credit-boundary",
+             [PY, "-m", "pytest", "tests/engine/test_credit_boundary.py", "-q"],
+             work_junit=True, floor=32, units="tests",
+             canaries=("test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter",
+                       "test_with_the_boundary_bypassed_the_failure_path_serves_the_exploded_value",
+                       "test_the_independent_law_holds_on_every_surface_of_every_path",
+                       "test_the_comparatives_prior_serves_no_exploded_figure",
+                       "test_the_narrator_payload_passes_the_boundary",
+                       "test_the_boundary_fails_closed",
+                       "test_every_credit_reader_in_the_api_layer_is_behind_the_boundary")),
+        # THE FLOOR CENSUS, engine half (owner rule: absent is never zero and
+        # never a floor). stdlib-ast over a printed 14-file scope for the
+        # eight substitute classes of the floor sweep; the credit tier is
+        # red on any unlisted site, the rest of the scope is a two-way
+        # ratchet. Self-tests its own detection on a committed fixture every
+        # run. Plant log: docs/engine_book/gates.md.
+        Gate("floor-census", [PY, "scripts/check_floor_census.py"],
+             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=80,  # measured 88 after the C6 floors merge (was 112)
+             units="candidate sites",
+             canaries=("self-test S1 DIVISOR_FLOOR",
+                       "self-test S8 CONSTANT_PERIOD",
+                       "credit   src/engine/ratios/credit_model.py",
+                       "credit tier clean")),
+        # The route the Ratios tab and the exports call, UN-INTERCEPTED:
+        # create_app() itself over the tenancy double, a real ES256 bearer,
+        # two corpus books as two periods of one workspace. Every FE ratio
+        # gate renders a committed capture and the Playwright harness
+        # answers the route from a file, so without this nothing on the
+        # request path (mount, query binding, identity wall, org filter,
+        # CAEN) is gated. Plant log: docs/engine_book/gates.md.
+        Gate("comparatives-route",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_route_real_app.py", "-q"],
+             work_junit=True, floor=7, units="tests",
+             canaries=("test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite",
+                       "test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair",
+                       "test_a_prior_from_another_workspace_is_not_found",
+                       "test_a_current_period_from_another_workspace_is_not_found")),
+        # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
+        # 2026-09-15): the valuation DCF, the AI briefing's citable
+        # ratios, the RO pack's ROA check and the served period day count.
+        # Every defect it covers served a believable number built on a
+        # figure the book never yielded (1 RON equity, a 5% cost of debt, a
+        # 0 FCF, 1e-9 EBITDA, 365 days). Floor 44 = the measured 48.
+        # Plant log: docs/engine_book/gates.md
+        Gate("floor-valuation",
+             [PY, "-m", "pytest", "tests/engine/test_floor_dcf.py",
+              "tests/engine/test_floor_period_days.py",
+              "tests/engine/test_floor_briefing_ratios.py", "-q"],
+             work_junit=True, floor=44, units="tests",
+             canaries=("test_dcf_refuses_when_book_equity_is_not_positive",
+                       "test_a_measured_implied_cost_of_debt_is_used_even_below_the_old_floor",
+                       "test_recompute_answers_400_on_an_out_of_domain_override",
+                       "test_a_31_december_corpus_book_serves_exactly_the_bytes_it_served_before",
+                       "test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -755,6 +897,61 @@ def _engine_gates() -> List[Gate]:
              # can be satisfied by accident is not a canary.
              canaries=("PM1  no AI-authored numerics in the facts path",
                        "PM7  BVB / public_ro untouched")),
+        # ── FLOOR C6-C8 (wave/floor-c6-public-sku, 2026-09-18) ──────────
+        # The owner's rule "absent is never zero and never a floor" over the
+        # three non-credit clusters of the floor sweep (scratchpad/specs/
+        # floor_sweep.json): public risk/opportunity scores (C6), the SKU /
+        # portfolio engine (C7), industry detection (C8). Each defect served
+        # a number where none was defined — a neutral 50 for a company with
+        # no financials, a 20,000% portfolio margin over a 1.0 divisor, a
+        # real-estate CAEN read off absent cost lines — and nothing crashed.
+        # Named separately from `pytest` so the battery record shows them.
+        # Plant log: docs/engine_book/gates.md § floor-public-score,
+        # § floor-sku-portfolio, § floor-industry-absent.
+        # 2026-09-19 repair round: the ai-market-read fallback joined the
+        # public gate (its watch sentence claimed a composite that had
+        # refused); the SKU gate gained the served anchorProfitShare and
+        # DIO-sheet period-range refusals two verifier plants had shown were
+        # ungated; the industry gate now drives the real /report router.
+        # R-PUBLIC-ABSENT (2026-09-19): the producer-coverage file joined —
+        # a category no producer can fill is dropped with its weight
+        # redistributed and the coverage stated; a per-company gap still
+        # refuses; the declaration is measured against the producers.
+        Gate("floor-public-score",
+             [PY, "-m", "pytest",
+              "tests/engine/public/intelligence/test_risk_scoring_engine.py",
+              "tests/engine/public/intelligence/test_opportunity_scoring_engine.py",
+              "tests/engine/public/intelligence/test_public_score_refusal_route.py",
+              "tests/engine/public/intelligence/test_ai_market_read.py",
+              "tests/engine/public/intelligence/test_risk_producer_coverage.py",
+              "-q"],
+             work_junit=True, floor=52, units="tests",
+             canaries=("test_no_financials_refuses_every_financial_category_and_the_composite",
+                       "test_snapshot_boundary_converts_points_and_keeps_a_measured_zero",
+                       "test_no_financials_refuses_instead_of_scoring_medium",
+                       "test_top_risk_contribution_is_null_when_every_mapped_category_is_refused",
+                       "test_fallback_watch_flags_state_a_refused_composite_not_composite_low",
+                       "test_the_declaration_is_measured_against_the_live_producers",
+                       "test_a_per_company_absence_still_refuses_the_category_and_the_composite",
+                       "test_per_ticker_route_serves_the_composite_with_its_coverage_block")),
+        Gate("floor-sku-portfolio",
+             [PY, "-m", "pytest", "tests/engine/test_floor_sku_portfolio.py",
+              "tests/test_metrics.py", "-q"],
+             work_junit=True, floor=42, units="tests",
+             canaries=("test_skus_share_of_category_profit_refuses_net_zero",
+                       "test_zero_volume_dio_rows_fall_through_to_the_upload_sheet",
+                       "test_zero_revenue_category_is_refused_not_eliminated",
+                       "test_composite_score_dio_zero_is_undefined",
+                       "test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss",
+                       "test_dio_sheet_out_of_range_banner_span_is_not_used",
+                       "test_analyze_route_states_refused_roic_and_share_instead_of_500")),
+        Gate("floor-industry-absent",
+             [PY, "-m", "pytest",
+              "tests/engine/test_industry_classifier_absent_inputs.py", "-q"],
+             work_junit=True, floor=15, units="tests",
+             canaries=("test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate",
+                       "test_detect_industry_for_period_reads_the_pl_line_items",
+                       "test_report_route_gates_a_no_line_items_period_with_the_refusal")),
     ]
 
 
@@ -943,6 +1140,24 @@ def _frontend_gates() -> List[Gate]:
                        # early returns became reds.
                        "frontend/lib/__tests__/forecastFactsReader.test.ts",
                        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx")),
+        # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
+        # byte-matching" as a gate. It also rides `vitest`, and is named on
+        # its own because its defect prints a believable figure on one
+        # surface: a rounding, a unit or a joined change cell that differs
+        # between the Ratios tab, the report and the workbook while every
+        # per-surface gate stays green (it did, on the merged B6+B7 state:
+        # 68 of 70 red). Plant log: docs/engine_book/gates.md.
+        Gate("ratio-byte-match",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/ratioTableByteMatch.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=120,
+             units="row x surface comparisons",
+             canaries=("B4 non-vacuity: every census row and composite is compared",
+                       "B1/B2 altman_z: the tab, the report and the workbook print the same six cells",
+                       "B5 altman_z: the same name beside the six cells",
+                       "B5 the six column headings are one string",
+                       "B3 the deteriorated list: the served order and the same cells",
+                       "B6 non-vacuity: every named path is extracted whole and is the real served-row path")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

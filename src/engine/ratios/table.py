@@ -3,9 +3,11 @@
 The engine is the one authority for ratio values, bands and band status
 (critic authority_decision). This module is the per-period half: given the
 payload ``GET /api/period/{id}`` serves, it returns the block that will be
-served as ``assembled_metrics.ratio_table``. It is NOT wired into
-``get_period`` yet (batch B4 does that), and its ``credit`` block is
-``None`` until B4 joins the serve-time credit model (B1).
+served as ``assembled_metrics.ratio_table`` (``get_period`` builds it with
+``serve_time_metrics=True``). Its ``credit`` block is the serve-time
+credit model (``engine.ratios.credit_model.credit_block`` over
+``compute_period_metrics`` of the served statements), with the payload's
+persisted ``metrics`` rows as the as-filed evidence.
 
 ── WHERE EACH VALUE COMES FROM ───────────────────────────────────────────
 
@@ -40,11 +42,13 @@ reads, and each is gated on its own:
     ``calculated_metrics`` are absent), the FE fallback computes a
     DIFFERENT formula under the same key: ``net_margin`` over the class-6/7
     reconstruction while ROA/ROE beside it read account 121, and
-    ``interest_coverage`` on EBIT while the metric is EBITDA ÷ interest,
-    and ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
+    ``interest_coverage`` on EBIT while the metric divided EBITDA (until
+    2026-09-19; the metric is now EBIT ÷ interest, the methodology's
+    definition, and ``ebitda_to_interest`` is the EBITDA row), and
+    ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
     metric is statutory EBITDA. The engine's fallback is the metric's own
     definition (``pipeline.stage_compute``): ``net_margin`` =
-    anchored net income ÷ revenue; ``interest_coverage`` = cash EBITDA ÷
+    anchored net income ÷ revenue; ``interest_coverage`` = EBIT ÷
     interest; the two DSCRs = ``assembled_pl.ebitda_statutory`` (else the
     metric, else cash EBITDA + ``incomeStatement.capitalizedOwnWork``) ÷
     their debt service. ``test_ratio_table.py`` holds the no-metric route
@@ -73,7 +77,10 @@ or ``_band_definitions()`` itself when a payload carries none. Rungs are
 served in the row's DISPLAY unit as strings (pct rows: the pack fraction
 × 100). Grading walks strong → healthy → watch with ``>=`` for
 higher-is-better and ``<=`` otherwise, on the full-precision value — the
-``verdictFromBands`` semantics. Four FE ladders diverge from the pack
+``verdictFromBands`` semantics. A value past the last rung takes the
+floor: the definition's declared ``floor`` when it carries one (DPO
+floors at ``watch``, owner ruling 2026-09-14), else ``critical``.
+Four FE ladders diverge from the pack
 (dpo, ccc, asset_turnover, ltv vs debt_to_assets); the gate declares the
 verdicts that divergence changes rather than hiding them.
 
@@ -160,6 +167,7 @@ REASON_CODES: Tuple[str, ...] = (
     # refused (no value)
     "operand_absent",
     "zero_denominator",
+    "nonpositive_denominator",
     "non_finite",
     "engine_metric_absent",
     "user_input_absent",
@@ -393,8 +401,13 @@ def _pct_of(a: _Fig, b: _Fig, denominator: str) -> _Fig:
     return _mul(_div(a, b, denominator), _known(100.0))
 
 
-def _at_least(f: _Fig, floor: float) -> _Fig:
-    return f if f.value is None else _Fig(max(f.value, floor), None, f.ops)
+def _positive(f: _Fig, denominator: str) -> _Fig:
+    """A denominator that must be positive: a negative value is an absence
+    (`nonpositive_denominator`), never a floor. Zero is left to `_div`, which
+    names it `zero_denominator`."""
+    if f.value is None or f.value >= 0:
+        return f
+    return _Fig(None, ("nonpositive", denominator), f.ops)
 
 
 # ── quantization and rungs ──────────────────────────────────────────────────
@@ -426,9 +439,30 @@ def _rung_display(rung: Any, display_unit: str) -> str:
     return text
 
 
-def _grade(value: float, ladder: Mapping[str, str], higher_is_better: bool) -> str:
+#: The bands a declared ``floor`` may name (the band a value below the last
+#: rung takes). Anything else in a pack band definition is refused loudly.
+LADDER_FLOORS = ("watch", "critical")
+
+
+def ladder_floor(band_def: Optional[Mapping[str, Any]], ladder: Mapping[str, str]) -> str:
+    """The band a value past the last rung takes: the pack definition's
+    declared ``floor`` when it carries one (DPO: ``watch``), else
+    ``critical`` when the ladder has a watch rung and ``watch`` when it
+    does not. A floor outside ``LADDER_FLOORS`` raises — a pack table
+    error, never a silent default."""
+    declared = (band_def or {}).get("floor")
+    if declared is None:
+        return "critical" if "watch" in ladder else "watch"
+    if declared not in LADDER_FLOORS:
+        raise ValueError("pack band floor %r is not one of %r" % (declared, LADDER_FLOORS))
+    return str(declared)
+
+
+def _grade(value: float, ladder: Mapping[str, str], higher_is_better: bool,
+           floor: Optional[str] = None) -> str:
     rungs = {k: float(v) for k, v in ladder.items()}
-    floor = "critical" if "watch" in rungs else "watch"
+    if floor is None:
+        floor = "critical" if "watch" in rungs else "watch"
     for name in _LADDER_ORDER:
         if name not in rungs:
             continue
@@ -516,8 +550,12 @@ def _gateway_totals(statements: Mapping[str, Any]) -> Dict[str, Tuple[Optional[f
     served_cbs = statements.get("canonical_bs")
     out: Dict[str, Tuple[Optional[float], str]] = {}
     if isinstance(served_cbs, dict):
-        gateway = FactsGateway.from_envelope({"canonical_bs": served_cbs},
-                                             currency=str(statements.get("currency") or "RON"))
+        # The currency is the served statements' own; an absent one stays
+        # absent (no RON default) — the table reads amounts, never labels.
+        raw_currency = statements.get("currency")
+        gateway = FactsGateway.from_envelope(
+            {"canonical_bs": served_cbs},
+            currency=raw_currency if isinstance(raw_currency, str) and raw_currency else None)
         for concept, _legacy in _TOTAL_CONCEPTS:
             value: Optional[float] = None
             if gateway is not None and gateway.tier == FactsGateway.TIER_CANONICAL:
@@ -547,15 +585,17 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
         return {"code": "operand_absent", "inputs": inputs}
     if kind == "undefined":
         return {"code": "zero_denominator", "inputs": [absence[1]]}
+    if kind == "nonpositive":
+        return {"code": "nonpositive_denominator", "inputs": [absence[1]]}
     if kind == "metric":
         return {"code": "engine_metric_absent", "inputs": [absence[1]]}
     return {"code": "non_finite", "inputs": [str(absence[1])]}
 
 
 def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
-                  ) -> Tuple[Dict[str, _Fig], Dict[str, _Fig], bool]:
+                  ) -> Tuple[Dict[str, _Fig], Dict[str, _Fig], bool, Dict[str, _Fig]]:
     """(value figure per census key, sign-denominator figure per key,
-    gross-margin-has-cost-base)."""
+    gross-margin-has-cost-base, money denominator per key)."""
     bs = _dict(statements.get("balanceSheet"))
     inc = _dict(statements.get("incomeStatement"))
     sup = _dict(statements.get("supplementary"))
@@ -660,18 +700,24 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
     figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
     figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
+    # ROIC is DEFINED only for positive invested capital (ruling R-OTHER,
+    # C2.1): zero refuses as `zero_denominator`, negative (negative equity
+    # exceeding debt) as `nonpositive_denominator` — the value is never
+    # served with its band merely withheld. The 1-RON floor this replaced
+    # served 25,200,000.0% "strong" on a book with no debt and no equity.
     invested_capital = _add(total_debt, total_equity)
     figs["roic"] = mPctOr("roic", _pct_of(_mul(ebit, _known(1 - 0.16)),
-                                          _at_least(invested_capital, 1.0), "invested capital"))
+                                          _positive(invested_capital, "invested capital"), "invested capital"))
 
     figs["debt_to_ebitda"] = bsOr("debt_to_ebitda", _div(total_debt, ebitda, "EBITDA"))
     figs["debt_to_equity"] = bsOr("debt_to_equity", _div(total_debt, total_equity, "total equity"))
     figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
     figs["debt_to_assets"] = bsPctOr("debt_to_assets", _pct_of(total_debt, total_assets, "total assets"))
 
-    # Fallback = the metric's definition: cash EBITDA ÷ interest (the FE
-    # fallback divides EBIT — a different ratio under the same key).
-    figs["interest_coverage"] = mOr("interest_coverage", _div(ebitda, interest, "interest expense"))
+    # Fallback = the metric's definition: EBIT ÷ interest (the methodology's
+    # interest coverage, CLAUDE.md Appendix A section 5). EBITDA ÷ interest
+    # is the separate `ebitda_to_interest` row below.
+    figs["interest_coverage"] = mOr("interest_coverage", _div(ebit, interest, "interest expense"))
     debt_service = _add(interest, B("shortTermDebt"))
     figs["dscr"] = mOr("dscr", _div(ebitda_statutory, debt_service, "interest + short-term debt"))
     lease = sup.get("annualLeaseExpense")
@@ -724,17 +770,105 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     ):
         for k in keys:
             sign[k] = fig
-    return figs, sign, has_cost_base
+    # The MONEY denominator of each ratio (materiality reads it): the sign
+    # denominators, plus the coverage denominators no ladder sign-guards.
+    # ccc is a sum of three day counts with no single denominator of its
+    # own; its WORKING-CAPITAL money basis is revenue (ruling Q3,
+    # 2026-09-15): days past the rung x revenue / period days is the
+    # working capital those days tie up. adjusted_dscr (user input) has none.
+    denominators: Dict[str, _Fig] = dict(sign)
+    denominators["ccc"] = revenue
+    denominators["interest_coverage"] = interest
+    denominators["ebitda_to_interest"] = interest
+    denominators["dscr"] = debt_service
+    denominators["dscr_with_lt_principal"] = _add(
+        interest, _div(B("longTermDebt"), _known(8.0), "8"))
+    return figs, sign, has_cost_base, denominators
 
 
 def _operands(fig: _Fig) -> List[Dict[str, Any]]:
     return [{"name": n, "value": v, "source": s} for (n, v, s) in fig.ops]
 
 
-def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
-    """The per-period ratio block for one served payload (see PURITY)."""
+#: Which metric rows a table's metric-backed keys read.
+METRICS_BASES = ("payload", "serve")
+
+
+def serve_time_metric_rows(statements: Mapping[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """`compute_period_metrics` over the served statements block — the
+    credit model and every metric row, recomputed from what is served.
+    None when the block carries no legacy view to compute from (the model
+    names the missing operand; nothing is approximated)."""
+    from engine.ratios.credit_model import compute_period_metrics
+
+    bs, inc = statements.get("balanceSheet"), statements.get("incomeStatement")
+    if not isinstance(bs, dict) or not isinstance(inc, dict):
+        return None
+    if bool(statements.get("absentInputs")) or "reportedTotals" in statements:
+        return None
+    try:
+        return compute_period_metrics(dict(statements))
+    except (KeyError, TypeError):
+        return None
+
+
+def ratio_denominators(served_payload: Mapping[str, Any], *,
+                       serve_time_metrics: bool = False) -> Dict[str, Dict[str, Any]]:
+    """The money denominator each census ratio divides, as the table
+    computes it: `{key: {"value": float | None, "source": str}}`. Keys with
+    no single money denominator (adjusted_dscr, and every row of a
+    source that declares its absences) are absent. Read by the two-period
+    composer's materiality; never by the table's own grading."""
+    payload = dict(served_payload) if isinstance(served_payload, Mapping) else {}
+    statements = _dict(payload.get("statements"))
+    if bool(statements.get("absentInputs")) or "reportedTotals" in statements:
+        return {}
+    if serve_time_metrics:
+        payload["metrics"] = serve_time_metric_rows(statements) or []
+    _figs, _sign, _cost, denominators = _compute_figs(payload, statements)
+    return {k: {"value": f.value, "source": "+".join(op[2] for op in f.ops)}
+            for k, f in denominators.items()}
+
+
+def build_ratio_table(served_payload: Mapping[str, Any], *,
+                      serve_time_metrics: bool = False) -> Dict[str, Any]:
+    """The per-period ratio block for one served payload (see PURITY).
+
+    `serve_time_metrics=False` (the parity basis): metric-backed keys read
+    the payload's `metrics` rows as served — what `computeRatios` reads.
+    `serve_time_metrics=True` (what `get_period` and the comparatives
+    composer serve): they read `compute_period_metrics` over the served
+    statements, so a period whose persisted rows are absent (a prior) or
+    stale (a reanalyze never recomputes metrics) is still computed from
+    what is served. Either way `credit` is the serve-time model, with the
+    payload's persisted rows as its as-filed evidence."""
+    from engine.ratios import credit_model as _cm
+
     payload = served_payload if isinstance(served_payload, Mapping) else {}
     statements = _dict(payload.get("statements"))
+    serve_rows = serve_time_metric_rows(statements)
+    # The as-filed evidence: a get_period body whose credit rows were
+    # served from the serve-time model carries the persisted ones under
+    # `credit_metrics_as_filed`; any other payload's rows ARE persisted.
+    if isinstance(payload.get("credit_metrics_as_filed"), list):
+        # A filed figure the serving boundary withheld from these rows
+        # (credit_boundary: value None, `withheld: {code, inputs, value}`)
+        # is still EVIDENCE of what was filed: `credit_block` reads it back
+        # to withdraw it by name and value, never to serve it.
+        persisted_rows = [
+            dict(r, value=r["withheld"].get("value"))
+            if isinstance(r, Mapping) and r.get("value") is None and isinstance(r.get("withheld"), Mapping)
+            else r
+            for r in payload.get("credit_metrics_as_filed")]
+    else:
+        persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
+    if serve_time_metrics:
+        payload = dict(payload)
+        payload["metrics"] = list(serve_rows or [])
+    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows, statements=statements)
+    if serve_rows is None:
+        credit["reason"] = {"code": _cm.CREDIT_INPUTS_ABSENT,
+                            "inputs": ["statements.balanceSheet", "statements.incomeStatement"]}
     bands, band_stamp = _served_bands(statements)
     signal = _industry_signal(payload, statements)
     sector_disputed = signal.get("block_sector_content") is True
@@ -745,7 +879,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         sign: Dict[str, _Fig] = {}
         has_cost_base = True
     else:
-        figs, sign, has_cost_base = _compute_figs(payload, statements)
+        figs, sign, has_cost_base, _denoms = _compute_figs(payload, statements)
 
     rows: List[Dict[str, Any]] = []
     refused: Dict[str, str] = {}
@@ -769,6 +903,10 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
             "band": None,
             "band_status": "refused",
             "ladder": None,  # served only on the graded branch below (TC-10)
+            # The band a value past the last rung takes, served beside the
+            # ladder it completes: the rungs alone do not say that a DPO
+            # below watch 30 stays watch (TC-10 — the verdict's own data).
+            "ladder_floor": None,
             "operands": [],
             "reason": None,
         }
@@ -806,25 +944,33 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
         else:
             row["band_status"] = "graded"
             row["ladder"] = ladder
-            row["band"] = _grade(fig.value, ladder, spec.higher_is_better)
+            row["ladder_floor"] = ladder_floor(band_def, ladder)
+            row["band"] = _grade(fig.value, ladder, spec.higher_is_better, row["ladder_floor"])
         if row["band_status"] != "graded":
             withheld[spec.key] = row["reason"]["code"]
         rows.append(row)
 
     cv1 = _dict(statements.get("assembled_canonical_v1"))
-    if isinstance(payload.get("pack_provenance"), dict):
-        pack_provenance, pack_source = payload.get("pack_provenance"), "payload"
+    if "pack_provenance" in payload:
+        # The payload SAYS what the persisted envelope carries — including
+        # that it carries none (a period persisted before the stamp). Never
+        # fall through to the serve-time re-assembly's provenance then.
+        pack_provenance = payload.get("pack_provenance") if isinstance(payload.get("pack_provenance"), dict) else None
+        pack_source = "payload" if pack_provenance is not None else None
     elif isinstance(cv1.get("pack_provenance"), dict):
         pack_provenance, pack_source = cv1.get("pack_provenance"), "statements.assembled_canonical_v1"
     else:
         pack_provenance, pack_source = None, None
     period = _dict(payload.get("period"))
 
+    raw_currency = statements.get("currency")
     return {
         "table_version": TABLE_VERSION,
         "stamps": {
             "ratio_table_version": TABLE_VERSION,
-            "credit_model_revision": None,
+            "credit_model_revision": _cm.CREDIT_MODEL_REVISION,
+            "metrics_basis": "serve" if serve_time_metrics else "payload",
+            "currency": raw_currency if isinstance(raw_currency, str) and raw_currency else None,
             "bands": band_stamp,
             "pack_provenance": pack_provenance,
             "pack_provenance_source": pack_source,
@@ -839,7 +985,7 @@ def build_ratio_table(served_payload: Mapping[str, Any]) -> Dict[str, Any]:
             "band_withheld": withheld,
         },
         "rows": rows,
-        "credit": None,
+        "credit": credit,
     }
 
 

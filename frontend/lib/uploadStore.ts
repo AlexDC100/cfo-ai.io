@@ -72,6 +72,25 @@ export function isInFlight(status: DocumentStatus | undefined | null): boolean {
   return !TERMINAL_STATUSES.has(status as DocumentStatus);
 }
 
+/** What a surface does with the store's current upload (2026-09-20 P0).
+ *
+ *  `takeover` — the scan view replaces the surface: ONLY while the pipeline is
+ *  running, or for the analyzed hand-off card. `failed` — rendered as a banner
+ *  OVER the surface, never instead of it. A failed upload used to be a
+ *  takeover, and because the store is persisted, that made every period
+ *  unreachable on every load until localStorage was cleared by hand.
+ *  Gate: lib/__tests__/uploadStoreFailedState.test.ts. */
+export function splitSurfaceUpload(
+  current: UploadDoc | null,
+  surface: UploadSurface,
+): { takeover: UploadDoc | null; failed: UploadDoc | null } {
+  const mine = current && (current.surface ?? "dashboard") === surface ? current : null;
+  if (!mine) return { takeover: null, failed: null };
+  return mine.status === "failed"
+    ? { takeover: null, failed: mine }
+    : { takeover: mine, failed: null };
+}
+
 // ── In-memory cache ─────────────────────────────────────────────────────────
 
 let cached: State | null = null;
@@ -96,6 +115,14 @@ function read(): State {
     // out of the way.)
     const ageMs = Date.now() - (parsed.updatedAt ?? parsed.startedAt ?? 0);
     if (isInFlight(parsed.status as DocumentStatus) && ageMs > 30 * 60 * 1000) {
+      cached = { current: null };
+      return cached;
+    }
+    // A FAILED entry is news for a day, not forever (2026-09-20 P0). The
+    // banner it drives keeps every action available, but a week-old failure
+    // greeting the user on each visit is noise about a file they have long
+    // since replaced.
+    if (parsed.status === "failed" && ageMs > 24 * 60 * 60 * 1000) {
       cached = { current: null };
       return cached;
     }

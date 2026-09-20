@@ -80,8 +80,16 @@ CANONICAL_LABELS: Dict[str, str] = {
     "venituri totale": "i14",
     "cheltuieli totale": "i15",
     "profit brut": "i16",
+    # The REAL WEB_BL_BS_SL spec (FY2023 and FY2024, byte-identical,
+    # sha256 07f42f7f...) writes the articulated form "Profitul brut" /
+    # "Profitul net" where the UU spec writes "Profit brut" / "Profit
+    # net". Without these two the spine refused every long-form filer —
+    # i.e. every large company (found 2026-09-20, second family of the
+    # same real-labels trap).
+    "profitul brut": "i16",
     "pierdere bruta": "i17",
     "profit net": "i18",
+    "profitul net": "i18",
     "pierdere neta": "i19",
     "numar mediu de salariati": "i20",
     "numarul mediu de salariati": "i20",

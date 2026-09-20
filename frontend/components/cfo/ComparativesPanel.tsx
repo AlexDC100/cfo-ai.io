@@ -18,45 +18,25 @@ import {
   type MoverDto,
 } from "@/lib/comparatives";
 import type { OrgPeriod } from "@/lib/orgPeriods";
+import type { RatioCompareView } from "@/lib/ratioCompareView";
 import { formatPeriodMonth } from "@/lib/orgPeriods";
 import { useComparativesView, type ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
 
-// ── Prior ratios, for the Ratios tab's tiles ─────────────────────────
-// The prior period's RatioBundle — computed by the SAME computeRatios on
-// the prior's own served statements and metrics — keyed by ratio key.
-// Provided by the dashboard at the tab's call site; a tile outside the
-// provider (or with no prior) renders its single-period markup.
-export interface RatioPrior {
-  byKey: Map<string, number | null>;
-  label: string;
-}
+// ── The served ratio documents, for the Ratios tab, drawer and credit ──
+// The view over `assembled_metrics.ratio_table` (current) and the
+// comparatives document's `ratios` block (prior, change, bands, band
+// movement), built once by the dashboard (`buildRatioCompareView`) and
+// provided at the tab, the hero and the Risks tab. The prior used to be a
+// Map of key to number recomputed in the browser by `computeRatios` over
+// the prior's statements, which threw away the prior band and ladder and
+// had no Altman, credit score or letter at all. There is no browser
+// arithmetic on this path now: every printed string is the engine's.
+export const RatioCompareCtx = createContext<RatioCompareView | null>(null);
 
-export const RatioPriorCtx = createContext<RatioPrior | null>(null);
-
-export function useRatioPrior(): RatioPrior | null {
-  return useContext(RatioPriorCtx);
-}
-
-/** Flatten a RatioBundle-shaped object (groups of `{key, value}` rows)
- *  into a key → value map. Non-array fields are ignored. */
-export function ratioPriorFromBundle(
-  bundle: Record<string, unknown> | null | undefined,
-  label: string,
-): RatioPrior | null {
-  if (!bundle) return null;
-  const byKey = new Map<string, number | null>();
-  for (const group of Object.values(bundle)) {
-    if (!Array.isArray(group)) continue;
-    for (const r of group) {
-      if (r && typeof r === "object" && typeof (r as { key?: unknown }).key === "string") {
-        const v = (r as { value?: unknown }).value;
-        byKey.set((r as { key: string }).key, typeof v === "number" && Number.isFinite(v) ? v : null);
-      }
-    }
-  }
-  return { byKey, label };
+export function useRatioCompareView(): RatioCompareView | null {
+  return useContext(RatioCompareCtx);
 }
 
 // ── Controls ─────────────────────────────────────────────────────────

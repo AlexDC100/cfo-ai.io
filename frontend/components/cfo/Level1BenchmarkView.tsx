@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Hash, Briefcase, Building2, TrendingUp, TrendingDown, AlertCircle, Info, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getSupabase } from "@/lib/supabase";
+import { authOrgHeaders } from "@/lib/apiHeaders";
 import { DataDepthBanner } from "./DataDepthBanner";
 import { DEPTH_PUBLIC_SUMMARY } from "@/lib/dataDepth";
 
@@ -92,14 +93,11 @@ export function Level1BenchmarkView({ documentId }: Props) {
     let active = true;
     void (async () => {
       try {
-        const sb = getSupabase();
-        const session = sb ? (await sb.auth.getSession()).data.session : null;
-        const token = session?.access_token;
-        if (!token) { if (active) setState("empty"); return; }
+        // Authorization AND the active workspace (lib/apiHeaders.ts).
+        const headers = await authOrgHeaders();
+        if (!headers) { if (active) setState("empty"); return; }
         const qs = documentId ? `?document_id=${documentId}` : "";
-        const r = await fetch(`${apiBase()}/api/benchmarks/public-records/latest${qs}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const r = await fetch(`${apiBase()}/api/benchmarks/public-records/latest${qs}`, { headers });
         if (!active) return;
         if (r.status === 404) { setState("empty"); return; }
         if (!r.ok) {

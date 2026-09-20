@@ -404,6 +404,31 @@ If you do this right, the user can hand you any Romanian SME trial balance and g
 2. **`docker compose build backend && docker compose up -d backend`.** The image is built from host source; the running container is replaced.
 3. **Verify the change is visible in the running container.** Probe the relevant function or endpoint — e.g., `docker exec cfo-ai-backend python3 -c "from engine.api import _ro_coa; print(hasattr(_ro_coa, '_new_helper'))"` or hit the affected API path.
 4. **Run F-A3.1** to confirm BS-correctness has not regressed: `docker exec cfo-ai-backend python3 /app/scripts/measure_bs_drift.py`. Both fixtures must stay GREEN (EEI 0.0000%, Scandia 0.3698%).
+5. **Run the two DATA gates — before the switch, and again after.** F-A3.1 and
+   `check_deploy_drift.py` prove the FILES; these prove the DATA:
+   - `scripts/check_fresh_upload.py` — a real trial balance through all five
+     pipeline stages (detect → extract → rebuild → ratios → recs). Writes
+     nothing. Step 03 reads the ENGINE's own BALANCED verdict through
+     FactsGateway; step 05 (narrate) reports DEGRADED rather than failing the
+     deploy, because the pipeline itself treats it as non-fatal.
+   - `scripts/check_served_periods.py` — EVERY stored period through the real
+     `GET /api/period`, read-only, `--dump` before and after to diff the served
+     credit verdicts. A vacuous pass (nothing to check) is a RED.
+   Both run against the NEW image with `docker compose run --rm --no-deps`
+   BEFORE anything is switched, and against the running container after.
+6. **Boot-probe the new image before switching** (learned 2026-09-20, six
+   minutes of downtime): `create_app()` raises when a pack is unreadable, so a
+   missing file crash-loops the container after `up -d --force-recreate`.
+   `docker run -d --name cfo-ai-backend-probe --env-file .env --network
+   cfo-ai_default cfo-ai-backend:latest`, poll `/health` inside it, remove it.
+   A failed pre-flight only retags `:rollback-<tag>` → `:latest` and never
+   touches the running containers.
+7. **Sync the FULL tracked tree, not a diff against a branch.** The file list
+   must be verified as `git ls-files src scripts frontend packs` sha256-checked
+   on the host. Two deploys failed on this: a diff against the wrong base
+   skipped a file identical on both branches, and `packs/` (which the Dockerfile
+   COPYs and the credit model reads at runtime) sat outside the synced paths.
+   The ready-made script is `specs-durable/deploy_t1_b_main.sh`.
 
 **The deploy is not "in the container only."** It is "on the host source first, then rebuilt." `docker cp` to a running container is acceptable ONLY for temporary diagnostic helpers that don't need to persist across rebuilds — and even then must be re-applied after any rebuild, because they will be wiped.
 
@@ -3267,3 +3292,50 @@ threshold is ever written as prose — it renders from the same data the
 verdict used; and for every gate, state what it fails on AFTER the defect is
 repaired, because three green gates in one day were found asserting the
 bug as their law.
+
+---
+
+## 24. "Analysis failed" dead end — not a deploy, not the engine (2026-09-20)
+
+Reported as "a production regression from today's deploy". Nothing had been
+deployed (both containers dated 18 Sep) and the period served 200 throughout.
+Read from the owner's browser: `cfo-upload-current` held `status:"failed"`,
+first with `Failed to fetch dynamically imported module: …/uploadRefusals-MkRGsgxP.js`,
+later with `502: Claude extraction failed … credit balance is too low`.
+
+Two frontend defects made one symptom:
+
+1. `lib/uploadRefusals` was imported ONLY with `await import()`, on the non-OK
+   branch of `enqueuePipeline` — so it was its own content-hashed chunk. A tab
+   older than the last deploy 404'd it exactly when the backend answered 402,
+   and the rejection became `transport_failed` → "Analysis failed" for a
+   document the server went on to analyze. **Never put a module on an error
+   path behind a lazy import.**
+2. `FinancialStatements` rendered the scan view INSTEAD of the dashboard
+   whenever the persisted upload store held any entry — including a terminal
+   `failed`. Every reload restored it; the only control sat below the fold.
+   **A persisted terminal state must never replace a surface.**
+
+Fixed and LIVE (frontend only, bundle `index-BFMwA5BS.js`, rollback anchor
+image `2356c8dc4f00`): static import; `splitSurfaceUpload()` makes `failed` a
+banner (`FailedUploadBanner`: Retry · Replace file · Manage files · View error
+· Dismiss) over the dashboard, SOURCE line visible in every state;
+`UploadResumeProvider` reconciles a persisted failure with the server once;
+failures expire after a day; `lib/staleChunkReload.ts` reloads a stale tab once
+on `vite:preloadError`. Verified on production signed in: planted failed entry
+→ banner + five controls, no takeover, SOURCE line present, Dismiss clears.
+
+Committed, NOT deployed (engine): `USAGE_UNMETERED_USER_IDS` (fail-closed UUID
+allowlist on both quota rails — the env line is the owner's to add; the
+permission classifier refuses it as a security weakening when the assistant
+tries); `recover-stuck` now reserves through the same meter as `/run` (it was
+running 402-refused documents unbilled — measured twice in production);
+`scripts/check_served_periods.py`, the post-deploy DATA gate (every stored
+period through the real `GET /api/period`, read-only proxy, vacuous = red).
+Add it to §14 as step 5 once the backend carries it.
+
+**PDF uploads depend on Anthropic credits** (`financial_statements.parse_document`);
+xlsx/xls trial balances do not. With credits at zero every PDF 502s.
+
+Fast unblock for the pre-fix bundle: remove `cfo-upload-current` from
+localStorage and reload.

@@ -34,7 +34,14 @@ METRIC_DISPLAY: Dict[str, Dict[str, Any]] = {
     "ebitda":                  {"ro": "EBITDA",                       "en": "EBITDA",                 "fmt": "currency"},
     "ebitda_operating":        {"ro": "EBITDA",                       "en": "EBITDA",                 "fmt": "currency"},
     "net_income":              {"ro": "Profit / pierdere netă (cash)", "en": "Net income / loss (cash)", "fmt": "currency"},
-    "net_income_operating":    {"ro": "Profit / pierdere netă",       "en": "Net income / loss",      "fmt": "currency"},
+    "net_income_operating":    {"ro": "Profit / pierdere netă (operațional)", "en": "Net income / loss (operating view)", "fmt": "currency"},
+    # The STATUTORY figure — account 121's closing balance, the number on the
+    # filed accounts and the one the dashboard's NET PROFIT card shows. The
+    # headline reads this when the period carries it (2026-09-20: the benchmark
+    # page showed the reconstruction, 36.3M, beside a dashboard showing the
+    # anchor, 36.8M, both labelled "Net income / loss" — one company, one
+    # screen apart, two different profits).
+    "net_income_statutory":    {"ro": "Profit / pierdere netă (statutar)", "en": "Net income / loss (statutory)", "fmt": "currency"},
     # Profitability ratios (compared against industry)
     "ebitda_margin":           {"ro": "Marja EBITDA",                 "en": "EBITDA margin",          "fmt": "pct"},
     "net_margin":              {"ro": "Marja netă",                   "en": "Net margin",             "fmt": "pct"},
@@ -343,7 +350,38 @@ SECTIONS: Dict[str, Tuple[List[str], str, str]] = {
 # EBITDA margin in the comparison table — obviously wrong. Operating-view
 # tiles fix that: EEI reads +2.1M EBITDA / +1.4M net income, internally
 # consistent with the rest of the page.
+#: The four figures at the top of the benchmark report. The net-income slot is
+#: resolved per period by `headline_metrics()` — statutory when the period
+#: carries the account-121 anchor, the operating view only when it does not.
 HEADLINE_METRICS = ["revenue", "total_operating_revenue", "ebitda_operating", "net_income_operating"]
+NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
+
+#: The report's own revision. `_benchmarks.py` stamps it into the cached
+#: `report_data` and REFUSES a cached row whose revision differs, so a change
+#: to this module actually reaches the screen.
+#:
+#: Before this existed the cache was keyed on `period_id` alone, on the
+#: assumption (stated in that file, and already recorded as stale in
+#: CLAUDE.md §16) that "re-analysis produces a NEW period_id". An engine
+#: change therefore never invalidated anything: the headline net-income fix
+#: shipped on 2026-09-20 was still serving the old 36.3 M figure from a report
+#: generated on 9 September.
+#:
+#: BUMP THIS whenever a change alters what this module puts on screen.
+REPORT_REVISION = 2
+
+
+def headline_metrics(company_metrics: Dict[str, Any]) -> List[str]:
+    """HEADLINE_METRICS with the net-income slot resolved for THIS period.
+
+    ONE anchor, every surface: the benchmark headline must not print a
+    different profit from the dashboard for the same company. Falls back to the
+    operating view for legacy periods with no statutory row — never to zero,
+    and never silently: the label says which view is on screen.
+    """
+    preferred, fallback = NET_INCOME_SLOT
+    chosen = preferred if company_metrics.get(preferred) is not None else fallback
+    return [chosen if m == fallback else m for m in HEADLINE_METRICS]
 
 
 DISCLOSURE = (
@@ -378,14 +416,15 @@ def build_benchmark_report(
     Caller is responsible for fetching the inputs and caching the
     result in `benchmark_reports.report_data`."""
     company_metrics = compute_company_metrics(calculated_metrics, line_items)
+    _headline = headline_metrics(company_metrics)
 
     sections_out: Dict[str, Any] = {
         "headline": {
             "title_ro": "Sumar headline",
             "title_en": "Headline summary",
-            "metrics": HEADLINE_METRICS,
-            "company_values": {m: company_metrics.get(m) for m in HEADLINE_METRICS},
-            "display": {m: METRIC_DISPLAY.get(m, {"ro": m, "en": m}) for m in HEADLINE_METRICS},
+            "metrics": _headline,
+            "company_values": {m: company_metrics.get(m) for m in _headline},
+            "display": {m: METRIC_DISPLAY.get(m, {"ro": m, "en": m}) for m in _headline},
         },
     }
     for section_key, (metric_names, title_ro, title_en) in SECTIONS.items():
@@ -415,6 +454,7 @@ def build_benchmark_report(
         )
 
     return {
+        "report_revision": REPORT_REVISION,
         "period_id": period_id,
         "caen_code": caen_code,
         "caen_label": caen_label,

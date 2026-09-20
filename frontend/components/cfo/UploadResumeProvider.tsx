@@ -28,12 +28,40 @@ export function UploadResumeProvider(): null {
     let unsubscribe: (() => void) | null = null;
     void (async () => {
       const state = readUploadStore();
-      if (!state.current || !isInFlight(state.current.status)) return;
-      if (!state.current.docId) return;
+      if (!state.current || !state.current.docId) return;
+      // A persisted FAILED entry is reconciled against the server ONCE
+      // (2026-09-20 P0). The browser can record "failed" for a document the
+      // server went on to analyze — a stale code chunk, a dropped socket, a
+      // refusal the user later confirmed from another tab. Left alone, that
+      // local verdict outlived the truth forever. Only a server status that
+      // PROVES progress overrides it; "queued" does not (a refused document
+      // stays queued and must keep its failed banner and its actions).
+      if (state.current.status === "failed") {
+        try {
+          const { fetchDocumentStatus } = await import("@/lib/supabase");
+          const row = await fetchDocumentStatus(state.current.docId);
+          if (cancelled || !row) return;
+          const still = readUploadStore().current;
+          if (!still || still.docId !== row.id || still.status !== "failed") return;
+          if (row.status === "analyzed") {
+            patchUpload({ status: "analyzed", error: null, periodId: row.period_id ?? null });
+            return;
+          }
+          if (row.status === "failed" || row.status === "queued") {
+            if (row.status === "failed" && row.error) patchUpload({ status: "failed", error: row.error });
+            return;
+          }
+          patchUpload({ status: row.status, error: null, periodId: row.period_id ?? null });
+        } catch {
+          return; /* offline — keep the local verdict and its actions */
+        }
+      }
+      const live = readUploadStore().current;
+      if (!live || !live.docId || !isInFlight(live.status)) return;
       try {
         const { subscribeToDocumentStatus } = await import("@/lib/supabase");
         if (cancelled) return;
-        unsubscribe = subscribeToDocumentStatus(state.current.docId, (next) => {
+        unsubscribe = subscribeToDocumentStatus(live.docId, (next) => {
           patchUpload({
             status: next.status,
             error: next.error,

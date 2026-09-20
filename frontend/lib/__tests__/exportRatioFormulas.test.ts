@@ -8,6 +8,11 @@
 //   §Debt Coverage card   "Interest Coverage"                  66.28×
 //   §Credit component row "Interest Coverage (EBIT / Interest)"  —
 //
+// (Resolved 2026-09-19 the other way round from the label fix below: the
+// engine row itself moved to EBIT ÷ interest — the methodology's basis —
+// so the card now prints 55.64× under "Interest coverage (EBIT / interest)"
+// and the SPEC below recomputes it from operating EBIT.)
+//
 // where 66.28× is EBITDA ÷ interest (18,420,491.28 / 277,930.35) and the
 // component's own basis, EBIT ÷ interest, is 55.64× (15,465,144.89 /
 // 277,930.35). Two bases, two numbers, one name, no formula anywhere.
@@ -56,19 +61,25 @@ import {
   ratioCards,
   statementsFor,
 } from "./exportBooks";
+import { periodDaysLabel } from "../financialReport";
 
 type Env = {
   pl: Record<string, number>;
   bs: Record<string, number>;
-  days: number;
+  /** The period's day count as the statements carry it — null when the
+   *  engine did not establish it. NEVER defaulted to 365 here: this gate
+   *  once carried its own `?? 365` and so re-floored, in the gate, the
+   *  substitute the card had stopped making. */
+  days: number | null;
 };
 
 interface Spec {
   key: string;
   /** The label the card prints. */
   label: string | ((e: Env) => string);
-  /** The formula the card prints, verbatim. */
-  formula: string;
+  /** The formula the card prints, verbatim (a function when the words
+   *  depend on the book — the day-count captions name the day count). */
+  formula: string | ((e: Env) => string);
   unit: "x" | "%" | "days";
   /** This gate's own arithmetic, from the served envelope. */
   recompute: (e: Env) => number | null;
@@ -83,14 +94,14 @@ const div = (a: number | undefined, b: number | undefined): number | null =>
 const SPECS: Spec[] = [
   {
     key: "current_ratio",
-    label: "Current Ratio",
+    label: "Current ratio",
     formula: "current assets ÷ current liabilities",
     unit: "x",
     recompute: (e) => div(e.bs.total_current_assets, e.bs.total_current_liabilities),
   },
   {
     key: "quick_ratio",
-    label: "Quick Ratio",
+    label: "Quick ratio",
     formula:
       "(cash + trade receivables) ÷ current liabilities — the acid test; other current assets are excluded, which is why this can sit a full band below (current assets − inventory) ÷ current liabilities",
     unit: "x",
@@ -98,7 +109,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "cash_ratio",
-    label: "Cash Ratio",
+    label: "Cash ratio",
     // ⚠ THE OLD ENTRY PINNED THE DEFECT. It read "cash ÷ current
     // liabilities" — the words the card printed — and this gate passed,
     // because the gate only ever asked whether the words matched the
@@ -117,7 +128,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "gross_margin",
-    label: "Gross Margin",
+    label: "Gross margin",
     formula: "gross profit ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -127,7 +138,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "ebitda_margin",
-    label: "EBITDA Margin",
+    label: "EBITDA margin",
     formula: "EBITDA (statutory) ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -137,7 +148,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "net_margin",
-    label: "Net Margin",
+    label: "Net margin",
     formula: "net profit as filed (account 121) ÷ revenue",
     unit: "%",
     recompute: (e) => {
@@ -151,7 +162,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roa",
-    label: "Return on Assets",
+    label: "Return on assets",
     formula: "net profit as filed (account 121) ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -165,7 +176,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roe",
-    label: "Return on Equity",
+    label: "Return on equity",
     formula: "net profit as filed (account 121) ÷ total equity",
     unit: "%",
     recompute: (e) => {
@@ -179,7 +190,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "roic",
-    label: "Return on Invested Capital",
+    label: "Return on invested capital",
     formula:
       "EBIT × (1 − 16% tax) ÷ (total debt + total equity) — NOPAT over invested capital. Net profit is NOT an input: this ratio does not move with the account-121 anchor and is not expected to.",
     unit: "%",
@@ -190,21 +201,21 @@ const SPECS: Spec[] = [
   },
   {
     key: "debt_to_ebitda",
-    label: "Debt / EBITDA",
+    label: "Debt to EBITDA",
     formula: "total debt ÷ EBITDA (statutory)",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.pl.ebitda_statutory),
   },
   {
     key: "debt_to_equity",
-    label: "Debt / Equity",
+    label: "Debt to equity",
     formula: "total debt ÷ total equity",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.bs.total_equity),
   },
   {
     key: "equity_ratio",
-    label: "Equity Ratio",
+    label: "Equity ratio",
     formula: "total equity ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -214,7 +225,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "ltv",
-    label: "Debt-to-Assets",
+    label: "Debt to assets",
     formula: "total debt ÷ total assets",
     unit: "%",
     recompute: (e) => {
@@ -224,22 +235,25 @@ const SPECS: Spec[] = [
   },
   {
     key: "interest_coverage",
-    label: "Interest Coverage (EBITDA / Interest)",
+    label: "Interest coverage (EBIT / interest)",
+    // The methodology's basis (CLAUDE.md Appendix A section 5) since
+    // 2026-09-19; the card's own name says which. EBITDA ÷ interest is the
+    // engine's separate `ebitda_to_interest` row, not carded here.
     formula:
-      "EBITDA (statutory) ÷ interest expense — NOT EBIT ÷ interest, which the credit component below bands on and which is a different number on every levered book",
+      "EBIT ÷ interest expense (the methodology's interest coverage; EBITDA ÷ interest is the separate 'EBITDA to interest' row)",
     unit: "x",
-    recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense),
+    recompute: (e) => div(e.pl.operating_ebit, e.pl.interest_expense),
   },
   {
     key: "dscr",
-    label: "DSCR (interest + ST debt)",
+    label: "Debt service coverage",
     formula: "EBITDA (statutory) ÷ (interest expense + short-term debt)",
     unit: "x",
     recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.short_term_debt),
   },
   {
     key: "adjusted_dscr",
-    label: "Adjusted DSCR (incl. lease)",
+    label: "Debt service coverage, lease-adjusted",
     // ⚠ THE OLD ENTRY PINNED THE DEFECT, AND PINNED IT WORD FOR WORD.
     // It asserted the card printed "no lease supplied — identical to
     // DSCR above" and recomputed the plain DSCR to match it, so a green
@@ -261,7 +275,7 @@ const SPECS: Spec[] = [
   },
   {
     key: "dscr_with_lt_principal",
-    label: "DSCR (incl. LT principal proxy)",
+    label: "Debt service coverage with long-term principal",
     formula:
       "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
     unit: "x",
@@ -270,23 +284,23 @@ const SPECS: Spec[] = [
   },
   {
     key: "dso",
-    label: "Days Sales Outstanding",
-    formula: "trade receivables ÷ revenue × 365 days",
+    label: "Days sales outstanding",
+    formula: (e) => `trade receivables ÷ revenue × ${periodDaysLabel(e.days)}`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.accounts_receivable, e.pl.revenue);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
     key: "dio",
-    label: "Days Inventory Outstanding",
-    formula:
-      "inventory ÷ TOTAL operating expense (COGS + opex + D&A) × 365 days — not narrow COGS",
+    label: "Days inventory outstanding",
+    formula: (e) =>
+      `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.inventory, e.pl.total_operating_expense);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
@@ -297,31 +311,31 @@ const SPECS: Spec[] = [
     // and reads 37.2 days on this same agras book, against the 26.6 days
     // this row computes. Two bases cannot share one name in one
     // document.
-    label: "Days Payables Outstanding (on total operating cost)",
-    formula:
-      "trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × 365 days — not narrow COGS",
+    label: "Days payables outstanding (on total operating cost)",
+    formula: (e) =>
+      `trade payables ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
     unit: "days",
     recompute: (e) => {
       const v = div(e.bs.accounts_payable, e.pl.total_operating_expense);
-      return v === null ? null : v * e.days;
+      return v === null || e.days === null ? null : v * e.days;
     },
   },
   {
     key: "ccc",
-    label: "Cash Conversion Cycle",
+    label: "Cash conversion cycle",
     formula: "DSO + DIO − DPO",
     unit: "days",
     recompute: (e) => {
       const dso = div(e.bs.accounts_receivable, e.pl.revenue);
       const dio = div(e.bs.inventory, e.pl.total_operating_expense);
       const dpo = div(e.bs.accounts_payable, e.pl.total_operating_expense);
-      if (dso === null || dio === null || dpo === null) return null;
+      if (dso === null || dio === null || dpo === null || e.days === null) return null;
       return (dso + dio - dpo) * e.days;
     },
   },
   {
     key: "asset_turnover",
-    label: "Asset Turnover",
+    label: "Asset turnover",
     formula: "revenue ÷ total assets",
     unit: "x",
     recompute: (e) => div(e.pl.revenue, e.bs.total_assets),
@@ -392,9 +406,12 @@ function envOf(book: Book): Env {
   return {
     pl: s.assembled_pl ?? {},
     bs,
-    days: s.supplementary?.periodDays ?? 365,
+    days: s.supplementary?.periodDays ?? null,
   };
 }
+
+const formulaOf = (sp: Spec, e: Env): string =>
+  typeof sp.formula === "function" ? sp.formula(e) : sp.formula;
 
 const show = (n: number, unit: Spec["unit"]) =>
   unit === "%" ? `${n.toFixed(4)}%` : unit === "days" ? `${n.toFixed(4)} d` : `${n.toFixed(4)}×`;
@@ -426,7 +443,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       "Net Income (account 121, as filed)",
       "Total Debt",
       "Composite credit score",
-      "Letter grade",
+      "Credit letter grade",
     ];
     const cards = ratioCards(doc).map((c) => c.label);
     const unaccounted = cards.filter(
@@ -447,6 +464,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
   for (const book of BOOKS) {
     it(`${book}: each ratio prints the formula it was computed by`, () => {
       const doc = exportDoc(book as Book);
+      const env = envOf(book as Book);
       const failures: string[] = [];
       for (const sp of SPECS) {
         const el = doc.querySelector(`[data-ratio-formula="${sp.key}"]`);
@@ -455,10 +473,10 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           continue;
         }
         const printedFormula = (el.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (printedFormula !== sp.formula) {
+        if (printedFormula !== formulaOf(sp, env)) {
           failures.push(
             `${book}: “${sp.key}” prints the formula ${JSON.stringify(printedFormula)} ` +
-              `but this gate recomputes it as ${JSON.stringify(sp.formula)} — the words and ` +
+              `but this gate recomputes it as ${JSON.stringify(formulaOf(sp, env))} — the words and ` +
               `the arithmetic have drifted apart`,
           );
         }
@@ -480,7 +498,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           // not print a figure.
           if (rendered !== null) {
             failures.push(
-              `${book}: “${label}” prints ${card.value} but its formula (${sp.formula}) is ` +
+              `${book}: “${label}” prints ${card.value} but its formula (${formulaOf(sp, env)}) is ` +
                 `undefined on this book — a refusal was the only honest answer`,
             );
           }
@@ -496,7 +514,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         const tol = tolerance(sp.unit, expected);
         if (Math.abs(rendered - expected) > tol) {
           failures.push(
-            `${book}: “${label}” prints ${card.value} (${rendered}) but ${sp.formula} ` +
+            `${book}: “${label}” prints ${card.value} (${rendered}) but ${formulaOf(sp, env)} ` +
               `recomputes to ${show(expected, sp.unit)} — off by ` +
               `${Math.abs(rendered - expected).toFixed(4)}, tolerance ${tol.toFixed(4)}`,
           );

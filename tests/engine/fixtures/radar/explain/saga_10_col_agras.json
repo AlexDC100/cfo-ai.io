@@ -153,6 +153,7 @@
     },
     "dpo": {
      "direction": "higher",
+     "floor": "watch",
      "healthy": 45,
      "strong": 60,
      "watch": 30
@@ -2325,23 +2326,23 @@
    "net_financial_result": 112507.14,
    "net_income_anchor_source": "envelope_p121_cross_check",
    "net_income_anchor_status": "anchored",
-   "net_income_operational": 6461988.99,
-   "net_income_reconciliation_to_121": 1071687.03,
-   "net_income_reconstructed": 6461988.99,
+   "net_income_operational": 14106102.03,
+   "net_income_reconciliation_to_121": -6572426.01,
+   "net_income_reconstructed": 14106102.03,
    "net_income_statutory": 7533676.02,
    "net_income_statutory_anchor": 7533676.02,
-   "net_income_unexplained_vs_121": 1071687.03,
-   "operating_ebit": 7821031.85,
-   "operating_ebitda": 10776378.24,
-   "opex_excluding_cogs_and_da": 29854906.77,
+   "net_income_unexplained_vs_121": -6572426.01,
+   "operating_ebit": 15465144.89,
+   "operating_ebitda": 18420491.28,
+   "opex_excluding_cogs_and_da": 29989304.23,
    "opex_third_party": 1313827.41,
    "opex_total": 29854906.77,
    "other_income_758": 386101.85,
    "other_income_781_reversals": 3988.7,
    "other_op_income_lump": 386101.85,
    "other_operating_income": 390090.55,
-   "pretax": 7933538.99,
-   "revenue": 110798309.14,
+   "pretax": 15577652.03,
+   "revenue": 118576819.64,
    "tax": 1471550.0,
    "total_operating_expense": 103367367.84,
    "total_operating_revenue": 110798309.14,
@@ -2360,7 +2361,7 @@
    "otherNonCurrentAssets": 67904.42,
    "otherNonCurrentLiabilities": 941634.37,
    "propertyPlantEquipment": 11055449.54,
-   "retainedEarnings": -61628.4,
+   "retainedEarnings": 7472047.62,
    "shareCapital": 8795850.0,
    "shortTermDebt": 2199783.1
   },
@@ -3764,6 +3765,119 @@
     {
      "accounts": [
       {
+       "amount": 7533676.02,
+       "code": "121",
+       "name": "Current year profit",
+       "role": "account_121"
+      }
+     ],
+     "claim": "Rebuilding the P&L from the movement columns reaches RON 14,106,102.03; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON -6,572,426.01 is 46.6% of the RON 14,106,102.03 it is bridging.",
+     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
+     "facts": [
+      {
+       "label": "Reconciliation to account 121",
+       "name": "assembled_pl.net_income_reconciliation_to_121",
+       "unit": "money",
+       "value": -6572426.01
+      },
+      {
+       "label": "Net income rebuilt from the movements",
+       "name": "assembled_pl.net_income_operational",
+       "unit": "money",
+       "value": 14106102.03
+      },
+      {
+       "label": "Net income in account 121",
+       "name": "assembled_pl.net_income_statutory",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "label": "Revenue",
+       "name": "assembled_pl.revenue",
+       "unit": "money",
+       "value": 118576819.64
+      }
+     ],
+     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
+     "id": "reconstruction_gap",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "step",
+       "label": "Reconciliation to account 121",
+       "unit": "money",
+       "value": -6572426.01
+      },
+      {
+       "key": "reconstructed",
+       "label": "Net income rebuilt from the movements",
+       "unit": "money",
+       "value": 14106102.03
+      },
+      {
+       "key": "statutory",
+       "label": "Net income in account 121",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "key": "graded_share",
+       "label": "Step as a share of reconstructed net income",
+       "unit": "ratio",
+       "value": 0.465927865545
+      },
+      {
+       "key": "graded_base",
+       "label": "Reconstructed net income",
+       "unit": "money",
+       "value": 14106102.03
+      }
+     ],
+     "narrative": {
+      "explanation": "Rebuilding the P&L from the movement columns reaches RON 14,106,102.03; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON -6,572,426.01 is 46.6% of the RON 14,106,102.03 it is bridging. Graded high: the amount at stake is 46.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
+      "source": "deterministic"
+     },
+     "rank": 3,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.5,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.2,
+        "level": "high"
+       },
+       {
+        "at_least": 0.05,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.01,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "reconstructed_net_income",
+      "basis_label": "Reconstructed net income",
+      "basis_value": 14106102.03,
+      "level": "high",
+      "magnitude": 6572426.01,
+      "materiality": 0.465928,
+      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
+     },
+     "title": "The P&L does not reach statutory profit on its own"
+    },
+    {
+     "accounts": [
+      {
        "amount": 7536754.9,
        "code": "4511.01",
        "name": "Ndqe te cnifmfy NLC 3299.59",
@@ -3872,7 +3986,7 @@
        "key": "net_debt_ebitda",
        "label": "Net debt ÷ EBITDA as reported",
        "unit": "multiple",
-       "value": 0.229405022257
+       "value": 0.134206805477
       }
      ],
      "narrative": {
@@ -3881,7 +3995,7 @@
       "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
       "source": "deterministic"
      },
-     "rank": 3,
+     "rank": 4,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -3989,7 +4103,7 @@
       "so_what": "Get these accounts mapped before the next close. A balance carried under an Unclassified row is in the totals but in no statement line, so it is invisible to every ratio computed from those lines.",
       "source": "deterministic"
      },
-     "rank": 4,
+     "rank": 5,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -4023,119 +4137,6 @@
       "why": "An unexplained balance is graded against the balance sheet it had to be forced into, because the question a reader asks is what share of the statement is not actually classified."
      },
      "title": "Balances no statement line explains"
-    },
-    {
-     "accounts": [
-      {
-       "amount": 7533676.02,
-       "code": "121",
-       "name": "Current year profit",
-       "role": "account_121"
-      }
-     ],
-     "claim": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging.",
-     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
-     "facts": [
-      {
-       "label": "Reconciliation to account 121",
-       "name": "assembled_pl.net_income_reconciliation_to_121",
-       "unit": "money",
-       "value": 1071687.03
-      },
-      {
-       "label": "Net income rebuilt from the movements",
-       "name": "assembled_pl.net_income_operational",
-       "unit": "money",
-       "value": 6461988.99
-      },
-      {
-       "label": "Net income in account 121",
-       "name": "assembled_pl.net_income_statutory",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "label": "Revenue",
-       "name": "assembled_pl.revenue",
-       "unit": "money",
-       "value": 110798309.14
-      }
-     ],
-     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
-     "id": "reconstruction_gap",
-     "in_summary": true,
-     "measures": [
-      {
-       "key": "step",
-       "label": "Reconciliation to account 121",
-       "unit": "money",
-       "value": 1071687.03
-      },
-      {
-       "key": "reconstructed",
-       "label": "Net income rebuilt from the movements",
-       "unit": "money",
-       "value": 6461988.99
-      },
-      {
-       "key": "statutory",
-       "label": "Net income in account 121",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "key": "graded_share",
-       "label": "Step as a share of reconstructed net income",
-       "unit": "ratio",
-       "value": 0.165844762605
-      },
-      {
-       "key": "graded_base",
-       "label": "Reconstructed net income",
-       "unit": "money",
-       "value": 6461988.99
-      }
-     ],
-     "narrative": {
-      "explanation": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging. Graded medium: the amount at stake is 16.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
-      "reason": "the advisory lane was not invoked for this build",
-      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
-      "source": "deterministic"
-     },
-     "rank": 5,
-     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
-     "severity": {
-      "bands": [
-       {
-        "at_least": 0.5,
-        "level": "critical"
-       },
-       {
-        "at_least": 0.2,
-        "level": "high"
-       },
-       {
-        "at_least": 0.05,
-        "level": "medium"
-       },
-       {
-        "at_least": 0.01,
-        "level": "low"
-       },
-       {
-        "at_least": null,
-        "level": "info"
-       }
-      ],
-      "basis": "reconstructed_net_income",
-      "basis_label": "Reconstructed net income",
-      "basis_value": 6461988.99,
-      "level": "medium",
-      "magnitude": 1071687.03,
-      "materiality": 0.165845,
-      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
-     },
-     "title": "The P&L does not reach statutory profit on its own"
     },
     {
      "accounts": [
@@ -4188,14 +4189,14 @@
        "role": "otherIncome"
       }
      ],
-     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%.",
+     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 2.1% of RON 18,420,491.28; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 18,420,491.28, a conversion of 56.9%.",
      "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
      "facts": [
       {
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       },
       {
        "label": "Other operating income",
@@ -4236,19 +4237,19 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       },
       {
        "key": "graded_share",
        "label": "Non-trading income as a share of ebitda",
        "unit": "ratio",
-       "value": 0.036198669099
+       "value": 0.021176989477
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       },
       {
        "key": "provision_reversals",
@@ -4272,11 +4273,11 @@
        "key": "cash_conversion",
        "label": "Operating cash proxy ÷ EBITDA",
        "unit": "ratio",
-       "value": 0.973334656264
+       "value": 0.569421425876
       }
      ],
      "narrative": {
-      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%. Graded low: the amount at stake is 3.6% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
+      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 2.1% of RON 18,420,491.28; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 18,420,491.28, a conversion of 56.9%. Graded low: the amount at stake is 2.1% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
       "source": "deterministic"
@@ -4308,10 +4309,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 10776378.24,
+      "basis_value": 18420491.28,
       "level": "low",
       "magnitude": 390090.55,
-      "materiality": 0.036199,
+      "materiality": 0.021177,
       "why": "Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\"."
      },
      "title": "Part of EBITDA is not trading income"
@@ -4385,7 +4386,7 @@
        "role": "trade_payable"
       }
      ],
-     "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
+     "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 26.2 days of sales outstanding against 37.2 days of payables, a gap of -11.0 days.",
      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
      "facts": [
       {
@@ -4404,7 +4405,7 @@
        "label": "Revenue",
        "name": "assembled_pl.revenue",
        "unit": "money",
-       "value": 110798309.14
+       "value": 118576819.64
       },
       {
        "label": "Cost of goods sold",
@@ -4421,7 +4422,7 @@
        "key": "dso",
        "label": "Days sales outstanding",
        "unit": "days",
-       "value": 28.045423567553
+       "value": 26.205674261074
       },
       {
        "key": "dpo",
@@ -4433,7 +4434,7 @@
        "key": "float_days",
        "label": "Collection gap (DSO − DPO)",
        "unit": "days",
-       "value": -9.130507420361
+       "value": -10.970256726839
       },
       {
        "key": "float",
@@ -4461,7 +4462,7 @@
       }
      ],
      "narrative": {
-      "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+      "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 26.2 days of sales outstanding against 37.2 days of payables, a gap of -11.0 days. Graded low: the amount at stake is 1.1% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
       "source": "deterministic"
@@ -4493,10 +4494,10 @@
       ],
       "basis": "revenue",
       "basis_label": "Revenue",
-      "basis_value": 110798309.14,
+      "basis_value": 118576819.64,
       "level": "low",
       "magnitude": 1327011.19,
-      "materiality": 0.011977,
+      "materiality": 0.011191,
       "why": "Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against."
      },
      "title": "Suppliers and customers move the cash cycle"
@@ -4534,7 +4535,7 @@
        "role": "financialIncome"
       }
      ],
-     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24.",
+     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.6% of RON 18,420,491.28.",
      "claim_template": "This book earns more on financial assets than it pays on debt: financial income of {money:financial_income} against financial expense of {money:financial_expense} leaves a net gain of {money:net_financial}, {measure:graded_share} of {money:graded_base}.",
      "facts": [
       {
@@ -4571,7 +4572,7 @@
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       }
      ],
      "formula": "Financial income − financial expense, against operating EBITDA",
@@ -4600,13 +4601,13 @@
        "key": "graded_share",
        "label": "Net financial result as a share of ebitda",
        "unit": "ratio",
-       "value": 0.010440162501
+       "value": 0.00610771658
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       },
       {
        "key": "interest_expense",
@@ -4624,11 +4625,11 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 18420491.28
       }
      ],
      "narrative": {
-      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24. Graded info: the amount at stake is 1.0% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
+      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.6% of RON 18,420,491.28. Graded info: the amount at stake is 0.6% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
       "source": "deterministic"
@@ -4660,10 +4661,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 10776378.24,
+      "basis_value": 18420491.28,
       "level": "info",
       "magnitude": 112507.14,
-      "materiality": 0.01044,
+      "materiality": 0.006108,
       "why": "The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing."
      },
      "title": "The financial line is not incidental to the result"
@@ -4674,9 +4675,9 @@
    "summary_ids": [
     "asset_age",
     "liquidity_quality",
+    "reconstruction_gap",
     "related_party_exposure",
-    "unclassified_balances",
-    "reconstruction_gap"
+    "unclassified_balances"
    ]
   },
   "periodLabel": "2025-12-31",

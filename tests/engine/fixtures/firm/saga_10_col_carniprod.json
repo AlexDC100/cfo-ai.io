@@ -4498,6 +4498,7 @@
     },
     "dpo": {
      "direction": "higher",
+     "floor": "watch",
      "healthy": 45,
      "strong": 60,
      "watch": 30
@@ -4864,7 +4865,7 @@
    "retained_earnings": -14945752.38
   },
   "supplementary": {
-   "periodDays": 365
+   "periodDays": null
   }
  }
 }

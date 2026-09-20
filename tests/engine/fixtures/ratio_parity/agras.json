@@ -180,8 +180,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 38.7737,
-        "printed": "38.77",
+        "value": 55.644,
+        "printed": "55.64",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,
@@ -456,8 +456,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 38.7737,
-        "printed": "38.77",
+        "value": 55.644,
+        "printed": "55.64",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,
@@ -732,8 +732,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": 53.119969000000005,
-        "printed": "53.12",
+        "value": 76.23228,
+        "printed": "76.23",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": true,

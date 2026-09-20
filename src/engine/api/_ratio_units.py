@@ -75,9 +75,17 @@ UNIT_PERCENT = "percent"    # fraction 0..1 rendered as %; NEVER converts
 UNIT_DAYS = "days"
 UNIT_COUNT = "count"
 UNIT_SCORE = "score"
+#: A dimensionless INDEX printed as a plain two-decimal figure, with no
+#: ratio marker: Altman Z'' is written "Z'' = 3.09" (CLAUDE.md Appendix A
+#: section 7), not "3.09x" — it is a weighted sum, not a multiple of
+#: anything (ruling Q7, 2026-09-15).
+UNIT_INDEX = "index"
+#: Notches of the credit letter ladder, as a fraction of the served band
+#: width the composite sits in (ruling Q3): the letter's own unit.
+UNIT_NOTCHES = "notches"
 UNIT_UNKNOWN = "unknown"    # a refusal, not a default
 
-_DIMENSIONLESS = (UNIT_RATIO, UNIT_PERCENT, UNIT_DAYS, UNIT_COUNT, UNIT_SCORE)
+_DIMENSIONLESS = (UNIT_RATIO, UNIT_PERCENT, UNIT_DAYS, UNIT_COUNT, UNIT_SCORE, UNIT_INDEX, UNIT_NOTCHES)
 
 
 # ── Typed refusals ───────────────────────────────────────────────────────
@@ -279,6 +287,12 @@ _MONEY_FACTS = frozenset([
     # covenant limit (packs/firm/attention.yaml COVENANT_RISK). Listed so
     # the evidence resolves to money at render rather than to a refusal.
     "covenant_limit",
+    # ── Band-crossing findings (2026-09-14) ────────────────────────────
+    # findings/c_bands.py states a crossing's impact as HEADROOM MONEY:
+    # the ratio's numerator at the rung crossed against the numerator as
+    # held, on the denominator the ratio divides. Both endpoints are cited
+    # facts, and a money fact must be declared or it never templatizes.
+    "band_numerator_at_rung", "band_numerator_held",
 ])
 
 _RATIO_FACTS = frozenset([

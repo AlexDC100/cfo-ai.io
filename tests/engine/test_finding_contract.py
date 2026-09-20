@@ -356,6 +356,39 @@ def test_provenance_without_a_source_demotes():
     assert any("neither a snapshot nor a line" in r for r in verdict.reasons())
 
 
+#: The worked finding's payload and body, captured at c436e39 — BEFORE
+#: `Provenance` gained its two prior-period fields — by importing that
+#: commit's `_finding.py` (git archive) and hashing
+#: `json.dumps(to_payload(), sort_keys=True, ensure_ascii=False)`.
+PRE_PRIOR_FIELDS_PAYLOAD_SHA256 = "baa6d28fd1716a1a4a611614aad70e4b00bb7009173b432ae5205cf8f9098e03"
+PRE_PRIOR_FIELDS_BODY_SHA256 = "03131496fa55d6c9d45be114f230b3a0f91a4b1a68f11feed07f5a12b569780d"
+
+
+def test_provenance_without_prior_fields_renders_byte_identically_to_before():
+    """The band-crossing lane added `prior_period_id` / `prior_snapshot_id`
+    to Provenance. Unset, they must change neither a render nor a payload
+    byte (every single-period finding and the stored corpus renders); set,
+    the render names the earlier period and snapshot."""
+    import hashlib
+
+    f = _complete_finding()
+    payload = f.to_payload()
+    blob = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    assert hashlib.sha256(blob.encode("utf-8")).hexdigest() == PRE_PRIOR_FIELDS_PAYLOAD_SHA256
+    assert hashlib.sha256(payload["body"].encode("utf-8")).hexdigest() == PRE_PRIOR_FIELDS_BODY_SHA256
+    prov = f.evidence.provenance
+    assert prov.render() == "period 11b8e759; snapshot snap-agras; accounts 461; assembled_canonical_v1"
+    assert "prior_period_id" not in payload["contract_elements"]["evidence"]["provenance"]
+
+    two = replace(prov, prior_period_id="p-2024", prior_snapshot_id="snap-2024")
+    assert two.render() == ("period 11b8e759; snapshot snap-agras; accounts 461; "
+                            "assembled_canonical_v1; vs period p-2024, snapshot snap-2024")
+    assert replace(prov, prior_period_id="p-2024").render().endswith("; vs period p-2024")
+    moved = _complete_finding(evidence=replace(f.evidence, provenance=two)).to_payload()
+    assert moved["surfaced"] is True
+    assert moved["contract_elements"]["evidence"]["provenance"]["prior_snapshot_id"] == "snap-2024"
+
+
 def test_confidence_position_is_mandatory_but_the_caveat_is_not():
     clean = F.Confidence(level="high", basis="all inputs present", caveat=None)
     assert _complete_finding(confidence=clean).verdict().surfaced
@@ -431,6 +464,26 @@ def test_render_is_deterministic():
            (b.title, b.body, b.title_template, b.body_template)
     assert json.dumps(_complete_finding().to_payload(), sort_keys=True) == \
            json.dumps(_complete_finding().to_payload(), sort_keys=True)
+
+
+def test_an_index_prints_as_a_plain_two_decimal_figure():
+    """Ruling Q7: Altman Z'' is written "3.09", not "3.09x"."""
+    assert F._format_value(3.0912, F.UNIT_INDEX, "RON") == "3.09"
+    assert F._format_value(-0.5, F.UNIT_INDEX, "RON") == "-0.50"
+    assert F._format_signed(-0.29, F.UNIT_INDEX, "RON") == "-0.29"
+    assert F.UNIT_INDEX in F._ratio_units._DIMENSIONLESS
+
+
+def test_a_day_count_agrees_with_its_printed_number():
+    """Ruling Q8. Reds on "1 days" / "-1 days", on a singular for any other
+    printed count, or on the noun following the float instead of the
+    printed text (0.6 prints "1", so "1 day")."""
+    cases = {1.0: "1 day", 0.6: "1 day", 1.4: "1 day", 2.0: "2 days", 0.0: "0 days",
+             0.4: "0 days", 45.0: "45 days", -1.0: "-1 day", 11.0: "11 days", 21.0: "21 days"}
+    for value, want in cases.items():
+        assert F._format_value(value, F.UNIT_DAYS, "RON") == want, (value, want)
+    assert F._format_signed(-1.0, F.UNIT_DAYS, "RON") == "-1 day"
+    assert F._format_signed(3.0, F.UNIT_DAYS, "RON") == "+3 days"
 
 
 def test_an_undeclared_unit_refuses_to_render():

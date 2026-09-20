@@ -338,8 +338,27 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # Promote a row to `active` only after its screen has been walked
     # end-to-end at 1440 and 390 in both languages with zero console
     # errors. Flipping the status here is the whole re-enable.
+    # OFF THE DEMO PATH 2026-09-20, measured on production on the Scandia Dec
+    # 2025 book. The Recession template (revenue −20%, opex −5%) served:
+    #   EBITDA   54.4 M -> −20.3 M   (−137.2%)
+    #   Net      36.8 M -> −37.9 M
+    #   Cash      6.1 M -> −107.6 M  (−19x)
+    # A −20% REVENUE shock left cost of sales untouched — the model holds every
+    # direct cost while volume falls, which is not a downturn, it is producing
+    # the same goods and destroying a fifth of them. Under the book's MEASURED
+    # fixed/variable split the owner's expectation is year-one EBITDA around
+    # 35.5 M. And no company holding 6.1 M of cash reaches −107.6 M: a real
+    # model draws a funding line or names the shortfall; it does not print
+    # negative cash as a result.
+    #
+    # Re-enable ONLY on the acceptance the owner set: Recession on Scandia from
+    # the measured split, cash never negative, no property copy (the live
+    # driver still reads "For a property company this is the rent roll" on an
+    # FMCG book), FMCG templates. One word here is the whole re-enable — and
+    # tests/engine/test_scenarios_off_path.py reds if that word changes while
+    # the acceptance is still open.
     "scenarios": _feature(
-        "active",
+        "coming_soon",
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
     ),

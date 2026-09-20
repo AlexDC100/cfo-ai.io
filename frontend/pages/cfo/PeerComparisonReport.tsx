@@ -26,6 +26,7 @@ import { Chip, PageHeader as InstrumentPageHeader, Panel, type ChipTone } from "
 import { PercentLevel, PpDelta } from "@/components/comparison/MoneyAmount";
 import { IndustryBadge } from "@/components/cfo/industry";
 import { getSupabase } from "@/lib/supabase";
+import { authOrgHeaders } from "@/lib/apiHeaders";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { formatMoneyFrom } from "@/lib/money";
@@ -151,21 +152,16 @@ export default function PeerComparisonReport() {
     if (!periodId) { setLoading(false); return; }
     void (async () => {
       setLoading(true);
-      const sb = getSupabase();
-      const { data } = sb ? await sb.auth.getSession() : { data: { session: null } };
-      const token = data?.session?.access_token;
+      // Authorization AND the active workspace (lib/apiHeaders.ts).
+      const headers = (await authOrgHeaders()) ?? {};
       try {
         // Fire the two requests we need in parallel — the benchmark
         // report is the heavyweight payload; /api/period gives us the
         // company name so the title reads "{Co} vs Transavia vs Industry"
         // instead of "Your company vs Transavia vs Industry".
         const [benchRes, periodRes] = await Promise.all([
-          fetch(`${apiBase()}/api/benchmarks/report/${periodId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-          fetch(`${apiBase()}/api/period/${periodId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
+          fetch(`${apiBase()}/api/benchmarks/report/${periodId}`, { headers }),
+          fetch(`${apiBase()}/api/period/${periodId}`, { headers }),
         ]);
         if (!benchRes.ok) throw new Error(`benchmarks HTTP ${benchRes.status}`);
         const body = (await benchRes.json()) as ReportResponse;

@@ -20,6 +20,13 @@ WHAT THESE RED ON, with the route correct (TC-11):
   · the bridges no longer closing on the served-shape envelopes
   · the prior canonical rows losing their ids, so the balance-sheet
     opening column could no longer be paired
+  · (ruling Q6) GET /api/period/{id}/comparatives, mounted on the real
+    router over two persisted corpus books in one workspace whose
+    organization row carries CAEN 1011, serving any band finding whose
+    profile did not resolve from "caen+structure" (the route not reading
+    `_org.caen_for_org`, or `compare_payloads` not handing it to the
+    builder); with no CAEN, any finding not saying "resolved from
+    structure"
 """
 from __future__ import annotations
 
@@ -186,3 +193,101 @@ def test_a_payload_without_statements_is_refused_not_compared():
                            current_row=_row("p-cur", "2025-12-31"),
                            prior_row=_row("p", "2024-12-31"))
     assert e.value.code == "period_not_servable" and e.value.status == 409
+
+
+# ── the two-period ratio block rides the core (ratios B4) ──────────────
+
+def test_the_core_serves_the_ratio_block_over_two_real_get_period_bodies():
+    """The route calls get_period for both ids and hands both bodies to the
+    core. Two REAL GET /api/period bodies (agras as the current year,
+    retail as the prior; their persisted calculated_metrics are empty, as
+    for any period the double has no rows for) — the served prior still
+    carries its composite, scored from its own served statements.
+
+    Reds AFTER the repair on: `ratios` missing from the core's output, the
+    prior composite or letter missing although the prior's statements
+    score, or the served prior composite differing from
+    compute_period_metrics over the prior's served statements."""
+    import _served_books as SB
+    from engine.ratios.credit_model import compute_period_metrics
+
+    cur, pri = SB.served_body("agras"), SB.served_body("retail")
+    assert cur["metrics"] == [] and pri["metrics"] == []
+    out = C.compare_payloads(cur, pri, current_row=_row("p-cur", "2025-12-31"),
+                             prior_row=_row("p-pri", "2024-12-31"))
+    ratios = out["ratios"]
+    comps = {r["key"]: r for r in ratios["composites"]}
+    want = {r["name"]: r["value"] for r in compute_period_metrics(copy.deepcopy(pri["statements"]))}
+    assert comps["credit_composite"]["prior"]["value"] == want["credit_composite"]
+    assert comps["letter_grade"]["prior"]["value_q"] is not None
+    assert comps["altman_z"]["prior"]["value"] == want["altman_z_score"]
+    assert ratios["stamps"]["prior"]["pack_provenance"] == pri["pack_provenance"]
+    json.dumps(ratios, allow_nan=False)
+
+
+# ── the route, mounted: the workspace's CAEN reaches the band findings (Q6) ──
+
+
+def _route_over_two_books(monkeypatch, caen):
+    """GET /api/period/{id}/comparatives through the REAL pipeline router
+    over the projection-faithful double, with two real persisted corpus
+    books seeded as two periods of ONE workspace. Identity is the one
+    thing stubbed (`_org.resolve_org`, gated by its own suites); the period
+    rows, the line items and the organization row carrying `caen_code` are
+    read by the route itself."""
+    import contextlib as _ctx
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    import _served_books as SB
+    import test_rebuild_net_income_anchor as ANCHOR
+    from engine.api import _org
+    from engine.api import pipeline as P
+
+    org_id = "org-corpus-q6"
+    tables = {"financial_periods": [], "statement_line_items": [], "documents": [],
+              "calculated_metrics": [], "briefings": [], "recommendations": [], "alerts": [],
+              "valuations": [], "org_coa_mappings_overrides": [],
+              "organizations": [{"id": org_id, "name": "Corpus Entity", "caen_code": caen}]}
+    for name, pid in (("agras", "p-agras-cur"), ("carniprod", "p-carniprod-pri")):
+        bk = SB.book(name)
+        tables["financial_periods"].append(dict(bk.period, id=pid, org_id=org_id))
+        tables["statement_line_items"] += [dict(li, period_id=pid) for li in bk.line_items]
+    db = ANCHOR._Postgrest(tables)
+
+    @_ctx.contextmanager
+    def _client(*_a, **_k):
+        yield db
+
+    monkeypatch.setattr(P._supabase, "admin", _client)
+    monkeypatch.setattr(P._supabase, "per_user", _client)
+    monkeypatch.setattr(_org, "resolve_org", lambda jwt, x_org_id=None: ("user-q6", org_id))
+    app = FastAPI()
+    app.include_router(P.build_router())
+    resp = TestClient(app).get("/api/period/p-agras-cur/comparatives?prior=p-carniprod-pri",
+                               headers={"Authorization": "Bearer test"})
+    assert resp.status_code == 200, resp.text[:400]
+    return resp.json()["ratios"]
+
+
+def test_the_route_qualifies_the_band_findings_by_the_workspaces_caen(monkeypatch):
+    """Reds when the route stops reading the organization's CAEN or stops
+    passing it: every finding's profile then says it resolved from the
+    account mix ("from structure"). agras reads as an inventory operator
+    and CAEN 1011 (division 10) maps to inventory_operator, so the profile
+    resolves from "caen+structure". Before ruling Q6 the route passed none."""
+    ratios = _route_over_two_books(monkeypatch, "1011")
+    findings = ratios["band_movements"]["findings"]
+    assert findings, "non-vacuity: agras over carniprod produced no band finding"
+    for f in findings:
+        basis = f["contract_elements"]["confidence"]["basis"]
+        assert basis.endswith("resolved from caen+structure"), (f["ratio_key"], basis)
+
+
+def test_a_workspace_with_no_caen_resolves_from_structure_and_says_so(monkeypatch):
+    ratios = _route_over_two_books(monkeypatch, None)
+    findings = ratios["band_movements"]["findings"]
+    assert findings
+    for f in findings:
+        assert f["contract_elements"]["confidence"]["basis"].endswith("resolved from structure"), f["ratio_key"]

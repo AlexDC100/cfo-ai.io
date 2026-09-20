@@ -112,6 +112,7 @@
         "note": "These rows were written before the seven-element contract. They are shown as stored."
       },
       "units": {
+        "day": "day",
         "days": "days",
         "points": "pp"
       },
@@ -263,6 +264,7 @@
         "note": "Aceste rânduri au fost scrise înainte de contractul cu șapte elemente. Sunt afișate așa cum au fost salvate."
       },
       "units": {
+        "day": "zi",
         "days": "zile",
         "points": "pp"
       },

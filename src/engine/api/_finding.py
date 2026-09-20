@@ -65,6 +65,8 @@ UNIT_PERCENT = _ratio_units.UNIT_PERCENT
 UNIT_DAYS = _ratio_units.UNIT_DAYS
 UNIT_COUNT = _ratio_units.UNIT_COUNT
 UNIT_SCORE = _ratio_units.UNIT_SCORE
+UNIT_INDEX = _ratio_units.UNIT_INDEX
+UNIT_NOTCHES = _ratio_units.UNIT_NOTCHES
 UNIT_UNKNOWN = _ratio_units.UNIT_UNKNOWN
 
 
@@ -182,6 +184,13 @@ IMPERATIVE_VERBS = frozenset([
 _NUMBER_RX = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?")
 _ACCOUNT_CODE_RX = re.compile(r"^[0-9][0-9A-Za-z._-]*$")
 
+
+def is_ledger_code(code: Any) -> bool:
+    """True when `code` is a ledger code the SUBJECT element accepts — the
+    one test `Finding.validate` applies, exposed so a producer choosing
+    accounts can skip what the contract would reject instead of demoting."""
+    return isinstance(code, str) and bool(_ACCOUNT_CODE_RX.match(code))
+
 COMPARATORS = {
     ">": "above",
     ">=": "at or above",
@@ -260,6 +269,16 @@ class Provenance:
     snapshot_id: Optional[str] = None
     line_refs: Tuple[str, ...] = ()
     source: str = "assembled_canonical_v1"
+    #: The EARLIER period a two-period finding compares against (the
+    #: band-crossing lane, `findings/c_bands.py`). Both default to None,
+    #: and a None field neither renders nor serialises, so every
+    #: single-period render and payload stays byte-identical to before
+    #: these fields existed (the `ActionStep.lang` precedent).
+    prior_period_id: Optional[str] = None
+    prior_snapshot_id: Optional[str] = None
+
+    #: Fields `_as_dict` leaves out of a payload while they are None.
+    _PAYLOAD_OMIT_WHEN_NONE = ("prior_period_id", "prior_snapshot_id")
 
     def render(self) -> str:
         bits = ["period %s" % self.period_id]
@@ -268,6 +287,11 @@ class Provenance:
         if self.line_refs:
             bits.append("accounts %s" % ", ".join(self.line_refs))
         bits.append(self.source)
+        if self.prior_period_id:
+            prior = "vs period %s" % self.prior_period_id
+            if self.prior_snapshot_id:
+                prior += ", snapshot %s" % self.prior_snapshot_id
+            bits.append(prior)
         return "; ".join(bits)
 
 
@@ -459,11 +483,19 @@ def _format_value(value: float, unit: str, currency: str) -> str:
     if unit == UNIT_RATIO:
         return "%.2f×" % v
     if unit == UNIT_DAYS:
-        return "%.0f days" % v
+        # The noun agrees with the PRINTED count: "1 day", "2 days", and
+        # "0 days" (ruling Q8). Read off the printed text, never the float,
+        # so 0.6 (printed "1") is "1 day" and 1.4 (printed "1") is too.
+        text = "%.0f" % v
+        return "%s %s" % (text, "day" if text in ("1", "-1") else "days")
     if unit == UNIT_COUNT:
         return "%.0f" % v
     if unit == UNIT_SCORE:
         return "%.1f" % v
+    if unit == UNIT_INDEX:
+        return "%.2f" % v
+    if unit == UNIT_NOTCHES:
+        return "%.2f notches" % v
     raise UnknownUnitError(
         "refusing to render %r: unit %r is not declared in _ratio_units"
         % (value, unit)
@@ -683,7 +715,7 @@ class Finding:
         if not s.accounts:
             out.append(Missing(ELEMENT_SUBJECT, "no accounts named"))
         for a in s.accounts:
-            if not a.code or not _ACCOUNT_CODE_RX.match(a.code):
+            if not a.code or not is_ledger_code(a.code):
                 out.append(Missing(ELEMENT_SUBJECT,
                                    "account code %r is not a ledger code" % a.code))
             if not (a.name or "").strip():
@@ -1068,8 +1100,11 @@ def _as_dict(obj: Any) -> Optional[Dict[str, Any]]:
     if obj is None:
         return None
     out = {}  # type: Dict[str, Any]
+    omit_when_none = getattr(type(obj), "_PAYLOAD_OMIT_WHEN_NONE", ())
     for key in obj.__dataclass_fields__:  # type: ignore[attr-defined]
         value = getattr(obj, key)
+        if value is None and key in omit_when_none:
+            continue
         if isinstance(value, tuple):
             out[key] = [_as_dict(v) if hasattr(v, "__dataclass_fields__") else v
                         for v in value]
@@ -1232,7 +1267,7 @@ __all__ = [
     "Confidence", "Evidence", "Figure", "Finding", "FindingSet", "Impact",
     "Missing", "Provenance", "RenderedFinding", "Subject", "Threshold",
     "Verdict", "WhyHere",
-    "ratio_impact", "money_impact", "headroom_impact",
+    "ratio_impact", "money_impact", "headroom_impact", "is_ledger_code",
     "apply_advisory_narrative",
     "NarrativeMutationError", "UnknownUnitError", "OrphanCurrencyLabelError",
     "CONTRACT_ELEMENTS", "ALL_GATES", "BANNED_PHRASES", "IMPERATIVE_VERBS",
@@ -1241,5 +1276,5 @@ __all__ = [
     "ELEMENT_SUBJECT", "ELEMENT_EVIDENCE", "ELEMENT_THRESHOLD", "ELEMENT_IMPACT",
     "ELEMENT_WHY_HERE", "ELEMENT_ACTION", "ELEMENT_CONFIDENCE", "ELEMENT_PROSE",
     "UNIT_MONEY", "UNIT_RATIO", "UNIT_PERCENT", "UNIT_DAYS", "UNIT_COUNT",
-    "UNIT_SCORE", "UNIT_UNKNOWN",
+    "UNIT_SCORE", "UNIT_INDEX", "UNIT_NOTCHES", "UNIT_UNKNOWN",
 ]

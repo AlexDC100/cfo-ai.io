@@ -2280,6 +2280,7 @@
     },
     "dpo": {
      "direction": "higher",
+     "floor": "watch",
      "healthy": 45,
      "strong": 60,
      "watch": 30

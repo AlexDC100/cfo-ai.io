@@ -1,0 +1,47 @@
+{
+  "_": "floor-census ratchet baseline: (file, class) site counts outside the credit tier's hard classes. Rewritten only by `scripts/check_floor_census.py --write-baseline` in a named commit; the gate reds when a count moves in EITHER direction.",
+  "counts": {
+    "src/engine/actions.py": {
+      "OR_ZERO": 7
+    },
+    "src/engine/api/_benchmark_engine.py": {
+      "OR_ZERO": 1
+    },
+    "src/engine/api/_industry_classifier.py": {
+      "OR_ZERO": 3
+    },
+    "src/engine/api/cfo_ai.py": {
+      "OR_ZERO": 2
+    },
+    "src/engine/api/frontend.py": {
+      "OR_ZERO": 4
+    },
+    "src/engine/api/pipeline.py": {
+      "CLAMP": 3,
+      "OR_ZERO": 15,
+      "S1": 2,
+      "S3": 6
+    },
+    "src/engine/comparatives/ratio_compare.py": {
+      "S8": 1
+    },
+    "src/engine/country_packs/ro_romania/chart_of_accounts.py": {
+      "CLAMP": 7,
+      "OR_ZERO": 8,
+      "S7": 1
+    },
+    "src/engine/public/intelligence/risk_scoring_engine.py": {
+      "CLAMP": 4
+    },
+    "src/engine/ratios/credit_model.py": {
+      "OR_ZERO": 3,
+      "S8": 6
+    },
+    "src/engine/ratios/table.py": {
+      "S8": 1
+    }
+  },
+  "reviewed": {
+    "src/engine/api/_industry_classifier.py [OR_ZERO]": "3 sites, all in cost_structure_metrics, reviewed 2026-09-20 with a measurement; all legitimate (true_value), none a substitute. (1) `bucket_sums.get(b, 0.0) + amount` is the accumulator's own initial value: `amount` is `_measured(...)` and an unmeasured row is skipped (`continue`), never read as 0. (2)(3) `bucket_sums.get('capitalizedOwnWork', 0.0)` / `.get('otherIncome', 0.0)` add a bucket's sum to class-70 revenue: the function returns BEFORE this line when the period has no PL line items (`if not pl_items: return flat`, so absent stays absent and the classifier refuses - R-OTHER) and the sum is formed only when `'revenue' in bucket_sums`; with the line items present, a bucket with no rows is a sum over an empty set of enumerated accounts, which is 0. Measured on the four corpus books through the production write seam: capitalizedOwnWork has 0 PL rows on all four (agras 146 PL rows, carniprod 189, realestate 56, retail 193) and otherIncome 9 / 17 / 4 / 7 rows; the flattened total tracks assembled_pl.total_operating_revenue_statutory (agras 311,058,757 vs 310,668,666; carniprod 189,284,957 vs 187,878,736; realestate 29,768,800 vs 29,752,180; retail 80,237,133 vs 79,512,188) - the residual is the statutory formula's own production-variation terms, not these defaults. The absent-read-as-zero this file was repaired for (`m.get('cogs', 0) or 0` on a period with no cost keys, 2026-09-19) is pinned by tests/engine/test_industry_classifier_absent_inputs.py."
+  }
+}

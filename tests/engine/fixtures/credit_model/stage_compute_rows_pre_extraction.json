@@ -1,9 +1,92 @@
 {
  "_meta": {
   "captured_at_commit": "cfd2117 (main), BEFORE the credit-model extraction",
-  "captured_by": "pipeline.stage_compute with a recording admin double (delete/insert captured, nothing written)",
-  "note": "rows are exactly what stage_compute inserted into calculated_metrics at that commit; they carry no credit_model_revision row because the stamp did not exist yet",
-  "recaptured_plan2_b4a": "saga_10_col_agras, saga_10_col_carniprod, saga_10_col_retail and saga_10_col_agras_zero_balance_sheet: rows re-derived by engine.ratios.credit_model.compute_period_metrics over the firm fixtures recaptured after the 609/709 contra-sign repair (plan/2 B4a). The pre-extraction parity for those four cases was proven at cfd2117 on the old inputs; the function is unchanged since, so the pure function is the only source of rows over the repaired books."
+  "captured_by": "originally pipeline.stage_compute with a recording admin double; re-captured from credit_model.compute_period_metrics on the same statements, revision row stripped",
+  "note": "rows carry no credit_model_revision row because the golden predates the stamp; the test asserts the stamp by value. Every book with liabilities, revenue and interest is byte-identical to the revision-1 capture; the two synthetic books moved exactly where the rulings say (ROIC on non-positive invested capital refuses; equity rung 0; net-cash leverage 100; coverage/DSCR/profitability refuse on a loss-making, revenue-less, interest-free book)",
+  "recaptured": "2026-09-18 under CREDIT_MODEL_REVISION 2 (ratios wave 3: rulings R-D1, R-D2, R-D3, R-D4, R-RANGE, R-OTHER C1.9), in a named commit; 2026-09-19 after interest_coverage moved to EBIT / interest (the methodology, CLAUDE.md Appendix A section 5; the coverage sub-score already banded on EBIT), in a named commit",
+  "rows_moved_on_recapture": {
+   "saga_10_col_agras_zero_balance_sheet": [
+    {
+     "name": "roic",
+     "revision_1": 12990721.7076,
+     "revision_2": null
+    }
+   ],
+   "synthetic_negative_equity": [
+    {
+     "name": "roic",
+     "revision_1": -100800.0,
+     "revision_2": null
+    },
+    {
+     "name": "credit_composite",
+     "revision_1": -2.9,
+     "revision_2": null
+    },
+    {
+     "name": "credit_subscore_profitability",
+     "revision_1": 0,
+     "revision_2": null
+    },
+    {
+     "name": "credit_subscore_leverage",
+     "revision_1": 0,
+     "revision_2": 100
+    },
+    {
+     "name": "credit_subscore_coverage",
+     "revision_1": 95,
+     "revision_2": null
+    },
+    {
+     "name": "credit_subscore_dscr",
+     "revision_1": 90,
+     "revision_2": null
+    },
+    {
+     "name": "credit_subscore_equity",
+     "revision_1": -500.0,
+     "revision_2": 0
+    }
+   ]
+  },
+  "rows_moved_on_recapture_2026_09_19_interest_coverage_ebit": {
+   "saga_10_col_agras": [
+    {
+     "ebit_basis": 55.644,
+     "ebitda_basis": 66.2774,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_agras_zero_balance_sheet": [
+    {
+     "ebit_basis": 55.644,
+     "ebitda_basis": 66.2774,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_realestate": [
+    {
+     "ebit_basis": -25.1332,
+     "ebitda_basis": -25.0795,
+     "name": "interest_coverage"
+    }
+   ],
+   "saga_10_col_retail": [
+    {
+     "ebit_basis": -0.519,
+     "ebitda_basis": 0.0909,
+     "name": "interest_coverage"
+    }
+   ],
+   "scandia_fy2025_baseline": [
+    {
+     "ebit_basis": 13.2654,
+     "ebitda_basis": 17.704,
+     "name": "interest_coverage"
+    }
+   ]
+  }
  },
  "cases": {
   "saga_10_col_agras": {
@@ -198,7 +281,7 @@
      "name": "interest_coverage",
      "value": 38.7737,
      "unit": "ratio",
-     "direction": "higher"
+     "value": 55.644
     },
     {
      "org_id": "org-gate",
@@ -758,7 +841,7 @@
      "name": "interest_coverage",
      "value": 38.7737,
      "unit": "ratio",
-     "direction": "higher"
+     "value": 55.644
     },
     {
      "org_id": "org-gate",
@@ -782,7 +865,7 @@
      "name": "roic",
      "value": 6569666.754,
      "unit": "ratio",
-     "direction": "higher"
+     "value": null
     },
     {
      "org_id": "org-gate",
@@ -1772,7 +1855,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -25.0795
+     "value": -25.1332
     },
     {
      "direction": "higher",
@@ -2331,7 +2414,7 @@
      "name": "interest_coverage",
      "value": 0.9349,
      "unit": "ratio",
-     "direction": "higher"
+     "value": -0.519
     },
     {
      "org_id": "org-gate",
@@ -2890,7 +2973,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 17.704
+     "value": 13.2654
     },
     {
      "direction": "higher",
@@ -3441,7 +3524,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -100800.0
+     "value": null
     },
     {
      "direction": "higher",
@@ -3721,7 +3804,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": -2.9
+     "value": null
     },
     {
      "direction": "higher",
@@ -3737,7 +3820,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 0
+     "value": null
     },
     {
      "direction": "higher",
@@ -3745,7 +3828,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 0
+     "value": 100
     },
     {
      "direction": "higher",
@@ -3753,7 +3836,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 95
+     "value": null
     },
     {
      "direction": "higher",
@@ -3761,7 +3844,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 90
+     "value": null
     },
     {
      "direction": "higher",
@@ -3777,7 +3860,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": -500.0
+     "value": 0
     }
    ],
    "source": "tests/engine/fixtures/firm/synthetic_negative_equity.json",

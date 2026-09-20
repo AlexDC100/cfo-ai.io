@@ -29,6 +29,8 @@ import { vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ComprehensiveReport from "@/pages/cfo/ComprehensiveReport";
 
+import { servedPeriodDays } from "./exportBooks";
+
 export const BOOKS = ["agras", "carniprod", "realestate", "retail"] as const;
 export type Book = (typeof BOOKS)[number];
 
@@ -41,11 +43,15 @@ type Statements = {
   assembled_bs: Record<string, number>;
   assembled_cf: Record<string, unknown>;
   incomeStatement: Record<string, number>;
+  /** The write-seam fixture carries `supplementary.periodDays: null`; the
+   *  harness establishes it the way `_served_supplementary` does. */
+  supplementary?: Record<string, unknown> | null;
   companyName?: string;
 };
 
 type Fixture = {
   currency: string;
+  period_start?: string | null;
   period_end: string;
   statements: Statements;
   line_items?: Array<Record<string, unknown>>;
@@ -75,7 +81,15 @@ export function periodResponse(book: Book) {
       currency: fx.currency,
       source_document: { filename: `${book}.xlsx`, id: `d-${book}` },
     },
-    statements: { companyName: book, ...fx.statements },
+    // The served shape: the write-seam fixture carries
+    // `supplementary.periodDays: null` (the assembler claims no length it
+    // was not given); `_served_supplementary` establishes it from the
+    // period row, and so does this harness — see `servedPeriodDays`.
+    statements: {
+      companyName: book,
+      ...fx.statements,
+      supplementary: { ...fx.statements.supplementary, periodDays: servedPeriodDays(fx) },
+    },
     metrics: Object.entries(metricsFor(book)).map(([name, value]) => ({
       name,
       value,

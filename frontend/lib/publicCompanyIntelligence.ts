@@ -148,21 +148,37 @@ export interface RiskRadarResponse {
 
 // ─── Per-ticker risk score ───────────────────────────────────────────────
 
+/** Why a score, or one of its categories, is not served. `component` is the
+ *  category key or "overall"; `inputs` names the absent snapshot fields (or,
+ *  for "overall", the refused categories); `text` is the sentence a reader
+ *  sees in place of the number. Mirrors models.ScoreRefusal. */
+export interface ScoreRefusal {
+  code: string;
+  component: string;
+  inputs: string[];
+  text: string;
+}
+
+/** 0–100 per category, or null where the engine had no measured input for
+ *  it — never a neutral stand-in. The reason for every null is a
+ *  ScoreRefusal on the parent score's `refusals` (same `component` key). */
 export interface RiskCategoryScores {
-  macro: number;
-  supply_chain: number;
-  geopolitical: number;
-  financial: number;
-  valuation: number;
-  operational: number;
-  regulatory: number;
+  macro: number | null;
+  supply_chain: number | null;
+  geopolitical: number | null;
+  financial: number | null;
+  valuation: number | null;
+  operational: number | null;
+  regulatory: number | null;
 }
 
 export interface RiskItem {
   key: string;
   label: string;
   severity: Severity;
-  score_contribution: number;
+  /** How much this risk lifts the overall score; null when every category
+   *  its channels map to is refused (there is no overall for it to lift). */
+  score_contribution: number | null;
   channels: FinancialImpactChannel[];
   source_signal_ids: string[];
 }
@@ -176,16 +192,69 @@ export interface OpportunityItem {
   source_signal_ids: string[];
 }
 
+/** `ScoreRefusal.code` of a category the engine DROPPED (R-PUBLIC-ABSENT):
+ *  an input it reads is one the row's data producer never carries, so the
+ *  category is not scored for any row of that producer and its weight is
+ *  redistributed. Distinct from `risk_category_unavailable`, which is this
+ *  company's own gap and refuses the composite. */
+export const RISK_CATEGORY_DROPPED = "risk_category_dropped";
+
+/** A category dropped by the producer's coverage. Mirrors models.DroppedCategory. */
+export interface DroppedCategory {
+  category: keyof RiskCategoryScores;
+  inputs: string[];
+  reason: string;
+}
+
+/** What the composite covers: the scored categories, the dropped ones with
+ *  their reason, and the weights actually applied (declared weights rescaled
+ *  over `scored`, summing to 1). Mirrors models.ScoreCoverage. */
+export interface ScoreCoverage {
+  producer: string | null;
+  scored: Array<keyof RiskCategoryScores>;
+  dropped: DroppedCategory[];
+  declared_weights: Record<string, number>;
+  applied_weights: Record<string, number>;
+}
+
 export interface PublicCompanyRiskScore {
   ticker: string;
-  overall_risk_score: number;
-  risk_level: Severity;
+  /** null unless EVERY scored category is measured; `refusals` says why. */
+  overall_risk_score: number | null;
+  risk_level: Severity | null;
   categories: RiskCategoryScores;
   top_risks: RiskItem[];
   top_opportunities: OpportunityItem[];
   explanation: string;
   confidence: number;
   computed_at: string;
+  refusals: ScoreRefusal[];
+  /** Absent only on a payload older than R-PUBLIC-ABSENT; read as "nothing dropped". */
+  coverage?: ScoreCoverage | null;
+}
+
+/** The refusal recorded for a component ("overall" or a category key). */
+export function scoreRefusalFor(
+  score: Pick<PublicCompanyRiskScore, "refusals">,
+  component: string,
+): ScoreRefusal | null {
+  return (score.refusals ?? []).find((r) => r.component === component) ?? null;
+}
+
+/** The drop recorded for a category, or null when it was scored or refused.
+ *  Reads the coverage block first and the refusal code as its fallback so
+ *  both halves of the served statement agree before a "not scored" renders. */
+export function categoryDropFor(
+  score: Pick<PublicCompanyRiskScore, "refusals" | "coverage">,
+  category: keyof RiskCategoryScores,
+): DroppedCategory | null {
+  const fromCoverage = (score.coverage?.dropped ?? []).find((d) => d.category === category);
+  if (fromCoverage) return fromCoverage;
+  const refusal = scoreRefusalFor(score, category);
+  if (refusal && refusal.code === RISK_CATEGORY_DROPPED) {
+    return { category, inputs: refusal.inputs, reason: refusal.text };
+  }
+  return null;
 }
 
 // ─── Company exposure ────────────────────────────────────────────────────
@@ -371,16 +440,23 @@ export function postRefreshSignals(): Promise<{ cache_keys_invalidated: number; 
 
 // ─── Universe-wide risk-scores batch ────────────────────────────────────
 
-/** One row in the universe-wide risk-score batch response — what the
- *  PublicCompaniesUniverseTable renders per ticker. */
+/** One row in the universe-wide risk-score batch response
+ *  (GET /api/public/intelligence/risk-scores). No component renders it
+ *  today (2026-09-19); the shape mirrors routes.py's batch row so the
+ *  first consumer inherits the refusals. A null score carries its reason
+ *  in the matching `*_refusal` sentence. */
 export interface UniverseRiskScoreRow {
   ticker: string;
-  risk_score: number;
-  risk_level: Severity;
+  risk_score: number | null;
+  risk_level: Severity | null;
+  risk_refusal: string | null;
+  /** What the risk score covers (dropped categories, reason, applied weights). */
+  risk_coverage: ScoreCoverage | null;
   main_risk: string | null;
   main_risk_severity: Severity | null;
-  opportunity_score: number;
-  opportunity_level: Severity;
+  opportunity_score: number | null;
+  opportunity_level: Severity | null;
+  opportunity_refusal: string | null;
   exposure_source: ExposureSource;
   confidence: number;
 }

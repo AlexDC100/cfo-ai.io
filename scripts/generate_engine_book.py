@@ -88,6 +88,9 @@ FOREIGN_PAGES = (
     # tests/engine/test_gate_canaries.py, which fails when a gate in
     # scripts/run_battery.py has no section here.
     "gates.md",
+    # Wave decision logs: short, one entry per decision, the commit messages
+    # carry the detail. Hand-maintained because they record choices made.
+    "decisions_ratios_wave3.md",
 )
 
 
@@ -882,6 +885,9 @@ def render_index() -> str:
     )
     lines.append(
         "| [gates.md](gates.md) | THE GATE REGISTER — every battery gate's work count, floor, canary and the plant that was observed RED | hand-maintained |"
+    )
+    lines.append(
+        "| [decisions_ratios_wave3.md](decisions_ratios_wave3.md) | Ratios wave three (credit revision 2) decision log — continuation, the two-tier floor census, the three Altman guards, fixture blast radius | hand-maintained |"
     )
     lines.append(
         "| [mutation.md](mutation.md) | Mutation-testing results and policy | mutation agent (hand-maintained) |"
