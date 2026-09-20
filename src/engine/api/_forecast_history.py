@@ -216,12 +216,18 @@ def _history_block(client: Any, org_id: str, period_id: str,
         held_rows.append({"period_id": entry["period_id"],
                           "updated_at": row.get("updated_at")})
         break
-    # every eligible period after the one held is passed over, and says so
-    for entry in eligible[len(held):] if held else []:
-        if entry["period_id"] not in [h["period_id"] for h in held]:
-            excluded.append(dict(entry, reason={
-                "code": "superseded_by_a_nearer_prior",
-                "text": "a nearer comparable period is held"}))
+    # EVERY candidate leaves a verdict. One that is neither held nor already
+    # excluded for a reason of its own was passed over because a nearer one
+    # was taken, and says exactly that — a candidate that simply vanished
+    # from the block would be indistinguishable from one never seen.
+    decided = set([h["period_id"] for h in held]
+                  + [e["period_id"] for e in excluded])
+    for entry in eligible:
+        if entry["period_id"] in decided:
+            continue
+        excluded.append(dict(entry, reason={
+            "code": "superseded_by_a_nearer_prior",
+            "text": "a nearer comparable period is held"}))
     return prior_periods, {"held": held, "eligible": eligible,
                            "excluded": excluded, "held_rows": held_rows}
 
