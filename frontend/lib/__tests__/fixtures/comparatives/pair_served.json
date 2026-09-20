@@ -15403,6 +15403,12 @@
   "credit_metrics_as_filed": [
    {
     "direction": "higher",
+    "name": "interest_coverage",
+    "unit": "ratio",
+    "value": 55.644
+   },
+   {
+    "direction": "higher",
     "name": "altman_z_score",
     "unit": "ratio",
     "value": 7.31
