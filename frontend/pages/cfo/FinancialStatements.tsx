@@ -62,6 +62,7 @@ import {
   ComparativesSummary,
   RatioCompareCtx,
 } from "@/components/cfo/ComparativesPanel";
+import { SectorBenchmarkCtx, useSectorBenchmark } from "@/components/cfo/benchmark/SectorBenchmarkSection";
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
 import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
@@ -594,6 +595,9 @@ function FinancialStatementsInner() {
       ? null
       : cmpView.view.priorPeriodId ?? cmpAutoPick?.period_id ?? null;
   const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId);
+  // Sourced sector bands for the ratio cards (uploaded periods only: a
+  // sample dataset has no period on the engine to ask about).
+  const sectorQuery = useSectorBenchmark(remotePeriod.source === "upload" ? remotePeriod.id : null);
   const { data: directPeriodsData } = useQuery({
     queryKey: ["org-periods", activeOrgForPeriods?.id],
     queryFn: () => fetchWorkspacePeriodsDirect(activeOrgForPeriods!.id),
@@ -732,6 +736,7 @@ function FinancialStatementsInner() {
     periodId: remotePeriod.id,
     priorId: cmpPriorId,
     comparatives: cmpQuery,
+    sector: sectorQuery.data ?? null,
   });
 
   // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
@@ -2417,6 +2422,7 @@ function FinancialStatementsInner() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
+            <SectorBenchmarkCtx.Provider value={sectorQuery.data ?? null}>
             <RatioCompareCtx.Provider value={ratioCompareView}>
               <RatiosTabContent
                 ratios={ratios}
@@ -2424,6 +2430,7 @@ function FinancialStatementsInner() {
                 altman={heroCredit ? altmanRatio(heroCredit) : null}
               />
             </RatioCompareCtx.Provider>
+            </SectorBenchmarkCtx.Provider>
           </TabsContent>
         )}
 

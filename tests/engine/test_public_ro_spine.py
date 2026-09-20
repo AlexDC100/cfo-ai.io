@@ -740,3 +740,31 @@ def test_din_care_qualifier_is_not_part_of_indicator_identity():
             == normalize_label("ACTIVE CIRCULANTE - TOTAL"))
     assert (normalize_label("CAPITALURI - TOTAL, din care:")
             == normalize_label("CAPITALURI - TOTAL"))
+
+
+def test_real_data_gov_ro_2024_bl_spec_resolves():
+    """The REAL WEB_BL_BS_SL companion spec (long/short-form filers —
+    every large company), byte-for-byte as data.gov.ro serves it for
+    FY2023 and FY2024 (the two are byte-identical).
+
+    Found 2026-09-20: it says "Profitul brut" / "Profitul net" where the
+    UU spec says "Profit brut" / "Profit net", so resolve_spec refused
+    the family outright and no large company could be read.
+
+    Reds on (TC-11): either articulated label leaving CANONICAL_LABELS,
+    a fixture byte change (sha pinned), or i16/i18 resolving to a
+    different source code than the UU family.
+    """
+    import hashlib
+
+    from engine.public_ro.specs import resolve_spec
+
+    raw_bytes = (FIXTURES / "spec_2024_bl_REAL_data_gov_ro.csv").read_bytes()
+    assert hashlib.sha256(raw_bytes).hexdigest() == (
+        "07f42f7f7ef309036563a4963731a2fe7730ce52b573c7352c7b98d7b9bd4269")
+    resolved = resolve_spec(raw_bytes.decode("utf-8"), year=2024, family="BL")
+    assert resolved["I16"] == "i16" and resolved["I18"] == "i18"
+    uu = resolve_spec(
+        (FIXTURES / "spec_2024_uu_REAL_data_gov_ro.csv").read_text(
+            encoding="utf-8"), year=2024, family="UU")
+    assert resolved == uu

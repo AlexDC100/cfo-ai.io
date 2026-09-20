@@ -36,7 +36,8 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (105 modules)"]
+    pkg_api["api (106 modules)"]
+    pkg_benchmarks_ro["benchmarks_ro (5 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_comparatives["comparatives (6 modules)"]
@@ -86,6 +87,7 @@ graph LR
     pkg_api -->|6| pkg__root_
     pkg_api -->|5| pkg_ai
     pkg_api -->|2| pkg_ai_lane
+    pkg_api -->|1| pkg_benchmarks_ro
     pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
     pkg_api -->|4| pkg_core
@@ -108,6 +110,9 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|3| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_benchmarks_ro -->|1| pkg_public_ro
+    pkg_benchmarks_ro -->|1| pkg_ratios
+    pkg_benchmarks_ro -->|1| pkg_serving
     pkg_comparatives -->|1| pkg_ratios
     pkg_comparatives -->|1| pkg_serving
     pkg_consensus -->|1| pkg_core

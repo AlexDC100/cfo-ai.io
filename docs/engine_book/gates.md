@@ -5233,3 +5233,154 @@ the gate's own docstring.
 Plant 9 reds on the sibling-list assertion, not on the composite: the list
 branch of the walk reads compare rows per row as well, so a mixed list is
 covered twice. Stated so the redundancy is not mistaken for the gate.
+
+## benchmarks-ro — sourced sector benchmark, data layer (2026-09-20)
+
+`tests/engine/test_benchmarks_ro.py` over `engine.benchmarks_ro` and the
+committed aggregate `src/engine/data/ro_sector_benchmarks.json`, built from
+the Ministry of Finance annual filings (data.gov.ro, CC-BY-4.0) by
+`scripts/build_ro_sector_benchmarks.py`. The law: no figure without source,
+year and n; fewer peers than `MIN_PEERS` (declared in
+`benchmarks_ro/definitions.py`, printed from there) is "insufficient peers"
+with no median; absent is never zero; a ratio the filed summary does not
+carry is refused with the reason. Every plant was applied to the product,
+run, and reverted; all gates are green at HEAD.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `specs.CANONICAL_LABELS` without "profitul brut" / "profitul net" | `test_public_ro_spine.py::test_real_data_gov_ro_2024_bl_spec_resolves` | `SpecResolutionError: spec for FY2024 family BL cannot be resolved: unrecognized indicator label 'Profitul brut' (normalized 'profitul brut') at source code I16` |
+| 2 | `dataset.check_law` no longer reports a figure without n | `::test_a_figure_without_source_year_or_n_does_not_load[n]` | `Failed: DID NOT RAISE <class 'engine.benchmarks_ro.dataset.DatasetLawError'>` |
+| 3 | `build.figure` publishes below the minimum (`if len(values) < 1`) | `::test_fewer_than_min_peers_has_no_median` | `KeyError: 'insufficient_peers'` |
+| 4 | `build._div` reads an absent numerator as zero (`num = num or 0`) | `::test_an_empty_field_is_absent_not_zero`, `::test_two_builds_are_byte_identical`, `::test_committed_class_cells_equal_a_build_from_the_real_slice` | `assert Decimal('0') == 'absent_operand'` · slice build sha `4ecbb16b…` != pinned `8634fb11…` · 3 failed |
+
+TC-11, what each reds on after the repair: (1) either articulated label
+leaving the vocabulary, a byte change in the real BL spec fixture, or BL
+resolving differently from UU. (2) any figure in a dataset handed to
+`validate` lacking n, year, source or filed lines, or carrying a median on
+fewer peers than the minimum — the check runs at load, so such a dataset
+cannot be served at all. (3) the builder emitting median/p25/p75 on a thin
+cell. (4) any change to per-row arithmetic, drop rules, quantisation,
+percentile method or key order: the slice build is pinned by sha256 and its
+CAEN-class cells must equal the committed dataset's. What they cannot see:
+the CAEN-division ("10") cells are not rebuilt in the suite (the slice holds
+classes 1011 and 1013 only); they are covered by the law walk, not by a
+rebuild. The full mass files are not in git, so a re-issue of a file by the
+portal is caught only at build time, by the manifest sha check
+(`::test_a_tampered_file_aborts_the_build` demonstrates the abort).
+
+TC-12 coverage: the law walk visits every figure in the dataset (asserted to
+be at least one hundred); the slice holds every FY2024 filer in CAEN 1011 and
+1013 and the FY2023 filings of the same CUIs, real bytes, per-file sha256 in
+`tests/engine/fixtures/benchmarks_ro/slice_manifest.json`.
+
+## benchmarks-ro-serving — company vs sector, the serving seam (2026-09-20)
+
+`GET /api/period/{id}/sector-benchmark` (pipeline.py, beside comparatives) +
+`engine.benchmarks_ro.sector`. Gate: `tests/engine/test_sector_benchmark_route_real_app.py`
+(real `create_app()`, signature-verifying tenancy double, corpus books through
+the production write seam; nothing on the request path stubbed but the network).
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| A | the route loads the current period by id only (org dropped from the filter) | `::test_a_period_from_another_workspace_is_not_found` | `AssertionError: (200, '{"schema":"sector_benchmark/1","period":{"id":"p-retail-foreign",…` · `assert 200 == 404` |
+| B | `check_document_law` no longer reports a figure without n | `::test_a_figure_without_n_year_or_source_is_a_violation` | `AssertionError: n` · `assert False` |
+| C | `_row_sum` answers 0.0 when the statement has no such row | `::test_an_absent_company_operand_refuses_the_row_never_zero` | `assert ('sourced' == 'company_absent'` |
+| D | inventory days on turnover declared the same as the card's DIO | `::test_every_census_key_has_a_sector_band_or_a_stated_reason`, `::test_the_company_side_is_the_ratio_table…` | `KeyError: 'reason'` · `assert 'ratio_table.dio' == 'restated_on_filed_basis'` |
+
+TC-11, after the repair: (A) reds on any load of a browser-supplied period id
+without the caller's organization in the filter, on a forged bearer served, on
+a non-member workspace served. (B) on any row, ratio card or movement item
+leaving the route without source, year or n, or with a median under the
+minimum — the route runs the same check and answers 500 rather than serve it.
+(C) on any company operand defaulted to a number. (D) on a card taking a
+sector band whose definition is not the card's own, and on a census key
+with neither a band nor a stated reason. It also reds when the committed
+frontend fixture (`frontend/lib/__tests__/fixtures/sectorBenchmark/served_pair.json`)
+is not byte-for-byte what the route serves. What it cannot see: the medians
+themselves (`test_benchmarks_ro.py`), and Scandia's own figures — the corpus
+pair is Agras FY2025 / Carniprod FY2024 under CAEN 1011.
+
+### Repair pass, 2026-09-20 (plant I)
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| I | the persisted-metric refusal narrowed back to ROE alone (`and (key != "roe" or _card_states_its_filed_basis(row))`) | `test_sector_benchmark_route_real_app.py::test_no_company_figure_rests_on_a_persisted_metric`, `::test_the_company_side_is_the_ratio_table_the_same_app_serves` | `AssertionError: [('net_margin', 'ratio_table.net_margin', 'metrics.net_margin')]` · `- ratio_table.net_margin` / `+ restated_on_filed_basis` · `2 failed \| 11 passed` |
+
+TC-11, after the repair: (I) reds on any served row whose printed operands
+cite `metrics.` — a number that states no basis, so nothing holds it to the
+account-121 anchor the dashboard prints; on net_margin differing from that
+anchored net income over revenue as the SAME app serves them in
+`GET /api/period`; and on a ratio card keeping its sector band while what the
+card PRINTS is a different number from the filed-basis figure the band was
+positioned against. A card keeps its band by proof, not by provenance:
+`card_agrees` is true only within the served `card_agreement_tolerance`.
+
+TC-10: size-band cut-offs, the minimum peer count, the percentile minimum and
+the card-agreement tolerance are served in the document (`size_bands`,
+`min_peers`, `percentile_min_n`, `card_agreement_tolerance`);
+nothing downstream types them. TC-12 coverage: nine sourced ratio keys, all
+census keys on `ratio_cards` (asserted equal to `CENSUS`). The percentile is
+refused (`quartiles_only`): the dataset holds quartiles, and a percentile
+between them would be an interpolation.
+
+## benchmarks-ro-surface — company vs sector on the page, the card and the report (2026-09-20)
+
+One reader and one printer (`frontend/lib/sectorBenchmark.ts`) behind three
+surfaces: the `/benchmark` page section
+(`components/cfo/benchmark/SectorBenchmarkSection.tsx` + `SectorRangeBar.tsx`),
+the ratio card's band-source line (`components/cfo/ratios/RatiosTab.tsx`) and
+the CFO report section (`lib/financialReport.ts`). Gates:
+`frontend/lib/__tests__/sectorBenchmark.test.tsx` (17) and the
+`ratio tile: where the band comes from` block of
+`frontend/lib/__tests__/ratioCompareTab.test.tsx` (2). Both read the committed
+document `frontend/lib/__tests__/fixtures/sectorBenchmark/served_pair.json`,
+which `tests/engine/test_sector_benchmark_route_real_app.py::test_the_committed_frontend_fixture_is_what_this_route_serves`
+holds byte-for-byte to what the route serves — so the FE gates cannot drift
+onto a document the engine would never send.
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| E | `lawfulFigure` no longer requires `n` (the law's door accepts a figure without a peer count) | `sectorBenchmark.test.tsx::THE LAW… > a row without n prints words, no number and no bar`, `::a sector card without n falls back to the general sentence` | `AssertionError: expected 'sourced' to be 'refused'` · `AssertionError: expected 'Sector: median 3.1%, middle half 1.3%…' to be 'General SME band, not calibrated to y…'` · `2 failed \| 15 passed` |
+| F | the served minimum peer count is not enforced at the boundary (`n < minPeers` → `n < 1`) | `::fewer peers than the served minimum is words, never a median` | `AssertionError: expected { Object (median, p25, ...) } to be null` · `1 failed \| 16 passed` |
+| G | the report prints a median the page does not (`r.median.replace("%", " pct")` in `sectorReportSectionHtml`) | `::page rows and report rows are the same bytes > every cell, en` and `> every cell, ro`, `::the CFO report > prints the served document…` | `AssertionError: net_margin.median: expected '3.1 pct' to be '3.1%'` · `AssertionError: net_margin.median: expected '3,1 pct' to be '3,1%'` · `3 failed \| 14 passed` |
+| H | the band-source sentence written INSIDE `ratio-ladder` instead of the sibling element | `ratioCompareTab.test.tsx::ratio tile… > with one: sector lines carry n, FY and source…`, and the seven pre-existing ladder gates (G10–G12) | `expected 'Strong from 15%, Healthy from 8%, Wat…' not to contain 'Ministerul'` · `Expected: "Strong from 2×, Healthy from 1.5×, Watch from 1×, Critical below General SME band, not calibrated to your sector."` · `8 failed \| 34 passed` |
+
+TC-11, after the repair: (E) reds on any sector figure reaching a page row, a
+report cell, a ratio-card line or a movement item without its n, year or
+source — the row turns into words and loses its bar. (F) reds on a median
+printed on a cell thinner than the served minimum, on any surface. (G) reds
+when the page cell and the report cell for the same ratio differ by one byte,
+in either language — label, company, median, middle half, n, FY, position.
+(H) reds on anyone folding the band's provenance into the ladder element the
+ladder gates pin, and on a general ladder labelled "sector" (the same test
+asserts `dio` and `gross_margin` stay general and say why).
+
+### Repair pass, 2026-09-20 (plants J, K)
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| J | the report's `cols` list drops `level`, so a band that fell back to the CAEN division is disclosed on the page and not in the report | `sectorBenchmark.test.tsx::a band that fell back to the CAEN division says so everywhere > the report row carries the division marker, byte-identical to the page` | `AssertionError: net_margin: the report row must carry the division marker: expected null not to be null` · `4 failed \| 17 passed` |
+| K | the ratio tile's `data-band-source` reads the raw served card (`sectorDoc?.ratio_cards?.[engineKey]?.band_source ?? "general"`) instead of the law's door | `ratioCompareTab.test.tsx::ratio tile… > the attribute is the same decision as the sentence, never the raw card` | `AssertionError: net_margin: the hook must not claim what the line does not say: expected 'sector' to be 'general'` · `1 failed \| 42 skipped` |
+
+TC-11, after the repair: (J) reds on a fallback band printed in the report
+without its `level` cell, on a `level` cell whose bytes differ from the page's,
+on a class-level band that prints a marker anyway, and on a card band line that
+names a division number without saying it is a division — in either language.
+(K) reds on the test hook disagreeing with the sentence the reader sees, on any
+served tile, on any document. `orgScopedFetch.test.ts` now also scopes a
+sector-benchmark path, and reds on a raw fetch there that does not build its
+headers with `authOrgHeaders` (`expected [ 'lib/sectorBenchmark.ts' ] to deeply
+equal []`). The wider `/api/period` family is deliberately NOT in scope yet —
+ten further files name it and each needs its own audit.
+
+TC-10: the size-band cut-offs, the peer minimum, the year, the peer-set
+sentence and the CAEN level are interpolated from the served document; the string gate
+(`EN and RO carry the same keys, and no numeral is typed into either`) reds on
+any numeral typed into a `benchmarkPage.sector.*` string in either language.
+TC-12 coverage: every served row, every served `ratio_cards` key, every served
+`refused` key and every served reason code is asserted to have a sentence in
+both languages; the report gate asserts a band-source line on more than ten
+cards and none at all when no document was served. What these gates cannot
+see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
+the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
+layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).
