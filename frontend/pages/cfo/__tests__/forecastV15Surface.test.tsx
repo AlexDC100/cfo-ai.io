@@ -651,3 +651,25 @@ describe("the free-cash-flow chart is readable", () => {
       .toMatch(/scale/i);
   });
 });
+
+// ── ACCEPTANCE (2026-09-21) ──────────────────────────────────────────────
+describe("the banner names the period the PROJECTION stands on", () => {
+  it("quotes the payload's own base period, never the app's active-period context", async () => {
+    // These two can disagree. `useActivePeriod()` is the app-wide selection
+    // and is mocked here to "Dec 2025"; the served projection stands on
+    // `base_period.label`. The banner is the page's honesty statement about
+    // the one ACTUAL figure underneath every projection on screen, so it
+    // must name the period the payload was computed from — and it must not
+    // read as a hole when the app context has not resolved.
+    forecast.mockResolvedValue(SERVED);
+    renderPage();
+    const banner = await screen.findByTestId("forecast-banner");
+    await waitFor(() => expect(screen.getByTestId("forecast-strip")).toBeTruthy());
+    const label = SERVED.base_period.label as string;
+    expect(banner.textContent, `the banner names ${label}`).toContain(label);
+    expect(banner.textContent, "and does not name the app's active period instead")
+      .not.toContain(PERIOD.label);
+    expect(banner.textContent, "and never renders its anchor as an em dash")
+      .not.toContain("of —");
+  });
+});

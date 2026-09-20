@@ -657,7 +657,16 @@ export default function Forecast() {
           {t(
             "forecast.banner.body",
             "Nothing here comes out of a cell in your trial balance. Each number is produced by the assumptions listed below and by the closing position of {{period}}, which is the only actual figure this page stands on.",
-            { period: period.label ?? "—" },
+            // The PAYLOAD'S base period, not the app's active-period
+            // context. The two can disagree — the context is the workspace
+            // selection and the projection stands on the period the engine
+            // actually read — and this sentence is the page's statement
+            // about the one ACTUAL figure under every number on screen, so
+            // it names that period or it says nothing useful. Before the
+            // first answer there is no served period yet, and the context
+            // is the honest stand-in; it can still be absent, which is what
+            // the dash is for.
+            { period: ready?.basePeriodLabel ?? period.label ?? "—" },
           )}
         </p>
       </div>
