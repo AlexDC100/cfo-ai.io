@@ -33,6 +33,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 import Forecast from "../Forecast";
+import { CfoApiError } from "@/lib/cfoApi";
 
 const PERIOD = { id: "p-1", label: "Dec 2025" };
 
@@ -417,7 +418,13 @@ describe("a refused recompute does not take the page away", () => {
     // discards every edit, or a reload.
     const sentence =
       "revenue_growth 9.000000 is outside the bounds this engine accepts";
-    forecastRecompute.mockRejectedValue(new Error(sentence));
+    forecastRecompute.mockRejectedValue(
+      new CfoApiError(sentence, 422, {
+        code: "out_of_bounds",
+        text: sentence,
+        field: "revenue_growth",
+      }),
+    );
     await editThrough("900");
 
     await waitFor(() =>
@@ -458,6 +465,40 @@ describe("a refused recompute does not take the page away", () => {
         .getByTestId("forecast-lever-input-revenue_growth-0")
         .getAttribute("data-refused"),
     ).toBe("true");
+  });
+
+  it("renders the engine's SENTENCE, not the envelope it travels in", async () => {
+    // The route raises `HTTPException(422, {"code", "text", "field"})`, so the
+    // refusal arrives as a structured detail and the api client's fallback
+    // stringifies the whole object. Printing `{"code":"out_of_bounds",...}` at
+    // a reader is not the engine speaking in its own words — and `field` names
+    // the lever outright, which is better than reading the key back out of the
+    // prose.
+    forecastRecompute.mockRejectedValue(
+      new CfoApiError(
+        JSON.stringify({ code: "out_of_bounds", text: "x", field: "dso_days" }),
+        422,
+        {
+          code: "out_of_bounds",
+          text: "dso_days: 400 is outside 0 to 365",
+          field: "dso_days",
+        },
+      ),
+    );
+    await editThrough("900");
+    await waitFor(() =>
+      expect(screen.getByTestId("forecast-recompute-error").textContent).toBe(
+        "dso_days: 400 is outside 0 to 365",
+      ),
+    );
+    expect(
+      screen.getByTestId("forecast-lever-input-dso_days-0").getAttribute("data-refused"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByTestId("forecast-lever-input-revenue_growth-0")
+        .getAttribute("data-refused"),
+    ).toBeNull();
   });
 
   it("puts the engine's OWN bounds on the control, so the refusal is not the first thing a reader finds", async () => {

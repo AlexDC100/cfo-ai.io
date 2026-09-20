@@ -424,6 +424,34 @@ function withEdit(
   );
 }
 
+/** THE ENGINE'S REFUSAL, IN ITS OWN WORDS.
+ *
+ *  `/api/forecast/{id}/recompute` raises `HTTPException(422, {"code", "text",
+ *  "field"})`, so a refusal arrives as a structured detail — and `cfoApi`'s
+ *  fallback, which has no `message` key to find, stringifies the whole object.
+ *  Printing `{"code":"out_of_bounds","text":"…"}` at a reader is the envelope,
+ *  not the sentence. `text` is what the engine wrote; `field` is the driver it
+ *  names, which beats reading the key back out of the prose.
+ *
+ *  Anything that is not that shape falls back to the message, which is where a
+ *  transport failure and a 500 already live. */
+function readRefusal(err: unknown): { text: string; field: string | null } | null {
+  const detail = (err as { detail?: unknown } | null)?.detail;
+  if (detail && typeof detail === "object") {
+    const rec = detail as { text?: unknown; field?: unknown };
+    if (typeof rec.text === "string" && rec.text.length > 0) {
+      return {
+        text: rec.text,
+        field: typeof rec.field === "string" ? rec.field : null,
+      };
+    }
+  }
+  const message = (err as Error | null)?.message;
+  return typeof message === "string" && message.length > 0
+    ? { text: message, field: null }
+    : null;
+}
+
 export default function Forecast() {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -571,21 +599,16 @@ export default function Forecast() {
     setEdits((prev) => prev.filter((e) => e.key !== key));
   };
 
-  /** The engine's refusal sentence, and the lever it names.
-   *
-   *  The sentence leads with the driver key it would not take
-   *  (`revenue_growth 9.000000 is outside the bounds this engine accepts`), so
-   *  the cell the reader must undo is MEASURED from the engine's own words
-   *  against the levers this payload declares — never guessed from whichever
-   *  field was touched last, which would mark the wrong cell whenever two
-   *  edits settle together. */
-  const recomputeError = query.isError
-    ? ((query.error as Error)?.message ?? null)
-    : null;
+  const refusal = query.isError ? readRefusal(query.error) : null;
+  const recomputeError = refusal?.text ?? null;
+  /** The lever the engine NAMED. `field` comes straight off the refusal, so
+   *  the marked cell is the engine's choice and not the page guessing from
+   *  whichever control was touched last — which marks the wrong one whenever
+   *  two edits settle into a single request. */
   const refusedLeverKey =
-    recomputeError === null
-      ? null
-      : (leversRef.current.find((l) => recomputeError.includes(l.key))?.key ?? null);
+    refusal && leversRef.current.some((l) => l.key === refusal.field)
+      ? refusal.field
+      : null;
 
   const onAdopt = (key: string, values: readonly string[]) => {
     setEdits((prev) => [
@@ -662,7 +685,7 @@ export default function Forecast() {
               which is the only thing that tells the reader what to do next.
               It is never replaced with a generic message. */}
           <p className="mt-1 text-ink-soft" data-testid="forecast-refusal-detail">
-            {(query.error as Error)?.message}
+            {recomputeError}
           </p>
         </div>
       ) : null}
