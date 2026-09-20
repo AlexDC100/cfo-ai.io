@@ -606,7 +606,9 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK forecast-lever-reach units=(\d+)", floor=350,
              units="nudges sent through POST recompute (driver x allowed op x book)",
              canaries=("SCOPE forecast-lever-reach (plan/2 B6, contract 12)",
-                       "levers declared 38")),
+                       "levers declared 38",
+                       # B6 repair: the cross-book liveness check ran
+                       "cross-book: ")),
         Gate("scenario-one-engine",
              [PY, "-m", "pytest", "tests/engine/test_scenario_one_engine.py", "-q", "-s"],
              work_rx=r"GATE-WORK scenario-one-engine units=(\d+)", floor=10,
@@ -614,9 +616,12 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE scenario-one-engine (plan/2 B6, gate row S4",)),
         Gate("scenario-provenance",
              [PY, "-m", "pytest", "tests/engine/test_scenario_provenance.py", "-q", "-s"],
-             work_rx=r"GATE-WORK scenario-provenance units=(\d+)", floor=3400,
-             units="figures whose lever ids were re-derived by removal POSTs",
-             canaries=("SCOPE scenario-provenance (plan/2 B6, gate row S6)",)),
+             work_rx=r"GATE-WORK scenario-provenance units=(\d+)", floor=8000,
+             units="figures and series points whose lever ids were re-derived by "
+                   "removal POSTs, LEVERED and WINDOWED (measured 8408)",
+             canaries=("SCOPE scenario-provenance (plan/2 B6, gate row S6)",
+                       # B6 repair: the windowed request ran on every book
+                       "realestate/windowed: figures and series points checked")),
         Gate("forecast-cache",
              [PY, "-m", "pytest", "tests/engine/test_forecast_cache.py", "-q", "-s"],
              work_rx=r"GATE-WORK forecast-cache units=(\d+)", floor=8,

@@ -13,7 +13,8 @@
     "plant_log": "optional gates.md heading; defaults to the gate name",
     "retired_in": "optional; only for a retirement contract 28.3 names (forecast-get-b4-parity, B6); the entry and its plant log stay, the battery checks stop",
     "required_rows": "keyed by batch: the rows whose 26.1 Lands column is that batch, each met only by an entry landed in that batch (B21: any)",
-    "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate"
+    "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate",
+    "owed": "top-level list: a registration a batch carried instead of landing {what, carried_from, owed_in, closed_by}; once owed_in lands, closed_by must name an entry id or the census reds"
   },
   "required_rows": {
     "B0": [
@@ -91,6 +92,50 @@
       "vitest"
     ]
   },
+  "owed": [
+    {
+      "what": "forecast-defaults extended over served bytes (tests/engine/test_forecast_defaults_f3.py)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-balance floor raised over the recompute route's runs",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "scenario-funding-line extended through the route (test_scenario_funding_line.py), beyond the partial-refusal tests of test_forecast_route.py",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-model clock-attribute ban (perf_counter, process_time under src/engine/forecast*)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "fp1 in-process gateway/adapter classes, adapter.exact_minor and their fp1-only tests deleted or moved onto fp1.2",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-levers F1 extended over lever-reach nudges and removal runs (test_forecast_levers_f1.py)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "stable pack codes for AssumptionError / ShortfallRefusal / StatementsRebuildError refusals; GET bad-horizon 422 as {code,text,field}; a packed upper bound for min_cash",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    }
+  ],
   "gates": [
     {
       "id": "forecast-model",

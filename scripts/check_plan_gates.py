@@ -441,6 +441,38 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
                             % (e["id"], e["retired_in"],
                                ", ".join(b for b in BATCHES if b in landed)))
 
+    # plan/2 B6 repair (B6V-2e): a registration a batch CARRIED instead of
+    # landing is a debt with a name. ``owed`` rows say what, from which batch
+    # and which later batch owes it. Until that batch lands the row is
+    # printed; once it has landed the row must name the registered gate that
+    # closed it, or the census reds. A carry can no longer be dropped by
+    # simply leaving it out of required_gates.
+    owed = registry.get("owed") or []
+    ids = set(e["id"] for e in live)
+    for index, row in enumerate(owed):
+        where = "plan_gates.json owed[%d]" % index
+        if not isinstance(row, dict) or not str(row.get("what") or "").strip():
+            failures.append("%s: an owed row states what is owed" % where)
+            continue
+        carried, owing = _batch(row.get("carried_from")), _batch(row.get("owed_in"))
+        if carried is None or carried not in landed:
+            failures.append("%s (%s): carried_from %r is not a landed batch"
+                            % (where, row["what"], row.get("carried_from")))
+        if owing is None or (carried is not None and
+                             BATCHES.index(owing) <= BATCHES.index(carried)):
+            failures.append("%s (%s): owed_in %r is not a batch after %r"
+                            % (where, row["what"], row.get("owed_in"),
+                               row.get("carried_from")))
+            continue
+        closed = row.get("closed_by")
+        if closed is not None and closed not in ids:
+            failures.append("%s (%s): closed_by %r is not a plan_gates.json entry id"
+                            % (where, row["what"], closed))
+        if owing in landed and closed is None:
+            failures.append("%s: %s was carried from %s and owed in %s, which has "
+                            "landed; no closed_by names the gate that carries it"
+                            % (where, row["what"], row.get("carried_from"), owing))
+
     def _met_gate(batch: str, name: str) -> bool:
         # by gate name only, and only by an entry whose id is well formed
         # (loophole 1): an id equal to the name no longer counts on its own.
@@ -515,6 +547,12 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
         report.append("    %-4s required gates %s; required rows %s" % (
             batch, "+".join(req_gates.get(batch, [])) or "none",
             "+".join(req_rows.get(batch, [])) or "none"))
+    report.append("  owed registrations (carried, not dropped): %d" % len(owed))
+    for row in owed:
+        if isinstance(row, dict):
+            report.append("    %s -> %s: %s%s" % (
+                row.get("carried_from"), row.get("owed_in"), row.get("what"),
+                "" if row.get("closed_by") is None else " [closed by %s]" % row["closed_by"]))
     report.append("GATE-WORK plan-gate-census units=%d rows=%d batches=%d"
                   % (len(entries), sum(1 for r in CONTRACT_ROWS if covered[r]),
                      len(order)))

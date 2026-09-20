@@ -5745,7 +5745,7 @@ browser (B9), the analysis profile (B11) or the network.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_forecast_lever_reach.py -q -s` |
-| canary | `SCOPE forecast-lever-reach (plan/2 B6, contract 12)`, `levers declared 38` |
+| canary | `SCOPE forecast-lever-reach (plan/2 B6, contract 12)`, `levers declared 38`, `cross-book: ` (B6 repair) |
 | work count | `GATE-WORK forecast-lever-reach units=(\d+)`, floor **350** (measured 376 nudges) |
 
 **SCOPE** — the four corpus books, 3y/12m; every driver key x every allowed
@@ -5826,8 +5826,8 @@ project_payload, the fp1 adapter or the fp1 gateway; a mounted path ending in
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_scenario_provenance.py -q -s` |
-| canary | `SCOPE scenario-provenance (plan/2 B6, gate row S6)` |
-| work count | `GATE-WORK scenario-provenance units=(\d+)`, floor **3400** (measured 3420) |
+| canary | `SCOPE scenario-provenance (plan/2 B6, gate row S6)`, `realestate/windowed: figures and series points checked` (B6 repair) |
+| work count | `GATE-WORK scenario-provenance units=(\d+)`, floor **8000** (measured 8408: figures and series points, LEVERED and WINDOWED; was 3400 over figures only) |
 
 **SCOPE** — the four corpus books, 3y/12m; lever kinds shock, shock group,
 override, behaviour override, debt row; SYNTHETIC debt rate 8% where the book
@@ -5924,6 +5924,106 @@ the owner not getting fp1.2 on the same period. **It cannot see:** a wall that
 holds only because the double's RLS holds while the route's own org filter is
 gone (either half alone keeps it green — `forecast-cache` PLANT 1 holds the
 cache half), or a cross-org WRITE (the route writes nothing).
+
+## B6 repair round — six plants on the verifier's defects (plan/2 B6 repair)
+
+Every plant was applied to the product file in the worktree, observed and
+reverted from a saved copy (`git status` clean of it afterwards); none is in
+product source. Reds are verbatim.
+
+**A. forecast-server-side (F2) — a partial serve's strip headline.** The gate's
+walk held the truncation as law: it compared `strip.closing_cash` with
+`bs.cash` at the last SERVED label, so the cash of 2026-10 passed as the
+closing cash of a horizon ending FY2028 (TC-11: a gate encoding the defect).
+The walk now takes a partial-refusal request (carniprod, volume_index level_pct
+-0.6) and asserts the three strip headlines equal `{refused: <the refusal's
+sentence>}`. Plant: `strip.py` guards only an empty period tuple, so a partial
+serve answers the last served month again.
+
+```
+RED (plant A)
+E   AssertionError: ('carniprod-partial', 'cumulative_fcf', {'amount_minor': -893273171, 'driver_ids': ['revenue_growth', 'volume_index', ...], 'formula': 'sum of operating and investing cash over the served periods', 'joint': False, ...})
+1 failed, 1 passed
+```
+
+**B. forecast-route — a refusal that begins in the first period.**
+`test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served`
+(carniprod, `overrides.min_cash ["12000000"]`, opening cash about 10.0M RON, no
+priceable funding line; default want, `["strip"]` alone, and all four blocks).
+Plant: `strip.py` indexes `periods[-1]` whenever there is a shortfall.
+
+```
+RED (plant B, and the parent 63fee82)
+E   AssertionError: (None, 500, "{'error': {'code': 'internal_error', ...}}")
+E   assert 500 == 200
+IndexError: tuple index out of range
+```
+
+After the repair it reds on: a 500; a from_period other than labels[0]; a
+served_through; a strip field, series point or figure carrying an amount. It
+cannot see a refusal that begins later (the partial test beside it holds that).
+
+**C. scenario-provenance (S6) — a series point's own removal test.** The gate's
+docstring claimed series lever ids were checked; the code only checked they
+were a subset of the ids sent. It now re-derives every series point's lever ids
+from the same removal re-POSTs, and runs a second WINDOWED request (volume
+-20%, months 1-3). Against the parent it found the verifier's fcf_cumulative
+points and two defects nobody had reported: `series.funding_draw` named levers
+that do not move it, and `series.min_cash` did not name a lever whose removal
+run refuses. Plant: `series.py` tests fcf_cumulative over its own month only.
+
+```
+RED (parent 63fee82)
+E   AssertionError: agras series ('funding_draw', '2026-03') lists ['rail:volume_index', 'template:t', 'behaviour:personnel']; removing each lever in turn changes it for []
+E   AssertionError: carniprod series ('min_cash', '2026-01') lists []; removing each lever in turn changes it for ['override:interest_rate_debt']
+E   AssertionError: agras/windowed series ('fcf_cumulative', '2026-08') lists []; removing each lever in turn changes it for ['rail:volume_index']
+E   AssertionError: carniprod/windowed series ('fcf_cumulative', 'FY2027') lists []; removing each lever in turn changes it for ['rail:volume_index']
+7 failed, 2 passed
+RED (plant C)
+E   AssertionError: agras/windowed series ('fcf_cumulative', '2026-08') lists []; removing each lever in turn changes it for ['rail:volume_index']
+E   AssertionError: retail/windowed series ('fcf_cumulative', '2026-07') lists []; removing each lever in turn changes it for ['rail:volume_index']
+7 failed, 2 passed
+```
+
+It cannot see: `series.min_cash` when two levers both set the floor (the floor
+is not a line of a projected period; its test is "the served floor left the
+book's own"); slot, track and contribution figures (B8).
+
+**D. forecast-lever-reach — a lever dead on every book.** The verifier's plant:
+`dso_days` popped from the CompiledPlan at the end of `_Compiler.compile`
+(overrides, shocks and the engine's own inert nudge all become no-ops). The
+parent gate: `5 passed`. The gate now holds, across the four books, that every
+(driver, op) nudge moves a number on at least one corpus book, or on a labelled
+SYNTHETIC request (`interest_income_rate add_pp` on agras with a stated 2%
+rate: no corpus book measures a rate on cash), or is a pool key every book
+serves as nil with a zero base (`cost_behaviour.yaml#nil_pool`, evidence
+value_minor 0 — the book's evidence, not the inert sentence). Measured: 95
+nudges, 90 live on a corpus book, 1 SYNTHETIC, 4 nil pool.
+
+```
+RED (plant D)
+E   AssertionError: moves a number on no corpus book, no SYNTHETIC row shows it live and no book explains it (a lever that compiles to nothing): dso_days override, dso_days shock:add_days, dso_days shock:set
+1 failed, 5 passed
+```
+
+It still cannot see: a lever dead on ONE book and live on another, for a driver
+not wired directly to pl.revenue or pl.cost_of_sales — there the engine's
+inert sentence is taken at its word.
+
+**E. plan-gate-census — a carried registration is a debt with a name.**
+`plan_gates.json#owed` rows {what, carried_from, owed_in, closed_by}. Plant: a
+copy of the registry in which B8 has landed (`required_gates.B8 = []`) and the
+seven B6 carries are still open.
+
+```
+RED (plant E)
+  · plan_gates.json owed[0]: forecast-defaults extended over served bytes (tests/engine/test_forecast_defaults_f3.py) was carried from B6 and owed in B8, which has landed; no closed_by names the gate that carries it
+```
+
+**F. request refusals.** `"1/3"`, `"1e-1"` and `source "ai:proposal"` each
+answered 200 on the parent (three rows of
+`test_an_invalid_request_is_422_with_code_text_and_field`, `3 failed, 8
+passed`); they now answer 422 `not_exact` / `shock_source_unknown`.
 
 ## vitest — fp1.2 reader canaries (plan/2 B6)
 
