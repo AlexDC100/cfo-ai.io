@@ -48,11 +48,50 @@ AMBIGUOUS_SUFFIXES = ("_pct", "_ratio", "_margin")
 CANARY_METRICS = ("net_debt_to_ebitda",)
 
 
+def _operand_records(tree):
+    """The ids of dict literals that are OPERAND RECORDS, not metric rows:
+    an element of the list (or list comprehension) bound to an
+    ``"operands"`` key, carrying a ``"source"`` key.
+
+    An operand is a provenance record, ``{name, value, source}``: it names
+    the served fact a ratio was computed FROM, and its scale is that
+    fact's, stated where the fact is served. Every operand in the ratio
+    table and the comparatives block has this shape and none declares a
+    unit; the rule above caught exactly one of them
+    (ratio_compare.letter_side, 2026-09-14 -> 2026-09-20) only because its
+    name happened to be written as a literal, while the identical records
+    beside it with computed names walked past. Scoping them out BY SHAPE
+    AND POSITION keeps the rule universal for what it is about - a row a
+    consumer will scale - and the count is printed so the exclusion is
+    visible. A `{name, value}` literal under "operands" WITHOUT a "source"
+    is still a violation."""
+    out = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        for k, v in zip(node.keys, node.values):
+            if not (isinstance(k, ast.Constant) and k.value == "operands"):
+                continue
+            elements = v.elts if isinstance(v, ast.List) else [v.elt] if isinstance(v, ast.ListComp) else []
+            for e in elements:
+                if isinstance(e, ast.Dict) and any(
+                        isinstance(ek, ast.Constant) and ek.value == "source" for ek in e.keys):
+                    out.add(id(e))
+    return out
+
+
+OPERANDS_EXCLUDED = [0]
+
+
 def _literal_metric_rows(tree):
     """Yield (lineno, name, has_unit) for dict literals that look like a
     persisted metric row: a literal "name" plus a "value" key."""
+    operands = _operand_records(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Dict):
+            continue
+        if id(node) in operands:
+            OPERANDS_EXCLUDED[0] += 1
             continue
         keys = []
         for k in node.keys:
@@ -129,8 +168,9 @@ def main() -> int:
     print("GATE-WORK metric-units units=%d floor=50 label=literal-metric-rows"
           % rows_examined)
     print("METRIC UNIT GATE: PASS — every literal metric row declares a unit "
-          "(%d row(s) across %d file(s); canaries seen: %s)"
-          % (rows_examined, files_parsed, ", ".join(CANARY_METRICS)))
+          "(%d row(s) across %d file(s); canaries seen: %s; %d operand record(s) "
+          "under an \"operands\" key scoped out by shape)"
+          % (rows_examined, files_parsed, ", ".join(CANARY_METRICS), OPERANDS_EXCLUDED[0]))
     return 0
 
 
