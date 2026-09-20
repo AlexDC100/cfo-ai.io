@@ -680,6 +680,7 @@ request_refusals:
     all, and has no ramp
   growth_change_is_an_override: "a per-year growth change is sent as an override"
   growth_pp_source: "shock {id}: growth_pp comes only from a template or a preset"
+  shock_source_unknown: "shock {id}: source {source} is not user, template:<id>, preset:<id> or breakeven:<metric>"
   overlapping_sets: "shocks {first} and {second} both set {key} in month {month}"
   duplicate_shock_id: "two shocks share the id {id}"
   reserved_shock_id: "shock id {id} uses a reserved prefix"

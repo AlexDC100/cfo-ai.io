@@ -452,6 +452,17 @@ def test_the_post_body_binds_at_module_scope(app):
       "shocks": [{"id": "rail:revenue_growth", "driver_key": "revenue_growth",
                   "op": "add_pp", "value": "0.01"}]},
      "growth_change_is_an_override", "rail:revenue_growth"),
+    # B6 repair (B6V-2e): 2.1 says decimal string; a rational is not one
+    ({"horizon": {"total_years": 3},
+      "shocks": [{"id": "rail:volume_index", "driver_key": "volume_index",
+                  "op": "level_pct", "value": "1/3"}]}, "not_exact", "rail:volume_index"),
+    ({"horizon": {"total_years": 3},
+      "overrides": {"tax_rate": {"values": ["1e-1", None, None]}}}, "not_exact", "tax_rate"),
+    # 2.4: source is one of four forms, never free text
+    ({"horizon": {"total_years": 3},
+      "shocks": [{"id": "rail:volume_index", "driver_key": "volume_index",
+                  "op": "level_pct", "value": "-0.2", "source": "ai:proposal"}]},
+     "shock_source_unknown", "rail:volume_index"),
 ])
 def test_an_invalid_request_is_422_with_code_text_and_field(body, code, field):
     """3.11. RED ON: a float accepted where a decimal string belongs, an
@@ -562,3 +573,22 @@ def test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served():
                 f for f in answer["figures"] if "amount_minor" in f]
         if want is None or "summary" in want:
             assert answer["summary"]["cash_trough"] is None
+
+
+def test_a_plan_that_does_not_balance_is_422_with_the_period_and_the_amount(monkeypatch):
+    """3.11 (B6 repair, B6V-2e). SYNTHETIC: project_plan made to raise the
+    engine's own BalanceViolation. RED ON: the 422 leaving without period or
+    difference_minor as data (they were only inside the sentence)."""
+    import engine.forecast.levers as levers
+    from engine.forecast.errors import BalanceViolation
+
+    def unbalanced(*_args, **_kwargs):
+        raise BalanceViolation("2026-03", 7, 1000, 993)
+
+    monkeypatch.setattr(levers, "project_plan", unbalanced)
+    status, answer = _call("agras", "GET", 3)
+    assert status == 422, (status, str(answer)[:300])
+    detail = answer["detail"]
+    assert detail["code"] == "balance_violation" and "2026-03" in detail["text"]
+    assert detail["period"] == "2026-03" and detail["difference_minor"] == 7
+    assert "run_kind" in detail

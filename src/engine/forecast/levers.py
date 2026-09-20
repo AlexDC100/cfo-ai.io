@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+import re
 from fractions import Fraction
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -305,6 +306,9 @@ def _validate_shock(shock: Shock, entry: Optional[RegistryEntry], months: int,
             raise _refuse("growth_pp_source", shock.id, id=shock.id)
     elif shock.op == "growth_pp" and not shock.source.startswith(_GROWTH_SOURCES):
         raise _refuse("growth_pp_source", shock.id, id=shock.id)
+    if client_sent and not _SOURCE_FORMS.match(shock.source):
+        raise _refuse("shock_source_unknown", shock.id, id=shock.id,
+                      source=shock.source)
     if client_sent and (shock.id == "spread"
                         or shock.id.startswith(RESERVED_ID_PREFIXES)):
         raise _refuse("reserved_shock_id", shock.id, id=shock.id)
@@ -831,8 +835,16 @@ def inert_drivers(plan: Plan) -> Dict[str, bool]:
 
 # ── the wire form (B6 calls this once per request) ────────────────────────
 
+_DECIMAL = re.compile(r"^-?[0-9]+(\.[0-9]+)?$")
+#: 2.4: the four forms a shock's source takes on the wire.
+_SOURCE_FORMS = re.compile(r"^(user|(template|preset|breakeven):[A-Za-z0-9_.:\-]+)$")
+
+
 def _fraction(value: Any, noun: str) -> Fraction:
-    if not isinstance(value, str):
+    # 2.1: a DECIMAL string. Fraction() also reads "1/3", "1e-1" and "1_0";
+    # none of them is a decimal a reader typed, and "1/3" has no exact
+    # decimal at all.
+    if not isinstance(value, str) or not _DECIMAL.match(value.strip()):
         raise _refuse("not_exact", noun, key=noun, value=repr(value),
                       unit="a decimal string")
     try:

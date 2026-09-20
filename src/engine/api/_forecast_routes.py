@@ -265,7 +265,11 @@ def recompute(period_id: str, body: PlanRequestBody, jwt: str,
     except PlanRequestError as exc:
         raise HTTPException(422, _detail(exc.code, exc.text, exc.field))
     except BalanceViolation as exc:
-        raise HTTPException(422, _detail("balance_violation", str(exc)))
+        # 3.11: the period and the amount as data, not only inside the text
+        raise HTTPException(422, {
+            "code": "balance_violation", "text": str(exc),
+            "period": exc.period_label, "difference_minor": exc.delta_cents,
+            "run_kind": getattr(exc, "run_kind", None)})
     except ForecastError as exc:
         # The engine's own sentence, verbatim. It names the driver that
         # could not be measured and the basis that failed to measure it,
