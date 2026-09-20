@@ -5272,3 +5272,37 @@ TC-12 coverage: the law walk visits every figure in the dataset (asserted to
 be at least one hundred); the slice holds every FY2024 filer in CAEN 1011 and
 1013 and the FY2023 filings of the same CUIs, real bytes, per-file sha256 in
 `tests/engine/fixtures/benchmarks_ro/slice_manifest.json`.
+
+## benchmarks-ro-serving — company vs sector, the serving seam (2026-09-20)
+
+`GET /api/period/{id}/sector-benchmark` (pipeline.py, beside comparatives) +
+`engine.benchmarks_ro.sector`. Gate: `tests/engine/test_sector_benchmark_route_real_app.py`
+(real `create_app()`, signature-verifying tenancy double, corpus books through
+the production write seam; nothing on the request path stubbed but the network).
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| A | the route loads the current period by id only (org dropped from the filter) | `::test_a_period_from_another_workspace_is_not_found` | `AssertionError: (200, '{"schema":"sector_benchmark/1","period":{"id":"p-retail-foreign",…` · `assert 200 == 404` |
+| B | `check_document_law` no longer reports a figure without n | `::test_a_figure_without_n_year_or_source_is_a_violation` | `AssertionError: n` · `assert False` |
+| C | `_row_sum` answers 0.0 when the statement has no such row | `::test_an_absent_company_operand_refuses_the_row_never_zero` | `assert ('sourced' == 'company_absent'` |
+| D | inventory days on turnover declared the same as the card's DIO | `::test_every_census_key_has_a_sector_band_or_a_stated_reason`, `::test_the_company_side_is_the_ratio_table…` | `KeyError: 'reason'` · `assert 'ratio_table.dio' == 'restated_on_filed_basis'` |
+
+TC-11, after the repair: (A) reds on any load of a browser-supplied period id
+without the caller's organization in the filter, on a forged bearer served, on
+a non-member workspace served. (B) on any row, ratio card or movement item
+leaving the route without source, year or n, or with a median under the
+minimum — the route runs the same check and answers 500 rather than serve it.
+(C) on any company operand defaulted to a number. (D) on a card taking a
+sector band whose definition is not the card's own, and on a census key
+with neither a band nor a stated reason. It also reds when the committed
+frontend fixture (`frontend/lib/__tests__/fixtures/sectorBenchmark/served_pair.json`)
+is not byte-for-byte what the route serves. What it cannot see: the medians
+themselves (`test_benchmarks_ro.py`), and Scandia's own figures — the corpus
+pair is Agras FY2025 / Carniprod FY2024 under CAEN 1011.
+
+TC-10: size-band cut-offs, the minimum peer count and the percentile minimum
+are served in the document (`size_bands`, `min_peers`, `percentile_min_n`);
+nothing downstream types them. TC-12 coverage: nine sourced ratio keys, all
+census keys on `ratio_cards` (asserted equal to `CENSUS`). The percentile is
+refused (`quartiles_only`): the dataset holds quartiles, and a percentile
+between them would be an interpolation.

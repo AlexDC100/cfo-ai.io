@@ -7828,6 +7828,51 @@ def build_router() -> APIRouter:
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 
+    @router.get("/api/period/{period_id}/sector-benchmark")
+    def get_period_sector_benchmark(
+        period_id: str,
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """The company beside its sector, from the Ministry of Finance
+        annual filings (open data, CC-BY-4.0) — every figure with its
+        source, year and n, or a stated refusal.
+
+        Same wall as comparatives: the organization is resolved from the
+        VERIFIED bearer + X-Org-Id, the period (and the prior period, found
+        one year earlier in the SAME workspace) is loaded with the org IN
+        THE FILTER, and the company side is read off what `get_period`
+        serves — never a second assembly.
+        """
+        from . import _comparatives as _cmp
+        from . import _sector_benchmark as _sb
+        from engine.benchmarks_ro import sector as _sector
+
+        jwt = _require_jwt(authorization)
+        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        try:
+            with _supabase.per_user(jwt) as client:
+                cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
+                prior_id, prior_reason = _sb.find_prior_period(client, cur_row, org_id=org_id)
+                caen = _org.caen_for_org(client, org_id)
+        except _cmp.ComparativesRefused as exc:
+            raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+        cur_payload = get_period(period_id, authorization)
+        pri_payload = None
+        if prior_id is not None:
+            try:
+                pri_payload = get_period(prior_id, authorization)
+            except HTTPException:
+                prior_reason = {"code": "prior_period_not_servable", "inputs": [prior_id]}
+        doc = _sector.build_sector_benchmark(
+            cur_payload, caen=caen, prior_payload=pri_payload, prior_reason=prior_reason)
+        problems = _sector.check_document_law(doc)
+        if problems:
+            logger.error("[sector-benchmark] unlawful document for %s: %s", period_id, problems[:5])
+            raise HTTPException(500, {"code": "sector_benchmark_unlawful",
+                                      "message": "a sector figure lacked its source, year or n"})
+        return doc
+
     @router.put("/api/period/{period_id}/valuation-assumptions")
     def save_valuation_assumptions(
         period_id: str,
