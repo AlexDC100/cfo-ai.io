@@ -634,6 +634,26 @@ class Projection(object):
         }
 
 
+def _trailing_deviation(history, window_micro_days):
+    # type: (List[Tuple[int, int, int]], int) -> int
+    """The deviation a balance carries at the end of the LAST period of
+    ``history``: every period's deviation weighted by the micro-days of it
+    that fall inside the trailing window, over the window, one rounding.
+    Days before the plan starts carry no deviation (the run is the base
+    there). ``history`` rows are (start ordinal - 1, end ordinal, deviation
+    in minor units)."""
+    window_end = history[-1][1] * MICRO_DAY
+    window_start = window_end - window_micro_days
+    weighted = 0
+    for opened, closed, deviation in reversed(history):
+        upper = closed * MICRO_DAY
+        if upper <= window_start:
+            break
+        lower = max(opened * MICRO_DAY, window_start)
+        weighted += deviation * (upper - lower)
+    return mul_div(weighted, 1, window_micro_days)
+
+
 #: The three balances the working-capital unwind of contract 6.2 governs:
 #: (balance line, days driver, the flow its target is priced on).
 WC_BALANCES = (("ar", "dso_days", "revenue"),
@@ -1003,9 +1023,14 @@ def project(opening: OpeningPosition, history: PlHistory,
     current_year = None  # type: Optional[int]
     shortfall = None  # type: Optional[ShortfallRefusal]
     wc_targets = {}  # type: Dict[Tuple[str, int], int]
-    #: 6.2: per balance, the start date of the first monthly period whose
-    #: target left the base run's target.
-    wc_diverged_from = {}  # type: Dict[str, date]
+    #: 6.2 as repaired (as-built B5R-1): per balance, every monthly period's
+    #: deviation of its own target from the base run's target, with the
+    #: period's span in ordinal days. The closing balance carries the
+    #: TRAILING WINDOW of those deviations over its days in force, so a
+    #: lever that lands after an earlier one still unwinds (the first
+    #: reading, "the first divergence ever, never reset", booked every later
+    #: lever in full in its landing month).
+    wc_deviations = {}  # type: Dict[str, List[Tuple[int, int, int]]]
     days_scalar = {"dso_days": dso, "dio_cogs_days": dio, "dpo_cogs_days": dpo}
 
     for period in timeline:
@@ -1193,20 +1218,23 @@ def project(opening: OpeningPosition, history: PlHistory,
             base_target = (None if plan.wc_base_targets is None
                            else plan.wc_base_targets.get((balance, period.index)))
             # 6.2 (convention wc_unwind_ramp): a balance leaves its base
-            # target one day of flow per elapsed day, over its own days in
-            # force (or the pack's unwind window). Annual periods land on
-            # the target; the base run has no base target and is unchanged.
+            # target one day of flow per elapsed day. The deviation of the
+            # target from the base target is carried as a trailing window
+            # over the balance's own days in force (or the pack's unwind
+            # window): each monthly period inside the window contributes
+            # its deviation for the days it overlaps, one rounding. For a
+            # single step this is the contract's min(E, D) / D; a second
+            # lever, a ramp or a shock that ends unwinds the same way.
+            # Annual periods land on the target; the base run has no base
+            # target and is unchanged.
             if base_target is not None and period.granularity == "monthly":
-                if target != base_target and balance not in wc_diverged_from:
-                    wc_diverged_from[balance] = period.start
-                started = wc_diverged_from.get(balance)
-                if started is not None and target != base_target:
-                    window = (plan.wc_unwind_micro_days
-                              if plan.wc_unwind_micro_days is not None else days_now)
-                    elapsed = ((period.end - started).days + 1) * MICRO_DAY
-                    if window > 0 and elapsed < window:
-                        closing = base_target + mul_div(target - base_target,
-                                                        elapsed, window)
+                deviations = wc_deviations.setdefault(balance, [])
+                deviations.append((period.start.toordinal() - 1,
+                                period.end.toordinal(), target - base_target))
+                window = (plan.wc_unwind_micro_days
+                          if plan.wc_unwind_micro_days is not None else days_now)
+                if window > 0 and any(item[2] for item in deviations):
+                    closing = base_target + _trailing_deviation(deviations, window)
             closing_wc[balance] = closing
         receivables = closing_wc["ar"]
         inventory = closing_wc["inventory"]

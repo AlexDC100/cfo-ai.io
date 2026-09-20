@@ -16,8 +16,10 @@ wc_unwind_ramp, packs/forecast/levers.yaml#wc_unwind).
   returns the base run itself), and annual periods land on the target.
 
 RED ON, AFTER THE REPAIR (TC-11): a balance re-priced in full in the period a
-lever lands (a one-month cash windfall in a downturn); a balance that never
-reaches its target; the rule moving the base run.
+lever lands, whether it is the first lever on that flow or a later one (a
+one-month cash windfall in a downturn); a shock that ends snapping the
+balance back in one month; a balance that never reaches its target; the rule
+moving the base run.
 """
 
 from __future__ import annotations
@@ -45,6 +47,21 @@ def _volume(name, value, total_years=3, monthly_months=12):
         shocks=(Shock("rail:volume_index", "volume_index", "level_pct", F(value)),)), None)
 
 
+def _trailing(seen, window):
+    """6.2 as repaired (as-built B5R-1), written a second time by the test:
+    each month's deviation weighted by the micro-days of it inside the
+    trailing window of ``window`` micro-days, one rounding. For one step from
+    month 1 this is the contract's min(E, D) / D."""
+    left, weighted = window, 0
+    for month_days, deviation in reversed(seen):
+        inside = min(left, month_days * MICRO_DAY)
+        weighted += deviation * inside
+        left -= inside
+        if left <= 0:
+            break
+    return mul_div(weighted, 1, window)
+
+
 def test_agras_receivables_follow_the_unwind_formula_every_month():
     """Receivables, as 6.2 names them, and inventory and payables by the same
     formula. On agras the receivable days (28.05, printed) are shorter than
@@ -62,19 +79,18 @@ def test_agras_receivables_follow_the_unwind_formula_every_month():
         days = assumptions.micro_days_or_none(days_key)
         assert days, "TC-3: agras measures no %s" % days_key
         previous = plan.projection.opening.balances()[balance]
-        elapsed = 0
         months = 0
+        seen = []  # (days of the month, target - base target), oldest first
         for base, item in zip(plan.base.periods, plan.projection.periods):
             if item.period.granularity != "monthly":
                 continue
             span = item.period.days * MICRO_DAY
             target = mul_div(abs(item.pl[flow]), days, span)
             base_target = mul_div(abs(base.pl[flow]), days, span)
-            elapsed += item.period.days
-            expected = base_target + mul_div(target - base_target,
-                                             min(elapsed * MICRO_DAY, days), days)
+            seen.append((item.period.days, target - base_target))
+            expected = base_target + _trailing(seen, days)
             assert item.bs[balance] == expected, (
-                "agras %s %s %s, the 6.2 formula gives %s (target %s, base target %s)"
+                "agras %s %s %s, the 6.2 trailing window gives %s (target %s, base target %s)"
                 % (item.label, balance, fmt(item.bs[balance]), fmt(expected),
                    fmt(target), fmt(base_target)))
             line, sign = cf_line[balance]
@@ -87,6 +103,48 @@ def test_agras_receivables_follow_the_unwind_formula_every_month():
         WORK["units"] += months
     WORK["mid_unwind"] = mid_unwind
     assert mid_unwind, "vacuous: every agras balance landed on its target in month one"
+
+
+def test_a_lever_that_lands_after_an_earlier_one_still_unwinds():
+    """B5V-2: a cockpit growth override (0.03 against the book's 0.025) moves
+    inventory's target from month 1; a volume shock from month 8 must still
+    book only 31 days of its own move in August, measured against the same
+    request WITHOUT the shock. The first reading of 6.2 ("s, the first
+    divergence ever") booked it in full: about 0.59M of operating cash
+    released a month early on agras."""
+    growth = (("revenue_growth", (F("0.03"),) * 3),)
+    shock = Shock("rail:volume_index", "volume_index", "level_pct", F("-0.20"),
+                  start_month=8)
+    book = _book("agras")
+    before = project_plan(book, (), PlanRequest(total_years=3, overrides=growth), None)
+    after = project_plan(book, (), PlanRequest(total_years=3, overrides=growth,
+                                               shocks=(shock,)), None)
+    days = after.projection.assumptions.micro_days_or_none("dio_cogs_days")
+    item, prior = after.projection.periods[7], before.projection.periods[7]
+    assert item.label == "2026-08" and item.period.days == 31, item.label
+    assert days > 31 * MICRO_DAY, "TC-3: agras inventory days fit inside the month"
+    move = (after.projection.wc_targets[("inventory", 7)]
+            - before.projection.wc_targets[("inventory", 7)])
+    assert move < 0, "TC-3: the shock did not move inventory's target"
+    booked = item.bs["inventory"] - prior.bs["inventory"]
+    expected = mul_div(move, 31 * MICRO_DAY, days)
+    assert abs(booked - expected) <= 1, (
+        "agras 2026-08 inventory booked %s of a %s move in the month the shock landed; "
+        "31 days of %s days in force is %s"
+        % (fmt(booked), fmt(move), float(F(days, MICRO_DAY)), fmt(expected)))
+    # and a shock that ENDS unwinds back, it does not snap: the month after a
+    # one-month shock still carries part of the move
+    ended = project_plan(book, (), PlanRequest(total_years=3, shocks=(
+        Shock("rail:volume_index", "volume_index", "level_pct", F("-0.20"),
+              start_month=8, end_month=8),)), None)
+    september, base_september = ended.projection.periods[8], ended.base.periods[8]
+    assert (ended.projection.wc_targets[("inventory", 8)]
+            == ended.base.wc_targets[("inventory", 8)])
+    assert september.bs["inventory"] < base_september.bs["inventory"], (
+        "inventory snapped back to the base target the month the shock ended")
+    assert (ended.projection.periods[10].bs["inventory"]
+            == ended.base.periods[10].bs["inventory"])
+    WORK["units"] += 3
 
 
 def test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change():
