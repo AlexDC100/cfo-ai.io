@@ -336,13 +336,19 @@ def altman_out_of_range(x1: Optional[float], x2: Optional[float], x3: Optional[f
             return name
     if x4 is not None and not _in_range(x4, None, ranges["altman_x4"]["max"]):
         return "altman_x4"
-    if z is not None and not _in_range(z, None, ranges["altman_z"]["bound"]):
+    if z is not None and (ranges["altman_z"]["bound"] is None
+                          or not _in_range(z, None, ranges["altman_z"]["bound"])):
+        # R-RANGE is absolute: a Z'' whose bound cannot be derived (no X2 or
+        # X3 beside it - a filing persisted before the components were
+        # stored) has not been read against its range, and an unread figure
+        # is not served. A filed 1584.89 with no X rows once passed here.
         return "altman_z_score"
     return None
 
 
 def subscore_refusal(key: str, code: Optional[str] = None,
-                     out_of_range_input: Optional[str] = None) -> Dict[str, Any]:
+                     out_of_range_input: Optional[str] = None,
+                     bound_underivable: bool = False) -> Dict[str, Any]:
     """The served refusal of one sub-score: `{code, component, inputs, text}`
     and, for the Altman materiality refusal, the pack materiality it was
     read against (`materiality: {share, basis, source, file}`) — the
@@ -393,8 +399,13 @@ def subscore_refusal(key: str, code: Optional[str] = None,
             r = ranges["subscore"]
             rng = "[%g, %g]" % (r["min"], r["max"])
         out["range"] = rng
-        out["text"] = ("The %s component is not scored: %s lies outside its declared range (%s; %s), "
-                       "so the value is withheld rather than served." % (key, figure, rng, CREDIT_PACK_FILE))
+        if bound_underivable:
+            out["text"] = ("The %s component is not scored: %s was filed with no X2 and X3 beside it, so its "
+                           "bound (%s; %s) cannot be derived and the value cannot be read against its range; "
+                           "it is withheld rather than served." % (key, figure, rng, CREDIT_PACK_FILE))
+        else:
+            out["text"] = ("The %s component is not scored: %s lies outside its declared range (%s; %s), "
+                           "so the value is withheld rather than served." % (key, figure, rng, CREDIT_PACK_FILE))
     else:
         out["text"] = "The %s component is not scored: the model's inputs for it were not filed." % key
     return out
@@ -1160,6 +1171,13 @@ def _served_out_of_range(rows_by_name: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
+def z_bound_underivable(rows_by_name: Mapping[str, Any]) -> bool:
+    """True when the rows carry a Z'' and not the X2 and X3 its bound is
+    derived from: the figure cannot be read against its range."""
+    return (_num(rows_by_name.get("altman_z_score")) is not None
+            and (_num(rows_by_name.get("altman_x2")) is None or _num(rows_by_name.get("altman_x3")) is None))
+
+
 def withhold_out_of_range(rows_by_name: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """`(checked_rows, breaches)`: the rows with every figure outside its
     pack range WITHHELD (R-RANGE, absolute, every surface) — the sub-score
@@ -1184,6 +1202,98 @@ def withhold_out_of_range(rows_by_name: Mapping[str, Any]) -> Tuple[Dict[str, An
     if any(k != "composite" for k in bad):
         m["credit_composite"] = None
     return m, bad
+
+
+def withhold_persisted(rows_by_name: Mapping[str, Any], statements: Mapping[str, Any]
+                       ) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+    """`(checked_rows, refused_subscores, withdrawn)` for PERSISTED rows that
+    are about to be served as they were filed (get_period's `basis:
+    as_filed` envelope and its `metrics[]` rows, when the serve-time model
+    cannot run or the ratio table failed). Nothing recomputed these rows,
+    so the whole law is applied to them here, in one place:
+
+      range      `withhold_out_of_range` (R-RANGE; a Z'' with no derivable
+                 bound included);
+      domain     a sub-score the model's own predicate refuses on THESE
+                 statements is not served because an earlier revision filed
+                 one (revision 1 filed liquidity 0.0 on a book with no
+                 current liabilities: a substituted operand, not a score) -
+                 with Altman, X4 and Z'' go with it. With statements the
+                 operands cannot be read from, the domain is not evaluated;
+      composite  none beside a refused component, so no letter (R-COMPOSITE:
+                 never renormalised).
+
+    `withdrawn` names every figure that was filed and is not served:
+    `{figure, value, code, text}`. A filed figure is never reprinted
+    outside this list."""
+    filed = dict(rows_by_name)
+    m, bad = withhold_out_of_range(filed)
+    ops = statement_operands(statements)
+    predicate = component_refusals(ops) if ops is not None else {}
+    for key in predicate:
+        name = "credit_subscore_%s" % key
+        if name in m:
+            m[name] = None
+        if key == "altman":
+            for figure in ("altman_x4", "altman_z_score"):
+                if figure in m:
+                    m[figure] = None
+    refused = _refused_subscores(m, statements)
+    for key, figure in bad.items():
+        if key != "composite" and key not in predicate:
+            refused[key] = subscore_refusal(
+                key, CREDIT_OUT_OF_RANGE, figure,
+                bound_underivable=(figure == "altman_z_score" and z_bound_underivable(filed)))
+    if refused and "credit_composite" in m:
+        m["credit_composite"] = None
+    withdrawn: List[Dict[str, Any]] = []
+    for name in CREDIT_FAMILY_METRICS:
+        was = _num(filed.get(name))
+        if was is None or _num(m.get(name)) is not None:
+            continue
+        if name == "credit_composite":
+            code = CREDIT_COMPONENT_UNDEFINED if refused else CREDIT_OUT_OF_RANGE
+            why = ("composed over %s, which did not score" % " and ".join(k for k in CREDIT_COMPOSITE_WEIGHTS if k in refused)
+                   if refused else "outside the model's declared range")
+        else:
+            key = "altman" if name.startswith("altman_") else name[len("credit_subscore_"):]
+            if key in bad:
+                # the filed figure (or the figure its component rests on)
+                # left its range: that is why THIS value is withdrawn, even
+                # where the component also has no domain on this period
+                code = CREDIT_OUT_OF_RANGE
+                why = ("%s was filed with no X2 and X3 to derive its bound from" % bad[key]
+                       if bad[key] == "altman_z_score" and z_bound_underivable(filed)
+                       else "%s lies outside its declared range" % bad[key])
+            else:
+                code = (refused.get(key) or {}).get("code") or CREDIT_INPUTS_ABSENT
+                why = "the %s component is not defined on this period" % key
+        withdrawn.append({"figure": name, "value": was, "code": code,
+                          "text": "withdrawn as filed: %s (%s)" % (why, CREDIT_PACK_FILE)})
+    return m, refused, withdrawn
+
+
+def lawful_persisted_rows(rows: Any, statements: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """PERSISTED metric rows with every credit-family figure the law does
+    not allow withheld (value None) - `withhold_persisted` over the rows,
+    and, when the pack cannot be read, the whole family (no pack, no range
+    to read a figure against). For any consumer handed persisted rows that
+    is not the period envelope: the briefing narrator was given a filed
+    Z'' 1584.89 to write prose from."""
+    from engine.ratios.credit_pack import CreditPackError
+
+    out = [dict(r) for r in (rows or []) if isinstance(r, dict)]
+    by_name = _rows_by_name(out)
+    try:
+        checked, _refused, _withdrawn = withhold_persisted(by_name, statements)
+    except CreditPackError:
+        checked = {n: (v if n == CREDIT_MODEL_REVISION_METRIC or n not in CREDIT_FAMILY_METRICS else None)
+                   for n, v in by_name.items()}
+    family = set(CREDIT_FAMILY_METRICS)
+    for r in out:
+        if r.get("name") in family:
+            r["value"] = checked.get(r["name"])
+    return out
 
 
 def credit_reason(rows_by_name: Dict[str, Any],
@@ -1239,10 +1349,15 @@ def credit_block(
     # withheld here whatever produced the rows.
     m, _served_bad = withhold_out_of_range(_rows_by_name(rows))
     z = _num(m.get("altman_z_score"))
-    composite = _num(m.get("credit_composite"))
-    letter = composite_to_letter_grade(composite)
     subscores = {k: _num(m.get(name)) for k, name in CREDIT_SUBSCORE_METRICS}
     refused_subscores = _refused_subscores(m, statements)
+    # R-COMPOSITE, held by the block itself and not only by the model that
+    # feeds it: rows carrying a null sub-score beside an intact composite
+    # once served 80.7 AA while `refused_subscores` listed the component.
+    if refused_subscores:
+        m["credit_composite"] = None
+    composite = _num(m.get("credit_composite"))
+    letter = composite_to_letter_grade(composite)
     ops = statement_operands(statements)
     # No operands -> nothing is declared: a rung is stated only over
     # measured operands (R-D1: debt == 0, interest == 0, EBIT > 0, all read).
@@ -1287,14 +1402,19 @@ def credit_block(
     withdrawn: List[Dict[str, Any]] = []
     filed_bad = _served_out_of_range(filed)
     rev_word = "revision %d" % int(f_rev) if f_rev is not None else "an unknown revision"
+    unread_z = filed_bad.get("altman") == "altman_z_score" and z_bound_underivable(filed)
     if f_z is not None and ("altman" in filed_bad):
         withdrawn.append({"figure": "altman_z_score", "value": f_z,
-                          "text": "withdrawn: computed under %s on a substituted operand (%s outside its range)"
+                          "text": ("withdrawn: filed under %s with no X2 and X3 beside it, so it cannot be read "
+                                   "against its range" % rev_word) if unread_z else
+                                  "withdrawn: computed under %s on a substituted operand (%s outside its range)"
                                   % (rev_word, filed_bad["altman"])})
         f_z = None
     if f_c is not None and filed_bad:
         withdrawn.append({"figure": "credit_composite", "value": f_c,
-                          "text": "withdrawn: computed under %s on a substituted operand (%s outside its range)"
+                          "text": ("withdrawn: composed under %s over a Z'' that cannot be read against its "
+                                   "range" % rev_word) if unread_z and len(filed_bad) == 1 else
+                                  "withdrawn: computed under %s on a substituted operand (%s outside its range)"
                                   % (rev_word, ", ".join(sorted(set(filed_bad.values()))))})
         f_c = None
     f_l = composite_to_letter_grade(f_c)

@@ -191,6 +191,34 @@ AS_FILED_LAW: List[Row] = [
         hi_of=z_bound),
 ]
 
+#: THE UNSWITCHED PATH (`assembled_metrics.credit` with `basis: as_filed`,
+#: served when the serve-time model cannot run or the ratio table fails):
+#: the PERSISTED rows are what the reader sees, in the envelope AND in the
+#: `metrics[]` rows the FE reads first. The same rows of `LAW` apply, read
+#: at the envelope's own paths: a figure is either absent, or inside its
+#: domain AND inside its bound. There is no third state - a persisted
+#: figure is not exempt from the range because nothing recomputed it.
+ENVELOPE_PATHS: Dict[str, str] = {
+    "credit_composite": "composite_score",
+    "credit_subscore_altman": "subscores.altman",
+    "credit_subscore_profitability": "subscores.profitability",
+    "credit_subscore_leverage": "subscores.leverage",
+    "credit_subscore_coverage": "subscores.coverage",
+    "credit_subscore_dscr": "subscores.dscr",
+    "credit_subscore_liquidity": "subscores.liquidity",
+    "credit_subscore_equity": "subscores.equity",
+    "altman_x1": "altman_components.x1",
+    "altman_x4": "altman_components.x4",
+    "altman_z_score": "altman_z_score",
+}
+
+
+def persisted_figure_may_be_served(row: "Row", v: Any, o: Mapping[str, Any]) -> bool:
+    """A persisted figure on the unswitched path: absent, or in its domain
+    and inside its bound."""
+    return v is None or (row.domain(o) and row.in_range(v, o))
+
+
 #: Non-credit rows the same law holds on the served ratio table.
 RATIO_LAW = [
     ("roic", _roic_defined, "defined only for invested capital (debt + equity) > 0",

@@ -447,3 +447,101 @@ def test_boot_refuses_to_start_on_a_broken_pack(tmp_path, monkeypatch):
     monkeypatch.delenv("CREDIT_PACKS_DIR")
     CP._load.cache_clear()
     boot_verify.verify_credit_pack()  # the committed pack loads
+
+
+# ── 6. the law on PERSISTED rows, wherever they are served (R-RANGE absolute) ─
+#
+# REDS ON, after the repair: `credit_block` serving a composite or a letter
+# beside a refused component whatever rows it is handed; a filed Z'' with no
+# X2 / X3 beside it passing the range check; a broken pack serving a filed
+# Altman figure or sub-score (no pack, no range); the briefing narrator being
+# handed a persisted figure the law withholds.
+# CANNOT SEE: the route's unswitched branch (test_served_range owns it).
+
+
+def test_the_block_serves_no_composite_beside_a_refused_component_whatever_its_rows():
+    """The re-verifier's probe: agras rows with coverage nulled served
+    composite 80.7, letter AA, refused_subscores [coverage], reason None."""
+    statements = _agras_statements()
+    rows = _set(CM.compute_period_metrics(copy.deepcopy(statements)), credit_subscore_coverage=None)
+    assert _rows_by_name(rows)["credit_composite"] is not None
+    block = CM.credit_block(rows, statements=statements)
+    assert list(block["refused_subscores"]) == ["coverage"]
+    assert block["composite"] is None and block["letter"] is None, (block["composite"], block["letter"])
+    assert block["reason"]["code"] == CM.CREDIT_COMPONENT_UNDEFINED
+    assert [c["component"] for c in block["reason"]["components"]] == ["coverage"]
+
+
+def test_a_z_with_no_x2_and_x3_beside_it_cannot_be_read_against_its_range():
+    assert CM.altman_out_of_range(None, None, None, None, 1584.89) == "altman_z_score"
+    assert CM.altman_out_of_range(None, None, None, None, 3.09) == "altman_z_score"  # unread is unread
+    assert CM.altman_out_of_range(0.5, 0.2, 0.1, 1.2, 3.09) is None
+    statements = _agras_statements()
+    rows = _rows_by_name(_without(CM.compute_period_metrics(copy.deepcopy(statements)),
+                                  "altman_x1", "altman_x2", "altman_x3", "altman_x4"))
+    checked, refused, withdrawn = CM.withhold_persisted(rows, statements)
+    assert checked["altman_z_score"] is None and checked["credit_composite"] is None
+    assert refused["altman"]["code"] == CM.CREDIT_OUT_OF_RANGE
+    assert "cannot be read against its range" in refused["altman"]["text"]
+    assert {w["figure"] for w in withdrawn} == {"altman_z_score", "credit_subscore_altman", "credit_composite"}
+
+
+def test_a_broken_pack_serves_no_filed_credit_figure_on_the_route(tmp_path, monkeypatch):
+    import _served_books as SB
+
+    bk = SB.book("agras")
+    legacy = _set(CM.compute_period_metrics(copy.deepcopy(SB.routed_body(bk)["statements"])),
+                  altman_z_score=1584.89, altman_x4=1500.0)
+    _plant_bad_pack(tmp_path, monkeypatch)
+    try:
+        body = SB.routed_body(bk, metrics=legacy)
+    finally:
+        CP._load.cache_clear()
+    monkeypatch.delenv("CREDIT_PACKS_DIR")
+    CP._load.cache_clear()
+    env = body["assembled_metrics"]["credit"]
+    assert env["reason"]["inputs"] == [CP.CREDIT_PACK_FILE]
+    assert env["altman_z_score"] is None and env["altman_components"]["x4"] is None
+    assert all(v is None for v in env["subscores"].values()), env["subscores"]
+    rows = {r["name"]: r["value"] for r in body["metrics"]}
+    for name in CM.CREDIT_FAMILY_METRICS:
+        if name != CM.CREDIT_MODEL_REVISION_METRIC:
+            assert rows[name] is None, (name, rows[name])
+    assert rows["current_ratio"] is not None  # only the credit family is the pack's
+
+
+def test_the_narrator_is_handed_persisted_credit_rows_only_under_the_law(monkeypatch):
+    """The REAL stage_narrate with a stub client that captures the payload
+    (no network, no paid call): a filed Z'' 1584.89 / X4 1500 never reaches
+    the model that writes the briefing."""
+    import sys
+    import types
+
+    import test_rebuild_net_income_anchor as ANCHOR
+    from engine.api import pipeline as P
+
+    captured: Dict[str, Any] = {}
+
+    class _Messages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            raise RuntimeError("stub: payload captured")
+
+    class _Anthropic:
+        def __init__(self, **_kw):
+            self.messages = _Messages()
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-key")
+    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=_Anthropic))
+    bk = ANCHOR._Book(REPO / "corpus" / "saga_compact_6_col")
+    assembled = copy.deepcopy(bk.persist_assembled)
+    filed = [dict(r, unit=r.get("unit"), direction=r.get("direction"))
+             for r in _revision_1_rows(assembled["statements"])]
+    P.stage_narrate(bk.doc, assembled, filed, {"industry_key": "generic"}, period_id="p-test", parsed=bk.parsed)
+    payload = json.loads(captured["messages"][0]["content"])
+    handed = {m["name"]: m["value"] for m in payload["metrics"]}
+    for name in ("altman_z_score", "altman_x4", "credit_subscore_altman", "credit_composite",
+                 "credit_subscore_liquidity"):
+        assert handed[name] is None, (name, handed[name])
+    assert "1584.89" not in captured["messages"][0]["content"]
+    assert handed["altman_x2"] is not None

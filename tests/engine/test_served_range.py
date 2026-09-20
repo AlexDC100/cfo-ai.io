@@ -354,3 +354,207 @@ def test_the_scoring_books_serve_a_composite_inside_the_range_with_every_compone
 def test_the_law_is_independent_of_the_product():
     src = Path(LAW.__file__).read_text(encoding="utf-8")
     assert "from engine" not in src and "import engine" not in src and "credit_pack" not in src.split('"""', 2)[2]
+
+
+# ── THE UNSWITCHED PATH (R-RANGE is absolute: it holds where nothing was
+#    recomputed) ───────────────────────────────────────────────────────────
+#
+# When the serve-time model cannot run (`serve_time_metric_rows` -> None: a
+# statements block without both dicts, a source that declares absences, a
+# KeyError / TypeError in the model) or the ratio table raises inside its
+# non-fatal try, GET /api/period keeps the PERSISTED rows, labelled
+# `basis: as_filed`. Every figure on that branch - in the envelope and in
+# the `metrics[]` rows the FE reads FIRST - is held to the same law.
+#
+# REDS ON, after the repair (TC-11): a persisted Altman figure, sub-score,
+# composite or letter outside its bound OR outside its domain served on the
+# branch (envelope or row); a persisted Z'' served with no X2 / X3 to derive
+# its bound from; a composite or letter beside a refused component; a
+# withheld figure with no reason in the law's vocabulary or not named in
+# `withdrawn` with the value it was filed at; an in-range, in-domain filing
+# withheld (over-withdrawal); the envelope serving no `ranges`.
+# CANNOT SEE (TC-13): a body whose statements cannot be read at all (the
+# law has no operands there; the range half is held by the rows-only unit
+# tests in test_credit_model_rungs_and_ranges), and the FE reader.
+
+def _today_rows(statements: Dict[str, Any]) -> List[Dict[str, Any]]:
+    from engine.ratios import credit_model as CM
+
+    return [dict(r) for r in CM.compute_period_metrics(copy.deepcopy(statements))]
+
+
+def _z_only_rows(statements: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """A filing that carries Z'' 1584.89 with NO X rows beside it (the
+    shape of a period persisted before the components were stored): the
+    bound cannot be derived from the rows, so the figure cannot be read
+    against its range - and an unread figure is not served."""
+    rows = [r for r in _today_rows(statements) if not r["name"].startswith("altman_x")]
+    planted = {"altman_z_score": 1584.89, "credit_subscore_altman": 100.0, "credit_composite": 88.5}
+    for r in rows:
+        if r["name"] in planted:
+            r["value"] = planted[r["name"]]
+    return rows
+
+
+def _refused_coverage_rows(statements: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Rows carrying a null coverage sub-score BESIDE an intact composite
+    (the re-verifier's low: 80.7 AA served while `refused_subscores` lists
+    coverage)."""
+    rows = _today_rows(statements)
+    for r in rows:
+        if r["name"] == "credit_subscore_coverage":
+            r["value"] = None
+    return rows
+
+
+def _raise(*_a, **_k):
+    raise RuntimeError("planted: the ratio table fails inside its non-fatal try")
+
+
+#: name -> (book, rows builder, which seam keeps the period unswitched)
+UNSWITCHED: Dict[str, Tuple[str, Any, str]] = {
+    "compact_rev1/no_serve_rows": ("compact", _revision_1_rows, "serve_time_metric_rows"),
+    "compact_rev1/table_raises": ("compact", _revision_1_rows, "build_ratio_table"),
+    "agras_today/no_serve_rows": ("agras", _today_rows, "serve_time_metric_rows"),
+    "agras_z_only/no_serve_rows": ("agras", _z_only_rows, "serve_time_metric_rows"),
+    "agras_refused_coverage/no_serve_rows": ("agras", _refused_coverage_rows, "serve_time_metric_rows"),
+}
+_UNSWITCHED_BODIES: Dict[str, Tuple[Dict[str, Any], Dict[str, Any]]] = {}
+
+
+def unswitched_body(name: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """`(body, filed)`: the real route's body with the named seam planted,
+    and the persisted rows by name as they were filed."""
+    if name not in _UNSWITCHED_BODIES:
+        from _pytest.monkeypatch import MonkeyPatch
+        from engine.ratios import table as T
+
+        book_name, build, seam = UNSWITCHED[name]
+        bk = ANCHOR._Book(COMPACT) if book_name == "compact" else SB.book(book_name)
+        rows = build(SB.routed_body(bk)["statements"])
+        mp = MonkeyPatch()
+        try:
+            mp.setattr(T, seam, (lambda statements: None) if seam == "serve_time_metric_rows" else _raise)
+            body = SB.routed_body(bk, metrics=rows)
+        finally:
+            mp.undo()
+        _UNSWITCHED_BODIES[name] = (body, {r["name"]: r["value"] for r in rows})
+    body, filed = _UNSWITCHED_BODIES[name]
+    return copy.deepcopy(body), dict(filed)
+
+
+@pytest.mark.parametrize("name", sorted(UNSWITCHED))
+def test_the_unswitched_path_serves_no_persisted_figure_outside_the_law(name):
+    body, filed = unswitched_body(name)
+    env = body["assembled_metrics"]["credit"]
+    assert env["basis"] == "as_filed", (name, env.get("basis"))
+    ops = LAW.operands(body["statements"])
+    rows = {r["name"]: r["value"] for r in body["metrics"]}
+    withdrawn = {w["figure"]: w for w in env.get("withdrawn") or []}
+    measured = 0
+    for row in LAW.LAW:
+        where = "%s %s" % (name, row.key)
+        served = {"envelope": LAW.read_path(env, LAW.ENVELOPE_PATHS[row.key]), "metrics[]": rows.get(row.key)}
+        for surface, v in served.items():
+            assert LAW.persisted_figure_may_be_served(row, v, ops), (
+                "%s: %s serves a persisted %r outside the law (domain %s, bound %s)"
+                % (where, surface, v, row.domain(ops), row.bound_text(ops)))
+        assert served["envelope"] == served["metrics[]"], (where, served)
+        was = filed.get(row.key)
+        if was is not None and served["envelope"] is None:
+            # withheld: named with the value it was filed at, and a reason
+            w = withdrawn.get(row.key)
+            assert w and w["value"] == was and w.get("text") and w.get("code"), (where, was, w)
+            reason = _refusal_of({"refused_subscores": env["refused_subscores"], "reason": env["reason"]}, row.key)
+            assert reason and reason.get("code") in row.refusal_codes, (where, reason)
+        if was is not None and LAW.persisted_figure_may_be_served(row, was, ops) \
+                and row.key != "credit_composite" and LAW.component_of(row.key) not in env["refused_subscores"]:
+            # no over-withdrawal: a lawful filing is served as filed
+            assert served["envelope"] == was, (where, was, served)
+        measured += 1
+    assert measured == len(LAW.LAW)
+    subs = env["subscores"]
+    if env["composite_score"] is None:
+        assert env["letter_grade"] is None, name
+        assert env["reason"] is not None and env["reason"]["code"] in LAW.COMPOSITE_CODES, (name, env["reason"])
+    else:
+        assert all(subs[k] is not None for k in subs), (name, subs)
+        assert env["letter_grade"] in LAW.LETTERS and env["reason"] is None, name
+    refused = set(env.get("refused_subscores") or {})
+    if refused:
+        assert {c["component"] for c in env["reason"]["components"]} == refused, name
+    assert env["ranges"]["composite"]["max"] == 100 and env["ranges"]["altman_x4"]["max"] == 1 / LAW.X4_MATERIALITY_SHARE
+
+
+def test_a_planted_persisted_altman_of_1584_89_never_renders_on_an_unswitched_period():
+    """The re-verifier's probe, on the real route: X4 1500 / Z'' 1584.89 /
+    composite 88.5 AA persisted under revision 1, nothing switched."""
+    for name in ("compact_rev1/no_serve_rows", "compact_rev1/table_raises"):
+        body, filed = unswitched_body(name)
+        assert filed["altman_z_score"] == 1584.89 and filed["altman_x4"] == 1500.0 and filed["credit_composite"] == 88.5
+        env = body["assembled_metrics"]["credit"]
+        rows = {r["name"]: r["value"] for r in body["metrics"]}
+        for v in (env["altman_z_score"], env["altman_components"]["x4"], env["subscores"]["altman"],
+                  env["composite_score"], env["letter_grade"], rows["altman_z_score"], rows["altman_x4"],
+                  rows["credit_subscore_altman"], rows["credit_composite"]):
+            assert v is None, (name, v)
+        assert "1584.89" not in repr({k: v for k, v in env.items() if k != "withdrawn"}), name
+        # the COMPONENT refuses as the serve-time model refuses it on this
+        # book (no liabilities: X4 has no domain); each FIGURE is withdrawn
+        # for what it was - outside its range
+        assert env["refused_subscores"]["altman"]["code"] == "total_liabilities_below_materiality"
+        w = {x["figure"]: x for x in env["withdrawn"]}
+        assert (w["altman_z_score"]["value"], w["altman_x4"]["value"], w["credit_composite"]["value"]) == (
+            1584.89, 1500.0, 88.5), env["withdrawn"]
+        assert w["altman_z_score"]["code"] == w["altman_x4"]["code"] == "credit_out_of_range"
+        assert "altman_x4 lies outside its declared range" in w["altman_x4"]["text"]
+        assert w["credit_composite"]["code"] == "credit_component_undefined"
+        # a zero-liability book has no liquidity base: the filed 0.0 was a
+        # substituted operand, not a score (absent is never zero)
+        assert env["subscores"]["liquidity"] is None and rows["credit_subscore_liquidity"] is None, name
+
+
+def test_a_persisted_z_with_no_components_to_bound_it_is_not_served():
+    body, filed = unswitched_body("agras_z_only/no_serve_rows")
+    env = body["assembled_metrics"]["credit"]
+    assert "altman_x2" not in filed and filed["altman_z_score"] == 1584.89
+    assert env["altman_z_score"] is None and env["subscores"]["altman"] is None
+    assert env["composite_score"] is None and env["letter_grade"] is None
+    assert env["refused_subscores"]["altman"]["code"] == "credit_out_of_range"
+    assert env["refused_subscores"]["altman"]["inputs"] == ["altman_z_score"]
+
+
+def test_a_lawful_filing_is_served_as_filed_on_the_unswitched_path():
+    """Non-vacuity of the withdrawal: today's agras rows are all lawful, so
+    the branch serves them untouched, composite and letter included."""
+    body, filed = unswitched_body("agras_today/no_serve_rows")
+    env = body["assembled_metrics"]["credit"]
+    assert env["composite_score"] == filed["credit_composite"] is not None
+    assert env["altman_z_score"] == filed["altman_z_score"] is not None
+    assert env["letter_grade"] in LAW.LETTERS and env["refused_subscores"] == {} and not env.get("withdrawn")
+
+
+def test_the_unswitched_path_serves_no_composite_beside_a_refused_component():
+    body, filed = unswitched_body("agras_refused_coverage/no_serve_rows")
+    env = body["assembled_metrics"]["credit"]
+    assert filed["credit_composite"] is not None and filed["credit_subscore_coverage"] is None
+    assert env["composite_score"] is None and env["letter_grade"] is None, env["composite_score"]
+    assert env["reason"]["code"] == "credit_component_undefined"
+    assert [c["component"] for c in env["reason"]["components"]] == ["coverage"]
+    rows = {r["name"]: r["value"] for r in body["metrics"]}
+    assert rows["credit_composite"] is None
+
+
+def test_the_comparatives_prior_inherits_the_law_on_an_unswitched_prior():
+    """The two-period route reads each side through get_period, so an
+    unswitched PRIOR serves its rows (`prior_metrics`) under the same law."""
+    from engine.api import _comparatives as CMP
+
+    body, _filed = unswitched_body("compact_rev1/no_serve_rows")
+    current = SB.routed_body(ANCHOR._Book(COMPACT))
+    out = CMP.compare_payloads(current, body, current_row={"id": "cur", "period_end": "2025-12-31"},
+                               prior_row={"id": "pri", "period_end": "2024-12-31"})
+    prior_rows = {r["name"]: r["value"] for r in out["prior_metrics"]}
+    for k in ("altman_z_score", "altman_x4", "credit_composite", "credit_subscore_altman"):
+        assert prior_rows[k] is None, (k, prior_rows[k])
+    assert "1584.89" not in repr(out.get("ratios")) and "1584.89" not in repr(out["prior_metrics"])

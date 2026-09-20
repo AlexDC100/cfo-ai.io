@@ -3103,9 +3103,12 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "briefing_facts": briefing_facts,
         "balance_sheet": assembled["statements"]["balanceSheet"],
         "income_statement": assembled["statements"]["incomeStatement"],
+        # The narrator is a SURFACE (R-RANGE, absolute): persisted credit
+        # rows reach it only under the law - a filed Z'' 1584.89 handed to
+        # the model becomes a sentence about the company.
         "metrics": [
             {"name": m["name"], "value": m["value"], "unit": m["unit"], "direction": m["direction"]}
-            for m in metrics
+            for m in _credit_model.lawful_persisted_rows(metrics, assembled["statements"])
         ],
         # Server-computed valuation. Briefing must reference equity_p50 and never
         # invent a different headline number. See VALUATION FRAMING in system.
@@ -7441,22 +7444,28 @@ def build_router() -> APIRouter:
         from engine.ratios.credit_pack import CREDIT_PACK_FILE as _CREDIT_PACK_FILE
         from engine.ratios.credit_pack import CreditPackError as _CreditPackError
         _pack_error: Optional[str] = None
-        _as_filed_bad: Dict[str, str] = {}
+        _as_filed_withdrawn: List[Dict[str, Any]] = []
+        _filed_by_name = dict(_as_filed_by_name)
         try:
-            # R-RANGE is absolute on EVERY surface, this one included: a
-            # persisted figure outside its pack range is withheld before
-            # the as-filed envelope is composed (the serve-time block does
-            # the same through the same function). When the serve-time
-            # model cannot run, this envelope is what is served.
-            _as_filed_by_name, _as_filed_bad = _credit_model.withhold_out_of_range(_as_filed_by_name)
-            _as_filed_refused = _credit_model._refused_subscores(_as_filed_by_name, statements)
-            for _k, _figure in _as_filed_bad.items():
-                if _k != "composite":
-                    _as_filed_refused[_k] = _credit_model.subscore_refusal(
-                        _k, _credit_model.CREDIT_OUT_OF_RANGE, _figure)
+            # R-RANGE is absolute on EVERY surface, this one included. These
+            # are PERSISTED rows nothing recomputed, so the whole law is
+            # applied before the as-filed envelope is composed: range (a
+            # Z'' with no derivable bound included), the model's own domain
+            # predicate over these statements, and no composite or letter
+            # beside a refused component - one function
+            # (`withhold_persisted`). When the serve-time model cannot run,
+            # or the ratio table fails, this envelope is what is served.
+            _as_filed_by_name, _as_filed_refused, _as_filed_withdrawn = _credit_model.withhold_persisted(
+                _as_filed_by_name, statements)
         except _CreditPackError as exc:
             _pack_error = str(exc)
             _as_filed_refused = {}
+            # No pack, no range to read a figure against: the whole credit
+            # family is withheld (a filed Z'' 1584.89 was once served raw on
+            # this branch beside a refused composite).
+            for _name in _credit_model.CREDIT_FAMILY_METRICS:
+                if _name in _as_filed_by_name and _name != _credit_model.CREDIT_MODEL_REVISION_METRIC:
+                    _as_filed_by_name[_name] = None
             logger.error("[/api/period] credit pack unusable; the credit block refuses for period %s: %s",
                          period.get("id"), exc)
         def _m(name: str) -> Optional[float]:
@@ -7551,6 +7560,10 @@ def build_router() -> APIRouter:
                 "ranges": None if _pack_error else _credit_model.credit_ranges(
                     _credit_model._num(_as_filed_by_name.get("altman_x2")),
                     _credit_model._num(_as_filed_by_name.get("altman_x3"))),
+                # Every figure that was filed and is not served above, with
+                # the value it was filed at and why: `{figure, value, code,
+                # text}`. A filed figure appears nowhere else in this block.
+                "withdrawn": _as_filed_withdrawn,
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",
@@ -7671,7 +7684,8 @@ def build_router() -> APIRouter:
                     if _name in _group:
                         _group[_name] = _served_by_name.get(_name)
 
-        if credit_metrics_as_filed is None and _as_filed_bad:
+        if credit_metrics_as_filed is None and any(
+                _filed_by_name.get(_n) != _as_filed_by_name.get(_n) for _n in _credit_model.CREDIT_FAMILY_METRICS):
             # `basis: as_filed` stayed: the FE reads the credit rows of
             # `metrics[]` FIRST, so a figure withheld from the envelope is
             # withheld from its row too — one figure, one state.
