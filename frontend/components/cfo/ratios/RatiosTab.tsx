@@ -32,6 +32,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
+import { useSectorBenchmarkDoc } from "@/components/cfo/benchmark/SectorBenchmarkSection";
+import { bandSourceText } from "@/lib/sectorBenchmark";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { BandMovementLists } from "@/components/cfo/ratios/BandMovementLists";
@@ -158,6 +160,7 @@ export function RatioTile({
   const clickable = typeof onPick === "function";
   const view = useRatioCompareView();
   const engineKey = engineKeyOf(ratio.key);
+  const sectorDoc = useSectorBenchmarkDoc();
   // THE SERVED ROW, when the engine served one for this key. `side` is the
   // current period's served Side; `printed` is every string the tile shows.
   const side = currentSideOf(view, engineKey);
@@ -247,6 +250,19 @@ export function RatioTile({
       <div className="text-[11px] text-ink-mute mt-1" data-testid="ratio-ladder">
         {printed && identity ? ladderText(bandSide, identity.higher_is_better, identity.display_unit, i18n.language) : ratio.benchmark}
       </div>
+      {/* WHERE THE BAND COMES FROM — a sibling of the ladder, never inside
+          it. A served ratio says either "sector filings: CAEN, size band,
+          n, FY, source" beside the general ladder, or that the ladder is
+          the general SME fallback and why no sector band exists. */}
+      {printed && identity ? (
+        <div
+          className="text-[10.5px] leading-snug text-ink-mute mt-1 break-words"
+          data-testid="ratio-band-source"
+          data-band-source={sectorDoc?.ratio_cards?.[engineKey ?? ""]?.band_source ?? "general"}
+        >
+          {bandSourceText(sectorDoc, engineKey ?? "", i18n.language)}
+        </div>
+      ) : null}
       {/* COMPARATIVES — the served prior, change, prior band and band
           movement for this key. A prior the engine could not compute
           prints its reason. */}

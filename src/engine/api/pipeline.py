@@ -7857,6 +7857,19 @@ def build_router() -> APIRouter:
                 caen = _org.caen_for_org(client, org_id)
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+        # CAEN: the workspace's own code first (the ONE authority the
+        # comparatives, Capsule and Radar read — a workspace is one
+        # company); only when it is absent, the per-period industry choice
+        # the legacy benchmark report resolves. The document says which.
+        caen_source = "workspace" if caen else None
+        if not caen:
+            try:
+                from . import _benchmarks as _bm
+                picked, _src, _refusal = _bm._resolve_effective_caen(jwt=jwt, period_id=period_id)
+                if picked:
+                    caen, caen_source = picked, "period_industry_choice"
+            except Exception:  # noqa: BLE001 — a classification is not worth a 500
+                logger.exception("[sector-benchmark] period CAEN lookup failed for %s", period_id)
         cur_payload = get_period(period_id, authorization)
         pri_payload = None
         if prior_id is not None:
@@ -7866,6 +7879,7 @@ def build_router() -> APIRouter:
                 prior_reason = {"code": "prior_period_not_servable", "inputs": [prior_id]}
         doc = _sector.build_sector_benchmark(
             cur_payload, caen=caen, prior_payload=pri_payload, prior_reason=prior_reason)
+        doc["caen_source"] = caen_source
         problems = _sector.check_document_law(doc)
         if problems:
             logger.error("[sector-benchmark] unlawful document for %s: %s", period_id, problems[:5])

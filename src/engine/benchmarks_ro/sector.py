@@ -283,7 +283,13 @@ def _sector_figure(fig: Mapping[str, Any]) -> Dict[str, Any]:
 def _rows(found: Mapping[str, Any], company: Mapping[str, Dict[str, Any]]
           ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
-    for key, definition in found["ratio_definitions"].items():
+    definitions = found["ratio_definitions"]
+    # Served order = the declared order of DIRECTION (profitability,
+    # structure, working capital, growth); an undeclared key follows.
+    ordered = [k for k in DIRECTION if k in definitions] + \
+              [k for k in definitions if k not in DIRECTION]
+    for key in ordered:
+        definition = definitions[key]
         fig = found["rows"].get(key)
         comp = company.get(key) or {"value": None, "basis": None, "operands": [],
                                     "reason": {"code": "company_operand_absent",

@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SectorBenchmarkSection } from "@/components/cfo/benchmark/SectorBenchmarkSection";
 import { AlertTriangle, BarChart3, Info, Layers as LayersIcon, LineChart, Loader2, ShieldAlert } from "lucide-react";
 
 // Instrument kit (2026-08): every figure renders through <Amount> (via
@@ -613,6 +614,9 @@ export default function BenchmarkReportPage() {
             hero
             testid="benchmark-needs-industry-header"
           />
+          {/* The sourced block does not depend on the legacy catalogue:
+              an industry with no estimated rows can still have filings. */}
+          {!isCaenMissing ? <SectorBenchmarkSection periodId={periodId} /> : null}
           <BenchmarkPreviewStrip />
           {/* Coming soon (2026-07-26 per operator) — industry benchmarks
               aren't seeded end-to-end yet, so the panel renders blurred
@@ -734,6 +738,11 @@ export default function BenchmarkReportPage() {
         {/* Mandatory disclosure — appears prominently on every report so a
             sophisticated CFO can never confuse this with licensed
             third-party benchmarks. */}
+        {/* SOURCED block first: Ministry of Finance filings, every figure
+            with its source, year and n. It never borrows from the
+            estimated sections below, and they never borrow from it. */}
+        <SectorBenchmarkSection periodId={periodId} />
+
         <DisclosureBox text={r.disclosure} />
 
         {/* Sanity-check banner — fires when 3+ comparison rows are
