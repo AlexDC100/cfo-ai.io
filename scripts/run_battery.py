@@ -464,7 +464,7 @@ def _engine_gates() -> List[Gate]:
         # reduction it is under the convention its document decided.
         Gate("statements-anchor-gap",
              [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
-             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=45,
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=58,  # 45 -> 58: + the four decision-rule documents (B4 repair)
              units="books judged, contra rows checked and metamorphic comparisons",
              canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
                        "floor from packs/ro/statements_anchor.yaml#anchor_gap",

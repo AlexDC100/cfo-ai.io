@@ -28,6 +28,19 @@ anchor_gap:
   # Account prefixes whose year net a mirrored exporter hides behind gross
   # turnover on both sides. Longest prefix wins; one entry per family.
   hidden_net_prefixes: ["711", "712"]
+  # plan/2 B4 repair (B4V-7a): the gross 711/712 turnover is a FALLBACK
+  # floor, roughly a hundred times the defect it was written for. What the
+  # hidden net can actually be is the year's movement in production stock
+  # (opening to closing balance of the accounts below); the gate prints
+  # that movement and the residual beyond it for every book that carries
+  # them. The residual is NOT judged yet: on agras and carniprod it is not
+  # explained by production stock, and the cause is owed before a batch
+  # builds on those books (as-built B4R).
+  production_stock_prefixes: ["33", "34", "35"]
+  sentence_fallback_floor: >-
+    fallback floor: the gross production-variation turnover bounds the gap but
+    does not explain it; the production stock movement and the residual beyond
+    it are printed beside it and the residual is not yet judged
   sentence_within: >-
     the reconstruction reaches account 121 within what the production-variation
     turnover of this book can hide

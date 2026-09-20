@@ -104,6 +104,8 @@ def _pack() -> Dict[str, Any]:
     prefixes = tuple(str(p) for p in gap["hidden_net_prefixes"])
     assert tol > 0 and prefixes, gap
     return {"cent_tolerance": tol, "hidden_net_prefixes": prefixes,
+            "production_stock_prefixes": tuple(str(p) for p in gap["production_stock_prefixes"]),
+            "sentence_fallback_floor": gap["sentence_fallback_floor"],
             "sentence_within": gap["sentence_within"],
             "sentence_beyond": gap["sentence_beyond"]}
 
@@ -178,6 +180,21 @@ def _hidden_turnover(rows, prefixes) -> Decimal:
     return total.quantize(Decimal("0.01"))
 
 
+def _production_stock_movement(rows, prefixes) -> Optional[Decimal]:
+    """Closing less opening net debit balance of the production-stock
+    accounts; None when the book carries no such row."""
+    total = Decimal("0")
+    seen = False
+    for r in rows:
+        code = (r.get("cont") or "").strip()
+        if not code.startswith(prefixes):
+            continue
+        seen = True
+        d = lambda k: Decimal(str(r.get(k) or 0))  # noqa: E731
+        total += (d("sf_d") - d("sf_c")) - (d("si_d") - d("si_c"))
+    return total.quantize(Decimal("0.01")) if seen else None
+
+
 def _gap_and_floor_live(rows, pl, pack) -> Tuple[Optional[Decimal], Decimal, Decimal]:
     """(gap, floor, hidden turnover) for a parsed book. gap None: no 121."""
     anchor = tbp.compute_statutory_net_profit_anchor(rows)
@@ -214,6 +231,7 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
     examined = 0
     with_121 = 0
     conventions = {}  # type: Dict[str, str]
+    residuals = {}  # type: Dict[str, Decimal]
 
     def judge(name: str, gap: Optional[Decimal], floor: Decimal,
               hidden: Decimal, convention: str) -> None:
@@ -243,6 +261,17 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
         shaped, pl = _assemble(rows)
         gap, floor, hidden = _gap_and_floor_live(rows, pl, pack)
         judge("corpus " + case, gap, floor, hidden, _convention(shaped)["convention"])
+        if gap is not None and hidden > 0:
+            # B4V-7a: what the hidden net can actually be, and what is left
+            movement = _production_stock_movement(rows, pack["production_stock_prefixes"])
+            if movement is None:
+                lines.append("  %-40s   fallback floor; no production-stock rows to read a movement from" % "")
+            else:
+                residual = (abs(gap) - abs(movement)).quantize(Decimal("0.01"))
+                residuals["corpus " + case] = residual
+                lines.append("  %-40s   %s: production stock %s moved %s; residual beyond it %s (NOT judged)"
+                             % ("", pack["sentence_fallback_floor"].split(":")[0], "/".join(pack["production_stock_prefixes"]),
+                                movement, residual))
 
     gap, floor, hidden, meta = _gap_and_floor_baseline(pack)
     judge("regression baseline scandia_fy2025 (%s)" % meta["company"], gap, floor,

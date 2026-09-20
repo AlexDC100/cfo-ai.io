@@ -683,10 +683,16 @@ class AssumptionSet(object):
                 key, _RATIO, share, "engine_default",
                 "the amount-weighted fixed share of this book's operating-cost "
                 "pools (%s), each pool's share resolved down its own ladder "
-                "(%s)" % (", ".join("%s %s of which %s fixed"
-                                    % (p.name, fmt(p.base_cents),
-                                       fmt(mul_div(p.base_cents, p.fixed_share_micros, MICRO)))
-                                    for p in pooled), "; ".join(rule_ids)),
+                "(%s)%s" % (", ".join("%s %s of which %s fixed"
+                                      % (p.name, fmt(p.base_cents),
+                                         fmt(mul_div(p.base_cents, p.fixed_share_micros, MICRO)))
+                                      for p in pooled), "; ".join(rule_ids),
+                            # B4V-7(e): say what the weight leaves out
+                            "".join("; %s is a net credit of %s and stands outside "
+                                    "the weight, so this share is of the positive "
+                                    "pools, not of total operating cost"
+                                    % (p.name, fmt(p.base_cents))
+                                    for p in pools.opex if p.base_cents < 0)),
                 tuple("line_items.%s" % p.name for p in pooled),
                 tier="convention", rule_id=rule_ids[0] if rule_ids else None,
                 evidence={"rule_id": rule_ids[0] if rule_ids else None,

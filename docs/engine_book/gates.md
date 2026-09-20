@@ -4867,3 +4867,101 @@ E   AssertionError: ('agras', 3, 500, "{'detail': 'The projection did not satisf
 **REVERT** ok. **RED (parent commit)**: on fa2a04c the GET answers 200 but no
 served assumption id starts with `pool_fixed_share.` (the parent has no
 pools), so the canary reds on its id check.
+
+### plan/2 B4 REPAIR ROUND (2026-09-20) — the verifier's unheld behaviours, each with its red
+
+Every plant below was applied by byte-exact replacement, run, and reverted by
+byte copy of the pre-plant file (`scratchpad/b4r/plant.py`; log
+`scratchpad/b4r/plants.log`). Each names WHAT IT REDS ON AFTER THE REPAIR
+(TC-11): none of these tests pins a served number that the repair itself
+would have to move.
+
+**R1 — absent cost total read as zero** (forecast-model,
+`test_an_absent_cost_total_refuses_the_plan_by_its_pool`; 8 cases = cogs / opex
+× agras / retail × missing / null, + the served-unavailable cases + the true-nil
+control on realestate). Plant: `split_for_payload` reads
+`cents_from(pl.get("cogs") or 0)` again. **RED**:
+
+```
+tests/engine/test_forecast_model.py:1761: Failed: DID NOT RAISE <class 'engine.forecast.errors.AssumptionError'>
+FAILED ...::test_an_absent_cost_total_refuses_the_plan_by_its_pool[pool_fixed_share.cost_of_sales-agras-cogs-missing]
+```
+
+Reds after the repair on: any path that projects a cost line whose assembled
+total is missing or null. Does not red on a true 0.00 (realestate control).
+
+**R2 — inflation dropped from the fixed part** (forecast-pools,
+`test_inflation_moves_each_pools_fixed_part_and_leaves_the_variable_part`, growth 0 /
+inflation 5% / two plan years / four books). Plant: `fixed_total =
+_round(pool.base_cents * share)`. **RED**:
+
+```
+AssertionError: agras plan year 1 at growth 0, inflation 5%: operating costs 29,854,906.77, sum of round(B x f x C^n) + variable 30,958,949.80 (delta -1,104,043.03)
+```
+
+**R3 — other operating income grown with revenue** (forecast-pools,
+`test_other_operating_income_is_held_at_the_anchor_amount_through_a_fall`, which also
+holds EBITDA = revenue − cost of sales − operating costs + held income per plan
+year). Plant: `_slice_by_days(_round(ooi_annual * growth_factor), periods)`. **RED**:
+
+```
+AssertionError: agras plan year 1 at revenue -20%: other operating income 312,072.44, the anchor holds 390,090.55 (it scales with neither volume nor growth)
+```
+
+R2 + R3 together are the verifier's VP5 + VP6, which passed the whole engine
+suite (6861 passed) on 50cc222.
+
+**R4 — a net-credit pool served fully fixed** (forecast-pools,
+`test_retail_materials_non_inventory_is_a_net_credit_served_fully_variable`). Plant:
+the `#negative_pool` branch serves `fixed_share_micros=MICRO`. **RED**:
+`AssertionError: (1000000, 'convention', 'packs/forecast/cost_behaviour.yaml#negative_pool')`.
+
+**R5 — the max-unallocated refusal switched off** (forecast-pools,
+`test_a_book_with_more_unallocated_than_the_pack_allows_refuses_the_split`; SYNTHETIC
+agras with its class-64 rows re-coded to an account no pool lists; the untouched
+book is the not-refused control). Plant: `if False and share > ...`. **RED**:
+`AssertionError: (False, None)`.
+
+**R6 — the route-to-pools join deleted** (forecast-route canary). Plant:
+`"line_items": line_items,` removed from `_forecast_routes._load_period`. **RED**:
+
+```
+AssertionError: agras h3: the served pools are ['pool_fixed_share.cost_of_sales', 'pool_fixed_share.operating_costs'] — the statement line items did not reach the engine (complete and unreachable)
+```
+
+On 50cc222 this plant left forecast-route, forecast-pools, forecast-base-parity,
+forecast-serving-boundary and forecast-authority green (139 passed) with the
+real app answering 200 over the refused single pool.
+
+**R7 — an absent profit-tax charge read as a measured nil** (forecast-model
+`test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung`, control
+`..._whose_profit_tax_row_closes_at_nil_keeps_the_book_rung`; forecast-drivers hx1 /
+hx2b; forecast-authority's two synthetic tying shapes). Plant: `charge_absent =
+False`. **RED**: `AssertionError: ('book', 'derived', 0)`.
+
+**R8 — PARSER_VERSION not bumped** (`scripts/corpus_replay.py`, byte compare of
+18 cases). Plant: `PARSER_VERSION = "tb_parser_v5"`. **RED** (exit 1):
+`✗ $.extraction.parser_version: expected 'tb_parser_v6', actual 'tb_parser_v5'`
+on every deterministic case.
+
+**R9 / R10 / R11 — the contra decision rule** (statements-anchor-gap, four
+SYNTHETIC documents test-built from the retail corpus rows: 609-only, 709-only,
+mixed, storno-heavy). R9 decides by row count (`entry[1] += (1 if st_c > 0 else
+-1)`), R10 lets only the 709 family decide, R11 forces the document net onto both
+families (`decided = None`). **RED** each; R11:
+
+```
+AssertionError: SYNTHETIC mixed (709 natural-signed, 609 magnitudes): opex_excluding_cogs_and_da 16640349.00, the same ledger printed in one convention gives 14105136.48 (delta 2535212.52)
+```
+
+On 50cc222 the verifier's VP3 / VP4 passed both gates (44 passed): every real
+book prints both families on one sign, so the rule was unobservable.
+
+**Floors**: forecast-pools 50 → 85 (87 measured); statements-anchor-gap 45 → 58
+(61 without the two local Scandia books, 63 with).
+
+**WHAT THE REPAIRED GATES STILL CANNOT SEE**: `pool_level.*` is served neutral
+and a projection that ignored it would still pass (B5 compiles the first
+non-neutral level and owns that red — VP9); the anchor-gap residual beyond the
+production-stock movement is PRINTED, not judged (agras 1,018,671.15, carniprod
+185,677.27, realestate −0.05).
