@@ -58,7 +58,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from .assumptions import (AssumptionSet, BookContext, NoStatutoryTaxRate,
                           derive_assumptions)
 from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, TEMPLATE_FIXED_SHARE,
-                    TEMPLATE_LEVEL, refused_split)
+                    TEMPLATE_LEVEL, split_pools)
 from .errors import AssumptionError, BalanceViolation
 from .history import PlHistory, pl_history_from_payload
 from .levers_pack import tax_conventions
@@ -656,17 +656,25 @@ def project(opening: OpeningPosition, history: PlHistory,
     # that follows volume in full — never a guessed split).
     pools = assumptions.pools
     if pools is None:
-        pools = refused_split("no_line_items",
-                              opex_total_cents=history.opex or 0,
-                              cogs_total_cents=history.cogs or 0,
-                              revenue_cents=history.revenue or 0)
+        pools = split_pools(None, opex_total_cents=history.opex,
+                            cogs_total_cents=history.cogs,
+                            revenue_cents=history.revenue or 0)
 
     def _pool_share(pool):
         key = FIXED_SHARE_PREFIX + pool.name
+        if pool.absent_reason is not None:
+            # ABSENT != ZERO: the assembled statement carries no total for
+            # this pool's line, so there is no base to project. Refused by
+            # the pool's own driver name; a share a caller supplies cannot
+            # stand in for an amount that is not there.
+            raise AssumptionError(key, "is unavailable, so there is no cost "
+                                  "base to project: %s" % pool.absent_reason)
         try:
-            return assumptions.micros(key)
+            assumptions[key]
         except AssumptionError:
+            # a set built without this book's pool keys: the pool's own share
             return pool.fixed_share_micros
+        return assumptions.micros(key)
 
     def _pool_level(pool):
         key = LEVEL_PREFIX + pool.name

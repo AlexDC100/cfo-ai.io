@@ -156,7 +156,8 @@ class CostBehaviourPack(object):
         for key, placeholder in (("cogs_variable", False), ("classification", True),
                                  ("nil_pool", False), ("negative_pool", False),
                                  ("unallocated_follows_allocated", True),
-                                 ("no_line_items", False), ("rows_disagree", False)):
+                                 ("no_line_items", False), ("rows_disagree", False),
+                                 ("absent_total", True)):
             block = raw.get(key)
             if not isinstance(block, dict):
                 raise PackError("%s: %s needs a sentence" % (where, key))
@@ -211,14 +212,15 @@ class Pool(object):
     __slots__ = ("name", "kind", "base_cents", "fixed_share_micros", "tier",
                  "rule_id", "evidence", "fallback_steps", "sentence",
                  "row_count", "fixed_classified_cents", "variable_classified_cents",
-                 "capped", "prefixes")
+                 "capped", "prefixes", "absent_reason")
 
     def __init__(self, name: str, kind: str, base_cents: int, *, fixed_share_micros: int,
                  tier: str, rule_id: str, evidence: Dict[str, Any],
                  fallback_steps: Sequence[Dict[str, str]], sentence: str,
                  row_count: int = 0, fixed_classified_cents: int = 0,
                  variable_classified_cents: int = 0, capped: bool = False,
-                 prefixes: Sequence[str] = ()) -> None:
+                 prefixes: Sequence[str] = (),
+                 absent_reason: Optional[str] = None) -> None:
         self.name = name
         self.kind = kind
         self.base_cents = int(base_cents)
@@ -233,6 +235,11 @@ class Pool(object):
         self.variable_classified_cents = variable_classified_cents
         self.capped = capped
         self.prefixes = tuple(prefixes)
+        #: ABSENT != ZERO: set when the assembled statement carries no
+        #: total for this pool's line. The pool then has NO base (base_cents
+        #: is a placeholder nobody may spend) and the projection refuses by
+        #: this pool's driver name.
+        self.absent_reason = absent_reason
 
     @property
     def variable_base_cents(self) -> int:
@@ -246,6 +253,7 @@ class Pool(object):
             "fixed_classified_minor": self.fixed_classified_cents,
             "variable_classified_minor": self.variable_classified_cents,
             "fallback_steps": [dict(s) for s in self.fallback_steps],
+            "absent": self.absent_reason is not None,
         }
 
 
@@ -302,6 +310,8 @@ class PoolSplit(object):
         """The amount-weighted fixed share of the served opex pools (the
         one opex fixed share engine.forecast_drivers publishes, contract
         4). None when the opex base is not positive."""
+        if any(p.absent_reason is not None for p in self.opex):
+            return None
         base = sum(p.base_cents for p in self.opex if p.base_cents > 0)
         if base <= 0:
             return None
@@ -423,6 +433,24 @@ def _unallocated_pool(pack: CostBehaviourPack, amount_cents: int, row_count: int
     return _cap(pack, pool, revenue_cents)
 
 
+def _absent_pool(pack: CostBehaviourPack, name: str, kind: str, fact: str,
+                 rows_cents: int, row_count: int) -> Pool:
+    """The pool of a cost line whose assembled TOTAL is absent (None).
+
+    Absent is never read as 0.00: the pool carries no base and no share,
+    and ``derive_assumptions`` serves its driver ``unavailable`` so the
+    projection refuses by name. The line items' own sum is quoted so the
+    reader sees what a coerced zero would have hidden."""
+    rule = pack.rule("absent_total")
+    why = "%s: %s" % (fact, rule.render(rows_cents))
+    steps = [_step("book", "absent", why), _step("sector", "absent", _NO_SECTOR_SOURCE),
+             _step("convention", "absent", why)]
+    return Pool(name, kind, 0, fixed_share_micros=0, tier="absent", rule_id=rule.rule_id,
+                evidence=_convention(rule, (("line_items.%s" % name, rows_cents, "value_minor"),)),
+                fallback_steps=steps, sentence=why, row_count=row_count,
+                absent_reason=why)
+
+
 def refused_split(rule_key: str, *, opex_total_cents: int, cogs_total_cents: int,
                   revenue_cents: int, share_micros: int = 0, amount_cents: Optional[int] = None,
                   pack: Optional[CostBehaviourPack] = None, source: str = "refused") -> PoolSplit:
@@ -442,10 +470,20 @@ def refused_split(rule_key: str, *, opex_total_cents: int, cogs_total_cents: int
 
 
 def split_pools(line_items: Optional[Iterable[Dict[str, Any]]], *, revenue_cents: int,
-                opex_total_cents: int, cogs_total_cents: int,
+                opex_total_cents: Optional[int], cogs_total_cents: Optional[int],
                 pack: Optional[CostBehaviourPack] = None) -> PoolSplit:
-    """The anchor's pools from its line items (5.1, 5.2)."""
+    """The anchor's pools from its line items (5.1, 5.2).
+
+    ``opex_total_cents`` / ``cogs_total_cents`` are None when the assembled
+    statement carries no such total. ABSENT IS NOT ZERO: the pool of an
+    absent total is served absent (:func:`_absent_pool`) and the projection
+    refuses by its name; a coerced 0 would run ``rows_disagree`` and
+    project the line at nothing."""
     pack = pack or load_cost_behaviour()
+    if opex_total_cents is None or cogs_total_cents is None:
+        return _split_with_absent_total(pack, line_items, revenue_cents=revenue_cents,
+                                        opex_total_cents=opex_total_cents,
+                                        cogs_total_cents=cogs_total_cents)
     if line_items is None:
         return refused_split("no_line_items", opex_total_cents=opex_total_cents,
                              cogs_total_cents=cogs_total_cents, revenue_cents=revenue_cents,
@@ -515,6 +553,53 @@ def split_pools(line_items: Optional[Iterable[Dict[str, Any]]], *, revenue_cents
                      opex_total_cents=opex_total_cents, source="line_items")
 
 
+def _split_with_absent_total(pack: CostBehaviourPack,
+                             line_items: Optional[Iterable[Dict[str, Any]]], *,
+                             revenue_cents: int, opex_total_cents: Optional[int],
+                             cogs_total_cents: Optional[int]) -> PoolSplit:
+    """At least one assembled total is absent. The side that IS present is
+    split as usual (against a nil stand-in for the absent side, which is
+    then replaced by the absent pool); the absent side is one absent pool."""
+    rows = [r for r in (line_items or ()) if isinstance(r, dict)]
+    cogs_rows = [r for r in rows if str(r.get("bucket") or "") == COGS_BUCKET]
+    opex_rows = [r for r in rows if str(r.get("bucket") or "") == OPEX_BUCKET]
+    cogs_sum = sum(cents_from(r.get("amount") or 0) for r in cogs_rows)
+    opex_sum = sum(cents_from(r.get("amount") or 0) for r in opex_rows)
+    if cogs_total_cents is None:
+        cost_of_sales = _absent_pool(pack, COST_OF_SALES, "cost_of_sales",
+                                     "assembled_pl.cogs", cogs_sum, len(cogs_rows))
+    else:
+        cost_of_sales = None
+    if opex_total_cents is None:
+        opex = (_absent_pool(pack, REFUSED_POOL, "opex",
+                             "assembled_pl.opex_excluding_cogs_and_da",
+                             opex_sum, len(opex_rows)),)
+        if cost_of_sales is None:
+            cost_of_sales = _cost_of_sales_pool(pack, cogs_total_cents, len(cogs_rows))
+        return PoolSplit(cost_of_sales, opex, refused=True,
+                         refusal_rule_id=pack.rule("absent_total").rule_id,
+                         unallocated_cents=0, unallocated_share_micros=None,
+                         revenue_cents=revenue_cents, opex_total_cents=0,
+                         source="absent_total")
+    # opex present, cogs absent: split the opex rows against their own total.
+    inner = split_pools(opex_rows if line_items is not None else None,
+                        revenue_cents=revenue_cents, opex_total_cents=opex_total_cents,
+                        cogs_total_cents=0, pack=pack)
+    return PoolSplit(cost_of_sales, inner.opex, refused=inner.refused,
+                     refusal_rule_id=inner.refusal_rule_id,
+                     unallocated_cents=inner.unallocated_cents,
+                     unallocated_share_micros=inner.unallocated_share_micros,
+                     revenue_cents=revenue_cents, opex_total_cents=opex_total_cents,
+                     source=inner.source)
+
+
+def _cents_or_absent(raw: Any) -> Optional[int]:
+    """None stays None (ABSENT); a real 0.00 is a measured nil."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    return cents_from(raw)
+
+
 def split_for_payload(payload: Dict[str, Any]) -> PoolSplit:
     """The pool split of a period payload: its line items against its
     assembled P&L totals."""
@@ -522,8 +607,10 @@ def split_for_payload(payload: Dict[str, Any]) -> PoolSplit:
     pl = (statements or {}).get("assembled_pl") if isinstance(statements, dict) else None
     pl = pl if isinstance(pl, dict) else {}
     revenue = cents_from(pl.get("revenue") or 0)
-    opex = cents_from(pl.get("opex_excluding_cogs_and_da") or 0)
-    cogs = cents_from(pl.get("cogs") or 0)
+    # ABSENT != ZERO (plan/2 B4 repair): `pl.get(...) or 0` read a missing
+    # total as a measured nil and projected the line at 0.00.
+    opex = _cents_or_absent(pl.get("opex_excluding_cogs_and_da"))
+    cogs = _cents_or_absent(pl.get("cogs"))
     items = payload.get("line_items") if isinstance(payload, dict) else None
     return split_pools(items if isinstance(items, list) else None, revenue_cents=revenue,
                        opex_total_cents=opex, cogs_total_cents=cogs)

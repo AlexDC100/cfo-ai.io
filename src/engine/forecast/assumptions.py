@@ -118,7 +118,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .errors import AssumptionError
-from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, PoolSplit, refused_split,
+from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, PoolSplit, split_pools,
                     split_for_payload)
 from .levers_pack import (capex_rules, dividend_book_rung_absent, index_neutral, macro_pack,
                           min_cash_default, terminal_rung)
@@ -678,6 +678,12 @@ class AssumptionSet(object):
         else:
             base, fact = pools.opex_sum_cents, "line_items.operating_costs"
             label = "operating costs (the sum of the operating-cost pools)"
+        absent = [p.absent_reason for p in (
+            (pools.cost_of_sales,) if key == "pools.cost_of_sales_share"
+            else pools.opex) if p.absent_reason is not None]
+        if absent:
+            return Assumption(key, _RATIO, None, "unavailable", absent[0], tier="absent",
+                              fallback_steps=(_step("book", "absent", absent[0]),))
         if revenue <= 0:
             why = ("this book reports revenue of %s, so %s cannot be measured "
                    "as a share of it" % (fmt(revenue), label))
@@ -1124,12 +1130,19 @@ def derive_assumptions(opening: Any, history: Any, *,
     # own sentence as its basis — never a guessed split.
     pools = getattr(context, "pools", None)
     if pools is None:
-        pools = refused_split("no_line_items", opex_total_cents=opex or 0,
-                              cogs_total_cents=cogs or 0,
-                              revenue_cents=revenue or 0)
+        # ABSENT != ZERO: an absent cogs / opex total is handed on as None
+        # and the pool it would have priced is served absent (refused).
+        pools = split_pools(None, opex_total_cents=opex, cogs_total_cents=cogs,
+                            revenue_cents=revenue or 0)
     index_rung = index_neutral()
 
     def put_pool(key, pool):
+        if pool.absent_reason is not None:
+            # ABSENT != ZERO (plan/2 B4 repair): a refusal carries nothing.
+            put(key, _RATIO, None, "unavailable", pool.absent_reason,
+                tier="absent",
+                steps=(_step("book", "absent", pool.absent_reason),))
+            return
         put(key, _RATIO, pool.fixed_share_micros, "engine_default",
             "%s: %s (anchor base %s)" % (pool.name, pool.sentence,
                                           fmt(pool.base_cents)),

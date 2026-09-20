@@ -1732,6 +1732,69 @@ def test_the_same_plan_runs_once_that_rate_is_supplied(key, name, pl_key):
     assert len(projection.periods) > 0
 
 
+#: plan/2 B4 REPAIR (B4V-2): the two cost rows B4b dropped from
+#: _UNMEASURABLE come back against the POOL keys. A pool has an amount, so
+#: a nil line is a nil pool and projects — but an ABSENT total (the key
+#: missing, or null) is not a nil line: B4b read it `or 0`, ran
+#: rows_disagree over the coerced zero and projected the line at 0.00
+#: (agras: EBITDA 83.4M against 11.0M). driver -> book -> assembled_pl key.
+_ABSENT_POOL_TOTALS = (
+    ("pool_fixed_share.cost_of_sales", "agras", "cogs"),
+    ("pool_fixed_share.cost_of_sales", "retail", "cogs"),
+    ("pool_fixed_share.operating_costs", "agras", "opex_excluding_cogs_and_da"),
+    ("pool_fixed_share.operating_costs", "retail", "opex_excluding_cogs_and_da"),
+)
+
+
+@pytest.mark.parametrize("how", ("missing", "null"))
+@pytest.mark.parametrize("key,name,pl_key", _ABSENT_POOL_TOTALS)
+def test_an_absent_cost_total_refuses_the_plan_by_its_pool(key, name, pl_key, how):
+    payload = load(name)
+    reported = payload["statements"]["assembled_pl"].get(pl_key)
+    assert reported is not None and cents_from(reported) > 0, \
+        "the fixture changed: %s no longer carries %s" % (name, pl_key)
+    if how == "missing":
+        del payload["statements"]["assembled_pl"][pl_key]
+    else:
+        payload["statements"]["assembled_pl"][pl_key] = None
+    with pytest.raises(AssumptionError) as caught:
+        project_payload(payload, horizon_years=5,
+                        revolver_rate=_CALLER_REVOLVER_RATE)
+    message = str(caught.value)
+    assert caught.value.key == key, message
+    assert "assembled_pl.%s" % pl_key in message, message
+    # the refusal quotes what the coerced zero would have hidden, read off
+    # the book's own rows (never typed)
+    assert "never read as nil" in message, message
+    # a share the caller supplies cannot stand in for an absent AMOUNT
+    with pytest.raises(AssumptionError):
+        project_payload(payload, horizon_years=5,
+                        revolver_rate=_CALLER_REVOLVER_RATE, **{key: 0.5})
+
+
+@pytest.mark.parametrize("key,name,pl_key", _ABSENT_POOL_TOTALS)
+def test_an_absent_cost_total_is_served_unavailable_carrying_nothing(key, name, pl_key):
+    from engine.forecast.project import assumptions_for_payload
+
+    payload = load(name)
+    del payload["statements"]["assembled_pl"][pl_key]
+    driver = assumptions_for_payload(payload)[key]
+    assert driver.source == "unavailable" and driver.exact is None, (
+        "%s/%s: an absent total served %r / %r" % (name, key, driver.source, driver.exact))
+    assert driver.tier == "absent"
+
+
+def test_a_true_nil_cost_total_still_projects():
+    """TC-3 control for the refusal above: 0.00 is a measured nil, and a
+    book whose cost of sales IS nil projects (realestate carries none)."""
+    payload = load("realestate")
+    assert payload["statements"]["assembled_pl"].get("cogs") is not None
+    assert cents_from(payload["statements"]["assembled_pl"]["cogs"]) == 0
+    projected = project_payload(payload, horizon_years=1,
+                                revolver_rate=_CALLER_REVOLVER_RATE)
+    assert sum(p.pl["cost_of_sales"] for p in projected.periods) == 0
+
+
 def test_a_book_with_no_revenue_carries_its_costs_at_their_own_base():
     """The measured case the platform actually serves (CLAUDE.md §5,
     'Revenue <500K RON or no operating activity').

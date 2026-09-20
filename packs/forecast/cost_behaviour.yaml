@@ -99,3 +99,14 @@ rows_disagree:
     assembled operating cost, so they cannot be split into pools of it;
     the assembled figure is carried as one pool that follows sales volume
     in full
+
+# The assembled statement carries NO total for a cost line (the key is
+# missing or null). Absent is never nil: the pool has no base, its driver
+# is served unavailable and the projection is refused by that driver's
+# name (plan/2 B4 repair; owner ruling "absent inputs refuse").
+absent_total:
+  sentence: >-
+    the assembled statement carries no total for this cost line while its
+    line items sum to {amount}; an absent total is never read as nil, so
+    the pool has no base to project and the plan is refused until the
+    period is re-processed with the total present
