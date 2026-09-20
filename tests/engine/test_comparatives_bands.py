@@ -437,6 +437,33 @@ def test_subject_selection_skips_a_nameless_line_and_takes_the_next_account():
     assert [a.code for a in CB._accounts(items, ("revenue",), 1, ())] == ["707"]
 
 
+def test_the_interest_coverage_subject_names_ebit_accounts_and_the_ebitda_row_does_not():
+    """Interest coverage is EBIT / interest (D14): a band finding on it must
+    be able to name depreciation — the operand that separates EBIT from
+    EBITDA — and the `ebitda_to_interest` finding must not. Reverting the
+    bucket to `_EBITDA` left all of tests/engine green (repair-round
+    verifier). REDS ON, after the repair: either row's numerator buckets
+    swapped, or the two rows sharing one bucket set."""
+    num_ic, den_ic = CB.SUBJECT_BUCKETS["interest_coverage"]
+    num_e2i, den_e2i = CB.SUBJECT_BUCKETS["ebitda_to_interest"]
+    assert "depreciation" in num_ic and "depreciation" not in num_e2i
+    assert set(num_ic) - set(num_e2i) == {"depreciation"}
+    assert den_ic == den_e2i == ("interestExpense",)
+    # ... and through the selection itself, on a book where depreciation is
+    # the largest operating line:
+    items = [
+        {"bucket": "depreciation", "statement": "PL", "ro_account_code": "6811",
+         "ro_account_name": "Amortizare", "amount": 900.0},
+        {"bucket": "revenue", "statement": "PL", "ro_account_code": "707",
+         "ro_account_name": "Marfuri", "amount": 800.0},
+        {"bucket": "interestExpense", "statement": "PL", "ro_account_code": "666",
+         "ro_account_name": "Dobanzi", "amount": 50.0},
+    ]
+    assert "6811" in [a.code for a in CB._subject("interest_coverage", items)]
+    assert "6811" not in [a.code for a in CB._subject("ebitda_to_interest", items)]
+    assert "666" in [a.code for a in CB._subject("interest_coverage", items)]
+
+
 # ── 2. no crossing, no finding ─────────────────────────────────────────────
 
 
