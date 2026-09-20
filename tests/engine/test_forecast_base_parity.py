@@ -111,12 +111,38 @@ def _payload(name: str) -> Dict:
             "currency": book.get("currency") or "RON"}
 
 
+#: plan/2 B4 repair (B4V-6): the reference engine (B3 over the repaired
+#: books) measured retail's tax rate as book 0 off a tying book that files
+#: no profit-tax row. Today's engine records that charge ABSENT and takes
+#: the statutory rung — a deliberate move of the tax rule, printed in the
+#: blast radius, and not what THIS gate holds (it holds the cost pools
+#: reproducing the B3 share-priced lines). So the parity request holds the
+#: tax rate where the reference engine held it, on the books named here and
+#: nowhere else; the tax RULE is held by forecast-model / forecast-drivers.
+REFERENCE_TAX_RATE = {"retail": 0}
+
+
 def _run(name: str, window: int):
     payload = _payload(name)
     opening, history = _opening_and_history(payload)
+    held = ({"tax_rate": REFERENCE_TAX_RATE[name]} if name in REFERENCE_TAX_RATE else {})
     return payload, project(opening, history, total_years=TOTAL_YEARS,
                             monthly_months=window, context=context_for_payload(payload),
-                            revenue_growth=0, inflation=0)
+                            revenue_growth=0, inflation=0, **held)
+
+
+def test_the_held_reference_tax_rate_names_only_books_whose_rung_moved():
+    """TC-11: the hold is not a blanket. A book is named only while today's
+    engine resolves a DIFFERENT tax rate than the one held; if the rule
+    moves back, this reds and the entry is deleted."""
+    from engine.forecast.project import assumptions_for_payload
+    from engine.forecast.money import micros_from
+
+    for name, held in REFERENCE_TAX_RATE.items():
+        now = assumptions_for_payload(_payload(name))["tax_rate"].exact
+        assert now != micros_from(held), (
+            "%s resolves %r, the rate the parity request holds: delete its "
+            "REFERENCE_TAX_RATE entry" % (name, now))
 
 
 def _lines_now(name: str, window: int) -> Tuple[List[Dict], Dict[str, List[int]], Dict]:

@@ -1278,10 +1278,14 @@ def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
     else:
         assert driver.source == "engine_default"
         assert driver.exact == micros_from(0.16)
-        assert pretax <= 0 or gap != 0, (
+        # plan/2 B4 repair (B4V-6): a third stated reason — the book ties
+        # but files no profit-tax row, so its 0.00 charge is absent.
+        no_charge_row = (charged == 0 and not any(
+            r.get("bucket") == "taxExpense" for r in load(name)["line_items"]))
+        assert pretax <= 0 or gap != 0 or no_charge_row, (
             "%s: the rate was defaulted on a book that reproduces its own "
-            "filed profit — nothing here justifies displacing a "
-            "measurement" % (name,))
+            "filed profit and books a tax charge — nothing here justifies "
+            "displacing a measurement" % (name,))
         assert not driver.derived_from, "nothing was measured, so nothing is cited"
 
 
@@ -1294,7 +1298,8 @@ def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     to account 121 (the 2,043,254.64 step was its 609/709 double count) and
     is no longer demoted; its measured nil is covered by
     test_the_rate_is_measured_only_when_the_book_ties_and_defaulted_otherwise
-    above and by test_a_book_that_ties_with_a_nil_charge_is_charged_nothing."""
+    above; since the B4 repair it takes the statutory rung for a stated
+    reason (test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung)."""
     history = pl_history_from_payload(load(name))
     driver = plan(name, horizon_years=1).assumptions["tax_rate"]
     assert driver.source == "engine_default"
@@ -1371,6 +1376,12 @@ def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
     # A book that ties is one whose FILED balance equals its build-up.
     reconciling.filed_net_income_121 = real.pretax - real.income_tax
     assert reconciling.unexplained_vs_filed() == 0
+    # RESTATED (plan/2 B4 repair, B4V-6): the nil is MEASURED when a
+    # profit-tax row stands behind it. Retail files none, so one closing at
+    # 0.00 is added to the constructed book; without it the charge is
+    # absent (test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung).
+    payload["line_items"].append({"statement": "pl", "bucket": "taxExpense",
+                                  "ro_account_code": "691", "amount": 0.0})
     driver = derive_assumptions(opening, reconciling,
                                 context=context_for(payload))["tax_rate"]
     assert driver.source == "derived"
@@ -1401,21 +1412,52 @@ def test_a_profitable_plan_is_actually_taxed():
     assert charged > 0, "five profitable years and nothing charged"
 
 
-def test_a_book_that_ties_with_a_nil_charge_is_charged_nothing():
-    """plan/2 B4a, the retail consequence stated rather than hidden: the
-    book reproduces account 121 to the cent, books no income tax and has
-    no class-69 account, so the measured rate is book 0 and its basis says
-    so; a profitable plan on it is charged nothing. The owner is told this
-    in the as-built log (B4a) — it is the engine's ruled rule (3.4, R16)
-    applied to a book that now ties, not a new rule."""
+def test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung():
+    """RETIRED BY NAME (plan/2 B4 repair, B4V-6):
+    test_a_book_that_ties_with_a_nil_charge_is_charged_nothing pinned a
+    best-case figure — retail ties to account 121 and carries NO profit-tax
+    row, so its assembled tax of 0.00 is what an empty bucket sums to, and
+    B4a read that ABSENT charge as a measured rate of nil: every plan year
+    untaxed (before B4a the same book took the statutory rung). Owner
+    ruling 2026-09-18: absent inputs refuse; a top rung only where reality
+    is genuinely best-case. The book rung is now recorded absent with its
+    reason and the ladder takes the statutory macro rung."""
+    payload = load("retail")
+    rows = [r for r in payload["line_items"] if r.get("bucket") == "taxExpense"]
+    assert rows == [], "the fixture changed: retail now files a profit-tax row"
     projection = plan("retail", horizon_years=5)
     driver = projection.assumptions["tax_rate"]
-    assert driver.source == "derived" and driver.exact == 0
-    assert "leaving nothing unexplained against account 121" in driver.basis
+    assert (driver.tier, driver.source) == ("macro", "engine_default"), (
+        driver.tier, driver.source, driver.exact)
+    assert driver.exact is not None and driver.exact > 0
+    steps = [(s["tier"], s["outcome"]) for s in driver.fallback_steps]
+    assert steps == [("book", "absent")], steps
+    assert "books no profit-tax charge" in driver.basis
+    assert "absent charge, not a measured rate of nil" in driver.basis
     pretax = sum(p.pl["pretax_result"] for p in projection.periods)
     charged = sum(-p.pl["income_tax"] for p in projection.periods)
     assert pretax > 0
-    assert charged == 0
+    assert charged > 0, "five profitable years on a book with an absent charge, untaxed"
+    print("retail: tax_rate %s (tier %s); five-year pre-tax %s charged %s"
+          % (driver.exact, driver.tier, fmt(pretax), fmt(charged)))
+
+
+def test_a_tying_book_whose_profit_tax_row_closes_at_nil_keeps_the_book_rung():
+    """TC-3 control for the rule above, on a test-built retail: the SAME
+    book with a profit-tax row that closes at 0.00 has a MEASURED nil
+    charge, and keeps book 0 with its basis. The rule reads whether the
+    charge is there, never whether it is small."""
+    payload = load("retail")
+    payload["line_items"].append({"statement": "pl", "bucket": "taxExpense",
+                                  "ro_account_code": "691",
+                                  "ro_account_name": "Cheltuieli cu impozitul pe profit",
+                                  "amount": 0.0})
+    projection = project_payload(payload, horizon_years=1,
+                                 revolver_rate=_CALLER_REVOLVER_RATE)
+    driver = projection.assumptions["tax_rate"]
+    assert (driver.exact, driver.tier, driver.source) == (0, "book", "derived"), (
+        driver.exact, driver.tier, driver.source)
+    assert "the charge it measures is nil" in driver.basis
 
 
 # ──────────────────────────────────────────────────────────────────────

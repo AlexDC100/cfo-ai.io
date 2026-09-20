@@ -215,7 +215,15 @@ class BookContext(object):
     rows, which a working-capital basis quotes beside the engine's driver
     (contract 4, R8). Frozen; built once per payload."""
 
-    __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table", "pools")
+    __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table", "pools",
+                 "tax_charge_rows")
+
+    #: The statement bucket the assembly files a profit-tax charge under.
+    TAX_BUCKET = "taxExpense"
+    #: ...and the chart class of those accounts (RAS class 69), for a row
+    #: that reaches the engine without its bucket. A chart identity, not a
+    #: cutoff: it says which rows ARE a tax charge, never how big one is.
+    TAX_ACCOUNT_CLASS = "69"
 
     #: The ratio-table rows a days basis quotes: engine.ratios.table's own
     #: keys (its _Spec ids), never the methodology pack's ratios, which
@@ -225,7 +233,15 @@ class BookContext(object):
     def __init__(self, jurisdiction: Optional[str] = None,
                  jurisdiction_source: Optional[str] = None,
                  ratio_table: Optional[Dict[str, Any]] = None,
-                 pools: Optional[PoolSplit] = None) -> None:
+                 pools: Optional[PoolSplit] = None,
+                 tax_charge_rows: Optional[int] = None) -> None:
+        #: How many statement rows this book files as a profit-tax charge;
+        #: None when the payload carried no line items. A book with NO such
+        #: row has an ABSENT charge, not a measured nil one (plan/2 B4
+        #: repair, B4V-6): the assembled 0.00 is then what an empty bucket
+        #: sums to, and an effective rate of 0 read off it would be an
+        #: absent input spent as the most favourable rate there is.
+        object.__setattr__(self, "tax_charge_rows", tax_charge_rows)
         object.__setattr__(self, "jurisdiction", jurisdiction)
         object.__setattr__(self, "jurisdiction_source", jurisdiction_source)
         object.__setattr__(self, "ratio_table", dict(ratio_table or {}))
@@ -242,8 +258,15 @@ class BookContext(object):
         envelope = envelope if isinstance(envelope, dict) else (
             payload if isinstance(payload, dict) else {})
         jurisdiction, source = jurisdiction_of(envelope)
+        items = payload.get("line_items") if isinstance(payload, dict) else None
+        tax_rows = (sum(1 for r in items if isinstance(r, dict) and (
+                        str(r.get("bucket") or "") == cls.TAX_BUCKET
+                        or str(r.get("ro_account_code") or r.get("code") or "")
+                        .strip().startswith(cls.TAX_ACCOUNT_CLASS)))
+                    if isinstance(items, list) else None)
         return cls(jurisdiction, source, ratio_table_days(payload),
-                   split_for_payload(payload) if isinstance(payload, dict) else None)
+                   split_for_payload(payload) if isinstance(payload, dict) else None,
+                   tax_charge_rows=tax_rows)
 
     def ratio_row(self, key: str) -> Optional[Dict[str, Any]]:
         """The ratio table's row for ``key`` when it carries a value."""
@@ -1332,8 +1355,18 @@ def derive_assumptions(opening: Any, history: Any, *,
     #: statement explains — the bridge less its one nameable component,
     #: capitalised own work.
     gap = history.unexplained_vs_filed()
+    #: ABSENT != ZERO (plan/2 B4 repair, B4V-6; owner ruling "absent inputs
+    #: refuse"): a nil charge is a MEASURED nil only when the book files a
+    #: profit-tax row that closes at 0.00. With no such row the charge is
+    #: absent, the book rung is absent and the ladder takes the statutory
+    #: rung — never a best-case 0% on every plan year.
+    tax_rows = getattr(context, "tax_charge_rows", None)
+    #: Only where the rows are THERE to show it: a set built without line
+    #: items (tax_rows None) keeps the tie as its measurement, as before.
+    charge_absent = (tax is not None and tax == 0 and tax_rows == 0)
     measured = (pretax is not None and pretax > 0 and gap is not None
-                and gap == 0 and not refused_by_authority("tax_rate"))
+                and gap == 0 and not charge_absent
+                and not refused_by_authority("tax_rate"))
     if measured:
         put("tax_rate", _RATIO, mul_div(tax, MICRO, pretax), "derived",
             "effective rate implied by this book = tax %s / pre-tax result "
@@ -1355,6 +1388,15 @@ def derive_assumptions(opening: Any, history: Any, *,
     else:
         if refused_by_authority("tax_rate"):
             why = authority_absent["tax_rate"]
+        elif pretax is not None and pretax > 0 and gap == 0 and charge_absent:
+            why = ("this book reproduces the %s it filed in account 121 from "
+                   "a pre-tax result of %s, but it books no profit-tax "
+                   "charge: %s. The 0.00 on its tax line is an absent "
+                   "charge, not a measured rate of nil, and a plan taxed at "
+                   "nothing in every year would be the most favourable "
+                   "reading of a figure that is not there"
+                   % (fmt(filed), fmt(pretax),
+                      "its statement carries no profit-tax row"))
         elif pretax is not None and pretax > 0 and gap is not None:
             why = ("this book's reconstructed result of %s (pre-tax %s less "
                    "tax %s) does not reach the %s it filed in account 121, "

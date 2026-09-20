@@ -192,14 +192,24 @@ SYNTHETIC = {"SYNTHETIC retail-ties-no-class-69": False,
 def test_a_tying_book_holds_one_tax_rate_on_both_paths(label):
     """SYNTHETIC (TC-13): no corpus book ties to account 121, so the tax
     rule's disagreement shape is built. Both packages, and the model after
-    the hand-over, hold the engine's measured nil rate."""
+    the hand-over, hold the engine's ONE resolution.
+
+    RESTATED (plan/2 B4 repair, B4V-6): the rows now reach the engine, so
+    a tying book with NO profit-tax row has an ABSENT charge and takes the
+    statutory macro rung; the same book with a class-69 row closing at
+    0.00 has a MEASURED nil and keeps book 0. Either way both paths hold
+    the same value (no reds)."""
     payload = tying_retail(SYNTHETIC[label])
     comparisons, reds = compare_book(label, payload)
     _WORK["comparisons"] += comparisons
     _WORK["synthetic"].add(label)
     model = assumptions_for_payload(payload)["tax_rate"]
-    assert (model.tier, model.exact) == ("book", 0), (label, model.tier,
-                                                      model.exact)
+    if SYNTHETIC[label]:
+        assert (model.tier, model.exact) == ("book", 0), (label, model.tier, model.exact)
+    else:
+        assert model.tier == "macro" and model.exact and model.exact > 0, (
+            label, model.tier, model.exact)
+        assert "books no profit-tax charge" in model.basis
     assert not reds, "\n".join(reds)
 
 

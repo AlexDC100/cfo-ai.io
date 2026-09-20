@@ -1380,11 +1380,19 @@ def test_hx1_a_zero_tax_charge_no_account_stands_behind_is_refused(book):
     unexplained = float(payload["statements"]["assembled_pl"].get(
         "net_income_unexplained_vs_121") or 0.0)
     if abs(unexplained) < 0.005:
-        assert model.tier == "book" and driver.tier == "book", (
-            "%s ties to account 121 with a nil charge and no class-69 "
-            "account: the tie is the measurement (book 0), got %r / %r"
-            % (book, model.tier, driver.tier))
-        assert driver.value == 0, (book, driver.value)
+        # RESTATED (plan/2 B4 repair, B4V-6): the statement rows reach the
+        # engine since B4b, so the ENGINE now sees that no profit-tax row
+        # stands behind the 0.00 — an absent charge, never a measured nil.
+        # This test's own name is the law again, with still one derivation:
+        # both paths take the statutory rung, the book rung absent first.
+        assert model.tier == "macro" and driver.tier == "macro", (
+            "%s ties to account 121 with a nil charge and NO class-69 "
+            "account: the charge is absent, not nil — expected the statutory "
+            "rung on both paths, got %r / %r" % (book, model.tier, driver.tier))
+        assert driver.exact == model.exact and model.exact > 0, (book, driver.exact, model.exact)
+        assert model.fallback_steps[0]["tier"] == "book" \
+            and model.fallback_steps[0]["outcome"] == "absent"
+        assert "books no profit-tax charge" in model.basis
         return
     assert model.tier != "book" and driver.tier != "book", (
         "%s: income_tax is %r, no class-69 account stands behind it and "
@@ -1459,8 +1467,18 @@ def _p121_block(payload):
             ["p121_cross_check"])
 
 
-def test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_account():
-    """RETIRED: test_hx2b_a_tying_book_with_no_charge_account_still_refuses.
+def test_hx2b_a_tying_book_holds_one_rate_on_both_paths_with_or_without_a_charge_account():
+    """RETIRED BY NAME (plan/2 B4 repair, B4V-6):
+    test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_account.
+    It pinned book 0 on a tying book with NO class-69 account — an absent
+    charge spent as a 0% rate on every plan year. B3R-4 chose that because
+    the engine could not see the rows; since B4b it can. What survives is
+    B3R-4's real law — ONE derivation, the same tier and integer on the
+    drivers path, the GET path and after the hand-over, and the same tax
+    charged — now with the two shapes told apart: no account -> statutory
+    macro rung; a class-69 account closing at nil -> measured book 0.
+
+    (earlier history) RETIRED: test_hx2b_a_tying_book_with_no_charge_account_still_refuses.
 
     It pinned this package's second tax rule (class-69 attribution) as
     law, which gave the drivers path an absence where GET measured 0% and,
@@ -1493,14 +1511,19 @@ def test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_a
             "tax_rate"]
         got = ((driver.tier, driver.exact), (model.tier, model.exact),
                (crossed.tier, crossed.exact))
-        assert got == (("book", 0),) * 3, (name, got)
+        if name == "a nil class-69 account":
+            assert got == (("book", 0),) * 3, (name, got)
+        else:
+            assert got[0] == got[1] == got[2], (name, got)
+            assert got[0][0] == "macro" and got[0][1] > 0, (name, got)
         get_tax = sum(p.pl["income_tax"] for p in
                       project_payload(payload, horizon_years=3).periods)
         drv_tax = sum(p.pl["income_tax"] for p in project_payload(
             payload, horizon_years=3, **model_overrides(base)).periods)
         assert get_tax == drv_tax, (name, get_tax, drv_tax)
         seen.append(got)
-    assert seen[0] == seen[1]
+    # the two shapes are TOLD APART (the plant `charge_absent = False` reds here)
+    assert seen[0] != seen[1], seen
 
 
 @pytest.mark.parametrize("book", _BOOKS)
