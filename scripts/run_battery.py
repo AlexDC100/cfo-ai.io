@@ -435,6 +435,26 @@ def _engine_gates() -> List[Gate]:
                        "test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route",
                        "test_the_r_d1_debt_leg_declares_no_rung_on_the_route",
                        "test_roic_refuses_on_the_route_when_invested_capital_is_not_positive")),
+        # THE CREDIT SERVING BOUNDARY (owner, 2026-09-20: "the credit range
+        # gate goes at the serving boundary so no fallback can bypass it").
+        # create_app() over the tenancy double, a period whose persisted
+        # revision-1 rows carry X4 1500 / Z'' 1584.89 / 88.5 AA, and the
+        # model broken three ways (compute_period_metrics raises,
+        # serve_time_metric_rows -> None, build_ratio_table raises): no such
+        # figure, no zone and no letter on GET /api/period, the comparatives
+        # prior or the narrator payload; the independent served_range_law on
+        # every surface of every path. The bypass plant lives IN the suite.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("credit-boundary",
+             [PY, "-m", "pytest", "tests/engine/test_credit_boundary.py", "-q"],
+             work_junit=True, floor=32, units="tests",
+             canaries=("test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter",
+                       "test_with_the_boundary_bypassed_the_failure_path_serves_the_exploded_value",
+                       "test_the_independent_law_holds_on_every_surface_of_every_path",
+                       "test_the_comparatives_prior_serves_no_exploded_figure",
+                       "test_the_narrator_payload_passes_the_boundary",
+                       "test_the_boundary_fails_closed",
+                       "test_every_credit_reader_in_the_api_layer_is_behind_the_boundary")),
         # THE FLOOR CENSUS, engine half (owner rule: absent is never zero and
         # never a floor). stdlib-ast over a printed 14-file scope for the
         # eight substitute classes of the floor sweep; the credit tier is
@@ -442,7 +462,7 @@ def _engine_gates() -> List[Gate]:
         # ratchet. Self-tests its own detection on a committed fixture every
         # run. Plant log: docs/engine_book/gates.md.
         Gate("floor-census", [PY, "scripts/check_floor_census.py"],
-             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=100,
+             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=80,  # measured 88 after the C6 floors merge (was 112)
              units="candidate sites",
              canaries=("self-test S1 DIVISOR_FLOOR",
                        "self-test S8 CONSTANT_PERIOD",

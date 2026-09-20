@@ -851,7 +851,15 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
     # served from the serve-time model carries the persisted ones under
     # `credit_metrics_as_filed`; any other payload's rows ARE persisted.
     if isinstance(payload.get("credit_metrics_as_filed"), list):
-        persisted_rows = payload.get("credit_metrics_as_filed")
+        # A filed figure the serving boundary withheld from these rows
+        # (credit_boundary: value None, `withheld: {code, inputs, value}`)
+        # is still EVIDENCE of what was filed: `credit_block` reads it back
+        # to withdraw it by name and value, never to serve it.
+        persisted_rows = [
+            dict(r, value=r["withheld"].get("value"))
+            if isinstance(r, Mapping) and r.get("value") is None and isinstance(r.get("withheld"), Mapping)
+            else r
+            for r in payload.get("credit_metrics_as_filed")]
     else:
         persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
     if serve_time_metrics:

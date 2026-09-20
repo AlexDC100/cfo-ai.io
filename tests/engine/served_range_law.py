@@ -244,3 +244,89 @@ def component_of(key: str) -> Optional[str]:
     if key.startswith("altman_"):
         return "altman"
     return None
+
+
+# ── EVERY SURFACE OF A BODY (owner, 2026-09-20: the range gate sits at the
+# serving boundary, so the law is read off WHATEVER left the engine) ─────────
+#
+# `served_figures(body)` lists every place a period body or a comparatives
+# body carries a `LAW` figure, as `(surface, key, value)`. It reads the body
+# only - never the product - and it SKIPS the disclosure records
+# (`withdrawn`, `withheld`), which name a figure that is NOT served. The
+# same rows of `LAW` then hold on every entry, on the switched path, the
+# unswitched path, every model-failure path and the comparatives prior.
+
+#: comparatives composite key -> the LAW key it carries
+COMPARE_KEYS: Dict[str, str] = {"altman_z": "altman_z_score", "credit_composite": "credit_composite",
+                                "letter_grade": "credit_composite"}
+
+
+def _block_figures(surface: str, block: Any) -> List[Any]:
+    if not isinstance(block, Mapping):
+        return []
+    return [(surface, row.key, read_path(block, row.path)) for row in LAW]
+
+
+def _row_figures(surface: str, rows: Any) -> List[Any]:
+    keys = {row.key for row in LAW}
+    return [(surface, r["name"], r.get("value")) for r in rows or []
+            if isinstance(r, Mapping) and r.get("name") in keys]
+
+
+def served_figures(body: Mapping[str, Any]) -> List[Any]:
+    """`[(surface, LAW key, value)]` for every credit figure a served period
+    body or comparatives body carries as a figure."""
+    out: List[Any] = []
+    am = body.get("assembled_metrics") if isinstance(body.get("assembled_metrics"), Mapping) else {}
+    env = am.get("credit")
+    if isinstance(env, Mapping):
+        out += [("assembled_metrics.credit", k, read_path(env, p)) for k, p in ENVELOPE_PATHS.items()]
+    out += _block_figures("assembled_metrics.ratio_table.credit", (am.get("ratio_table") or {}).get("credit"))
+    out += _row_figures("metrics[]", body.get("metrics"))
+    out += _row_figures("credit_metrics_as_filed[]", body.get("credit_metrics_as_filed"))
+    out += _row_figures("prior_metrics[]", body.get("prior_metrics"))
+    ratios = body.get("ratios") if isinstance(body.get("ratios"), Mapping) else {}
+    for which in ("current", "prior"):
+        out += _block_figures("ratios.credit.%s" % which, (ratios.get("credit") or {}).get(which))
+    for group in ("composites", "subscores"):
+        for r in ratios.get(group) or []:
+            key = COMPARE_KEYS.get(r.get("key"), r.get("key"))
+            for which in ("current", "prior"):
+                side = r.get(which) or {}
+                out.append(("ratios.%s.%s.%s" % (group, r.get("key"), which), key, side.get("value")))
+                if r.get("key") == "altman_z":
+                    for op in side.get("operands") or []:
+                        if op.get("name") in ("x1", "x4"):
+                            out.append(("ratios.composites.altman_z.%s.operands" % which,
+                                        "altman_%s" % op["name"], op.get("value")))
+    return out
+
+
+def side_of(surface: str) -> str:
+    """Which period's statements a surface's figures are read against."""
+    return "prior" if (".prior" in surface or surface.startswith("prior_")) else "current"
+
+
+def zones_and_letters(body: Mapping[str, Any]) -> List[Any]:
+    """`[(surface, the figure it rests on, the zone or letter)]`: a zone is
+    minted only beside a served Z'', a letter only beside a served
+    composite - on every surface."""
+    out: List[Any] = []
+    am = body.get("assembled_metrics") if isinstance(body.get("assembled_metrics"), Mapping) else {}
+    env = am.get("credit")
+    if isinstance(env, Mapping):
+        out.append(("assembled_metrics.credit.zone", env.get("altman_z_score"), env.get("altman_zone")))
+        out.append(("assembled_metrics.credit.letter", env.get("composite_score"), env.get("letter_grade")))
+    ratios = body.get("ratios") if isinstance(body.get("ratios"), Mapping) else {}
+    blocks = [("assembled_metrics.ratio_table.credit", (am.get("ratio_table") or {}).get("credit"))]
+    blocks += [("ratios.credit.%s" % w, (ratios.get("credit") or {}).get(w)) for w in ("current", "prior")]
+    for surface, block in blocks:
+        if isinstance(block, Mapping):
+            out.append((surface + ".zone", read_path(block, "altman.z"), read_path(block, "altman.zone")))
+            out.append((surface + ".letter", block.get("composite"), block.get("letter")))
+    for r in ratios.get("composites") or []:
+        for which in ("current", "prior"):
+            side = r.get(which) or {}
+            if r.get("key") in ("altman_z", "letter_grade"):
+                out.append(("ratios.composites.%s.%s.band" % (r["key"], which), side.get("value"), side.get("band")))
+    return out

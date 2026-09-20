@@ -3125,6 +3125,89 @@ invested capital <= 0.)
 
 **REVERT** after each — `51 passed`. Verdict: proven RED.
 
+## credit-boundary
+
+THE CREDIT SERVING BOUNDARY (owner, 2026-09-20: "the credit range gate goes
+at the serving boundary so no fallback can bypass it; plant a model-failure
+path serving an exploded value -> RED"). Until this gate the range law was
+held per path: `credit_block` on the switched path, `withhold_persisted` in
+get_period's as-filed branch, `lawful_persisted_rows` in the narrator. Each
+was correct and each was one fallback away from being skipped.
+`engine.ratios.credit_boundary.enforce_credit_boundary(payload, surface=)`
+is now the one function applied to the object a route returns:
+GET /api/period, GET /api/period/{id}/comparatives, and the briefing
+narrator's payload (`enforce_metric_rows`). It finds credit content BY SHAPE
+(envelope, block, metric rows, comparatives rows) under any key, so a cache
+or a future fallback is read against the pack ranges without registering
+itself. The unswitched period's as-filed envelope is COMPOSED there: the
+route hands over the persisted rows untouched and no longer reads a
+credit-family value at all. It fails closed (a pack that cannot be read, or
+an exception in the check, withholds the whole family).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_credit_boundary.py -q` |
+| work count | junit-xml, floor **32** tests (measured 35) |
+| canary | `test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter`, `test_with_the_boundary_bypassed_the_failure_path_serves_the_exploded_value`, `test_the_independent_law_holds_on_every_surface_of_every_path`, `test_the_comparatives_prior_serves_no_exploded_figure`, `test_the_narrator_payload_passes_the_boundary`, `test_the_boundary_fails_closed`, `test_every_credit_reader_in_the_api_layer_is_behind_the_boundary` |
+
+What is real: `engine.api.create_app()` over the tenancy double with an
+ES256 bearer; `saga_compact_6_col` carried through the production write
+seam with its revision-1 rows persisted (X4 1500 / Z'' 1584.89 / composite
+88.5 AA, measured 2026-09-14) beside a healthy agras period. The model is
+broken at three seams the route has a fallback for:
+`credit_model.compute_period_metrics` raises, `table.serve_time_metric_rows`
+returns None, `table.build_ratio_table` raises.
+
+**PLANT (RED first), 2026-09-20.** The route's return replaced by
+`return _period_body  # PLANT: boundary bypassed`:
+
+```
+FAILED test_credit_boundary.py::test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter[build_ratio_table raises]
+FAILED ...[compute_period_metrics raises]
+FAILED ...[serve_time_metric_rows returns None]
+FAILED test_credit_boundary.py::test_the_switched_path_serves_the_filed_figures_only_as_withheld_records
+FAILED test_credit_boundary.py::test_every_credit_reader_in_the_api_layer_is_behind_the_boundary
+FAILED test_served_range.py::test_the_unswitched_path_serves_no_persisted_figure_outside_the_law[...] (x5)
+FAILED test_served_range.py::test_a_planted_persisted_altman_of_1584_89_never_renders_on_an_unswitched_period
+FAILED test_served_range.py::test_the_comparatives_prior_inherits_the_law_on_an_unswitched_prior
+E   AssertionError: compute_period_metrics raises: the exploded figure 1584.89 is served as a figure
+E   AssertionError: switched: the exploded figure 1584.89 is served as a figure
+15 failed, 70 passed
+```
+
+REVERT (the saved pipeline.py copied back, `git diff` clean of the plant):
+35 passed, and test_served_range 61 passed. The same plant is kept IN
+the suite: `test_with_the_boundary_bypassed_...` replaces the boundary with
+the identity and asserts the route then serves 1584.89 / 1500.0 / 88.5 -
+the day that stops being true the route has a second authority and the gate
+above no longer measures the boundary.
+
+**What the independent law found on its first run (a live defect, not a
+plant).** `served_range_law.served_figures` reads every surface of a body;
+on the SWITCHED path it redded on
+`credit_metrics_as_filed[] serves credit_subscore_liquidity = 0.0 outside
+the law (domain False)` - and the same list served Z'' 1584.89 and X4 1500
+verbatim on every analysed zero-liability period. The boundary now holds
+those rows to the whole law over the period's statements and serves a
+failing row as a record (`value: null, withheld: {code, inputs, value,
+text}`); `build_ratio_table` reads the record back as as-filed EVIDENCE, so
+the comparatives' `as_filed` disclosure is unchanged.
+
+REDS ON, after the repair (TC-11): any exploded figure, a zone beside no
+Z'' or a letter beside no composite on any surface of the period body, the
+comparatives body or the narrator payload, healthy or with the model
+broken; a withheld body that does not say `credit_out_of_range`; a new file
+under `src/engine/api` that names a credit-family figure; the route reading
+the persisted credit rows itself again. CANNOT SEE (TC-13): whether an
+in-range figure is the right figure (ratio-credit-model); the domain half
+of the law where a payload carries no statements (comparatives rows, a
+cached envelope: range, finiteness and dependents only); the comparatives
+route under a RAISING model - it has no fallback and answers 500, which the
+gate pins as "500, or 200 without the figure"; the FE reader
+(creditRefusedSubscores.test.tsx); Capsule tools and exports serve no
+credit figure from the engine today (the census test reds the day one
+does).
+
 ## floor-census
 
 THE FLOOR CENSUS, engine half (owner rule 2026-09-15 / 2026-09-18: absent

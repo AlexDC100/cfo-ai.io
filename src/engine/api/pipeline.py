@@ -76,6 +76,7 @@ from engine.ai_lane import routes as _ai_lane_routes
 # (RomaniaPack.assemble_parsed_tb) stamps with, so the served and
 # offline `assembled_pl` can never carry different field sets.
 from engine.core import net_income_anchor as _net_income_anchor
+from engine.ratios import credit_boundary as _credit_boundary
 from engine.ratios import credit_model as _credit_model
 # sv1 FACTS GATEWAY — the ONE typed reader of served (reconciliation-
 # adjusted) balance-sheet truth. Every totals-level read in this module
@@ -3108,7 +3109,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         # the model becomes a sentence about the company.
         "metrics": [
             {"name": m["name"], "value": m["value"], "unit": m["unit"], "direction": m["direction"]}
-            for m in _credit_model.lawful_persisted_rows(metrics, assembled["statements"])
+            for m in _credit_boundary.enforce_metric_rows(metrics, assembled["statements"])
         ],
         # Server-computed valuation. Briefing must reference equity_p50 and never
         # invent a different headline number. See VALUATION FRAMING in system.
@@ -7432,49 +7433,18 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
-        _as_filed_by_name = {m["name"]: m.get("value") for m in (metrics or [])}
-        # The refusal reasons come from the model's own predicate over the
-        # SAME statements the rows were computed from (revision 2).
-        # The pack (packs/credit/model.yaml) is read on this path: the
-        # as-filed refusal reasons, the letter's range check and the
-        # composite refusal all open it. A pack that cannot be loaded must
-        # refuse the CREDIT block, not 500 the whole period page: boot
-        # verifies the pack (boot_verify.verify_config), so this branch is
-        # reached only when the file moved under a running container.
-        from engine.ratios.credit_pack import CREDIT_PACK_FILE as _CREDIT_PACK_FILE
-        from engine.ratios.credit_pack import CreditPackError as _CreditPackError
-        _pack_error: Optional[str] = None
-        _as_filed_withdrawn: List[Dict[str, Any]] = []
-        _filed_by_name = dict(_as_filed_by_name)
-        try:
-            # R-RANGE is absolute on EVERY surface, this one included. These
-            # are PERSISTED rows nothing recomputed, so the whole law is
-            # applied before the as-filed envelope is composed: range (a
-            # Z'' with no derivable bound included), the model's own domain
-            # predicate over these statements, and no composite or letter
-            # beside a refused component - one function
-            # (`withhold_persisted`). When the serve-time model cannot run,
-            # or the ratio table fails, this envelope is what is served.
-            _as_filed_by_name, _as_filed_refused, _as_filed_withdrawn = _credit_model.withhold_persisted(
-                _as_filed_by_name, statements)
-        except _CreditPackError as exc:
-            _pack_error = str(exc)
-            _as_filed_refused = {}
-            # No pack, no range to read a figure against: the whole credit
-            # family is withheld (a filed Z'' 1584.89 was once served raw on
-            # this branch beside a refused composite).
-            for _name in _credit_model.CREDIT_FAMILY_METRICS:
-                if _name in _as_filed_by_name and _name != _credit_model.CREDIT_MODEL_REVISION_METRIC:
-                    _as_filed_by_name[_name] = None
-            logger.error("[/api/period] credit pack unusable; the credit block refuses for period %s: %s",
-                         period.get("id"), exc)
+        # THE CREDIT CONTENT IS COMPOSED AND CHECKED AT THE SERVING BOUNDARY
+        # (engine.ratios.credit_boundary, owner 2026-09-20). This route hands
+        # the boundary the PERSISTED rows untouched; when the serve-time
+        # model below does not replace the credit block, the boundary
+        # composes the `basis: as_filed` envelope under the whole law
+        # (range, the model's own domain, no composite beside a refused
+        # component, a pack that cannot be read) at the moment the body
+        # leaves - so no fallback on this route can serve an unchecked
+        # figure. Nothing credit-family is read here.
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
-            if row is None:
-                return None
-            if name in _credit_model.CREDIT_FAMILY_METRICS:
-                return _as_filed_by_name.get(name)  # range-checked above
-            return row.get("value")
+            return None if row is None else row.get("value")
         assembled_metrics_envelope = {
             "pl": statements.get("assembled_pl") or {},
             "bs": statements.get("assembled_bs") or {},
@@ -7521,62 +7491,10 @@ def build_router() -> APIRouter:
                 },
             },
             "bands": statements.get("assembled_bands"),
-            "credit": {
-                "altman_z_score":            _m("altman_z_score"),
-                "altman_variant":            "Z\"",
-                "altman_components": {
-                    "x1": _m("altman_x1"),
-                    "x2": _m("altman_x2"),
-                    "x3": _m("altman_x3"),
-                    "x4": _m("altman_x4"),
-                },
-                "composite_score":           None if _pack_error else _m("credit_composite"),
-                # F1.h — letter grade emitted as a canonical field on the
-                # envelope so the FE can be a pure reader (no FE-side
-                # mapping). Uses the same _composite_to_letter_grade helper
-                # as stage_compute, so engine logging and envelope agree.
-                "letter_grade": (
-                    None if _pack_error or _m("credit_composite") is None
-                    else _composite_to_letter_grade(float(_m("credit_composite")))
-                ),
-                # The rungs the letter above was read off — the same
-                # `CREDIT_LETTER_LADDER`, served, never a second copy.
-                "letter_grade_bands": _credit_model.letter_grade_bands(),
-                # The model's weight table — the only weights a composite is
-                # ever multiplied by (R-COMPOSITE: never renormalised) — with
-                # the persisted sub-scores the model refused and, when the
-                # composite is absent, why: the same fields the serve branch
-                # below passes through.
-                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
-                "refused_subscores": _as_filed_refused,
-                "reason": (
-                    {"code": _credit_model.CREDIT_INPUTS_ABSENT, "inputs": [_CREDIT_PACK_FILE],
-                     "text": "No credit score: the credit model's pack cannot be read (%s)." % _pack_error}
-                    if _pack_error
-                    else (_credit_model.credit_reason(_as_filed_by_name, _as_filed_refused,
-                                                      _m("credit_composite"))
-                          if metrics else None)),
-                # The pack ranges the figures above were read against.
-                "ranges": None if _pack_error else _credit_model.credit_ranges(
-                    _credit_model._num(_as_filed_by_name.get("altman_x2")),
-                    _credit_model._num(_as_filed_by_name.get("altman_x3"))),
-                # Every figure that was filed and is not served above, with
-                # the value it was filed at and why: `{figure, value, code,
-                # text}`. A filed figure appears nowhere else in this block.
-                "withdrawn": _as_filed_withdrawn,
-                # Until the serve-time model below replaces this block,
-                # these are the PERSISTED rows, and say so.
-                "basis": "as_filed",
-                "subscores": {
-                    "altman":        _m("credit_subscore_altman"),
-                    "profitability": _m("credit_subscore_profitability"),
-                    "leverage":      _m("credit_subscore_leverage"),
-                    "coverage":      _m("credit_subscore_coverage"),
-                    "dscr":          _m("credit_subscore_dscr"),
-                    "liquidity":     _m("credit_subscore_liquidity"),
-                    "equity":        _m("credit_subscore_equity"),
-                },
-            },
+            # A stub: `credit_boundary.enforce_credit_boundary` composes the
+            # as-filed envelope from `metrics` + `statements` on the way out
+            # (or the serve-time model replaces this block below).
+            "credit": {"basis": "as_filed"},
             "piotroski": statements.get("assembled_piotroski"),
             # `valuation` is deferred to F1.j (new override endpoint) —
             # the existing `valuation` key on the response carries the
@@ -7684,18 +7602,7 @@ def build_router() -> APIRouter:
                     if _name in _group:
                         _group[_name] = _served_by_name.get(_name)
 
-        if credit_metrics_as_filed is None and any(
-                _filed_by_name.get(_n) != _as_filed_by_name.get(_n) for _n in _credit_model.CREDIT_FAMILY_METRICS):
-            # `basis: as_filed` stayed: the FE reads the credit rows of
-            # `metrics[]` FIRST, so a figure withheld from the envelope is
-            # withheld from its row too — one figure, one state.
-            _family = set(_credit_model.CREDIT_FAMILY_METRICS)
-            served_metric_rows = [
-                dict(m, value=_as_filed_by_name.get(m.get("name"))) if m.get("name") in _family else m
-                for m in served_metric_rows
-            ]
-
-        return {
+        _period_body = {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
             # bands, piotroski, F1.a/b/c canonical extras). v2.1 = F1.e
@@ -7835,6 +7742,10 @@ def build_router() -> APIRouter:
             # should switch to the canonical replacements before sunset.
             "deprecated_fields": _deprecated_fields_for_response(),
         }
+        # THE CHOKEPOINT: the credit content of this body is composed (the
+        # unswitched period) and read against the pack ranges HERE, as it
+        # leaves - whichever branch above produced it.
+        return _credit_boundary.enforce_credit_boundary(_period_body, surface="period")
 
     @router.get("/api/period/{period_id}/comparatives")
     def get_period_comparatives(
@@ -7871,9 +7782,11 @@ def build_router() -> APIRouter:
                 caen = _org.caen_for_org(client, org_id)
             cur_payload = get_period(period_id, authorization)
             pri_payload = get_period(prior, authorization)
-            return _cmp.compare_payloads(
-                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
-                caen=caen)
+            return _credit_boundary.enforce_credit_boundary(
+                _cmp.compare_payloads(
+                    cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
+                    caen=caen),
+                surface="comparatives")
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 
