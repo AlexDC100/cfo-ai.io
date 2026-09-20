@@ -121,7 +121,7 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
             failures.append({
                 "period_id": pid,
                 "org_id": row.get("org_id"),
-                "label": row.get("period_label") or row.get("period_end"),
+                "label": row.get("period_end"),
                 "status": status,
                 "problem": problem[:600],
             })
@@ -166,8 +166,8 @@ def _list_periods(admin_factory: Callable[[], Any], org: Optional[str], limit: O
                 break
             f = dict(filters or {})
             f["offset"] = str(offset)
-            rows = ro.select("financial_periods", filters=f, columns="id,org_id,period_label,period_end",
-                             order="created_at.desc", limit=want)
+            rows = ro.select("financial_periods", filters=f, columns="id,org_id,period_end",
+                             order="period_end.desc,id.asc", limit=want)
             out.extend(rows)
             if len(rows) < want:
                 break

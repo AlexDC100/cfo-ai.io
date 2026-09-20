@@ -108,3 +108,22 @@ def test_observe_sees_every_period_including_the_failing_one():
     fetch = lambda pid: (500, {"detail": "boom"}) if pid == "p-2" else ok(pid)  # noqa: E731
     gate.check_periods([P1, P2], fetch, observe=lambda row, status, body: seen.append((row["id"], status)))
     assert seen == [("p-1", 200), ("p-2", 500)]
+
+
+def test_the_listing_asks_only_for_columns_get_period_itself_reads():
+    """Found on the first production run: `period_label` is computed by an API, it is not a column —
+    PostgREST answered 400 and the gate (correctly) went red as COULD NOT RUN. The listing may name only
+    columns the served handler itself dereferences on the row."""
+    asked = {}
+
+    class Admin:
+        def __enter__(self): return self
+        def __exit__(self, *exc): return None
+        def select(self, table, **kw):
+            asked.update(kw, table=table)
+            return []
+
+    gate._list_periods(lambda: Admin(), None, None)
+    assert asked["table"] == "financial_periods"
+    assert set(asked["columns"].split(",")) == {"id", "org_id", "period_end"}
+    assert "created_at" not in asked["order"] and "period_label" not in asked["columns"]
