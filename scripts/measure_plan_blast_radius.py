@@ -194,6 +194,15 @@ class _RowServer(object):
                 rows = [r for r in rows if str(r.get(key) or "") < value]
             elif op == "gt":
                 rows = [r for r in rows if str(r.get(key) or "") > value]
+            elif cond == "is.null":
+                # `/api/period` selects open alerts with `resolved_at=is.null`
+                # (pipeline.py). Taught rather than widened, per the rule in
+                # this docstring; the two sibling doubles
+                # (tests/engine/firm_postgrest_double.py, test_firm_tenancy.py)
+                # already express both forms and this one now agrees with them.
+                rows = [r for r in rows if r.get(key) is None]
+            elif cond == "not.is.null":
+                rows = [r for r in rows if r.get(key) is not None]
             else:
                 raise AssertionError(
                     "double cannot express filter %r on %r - the real client "
