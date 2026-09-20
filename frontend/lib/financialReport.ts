@@ -3947,6 +3947,20 @@ export function renderReportHtml(
     }
     table.fin thead { display: table-header-group; }
     table.fin tfoot { display: table-footer-group; }
+    /* Company vs sector is the widest table in the report (eight columns),
+       and table.fin cells carry NO horizontal padding — so its right-
+       aligned n ran straight into the year beside it and printed "35FY2024".
+       Measured at the A4 content width (720px) in a browser, EN and RO.
+       Scoped to this section: every other report table keeps its spacing.
+       The hook is the CLASS, not the section's data attribute: a gate
+       asserts the whole report names that attribute nowhere when no
+       document was served, and this stylesheet is emitted either way — a
+       selector on it (or this comment quoting it) would be a false
+       positive that reds a gate over a render that is correct. */
+    section.sector-benchmark table.fin th,
+    section.sector-benchmark table.fin td { padding-left: 9px; }
+    section.sector-benchmark table.fin th:first-child,
+    section.sector-benchmark table.fin td:first-child { padding-left: 0; }
     table.fin th, table.fin td {
       padding: 6.5px 0;
       text-align: left;

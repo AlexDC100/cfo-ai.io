@@ -373,7 +373,7 @@ export function sectorReportSectionHtml(doc: SectorBenchmarkDoc | null, locale?:
   const t = tFor(loc);
   const head = `<h3>${esc(t("benchmarkPage.sector.title"))}</h3>`
     + `<p class="meta" data-sector-context>${esc(sectorContextText(doc, loc))}</p>`;
-  if (doc.status !== "ok") return `<section data-sector-benchmark>${head}</section>`;
+  if (doc.status !== "ok") return `<section class="sector-benchmark" data-sector-benchmark>${head}</section>`;
   const cols = ["ratio", "company", "median", "iqr", "n", "fy", "position", "level"] as const;
   const th = cols.map((c) => `<th>${esc(t(`benchmarkPage.sector.col.${c}`))}</th>`).join("");
   const body = printSectorRows(doc, loc).map((r) => {
@@ -389,6 +389,6 @@ export function sectorReportSectionHtml(doc: SectorBenchmarkDoc | null, locale?:
   }).join("");
   const source = doc.source ? `<p class="meta" data-sector-source>${esc(t("benchmarkPage.sector.sourceLine", {
     source: doc.source, min: doc.min_peers }))}</p>` : "";
-  return `<section data-sector-benchmark>${head}<table class="fin"><thead><tr>${th}</tr></thead>`
+  return `<section class="sector-benchmark" data-sector-benchmark>${head}<table class="fin"><thead><tr>${th}</tr></thead>`
     + `<tbody>${body}</tbody></table>${source}</section>`;
 }
