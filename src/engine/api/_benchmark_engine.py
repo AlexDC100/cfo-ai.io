@@ -548,9 +548,15 @@ def _build_deep_section(
         # `net_income` — the class-6/7 reconstruction — so it was the only
         # row in the table on a different basis, and it disagreed with the
         # headline tile one scroll above it (agras: 14.1 M vs 7.5 M).
+        # PRESENCE is tested on a REPORTED figure, not on the derived
+        # `net_income_operating` — that one is always present (it is
+        # `net_income or 0` plus 722), so testing it would print a
+        # capitalized-own-work total as the bottom line of a period that
+        # reported no profit at all. Absent stays blank.
         "net_profit_mlei": (
             round(headline_net_income_of(company_metrics) / 1_000_000, 1)
-            if company_metrics.get(headline_net_income_key(company_metrics)) is not None
+            if (company_metrics.get("net_income_statutory") is not None
+                or company_metrics.get("net_income") is not None)
             else None
         ),
         "net_margin_pct": company_metrics.get("net_margin"),

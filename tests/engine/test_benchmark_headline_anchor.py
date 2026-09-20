@@ -300,3 +300,26 @@ def test_a_legacy_period_without_the_anchor_keeps_the_operating_view():
     # deliberate decision recorded in `compute_company_metrics`.
     assert cm["total_operating_revenue"] == pytest.approx(1_040.0)
     assert cm["net_margin"] == pytest.approx(140.0 / 1_040.0 * 100.0)
+
+
+def test_a_period_with_no_profit_at_all_prints_no_row_rather_than_722():
+    """`net_income_operating` is ALWAYS derived (`net_income or 0` plus 722),
+    so it is present even for a period that reported no profit of either
+    kind. The company row must stay blank there rather than print the
+    capitalized-own-work figure as a bottom line — absent is not zero, and it
+    is certainly not 722."""
+    rows = [{"name": "revenue", "value": 1_000.0, "unit": None}]
+    line_items = [{"statement": "PL", "bucket": "capitalizedOwnWork", "amount": 40.0},
+                  {"statement": "PL", "bucket": "revenue", "amount": 1_000.0}]
+    cm = be.compute_company_metrics(rows, line_items)
+    assert cm["net_income_operating"] == pytest.approx(40.0)
+    r = be.build_benchmark_report(
+        period_id="p1", caen_code="1013", caen_label="Meat",
+        industry_category="manufacturing_consumer", calculated_metrics=rows,
+        line_items=line_items, benchmarks={}, company_name="Compania",
+        peers=[{"company_name": "Peer", "tier": "leader", "net_profit_mlei": 1.0,
+                "display_order": 1}],
+    )
+    deep = r.get("sections", {}).get("deep") or r.get("deep") or {}
+    me = next(p for p in deep["peers"] if p.get("tier") == "self")
+    assert me["net_profit_mlei"] is None
