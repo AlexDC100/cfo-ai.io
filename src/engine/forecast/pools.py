@@ -415,6 +415,15 @@ def _cap(pack: CostBehaviourPack, pool: Pool, revenue_cents: int) -> Pool:
 
 def _unallocated_pool(pack: CostBehaviourPack, amount_cents: int, row_count: int,
                       pooled: Sequence[Pool], revenue_cents: int) -> Pool:
+    if amount_cents == 0:
+        # Nothing is unallocated: a nil pool like any other (5.2 rung 0),
+        # never a non-zero share served over a base of 0.00 (B4V-7(d)).
+        rule = pack.rule("nil_pool")
+        facts = (("line_items.%s" % UNALLOCATED, 0, "value_minor"),)
+        return Pool(UNALLOCATED, "opex", 0, fixed_share_micros=0, tier="convention",
+                    rule_id=rule.rule_id, evidence=_convention(rule, facts),
+                    fallback_steps=_ladder_steps() + [_step("convention", "rejected", "nil pool")],
+                    sentence=rule.render(), row_count=row_count)
     rule = pack.rule("unallocated_follows_allocated")
     base = sum(p.base_cents for p in pooled if p.base_cents > 0)
     if base > 0:

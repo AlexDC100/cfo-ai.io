@@ -74,7 +74,10 @@ SYNTHETIC = "agras without its 624 rows (transport_logistics nil)"
 _CALLER_REVOLVER_RATE = 0.09
 
 _WORK = {"sum_checks": 0, "share_checks": 0, "cap_checks": 0,
-         "growth_checks": 0, "nil_checks": 0}
+         "growth_checks": 0, "nil_checks": 0, "inflation_checks": 0,
+         "held_income_checks": 0, "negative_checks": 0, "refusal_checks": 0}
+_INFLATION_MOVED = {}
+_HELD = {}
 _CAPPED = {}
 _NIL = {}
 _SHARES = {}
@@ -275,6 +278,181 @@ def test_a_twenty_percent_fall_moves_cost_of_sales_in_full_and_each_pool_by_its_
             print("  " + row)
 
 
+# ── 5.3 / 3.4: INFLATION moves the fixed part, and only the fixed part ──
+# plan/2 B4 repair (B4V-3): every check above runs at inflation 0 (C = 1),
+# so a projection that never applied inflation to the fixed part passed
+# the whole suite. This run holds revenue still and moves prices.
+
+_INFLATION = 50000  # 5% in micros; revenue_growth 0, so G = 1 and C = 1.05^n
+
+
+@pytest.mark.parametrize("name", BOOKS)
+def test_inflation_moves_each_pools_fixed_part_and_leaves_the_variable_part(name, capsys):
+    from fractions import Fraction
+
+    book = load(name)
+    projection = _project(book, horizon_years=2, revenue_growth=0, inflation=0.05)
+    still = _project(book, horizon_years=2, revenue_growth=0, inflation=0)
+    pools = projection.assumptions.pools
+
+    def year(proj, line, n):
+        return -sum(p.pl[line] for p in proj.periods if p.period.year_offset == n)
+
+    def rnd(frac):  # round half away from zero, one exact product rounded once
+        sign = -1 if frac < 0 else 1
+        return sign * int((abs(frac) * 2 + 1) // 2)
+
+    moved = 0
+    for n in (1, 2):
+        c = Fraction(MICRO + _INFLATION, MICRO) ** n
+        expected = 0
+        rows = []
+        for pool in pools.opex:
+            f = Fraction(projection.assumptions[FIXED_SHARE_PREFIX + pool.name].exact, MICRO)
+            fixed_part = rnd(pool.base_cents * f * c)
+            variable_part = pool.base_cents - rnd(pool.base_cents * f)  # G = 1: unmoved
+            expected += fixed_part + variable_part
+            rows.append("%s fixed %s -> %s, variable %s" % (
+                pool.name, fmt(rnd(pool.base_cents * f)), fmt(fixed_part), fmt(variable_part)))
+        got = year(projection, "operating_costs", n)
+        _WORK["inflation_checks"] += 1
+        assert got == expected, (
+            "%s plan year %d at growth 0, inflation 5%%: operating costs %s, "
+            "sum of round(B x f x C^n) + variable %s (delta %s)\n%s"
+            % (name, n, fmt(got), fmt(expected), fmt(got - expected), "\n".join(rows)))
+        moved += got - year(still, "operating_costs", n)
+        # cost of sales is fully variable (#cogs_variable): inflation alone
+        # does not move it, in either plan year
+        _WORK["inflation_checks"] += 1
+        assert year(projection, "cost_of_sales", n) == pools.cost_of_sales.base_cents, (
+            name, n, fmt(year(projection, "cost_of_sales", n)))
+    fixed_base = sum(mul_div(p.base_cents, projection.assumptions[FIXED_SHARE_PREFIX + p.name].exact, MICRO)
+                     for p in pools.opex)
+    if fixed_base > 0:
+        # TC-3: the run could tell an inflated fixed part from a still one
+        assert moved > 0, "%s: inflation moved nothing on a fixed base of %s" % (name, fmt(fixed_base))
+    _INFLATION_MOVED[name] = moved
+    with capsys.disabled():
+        print("%s at growth 0, inflation 5%%: fixed base %s, two-year operating cost moved by %s"
+              % (name, fmt(fixed_base), fmt(moved)))
+
+
+# ── 5.5: other operating income is HELD, and EBITDA carries it ──────────
+
+
+@pytest.mark.parametrize("name", BOOKS)
+def test_other_operating_income_is_held_at_the_anchor_amount_through_a_fall(name, capsys):
+    book = load(name)
+    projection = _project(book, horizon_years=2, revenue_growth=-0.2, inflation=0)
+    anchor = _pl(book).get("other_operating_income")
+    driver = projection.assumptions["other_operating_income_annual"]
+    if anchor is None:
+        assert driver.tier == "convention", (name, driver.tier)
+        held = driver.exact
+    else:
+        held = cents_from(anchor)
+        assert (driver.exact, driver.tier) == (held, "book"), (name, driver.exact, driver.tier)
+    for n in (1, 2):
+        periods = [p for p in projection.periods if p.period.year_offset == n]
+        got = sum(p.pl["other_operating_income"] for p in periods)
+        _WORK["held_income_checks"] += 1
+        assert got == held, (
+            "%s plan year %d at revenue -20%%: other operating income %s, the "
+            "anchor holds %s (it scales with neither volume nor growth)"
+            % (name, n, fmt(got), fmt(held)))
+        revenue = sum(p.pl["revenue"] for p in periods)
+        ebitda = sum(p.pl["ebitda"] for p in periods)
+        cos = -sum(p.pl["cost_of_sales"] for p in periods)
+        opex = -sum(p.pl["operating_costs"] for p in periods)
+        _WORK["held_income_checks"] += 1
+        assert ebitda == revenue - cos - opex + held, (
+            "%s plan year %d: EBITDA %s is not revenue %s - cost of sales %s - "
+            "operating costs %s + held other operating income %s"
+            % (name, n, fmt(ebitda), fmt(revenue), fmt(cos), fmt(opex), fmt(held)))
+    _HELD[name] = held
+    with capsys.disabled():
+        print("%s other operating income held at %s in both plan years of a -20%% fall"
+              % (name, fmt(held)))
+
+
+def test_zz_the_held_income_check_had_a_book_that_carries_some():
+    assert any(v for v in _HELD.values()), (
+        "no book carries other operating income; held-vs-grown proved nothing (TC-3)")
+
+
+# ── 5.2 rung 0: a NET CREDIT pool follows volume (#negative_pool) ───────
+
+
+def test_retail_materials_non_inventory_is_a_net_credit_served_fully_variable(capsys):
+    pack = load_cost_behaviour()
+    assumptions = assumptions_for_payload(load("retail"))
+    pool = assumptions.pools.pool("materials_non_inventory")
+    driver = assumptions[FIXED_SHARE_PREFIX + "materials_non_inventory"]
+    assert pool.base_cents < 0, (
+        "the fixture changed: retail materials_non_inventory is %s, no longer a "
+        "net credit — find another negative pool (TC-3)" % fmt(pool.base_cents))
+    _WORK["negative_checks"] += 1
+    assert (driver.exact, driver.tier, driver.rule_id) == (
+        0, "convention", pack.rule("negative_pool").rule_id), (
+        driver.exact, driver.tier, driver.rule_id)
+    assert pool.fixed_share_micros == 0
+    # and the projection spends that 0: at a 20% fall the credit shrinks in full
+    projection = _project(load("retail"), horizon_years=1, revenue_growth=-0.2, inflation=0)
+    assert projection.assumptions[FIXED_SHARE_PREFIX + pool.name].exact == 0
+    with capsys.disabled():
+        print("retail materials_non_inventory base %s: fixed share %s under %s"
+              % (fmt(pool.base_cents), _pct(driver.exact), driver.rule_id.split("#")[-1]))
+
+
+# ── 5.1: more unallocated than the pack allows REFUSES the split ────────
+
+UNMAPPED = "agras with its class-64 rows re-coded to an account no pool lists"
+
+
+def _agras_with_unmapped_transport():
+    """Test-built: agras's class-64 rows are re-coded to 6X9 (no pool prefix
+    matches), the amounts untouched, so the rows still tie to the assembled
+    figure and only the unallocated share moves."""
+    book = copy.deepcopy(load("agras"))
+    moved = 0
+    for row in book["line_items"]:
+        code = str(row.get("ro_account_code") or "")
+        if row.get("bucket") == OPEX_BUCKET and code.startswith("64"):
+            moved += cents_from(row["amount"])
+            row["ro_account_code"] = "6X9" + code[2:]
+            if "code" in row:
+                row["code"] = row["ro_account_code"]
+    return book, moved
+
+
+def test_a_book_with_more_unallocated_than_the_pack_allows_refuses_the_split(capsys):
+    pack = load_cost_behaviour()
+    book, moved = _agras_with_unmapped_transport()
+    opex = cents_from(_pl(book)["opex_excluding_cogs_and_da"])
+    limit = pack.micros("max_unallocated_share")
+    share = mul_div(moved, MICRO, opex)
+    assert share > limit, (
+        "the shape proves nothing: %s unmapped is %s of operating costs, inside "
+        "the pack's %s (TC-3)" % (fmt(moved), _pct(share), _pct(limit)))
+    split = split_for_payload(book)
+    _WORK["refusal_checks"] += 1
+    assert split.refused and split.refusal_rule_id == pack.rule("max_unallocated_share").rule_id, (
+        split.refused, split.refusal_rule_id)
+    assert split.opex_names() == ("operating_costs",), split.opex_names()
+    assert split.opex[0].base_cents == opex
+    assert fmt(moved) in split.opex[0].sentence, split.opex[0].sentence
+    # and the untouched book is NOT refused (TC-3 control)
+    assert not split_for_payload(load("agras")).refused
+    assumptions = assumptions_for_payload(book)
+    assert assumptions[FIXED_SHARE_PREFIX + "operating_costs"].rule_id == \
+        pack.rule("max_unallocated_share").rule_id
+    with capsys.disabled():
+        print("SYNTHETIC %s: %s unallocated = %s of operating costs (pack limit %s) -> "
+              "refused into one pool at fixed share %s"
+              % (UNMAPPED, fmt(moved), _pct(share), _pct(limit),
+                 _pct(split.opex[0].fixed_share_micros)))
+
+
 def test_zz_the_growth_check_had_a_book_with_a_cost_of_sales_pool():
     assert any(split_for_payload(load(n)).cost_of_sales.base_cents > 0 for n in BOOKS), (
         "no book carries cost of sales; the growth check proved nothing (TC-3)")
@@ -291,10 +469,10 @@ def test_nil_pool_counts_are_printed(name, capsys):
     for pool in split.opex:
         if pool.base_cents == 0:
             _WORK["nil_checks"] += 1
-            if pool.name == UNALLOCATED:
-                assert pool.rule_id == pack.rule("unallocated_follows_allocated").rule_id
-            else:
-                assert pool.rule_id == pack.rule("nil_pool").rule_id and pool.fixed_share_micros == 0
+            # plan/2 B4 repair (B4V-7(d)): a base-0 unallocated pool is a
+            # nil pool like any other, never a non-zero share over 0.00
+            assert pool.rule_id == pack.rule("nil_pool").rule_id and pool.fixed_share_micros == 0, (
+                name, pool.name, pool.rule_id, pool.fixed_share_micros)
     _NIL[name] = nil
     with capsys.disabled():
         print("%s nil pools: %d (%s)" % (name, len(nil), ", ".join(nil) or "none"))

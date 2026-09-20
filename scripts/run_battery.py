@@ -481,8 +481,11 @@ def _engine_gates() -> List[Gate]:
         # test-built agras. B5 adds the shock half (scenario-cost-behaviour).
         Gate("forecast-pools",
              [PY, "-m", "pytest", "tests/engine/test_forecast_pools.py", "-q"],
-             work_rx=r"GATE-WORK forecast-pools units=(\d+)", floor=50,
-             units="pool checks (sums, shares, caps, growth, nil pools)",
+             # floor 50 -> 85 (plan/2 B4 repair): + inflation on the fixed
+             # part, held other operating income with the EBITDA identity,
+             # the net-credit pool and the max-unallocated refusal (87 measured)
+             work_rx=r"GATE-WORK forecast-pools units=(\d+)", floor=85,
+             units="pool checks (sums, shares, caps, growth, inflation, held income, nil, negative, refusal)",
              canaries=("SCOPE forecast-pools (plan/2 B4b, contract 5.6)",
                        "capped pools per book",
                        "nil pools per book")),
