@@ -16,6 +16,9 @@ __all__ = ["build_summary", "fig"]
 
 def fig(amount: int, line: str, labels: List[str], attribution: Attribution,
         formula: str) -> Dict[str, Any]:
+    # The levers that reach any period the amount is read over. A summary
+    # amount is a selection or a sum over those periods, so this is the
+    # union; B8's verdict slots re-test it by removal.
     lever_ids = []  # type: List[str]
     joint = False
     for label in labels:

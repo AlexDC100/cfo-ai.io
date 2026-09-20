@@ -20,16 +20,15 @@ FLOW_SECTIONS = ("pl", "cf")
 CF_OPENING, CF_CLOSING = "cf.opening_cash", "cf.closing_cash"
 
 
+#: Set per response by plan_response.build_response from the producer's
+#: serving inputs: period -> the five balance-sheet totals, summed BY THE
+#: ENGINE in integer minor units (F2: the browser never sums). This package
+#: imports no producer module, so the sum is handed in, not imported.
+_TOTALS = {"of": None}
+
+
 def _totals(period: Any) -> Dict[str, int]:
-    """The five balance-sheet totals, summed BY THE ENGINE in integer minor
-    units over the engine's own line groups (F2: the browser never sums)."""
-    from engine.forecast.project import (CURRENT_ASSET_LINES,
-                                         CURRENT_LIABILITY_LINES, EQUITY_LINES)
-    return {"assets": period.total_assets_cents(),
-            "equity_plus_liabilities": period.total_el_cents(),
-            "current_assets": sum(period.bs[l] for l in CURRENT_ASSET_LINES),
-            "current_liabilities": sum(period.bs[l] for l in CURRENT_LIABILITY_LINES),
-            "equity": sum(period.bs[l] for l in EQUITY_LINES)}
+    return _TOTALS["of"](period)
 
 
 def amount_of(period: Any, line: str) -> int:
@@ -68,18 +67,24 @@ class Attribution(object):
         return [i for i in self._static.get(line, ()) if not self._inert.get(i)]
 
     def lever_ids(self, line: str, label: str) -> Tuple[List[str], bool]:
-        served = amount_of(self._plan[label], line)
+        return self.lever_ids_of(line, lambda periods: (
+            None if label not in periods else amount_of(periods[label], line)))
+
+    def lever_ids_of(self, line: str, read) -> Tuple[List[str], bool]:
+        """3.6: a lever reaches a served amount when removing it changes THAT
+        amount. ``read`` takes {label: period} of one run and returns the
+        amount (a period figure, or an FY aggregate computed the way the
+        served one is), or None when that run does not reach it."""
+        served = read(self._plan)
         found = []  # type: List[str]
         for lever_id, periods in self._removals:
-            without = None if periods is None else periods.get(label)
-            # a removal run that refused, or stopped short of this period,
+            # a removal run that refused, or stopped short of this amount,
             # is a run the lever changed: the lever reaches the figure
-            if without is None or amount_of(without, line) != served:
+            if periods is None or read(periods) != served:
                 found.append(lever_id)
         if found:
             return found, False
-        base = self._base.get(label)
-        if self._removals and (base is None or amount_of(base, line) != served):
+        if self._removals and read(self._base) != served:
             reach = []  # type: List[str]
             for driver in self._static.get(line, ()):
                 for lever_id in self._levers_of_driver.get(driver, ()):
@@ -122,23 +127,21 @@ def _aggregate(line, fy, months, served, attribution, formulas,
     if any(m.label not in served for m in months):
         return {"line": line, "period": fy, "kind": "projected_aggregate",
                 "refused": dict(not_fully_served)}
-    items = [served[m.label] for m in months]
     is_flow = (line.split(".", 1)[0] in FLOW_SECTIONS
                and line not in (CF_OPENING, CF_CLOSING))
-    if is_flow:
-        amount = sum(amount_of(i, line) for i in items)
-    elif line == CF_OPENING:
-        amount = amount_of(items[0], line)
-    else:
-        amount = amount_of(items[-1], line)
-    lever_ids = []  # type: List[str]
-    joint = False
-    for m in months:
-        ids, j = attribution.lever_ids(line, m.label)
-        joint = joint or j
-        for lever_id in ids:
-            if lever_id not in lever_ids:
-                lever_ids.append(lever_id)
+
+    def read(periods):
+        if any(m.label not in periods for m in months):
+            return None
+        if is_flow:
+            return sum(amount_of(periods[m.label], line) for m in months)
+        edge = months[0] if line == CF_OPENING else months[-1]
+        return amount_of(periods[edge.label], line)
+
+    amount = read(served)
+    # the aggregate's OWN removal test, never the union of its months: a
+    # closing balance is reached only by what reaches the closing month
+    lever_ids, joint = attribution.lever_ids_of(line, read)
     formula = formulas["flow"] if is_flow else (
         formulas["opening"] if line == CF_OPENING else formulas["balance"])
     return {"line": line, "period": fy, "kind": "projected_aggregate",

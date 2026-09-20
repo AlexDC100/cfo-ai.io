@@ -258,7 +258,9 @@ def recompute(period_id: str, body: PlanRequestBody, jwt: str,
         request = plan_request_from_body(_wire(body))
         plan = project_plan(period, prior_periods, request, context,
                             client_sent=True)
-        payload = build_response(plan, period, history, request.want, period_id,
+        from engine.forecast.levers import serving_inputs
+        payload = build_response(plan, serving_inputs(plan), period, history,
+                                 request.want, period_id,
                                  anchor_updated_at=history.get("anchor_updated_at"))
     except PlanRequestError as exc:
         raise HTTPException(422, _detail(exc.code, exc.text, exc.field))

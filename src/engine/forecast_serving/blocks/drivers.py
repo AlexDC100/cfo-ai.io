@@ -13,14 +13,9 @@ from __future__ import annotations
 from fractions import Fraction
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from engine.forecast.errors import AssumptionError
-from engine.forecast.levers_pack import plan_pack, serving_pack, index_neutral
-from engine.forecast.money import MICRO, MICRO_DAY
-from engine.forecast.pools import FIXED_SHARE_PREFIX
-
 from . import BLOCK_FIELD_CONSUMERS
 
-__all__ = ["UNIT_WIRE", "build_client", "build_drivers", "scale_of"]
+__all__ = ["UNIT_WIRE", "build_client", "build_drivers"]
 
 UNIT_WIRE = {"ratio": "ratio_micros", "days": "micro_days",
              "money": "money_minor", "index": "index_micros"}
@@ -28,119 +23,108 @@ EVIDENCE_OF_TIER = {"book": "book", "sector": "sector", "macro": "macro",
                     "convention": "convention"}
 
 
-def scale_of(unit: str) -> int:
-    return {"ratio": MICRO, "index": MICRO, "days": MICRO_DAY, "money": 100}[unit]
-
-
 def _round(value: Fraction) -> int:
-    from engine.forecast.money import mul_div
+    """Half away from zero, in exact integer arithmetic (3.12)."""
     value = Fraction(value)
-    return mul_div(value.numerator, 1, value.denominator)
+    n, d = value.numerator, value.denominator
+    q, r = divmod(abs(n), d)
+    if 2 * r >= d:
+        q += 1
+    return q if n >= 0 else -q
 
 
 def _sentence(code: str, text: str) -> Dict[str, str]:
     return {"code": code, "text": text}
 
 
-def _steps(assumption: Any) -> List[Dict[str, Any]]:
+def _steps(assumption: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [{"tier": s["tier"], "outcome": s["outcome"],
              "reason": _sentence("%s_%s" % (s["tier"], s["outcome"]), s["reason"])}
-            for s in assumption.fallback_steps]
+            for s in assumption["fallback_steps"]]
 
 
-def _basis(assumption: Any, tier: str, source: Optional[str],
+def _basis(assumption: Dict[str, Any], tier: str, source: Optional[str],
            original: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """``assumption`` is the producer's pedigree record {key, exact, tier,
+    rule_id, basis, evidence, fallback_steps}."""
     out = {"tier": tier,
-           "sentence": _sentence(assumption.rule_id or assumption.key, assumption.basis),
+           "sentence": _sentence(assumption["rule_id"] or assumption["key"],
+                                 assumption["basis"]),
            "book": None, "sector": None, "macro": None, "convention": None,
            "fallback_steps": _steps(assumption), "original": original,
            "accepted_from_proposal": None, "source": source}  # type: Dict[str, Any]
     slot = EVIDENCE_OF_TIER.get(tier)
     if slot is not None:
-        out[slot] = assumption.evidence
+        out[slot] = assumption["evidence"]
     return out
 
 
-def _neutral_index(key: str) -> Any:
-    """volume_index, price_index and input_price_index are not book drivers:
-    their default is the pack's neutral rung (3.4)."""
-    from engine.forecast.assumptions import Assumption
-    rung = index_neutral()
-    return Assumption(key, "ratio", MICRO, "engine_default", rung.sentence,
-                      tier="convention", rule_id=rung.rule_id,
-                      evidence={"rule_id": rung.rule_id, "pack_address": rung.rule_id,
-                                "evidence": []})
-
-
-def build_drivers(plan: Any, registry: Sequence[Tuple[str, Any]],
-                  line_assumptions: Dict[str, Sequence[str]],
-                  inert: Dict[str, bool]) -> Dict[str, Dict[str, Any]]:
-    request = plan.request
-    assumptions = plan.projection.assumptions
+def build_drivers(request: Any, inputs: Dict[str, Any],
+                  line_assumptions: Dict[str, Sequence[str]]) -> Dict[str, Dict[str, Any]]:
+    """``inputs`` is ``engine.forecast.levers.serving_inputs(plan)``."""
+    inert = inputs["inert"]
+    prefix = inputs["fixed_share_prefix"]
     overrides = dict(request.overrides)
-    behaviour = dict((FIXED_SHARE_PREFIX + b.pool, b) for b in request.behaviour_overrides)
-    serving = serving_pack()
+    behaviour = dict((prefix + b.pool, b) for b in request.behaviour_overrides)
+    inert_text = inputs["pack"]["inert"]
     consumed = {}  # type: Dict[str, List[str]]
     for line, ids in line_assumptions.items():
         for i in ids:
             consumed.setdefault(i, []).append(line)
     out = {}  # type: Dict[str, Dict[str, Any]]
-    for key, entry in registry:
-        try:
-            assumption = assumptions.get(key)
-        except AssumptionError:
-            assumption = _neutral_index(key)
-        length = request.total_years if entry.shape == "per_year" else 1
-        default = assumption.exact
+    for entry in inputs["registry"]:
+        key = entry["key"]
+        assumption = dict(inputs["pedigree"][key], key=key)
+        length = request.total_years if entry["shape"] == "per_year" else 1
+        default = assumption["exact"]
         values = [default] * length  # type: List[Optional[int]]
-        tier, source, original = assumption.tier, None, None
-        scale = scale_of(entry.unit)
+        tier, source, original = assumption["tier"], None, None
+        scale = entry["scale"]
         if key in overrides and any(v is not None for v in overrides[key]):
             original = {"values": list(values),
-                        "basis": _basis(assumption, assumption.tier, None, None)}
+                        "basis": _basis(assumption, assumption["tier"], None, None)}
             for i, v in enumerate(overrides[key][:length]):
                 if v is not None:
                     values[i] = _round(Fraction(v) * scale)
             tier, source = "user", "override"
         elif key in behaviour and behaviour[key].fixed_share is not None:
             original = {"values": list(values),
-                        "basis": _basis(assumption, assumption.tier, None, None)}
+                        "basis": _basis(assumption, assumption["tier"], None, None)}
             values = [_round(Fraction(behaviour[key].fixed_share) * scale)]
             tier, source = "user", "behaviour"
         label = key.replace("_", " ")
         sentence = None  # type: Optional[Dict[str, str]]
         if inert.get(key):
-            text = serving.inert.get(key)
+            text = inert_text.get(key)
             if text is None:
-                text = serving.inert["default"].format(label=label)
+                text = inert_text["default"].format(label=label)
             sentence = _sentence("inert_in_this_plan", text)
         out[key] = {
-            "key": key, "model_key": entry.model_key, "pack_key": entry.pack_key,
+            "key": key, "model_key": entry["model_key"], "pack_key": entry["pack_key"],
             "label": _sentence(key, label),
-            "panel": entry.panel, "rail_group": entry.rail_group,
-            "unit": UNIT_WIRE[entry.unit], "shape": entry.shape,
-            "granularity": entry.granularity, "values": values,
-            "set_via": entry.set_via, "allowed_ops": list(entry.allowed_ops),
-            "rail_op": entry.rail_op,
-            "bounds": {"min": _text(entry.bounds[0]), "max": _text(entry.bounds[1])},
-            "reach_step": _text(entry.reach_step), "solve_step": _text(Fraction(1, scale)),
-            "favourable_direction": entry.favourable_direction,
+            "panel": entry["panel"], "rail_group": entry["rail_group"],
+            "unit": UNIT_WIRE[entry["unit"]], "shape": entry["shape"],
+            "granularity": entry["granularity"], "values": values,
+            "set_via": entry["set_via"], "allowed_ops": list(entry["allowed_ops"]),
+            "rail_op": entry["rail_op"],
+            "bounds": {"min": _text(entry["bounds"][0]), "max": _text(entry["bounds"][1])},
+            "reach_step": _text(entry["reach_step"]), "solve_step": _text(Fraction(1, scale)),
+            "favourable_direction": entry["favourable_direction"],
             "consumed_by": consumed.get(key, []) + list(BLOCK_FIELD_CONSUMERS.get(key, ())),
             "inert_in_this_plan": sentence,
-            "formula_id": (assumption.rule_id if (assumption.rule_id or "").startswith("forecast.")
+            "formula_id": (assumption["rule_id"]
+                           if (assumption["rule_id"] or "").startswith("forecast.")
                            else None),
             "basis": _basis(assumption, tier, source, original),
             "alternatives": {
                 "book": ({"values": [default] * length,
                           "basis": _basis(assumption, "book", None, None)}
-                         if assumption.tier == "book" else None),
+                         if assumption["tier"] == "book" else None),
                 "sector": None,
                 "macro": ({"values": [default] * length,
                            "basis": _basis(assumption, "macro", None, None)}
-                          if assumption.tier == "macro" else None)},
-            "breakeven": (None if entry.breakeven is None else
-                          {"ops": list(entry.breakeven["ops"]),
-                           "metrics": list(entry.breakeven["metrics"])}),
+                          if assumption["tier"] == "macro" else None)},
+            "breakeven": entry["breakeven"],
         }
     return out
 
@@ -163,10 +147,10 @@ def _text(value: Optional[Fraction]) -> Optional[str]:
     return sign + (text if digits == 0 else "%s.%s" % (text[:-digits], text[-digits:]))
 
 
-def build_client() -> Dict[str, Any]:
-    serving = serving_pack()
-    return {"debounce_ms": serving.latency["debounce_ms"],
-            "analysis_debounce_ms": serving.latency["analysis_debounce_ms"],
+def build_client(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    pack = inputs["pack"]
+    return {"debounce_ms": pack["latency"]["debounce_ms"],
+            "analysis_debounce_ms": pack["latency"]["analysis_debounce_ms"],
             "unserved": [{"key": key, "panel": None, "rail_group": None,
                           "sentence": _sentence(key, sentence)}
-                         for key, sentence in plan_pack().unserved]}
+                         for key, sentence in pack["unserved"]]}

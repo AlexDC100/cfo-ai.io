@@ -1,10 +1,13 @@
 """fp1.2 — the one served form of a Plan (plan_contract_v2 section 3).
 
-``build_response`` turns what ``engine.forecast.levers.project_plan``
-returned into the wire body: the always-served root, then the blocks the
-request wanted. Nothing here projects; the only engine calls are the
-in-process probes ``levers.removal_runs`` and ``levers.inert_drivers``,
-which re-run ``project`` with the objects the plan already built (1.1).
+``build_response`` turns a Plan into the wire body: the always-served root,
+then the blocks the request wanted. Nothing here projects, and this package
+imports NO producer module (scripts/check_forecast_boundary.mjs): the Plan's
+periods are read as duck-typed objects, and everything else the producer
+knows (the registry, each driver's pedigree, the removal runs and inert
+nudges of 1.1, the conventions, the pack values) arrives as the plain
+``inputs`` of ``engine.forecast.levers.serving_inputs(plan)``, which the
+route passes in.
 
 No float appears anywhere in the body (3.12): money is integer minor units,
 ratios and indices integer micros, days integer micro-days, request decimals
@@ -22,9 +25,11 @@ from fractions import Fraction
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from . import contract
-from .blocks import ACCEPTED_WANT_KEYS, DEFAULT_WANT
+from .blocks import (ACCEPTED_WANT_KEYS, BLOCK_FIELD_CONSUMERS, DEFAULT_WANT,
+                     DRIVER_ECHO_FIELDS)
 from .blocks.drivers import _text as exact_text
-from .blocks.drivers import build_client, build_drivers, scale_of
+from .blocks.drivers import build_client, build_drivers
+from .blocks import figures as figures_block
 from .blocks.figures import Attribution, build_figures, monthly_years
 from .blocks.series import build_series
 from .blocks.strip import build_strip
@@ -146,22 +151,13 @@ def _sentences(notes: Sequence[Any]) -> List[Dict[str, str]]:
     return out
 
 
-def _conventions(plan: Any, line_assumptions: Dict[str, Sequence[str]]
-                 ) -> Dict[str, Dict[str, str]]:
-    from engine.forecast.project import FP1_CONVENTIONS
-    out = {}  # type: Dict[str, Dict[str, str]]
-    for cid, sentence in FP1_CONVENTIONS:
-        out[cid] = {"id": cid, "sentence": sentence}
-    for item in plan.conventions:
-        out[item["id"]] = {"id": item["id"], "sentence": item["sentence"]}
-    basis = plan.projection.assumptions.get("days_basis")
-    out["days_basis"] = {"id": "days_basis", "sentence": basis.basis}
-    return out
+def _conventions(inputs: Mapping[str, Any]) -> Dict[str, Dict[str, str]]:
+    return dict((cid, {"id": cid, "sentence": sentence})
+                for cid, sentence in inputs["conventions"])
 
 
-def _debt_echo(plan: Any) -> List[Dict[str, Any]]:
-    from engine.forecast.levers_pack import plan_pack
-    pack = plan_pack()
+def _debt_echo(plan: Any, inputs: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    pack = inputs["pack"]
     timeline = plan.projection.timeline
     out = []  # type: List[Dict[str, Any]]
     for row in sorted(plan.request.debt_schedule, key=lambda r: r.year):
@@ -174,8 +170,8 @@ def _debt_echo(plan: Any) -> List[Dict[str, Any]]:
 
         out.append({
             "year": row.year,
-            "period_label_draws": first if pack.debt_draws == "first_period" else last,
-            "period_label_repayments": (first if pack.debt_repayments == "first_period"
+            "period_label_draws": first if pack["debt_draws"] == "first_period" else last,
+            "period_label_repayments": (first if pack["debt_repayments"] == "first_period"
                                         else last),
             "timing_rule": "packs/forecast/levers.yaml#debt_timing",
             "st_draw_minor": minor(row.st_draw), "st_repay_minor": minor(row.st_repay),
@@ -184,28 +180,30 @@ def _debt_echo(plan: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def build_response(plan: Any, anchor: Mapping[str, Any], history: Mapping[str, Any],
-                   want: Optional[Sequence[str]], period_id: str,
-                   anchor_updated_at: Optional[str] = None) -> Dict[str, Any]:
+def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, Any],
+                   history: Mapping[str, Any], want: Optional[Sequence[str]],
+                   period_id: str, anchor_updated_at: Optional[str] = None
+                   ) -> Dict[str, Any]:
     """The fp1.2 body of one Plan, body_hash stamped, recompute_ms absent
-    (the route measures it and it sits outside the hash, 1.2)."""
-    import engine
-    from engine.forecast import levers
-    from engine.forecast.levers_pack import serving_pack
-
-    serving = serving_pack()
+    (the route measures it and it sits outside the hash, 1.2). ``inputs`` is
+    ``engine.forecast.levers.serving_inputs(plan)``."""
+    serving = inputs["pack"]
     wanted = tuple(DEFAULT_WANT if want is None else want)
     unknown = [k for k in wanted if k not in ACCEPTED_WANT_KEYS]
     if unknown:
         raise PlanResponseError([("want_key_unknown", ", ".join(unknown))])
+    figures_block._TOTALS["of"] = inputs["totals"]
 
     projection = plan.projection
-    registry = levers.registry_for(plan.inputs["pools"])
-    inert = levers.inert_drivers(plan)
-    # a driver a lever of this request moves is live by construction
-    for key in plan.inputs["moved"]:
-        inert[key] = False
-    removals = levers.removal_runs(plan)
+    inert = dict(inputs["inert"])
+    # 12: a driver whose own value is served as a number (the cash floor on
+    # the chart) moves that number whenever it moves
+    if "series" in wanted:
+        for key, fields in BLOCK_FIELD_CONSUMERS.items():
+            if any(f in DRIVER_ECHO_FIELDS for f in fields):
+                inert[key] = False
+    inputs = dict(inputs, inert=inert)
+    removals = inputs["removals"]
     static_levers = {}  # type: Dict[str, List[str]]
     for lever_id, _run, keys in removals:
         for key in keys:
@@ -217,24 +215,22 @@ def build_response(plan: Any, anchor: Mapping[str, Any], history: Mapping[str, A
     timeline = projection.timeline
     years = monthly_years(timeline)
     served_labels = [p.label for p in projection.periods]
-    formulas = dict(serving.lines)
-    aggregate_formulas = {"flow": serving.flow_formula,
-                          "balance": serving.balance_formula,
-                          "opening": serving.opening_formula}
+    formulas = dict(serving["lines"])
+    aggregate_formulas = serving["formulas"]
     refusal = projection.shortfall
     partial = (dict(refusal.sentence) if refusal is not None
-               else dict(serving.not_fully_served))
+               else dict(serving["not_fully_served"]))
 
     period_end = str(anchor.get("period_end") or "")
     flow_months = None  # type: Optional[int]
     notes = list(plan.notes) + list(history.get("notes") or [])
     try:
-        if int(period_end[5:7]) == serving.fiscal_year_end_month:
+        if int(period_end[5:7]) == serving["fiscal_year_end_month"]:
             flow_months = 12
     except ValueError:
         pass
     if flow_months is None:
-        notes.append(dict(serving.flow_span_not_stated))
+        notes.append(dict(serving["flow_span_not_stated"]))
 
     balance = [{"period": p.label, "difference_minor": p.checks["balance_delta_cents"]}
                for p in projection.periods]
@@ -263,12 +259,12 @@ def build_response(plan: Any, anchor: Mapping[str, Any], history: Mapping[str, A
                             + [(fy, n) for n, fy, _m in years]),
             "served_through": served_labels[-1] if served_labels else None},
         "driver_order": list(plan.driver_order),
-        "drivers": build_drivers(plan, registry, line_assumptions, inert),
-        "conventions": _conventions(plan, line_assumptions),
+        "drivers": build_drivers(plan.request, inputs, line_assumptions),
+        "conventions": _conventions(inputs),
         "history": {"held": list(history.get("held") or []),
                     "eligible": list(history.get("eligible") or []),
                     "excluded": list(history.get("excluded") or [])},
-        "pins": {"engine_version": engine.__version__, "pack_hash": pack_hash(),
+        "pins": {"engine_version": inputs["engine_version"], "pack_hash": pack_hash(),
                  "macro_snapshot_id": None, "sector_snapshot_id": None,
                  "history_hash": _sha(pins_history)},
         "lever_set_hash": lever_set_hash(plan.request),
@@ -277,34 +273,31 @@ def build_response(plan: Any, anchor: Mapping[str, Any], history: Mapping[str, A
             "driver_key": "revolver_rate", "from_period": refusal.period.label,
             "shortfall_minor": refusal.amount_minor,
             "sentence": dict(refusal.sentence)}),
-        "debt_schedule": _debt_echo(plan),
+        "debt_schedule": _debt_echo(plan, inputs),
         "balance_check": balance,
         "unbalanced_periods": [b["period"] for b in balance if b["difference_minor"] != 0],
         "notes": _sentences(notes),
-        "client": build_client(),
+        "client": build_client(inputs),
     }  # type: Dict[str, Any]
 
-    min_cash = plan.compiled.scalars.get("min_cash")
-    if min_cash is None:
-        min_cash = projection.assumptions.cents("min_cash")
+    min_cash = inputs["min_cash_minor"]
     summary = None
     if "figures" in wanted:
-        body["figures"] = build_figures(serving.lines, projection, attribution,
-                                        aggregate_formulas, serving.not_fully_served)
+        body["figures"] = build_figures(serving["lines"], projection, attribution,
+                                        aggregate_formulas, serving["not_fully_served"])
     if "series" in wanted:
         body["series"] = build_series(
             projection, attribution, min_cash,
             [] if inert.get("min_cash") else ["min_cash"], partial)
     if "summary" in wanted or "strip" in wanted:
-        rate = projection.assumptions.get("revolver_rate")
         summary = build_summary(plan, attribution, formulas,
-                                {"code": rate.rule_id or "revolver_rate",
-                                 "text": rate.basis})
+                                inputs["revolver_rate_basis"])
     if "summary" in wanted:
         body["summary"] = summary
     if "strip" in wanted:
         body["strip"] = build_strip(plan, summary, attribution, formulas,
-                                    serving.not_served, serving.cumulative_fcf_formula)
+                                    serving["not_served"],
+                                    aggregate_formulas["cumulative_fcf"])
 
     violations = clause_violations(body)
     if violations:

@@ -892,3 +892,88 @@ def plan_request_from_body(body: Mapping[str, Any]) -> PlanRequest:
         tornado_metric=body.get("tornado_metric"),
         breakeven_from=str(body.get("breakeven_from", "baseline")),
         want=(None if body.get("want") is None else tuple(body["want"])))
+
+
+def serving_inputs(plan: Plan) -> Dict[str, Any]:
+    """Everything ``engine.forecast_serving`` needs to build fp1.2 from a
+    Plan, as plain data and duck-typed periods (plan/2 B6). The serving
+    package imports NO producer module (scripts/check_forecast_boundary.mjs:
+    a boundary that lives inside the thing it bounds is not one), so the
+    producer hands over what it knows: the registry, each driver's pedigree,
+    the in-process probes, the conventions and the pack values."""
+    import engine
+    from .assumptions import Assumption
+    from .levers_pack import index_neutral, serving_pack
+    from .project import (CURRENT_ASSET_LINES, CURRENT_LIABILITY_LINES, EQUITY_LINES,
+                          FP1_CONVENTIONS)
+
+    assumptions = plan.projection.assumptions
+    registry = []
+    pedigree = {}
+    for key, entry in registry_for(plan.inputs["pools"]):
+        registry.append({
+            "key": key, "model_key": entry.model_key, "pack_key": entry.pack_key,
+            "panel": entry.panel, "rail_group": entry.rail_group, "unit": entry.unit,
+            "shape": entry.shape, "granularity": entry.granularity,
+            "set_via": entry.set_via, "allowed_ops": list(entry.allowed_ops),
+            "rail_op": entry.rail_op, "bounds": tuple(entry.bounds),
+            "reach_step": entry.reach_step, "scale": _scale_of(entry.unit),
+            "favourable_direction": entry.favourable_direction,
+            "breakeven": (None if entry.breakeven is None else
+                          {"ops": list(entry.breakeven["ops"]),
+                           "metrics": list(entry.breakeven["metrics"])})})
+        try:
+            item = assumptions.get(key)
+        except AssumptionError:
+            # volume_index, price_index, input_price_index are not book
+            # drivers: their default is the pack's neutral rung (3.4)
+            rung = index_neutral()
+            item = Assumption(key, "ratio", MICRO, "engine_default", rung.sentence,
+                              tier="convention", rule_id=rung.rule_id,
+                              evidence={"rule_id": rung.rule_id,
+                                        "pack_address": rung.rule_id, "evidence": []})
+        pedigree[key] = {"exact": item.exact, "tier": item.tier, "rule_id": item.rule_id,
+                         "basis": item.basis, "evidence": item.evidence,
+                         "fallback_steps": [dict(step) for step in item.fallback_steps]}
+
+    inert = inert_drivers(plan)
+    for key in plan.inputs["moved"]:
+        inert[key] = False  # a driver a lever of this request moves is live
+    serving = serving_pack()
+    pack = plan_pack()
+    conventions = [(cid, sentence) for cid, sentence in FP1_CONVENTIONS]
+    conventions += [(c["id"], c["sentence"]) for c in plan.conventions]
+    conventions.append(("days_basis", assumptions.get("days_basis").basis))
+    min_cash = plan.compiled.scalars.get("min_cash")
+    if min_cash is None:
+        min_cash = assumptions.cents("min_cash")
+    rate = assumptions.get("revolver_rate")
+
+    def totals(period: Any) -> Dict[str, int]:
+        return {"assets": period.total_assets_cents(),
+                "equity_plus_liabilities": period.total_el_cents(),
+                "current_assets": sum(period.bs[l] for l in CURRENT_ASSET_LINES),
+                "current_liabilities": sum(period.bs[l] for l in CURRENT_LIABILITY_LINES),
+                "equity": sum(period.bs[l] for l in EQUITY_LINES)}
+
+    return {
+        "registry": registry, "pedigree": pedigree, "inert": inert,
+        "removals": removal_runs(plan), "totals": totals,
+        "conventions": conventions, "min_cash_minor": min_cash,
+        "fixed_share_prefix": FIXED_SHARE_PREFIX,
+        "revolver_rate_basis": {"code": rate.rule_id or "revolver_rate",
+                                "text": rate.basis},
+        "engine_version": engine.__version__,
+        "pack": {
+            "latency": dict(serving.latency), "lines": list(serving.lines),
+            "formulas": {"flow": serving.flow_formula, "balance": serving.balance_formula,
+                         "opening": serving.opening_formula,
+                         "cumulative_fcf": serving.cumulative_fcf_formula},
+            "not_fully_served": dict(serving.not_fully_served),
+            "not_served": dict(serving.not_served), "inert": dict(serving.inert),
+            "fiscal_year_end_month": serving.fiscal_year_end_month,
+            "flow_span_not_stated": dict(serving.flow_span_not_stated),
+            "debt_draws": pack.debt_draws, "debt_repayments": pack.debt_repayments,
+            "unserved": list(pack.unserved)},
+    }
+

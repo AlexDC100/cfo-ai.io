@@ -16,7 +16,7 @@ Python 3.9 - no ``match``, no ``X | Y`` unions.
 from __future__ import annotations
 
 __all__ = ["ACCEPTED_WANT_KEYS", "DEFAULT_WANT", "LANDED_REQUEST_FIELDS",
-           "BLOCK_FIELD_CONSUMERS"]
+           "BLOCK_FIELD_CONSUMERS", "DRIVER_ECHO_FIELDS"]
 
 # ── plan/2 B6 ────────────────────────────────────────────────────────────
 LANDED_REQUEST_FIELDS = ("horizon", "overrides", "shocks", "behaviour_overrides",
@@ -25,6 +25,10 @@ ACCEPTED_WANT_KEYS = ("figures", "series", "summary", "strip")
 #: want omitted (2.7). GET equals it.
 DEFAULT_WANT = ("figures", "series", "summary", "strip")
 #: driver key -> the block fields that consume it beside LINE_ASSUMPTIONS
-#: (3.2 consumed_by, 12). Empty until B12 adds dcf.
-BLOCK_FIELD_CONSUMERS = {}
+#: (3.2 consumed_by, 12). B12 adds dcf.
+BLOCK_FIELD_CONSUMERS = {"min_cash": ("series.min_cash",)}
+#: block fields that ARE the driver's own value, served as a number: moving
+#: the driver always moves them, so the driver is never inert (12: a key is
+#: inert only when neither the figures nor those bytes change).
+DRIVER_ECHO_FIELDS = ("series.min_cash",)
 # ── end plan/2 B6 ────────────────────────────────────────────────────────

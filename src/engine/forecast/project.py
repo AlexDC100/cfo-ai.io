@@ -325,11 +325,32 @@ LINE_ASSUMPTIONS = {
     "bs_totals.assets": _u(_CASH, _AR, _INVENTORY, _CAPEX, _DEPRECIATION,
                            _INTANGIBLE_ADD, _AMORTISATION, _HELD),
     "bs_totals.current_assets": _u(_CASH, _AR, _INVENTORY, _HELD),
-    "bs_totals.current_liabilities": _u(_AP, _INT_DEBT, _FUNDING, _HELD),
+    # plan/2 B6 (found by forecast-lever-reach on realestate): both totals
+    # contain bs.revolver, which is sized by everything that moves cash
+    # (_CASH, as bs.revolver itself carries since B3-7). Without it a nudge
+    # of a cost pool's fixed share moved current liabilities OUTSIDE the
+    # driver's consumed_by.
+    "bs_totals.current_liabilities": _u(_AP, _INT_DEBT, _FUNDING, _CASH, _HELD),
     "bs_totals.equity": _u(_NET_INCOME, _DIVIDENDS, _HELD),
-    "bs_totals.equity_plus_liabilities": _u(_AP, _INT_DEBT, _FUNDING,
+    "bs_totals.equity_plus_liabilities": _u(_AP, _INT_DEBT, _FUNDING, _CASH,
                                             _NET_INCOME, _DIVIDENDS, _HELD),
 }
+
+
+def _close_over_cash(table):
+    """plan/2 B6 (found by forecast-lever-reach on realestate: a dso_days
+    nudge moved pl.pretax_result, pl.net_income and bs.equity_retained,
+    OUTSIDE its consumed_by). A line that carries the funding-line interest
+    or the interest earned on cash is priced on an OPENING BALANCE that
+    everything moving cash has sized, so it carries _CASH, as
+    pl.interest_expense_funding_line (B3-7) and bs.revolver already do. The
+    added ids follow the line's own, in _CASH order."""
+    for line, ids in list(table.items()):
+        if "revolver_rate" in ids or "interest_income_rate" in ids:
+            table[line] = _u(ids, _CASH)
+
+
+_close_over_cash(LINE_ASSUMPTIONS)
 
 
 def is_pool_id(assumption_id: str) -> bool:

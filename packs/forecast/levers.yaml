@@ -731,14 +731,15 @@ runway:
 # latency: the client block of 3.1 and the in-process F9 budgets. Every
 # number is data (TC-10): the page reads debounce values from the response,
 # the latency gate reads its budgets and the body cap from here.
-# body_cap_bytes was set from the measured B6 chart-profile body (the
-# largest of the four corpus books at total_years 5, monthly_months 12),
-# rounded up with headroom; the gate prints the measured size beside it.
+# body_cap_bytes was set from the measured B6 chart-profile body: the
+# largest of the four corpus books at monthly_months 24 with two shocks was
+# retail at 339,293 bytes; the cap is that, rounded up. The gate prints the
+# measured size beside it.
 latency:
   debounce_ms: 150
   analysis_debounce_ms: 600
   chart_inprocess_p50_ms: 1500
-  body_cap_bytes: 1500000
+  body_cap_bytes: 400000
 # 2.2: the plan length a request that omits total_years is compiled with.
 scenarios:
   total_years: 2
