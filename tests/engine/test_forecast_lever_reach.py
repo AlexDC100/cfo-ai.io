@@ -15,7 +15,13 @@ nothing); a driver marked inert whose nudge DOES move a number; changed lines
 outside the driver's consumed_by; a driver with no consumer; a not_settable or
 unreachable key with no inert sentence and no refusal naming why; a driver
 without its tier; zero drivers or ops exercised (TC-3).
-CANNOT SEE: pool and debt reach steps of their own (levers.yaml#pools
+ACROSS THE BOOKS (B6 repair): every (driver, op) nudge moves a number on at
+least one corpus book, or on a labelled SYNTHETIC request, or is a pool key
+every book serves as nil with a zero base. The engine's inert sentence alone
+is never enough for a nudge that is dead everywhere.
+CANNOT SEE: a lever dead on ONE book and live on another, for a driver not
+wired directly to pl.revenue / pl.cost_of_sales (there the engine's inert
+sentence is still taken at its word); pool and debt reach steps of their own (levers.yaml#pools
 .reach_step and #debt.reach_step are not packed in B6; the pool keys are
 nudged by their registry reach_step and the debt rows are covered by
 scenario-provenance); block-field consumers (B12 dcf).
@@ -34,6 +40,8 @@ from forecast_recompute_harness import BASE3, BOOKS, _call, amounts, figures_has
 SCALE = {"ratio_micros": 1000000, "index_micros": 1000000, "micro_days": 1000000,
          "money_minor": 100}
 _WORK = []
+#: (driver key, nudge label) -> the books on which that nudge moved a number
+_LIVE = {}
 
 
 def _dec(value):
@@ -107,14 +115,17 @@ def test_every_driver_moves_a_number_or_says_why_not(name):
         reached = False
         for label, fragment in nudges:
             ops += 1
+            _LIVE.setdefault((key, label), [])
             status, answer = _call(name, "POST", body=dict(BASE3, **fragment))
             if status == 422:
                 refused.append("%s %s: %s" % (key, label, answer["detail"]["code"]))
                 continue
             assert status == 200, (name, key, label, status)
+            _LIVE.setdefault((key, label), [])
             if figures_hash(answer) == base_hash:
                 continue
             reached = True
+            _LIVE[(key, label)].append(name)
             now = amounts(answer)
             changed = set(line for (line, _p), v in now.items()
                           if base_amounts.get((line, _p)) != v)
@@ -151,6 +162,69 @@ def test_every_driver_moves_a_number_or_says_why_not(name):
     _WORK.append((name, len(base["drivers"]), ops, moved, inert, refused))
 
 
+#: SYNTHETIC liveness (labelled): a nudge no corpus book can carry, shown to
+#: move a number on a request that gives it something to act on.
+#: (key, nudge) -> (book, the request fragment it is nudged on top of, why)
+SYNTHETIC_LIVENESS = {
+    ("interest_income_rate", "shock:add_pp"): (
+        "agras", {"overrides": {"interest_income_rate": {"values": ["0.02", "0.02", "0.02"]}}},
+        "no corpus book measures a rate on cash, so add_pp refuses rate_not_measured "
+        "everywhere; SYNTHETIC stated rate 2%"),
+}
+NIL_POOL_RULE = "packs/forecast/cost_behaviour.yaml#nil_pool"
+_SYNTHETIC_RUN = []
+
+
+def test_zy_every_nudge_is_live_on_some_book_or_the_books_explain_why_not():
+    """B6V-2d: the per-book test accepts the ENGINE's inert sentence, and the
+    engine's inert nudge is blind to a lever that compiles to nothing. Across
+    the corpus that blindness ends: a (driver, op) that moves a number on NO
+    book is a dead lever unless (a) a labelled SYNTHETIC request shows it
+    moving, or (b) it is a pool key and EVERY book serves that pool as nil
+    with a zero base (the book's own evidence, not the inert sentence).
+
+    RED ON: dso_days (or any driver) compiled to a no-op on every book
+    (plant, gates.md); a SYNTHETIC row that no longer moves anything.
+    CANNOT SEE: a lever dead on ONE book and live on another, for a driver
+    not wired directly to pl.revenue / pl.cost_of_sales."""
+    assert len(_WORK) == len(BOOKS), "TC-3: the per-book runs did not complete"
+    assert len(_LIVE) > 50, "TC-3: %d nudges recorded" % len(_LIVE)
+    dead = sorted(k for k, books in _LIVE.items() if not books)
+    unexplained = []
+    for key, label in dead:
+        if (key, label) in SYNTHETIC_LIVENESS:
+            book, fragment, _why = SYNTHETIC_LIVENESS[(key, label)]
+            on = dict(BASE3, **fragment)
+            base = post(book, on)
+            nudge = [f for l, f in _nudges(key, base["drivers"][key]) if l == label]
+            assert nudge, (key, label)
+            merged = json.loads(json.dumps(on))
+            for field, value in nudge[0].items():
+                if isinstance(value, dict):
+                    merged.setdefault(field, {}).update(value)
+                else:
+                    merged[field] = list(merged.get(field) or []) + list(value)
+            assert figures_hash(post(book, merged)) != figures_hash(base), (
+                "SYNTHETIC %s %s on %s moves nothing: the lever compiles to nothing"
+                % (key, label, book))
+            _SYNTHETIC_RUN.append((key, label))
+            continue
+        pool = key.split(".", 1)[1] if key.startswith(("pool_level.", "pool_fixed_share.")) else None
+        nil = pool is not None
+        for name in BOOKS if pool else ():
+            basis = post(name, BASE3)["drivers"]["pool_fixed_share." + pool]["basis"]
+            rule = (basis.get("convention") or {})
+            zero = [e for e in rule.get("evidence") or [] if e.get("value_minor") == 0]
+            nil = nil and rule.get("rule_id") == NIL_POOL_RULE and bool(zero)
+        if not nil:
+            unexplained.append("%s %s" % (key, label))
+    assert not unexplained, (
+        "moves a number on no corpus book, no SYNTHETIC row shows it live and no "
+        "book explains it (a lever that compiles to nothing): %s" % ", ".join(unexplained))
+    unused = sorted(set(SYNTHETIC_LIVENESS) - set(dead))
+    assert not unused, "SYNTHETIC rows for nudges that are live on the corpus: %s" % unused
+
+
 def test_zz_scope_and_work(capsys):
     assert len(_WORK) == len(BOOKS)
     with capsys.disabled():
@@ -165,4 +239,9 @@ def test_zz_scope_and_work(capsys):
                 print("    inert: %s" % line)
             for line in sorted(set(refused)):
                 print("    refused: %s" % line)
+        dead = sorted(k for k, books in _LIVE.items() if not books)
+        print("  cross-book: %d (driver, op) nudges, live on a corpus book %d, SYNTHETIC "
+              "%d, nil pool on every book %d" % (len(_LIVE), len(_LIVE) - len(dead),
+                                                 len(_SYNTHETIC_RUN),
+                                                 len(dead) - len(_SYNTHETIC_RUN)))
         print("GATE-WORK forecast-lever-reach units=%d" % sum(w[2] for w in _WORK))
