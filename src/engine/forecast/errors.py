@@ -69,6 +69,29 @@ class AssumptionError(ForecastError):
     negative day count, a horizon of zero years, an unknown
     granularity). Naming the key rather than silently clamping it."""
 
-    def __init__(self, key: str, message: str) -> None:
+    def __init__(self, key: str, message: str,
+                 period_label: "Optional[str]" = None) -> None:
         ForecastError.__init__(self, "assumption %r: %s" % (key, message))
         self.key = key
+        #: The period the refusal arose in, when it arose inside the roll
+        #: forward (plan/2 B5, contract 6.5): a probe counts an unpriceable
+        #: draw as a breach AT this period, and the S3 plant reds on a bare
+        #: error that names none.
+        self.period_label = period_label
+
+
+class PlanRequestError(ForecastError):
+    """A plan request the engine refuses before it projects anything
+    (plan/2 B5, contract 2.3-2.6). ``code`` is the stable sentence code and
+    ``text`` the engine-authored English; the route (B6) answers 422 with
+    exactly that pair. ``field`` names what the refusal is about: a driver
+    key, a shock id, a pool or a request field."""
+
+    def __init__(self, code: str, text: str, field: "Optional[str]" = None) -> None:
+        ForecastError.__init__(self, "%s: %s" % (code, text))
+        self.code = code
+        self.text = text
+        self.field = field
+
+    def sentence(self):
+        return {"code": self.code, "text": self.text}

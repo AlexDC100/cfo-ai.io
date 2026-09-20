@@ -38,6 +38,8 @@ __all__ = [
     "MacroSeries",
     "PACK_FILE",
     "PackError",
+    "PlanPack",
+    "RegistryEntry",
     "Rung",
     "TaxConvention",
     "capex_rules",
@@ -45,6 +47,7 @@ __all__ = [
     "load_levers",
     "macro_pack",
     "min_cash_default",
+    "plan_pack",
     "tax_conventions",
     "terminal_rung",
 ]
@@ -287,6 +290,214 @@ def tax_conventions(path=None):
     """``levers.yaml#tax``: the year-to-date accrual and the no-carry-forward
     conventions, in served order."""
     return load_levers(path).tax
+
+
+# ── plan/2 B5: the driver registry, wc_unwind, debt_timing, unserved and
+# the request refusals (contract 3a.1-3a.3, 6.2, 6.7, 2.3-2.6) ───────────
+# Parsed on first use and cached beside the pack. The checks that need the
+# engine's own attribution (model_key against KEYS, consumers against
+# LINE_ASSUMPTIONS) run in engine.forecast.levers, which may import
+# project.py; this module may not (project.py imports it).
+
+REGISTRY_UNITS = ("ratio", "index", "days", "money")
+REGISTRY_SHAPES = ("per_year", "scalar")
+REGISTRY_GRANULARITIES = ("annual", "monthly")
+REGISTRY_OPS = ("set", "level_pct", "growth_pp", "add_days", "add_pp")
+REGISTRY_SET_VIA = ("overrides", "shocks_only", "behaviour_overrides",
+                    "not_settable")
+REGISTRY_DIRECTIONS = ("up", "down", "neutral")
+REGISTRY_FIELDS = (
+    "model_key", "pack_key", "panel", "rail_group", "unit", "shape",
+    "granularity", "bounds", "reach_step", "probe_value", "tornado",
+    "breakeven", "allowed_ops", "rail_op", "set_via", "favourable_direction",
+    "case_rule", "label_key", "consumers")
+
+
+def _decimal_or_none(raw, where):
+    # type: (Any, str) -> Optional[Fraction]
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise PackError("%s: must be a decimal string or null" % (where,))
+    try:
+        return Fraction(raw.strip())
+    except (ValueError, ZeroDivisionError):
+        raise PackError("%s: %r is not a decimal" % (where, raw))
+
+
+class RegistryEntry(object):
+    """One driver's registry entry (contract 3a.1). Values are exact
+    rationals in the driver's own unit; ``solve_step`` is one model unit by
+    definition and therefore not pack data."""
+
+    __slots__ = REGISTRY_FIELDS + ("key", "rule_id")
+
+    def __init__(self, key, raw, where):
+        # type: (str, Dict[str, Any], str) -> None
+        body = _mapping(raw, where)
+        unknown = sorted(set(body) - set(REGISTRY_FIELDS))
+        missing = [f for f in REGISTRY_FIELDS if f not in body]
+        if unknown or missing:
+            raise PackError("%s: missing %s, unknown %s"
+                            % (where, missing or "none", unknown or "none"))
+        self.key = key
+        self.rule_id = where
+        self.model_key = _text(body, "model_key", where)
+        self.pack_key = body.get("pack_key")
+        self.panel = _text(body, "panel", where)
+        self.rail_group = _text(body, "rail_group", where)
+        self.label_key = _text(body, "label_key", where)
+        self.case_rule = _text(body, "case_rule", where)
+        for field, allowed in (("unit", REGISTRY_UNITS), ("shape", REGISTRY_SHAPES),
+                               ("granularity", REGISTRY_GRANULARITIES),
+                               ("set_via", REGISTRY_SET_VIA),
+                               ("favourable_direction", REGISTRY_DIRECTIONS)):
+            value = body.get(field)
+            if value not in allowed:
+                raise PackError("%s.%s: %r is not one of %s"
+                                % (where, field, value, ", ".join(allowed)))
+            setattr(self, field, value)
+        bounds = _mapping(body.get("bounds"), where + ".bounds")
+        self.bounds = (_decimal_or_none(bounds.get("min"), where + ".bounds.min"),
+                       _decimal_or_none(bounds.get("max"), where + ".bounds.max"))
+        if None not in self.bounds and self.bounds[0] > self.bounds[1]:
+            raise PackError("%s.bounds: min is above max" % (where,))
+        self.reach_step = _decimal_or_none(body.get("reach_step"), where + ".reach_step")
+        self.probe_value = _decimal_or_none(body.get("probe_value"), where + ".probe_value")
+        if self.reach_step is None or self.probe_value is None:
+            raise PackError("%s: reach_step and probe_value are required" % (where,))
+        tornado = _mapping(body.get("tornado"), where + ".tornado")
+        self.tornado = (_decimal_or_none(tornado.get("low"), where + ".tornado.low"),
+                        _decimal_or_none(tornado.get("high"), where + ".tornado.high"))
+        if None in self.tornado or self.tornado[0] > self.tornado[1]:
+            raise PackError("%s.tornado: low and high are required, low <= high"
+                            % (where,))
+        ops = body.get("allowed_ops")
+        if not isinstance(ops, list) or any(op not in REGISTRY_OPS for op in ops):
+            raise PackError("%s.allowed_ops: a list drawn from %s"
+                            % (where, ", ".join(REGISTRY_OPS)))
+        self.allowed_ops = tuple(ops)
+        self.rail_op = body.get("rail_op")
+        if self.rail_op is not None and self.rail_op not in self.allowed_ops:
+            raise PackError("%s.rail_op: %r is outside allowed_ops %s"
+                            % (where, self.rail_op, list(self.allowed_ops)))
+        if self.set_via == "shocks_only" and not self.allowed_ops:
+            raise PackError("%s: a shocks_only key needs an allowed op" % (where,))
+        breakeven = body.get("breakeven")
+        if breakeven is not None:
+            breakeven = _mapping(breakeven, where + ".breakeven")
+            be_ops = breakeven.get("ops")
+            metrics = breakeven.get("metrics")
+            if (not isinstance(be_ops, list) or not be_ops
+                    or any(op not in self.allowed_ops for op in be_ops)):
+                raise PackError("%s.breakeven.ops: a non-empty subset of allowed_ops"
+                                % (where,))
+            if not isinstance(metrics, list) or not metrics:
+                raise PackError("%s.breakeven.metrics: a non-empty list" % (where,))
+            breakeven = {"ops": tuple(be_ops), "metrics": tuple(str(m) for m in metrics)}
+        self.breakeven = breakeven
+        consumers = body.get("consumers")
+        if not isinstance(consumers, list) or not consumers:
+            raise PackError("%s.consumers: a non-empty list of line ids" % (where,))
+        self.consumers = tuple(str(c) for c in consumers)
+
+    @property
+    def is_template(self):
+        return self.key.endswith(".*")
+
+
+class PlanPack(object):
+    """The B5 sections of levers.yaml."""
+
+    __slots__ = ("registry", "wc_unwind_id", "wc_unwind_days", "wc_unwind_sentence",
+                 "debt_timing_id", "debt_draws", "debt_repayments",
+                 "debt_timing_sentence", "unserved", "refusals", "runway")
+
+    PLACEMENTS = ("first_period", "last_period")
+
+    def __init__(self, raw):
+        body = _mapping(raw, PACK_FILE)
+        where = "%s#registry" % PACK_FILE
+        registry = _mapping(body.get("registry"), where)
+        entries = []
+        for key in registry:
+            entries.append(RegistryEntry(str(key), registry[key],
+                                         "%s.%s" % (where, key)))
+        if not entries:
+            raise PackError("%s: no entries" % (where,))
+        self.registry = tuple(entries)
+
+        where = "%s#wc_unwind" % PACK_FILE
+        unwind = _mapping(body.get("wc_unwind"), where)
+        self.wc_unwind_id = _text(unwind, "convention_id", where)
+        self.wc_unwind_days = _decimal_or_none(unwind.get("unwind_days"),
+                                               where + ".unwind_days")
+        if self.wc_unwind_days is not None and self.wc_unwind_days < 0:
+            raise PackError("%s.unwind_days: must not be negative" % (where,))
+        self.wc_unwind_sentence = _sentence(unwind, "sentence", where)
+
+        where = "%s#debt_timing" % PACK_FILE
+        timing = _mapping(body.get("debt_timing"), where)
+        self.debt_timing_id = _text(timing, "convention_id", where)
+        for field in ("draws", "repayments"):
+            if timing.get(field) not in self.PLACEMENTS:
+                raise PackError("%s.%s: one of %s" % (where, field,
+                                                      ", ".join(self.PLACEMENTS)))
+        self.debt_draws = timing["draws"]
+        self.debt_repayments = timing["repayments"]
+        self.debt_timing_sentence = _sentence(timing, "sentence", where)
+
+        where = "%s#unserved" % PACK_FILE
+        unserved = _mapping(body.get("unserved"), where)
+        self.unserved = tuple(
+            (str(k), _sentence(_mapping(unserved[k], "%s.%s" % (where, k)),
+                               "sentence", "%s.%s" % (where, k)))
+            for k in unserved)
+
+        where = "%s#request_refusals" % PACK_FILE
+        refusals = _mapping(body.get("request_refusals"), where)
+        self.refusals = dict((str(k), _clean(_text(refusals, k, where)))
+                             for k in refusals)
+
+        where = "%s#runway" % PACK_FILE
+        runway = _mapping(body.get("runway"), where)
+        limit = _mapping(runway.get("facility_limit"), where + ".facility_limit")
+        self.runway = {
+            "exact": _clean(_text(runway, "exact", where)),
+            "annual_tail": _clean(_text(runway, "annual_tail", where)),
+            "none": _clean(_text(runway, "none", where)),
+            "facility_limit": {
+                "code": _text(limit, "code", where + ".facility_limit"),
+                "text": _clean(_text(limit, "text", where + ".facility_limit"))},
+        }
+
+    def entry(self, key):
+        # type: (str) -> Optional[RegistryEntry]
+        for item in self.registry:
+            if item.key == key:
+                return item
+        return None
+
+
+_PLAN_CACHE = {}  # type: Dict[str, PlanPack]
+
+
+def plan_pack(path=None):
+    # type: (Optional[str]) -> PlanPack
+    target = path or _pack_path()
+    cached = _PLAN_CACHE.get(target)
+    if cached is not None:
+        return cached
+    if not os.path.isfile(target):
+        raise PackError("forecast lever pack not found: %s" % target)
+    with open(target, "r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh)
+    pack = PlanPack(raw)
+    _PLAN_CACHE[target] = pack
+    return pack
+
+
+# ── end plan/2 B5 ───────────────────────────────────────────────────────
 
 
 # ── plan/2 B3: accessors ────────────────────────────────────────────────

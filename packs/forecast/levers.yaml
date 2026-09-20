@@ -145,3 +145,579 @@ pools:
       expands_over: >-
         every served operating-cost pool, never cost_of_sales
 # ── end plan/2 B4b ───────────────────────────────────────────────────────
+
+# ── plan/2 B5: the driver registry, the working-capital unwind, debt
+# timing, the unserved concepts and the request refusals (contract 2.3-2.6,
+# 3a.1-3a.3, 6.2, 6.5, 6.7) ─────────────────────────────────────────────
+# One entry per served driver key (3a.2), in served order. Every decimal is
+# a string, parsed exactly and never through a float. bounds, tornado and
+# probe_value are in the driver's own unit: a ratio as a decimal fraction,
+# days in days, an index as a decimal multiplier, money in major units.
+# solve_step is one model unit of the key (a micro, a micro-day, a minor
+# unit). set_via says which request field may move the key: overrides (the
+# cockpit), shocks_only, behaviour_overrides or not_settable. consumers are
+# the lines the key moves DIRECTLY; the loader checks each against the
+# engine's own attribution (LINE_ASSUMPTIONS) and refuses a line the key is
+# not attributed to. The two pool entries are templates, expanded per book
+# over the served pools (3a.2). breakeven metric ids are served from B6 and
+# resolved by the batch that adds the metric registry (B8, B11).
+registry:
+  revenue_growth:
+    model_key: revenue_growth
+    pack_key: revenue_growth
+    panel: growth
+    rail_group: revenue
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "-1", max: "3"}
+    reach_step: "0.01"
+    probe_value: "0"
+    tornado: {low: "-0.10", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, add_pp, growth_pp]
+    rail_op: null
+    set_via: overrides
+    favourable_direction: up
+    case_rule: macro_band
+    label_key: lever.revenue_growth
+    consumers: [pl.revenue]
+  volume_index:
+    model_key: volume_index
+    pack_key: null
+    panel: growth
+    rail_group: revenue
+    unit: index
+    shape: scalar
+    granularity: monthly
+    bounds: {min: "0", max: "3"}
+    reach_step: "0.01"
+    probe_value: "1"
+    tornado: {low: "0.90", high: "1.10"}
+    breakeven: {ops: [level_pct], metrics: [ebitda, closing_cash]}
+    allowed_ops: [level_pct, set, growth_pp]
+    rail_op: level_pct
+    set_via: shocks_only
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.volume_index
+    consumers: [pl.revenue, pl.cost_of_sales, pl.operating_costs]
+  price_index:
+    model_key: price_index
+    pack_key: null
+    panel: growth
+    rail_group: revenue
+    unit: index
+    shape: scalar
+    granularity: monthly
+    bounds: {min: "0", max: "3"}
+    reach_step: "0.01"
+    probe_value: "1"
+    tornado: {low: "0.95", high: "1.05"}
+    breakeven: {ops: [level_pct], metrics: [ebitda, closing_cash]}
+    allowed_ops: [level_pct, set, growth_pp]
+    rail_op: level_pct
+    set_via: shocks_only
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.price_index
+    consumers: [pl.revenue]
+  input_price_index:
+    model_key: input_price_index
+    pack_key: null
+    panel: growth
+    rail_group: costs
+    unit: index
+    shape: scalar
+    granularity: monthly
+    bounds: {min: "0", max: "3"}
+    reach_step: "0.01"
+    probe_value: "1"
+    tornado: {low: "0.95", high: "1.05"}
+    breakeven: {ops: [level_pct], metrics: [ebitda, closing_cash]}
+    allowed_ops: [level_pct, set, growth_pp]
+    rail_op: level_pct
+    set_via: shocks_only
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.input_price_index
+    consumers: [pl.cost_of_sales]
+  "pool_fixed_share.*":
+    model_key: "pool_fixed_share.*"
+    pack_key: null
+    panel: growth
+    rail_group: costs
+    unit: ratio
+    shape: scalar
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0"
+    tornado: {low: "0", high: "1"}
+    breakeven: null
+    allowed_ops: []
+    rail_op: null
+    set_via: behaviour_overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.pool_fixed_share
+    consumers: [pl.operating_costs]
+  "pool_level.*":
+    model_key: "pool_level.*"
+    pack_key: null
+    panel: growth
+    rail_group: costs
+    unit: index
+    shape: scalar
+    granularity: monthly
+    bounds: {min: "0", max: "3"}
+    reach_step: "0.01"
+    probe_value: "1"
+    tornado: {low: "0.95", high: "1.05"}
+    breakeven: {ops: [level_pct], metrics: [ebitda, closing_cash]}
+    allowed_ops: [level_pct, set, growth_pp]
+    rail_op: level_pct
+    set_via: shocks_only
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.pool_level
+    consumers: [pl.operating_costs]
+  inflation:
+    model_key: inflation
+    pack_key: null
+    panel: macro
+    rail_group: macro
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "-0.2", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0"
+    tornado: {low: "0", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: add_pp
+    set_via: overrides
+    favourable_direction: down
+    case_rule: macro_band
+    label_key: lever.inflation
+    consumers: [pl.operating_costs]
+  interest_rate_debt:
+    model_key: interest_rate_debt
+    pack_key: interest_rate_debt
+    panel: macro
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.08"
+    tornado: {low: "-0.02", high: "0.02"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: add_pp
+    set_via: overrides
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.interest_rate_debt
+    consumers: [pl.interest_expense_debt]
+  revolver_rate:
+    model_key: revolver_rate
+    pack_key: null
+    panel: macro
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.08"
+    tornado: {low: "-0.02", high: "0.02"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: add_pp
+    set_via: overrides
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.revolver_rate
+    consumers: [pl.interest_expense_funding_line]
+  dso_days:
+    model_key: dso_days
+    pack_key: dso_days
+    panel: cash
+    rail_group: working_capital
+    unit: days
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: "365"}
+    reach_step: "1.0"
+    probe_value: "45"
+    tornado: {low: "-10", high: "10"}
+    breakeven: {ops: [add_days], metrics: [closing_cash]}
+    allowed_ops: [set, add_days]
+    rail_op: add_days
+    set_via: overrides
+    favourable_direction: down
+    case_rule: band_traverse
+    label_key: lever.dso_days
+    consumers: [bs.ar]
+  dio_cogs_days:
+    model_key: dio_cogs_days
+    pack_key: dio_cogs_days
+    panel: cash
+    rail_group: working_capital
+    unit: days
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: "365"}
+    reach_step: "1.0"
+    probe_value: "45"
+    tornado: {low: "-10", high: "10"}
+    breakeven: {ops: [add_days], metrics: [closing_cash]}
+    allowed_ops: [set, add_days]
+    rail_op: add_days
+    set_via: overrides
+    favourable_direction: down
+    case_rule: band_traverse
+    label_key: lever.dio_cogs_days
+    consumers: [bs.inventory]
+  dpo_cogs_days:
+    model_key: dpo_cogs_days
+    pack_key: dpo_cogs_days
+    panel: cash
+    rail_group: working_capital
+    unit: days
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: "365"}
+    reach_step: "1.0"
+    probe_value: "45"
+    tornado: {low: "-10", high: "10"}
+    breakeven: {ops: [add_days], metrics: [closing_cash]}
+    allowed_ops: [set, add_days]
+    rail_op: add_days
+    set_via: overrides
+    favourable_direction: up
+    case_rule: band_traverse
+    label_key: lever.dpo_cogs_days
+    consumers: [bs.ap]
+  capex_pct_of_revenue:
+    model_key: capex_pct_of_revenue
+    pack_key: capex_pct_of_revenue
+    panel: cash
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.02"
+    tornado: {low: "-0.01", high: "0.01"}
+    breakeven: null
+    allowed_ops: [set, add_pp, level_pct]
+    rail_op: level_pct
+    set_via: overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.capex_pct_of_revenue
+    consumers: [cf.capital_expenditure]
+  dividend_payout_pct:
+    model_key: dividend_payout_pct
+    pack_key: dividend_payout_pct
+    panel: cash
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.5"
+    tornado: {low: "-0.25", high: "0.25"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: set
+    set_via: overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.dividend_payout_pct
+    consumers: [cf.dividends_paid]
+  min_cash:
+    model_key: min_cash
+    pack_key: null
+    panel: cash
+    rail_group: financing
+    unit: money
+    shape: scalar
+    granularity: monthly
+    bounds: {min: "0", max: null}
+    reach_step: "1.00"
+    probe_value: "0"
+    tornado: {low: "0", high: "0"}
+    breakeven: null
+    allowed_ops: [set]
+    rail_op: set
+    set_via: overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.min_cash
+    consumers: [cf.funding_line_movement]
+  tax_rate:
+    model_key: tax_rate
+    pack_key: tax_rate
+    panel: other
+    rail_group: macro
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.16"
+    tornado: {low: "-0.02", high: "0.02"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: add_pp
+    set_via: overrides
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.tax_rate
+    consumers: [pl.income_tax]
+  other_operating_income_annual:
+    model_key: other_operating_income_annual
+    pack_key: null
+    panel: other
+    rail_group: revenue
+    unit: money
+    shape: per_year
+    granularity: monthly
+    bounds: {min: null, max: null}
+    reach_step: "1.00"
+    probe_value: "0"
+    tornado: {low: "-0.10", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, level_pct]
+    rail_op: level_pct
+    set_via: overrides
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.other_operating_income_annual
+    consumers: [pl.other_operating_income]
+  intangible_additions_pct_of_revenue:
+    model_key: intangible_additions_pct_of_revenue
+    pack_key: null
+    panel: other
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0"
+    tornado: {low: "0", high: "0.01"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: set
+    set_via: overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.intangible_additions_pct_of_revenue
+    consumers: [cf.intangible_additions]
+  depreciation_rate:
+    model_key: depreciation_rate
+    pack_key: depreciation_rate
+    panel: other
+    rail_group: financing
+    unit: ratio
+    shape: scalar
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.10"
+    tornado: {low: "-0.02", high: "0.02"}
+    breakeven: null
+    allowed_ops: [set]
+    rail_op: set
+    set_via: overrides
+    favourable_direction: neutral
+    case_rule: hold
+    label_key: lever.depreciation_rate
+    consumers: [pl.depreciation, pl.amortisation]
+  interest_income_rate:
+    model_key: interest_income_rate
+    pack_key: null
+    panel: other
+    rail_group: financing
+    unit: ratio
+    shape: per_year
+    granularity: annual
+    bounds: {min: "0", max: "1"}
+    reach_step: "0.01"
+    probe_value: "0.02"
+    tornado: {low: "-0.01", high: "0.01"}
+    breakeven: null
+    allowed_ops: [set, add_pp]
+    rail_op: set
+    set_via: overrides
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.interest_income_rate
+    consumers: [pl.interest_income]
+  interest_income_annual:
+    model_key: interest_income_annual
+    pack_key: null
+    panel: other
+    rail_group: financing
+    unit: money
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: null}
+    reach_step: "1.00"
+    probe_value: "0"
+    tornado: {low: "-0.10", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, level_pct]
+    rail_op: level_pct
+    set_via: overrides
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.interest_income_annual
+    consumers: [pl.interest_income]
+  other_financial_income_annual:
+    model_key: other_financial_income_annual
+    pack_key: null
+    panel: other
+    rail_group: financing
+    unit: money
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: null}
+    reach_step: "1.00"
+    probe_value: "0"
+    tornado: {low: "-0.10", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, level_pct]
+    rail_op: level_pct
+    set_via: overrides
+    favourable_direction: up
+    case_rule: hold
+    label_key: lever.other_financial_income_annual
+    consumers: [pl.other_financial_income]
+  other_financial_expense_annual:
+    model_key: other_financial_expense_annual
+    pack_key: null
+    panel: other
+    rail_group: financing
+    unit: money
+    shape: per_year
+    granularity: monthly
+    bounds: {min: "0", max: null}
+    reach_step: "1.00"
+    probe_value: "0"
+    tornado: {low: "-0.10", high: "0.10"}
+    breakeven: null
+    allowed_ops: [set, level_pct]
+    rail_op: level_pct
+    set_via: overrides
+    favourable_direction: down
+    case_rule: hold
+    label_key: lever.other_financial_expense_annual
+    consumers: [pl.other_financial_expense]
+
+# 6.2. unwind_days null means each balance unwinds over its own effective
+# days in force; a decimal string of days replaces that window for all three.
+wc_unwind:
+  convention_id: "wc_unwind_ramp"
+  unwind_days: null
+  sentence: >-
+    a working-capital balance leaves the level the base plan gives it one
+    day of flow per elapsed day, over its own days on hand, so a change in
+    sales or terms reaches cash across that window and never in one month.
+    Annual periods land on the new level
+
+# 6.7. Where a debt_schedule row's amounts land inside its plan year.
+debt_timing:
+  convention_id: "debt_timing"
+  draws: first_period
+  repayments: last_period
+  sentence: >-
+    a scheduled draw lands in the first period of its plan year and a
+    scheduled repayment in the last, so a year of interest is charged on
+    what was drawn and none is saved on what is repaid
+
+# 3a.3. Concepts a reader may look for that this engine does not serve.
+unserved:
+  fx_rate_move:
+    sentence: >-
+      an exchange-rate move is not served: the book's revenue and costs are
+      not split by currency
+  headcount:
+    sentence: >-
+      headcount is not served: a trial balance carries the personnel cost
+      and not the number of people
+  avg_personnel_cost:
+    sentence: >-
+      average personnel cost is not served: it needs a headcount the book
+      does not carry
+  segment_growth:
+    sentence: >-
+      growth by segment is not served: revenue is not split by segment in
+      the book
+  policy_rate_shift:
+    sentence: >-
+      a policy-rate shift is not served: the book does not say which of its
+      debt reprices with the policy rate
+
+# 2.3-2.6, 5.4, 6.5, 6.7. The sentences a refused request is answered with.
+# code is stable; {placeholders} are rendered from the request the engine
+# read and the pack values it checked against (TC-10).
+request_refusals:
+  unknown_driver: "{key} is not a driver this engine serves"
+  op_not_allowed: "{op} is not an operation {key} accepts; it accepts {allowed}"
+  shock_window: "shock {id}: {field} is {value}, outside {low} to {high} months"
+  annual_alignment: >-
+    shock {id}: {key} is set once per plan year, so a shock on it starts on
+    the first month of a plan year, ends on the last month of one or not at
+    all, and has no ramp
+  growth_change_is_an_override: "a per-year growth change is sent as an override"
+  growth_pp_source: "shock {id}: growth_pp comes only from a template or a preset"
+  overlapping_sets: "shocks {first} and {second} both set {key} in month {month}"
+  duplicate_shock_id: "two shocks share the id {id}"
+  reserved_shock_id: "shock id {id} uses a reserved prefix"
+  override_not_settable: "{key} is moved through {set_via}, not through an override"
+  override_length: "{key} takes {expected} value(s), got {got}"
+  not_exact: "{key}: {value} is not exactly representable in {unit}"
+  out_of_bounds: "{key}: {value} is outside {low} to {high}"
+  unknown_pool: "this book serves no cost pool {pool}; it serves {served}"
+  fixed_share_range: "a fixed share is a decimal from 0 to 1, got {value} for {pool}"
+  elasticity_value: "volume elasticity is 0 or 1, got {value} for {pool}"
+  debt_year: "debt schedule year {year} is outside the {total_years} plan year(s)"
+  debt_duplicate_year: "two debt schedule rows name plan year {year}"
+  debt_negative: "debt schedule year {year}: {field} is negative; draws and repayments are stated as positive amounts"
+  not_served_in_this_build: "this is not served in this build"
+  days_not_measured: >-
+    {key} is not measured on this book, so a change in days has nothing to
+    add to; set it instead
+  cost_split_refused: >-
+    this book's operating costs could not be split into fixed and variable
+    parts ({reason}), so a plan that moves sales volume or input prices
+    would treat every cost as fully variable, which flatters a downturn.
+    The plan is refused; pool levels and selling prices can still be moved
+  scalar_window: >-
+    shock {id}: {key} holds one value for the whole plan, so a shock on it
+    starts in the first month, never ends and has no ramp
+  revenue_absent: >-
+    the assembled profit and loss carries no revenue line, so there is no
+    revenue to project; an absent revenue is never read as nil
+
+# 6.6. The runway sentences. {period} is the served label of the period the
+# funding line first draws in.
+runway:
+  exact: "cash reaches the floor in {period}"
+  annual_tail: >-
+    cash stays above the floor for every modelled month; the first shortfall
+    falls in {period}, whose month is not modelled
+  none: "no shortfall within the horizon"
+  facility_limit:
+    code: "facility_limit_not_loaded"
+    text: "facility limit not loaded"
+# ── end plan/2 B5 ───────────────────────────────────────────────────────

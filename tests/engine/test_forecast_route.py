@@ -282,7 +282,13 @@ def test_every_projected_line_names_a_driver_or_a_stated_convention():
     from engine.forecast.levers_pack import pool_templates
     templates = set(t["id"] for t in pool_templates().values())
     assert templates == {"pool_fixed_share.*", "pool_level.*"}, templates
-    known = set(KEYS) | set(cid for cid, _b in P.FP1_CONVENTIONS) | templates
+    # plan/2 B5 (28.3 B5): the three index keys join the attribution
+    # project_plan reads; the fp1 view drops them (checked below).
+    known = (set(KEYS) | set(cid for cid, _b in P.FP1_CONVENTIONS) | templates
+             | set(P.INDEX_KEYS))
+    assert set(P.INDEX_KEYS) == {"volume_index", "price_index", "input_price_index"}
+    assert "volume_index" in P.LINE_ASSUMPTIONS["pl.revenue"]
+    assert "input_price_index" in P.LINE_ASSUMPTIONS["pl.cost_of_sales"]
     assert P.LINE_ASSUMPTIONS, "the attribution map is empty"
     for line in sorted(P.LINE_ASSUMPTIONS):
         ids = P.LINE_ASSUMPTIONS[line]

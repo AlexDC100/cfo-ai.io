@@ -68,8 +68,9 @@ from .opening import (ASSET_LINES, CURRENT_ASSET_LINES,
                       OpeningPosition)
 from .timeline import Period, build_timeline
 
-__all__ = ["ProjectedPeriod", "Projection", "assumptions_for_payload",
-           "context_for_payload", "project", "project_payload"]
+__all__ = ["CompiledPlan", "ProjectedPeriod", "Projection", "ShortfallRefusal",
+           "WC_BALANCES", "assumptions_for_payload", "context_for_payload",
+           "project", "project_payload"]
 
 #: P&L line order — declared once, so every render and every serialization
 #: emits the same sequence (F3: no dict-ordering accident reaches output).
@@ -197,7 +198,12 @@ FP1_CONVENTIONS = (
 #: arithmetic below uses, so the two cannot drift: change what feeds
 #: EBITDA and this map changes with it. A hand-written list would have
 #: been correct on the day it was written and wrong on the next one.
-_REVENUE = ("revenue_growth",)
+#: plan/2 B5 (28.3 B5): the three index drivers join the attribution that
+#: project_plan reads for driver_ids and consumed_by. The fp1 VIEW drops
+#: them (FP1_DROPPED_IDS), so GET serves the B4 ids until B6 deletes fp1.
+INDEX_KEYS = ("volume_index", "price_index", "input_price_index")
+FP1_DROPPED_IDS = INDEX_KEYS
+_REVENUE = ("revenue_growth", "volume_index", "price_index")
 #: plan/2 B4b (contract 5, 3a.2): cost of sales is the cost_of_sales POOL
 #: (its fixed share, nil by convention unless overridden, and revenue
 #: growth); operating costs are the opex pools — each pool's fixed share
@@ -205,7 +211,7 @@ _REVENUE = ("revenue_growth",)
 #: parts. The two template ids expand per book, over the SERVED opex
 #: pools, in Projection.line_assumptions(); other operating income is
 #: HELD at the anchor's own amount (5.5) and names only that driver.
-_COGS = _REVENUE + (FIXED_SHARE_PREFIX + "cost_of_sales",)
+_COGS = _REVENUE + (FIXED_SHARE_PREFIX + "cost_of_sales", "input_price_index")
 _OPEX = _REVENUE + ("inflation", TEMPLATE_FIXED_SHARE, TEMPLATE_LEVEL)
 _OOI = ("other_operating_income_annual",)
 _EBITDA = _REVENUE + _COGS + _OPEX + _OOI
@@ -333,8 +339,13 @@ def is_pool_id(assumption_id: str) -> bool:
             or assumption_id.startswith(LEVEL_PREFIX))
 
 
-def expand_line_assumptions(assumptions: "AssumptionSet") -> Dict[str, List[str]]:
-    """LINE_ASSUMPTIONS with the two pool templates expanded over the
+def expand_line_assumptions(assumptions: "AssumptionSet",
+                            fp1_view: bool = True) -> Dict[str, List[str]]:
+    """``fp1_view`` (the default, what ``as_dict`` serves) drops
+    FP1_DROPPED_IDS; ``project_plan`` reads the full attribution with
+    ``fp1_view=False``.
+
+    LINE_ASSUMPTIONS with the two pool templates expanded over the
     book's SERVED opex pools (pool_fixed_share.* -> the opex pools' fixed
     shares; pool_level.* -> their levels), in served order. The
     cost_of_sales pool is named literally where it applies."""
@@ -354,6 +365,8 @@ def expand_line_assumptions(assumptions: "AssumptionSet") -> Dict[str, List[str]
                 expanded.extend(fixed)
             elif aid == TEMPLATE_LEVEL:
                 expanded.extend(level)
+            elif fp1_view and aid in FP1_DROPPED_IDS:
+                continue
             else:
                 expanded.append(aid)
         seen = set()  # type: set
@@ -377,7 +390,8 @@ def _assert_attribution_covers_every_line():
     down with it — which is exactly how this map came to be written.
     """
     from .assumptions import KEYS
-    known = set(KEYS) | set(cid for cid, _basis in FP1_CONVENTIONS)
+    known = (set(KEYS) | set(cid for cid, _basis in FP1_CONVENTIONS)
+             | set(INDEX_KEYS))
     expected = set()
     for line in PL_LINES:
         expected.add("pl." + line)
@@ -514,16 +528,33 @@ class ProjectedPeriod(object):
 class Projection(object):
     """A finished, balanced, traceable projection."""
 
-    __slots__ = ("opening", "assumptions", "periods", "history", "notes")
+    __slots__ = ("opening", "assumptions", "periods", "history", "notes",
+                 "timeline", "shortfall", "wc_targets", "work")
 
     def __init__(self, opening: OpeningPosition, assumptions: AssumptionSet,
                  periods: Tuple[ProjectedPeriod, ...], history: PlHistory,
-                 notes: Tuple[str, ...]) -> None:
+                 notes: Tuple[str, ...],
+                 timeline: Tuple[Period, ...] = (),
+                 shortfall: "Optional[ShortfallRefusal]" = None,
+                 wc_targets: Optional[Dict[Tuple[str, int], int]] = None,
+                 work: Optional[Dict[str, int]] = None) -> None:
         self.opening = opening
         self.assumptions = assumptions
         self.periods = periods
         self.history = history
         self.notes = notes
+        #: plan/2 B5. None of the four is serialised by :meth:`as_dict`, so
+        #: the fp1 bytes are the B4 bytes (forecast-get-b4-parity).
+        #: ``timeline`` is the full requested horizon (``periods`` stops
+        #: short of it on a partial refusal, 6.5); ``shortfall`` is that
+        #: refusal; ``wc_targets`` are the run's own working-capital targets
+        #: T_bp by (balance, period index), which a plan run reads off its
+        #: base run (6.2); ``work`` counts the rounding operations the run
+        #: performed on year-one revenue, which is the F6 band (26.2).
+        self.timeline = tuple(timeline) or tuple(p.period for p in periods)
+        self.shortfall = shortfall
+        self.wc_targets = dict(wc_targets or {})
+        self.work = dict(work or {})
 
     def funding_periods(self) -> Tuple[ProjectedPeriod, ...]:
         """Every period in which the funding line was drawn (F8)."""
@@ -603,10 +634,80 @@ class Projection(object):
         }
 
 
+#: The three balances the working-capital unwind of contract 6.2 governs:
+#: (balance line, days driver, the flow its target is priced on).
+WC_BALANCES = (("ar", "dso_days", "revenue"),
+               ("inventory", "dio_cogs_days", "cost_of_sales"),
+               ("ap", "dpo_cogs_days", "cost_of_sales"))
+
+
+class ShortfallRefusal(object):
+    """The partial refusal of contract 6.5: the plan first draws a funding
+    line this book cannot price in ``period``. The first shortfall accrues
+    no funding interest (the line opens at zero), so its amount and the
+    cash before funding are computable without the rate."""
+
+    __slots__ = ("period", "amount_minor", "cash_before_funding_minor", "sentence")
+
+    def __init__(self, period: Period, amount_minor: int,
+                 cash_before_funding_minor: int, sentence: Dict[str, str]) -> None:
+        self.period = period
+        self.amount_minor = int(amount_minor)
+        self.cash_before_funding_minor = int(cash_before_funding_minor)
+        self.sentence = dict(sentence)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"driver_key": "revolver_rate", "from_period": self.period.label,
+                "shortfall_minor": self.amount_minor,
+                "cash_before_funding_minor": self.cash_before_funding_minor,
+                "sentence": dict(self.sentence)}
+
+
+class CompiledPlan(object):
+    """A lever set compiled onto one timeline (plan/2 B5, contract 2.5-2.6).
+
+    Built only by :mod:`engine.forecast.levers`; :func:`project` reads it and
+    does no composition of its own. Every value is already rounded once to
+    its model unit. A key that is absent from a mapping means "no lever
+    moved this driver": the resolved default of the AssumptionSet applies,
+    which is why a run with ``plan=None`` and a run with an empty plan are
+    the same arithmetic.
+
+    - ``years``: annual-granularity rate drivers, micros per plan year
+      (index n-1), None where the book cannot price the rate.
+    - ``periods``: monthly-granularity drivers per period index: the index
+      drivers and pool levels in micros, the days drivers in micro-days.
+    - ``money``: the held money lines, (annual amount in force, level in
+      micros) per period index.
+    - ``scalars``: min_cash, depreciation_rate, pool_fixed_share.<pool>.
+    - ``elasticity``: volume_elasticity per pool (0 or 1).
+    - ``debt_schedule``: the request's debt rows placed per 6.7.
+    - ``wc_base_targets`` and ``wc_unwind_micro_days``: the base run's
+      targets and the pack's unwind window (6.2); None on a base run.
+    """
+
+    __slots__ = ("years", "periods", "money", "scalars", "elasticity",
+                 "debt_schedule", "wc_base_targets", "wc_unwind_micro_days")
+
+    def __init__(self, years=None, periods=None, money=None, scalars=None,
+                 elasticity=None, debt_schedule=None, wc_base_targets=None,
+                 wc_unwind_micro_days=None) -> None:
+        self.years = dict(years or {})
+        self.periods = dict(periods or {})
+        self.money = dict(money or {})
+        self.scalars = dict(scalars or {})
+        self.elasticity = dict(elasticity or {})
+        self.debt_schedule = debt_schedule
+        self.wc_base_targets = wc_base_targets
+        self.wc_unwind_micro_days = wc_unwind_micro_days
+
+
 def project(opening: OpeningPosition, history: PlHistory,
             assumptions: Optional[AssumptionSet] = None, *,
             total_years: int, monthly_months: int,
             context: Optional[BookContext] = None,
+            plan: Optional[CompiledPlan] = None,
+            stop_at_unpriced_draw: bool = False,
             **overrides: Any) -> Projection:
     """Roll the opening position forward. Refuses rather than approximates.
 
@@ -625,10 +726,23 @@ def project(opening: OpeningPosition, history: PlHistory,
     elif overrides:
         assumptions = assumptions.with_overrides(**overrides)
 
+    if plan is None:
+        plan = CompiledPlan()
+
+    def _year_rate(key, scalar, year_offset):
+        values = plan.years.get(key)
+        return scalar if values is None else values[year_offset - 1]
+
+    def _index(key, period):
+        values = plan.periods.get(key)
+        return MICRO if values is None else values[period.index]
+
     days_basis = assumptions.count("days_basis")
     if days_basis <= 0:
         raise AssumptionError("days_basis", "must be positive")
-    min_cash = assumptions.cents("min_cash")
+    min_cash = plan.scalars.get("min_cash", None)
+    if min_cash is None:
+        min_cash = assumptions.cents("min_cash")
     if min_cash < 0:
         raise AssumptionError(
             "min_cash",
@@ -669,6 +783,8 @@ def project(opening: OpeningPosition, history: PlHistory,
             # stand in for an amount that is not there.
             raise AssumptionError(key, "is unavailable, so there is no cost "
                                   "base to project: %s" % pool.absent_reason)
+        if key in plan.scalars:
+            return plan.scalars[key]
         try:
             assumptions[key]
         except AssumptionError:
@@ -678,6 +794,8 @@ def project(opening: OpeningPosition, history: PlHistory,
 
     def _pool_level(pool):
         key = LEVEL_PREFIX + pool.name
+        if key in plan.periods:
+            return None  # per period, read through _index below
         try:
             return assumptions.micros(key)
         except AssumptionError:
@@ -711,11 +829,15 @@ def project(opening: OpeningPosition, history: PlHistory,
     # word: a driver that pairs a comfortable word with a missing number,
     # or a refusal that still carries one, would otherwise slip between
     # the guard and the charge.
-    dep_rate = assumptions.micros_or_none("depreciation_rate")
+    dep_rate = plan.scalars.get("depreciation_rate")
+    if dep_rate is None:
+        dep_rate = assumptions.micros_or_none("depreciation_rate")
     debt_rate = assumptions.micros_or_none("interest_rate_debt")
     revolver_rate = assumptions.micros_or_none("revolver_rate")
     cash_rate = assumptions.micros_or_none("interest_income_rate")
     cash_rate_priced = cash_rate is not None
+    book_rates = {"interest_rate_debt": debt_rate, "revolver_rate": revolver_rate,
+                  "interest_income_rate": cash_rate}
     interest_income_held = assumptions.cents("interest_income_annual")
     other_fin_income_annual = assumptions.cents("other_financial_income_annual")
     other_fin_expense_annual = assumptions.cents(
@@ -724,8 +846,15 @@ def project(opening: OpeningPosition, history: PlHistory,
     dso = assumptions.micro_days_or_none("dso_days")
     dio = assumptions.micro_days_or_none("dio_cogs_days")
     dpo = assumptions.micro_days_or_none("dpo_cogs_days")
-    schedule = assumptions.debt_schedule
+    schedule = (plan.debt_schedule if plan.debt_schedule is not None
+                else assumptions.debt_schedule)
 
+    year_count = timeline[-1].year_offset
+    growth_of_year = dict((n, _year_rate("revenue_growth", growth, n))
+                          for n in range(1, year_count + 1))
+    worst_growth = min(growth_of_year.values())
+    if worst_growth < -MICRO:
+        growth = worst_growth
     if growth < -MICRO:
         # Below −100% revenue turns NEGATIVE, and every line driven off it
         # follows: cost of sales, receivables, inventory, payables. The
@@ -769,33 +898,83 @@ def project(opening: OpeningPosition, history: PlHistory,
     #: anchor base to the cent.
     growth_factor = Fraction(1)
     inflation_factor = Fraction(1)
+    money_lines = {
+        "other_operating_income_annual": ooi_annual,
+        "interest_income_annual": interest_income_held,
+        "other_financial_income_annual": other_fin_income_annual,
+        "other_financial_expense_annual": other_fin_expense_annual,
+    }
+
+    def _held(key, periods):
+        """A held money line sliced by days (5.5). With no lever it is the
+        one annual amount sliced cumulatively, exactly as before B5. A set
+        or level_pct from month m (2.6) gives each period the day slice of
+        the annual amount in force in that period, times its level."""
+        compiled = plan.money.get(key)
+        if compiled is None:
+            return _slice_by_days(money_lines[key], periods)
+        out = []
+        for position, period in enumerate(periods):
+            amount, level = compiled[period.index]
+            out.append(mul_div(_slice_by_days(amount, periods)[position],
+                               level, MICRO))
+        return out
+
+    #: F6 (26.2): the rounding operations this run performed on year-one
+    #: revenue. The magnitude gate renders its band from this count.
+    revenue_roundings_year_one = 0
     for _year, periods in by_year:
-        growth_factor *= Fraction(MICRO + growth, MICRO)
-        inflation_factor *= Fraction(MICRO + inflation, MICRO)
+        growth_factor *= Fraction(MICRO + growth_of_year[_year], MICRO)
+        inflation_factor *= Fraction(
+            MICRO + _year_rate("inflation", inflation, _year), MICRO)
         running_revenue = _round(anchor_revenue * growth_factor)
+        if _year == 1:
+            revenue_roundings_year_one += 1
         for pool in pools.pools():
             share = Fraction(fixed_share_of[pool.name], MICRO)
             fixed_total = _round(pool.base_cents * share * inflation_factor)
             variable_total = (_round(pool.base_cents * growth_factor)
                               - _round(pool.base_cents * share * growth_factor))
+            elastic = plan.elasticity.get(pool.name, 1) == 1
+            price_linked = pool.name == pools.cost_of_sales.name
             for period, fixed_slice, variable_slice in zip(
                     periods, _slice_by_days(fixed_total, periods),
                     _slice_by_days(variable_total, periods)):
+                # 5.3, in the declared order: volume, then input price.
+                if elastic:
+                    variable_slice = mul_div(variable_slice,
+                                             _index("volume_index", period), MICRO)
+                if price_linked:
+                    variable_slice = mul_div(
+                        variable_slice, _index("input_price_index", period), MICRO)
                 pool_fixed_of[(pool.name, period.index)] = fixed_slice
                 pool_variable_of[(pool.name, period.index)] = variable_slice
-        for period, ooi_slice in zip(periods, _slice_by_days(ooi_annual, periods)):
+        for period, ooi_slice in zip(
+                periods, _held("other_operating_income_annual", periods)):
             ooi_of[period.index] = ooi_slice
-        annual_capex = apply_rate(running_revenue, capex_pct)
-        annual_intangible = apply_rate(running_revenue, intangible_pct)
+        annual_capex = apply_rate(
+            running_revenue, _year_rate("capex_pct_of_revenue", capex_pct, _year))
+        annual_intangible = apply_rate(
+            running_revenue, _year_rate("intangible_additions_pct_of_revenue",
+                                        intangible_pct, _year))
         for (period, slice_revenue, slice_capex, slice_intangible,
              slice_interest_income, slice_fin_income, slice_fin_expense) in zip(
                 periods,
                 _slice_by_days(running_revenue, periods),
                 _slice_by_days(annual_capex, periods),
                 _slice_by_days(annual_intangible, periods),
-                _slice_by_days(interest_income_held, periods),
-                _slice_by_days(other_fin_income_annual, periods),
-                _slice_by_days(other_fin_expense_annual, periods)):
+                _held("interest_income_annual", periods),
+                _held("other_financial_income_annual", periods),
+                _held("other_financial_expense_annual", periods)):
+            # 5.3: revenue_p = apply(apply(slice(R_n)_p, volume_p), price_p).
+            if _year == 1:
+                revenue_roundings_year_one += 1
+            for index_key in ("volume_index", "price_index"):
+                level = _index(index_key, period)
+                if level != MICRO:
+                    slice_revenue = mul_div(slice_revenue, level, MICRO)
+                    if _year == 1:
+                        revenue_roundings_year_one += 1
             revenue_of[period.index] = slice_revenue
             capex_of[period.index] = slice_capex
             intangible_of[period.index] = slice_intangible
@@ -817,8 +996,25 @@ def project(opening: OpeningPosition, history: PlHistory,
     year_pretax = 0
     year_tax_charged = 0
     current_year = None  # type: Optional[int]
+    shortfall = None  # type: Optional[ShortfallRefusal]
+    wc_targets = {}  # type: Dict[Tuple[str, int], int]
+    #: 6.2: per balance, the start date of the first monthly period whose
+    #: target left the base run's target.
+    wc_diverged_from = {}  # type: Dict[str, date]
+    days_scalar = {"dso_days": dso, "dio_cogs_days": dio, "dpo_cogs_days": dpo}
 
     for period in timeline:
+        # The per-year rates a lever may have moved (2.6). The three that
+        # price a BALANCE keep the names their guards ask by value.
+        tax_rate_now = _year_rate("tax_rate", tax_rate, period.year_offset)
+        debt_rate = _year_rate("interest_rate_debt",
+                               book_rates["interest_rate_debt"], period.year_offset)
+        revolver_rate = _year_rate("revolver_rate", book_rates["revolver_rate"],
+                                   period.year_offset)
+        cash_rate = _year_rate("interest_income_rate",
+                               book_rates["interest_income_rate"],
+                               period.year_offset)
+        payout_now = _year_rate("dividend_payout_pct", payout, period.year_offset)
         if current_year != period.year_offset:
             current_year = period.year_offset
             year_net_income = 0
@@ -843,7 +1039,10 @@ def project(opening: OpeningPosition, history: PlHistory,
         for pool in pools.opex:
             parts = (pool_fixed_of[(pool.name, period.index)]
                      + pool_variable_of[(pool.name, period.index)])
-            operating_costs += mul_div(parts, level_of[pool.name], MICRO)
+            level = level_of[pool.name]
+            if level is None:
+                level = _index(LEVEL_PREFIX + pool.name, period)
+            operating_costs += mul_div(parts, level, MICRO)
         # An operating INCOME the source statement names, HELD at its own
         # annual amount and sliced by days (5.5). Without it the model's
         # EBITDA is the book's EBITDA less exactly this line, on every
@@ -883,7 +1082,8 @@ def project(opening: OpeningPosition, history: PlHistory,
                 "rate, and the most favourable one. Supply "
                 "depreciation_rate."
                 % (fmt(base_this_period), period.label,
-                   assumptions["depreciation_rate"].basis))
+                   assumptions["depreciation_rate"].basis),
+                period_label=period.label)
         # The charge is capped at the book value actually available. An
         # uncapped charge would drive net book value negative, and a
         # clamp applied only to the balance sheet would break the
@@ -923,7 +1123,8 @@ def project(opening: OpeningPosition, history: PlHistory,
                 "invented rate, and the cheapest one. Supply "
                 "interest_rate_debt."
                 % (fmt(debt_this_period), period.label,
-                   assumptions["interest_rate_debt"].basis))
+                   assumptions["interest_rate_debt"].basis),
+                period_label=period.label)
         # As above: a missing rate charges nothing only where the guards
         # have already proved the balance is nil. ``rate or 0`` would say
         # the same thing in a way that reads as a default, and that is
@@ -944,7 +1145,8 @@ def project(opening: OpeningPosition, history: PlHistory,
         interest_income = (
             _period_charge(opening_cash, cash_rate, period.days,
                            days_basis)
-            if cash_rate_priced else interest_income_of[period.index])
+            if (cash_rate_priced and cash_rate is not None)
+            else interest_income_of[period.index])
         other_financial_income = other_fin_income_of[period.index]
         other_financial_expense = other_fin_expense_of[period.index]
         pretax = (ebit - interest_debt - interest_funding + interest_income
@@ -957,7 +1159,7 @@ def project(opening: OpeningPosition, history: PlHistory,
         # annual period is its own year to date, so it is charged
         # max(0, pre-tax x rate).
         year_pretax += pretax
-        year_tax_due = max(0, apply_rate(year_pretax, tax_rate))
+        year_tax_due = max(0, apply_rate(year_pretax, tax_rate_now))
         income_tax = year_tax_due - year_tax_charged
         year_tax_charged = year_tax_due
         net_income = pretax - income_tax
@@ -969,12 +1171,39 @@ def project(opening: OpeningPosition, history: PlHistory,
         # half a day of the flow that drives them and post the difference
         # as operating cash no assumption ever stated.
         period_micro_days = period.days * MICRO_DAY
-        receivables = (mul_div(revenue, dso, period_micro_days)
-                       if dso is not None else balances["ar"])
-        inventory = (mul_div(cost_of_sales, dio, period_micro_days)
-                     if dio is not None else balances["inventory"])
-        payables = (mul_div(cost_of_sales, dpo, period_micro_days)
-                    if dpo is not None else balances["ap"])
+        flows = {"revenue": revenue, "cost_of_sales": cost_of_sales}
+        closing_wc = {}  # type: Dict[str, int]
+        for balance, days_key, flow_key in WC_BALANCES:
+            compiled_days = plan.periods.get(days_key)
+            days_now = (days_scalar[days_key] if compiled_days is None
+                        else compiled_days[period.index])
+            if days_now is None:
+                closing_wc[balance] = balances[balance]
+                continue
+            target = mul_div(flows[flow_key], days_now, period_micro_days)
+            wc_targets[(balance, period.index)] = target
+            closing = target
+            base_target = (None if plan.wc_base_targets is None
+                           else plan.wc_base_targets.get((balance, period.index)))
+            # 6.2 (convention wc_unwind_ramp): a balance leaves its base
+            # target one day of flow per elapsed day, over its own days in
+            # force (or the pack's unwind window). Annual periods land on
+            # the target; the base run has no base target and is unchanged.
+            if base_target is not None and period.granularity == "monthly":
+                if target != base_target and balance not in wc_diverged_from:
+                    wc_diverged_from[balance] = period.start
+                started = wc_diverged_from.get(balance)
+                if started is not None and target != base_target:
+                    window = (plan.wc_unwind_micro_days
+                              if plan.wc_unwind_micro_days is not None else days_now)
+                    elapsed = ((period.end - started).days + 1) * MICRO_DAY
+                    if window > 0 and elapsed < window:
+                        closing = base_target + mul_div(target - base_target,
+                                                        elapsed, window)
+            closing_wc[balance] = closing
+        receivables = closing_wc["ar"]
+        inventory = closing_wc["inventory"]
+        payables = closing_wc["ap"]
 
         # ── fixed assets ───────────────────────────────────────────────
         closing_ppe = opening_ppe + capex - depreciation
@@ -991,8 +1220,8 @@ def project(opening: OpeningPosition, history: PlHistory,
         # ── distributions ──────────────────────────────────────────────
         dividends = 0
         if period.index == last_index_of_year[period.year_offset] \
-                and year_net_income > 0 and payout > 0:
-            dividends = apply_rate(year_net_income, payout)
+                and year_net_income > 0 and payout_now > 0:
+            dividends = apply_rate(year_net_income, payout_now)
             # A distribution cannot exceed what the reserve can carry.
             dividends = min(dividends,
                             max(0, balances["equity_retained"] + net_income))
@@ -1019,6 +1248,17 @@ def project(opening: OpeningPosition, history: PlHistory,
                                 cash_before_funding - min_cash)
         if (funding_draw > 0 or opening_revolver > 0) \
                 and revolver_rate is None:
+            if stop_at_unpriced_draw and opening_revolver == 0:
+                # 6.5: serve the periods before the first unpriceable draw
+                # and say where, and by how much, the plan falls short.
+                shortfall = ShortfallRefusal(
+                    period, funding_draw, cash_before_funding,
+                    {"code": "funding_line_unpriceable",
+                     "text": "the plan draws %s on the funding line in %s and "
+                             "this book cannot price it: %s"
+                             % (fmt(funding_draw), period.label,
+                                assumptions["revolver_rate"].basis)})
+                break
             # An `unavailable` rate means the line is HELD, not that it
             # resolves to zero on the numeric path. There is no balance to
             # hold here — the model creates this one itself — so a rate it
@@ -1031,7 +1271,8 @@ def project(opening: OpeningPosition, history: PlHistory,
                 "rate, and the cheapest one. Supply revolver_rate, or "
                 "change the plan so the line is not drawn."
                 % (fmt(funding_draw or opening_revolver), period.label,
-                   assumptions["revolver_rate"].basis))
+                   assumptions["revolver_rate"].basis),
+                period_label=period.label)
         funding_movement = funding_draw - funding_repay
         closing_revolver = opening_revolver + funding_movement
         closing_cash = cash_before_funding + funding_movement
@@ -1128,7 +1369,11 @@ def project(opening: OpeningPosition, history: PlHistory,
 
     return Projection(opening=opening, assumptions=assumptions,
                       periods=tuple(projected), history=history,
-                      notes=_notes(assumptions, history))
+                      notes=_notes(assumptions, history),
+                      timeline=timeline, shortfall=shortfall,
+                      wc_targets=wc_targets,
+                      work={"revenue_roundings_year_one":
+                            revenue_roundings_year_one})
 
 
 def _notes(assumptions: AssumptionSet, history: PlHistory) -> Tuple[str, ...]:
