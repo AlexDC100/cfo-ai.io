@@ -346,3 +346,18 @@ def test_get_through_the_real_app_answers_200_with_no_clause_violation(name, hor
     assert any(i.startswith("pool_fixed_share.") for i in ids), sorted(ids)
     assert any(i.startswith("pool_level.") for i in ids), sorted(ids)
     assert not any(i.endswith(".*") for i in ids), sorted(ids)
+    # plan/2 B4 repair (B4V-4): the JOIN that makes the pools reachable in
+    # production. RED ON: `"line_items": line_items` deleted from
+    # _forecast_routes._load_period — the GET still answers 200, serving the
+    # refused single pool (pool_fixed_share.operating_costs under
+    # #no_line_items), which satisfied the startswith() checks above. Every
+    # corpus book splits, so a refused pool on the wire means the rows never
+    # reached the engine.
+    assert "pool_fixed_share.personnel" in ids, (
+        "%s h%d: the served pools are %s — the statement line items did not "
+        "reach the engine (complete and unreachable)"
+        % (name, horizon, sorted(i for i in ids if i.startswith("pool_fixed_share."))))
+    assert "pool_fixed_share.operating_costs" not in ids, (
+        "%s h%d serves the REFUSED single pool through the real app" % (name, horizon))
+    by_id = dict((a["id"], a) for a in body["assumptions"])
+    assert "cost_behaviour.yaml#no_line_items" not in json.dumps(by_id), (name, horizon)

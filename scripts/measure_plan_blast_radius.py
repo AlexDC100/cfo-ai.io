@@ -320,6 +320,10 @@ def _engine_record(book: Dict[str, Any]) -> Dict[str, Any]:
     payload = {
         "envelope": book["envelope"],
         "statements": book["statements"],
+        # plan/2 B4 repair (B4V-7(f)): without the rows the engine refuses
+        # the split (#no_line_items) and a --record-baseline would record
+        # the single refused pool, not the book's pools.
+        "line_items": book.get("line_items"),
         "period_end": book["period_end"],
         "currency": book.get("currency") or "RON",
     }
