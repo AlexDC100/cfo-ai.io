@@ -86,8 +86,8 @@ it (bare single-letter markers are file-level attributions).
 |---|---|---|---|
 | `V1` | Status invariance: machine status with the advisory pass ON == OFF; served payload byte-identical. | — | `tests/engine/test_ai_advisory.py` |
 | `V2` | Byte-invariance: gateway facts identical ON/OFF. | — | `tests/engine/test_ai_advisory.py` |
-| `V3` | Failure isolation: model timeout / API error / credits-out -> ai_review absent + degraded flag, all else byte-identical. | — | `tests/engine/test_ai_advisory.py` |
-| `V4` | needs_review escalation accepts atom/account IDs only; a value raises TypeError by signature. | — | `tests/engine/test_ai_advisory.py` |
+| `V3` | Failure isolation: model timeout / API error / credits-out -> ai_review absent + degraded flag, all else byte-identical. | — | `tests/engine/test_ai_advisory.py`, `tests/engine/test_floor_sku_portfolio.py` |
+| `V4` | needs_review escalation accepts atom/account IDs only; a value raises TypeError by signature. | — | `tests/engine/test_ai_advisory.py`, `tests/engine/test_floor_sku_portfolio.py` |
 | `V5` | Findings cannot flip status; forged keys are stripped by the whitelist projection. | — | `tests/engine/test_ai_advisory.py` |
 | `V6` | Reconcile quarantine: the reconcile flow never constructs the ai_validator client. | — | `tests/engine/test_ai_advisory.py` |
 | `V7` | ai_review survives the serve stage intact and never leaks INTO the served payload. | — | `tests/engine/test_ai_advisory.py` |

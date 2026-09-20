@@ -35,7 +35,9 @@ const fmt = {
   euK: (kron: number) => `${kron.toFixed(0)}k ${CURRENCY}`,
   euAuto: (kron: number) =>
     Math.abs(kron) >= 1000 ? `${(kron / 1000).toFixed(1)}M ${CURRENCY}` : `${kron.toFixed(0)}k ${CURRENCY}`,
-  pct: (n: number) => `${n.toFixed(1)}%`,
+  // A refused figure (DailyRun.roicPct null → ExecutiveSummary.roic_pct null)
+  // is stated, never formatted as a number.
+  pct: (n: number | null) => (n === null ? "unavailable" : `${n.toFixed(1)}%`),
 };
 
 // Tiny tag check — every keyword needs to appear (case-insensitive) for the
@@ -170,7 +172,10 @@ export function respond(input: string, ctx: DataCtx): AnswerBlocks {
     return {
       blocks: [
         {
-          text: `Portfolio ROIC sits at **${fmt.pct(summary.roic_pct)}** vs ${costOfCapitalPct}% cost of capital — a healthy ${(summary.roic_pct - costOfCapitalPct).toFixed(1)}pp spread, but it's concentrated in a handful of anchors.`,
+          text:
+            summary.roic_pct === null
+              ? `Portfolio ROIC is unavailable for this run (the engine refused it: the capital base is not measurable), so no spread against the ${costOfCapitalPct}% cost of capital can be stated.`
+              : `Portfolio ROIC sits at **${fmt.pct(summary.roic_pct)}** vs ${costOfCapitalPct}% cost of capital — a ${(summary.roic_pct - costOfCapitalPct).toFixed(1)}pp spread, but it's concentrated in a handful of anchors.`,
         },
         {
           text: "Categories dragging ROIC down:",

@@ -98,7 +98,9 @@ export interface TodayRequest {
 export interface ExecutiveSummary {
   cash_trapped_kron: number;
   cash_recovery_potential_kron: number;
-  roic_pct: number;
+  /** null when the run's ROIC was refused (DailyRun.roicPct null); readers
+   *  state that rather than format a number. */
+  roic_pct: number | null;
   real_margin_pct: number;
   products_analyzed: number;
   categories_analyzed: number;

@@ -43,6 +43,9 @@ type Statements = {
   assembled_bs: Record<string, number>;
   assembled_cf: Record<string, unknown>;
   incomeStatement: Record<string, number>;
+  /** The write-seam fixture carries `supplementary.periodDays: null`; the
+   *  harness establishes it the way `_served_supplementary` does. */
+  supplementary?: Record<string, unknown> | null;
   companyName?: string;
 };
 

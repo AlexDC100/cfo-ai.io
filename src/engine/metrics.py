@@ -59,12 +59,21 @@ def gmroii(
     return (gross_margin * inventory_turns / avg_inventory) * 100.0
 
 
-def composite_score(real_margin_pct: float, sales: float, dio_days: int) -> float:
-    """Ranking heuristic: (real_margin × sales) / max(DIO, 1).
+def composite_score(real_margin_pct: float, sales: float, dio_days: int) -> Optional[float]:
+    """Ranking heuristic: (real_margin × sales) / DIO.
 
     Combines profitability AND velocity. Used for SKU prioritization.
+
+    Returns None when DIO is not positive. The original spec
+    (files/CLAUDE.md) floored the divisor at ``max(DIO, 1)``, which ranked
+    a 0-day DIO exactly like a 1-day one and let a DIO of 0 manufactured
+    upstream (the zero-volume weighted-DIO defect) rank by margin × sales
+    alone. Owner ruling 2026-09-15: absent is never zero and never a floor —
+    a velocity ratio over a non-positive day count is undefined, not 1.
     """
-    return (real_margin_pct * sales) / max(dio_days, 1)
+    if dio_days is None or dio_days <= 0:
+        return None
+    return (real_margin_pct * sales) / dio_days
 
 
 def cash_conversion_cycle(dio: int, dso: int, dpo: int) -> int:
@@ -168,3 +177,75 @@ def cash_recovery_potential(decisions: list) -> float:
             if freed is not None:
                 total += freed
     return total
+
+
+# ─── Portfolio aggregates (one authority for every summary surface) ─────
+# actions.py (POST /run-daily + CLI), api/cfo_ai.py (/today, /profit,
+# /exports/board-summary) and api/frontend.py (DailyRun) each used to
+# rebuild these with their own divisor floor (`or 1.0`, `if d > 0 else
+# 0.0`), serving 0.00 — or, for a NIV book that nets to zero, 20,000% —
+# where the value is undefined. They now read these helpers, which return
+# ``(value, refusal)``: exactly one of the two is None.
+
+PORTFOLIO_REAL_MARGIN_UNDEFINED = "portfolio_real_margin_undefined"
+PORTFOLIO_ROIC_UNDEFINED = "portfolio_roic_undefined"
+ANCHOR_PROFIT_SHARE_UNDEFINED = "anchor_profit_share_undefined"
+
+
+def _refusal(code: str, component: str, inputs: dict, text: str) -> dict:
+    return {"code": code, "component": component, "inputs": inputs, "text": text}
+
+
+def niv_weighted_margin(
+    pairs: "list[tuple[float, float]]",
+    component: str = "real_margin_pct",
+    label: str = "Portfolio real margin",
+) -> "tuple[Optional[float], Optional[dict]]":
+    """NIV-weighted average of ``(margin_pct, niv_kron)`` pairs.
+
+    A weighted average is defined only over non-negative weights with a
+    positive total: then it is bounded by the smallest and largest margin
+    in the book. A zero total has no average (it used to divide by a 1.0
+    floor and serve 0.00 while every category said otherwise), and a
+    negative weight makes the "average" unbounded (measured: category
+    margins 29.3 and 9.3 over NIV +1000/-1000 served 20,000.00).
+    """
+    total = sum(niv for _, niv in pairs)
+    negatives = [niv for _, niv in pairs if niv < 0]
+    if negatives:
+        return None, _refusal(
+            PORTFOLIO_REAL_MARGIN_UNDEFINED, component,
+            {"total_niv_kron": round(total, 2), "negative_niv_count": len(negatives)},
+            f"{label} unavailable: {len(negatives)} categor"
+            f"{'y carries' if len(negatives) == 1 else 'ies carry'} a negative NIV, "
+            f"so a NIV-weighted average is not bounded by the category margins.",
+        )
+    if total <= 0:
+        return None, _refusal(
+            PORTFOLIO_REAL_MARGIN_UNDEFINED, component,
+            {"total_niv_kron": round(total, 2)},
+            f"{label} unavailable: total NIV is zero, so there is nothing to weight "
+            f"the category margins by.",
+        )
+    return sum(m * niv for m, niv in pairs) / total, None
+
+
+def portfolio_roic(
+    total_abs_profit_kron: float,
+    total_capital_trapped_kron: float,
+    component: str = "roic_pct",
+) -> "tuple[Optional[float], Optional[dict]]":
+    """Portfolio ROIC % = absolute profit / capital trapped.
+
+    Undefined — not 0.00 — when no capital is trapped: 300 kRON of profit on
+    zero capital is not a 0% return.
+    """
+    if total_capital_trapped_kron <= 0:
+        return None, _refusal(
+            PORTFOLIO_ROIC_UNDEFINED, component,
+            {"total_abs_profit_kron": round(total_abs_profit_kron, 2),
+             "total_capital_trapped_kron": round(total_capital_trapped_kron, 2)},
+            "Portfolio ROIC unavailable: capital trapped is zero, so there is no "
+            "invested capital to return on.",
+        )
+    return total_abs_profit_kron / total_capital_trapped_kron * 100.0, None

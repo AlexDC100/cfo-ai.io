@@ -360,28 +360,59 @@ def _exposure_profile(tu: str):
         _exposure_key(tu), EXPOSURE_TTL_SEC, _build)
 
 
+def _first_present(snap: dict[str, Any], *keys: str) -> Any:
+    """The first key's value that is not None. `snap.get(a) or snap.get(b)`
+    turned a measured 0 into None — a false "not reported"."""
+    for k in keys:
+        v = snap.get(k)
+        if v is not None:
+            return v
+    return None
+
+
+def _points_to_fraction(value: Any) -> Any:
+    """Every universe producer (universe_service, normalizer, bvb_seed,
+    demo_universe) writes margins, ROE, FCF yield and revenue growth in
+    PERCENTAGE POINTS (ebitda / revenue * 100). The scoring engines' tiers
+    are 0–1 fractions (EBITDA-margin tier ≥ 0.25), so a 5% margin read as
+    5.0 took the best tier. Convert at this one boundary."""
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return value
+    return value / 100.0
+
+
 def _financials_from_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
-    """Pull the canonical financial subset the scoring engines expect."""
+    """Pull the canonical financial subset the scoring engines expect.
+
+    Ratios come out as 0–1 fractions; multiples and money as-is. A field the
+    snapshot does not carry is None, and the engines refuse on it — unless
+    the row's PRODUCER (its ``mode``: live / demo / seed, carried under
+    ``producer``) never emits that field, in which case the risk engine
+    drops the category and says so (R-PUBLIC-ABSENT).
+    """
+    g = _first_present
+    mode = snap.get("mode")
     return {
-        "revenue":              snap.get("revenue"),
-        "revenue_growth":       snap.get("revenue_growth") or snap.get("revenueGrowth"),
-        "ebitda":               snap.get("ebitda"),
-        "ebitda_margin":        snap.get("ebitda_margin") or snap.get("ebitdaMargin"),
-        "net_income":           snap.get("net_income") or snap.get("netIncome"),
-        "net_margin":           snap.get("net_margin") or snap.get("netMargin"),
-        "capex":                snap.get("capex"),
-        "operating_cash_flow":  snap.get("operating_cash_flow") or snap.get("operatingCashFlow"),
-        "free_cash_flow":       snap.get("free_cash_flow") or snap.get("freeCashFlow"),
-        "fcf_yield":            snap.get("fcf_yield") or snap.get("fcfYield"),
-        "market_cap":           snap.get("market_cap") or snap.get("marketCap"),
-        "ev":                   snap.get("enterprise_value") or snap.get("enterpriseValue"),
-        "ev_to_ebitda":         snap.get("ev_to_ebitda") or snap.get("evToEbitda"),
-        "pe_ratio":             snap.get("pe_ratio") or snap.get("peRatio"),
-        "net_debt":             snap.get("net_debt") or snap.get("netDebt"),
-        "net_debt_to_ebitda":   snap.get("net_debt_to_ebitda") or snap.get("netDebtToEbitda"),
-        "debt_to_equity":       snap.get("debt_to_equity") or snap.get("debtToEquity"),
-        "roe":                  snap.get("roe"),
-        "interest_expense":     snap.get("interest_expense") or snap.get("interestExpense"),
+        "producer":             mode if isinstance(mode, str) else None,
+        "revenue":              g(snap, "revenue"),
+        "revenue_growth":       _points_to_fraction(g(snap, "revenue_growth", "revenueGrowth")),
+        "ebitda":               g(snap, "ebitda"),
+        "ebitda_margin":        _points_to_fraction(g(snap, "ebitda_margin", "ebitdaMargin")),
+        "net_income":           g(snap, "net_income", "netIncome"),
+        "net_margin":           _points_to_fraction(g(snap, "net_margin", "netMargin")),
+        "capex":                g(snap, "capex"),
+        "operating_cash_flow":  g(snap, "operating_cash_flow", "operatingCashFlow"),
+        "free_cash_flow":       g(snap, "free_cash_flow", "freeCashFlow"),
+        "fcf_yield":            _points_to_fraction(g(snap, "fcf_yield", "fcfYield")),
+        "market_cap":           g(snap, "market_cap", "marketCap"),
+        "ev":                   g(snap, "enterprise_value", "enterpriseValue"),
+        "ev_to_ebitda":         g(snap, "ev_to_ebitda", "evToEbitda"),
+        "pe_ratio":             g(snap, "pe_ratio", "peRatio"),
+        "net_debt":             g(snap, "net_debt", "netDebt"),
+        "net_debt_to_ebitda":   g(snap, "net_debt_to_ebitda", "netDebtToEbitda"),
+        "debt_to_equity":       g(snap, "debt_to_equity", "debtToEquity"),
+        "roe":                  _points_to_fraction(g(snap, "roe")),
+        "interest_expense":     g(snap, "interest_expense", "interestExpense"),
     }
 
 
@@ -1287,6 +1318,13 @@ def build_router() -> APIRouter:
                     "ticker": ticker,
                     "risk_score": risk.overall_risk_score,
                     "risk_level": risk.risk_level,
+                    # Why risk_score is null, when it is (one sentence).
+                    "risk_refusal": next(
+                        (r.text for r in risk.refusals if r.component == "overall"), None
+                    ),
+                    # What the score covers: the dropped categories, the
+                    # reason, and the weights applied (R-PUBLIC-ABSENT).
+                    "risk_coverage": _serialize(risk.coverage),
                     "main_risk": (
                         risk.top_risks[0].label if risk.top_risks else None
                     ),
@@ -1295,6 +1333,9 @@ def build_router() -> APIRouter:
                     ),
                     "opportunity_score": opp.overall_opportunity_score,
                     "opportunity_level": opp.strength_level,
+                    "opportunity_refusal": next(
+                        (r.text for r in opp.refusals if r.component == "overall"), None
+                    ),
                     "exposure_source": profile.source,
                     "confidence": profile.confidence,
                 }
@@ -1378,45 +1419,3 @@ def build_router() -> APIRouter:
         return {"cache_keys_invalidated": dropped, "ok": True}
 
     return router
-
-
-def _derive_categories_for_profile(profile) -> list[str]:
-    """Best-effort mapping of an exposure profile's risks → RiskCategory list."""
-    cats = set()
-    channel_to_cat = {
-        "supply_availability": "supply_chain",
-        "inventory": "supply_chain",
-        "valuation_multiple": "rates_credit",
-        "debt_cost": "rates_credit",
-        "fx": "fx",
-        "revenue": "consumer_demand",
-        "capex": "technology",
-    }
-    for risk in profile.main_risks[:8]:
-        for ch in risk.channels:
-            if ch in channel_to_cat:
-                cats.add(channel_to_cat[ch])
-    return sorted(cats)
-
-
-def _build_watchlist(profile, risk: PublicCompanyRiskScore) -> list[str]:
-    """Produce a deterministic 'what to watch' list from the score breakdown.
-
-    No LLM — just a template tied to top risks + category scores. The
-    eventual Claude call will replace this with a richer per-ticker
-    narrative.
-    """
-    items: list[str] = []
-    if risk.top_risks:
-        items.append(f"Watch {risk.top_risks[0].label} — {risk.top_risks[0].severity} severity.")
-    if risk.categories.financial >= 60:
-        items.append("Watch upcoming refinancings + interest coverage trend.")
-    if risk.categories.supply_chain >= 60:
-        items.append("Watch shipping cost + supplier concentration disclosures.")
-    if risk.categories.geopolitical >= 60:
-        items.append("Watch regional revenue exposure breakdown in next 10-K.")
-    if risk.categories.valuation >= 60:
-        items.append("Watch peer-relative valuation — multiple compression risk.")
-    if not items:
-        items.append("No specific watch flags — score is composite-low.")
-    return items
