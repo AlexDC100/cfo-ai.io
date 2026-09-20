@@ -756,6 +756,14 @@ def _match_filter(row, column, expr):  # type: (Dict[str, Any], str, str) -> boo
         return value is not None and _pg_text(value) == expr[3:].lower()
     if expr.startswith("neq."):
         return _pg_text(value) != expr[4:].lower()
+    if expr.startswith("lt.") or expr.startswith("gt."):
+        # B7: the forecast's prior-period select is `period_end=lt.<anchor>`.
+        # NULL never satisfies a comparison, and the dates this is used on
+        # are ISO text, which orders lexicographically.
+        if value is None:
+            return False
+        return (_pg_text(value) < expr[3:].lower()) if expr.startswith("lt.") \
+            else (_pg_text(value) > expr[3:].lower())
     if expr.startswith("in.(") and expr.endswith(")"):
         # PostgREST accepts both `in.(a,b)` and `in.("a","b")`.
         wanted = [v.strip().strip('"').lower() for v in expr[4:-1].split(",") if v.strip()]

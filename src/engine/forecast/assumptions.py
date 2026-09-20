@@ -216,7 +216,7 @@ class BookContext(object):
     (contract 4, R8). Frozen; built once per payload."""
 
     __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table", "pools",
-                 "tax_charge_rows")
+                 "tax_charge_rows", "prior_revenue", "prior_period_end")
 
     #: The statement bucket the assembly files a profit-tax charge under.
     TAX_BUCKET = "taxExpense"
@@ -234,7 +234,9 @@ class BookContext(object):
                  jurisdiction_source: Optional[str] = None,
                  ratio_table: Optional[Dict[str, Any]] = None,
                  pools: Optional[PoolSplit] = None,
-                 tax_charge_rows: Optional[int] = None) -> None:
+                 tax_charge_rows: Optional[int] = None,
+                 prior_revenue: Optional[int] = None,
+                 prior_period_end: Optional[str] = None) -> None:
         #: How many statement rows this book files as a profit-tax charge;
         #: None when the payload carried no line items. A book with NO such
         #: row has an ABSENT charge, not a measured nil one (plan/2 B4
@@ -248,9 +250,27 @@ class BookContext(object):
         #: The anchor's cost pools split from its line items (plan/2 B4b,
         #: 5.1); None when the payload carried none.
         object.__setattr__(self, "pools", pools)
+        #: The ONE comparable prior period this book carries (B7): its
+        #: ``assembled_pl.revenue`` in cents and its period_end. Both None
+        #: when no prior was loaded, or when the one that was is not
+        #: comparable — the eligibility verdict is the loader's
+        #: (``engine.api._forecast_history``), never a ladder's, and an
+        #: ineligible prior arrives here as ABSENT rather than as a number
+        #: with a caveat attached.
+        object.__setattr__(self, "prior_revenue", prior_revenue)
+        object.__setattr__(self, "prior_period_end", prior_period_end)
 
     def __setattr__(self, name, value):  # pragma: no cover - frozen
         raise AttributeError("BookContext is frozen")
+
+    def with_prior(self, revenue: Optional[int],
+                   period_end: Optional[str]) -> "BookContext":
+        """This context with the comparable prior period attached. Frozen,
+        so a copy; the resolver seam is the one caller (B7)."""
+        return BookContext(self.jurisdiction, self.jurisdiction_source,
+                           self.ratio_table, self.pools,
+                           tax_charge_rows=self.tax_charge_rows,
+                           prior_revenue=revenue, prior_period_end=period_end)
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "BookContext":
@@ -1591,11 +1611,52 @@ def derive_assumptions(opening: Any, history: Any, *,
     # ── the ones a single book cannot answer: their ladders ────────────
     # revenue_growth (3.4): book cagr -> sector -> macro pack_anchor ->
     # convention terminal rung. Never a silent zero.
-    growth_steps = [_step("book", "absent", authority_absent.get(
-                        "revenue_growth", _HISTORY_NOT_READ)),
-                    _step("sector", "absent", _NO_SECTOR_SOURCE)]
+    # The BOOK rung (B7): the two-point growth this book's OWN turnovers
+    # imply, when a comparable prior period was loaded. ABSENT is never
+    # zero — a prior with no revenue, or a nil one, cannot divide, so the
+    # rung records why and the ladder continues to the macro anchor. The
+    # driver authority's explicit hand-over still wins: a measurement here
+    # would be a second authority (contract 4).
+    prior_revenue = getattr(context, "prior_revenue", None)
+    prior_end = getattr(context, "prior_period_end", None)
+    book_growth = None
+    book_growth_reason = authority_absent.get("revenue_growth")
+    if book_growth_reason is None:
+        if prior_revenue is None or prior_end is None:
+            book_growth_reason = _HISTORY_NOT_READ
+        elif prior_revenue <= 0:
+            book_growth_reason = (
+                "the prior period %s carries no positive turnover to grow "
+                "from (%s)" % (prior_end, fmt(prior_revenue)))
+        elif revenue is None:
+            book_growth_reason = ("assembled_pl.revenue is not carried by "
+                                  "this book")
+        else:
+            book_growth = mul_div(revenue - prior_revenue, MICRO, prior_revenue)
+    if book_growth is None:
+        growth_steps = [_step("book", "absent", book_growth_reason),
+                        _step("sector", "absent", _NO_SECTOR_SOURCE)]
+    else:
+        growth_steps = []
     anchor = macro.anchor("inflation", jurisdiction)
-    if anchor is not None:
+    if book_growth is not None:
+        put("revenue_growth", _RATIO, book_growth, "derived",
+            "this book's own turnover: %s in %s against %s in %s, a growth "
+            "of %s carried forward at constant real volume"
+            % (fmt(revenue), period_end, fmt(prior_revenue), prior_end,
+               _pct4(book_growth)),
+            ("assembled_pl.revenue",),
+            tier="book",
+            evidence={"method": "growth",
+                      "periods_used": [prior_end, period_end],
+                      "inputs": [
+                          {"fact": "assembled_pl.revenue",
+                           "period_end": prior_end, "value_minor": prior_revenue,
+                           "authority": "assembled_pl"},
+                          {"fact": "assembled_pl.revenue",
+                           "period_end": period_end, "value_minor": revenue,
+                           "authority": "assembled_pl"}]})
+    elif anchor is not None:
         growth = _micros_of(anchor.value)
         put("revenue_growth", _RATIO, growth, "engine_default",
             "no comparable book history is loaded, so revenue grows at the "

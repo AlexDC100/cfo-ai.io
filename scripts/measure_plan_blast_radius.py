@@ -170,12 +170,40 @@ class _RowServer(object):
 
     def select(self, table: str, filters: Optional[Dict[str, str]] = None,
                columns: Optional[str] = None, limit: Optional[int] = None,
+               order: Optional[str] = None,
                **_kw: Any) -> List[Dict[str, Any]]:
+        """B7: the prior-period select is ``org_id=eq. AND period_end=lt.
+        AND id=neq.`` with an ``order`` and a ``limit``. A double that
+        skipped the operators it does not model matched EVERYTHING and
+        answered the anchor as its own prior — so it refuses an operator it
+        cannot express rather than widening the query (the same rule the
+        tenancy double in tests/engine/test_forecast_cache.py already
+        holds)."""
         rows = list(self._tables.get(table, []))
         for key, cond in (filters or {}).items():
-            if isinstance(cond, str) and cond.startswith("eq."):
-                rows = [r for r in rows if key not in r
-                        or str(r.get(key)) == cond[3:]]
+            if not isinstance(cond, str):
+                continue
+            op, _sep, value = cond.partition(".")
+            if key not in (rows[0] if rows else {}) and op == "eq":
+                continue  # a column this double does not carry
+            if op == "eq":
+                rows = [r for r in rows if str(r.get(key)) == value]
+            elif op == "neq":
+                rows = [r for r in rows if str(r.get(key)) != value]
+            elif op == "lt":
+                rows = [r for r in rows if str(r.get(key) or "") < value]
+            elif op == "gt":
+                rows = [r for r in rows if str(r.get(key) or "") > value]
+            else:
+                raise AssertionError(
+                    "double cannot express filter %r on %r - the real client "
+                    "would send it to PostgREST. Teach the double or change "
+                    "the query; never match everything." % (cond, key))
+        if order:
+            for clause in reversed(order.split(",")):
+                name, _s, direction = clause.strip().partition(".")
+                rows = sorted(rows, key=lambda r: str(r.get(name) or ""),
+                              reverse=direction == "desc")
         if columns and columns != "*":
             wanted = [c.strip() for c in columns.split(",") if c.strip()]
             rows = [dict((c, r.get(c)) for c in wanted if c in r) for r in rows]

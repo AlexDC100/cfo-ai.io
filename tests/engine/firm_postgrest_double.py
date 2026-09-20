@@ -18,7 +18,8 @@ refuses exactly what PostgREST refuses:
     "migration not applied" to the route;
   * JSON-path aliases in ``select`` (``alias:col->a->>b``) are evaluated
     the way PostgREST evaluates them (``->`` an object, ``->>`` its text);
-  * ``eq.``, ``neq.``, ``in.("a","b")``, ``is.null``, ``order=col.desc``,
+  * ``eq.``, ``neq.``, ``lt.``, ``gt.``, ``in.("a","b")``, ``is.null``,
+    ``order=col.desc``,
     ``limit`` — the operators the route sends, and NO others (an operator
     this double cannot express raises, never matches everything);
   * THE CAP (A2): every response is truncated after ordering at
@@ -187,6 +188,15 @@ def match_filter(row: Dict[str, Any], column: str, spec: str) -> bool:
         return value is not None and str(value) == spec[3:]
     if spec.startswith("neq."):
         return str(value) != spec[4:]
+    if spec.startswith("lt.") or spec.startswith("gt."):
+        # B7: the forecast's prior-period select is `period_end=lt.<anchor>`.
+        # PostgREST compares on the column's own type; every column this is
+        # used on here is a date stored as an ISO text, which orders the
+        # same way lexicographically. NULL never satisfies a comparison.
+        if value is None:
+            return False
+        return (str(value) < spec[3:]) if spec.startswith("lt.") \
+            else (str(value) > spec[3:])
     if spec.startswith("in.(") and spec.endswith(")"):
         return value is not None and str(value) in _in_values(spec)
     raise AssertionError(
