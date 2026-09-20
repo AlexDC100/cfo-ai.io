@@ -56,7 +56,14 @@ def _repo_root() -> Path:
         if (parent / "pyproject.toml").exists() and (parent / "src").is_dir():
             sys.path.insert(0, str(parent / "src"))
             return parent
-    raise SystemExit("check_fresh_upload: repo root (pyproject.toml) not found")
+    # Run from a temporary copy outside the tree (the §14 diagnostic path):
+    # fine as long as the engine imports and the books are findable.
+    try:
+        import engine  # noqa: F401
+        return Path("/app") if Path("/app/corpus").is_dir() else Path.cwd()
+    except ImportError:
+        raise SystemExit(
+            "check_fresh_upload: repo root (pyproject.toml) not found and `engine` is not importable")
 
 
 def _dec(v: Any) -> Optional[Decimal]:

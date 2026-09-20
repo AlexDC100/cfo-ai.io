@@ -122,3 +122,16 @@ def test_the_default_probe_never_spends_a_completion(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     ok, detail = gate.default_narrate_probe()
     assert ok is False and "ANTHROPIC_API_KEY" in detail
+
+
+def test_it_runs_from_a_temporary_copy_outside_the_tree(monkeypatch, tmp_path):
+    """The §14 diagnostic path: the script is docker cp'd to /tmp, so its own
+    parents carry no pyproject.toml. It must find the books, not exit 2."""
+    import shutil
+    stray = tmp_path / "cfu.py"
+    shutil.copy(ROOT / "scripts" / "check_fresh_upload.py", stray)
+    spec = importlib.util.spec_from_file_location("cfu_stray", stray)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.chdir(ROOT)
+    assert mod._repo_root() == ROOT or (mod._repo_root() / "corpus").is_dir()
