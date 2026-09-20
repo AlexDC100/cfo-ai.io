@@ -356,6 +356,20 @@ SECTIONS: Dict[str, Tuple[List[str], str, str]] = {
 HEADLINE_METRICS = ["revenue", "total_operating_revenue", "ebitda_operating", "net_income_operating"]
 NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 
+#: The report's own revision. `_benchmarks.py` stamps it into the cached
+#: `report_data` and REFUSES a cached row whose revision differs, so a change
+#: to this module actually reaches the screen.
+#:
+#: Before this existed the cache was keyed on `period_id` alone, on the
+#: assumption (stated in that file, and already recorded as stale in
+#: CLAUDE.md §16) that "re-analysis produces a NEW period_id". An engine
+#: change therefore never invalidated anything: the headline net-income fix
+#: shipped on 2026-09-20 was still serving the old 36.3 M figure from a report
+#: generated on 9 September.
+#:
+#: BUMP THIS whenever a change alters what this module puts on screen.
+REPORT_REVISION = 2
+
 
 def headline_metrics(company_metrics: Dict[str, Any]) -> List[str]:
     """HEADLINE_METRICS with the net-income slot resolved for THIS period.
@@ -440,6 +454,7 @@ def build_benchmark_report(
         )
 
     return {
+        "report_revision": REPORT_REVISION,
         "period_id": period_id,
         "caen_code": caen_code,
         "caen_label": caen_label,
