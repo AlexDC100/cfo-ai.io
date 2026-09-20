@@ -535,12 +535,11 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK period-loader-parity units=(\d+)", floor=20,
              units="statement keys compared byte for byte, plus the refusal paths",
              canaries=("SCOPE period-loader-parity (plan/2 B5, contract 1.4)",)),
-        Gate("forecast-get-b4-parity",
-             [PY, "-m", "pytest", "tests/engine/test_forecast_get_b4_parity.py", "-q", "-s"],
-             work_rx=r"GATE-WORK forecast-get-b4-parity units=(\d+)", floor=8,
-             units="GET cells (book x horizon) held to the recorded B4 bytes",
-             canaries=("SCOPE forecast-get-b4-parity (plan/2 B5, contract 28.3 B5)",
-                       "allowed org-row fields ['company_name']")),
+        # forecast-get-b4-parity was registered here by B5 and is RETIRED by
+        # plan/2 B6 (contract 28.3): fp1.2 replaced the fp1 bytes it pinned.
+        # GET equals POST (scenario-one-engine) and the served-bytes gates
+        # take over; its plant log stays in gates.md, its plan_gates.json
+        # entry carries retired_in B6.
         Gate("forecast-debt-timing",
              [PY, "-m", "pytest", "tests/engine/test_forecast_debt_timing.py", "-q", "-s"],
              work_rx=r"GATE-WORK forecast-debt-timing units=(\d+)", floor=30,
