@@ -93,12 +93,24 @@ REPO = Path(__file__).resolve().parents[1]
 
 # ── the printed scope ────────────────────────────────────────────────────────
 
-CREDIT_TIER: Tuple[str, ...] = (
+#: EVERY module under src/engine/ratios is credit tier, DISCOVERED, not
+#: listed: credit_boundary.py (the serving authority, which composes the
+#: as-filed envelope) was added beside a hand-written list and sat outside
+#: it - a revision-1 style `e / max(tl, 1)` planted in it passed this gate
+#: ("credit tier clean"). A new module in the package is in scope the day it
+#: is written. `_CREDIT_TIER_PINNED` names the modules the tier must at
+#: least contain, so an emptied or moved package is DISCOVERY BROKEN rather
+#: than a clean pass over nothing.
+_CREDIT_TIER_PINNED: Tuple[str, ...] = (
+    "src/engine/ratios/credit_boundary.py",
     "src/engine/ratios/credit_model.py",
     "src/engine/ratios/credit_pack.py",
     "src/engine/ratios/table.py",
     "src/engine/comparatives/ratio_compare.py",
 )
+CREDIT_TIER: Tuple[str, ...] = tuple(sorted(
+    {p.relative_to(REPO).as_posix() for p in (REPO / "src" / "engine" / "ratios").glob("*.py")}
+    | set(_CREDIT_TIER_PINNED)))
 
 RATCHET_TIER: Tuple[str, ...] = (
     "src/engine/api/_valuation.py",

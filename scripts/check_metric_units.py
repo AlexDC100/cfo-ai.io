@@ -65,7 +65,13 @@ def _operand_records(tree):
     consumer will scale - and the count is printed so the exclusion is
     visible. A `{name, value}` literal under "operands" WITHOUT a "source"
     is still a violation."""
-    out = set()
+    out = {}
+    owner = {}
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for child in ast.walk(fn):
+                if isinstance(child, ast.Dict):
+                    owner[id(child)] = fn.name  # innermost wins: ast.walk is outer-first
     for node in ast.walk(tree):
         if not isinstance(node, ast.Dict):
             continue
@@ -76,11 +82,24 @@ def _operand_records(tree):
             for e in elements:
                 if isinstance(e, ast.Dict) and any(
                         isinstance(ek, ast.Constant) and ek.value == "source" for ek in e.keys):
-                    out.add(id(e))
+                    out[id(e)] = owner.get(id(e), "<module>")
     return out
 
 
-OPERANDS_EXCLUDED = [0]
+#: THE SCOPE-OUT IS PINNED, not just printed. Every operand record the rule
+#: above excludes is named here as "file::function" with its count; a new
+#: one (or one that moved) is a FAIL until this table is edited on purpose.
+#: Without the pin, `{"operands": [{"name": "net_debt", "value": 123456.0,
+#: "source": "x"}]}` - a MONEY metric - planted anywhere under the scan
+#: walked past the gate and only moved a number in the PASS line (3 -> 4).
+PINNED_OPERAND_RECORDS = {
+    "src/engine/comparatives/ratio_compare.py::letter_side": 1,
+    "src/engine/comparatives/ratio_compare.py::z_side": 1,
+    "src/engine/comparatives/ratio_compare.py::score_side": 1,
+}
+
+OPERANDS_EXCLUDED = {}
+_CURRENT_FILE = [""]
 
 
 def _literal_metric_rows(tree):
@@ -91,7 +110,8 @@ def _literal_metric_rows(tree):
         if not isinstance(node, ast.Dict):
             continue
         if id(node) in operands:
-            OPERANDS_EXCLUDED[0] += 1
+            key = "%s::%s" % (_CURRENT_FILE[0], operands[id(node)])
+            OPERANDS_EXCLUDED[key] = OPERANDS_EXCLUDED.get(key, 0) + 1
             continue
         keys = []
         for k in node.keys:
@@ -128,6 +148,7 @@ def main() -> int:
                     continue
                 files_parsed += 1
                 rel = os.path.relpath(path, REPO)
+                _CURRENT_FILE[0] = rel.replace(os.sep, "/")
                 for lineno, name, has_unit in _literal_metric_rows(tree):
                     rows_examined += 1
                     names_seen.add(name)
@@ -165,12 +186,23 @@ def main() -> int:
         print("METRIC UNIT GATE: DISCOVERY BROKEN — 0 metric rows examined.")
         return 1
 
+    if OPERANDS_EXCLUDED != PINNED_OPERAND_RECORDS:
+        print("METRIC UNIT GATE: FAIL — the operand scope-out moved")
+        for key in sorted(set(OPERANDS_EXCLUDED) | set(PINNED_OPERAND_RECORDS)):
+            got, want = OPERANDS_EXCLUDED.get(key, 0), PINNED_OPERAND_RECORDS.get(key, 0)
+            if got != want:
+                print("  %s  scoped out %d, pinned %d" % (key, got, want))
+        print("  An operand record is excluded from the unit rule BY SHAPE. A new")
+        print("  one must be a provenance record of a served fact, never a metric a")
+        print("  consumer will scale: review it, then edit PINNED_OPERAND_RECORDS.")
+        return 1
+
     print("GATE-WORK metric-units units=%d floor=50 label=literal-metric-rows"
           % rows_examined)
     print("METRIC UNIT GATE: PASS — every literal metric row declares a unit "
           "(%d row(s) across %d file(s); canaries seen: %s; %d operand record(s) "
-          "under an \"operands\" key scoped out by shape)"
-          % (rows_examined, files_parsed, ", ".join(CANARY_METRICS), OPERANDS_EXCLUDED[0]))
+          "under an \"operands\" key scoped out by shape, each pinned by file::function)"
+          % (rows_examined, files_parsed, ", ".join(CANARY_METRICS), sum(OPERANDS_EXCLUDED.values())))
     return 0
 
 
