@@ -86,6 +86,10 @@ ALLOWED_SERVING_IMPORTS = {
     "engine.serving",
     "engine.serving.facts",
     "engine.serving.public_summary",
+    # plan_contract_v2 section 7 (B1): the one sign-flip classifier. It
+    # reads no envelope and no snapshot; it lives in engine.serving because
+    # the actuals comparatives and the forecast serving both import it.
+    "engine.serving.change_kind",
 }
 
 TOTAL_FIELD_KEYS = {

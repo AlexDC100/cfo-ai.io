@@ -38,6 +38,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, FrozenSet, Mapping, Optional, Sequence, Tuple
 
+from engine.serving.change_kind import COMPARED as CHANGE_COMPARED
+from engine.serving.change_kind import classify as classify_change
+
 from .levels import ANALYTIC, Comparability, assess_comparability, carries_analytic_detail
 from .lines import (
     LINE_SPECS,
@@ -129,6 +132,10 @@ class ComparativeColumn:
     prior_disclosure: str
     status: str
     note: str
+    #: plan_contract_v2 section 7 (engine.serving.change_kind): set only
+    #: when the status is compared or compared_no_base, else None. A kind
+    #: other than "compared" carries no delta_pct and renders in words.
+    change_kind: Optional[str] = None
 
     @property
     def has_movement(self) -> bool:
@@ -230,6 +237,7 @@ def build_comparative_columns(
 
         delta = None  # type: Optional[float]
         delta_pct = None  # type: Optional[float]
+        change_kind = None  # type: Optional[str]
 
         if not comparability.comparable:
             status = STATUS_INCOMPARABLE
@@ -248,12 +256,24 @@ def build_comparative_columns(
             )
         elif cur_disc == DISCLOSURE_REPORTED and pri_disc == DISCLOSURE_REPORTED:
             delta = _round_money(cur_val - pri_val)
+            # THE ONE CLASSIFIER decides whether a percentage may exist at
+            # all. Across zero or across sign there is none: 6.1M becoming
+            # -107.6M is "turned negative", never -1,863% or -19x.
+            change = classify_change(pri_val, cur_val, PCT_BASE_FLOOR)
+            change_kind = change.kind
             if abs(pri_val) < PCT_BASE_FLOOR:
                 status = STATUS_COMPARED_NO_BASE
                 note = (
                     "%s reported %s, below the %.3f base floor, so the "
                     "change is stated as an amount and carries no "
                     "percentage" % (prior_label, _fmt(pri_val), PCT_BASE_FLOOR)
+                )
+            elif change.kind != CHANGE_COMPARED:
+                status = STATUS_COMPARED
+                note = (
+                    "both periods reported %s; the change is %s, so it is "
+                    "stated as an amount and carries no percentage"
+                    % (spec.label, change.kind.replace("_", " "))
                 )
             else:
                 ratio = (cur_val - pri_val) / abs(pri_val)
@@ -295,6 +315,7 @@ def build_comparative_columns(
             prior_disclosure=pri_disc,
             status=status,
             note=note,
+            change_kind=change_kind,
         ))
 
     return ComparativeTable(

@@ -5364,3 +5364,172 @@ with its interest expense removed). Plant: the base is compiled from
 Reds after the repair on: a request that supplies the rate the base refused for
 and is still refused, or a base that takes anything but that rate. Does not red
 on a request that omits the rate: it refuses, as before.
+<!-- ═══ plan/2 B1 (plan_contract_v2 28.3, section 7, S7): sign flips ════════
+     One battery gate (sign-flip) and two vitest canaries, landed in the
+     same commit as the repair they guard (0.5): each section records the
+     plant red AND the red on the parent commit eb2ff8f. -->
+
+## sign-flip
+
+`tests/engine/test_change_kind.py` + `tests/engine/test_comparatives.py` — S7,
+defect 0.4. A change from zero, to zero or across sign is one of seven kinds
+(R21) from ONE classifier per runtime (`src/engine/serving/change_kind.py`,
+`frontend/lib/changeKind.ts`), both held to
+`tests/fixtures/contracts/change_kind_truth_table.json`; only the kind
+`compared` with a non-zero base carries a `delta_pct`
+(`packs/serving/change_kind.yaml#delta_pct_places`, rounded once, half away
+from zero, on the EXACT value of each binary64 in both runtimes).
+`engine.comparatives.columns` keeps its disclosure statuses, sets
+`change_kind` only on `compared` / `compared_no_base`, and serves no
+cross-sign or to-zero percentage.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_change_kind.py tests/engine/test_comparatives.py -v -s` |
+| work count | sum of the printed `GATE-WORK sign-flip units=` lines (truth-table rows 70 + converted consumers 14 + comparative columns swept 255 = 339), floor **300** |
+| canary | `test_the_python_classifier_matches_every_truth_table_row`, `test_a_cross_sign_column_carries_its_kind_and_no_percentage`, `SIGN-FLIP truth table (python)` |
+
+**SCOPE** — the truth table: every sign pair with null and zero on both
+sides in integer minor units (floor 0) and in rounded major-unit money
+(floor 0.005, with sub-floor values of both signs), the floor edge, the
+rounding ties, and the two defect pairs measured on Scandia FY2025 (cash
+6,104,815.29 to -107,630,000; EBITDA 54,444,000 to -20,257,000; aggregates
+only, no client book committed); the 14 consumers contract 7 names; the
+comparatives column model over hand-built envelopes and the committed
+regression baselines `scandia_fy2025` (analytic), its condensed roll-up and
+`eei_dec_2025` (synthetic), 255 columns, 173 carrying a change kind, 6 of
+them a word kind (a real cross-sign EBITDA between the two books). No
+forecast book: compare_base rows and waterfall steps join at B8.
+
+**GREEN** — `PASS sign-flip (2.4s, 339 truth-table rows + consumers + columns)`.
+
+**PLANT 1** — restore the columns.py cross-sign percent (contract S7 plant):
+
+```
+-            elif change.kind != CHANGE_COMPARED:
++            elif False and change.kind != CHANGE_COMPARED:
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s runner, exit `1`:
+
+```
+FAIL sign-flip (exit 1, 2.7s)
+E   AssertionError: a sign flip served a percentage: -18.630345
+E   AssertionError: assert (-0.999995, 'to_zero') == (None, 'to_zero')
+E   AssertionError: ('pl.ebitda', 'flip_to_positive')
+FAILED tests/engine/test_comparatives.py::test_a_cross_sign_column_carries_its_kind_and_no_percentage
+FAILED tests/engine/test_comparatives.py::test_a_move_to_zero_or_from_zero_is_a_kind_never_a_hundred_percent
+FAILED tests/engine/test_comparatives.py::test_change_kind_is_set_exactly_on_movement_statuses_over_every_orientation
+========================= 3 failed, 59 passed in 1.02s =========================
+```
+
+**PLANT 2** — the truth table loses its null-base rows (TC-3 on the fixture):
+
+```
+E   AssertionError: the table must exercise all seven kinds: Counter({'compared': 25, 'absent_plan': 8, 'to_zero': 8, 'from_zero': 8, 'flip_to_negative': 7, 'flip_to_positive': 4})
+E   AssertionError: minor_units_floor_0 is missing sign pairs [('null', 'neg'), ('null', 'null'), ('null', 'pos'), ('null', 'zero')]
+========================= 2 failed, 17 passed in 3.80s =========================
+```
+
+**RED (parent commit)** — the new comparatives tests copied onto eb2ff8f
+(`wt-plan-b1-parent`, detached) and run against the unrepaired columns.py:
+the defect itself, the -19x source value served as a percentage:
+
+```
+E   AssertionError: a sign flip served a percentage: -18.630345
+E   assert -18.630345 is None
+E   AttributeError: 'ComparativeColumn' object has no attribute 'change_kind'
+FAILED tests/engine/test_comparatives.py::test_a_cross_sign_column_carries_its_kind_and_no_percentage
+FAILED tests/engine/test_comparatives.py::test_a_move_to_zero_or_from_zero_is_a_kind_never_a_hundred_percent
+FAILED tests/engine/test_comparatives.py::test_change_kind_is_set_exactly_on_movement_statuses_over_every_orientation
+======================= 3 failed, 40 deselected in 0.70s =======================
+```
+
+**REVERT** — both files restored from their copies; `PASS sign-flip (2.4s, 339 ...)`.
+
+**After the repair it reds on (TC-11):** a truth-table row the Python
+classifier classifies differently (kind or delta_pct byte); a delta_pct on
+any kind but compared with a non-zero base; a comparatives column that
+serves a percentage across zero or to zero, or a change_kind on a refusal
+status; the TS pack mirror disagreeing with the pack; the rounded-money
+floor drifting from `PCT_BASE_FLOOR`; a converted consumer that stops
+importing the classifier (directly or through `computeDeltas.delta`) or
+divides a difference by its own `|base|`; a truth table that stops
+enumerating every sign pair, both zero-floor groups, or all seven kinds.
+**It cannot see:** what a page paints (the vitest canaries below) or
+whether the TS classifier agrees (changeKind.test.ts; the fixture is the
+join); sign-flip percentages in consumers contract 7 does not list
+(`lib/capsuleTier0.ts:673`, `lib/reportComparatives.ts:143`,
+`lib/financialExports.ts:752`, `components/cfo/PublicRecordsQuickCard.tsx:106`,
+`components/cfo/ComparativesPanel.tsx` movers) — recorded in
+plan_as_built B1 for an owner ruling.
+
+### vitest — sign-flip canaries (plan/2 B1)
+
+`frontend/lib/__tests__/changeKind.test.ts` (the TS classifier against the
+shared truth table) and `frontend/components/scenarios/__tests__/signFlip.test.tsx`
+(every converted DOM consumer renders a flipping pair as words, with a
+same-sign percent control on each surface) — canaries of the `vitest` gate,
+path literals in `scripts/check_vitest.mjs` CANARIES and the battery.
+
+**SCOPE** — 70 truth-table rows (typescript); rendered flips on
+ScenarioComparison, VarianceTable, KpiVarianceStrip, Money/DeltaBadge,
+KeyMetricsRow, StoryOverview, CmpCells, BsCmpCells and Amount in ro (11
+flip renderings printed); the Scandia FY2025 cash and EBITDA aggregates and
+hand-built fixtures; en and ro; jsdom, no browser (the page walk is B13's).
+
+**PLANT A** — revert `delta()` to absolute over `|comparison|` (contract S7):
+
+```
+-  return { absolute, pct: deltaPctNumber(change), change };
++  return { absolute, pct: comparison === 0 ? null : absolute / Math.abs(comparison), change: { kind: "compared", ... } };
+```
+
+**RED (plant)** — `npx vitest run --root . frontend/components/scenarios/__tests__/signFlip.test.tsx`:
+
+```
+× ScenarioComparison: cash 6,104,815.29 → -107,630,000 is 'turned negative', no percent, no multiplier
+  → expected '−19×' to contain 'turned negative'
+× VarianceTable and KpiVarianceStrip: EBITDA vs last year crossing zero shows words beside the money change
+× Money + DeltaBadge: a comparison across zero and a comparison from zero are words
+  → expected '↓1863.0%' to contain 'turned negative'
+Tests  4 failed | 2 passed (6)
+```
+
+**PLANT B** — revert only VarianceTable (the file restored from eb2ff8f):
+
+```
+× VarianceTable and KpiVarianceStrip: EBITDA vs last year crossing zero shows words beside the money change
+Received: "EBITDA−20.3 M54.4 M−74.7 M"
+Tests  1 failed | 5 passed (6)
+```
+
+**PLANT C** — change only the TS classifier (`flip_to_negative` falls through to compared):
+
+```
+× classifies every truth-table row exactly as the table says
++   "row 58 defect_0.4 base=6104815.29 plan=-107630000 floor=0.005: want (flip_to_negative, null), got (compared, -18.630345)",
++   "row 59 defect_0.4 base=54444000 plan=-20257000 floor=0.005: want (flip_to_negative, null), got (compared, -1.372070)",
+× renders the measured defect pairs as flips, never a ratio
+```
+
+**RED (parent commit)** — signFlip.test.tsx on eb2ff8f with the cases whose
+props exist there (ScenarioComparison, Variance, Money, CmpCells): the
+defect exactly as the live page painted it:
+
+```
+× ScenarioComparison ... → expected '−19×' to contain 'turned negative'
+Received: "EBITDA−20.3 M54.4 M−74.7 M−137.2%"
+Received: "↓1863.0%"
+Tests  4 failed (4)
+```
+
+**REVERT** — every planted file restored from its copy; `Tests 6 passed (6)`
+and `Tests 5 passed (5)`; the full vitest gate lists both canaries `ran`.
+
+**After the repair it reds on:** a money change across zero or sign rendered
+as a percent or a multiplier on any of the nine surfaces above; a flip
+without its words in en or ro; a same-sign control that stops painting its
+percent; the TS classifier disagreeing with any fixture row.
+**It cannot see:** the live page in a browser (B13's no-intercept walk) or
+the forecast compare_base rows (B8).

@@ -3107,5 +3107,15 @@
       "heldTitle": "The cap surfaces the highest-ranked findings; the rest are on the Radar page.",
       "open": "Open Radar"
     }
+  },
+  "changeKind": {
+    "flip_to_negative": "turned negative",
+    "flip_to_positive": "turned positive",
+    "from_zero": "from zero",
+    "to_zero": "to zero",
+    "absent_base": "not in the base",
+    "absent_plan": "no longer present",
+    "compared": "compared",
+    "no_change": "no change"
   }
 }

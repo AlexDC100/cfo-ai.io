@@ -3131,5 +3131,15 @@
       "heldTitle": "Plafonul afișează constatările cu cel mai mare scor; restul sunt pe pagina Radar.",
       "open": "Deschide Radar"
     }
+  },
+  "changeKind": {
+    "flip_to_negative": "a devenit negativ",
+    "flip_to_positive": "a devenit pozitiv",
+    "from_zero": "de la zero",
+    "to_zero": "la zero",
+    "absent_base": "nu există în bază",
+    "absent_plan": "nu mai este prezent",
+    "compared": "comparat",
+    "no_change": "nicio modificare"
   }
 }

@@ -20,6 +20,9 @@
       "F5",
       "F10"
     ],
+    "B1": [
+      "S7"
+    ],
     "B2": [],
     "B3": [
       "F3"
@@ -41,6 +44,10 @@
       "forecast-ai-write-path",
       "forecast-boundary",
       "plan-gate-census"
+    ],
+    "B1": [
+      "sign-flip",
+      "vitest"
     ],
     "B2": [
       "forecast-base-parity"
@@ -144,6 +151,40 @@
         "scripts/check_plan_gates.py",
         "docs/engine_book/plan_gates.json"
       ]
+    },
+    {
+      "id": "sign-flip",
+      "gate": "sign-flip",
+      "rows": [
+        "S7"
+      ],
+      "landed_in": "B1",
+      "test_files": [
+        "tests/engine/test_change_kind.py",
+        "tests/engine/test_comparatives.py",
+        "tests/fixtures/contracts/change_kind_truth_table.json"
+      ],
+      "canaries": [
+        "test_the_python_classifier_matches_every_truth_table_row",
+        "test_a_cross_sign_column_carries_its_kind_and_no_percentage"
+      ]
+    },
+    {
+      "id": "vitest:B1",
+      "gate": "vitest",
+      "rows": [
+        "S7"
+      ],
+      "landed_in": "B1",
+      "test_files": [
+        "frontend/lib/__tests__/changeKind.test.ts",
+        "frontend/components/scenarios/__tests__/signFlip.test.tsx"
+      ],
+      "canaries": [
+        "frontend/lib/__tests__/changeKind.test.ts",
+        "frontend/components/scenarios/__tests__/signFlip.test.tsx"
+      ],
+      "plant_log": "vitest — sign-flip canaries (plan/2 B1)"
     },
     {
       "id": "forecast-base-parity",

@@ -33,6 +33,8 @@ import {
   revenueYoyLine,
 } from "@/lib/contextLines";
 import { useActiveLocale } from "@/lib/locale";
+import { ROUNDED_MONEY_ZERO_FLOOR, classifyChange, deltaPctNumber } from "@/lib/changeKind";
+import { TrendChange, type MetricTrend } from "@/components/cfo/KeyMetricsRow";
 import type { Recommendation } from "@/lib/financialReport";
 
 import "./storyI18n";
@@ -88,7 +90,7 @@ export interface StoryOverviewProps {
    *  same served figure the Pro P&L tab renders. Null -> no runway line. */
   annualOperatingCosts: number | null;
   /** trendFor("operating_revenue") — same series as Pro's trend chip. */
-  revenueTrend: { pct: number; prevLabel: string } | null;
+  revenueTrend: MetricTrend | null;
   recommendations: Recommendation[];
   onJumpToTab?: (tab: string) => void;
   /** Origin of each figure, built ONCE by the page (`lib/headlineProvenance`)
@@ -127,8 +129,18 @@ export function StoryOverview({
     currency,
   );
   const [cRevenue, cProfit, cCash, cNetDebt, cTotalDebt] = converted;
+  // The one classifier (plan_contract_v2 section 7): the YoY sentence and
+  // the chip get a percentage only for a same-sign move; any other kind
+  // renders the money change and its words, and no percent sentence.
+  const revenueChange = revenueTrend
+    ? classifyChange(revenueTrend.base, revenueTrend.current, ROUNDED_MONEY_ZERO_FLOOR)
+    : null;
+  const { converted: [cRevenueDelta] } = useConvertedAmounts(
+    [revenueTrend ? revenueTrend.current - revenueTrend.base : null],
+    currency,
+  );
 
-  const yoyLine = revenueYoyLine(revenueTrend ? revenueTrend.pct : null, ctx);
+  const yoyLine = revenueYoyLine(revenueChange ? deltaPctNumber(revenueChange) : null, ctx);
   const pLine = profitLine(profit, ctx);
   const runwayLine = cashRunwayLine(cash, annualOperatingCosts, ctx);
   const ndLine = netDebtLine(ctx);
@@ -171,9 +183,9 @@ export function StoryOverview({
           as="h2"
           title={t("story.how.title")}
           actions={
-            revenueTrend ? (
+            revenueTrend && revenueChange ? (
               <Chip tone="neutral" title={t("story.vsLastPeriod", { period: revenueTrend.prevLabel })}>
-                <Amount kind="percent" value={revenueTrend.pct} fractionDigits={1} />
+                <TrendChange change={revenueChange} convertedDelta={cRevenueDelta ?? null} currency={symbol} />
               </Chip>
             ) : undefined
           }

@@ -28,11 +28,18 @@
 // 3. THE PERCENTAGE COLUMN IS THE ENGINE'S. The FE never divides two
 //    numbers to make a Δ%; it prints `delta_pct` or the engine's reason
 //    for withholding it (a zero base has none).
+//
+// 4. A SIGN FLIP IS WORDS (plan_contract_v2 section 7, B1). The engine's
+//    columns carry `change_kind` from the one classifier; a move from
+//    zero, to zero or across sign has no `delta_pct` and the cell renders
+//    "turned negative" / "from zero" / … beside the Δ amount — never a
+//    percent and never a multiplier (defect 0.4).
 
 import { useQuery } from "@tanstack/react-query";
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { OrgPeriod } from "@/lib/orgPeriods";
+import { ROUNDED_MONEY_ZERO_FLOOR, type ChangeKind } from "@/lib/changeKind";
 import { currentOrgId, getSupabase } from "@/lib/supabase";
 
 // ── Engine document (mirrors src/engine/api/_comparatives.py) ─────────
@@ -79,6 +86,8 @@ export interface ComparativeColumnDto {
   prior_disclosure: string;
   status: ComparativeStatus;
   note: string;
+  /** engine.serving.change_kind: set only on compared / compared_no_base. */
+  change_kind?: ChangeKind | null;
 }
 
 export interface CommonSizeRowDto {
@@ -249,6 +258,8 @@ export interface ComparativeCell {
   prior: number | null;
   delta: number | null;
   deltaPct: number | null;
+  /** The classifier's kind, as the engine served it (null on a refusal). */
+  changeKind?: ChangeKind | null;
   /** Share of the statement base (revenue / total assets), current and prior. */
   currentShare: number | null;
   priorShare: number | null;
@@ -270,6 +281,7 @@ export function indexCells(doc: ComparativesResponse): Map<string, ComparativeCe
       prior: c.prior,
       delta: c.delta,
       deltaPct: c.delta_pct,
+      changeKind: c.change_kind ?? null,
       currentShare: s?.current_share ?? null,
       priorShare: s?.prior_share ?? null,
       deltaPts: s?.delta_pts ?? null,
@@ -302,8 +314,10 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
   netIncomeStatutory: "pl.net_income",
 };
 
-/** Half a cent — the engine's own zero floor, the same meaning here. */
-export const PARITY_FLOOR = 0.005;
+/** Half a cent — the engine's own zero floor, the same meaning here
+ *  (packs/serving/change_kind.yaml#rounded_money_zero_floor, which the
+ *  engine test holds equal to comparatives' PCT_BASE_FLOOR). */
+export const PARITY_FLOOR = ROUNDED_MONEY_ZERO_FLOOR;
 
 export type CellOutcome =
   | { kind: "cell"; cell: ComparativeCell }

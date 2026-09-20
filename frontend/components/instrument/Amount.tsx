@@ -20,6 +20,7 @@
 // refusal).
 
 import { ReactNode, createContext, useContext, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useActiveLocale } from "@/lib/locale";
 import {
@@ -28,11 +29,18 @@ import {
   Magnitude,
   MAGNITUDE_UNIT,
   formatAmount,
+  formatChangePercent,
   formatExact,
   formatMultiple,
   formatPercentDelta,
   pickMagnitude,
 } from "@/lib/amountFormat";
+import {
+  CHANGE_KIND_NO_CHANGE_KEY,
+  changeKindWordKey,
+  isWordKind,
+  type ChangeResult,
+} from "@/lib/changeKind";
 import {
   Tooltip,
   TooltipContent,
@@ -86,6 +94,13 @@ export interface AmountProps {
   signed?: boolean;
   /** Cap for kind="multiple" — renders "≥99×" with exact in tooltip. */
   cap?: number;
+  /** kind="percent" only: the one classifier's verdict for this change
+   *  (plan_contract_v2 section 7). When given it DECIDES the rendering: a
+   *  change from zero, to zero or across sign renders its words ("turned
+   *  negative"), never a percent or a multiplier; "compared" renders the
+   *  classifier's delta_pct. Pass it wherever a money change can cross
+   *  zero. */
+  change?: ChangeResult | null;
   provenance?: AmountProvenance | null;
   /** "1 EUR = 5,2489 RON · display only" — shown in the tooltip. */
   conversionNote?: string;
@@ -102,17 +117,35 @@ export function Amount({
   fractionDigits,
   signed,
   cap,
+  change,
   provenance,
   conversionNote,
   className,
 }: AmountProps) {
   const locale = useActiveLocale();
+  const { t } = useTranslation();
   const groupMag = useContext(MagnitudeContext);
   const mag = magnitude ?? (kind === "money" ? groupMag ?? MAGNITUDE_UNIT : MAGNITUDE_UNIT);
 
   let display: string;
   let tooltipExtra: string | null = null;
-  if (kind === "percent") {
+  if (kind === "percent" && change) {
+    if (isWordKind(change.kind) || change.deltaPct === null) {
+      // Words, never a percent or multiplier. No tooltip: there is no
+      // exact percent to disclose, because none exists.
+      const word = isWordKind(change.kind)
+        ? t(changeKindWordKey(change.kind))
+        : t(CHANGE_KIND_NO_CHANGE_KEY);
+      return (
+        <span className={`${className ?? ""}`.trim() || undefined} data-change-kind={change.kind}>
+          {word}
+        </span>
+      );
+    }
+    const r = formatChangePercent(change, { locale, fractionDigits });
+    display = r ? r.display : AMOUNT_MISSING;
+    if (r?.asMultiplier) tooltipExtra = r.exactPercent;
+  } else if (kind === "percent") {
     const r = formatPercentDelta(value, { locale, fractionDigits });
     display = r ? r.display : AMOUNT_MISSING;
     if (r?.asMultiplier) tooltipExtra = r.exactPercent;
@@ -132,7 +165,12 @@ export function Amount({
   }
 
   const base = (
-    <span className={`font-mono tabular-nums ${className ?? ""}`.trim()}>{display}</span>
+    <span
+      className={`font-mono tabular-nums ${className ?? ""}`.trim()}
+      data-change-kind={kind === "percent" && change ? change.kind : undefined}
+    >
+      {display}
+    </span>
   );
 
   const withProvenance = hasProvenance(provenance);
