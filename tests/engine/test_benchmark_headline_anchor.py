@@ -79,3 +79,115 @@ def test_the_report_is_driven_by_the_resolution_not_the_constant(monkeypatch):
     head = r["sections"]["headline"] if "headline" in r.get("sections", {}) else r["headline"]
     assert head["metrics"][-1] == "net_income_operating", \
         "the plant did not take — build_benchmark_report is not calling headline_metrics"
+
+
+# ── the cache that outlived the engine ──────────────────────────────────────
+
+def test_the_report_stamps_its_own_revision():
+    r = _report({"revenue": 1.0, "net_income_statutory": ANCHOR})
+    assert r["report_revision"] == be.REPORT_REVISION
+    assert isinstance(be.REPORT_REVISION, int) and be.REPORT_REVISION >= 2
+
+
+def test_a_cached_report_from_an_older_engine_is_refused(monkeypatch):
+    """BEHAVIOURAL, not a source scan (the first version of this test passed
+    against a planted `if False and stale_revision:` — it read the shape, not
+    the conduct).
+
+    The headline fix shipped on 2026-09-20 was still serving a report generated
+    on 9 September: the cache is keyed on period_id alone, and an ENGINE change
+    mints no new period_id. A cached row from an older revision must be dropped
+    and recomputed.
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from engine.api import _benchmarks, _supabase
+
+    ORG, PERIOD, CAEN = "org-1", "p-1", "1013"
+    stale = {"report_revision": 1, "period_id": PERIOD, "caen_code": CAEN,
+             "sections": {"headline": {"metrics": ["net_income_operating"],
+                                       "company_values": {"net_income_operating": RECONSTRUCTION},
+                                       "display": {}, "title_en": "H", "title_ro": "H"}}}
+    built = {"n": 0}
+
+    class Client:
+        def __enter__(self): return self
+        def __exit__(self, *e): return None
+        def select(self, table, **kw):
+            if table == "financial_periods":
+                return [{"id": PERIOD, "org_id": ORG, "currency": "RON"}]
+            if table == "organizations":
+                return [{"id": ORG, "name": "Scandia"}]
+            if table == "benchmark_reports":
+                return [{"report_data": dict(stale), "generated_at": "2026-09-09T08:25:00Z",
+                         "caen_code": CAEN}]
+            if table == "industry_benchmarks":
+                return [{"caen_code": CAEN, "metric_name": "net_margin", "p50": 5.0,
+                         "p25": 2.0, "p75": 9.0, "unit": "pct"}]
+            if table == "calculated_metrics":
+                return [{"name": "net_income_statutory", "value": ANCHOR, "unit": None},
+                        {"name": "revenue", "value": 413_727_560.16, "unit": None}]
+            return []
+        def upsert(self, *a, **k): return []
+        def insert(self, *a, **k): return []
+
+    def counting_build(**kw):
+        built["n"] += 1
+        return be.build_benchmark_report(**kw)
+
+    monkeypatch.setattr(_benchmarks, "_require_jwt", lambda a=None: "jwt")
+    monkeypatch.setattr(_benchmarks, "_resolve_user_org", lambda jwt, org=None: (jwt, ORG))
+    monkeypatch.setattr(_benchmarks, "_resolve_effective_caen",
+                        lambda **kw: (CAEN, "assignment", None))
+    monkeypatch.setattr(_benchmarks, "build_benchmark_report", counting_build)
+    monkeypatch.setattr(_supabase, "admin", lambda: Client())
+    monkeypatch.setattr(_supabase, "per_user", lambda jwt: Client())
+
+    app = FastAPI(); app.include_router(_benchmarks.build_router())
+    body = TestClient(app).get(f"/api/benchmarks/report/{PERIOD}",
+                               headers={"Authorization": "Bearer x"}).json()
+
+    assert built["n"] == 1, "the stale-revision row was served instead of recomputed"
+    assert body.get("report_revision") == be.REPORT_REVISION
+    assert body.get("cached") is False
+    head = body["sections"]["headline"]
+    assert head["metrics"][-1] == "net_income_statutory"
+    assert head["company_values"]["net_income_statutory"] == pytest.approx(ANCHOR)
+
+
+def test_a_cached_report_at_the_CURRENT_revision_is_still_served(monkeypatch):
+    """The revision check must not turn the cache off altogether."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from engine.api import _benchmarks, _supabase
+
+    ORG, PERIOD, CAEN = "org-1", "p-1", "1013"
+    fresh = {"report_revision": be.REPORT_REVISION, "period_id": PERIOD, "caen_code": CAEN,
+             "sections": {"headline": {"metrics": [], "company_values": {}, "display": {},
+                                       "title_en": "H", "title_ro": "H"}}}
+
+    class Client:
+        def __enter__(self): return self
+        def __exit__(self, *e): return None
+        def select(self, table, **kw):
+            if table == "financial_periods":
+                return [{"id": PERIOD, "org_id": ORG, "currency": "RON"}]
+            if table == "organizations":
+                return [{"id": ORG, "name": "Scandia"}]
+            if table == "benchmark_reports":
+                return [{"report_data": dict(fresh), "generated_at": "now", "caen_code": CAEN}]
+            return []
+        def upsert(self, *a, **k): return []
+
+    monkeypatch.setattr(_benchmarks, "_require_jwt", lambda a=None: "jwt")
+    monkeypatch.setattr(_benchmarks, "_resolve_user_org", lambda jwt, org=None: (jwt, ORG))
+    monkeypatch.setattr(_benchmarks, "_resolve_effective_caen", lambda **kw: (CAEN, "assignment", None))
+    monkeypatch.setattr(_benchmarks, "build_benchmark_report",
+                        lambda **kw: pytest.fail("a current-revision cache hit was recomputed"))
+    monkeypatch.setattr(_supabase, "admin", lambda: Client())
+    monkeypatch.setattr(_supabase, "per_user", lambda jwt: Client())
+
+    app = FastAPI(); app.include_router(_benchmarks.build_router())
+    body = TestClient(app).get(f"/api/benchmarks/report/{PERIOD}",
+                               headers={"Authorization": "Bearer x"}).json()
+    assert body.get("cached") is True

@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from . import _supabase
 from . import _org
+from . import _benchmark_engine
 from ._benchmark_engine import build_benchmark_report
 # F3.1e: CAEN map moved into the Romania country pack.
 from engine.country_packs.ro_romania.caen_industry_map import caen_to_category, caen_label_fallback
@@ -340,7 +341,26 @@ def build_router() -> APIRouter:
                         payload = json.loads(payload)
                     except json.JSONDecodeError:
                         payload = None
-                if payload and not payload.get("error"):
+                # REVISION CHECK (2026-09-20). The comment above claims the
+                # key "never goes stale incorrectly" because re-analysis mints
+                # a new period_id — no longer true (CLAUDE.md §16: replace-month
+                # and adopt-empty-period reuse the SAME id), and never true for
+                # an ENGINE change, which mints nothing. The headline
+                # net-income fix shipped that day was still serving a report
+                # generated on 9 September. A cached row from an older engine
+                # is dropped and recomputed; `_benchmark_engine.REPORT_REVISION`
+                # is bumped whenever what reaches the screen changes.
+                stale_revision = (
+                    isinstance(payload, dict)
+                    and payload.get("report_revision") != _benchmark_engine.REPORT_REVISION
+                )
+                if stale_revision:
+                    logger.info(
+                        "[benchmarks] cached report for %s is revision %r, engine is %r — recomputing",
+                        period_id, (payload or {}).get("report_revision"),
+                        _benchmark_engine.REPORT_REVISION,
+                    )
+                elif payload and not payload.get("error"):
                     payload["cached"] = True
                     payload["generated_at"] = cached[0].get("generated_at")
                     return payload
