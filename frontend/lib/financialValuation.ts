@@ -528,17 +528,36 @@ function canonical(s: Statements): {
         ? null
         : currentSideAssets - currentSideLiabilities,
   };
+  // A P&L LEVEL THE FEED REPORTS IS READ, NOT REBUILT. `deriveTotals`
+  // reconstructs EBITDA as revenue - COGS - opex, and the public feed
+  // carries no cost breakdown: on the real AAPL FY2024 body that is an
+  // "EBIT" of 379.6 B against the 123.2 B the same envelope reports.
+  // `computeRatios` has honoured `reportedTotals` since the absent-not-zero
+  // lane; this model had not, and nothing showed it because interest
+  // expense was (wrongly) absent on every public ticker, so no coverage
+  // was ever measured. The day the shelved `interest_expense` was bridged,
+  // coverage read 129.3x instead of 42.0x. Order: engine P&L, then the
+  // feed's reported level, then the reconstruction (private books, whose
+  // breakdown is complete by construction and which carry no reportedTotals).
+  const reportedLevel = (k: "ebit" | "ebitda" | "netIncome"): number | null => {
+    const v = s.reportedTotals?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
   // Statutory net income includes 722; operational view doesn't.
   const netIncomeStatutory =
-    typeof pl.net_income_statutory === "number" ? pl.net_income_statutory : t.netIncome;
+    typeof pl.net_income_statutory === "number"
+      ? pl.net_income_statutory
+      : reportedLevel("netIncome") ?? t.netIncome;
   const ebitStatutory =
     typeof pl.operating_ebit === "number"
       ? pl.operating_ebit
       : typeof pl.ebitda_statutory === "number"
         ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization)
-        : t.ebit;
+        : reportedLevel("ebit") ?? t.ebit;
   const ebitdaStatutory =
-    typeof pl.ebitda_statutory === "number" ? pl.ebitda_statutory : t.ebitda;
+    typeof pl.ebitda_statutory === "number"
+      ? pl.ebitda_statutory
+      : reportedLevel("ebitda") ?? t.ebitda;
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
@@ -2215,12 +2234,24 @@ export function computeCreditScore(
   //   otherwise  the component REFUSES - and the completeness law below
   //              then mints no composite and no letter.
   const interestReported = !declaredAbsent(s, "interestExpense");
+  // Debt is REPORTED when the two legs are, OR when the feed reports the
+  // TOTAL itself (`reportedTotals.totalDebt`, SF1 `debt` on the public
+  // headline). Coverage, DSCR and the debt-free declaration all read the
+  // total, never the maturity split - and the public feed's split is
+  // shelved for every ticker (`bank_loans_lt` has no schema-v1 bucket), so
+  // reading only the legs meant a listed company reporting total debt 0
+  // could never take the declared rung. `deriveTotals` already reads
+  // `c.totalDebt` from that same reported total.
+  const reportedTotalDebt = s.reportedTotals?.totalDebt;
   const debtReported =
-    !declaredAbsent(s, "shortTermDebt") && !declaredAbsent(s, "longTermDebt");
+    (typeof reportedTotalDebt === "number" && Number.isFinite(reportedTotalDebt)) ||
+    (!declaredAbsent(s, "shortTermDebt") && !declaredAbsent(s, "longTermDebt"));
   const coverageMeasured = interestReported && c.interestExpense > 0;
   const dscrMeasured = interestReported && debtReported && c.interestExpense + principalProxy > 0;
   const declaredDebtFree =
-    interestReported && debtReported && c.totalDebt === 0 && c.interestExpense === 0 && c.ebitStatutory > 0;
+    interestReported && debtReported && c.totalDebt === 0
+    && (typeof reportedTotalDebt !== "number" || reportedTotalDebt === 0)
+    && c.interestExpense === 0 && c.ebitStatutory > 0;
   const coverageRefusal: CreditSubscoreRefusal | null = coverageMeasured || declaredDebtFree
     ? null
     : {

@@ -28,6 +28,7 @@ import {
   buildPublicStatements,
   ratingRefusalFor,
   ratingRefusalSentence,
+  reportedInterestExpense,
   reportedRetainedEarnings,
 } from "@/lib/publicCompanyAdapters";
 import { computeCreditScore } from "@/lib/financialValuation";
@@ -164,6 +165,76 @@ describe("statements adapter — retained earnings is read from where the feed p
     // and the sentence names it - it used to be scored as a coverage of 0.
     expect(refusal?.figures).toEqual(["currentAssets", "currentLiabilities", "interestExpense"]);
     expect(refusal?.figures).not.toContain("retainedEarnings");
+  });
+
+  // INTEREST EXPENSE IS READ FROM WHERE THE FEED PUT IT (credit2 repair,
+  // medium). SF1 `intexp` normalises to the source name `interest_expense`
+  // toward `interest_expense_bank`, a leaf with no schema-v1 bucket - so the
+  // real normalizer shelves it under `unmapped` and never emits the leaf
+  // (measured: normalize(Fundamentals(interest_expense=2.935e9)) -> leaves
+  // ['cash_operating'], unmapped [... 'interest_expense' ...]). Reading the
+  // leaf alone made the public sentence say "interest expense not reported
+  // in this filing" about a filing that reported it.
+  // The record below is the normalizer's own `_emit` shape, field for field.
+  // REDS ON after the repair: a shelved interest expense read as absent; a
+  // debt-free listed company refused the declared rung because only the
+  // (always-shelved) debt legs were consulted.
+  // CANNOT SEE: whether SF1 itself carried `intexp` for a ticker (this
+  // committed AAPL capture does not - the last test above stays true).
+  const shelvedInterest = (amount: number) => ({
+    code: "sharadar:interest_expense",
+    name: "interest_expense",
+    amount,
+    reason: "canonical_leaf_not_in_schema_v1",
+    canonical_attempted: "interest_expense_bank",
+  });
+  const withPeriod0 = (over: (p: PublicCompanyEnvelope["periods"][number]) => PublicCompanyEnvelope["periods"][number]): PublicCompanyEnvelope => ({
+    ...sharadar,
+    periods: [over(sharadar.periods[0]), ...sharadar.periods.slice(1)],
+  });
+
+  it("an interest expense the feed shelved under unmapped is REPORTED, and the refusal does not name it", () => {
+    const env = withPeriod0((p) => ({
+      ...p,
+      unmapped: [...p.unmapped, shelvedInterest(2_935_000_000)] as typeof p.unmapped,
+    }));
+    expect(env.periods[0].leaves["interest_expense_bank"]).toBeUndefined();
+    expect(reportedInterestExpense(env.periods[0])).toBe(2_935_000_000);
+    const built = buildPublicStatements(env)!;
+    expect(built.statements.incomeStatement.interestExpense).toBe(2_935_000_000);
+    expect(built.statements.absentInputs).not.toContain("interestExpense");
+    const credit = computeCreditScore(built.statements);
+    const refusal = ratingRefusalFor(built.statements, credit)!;
+    expect(refusal.figures).toEqual(["currentAssets", "currentLiabilities"]);
+    expect(refusal.figures).not.toContain("interestExpense");
+    const coverage = credit.components.find((c) => /interest coverage/i.test(c.label));
+    expect(coverage, "the interest-coverage row is missing").toBeDefined();
+    expect(coverage!.refusal ?? null).toBeNull();
+    expect(coverage!.value).toBeCloseTo(123_216_000_000 / 2_935_000_000, 9);
+  });
+
+  it("a reported total debt of 0 beside a reported interest of 0 and a positive EBIT takes the DECLARED rung, labelled", () => {
+    const env = withPeriod0((p) => ({
+      ...p,
+      headline: { ...p.headline, total_debt: 0 },
+      unmapped: [
+        ...p.unmapped.filter((u) => u.name !== "long_term_debt" && u.name !== "st_debt_synthetic"),
+        shelvedInterest(0),
+      ] as typeof p.unmapped,
+    }));
+    const built = buildPublicStatements(env)!;
+    expect(built.statements.reportedTotals?.totalDebt).toBe(0);
+    expect(built.statements.absentInputs).not.toContain("interestExpense");
+    const credit = computeCreditScore(built.statements);
+    const rungs = credit.components.filter((c) => c.declaredRung);
+    expect(rungs.length).toBe(2); // interest coverage and DSCR
+    for (const c of rungs) {
+      expect(c.refusal ?? null).toBeNull();
+      expect(c.declaredRung!.label).toMatch(/declared rule, not measured/);
+    }
+    const refusal = ratingRefusalFor(built.statements, credit)!;
+    expect(refusal.undefinedCoverage ?? false).toBe(false);
+    expect(refusal.figures).not.toContain("interestExpense");
   });
 
   it("with the shelved record removed, retained earnings is truly absent and the sentence is the owner's, in both languages", () => {
