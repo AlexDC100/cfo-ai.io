@@ -349,8 +349,13 @@ def _engine_gates() -> List[Gate]:
         # Plant log: docs/engine_book/gates.md
         Gate("forecast-route",
              [PY, "-m", "pytest", "tests/engine/test_forecast_route.py", "-q"],
-             work_junit=True, floor=30, units="tests",
+             # plan/2 B6: floor 30 -> 45 (measured 49) with the fp1.2 canaries
+             work_junit=True, floor=45, units="tests",
              canaries=("test_the_route_is_mounted_on_the_real_app",
+                       "test_get_equals_post_with_the_default_body",
+                       "test_the_post_body_binds_at_module_scope",
+                       "test_an_invalid_request_is_422_with_code_text_and_field",
+                       "test_a_base_plan_that_draws_an_unpriceable_line_is_served_partially_and_says_so",
                        # plan/2 B4b (28.3 B4): GET through create_app on the
                        # four books at horizons 3 and 5 answers 200 with no
                        # clause violation, the pool drivers expanded
@@ -395,6 +400,9 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
              work_junit=True, floor=60, units="tests",
              canaries=("test_the_guard_is_silent_on_all_four_committed_books",
+                       # plan/2 B6 (3.13): the real POST bytes, per want key
+                       "test_no_actual_provenance_on_real_post_bytes",
+                       "test_the_committed_fp12_served_fixture_is_what_the_real_route_serves",
                        "test_every_real_book_serves_a_whole_projection_at_every_horizon",
                        "test_the_projected_balance_sheet_closes_to_the_cent_on_the_real_book")),
         Gate("forecast-drivers",
@@ -563,6 +571,58 @@ def _engine_gates() -> List[Gate]:
                        "test_a_cross_sign_column_carries_its_kind_and_no_percentage",
                        "SIGN-FLIP truth table (python)")),
         # ── end plan/2 B1 ────────────────────────────────────────────────
+        # ── plan/2 B6 (plan_contract_v2 28.3 B6): fp1.2 serving and POST
+        # /api/forecast/{period_id}/recompute ────────────────────────────
+        # Eight first registrations, each through the REAL create_app. Every
+        # test prints its own SCOPE and GATE-WORK line; floors are the counts
+        # measured at registration, rounded down. forecast-cache runs on the
+        # tenancy double (membership walls); the others on the committed-book
+        # row server (as-built B0-6). forecast-route, forecast-serving-
+        # boundary and the cross-org sweep were extended in place.
+        Gate("forecast-server-side",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_recompute_f2.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-server-side units=(\d+)", floor=4000,
+             units="served numbers re-walked from the served figures",
+             canaries=("SCOPE forecast-server-side (plan/2 B6, gate row F2)",)),
+        Gate("forecast-provenance",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_provenance_f4.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-provenance units=(\d+)", floor=8000,
+             units="drivers, figures and series points resolved",
+             canaries=("SCOPE forecast-provenance (plan/2 B6, gate row F4)",)),
+        Gate("forecast-byte-stability",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_byte_stability_f8.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-byte-stability units=(\d+)", floor=16,
+             units="body hashes compared in process and against a second process",
+             canaries=("SCOPE forecast-byte-stability (plan/2 B6, gate row F8)",
+                       "PYTHONHASHSEED=12345")),
+        Gate("forecast-latency",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_recompute_f9.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-latency units=(\d+)", floor=80,
+             units="timed chart-profile POSTs (N=20 per book)",
+             canaries=("SCOPE forecast-latency (plan/2 B6, gate row F9, in process)",
+                       "bytes (cap")),
+        Gate("forecast-lever-reach",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_lever_reach.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-lever-reach units=(\d+)", floor=350,
+             units="nudges sent through POST recompute (driver x allowed op x book)",
+             canaries=("SCOPE forecast-lever-reach (plan/2 B6, contract 12)",
+                       "levers declared 38")),
+        Gate("scenario-one-engine",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_one_engine.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-one-engine units=(\d+)", floor=10,
+             units="GET-equals-POST cells plus the handler walk",
+             canaries=("SCOPE scenario-one-engine (plan/2 B6, gate row S4",)),
+        Gate("scenario-provenance",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_provenance.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-provenance units=(\d+)", floor=3400,
+             units="figures whose lever ids were re-derived by removal POSTs",
+             canaries=("SCOPE scenario-provenance (plan/2 B6, gate row S6)",)),
+        Gate("forecast-cache",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_cache.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-cache units=(\d+)", floor=8,
+             units="POSTs (owner base/shocked/base, strangers) plus cache entries read",
+             canaries=("SCOPE forecast-cache (plan/2 B6, contract 1.5)",)),
+        # ── end plan/2 B6 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -872,7 +932,12 @@ def _frontend_gates() -> List[Gate]:
                        # against the shared truth table, and the rendered
                        # sign flips on every converted consumer.
                        "frontend/lib/__tests__/changeKind.test.ts",
-                       "frontend/components/scenarios/__tests__/signFlip.test.tsx")),
+                       "frontend/components/scenarios/__tests__/signFlip.test.tsx",
+                       # plan/2 B6 (F2, F4, F6): the fp1.2 reader over the
+                       # real served bytes, and the magnitude band whose
+                       # early returns became reds.
+                       "frontend/lib/__tests__/forecastFactsReader.test.ts",
+                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

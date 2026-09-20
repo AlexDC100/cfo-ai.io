@@ -49,7 +49,7 @@ graph LR
     pkg_firm["firm (12 modules)"]
     pkg_forecast["forecast (13 modules)"]
     pkg_forecast_drivers["forecast_drivers (7 modules)"]
-    pkg_forecast_serving["forecast_serving (6 modules)"]
+    pkg_forecast_serving["forecast_serving (13 modules)"]
     pkg_frontends["frontends (11 modules)"]
     pkg_industry["industry (2 modules)"]
     pkg_ingestion["ingestion (2 modules)"]
@@ -82,7 +82,7 @@ graph LR
     pkg_ai_lane -->|2| pkg_canonical
     pkg_ai_lane -->|2| pkg_country_packs
     pkg_ai_lane -->|3| pkg_packs
-    pkg_api -->|6| pkg__root_
+    pkg_api -->|7| pkg__root_
     pkg_api -->|5| pkg_ai
     pkg_api -->|2| pkg_ai_lane
     pkg_api -->|1| pkg_comparatives
@@ -92,7 +92,7 @@ graph LR
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
     pkg_api -->|2| pkg_forecast
-    pkg_api -->|1| pkg_forecast_serving
+    pkg_api -->|2| pkg_forecast_serving
     pkg_api -->|1| pkg_industry
     pkg_api -->|1| pkg_insights
     pkg_api -->|1| pkg_interp
@@ -128,6 +128,7 @@ graph LR
     pkg_dst -->|1| pkg_serving
     pkg_firm -->|2| pkg_api
     pkg_firm -->|1| pkg_serving
+    pkg_forecast -->|1| pkg__root_
     pkg_forecast -->|1| pkg_canonical
     pkg_forecast -->|1| pkg_ratios
     pkg_forecast -->|1| pkg_serving

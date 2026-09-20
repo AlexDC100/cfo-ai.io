@@ -34,6 +34,14 @@
       "F6",
       "S1",
       "S3"
+    ],
+    "B6": [
+      "F2",
+      "F4",
+      "F8",
+      "F9",
+      "S4",
+      "S6"
     ]
   },
   "required_gates": {
@@ -70,6 +78,17 @@
       "period-loader-parity",
       "forecast-get-b4-parity",
       "forecast-debt-timing"
+    ],
+    "B6": [
+      "forecast-server-side",
+      "forecast-provenance",
+      "forecast-byte-stability",
+      "forecast-latency",
+      "forecast-lever-reach",
+      "scenario-one-engine",
+      "scenario-provenance",
+      "forecast-cache",
+      "vitest"
     ]
   },
   "gates": [
@@ -383,7 +402,8 @@
         "SCOPE forecast-get-b4-parity (plan/2 B5, contract 28.3 B5)",
         "allowed org-row fields ['company_name']"
       ],
-      "plant_log": "forecast-get-b4-parity"
+      "plant_log": "forecast-get-b4-parity",
+      "retired_in": "B6"
     },
     {
       "id": "forecast-debt-timing",
@@ -401,6 +421,144 @@
         "SCOPE forecast-debt-timing (plan/2 B5, contract 6.7)"
       ],
       "plant_log": "forecast-debt-timing"
+    },
+    {
+      "id": "forecast-server-side",
+      "gate": "forecast-server-side",
+      "rows": [
+        "F2"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_recompute_f2.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-server-side (plan/2 B6, gate row F2)"
+      ],
+      "plant_log": "forecast-server-side"
+    },
+    {
+      "id": "forecast-provenance",
+      "gate": "forecast-provenance",
+      "rows": [
+        "F4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_provenance_f4.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-provenance (plan/2 B6, gate row F4)"
+      ],
+      "plant_log": "forecast-provenance"
+    },
+    {
+      "id": "forecast-byte-stability",
+      "gate": "forecast-byte-stability",
+      "rows": [
+        "F8"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_byte_stability_f8.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-byte-stability (plan/2 B6, gate row F8)"
+      ],
+      "plant_log": "forecast-byte-stability"
+    },
+    {
+      "id": "forecast-latency",
+      "gate": "forecast-latency",
+      "rows": [
+        "F9"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_recompute_f9.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-latency (plan/2 B6, gate row F9, in process)"
+      ],
+      "plant_log": "forecast-latency"
+    },
+    {
+      "id": "forecast-lever-reach",
+      "gate": "forecast-lever-reach",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_lever_reach.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-lever-reach (plan/2 B6, contract 12)"
+      ],
+      "plant_log": "forecast-lever-reach"
+    },
+    {
+      "id": "scenario-one-engine",
+      "gate": "scenario-one-engine",
+      "rows": [
+        "S4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_scenario_one_engine.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-one-engine (plan/2 B6, gate row S4"
+      ],
+      "plant_log": "scenario-one-engine"
+    },
+    {
+      "id": "scenario-provenance",
+      "gate": "scenario-provenance",
+      "rows": [
+        "S6"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_scenario_provenance.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-provenance (plan/2 B6, gate row S6)"
+      ],
+      "plant_log": "scenario-provenance"
+    },
+    {
+      "id": "forecast-cache",
+      "gate": "forecast-cache",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_cache.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-cache (plan/2 B6, contract 1.5)"
+      ],
+      "plant_log": "forecast-cache"
+    },
+    {
+      "id": "vitest:B6",
+      "gate": "vitest",
+      "rows": [
+        "F2",
+        "F4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "frontend/lib/__tests__/forecastFactsReader.test.ts",
+        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx"
+      ],
+      "canaries": [
+        "frontend/lib/__tests__/forecastFactsReader.test.ts",
+        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx"
+      ],
+      "plant_log": "vitest — fp1.2 reader canaries (plan/2 B6)"
     }
   ]
 }

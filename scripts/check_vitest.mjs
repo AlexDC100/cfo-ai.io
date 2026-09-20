@@ -59,6 +59,9 @@ const CANARIES = [
   // plan/2 B1 (plan_contract_v2 S7): one sign-flip classifier, rendered as words
   "frontend/lib/__tests__/changeKind.test.ts",
   "frontend/components/scenarios/__tests__/signFlip.test.tsx",
+  // plan/2 B6: the fp1.2 reader over the real served bytes; the magnitude band
+  "frontend/lib/__tests__/forecastFactsReader.test.ts",
+  "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "battery-vitest-"));

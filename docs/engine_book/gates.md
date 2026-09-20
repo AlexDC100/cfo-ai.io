@@ -5594,3 +5594,369 @@ that lists no canary; a `retired_in` whose batch has no entry and no
 `required_gates` / `required_rows` key. **It cannot see:** whether a named
 canary file asserts anything (tests/engine/test_gate_canaries.py), or a
 retirement the contract never named (the RETIREMENTS table, unchanged).
+
+### B6 route gates — how the plants and the parent reds were taken
+
+Eight gates land with the repair they guard (contract 0.5): fp1.2 serving and
+`POST /api/forecast/{period_id}/recompute`. Every plant below was applied by
+monkeypatch from a scratch test module (session scratchpad `b6/plants_gates.py`
+and `b6/plants_cache.py`, never committed; the no-plants gate forbids plant
+code in product source), observed, and discarded. The parent commit is
+`d4f2b5c` (wave/plan-b5). Run against it, every one of these gates reds for one
+reason, recorded once here and quoted under each heading:
+
+```
+RED (parent commit) d4f2b5c, probed through create_app on agras:
+d4f2b5c POST /api/forecast/{id}/recompute -> 404 {"detail":"Not Found"}
+d4f2b5c GET contract fp1 | body_hash None | drivers False | series False | lever_ids on a figure False | per-figure basis prose True
+d4f2b5c _forecast_history cache: False
+the eight gate files copied onto d4f2b5c: 33 failed, 3 passed, 6 errors
+```
+
+## forecast-server-side
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_recompute_f2.py -q -s` |
+| canary | `SCOPE forecast-server-side (plan/2 B6, gate row F2)` |
+| work count | `GATE-WORK forecast-server-side units=(\d+)`, floor **4000** (measured 4300) |
+
+**SCOPE** — books agras, carniprod, retail, realestate; requests base 3y/12m,
+base 2y/24m, levered 3y/12m (every lever kind B6 accepts); through create_app
+and the committed-book row server.
+
+**PLANT** — `blocks/series._value` returns fcf_cumulative one minor unit high.
+
+```
+RED (plant)
+E   AssertionError: ('agras', '2026-01')
+E   assert 32174118 == 32174117
+```
+
+**RED (parent commit)** — no series, summary, strip or FY aggregate is served
+on d4f2b5c (`series False` above): every total a surface wanted was the
+browser's to compute, which is the F2 defect.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a series point, FY aggregate, balance-sheet
+total, summary amount or strip amount that differs from the integer walk over
+the served figures of the same run; a float in the body. **It cannot see**
+what a page does with the values (forecast-boundary, vitest).
+
+## forecast-provenance
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_provenance_f4.py -q -s` |
+| canary | `SCOPE forecast-provenance (plan/2 B6, gate row F4)` |
+| work count | `GATE-WORK forecast-provenance units=(\d+)`, floor **8000** (measured 8712) |
+
+**SCOPE** — the four corpus books, base and levered 3y/12m.
+
+**PLANT** — the "six-key normalisation" restored: `blocks/drivers._basis`
+drops the `book` evidence object (and the builder's own clause check is
+silenced, so the bytes leave).
+
+```
+RED (plant)
+E   AssertionError: ('agras', 'interest_rate_debt', 'book', [])
+E   assert [] == ['book']
+```
+
+**RED (parent commit)** — `drivers False` above: fp1 served an assumption as
+{id, label, unit, values, basis, derived_from}, with no tier and no evidence.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** an id that resolves in neither drivers nor
+conventions; a tier without exactly its evidence object; a user tier without
+its original; a figure naming a driver the same response marks inert; a line
+outside a driver's consumed_by. **It cannot see** whether a driver's value is
+right (forecast-authority, forecast-defaults).
+
+## forecast-byte-stability
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_byte_stability_f8.py -q -s` |
+| canary | `SCOPE forecast-byte-stability (plan/2 B6, gate row F8)`, `PYTHONHASHSEED=12345` |
+| work count | `GATE-WORK forecast-byte-stability units=(\d+)`, floor **16** (measured 16) |
+
+**SCOPE** — the four corpus books, base and levered; two calls in process and
+one fresh interpreter with its own hash seed.
+
+**PLANT** — a process fact in the body: `plan_response._sentences` appends a
+note carrying `os.getpid()` (in the parent process only).
+
+```
+RED (plant)
+E   AssertionError: another process serves different bytes: ['agras', 'carniprod', 'realestate', 'retail']
+```
+
+**RED (parent commit)** — `body_hash None` above: fp1 carried no hash, so
+nothing could be compared across processes at all.
+
+**REVERT** — monkeypatch undone; `2 passed`.
+
+**After the repair it reds on:** one request giving two body hashes, in or
+across processes; recompute_ms inside the hash; lever_set_hash depending on
+lever order or a decimal's spelling. **It cannot see** saved-case replay
+(B15), compares (B11) or the export (B20).
+
+## forecast-latency
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_recompute_f9.py -q -s` |
+| canary | `SCOPE forecast-latency (plan/2 B6, gate row F9, in process)`, `bytes (cap` |
+| work count | `GATE-WORK forecast-latency units=(\d+)`, floor **80** (measured 80 = N 20 x 4 books) |
+
+**SCOPE** — chart profile, monthly_months 24, two shocks, N=20 per book; the
+clock includes the loader, the statements rebuild and the TestClient. Measured
+p50 136-186 ms against the packed 1500; largest body 339,293 bytes against the
+packed cap 400,000 (both thresholds printed from
+`packs/forecast/levers.yaml#latency`, TC-10).
+
+**PLANT 1** — a wrapper that delays the handler by 2 s.
+**PLANT 2** — per-point basis prose back on the series block.
+
+```
+RED (plant) 1
+E   AssertionError: ('agras', 2189.4847910000053)
+E   assert 2189.4847910000053 <= 1500
+RED (plant) 2
+E   AssertionError: ('agras', 1606826)
+E   assert 1606826 <= 400000
+```
+
+**RED (parent commit)** — `per-figure basis prose True` above: the fp1 GET
+inlined the full basis of every driver into every figure (the recorded B4 GET
+bodies were ~5 MB each), and there was no chart profile to time.
+
+**REVERT** — monkeypatches undone; `1 passed`.
+
+**After the repair it reds on:** in-process p50 above the packed budget; a
+chart-profile body above the packed cap; N below 20. **It cannot see** the
+browser (B9), the analysis profile (B11) or the network.
+
+## forecast-lever-reach
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_lever_reach.py -q -s` |
+| canary | `SCOPE forecast-lever-reach (plan/2 B6, contract 12)`, `levers declared 38` |
+| work count | `GATE-WORK forecast-lever-reach units=(\d+)`, floor **350** (measured 376 nudges) |
+
+**SCOPE** — the four corpus books, 3y/12m; every driver key x every allowed
+op, nudged by its served reach_step through POST recompute (overrides, shocks,
+behaviour overrides); printed per book: levers declared, moved, the inert list
+with the engine's sentences, the nudges the engine refused and why.
+
+**PLANT** — volume_index compiles to a no-op (`_Compiler.compile` drops it).
+The first version of this gate PASSED the plant: the engine's own nudge was
+blind in the same way, so it served "moving volume index changes no figure"
+and the gate took the sentence as the answer. The gate now refuses an inert
+sentence on a driver the registry wires directly to pl.revenue or
+pl.cost_of_sales while that line carries an amount.
+
+```
+RED (plant)
+E   AssertionError: agras: volume_index is served as inert while pl.revenue, pl.cost_of_sales carries an amount in the base plan: the lever compiles to nothing
+```
+
+**RED (parent commit)** — no POST route (404 above), so no lever reached
+anything through a route. Built against the B6 tree before its repairs, the
+gate also found two attribution defects, both repaired in this batch
+(`project.py`): `bs_totals.current_liabilities` moved under a pool fixed-share
+nudge on realestate, outside the driver's consumed_by; and a dso_days nudge
+moved pl.pretax_result, pl.net_income and bs.equity_retained on realestate
+(the funding interest is priced on a balance everything that moves cash has
+sized):
+
+```
+E   AssertionError: realestate: nudging dso_days (override) moved ['bs.equity_retained', 'bs_totals.equity', 'cf.net_income', 'pl.net_income', 'pl.pretax_result'], outside its consumed_by
+```
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a nudge that moves nothing on a driver not
+served as inert; an inert driver whose nudge moves a number; a revenue or
+cost-of-sales lever served as inert on a book that has the line; changed lines
+outside consumed_by; a driver with no consumer or no tier. **It cannot see**
+pool and debt reach steps of their own (not packed in B6) or block-field
+consumers (B12).
+
+## scenario-one-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scenario_one_engine.py -q -s` |
+| canary | `SCOPE scenario-one-engine (plan/2 B6, gate row S4` |
+| work count | `GATE-WORK scenario-one-engine units=(\d+)`, floor **10** (measured 10) |
+
+**SCOPE** — the four corpus books x horizons 3 and 5; the mounted
+/api/forecast routes. The Scenarios cascade, the Capsule preview and
+forecast_drivers cases are NOT yet on this engine (B13); the scope line says so.
+
+**PLANT 1** — cost_of_sales multiplied by 1.0001 in the POST path only.
+**PLANT 2** — a `/api/forecast/{period_id}/scenario` path mounted.
+
+```
+RED (plant) 1
+E   AssertionError: ('agras', 3)
+E   assert 'sha256:6d2d8...0b6a32dc8a14c' == 'sha256:ceaf7...d43a4318153bd'
+RED (plant) 2
+E   AssertionError: [('/api/forecast/{period_id}', ('GET',)), ('/api/forecast/{period_id}/recompute', ('POST',)), ('/api/forecast/{period_id}/scenario', ('POST',))]
+```
+
+**RED (parent commit)** — the POST answers 404 above; the GET built its body
+through project_plan, the fp1 adapter and the fp1 gateway, a path no lever
+could enter.
+
+**REVERT** — monkeypatch undone, the planted route removed; `10 passed`.
+
+**After the repair it reds on:** GET and the default POST differing in
+body_hash; either verb not going through the one handler; the handler calling
+project_payload, the fp1 adapter or the fp1 gateway; a mounted path ending in
+/scenario. **It cannot see** the three calculators B13 removes.
+
+## scenario-provenance
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scenario_provenance.py -q -s` |
+| canary | `SCOPE scenario-provenance (plan/2 B6, gate row S6)` |
+| work count | `GATE-WORK scenario-provenance units=(\d+)`, floor **3400** (measured 3420) |
+
+**SCOPE** — the four corpus books, 3y/12m; lever kinds shock, shock group,
+override, behaviour override, debt row; SYNTHETIC debt rate 8% where the book
+cannot price debt; every removal run re-POSTed by the test, never read from
+the response under test.
+
+**PLANT** — an FY aggregate takes the union of its months' lever ids. This is
+the defect the gate found while B6 was being built (a closing balance is
+reached only by what reaches the closing month); it was repaired in
+`blocks/figures.py` (`lever_ids_of`: the aggregate's own removal test) and is
+re-applied here as the plant.
+
+```
+RED (plant)
+E   AssertionError: agras ('pl.revenue', 'FY2026') lists ['rail:volume_index', 'template:t', 'override:dividend_payout_pct', 'behaviour:personnel', 'debt:2']; removing each lever in turn changes it for ['rail:volume_index', 'template:t']
+```
+
+**RED (parent commit)** — `lever_ids on a figure False` above, and no route
+took a lever.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a figure listing a lever whose removal does
+not change it; a figure that changes on a removal and does not list the lever;
+a figure that differs from the base run and names none; a lever id the request
+never sent. **It cannot see** slot, track and contribution figures (B8), case
+and spread levers (B11).
+
+## forecast-cache
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_cache.py -q -s` |
+| canary | `SCOPE forecast-cache (plan/2 B6, contract 1.5)` |
+| work count | `GATE-WORK forecast-cache units=(\d+)`, floor **8** (measured 8) |
+
+**SCOPE** — the REAL tenancy double (FirmWorld, row visibility evaluated from
+the migrations' policy text), ORG_A1's period carrying the agras corpus book;
+the owner POSTs base, shocked, base; strangers SOLO and B_OWNER POST the same
+period id with their own and with the victim's org header.
+
+**PLANT 1** — the cache keyed without org_id and read before the select.
+**PLANT 2** — the cache hands out live objects and the shocked run edits one.
+
+```
+RED (plant) 1
+E   AssertionError: SOLO [00000000-0000-0000-0000-0000000000cc] was answered 200 on a period whose rows are cached: {"kind":"projection","contract":"fp1.2","currency":"RON","base_period":{"label":"2025-12-31","period_id":"00000000-0000-0000-0000-00000000012d",...
+RED (plant) 2
+E   AssertionError: the base body changed after a shocked run: a run mutated the cached rows
+E   assert 'sha256:0658c...77af4d2948589' == 'sha256:dceb7...6f3164523e1a9'
+```
+
+**RED (parent commit)** — `_forecast_history cache: False` above: every GET
+re-read and re-rebuilt the period.
+
+**REVERT** — monkeypatches undone; `3 passed`.
+
+**After the repair it reds on:** a base body_hash that changes after a shocked
+run; a stranger answered anything but 401/403/404 on a cached period; the
+cache read before the org-filtered select (a deleted row still served); a
+cached value that is not immutable bytes; a changed updated_at reusing an
+entry. **It cannot see** history periods in the key (B7) or a second process.
+
+## cross-org sweep — POST /api/forecast/{period_id}/recompute (plan/2 B6)
+
+`tests/engine/test_cross_org_reads.py` lists the POST beside the GET in its
+route table, on the REAL tenancy double with ORG_A1's period carrying the agras
+book (fixture `book_world`), so the owner's answer is an fp1.2 body and not a
+refusal a stranger's 422 could hide behind.
+
+**SCOPE** — GET and POST recompute, requested by SOLO and B_OWNER (members of
+other workspaces) with their own org header, with the victim's org header and
+with none; the owner's expected 200 on the same table.
+
+**PLANT** — the classic service-role defect, taken in an isolated copy of the
+tree (scratchpad b6/pt; the branch was never edited): `_forecast_history.
+load_plan_inputs` opens `_supabase.admin()` instead of `per_user(jwt)`, and
+`_forecast_routes.recompute` trusts `X-Org-Id` instead of `resolve_org`.
+
+```
+RED (plant) — 3 failed, 3 passed
+E   AssertionError: CROSS-ORG READ — SOLO holds a membership in 00000000-0000-0000-0000-0000000000cc and none in ORG_A1, but these routes answered with something other than a refusal:
+E       POST /api/forecast/00000000-0000-0000-0000-00000000012d/recompute [victim-org-header] -> 422 {"detail":{"code":"no_statutory_tax_rate",...
+E   AssertionError: ('SOLO', '00000000-0000-0000-0000-0000000000c9', 200, '{"kind":"projection","contract":"fp1.2","currency":"RON","base_period":{"label":"2025-12-31",...
+E   assert 200 in {401, 403, 404}
+FAILED tests/engine/test_cross_org_reads.py::test_a_stranger_cannot_recompute_the_book_the_owner_can
+```
+
+**REVERT** — the copy discarded; 6 passed on the tree.
+
+**After the repair it reds on:** a non-member answered anything but 401, 403
+or 404 on the POST (a 422 that names the book's own refusal counts as a read);
+the owner not getting fp1.2 on the same period. **It cannot see:** a wall that
+holds only because the double's RLS holds while the route's own org filter is
+gone (either half alone keeps it green — `forecast-cache` PLANT 1 holds the
+cache half), or a cross-org WRITE (the route writes nothing).
+
+## vitest — fp1.2 reader canaries (plan/2 B6)
+
+| | |
+|---|---|
+| canaries | `frontend/lib/__tests__/forecastFactsReader.test.ts`, `frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx` |
+
+**SCOPE** — `readProjection` over `fp1_2_agras_served.json` (the bytes GET
+/api/forecast really serves on agras, held to the route by
+test_forecast_serving_boundary.py); `periodPayloadSnapshotId` against the
+engine's rule on the four corpus books; the magnitude band over the served FY
+aggregate of plan year one.
+
+**PLANT** — the reader pointed back at the fp1 shape (the state of the tree
+between the route change and the reader change, observed while B6 was built).
+
+```
+RED (plant)
+ Failed Tests 51
+ FAIL  frontend/lib/__tests__/forecastFactsBoundary.test.ts > the wire form the engine actually serves > reads as a projection at all
+ FAIL  frontend/pages/cfo/__tests__/forecastPage.test.tsx > the forecast page > paints a projected figure WITH its marker, never as a bare number
+```
+
+**RED (parent commit)** — forecastMagnitude.test.tsx:190-192 on d4f2b5c left
+the band by `if (!match) return;` when no basis named the source revenue: a
+payload with nothing to stand on PASSED. Both early returns are now
+assertions.
+
+**REVERT** — the reader reads fp1.2; `Tests 72 passed (72)` on the four
+forecast files, `13 passed` on forecastFactsReader.test.ts.
+
+**After the repair it reds on:** a driver losing its tier or its plan-year
+value; a convention painted as a quantity; an FY aggregate missing or not read
+as a served figure; a refused aggregate painted as a number; the TypeScript
+snapshot-id rule disagreeing with the engine's; a magnitude band with no source
+revenue behind it.
