@@ -891,7 +891,13 @@ def project(opening: OpeningPosition, history: PlHistory,
     interest_income_of = {}  # type: Dict[int, int]
     other_fin_income_of = {}  # type: Dict[int, int]
     other_fin_expense_of = {}  # type: Dict[int, int]
-    anchor_revenue = history.revenue or 0
+    if history.revenue is None:
+        # ABSENT != ZERO (plan/2 B5, B4RV-2): an assembled P&L with no
+        # revenue line projected revenue 0.00 and an EBITDA of minus the
+        # whole cost base. wave/plan-b3 refused this payload; so does this.
+        from .levers_pack import plan_pack
+        raise AssumptionError("revenue", plan_pack().refusals["revenue_absent"])
+    anchor_revenue = history.revenue
     #: G(n) and C(n) of contract 5.3: the cumulative growth and inflation
     #: factors, exact rationals; every annual amount is one product rounded
     #: once, so at neutral growth and inflation each pool reproduces its
