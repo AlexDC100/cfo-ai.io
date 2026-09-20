@@ -49,7 +49,12 @@ def _add_src_to_path() -> None:
         if (parent / "pyproject.toml").exists() and (parent / "src").is_dir():
             sys.path.insert(0, str(parent / "src"))
             return
-    raise SystemExit("check_served_periods: repo root (pyproject.toml) not found")
+    # Run from outside the tree (a temporary copy in /tmp during a baseline
+    # capture): fine as long as the engine is importable via PYTHONPATH.
+    try:
+        import engine  # noqa: F401
+    except ImportError:
+        raise SystemExit("check_served_periods: repo root (pyproject.toml) not found and `engine` is not importable")
 
 
 class ReadOnlyClient:
