@@ -591,6 +591,10 @@ def _summary(projection: Projection) -> Dict[str, Any]:
 #: volume and input prices move the variable part, inflation the fixed part.
 #: Over a refused split (fixed share 0) the first three move every cost and
 #: inflation moves none (B5V-4: agras +10pp inflation was served unmoved).
+#: B5R-4: the rates whose absence refuses a BASE plan that carries the balance
+#: they price. A request that supplies one prices the base run with it.
+_BASE_PRICING_RATES = ("interest_rate_debt", "revolver_rate")
+
 _SPLIT_DEPENDENT = ("revenue_growth", "volume_index", "input_price_index",
                     "inflation")
 
@@ -616,10 +620,33 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
 
     anchor = _parse_date(opening.period_end)
     timeline = build_timeline(anchor, request.total_years, request.monthly_months)
-    base = project(opening, history, assumptions,
-                   total_years=request.total_years,
-                   monthly_months=request.monthly_months, context=book,
-                   stop_at_unpriced_draw=stop_at_unpriced_draw)
+    base_notes = ()  # type: Tuple[str, ...]
+    try:
+        base = project(opening, history, assumptions,
+                       total_years=request.total_years,
+                       monthly_months=request.monthly_months, context=book,
+                       stop_at_unpriced_draw=stop_at_unpriced_draw)
+    except AssumptionError as refused:
+        # B5V-7e, decision B5R-4: the base plan refuses for a rate this book
+        # cannot measure, and its sentence asks for that rate. A request that
+        # supplies exactly it prices the BASE run too (both runs carry the
+        # same rate, so it is never a lever's delta). Nothing else is
+        # inherited, and a request that does not supply it refuses as before.
+        supplied = dict(request.overrides).get(refused.key)
+        if refused.key not in _BASE_PRICING_RATES or supplied is None:
+            raise
+        only = PlanRequest(total_years=request.total_years,
+                           monthly_months=request.monthly_months,
+                           overrides=((refused.key, supplied),))
+        base_plan = _Compiler(only, assumptions, assumptions.pools, timeline, anchor,
+                              client_sent).compile()
+        base = project(opening, history, assumptions,
+                       total_years=request.total_years,
+                       monthly_months=request.monthly_months, context=book,
+                       plan=base_plan,
+                       stop_at_unpriced_draw=stop_at_unpriced_draw)
+        base_notes = ("base plan priced at the request's %s: this book cannot "
+                      "measure it" % refused.key,)
     pools = base.assumptions.pools
     if pools is None:
         from .pools import split_pools
@@ -669,7 +696,7 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
                                                          fp1_view=False),
                 driver_order=[key for key, _entry in registry_for(pools)],
                 conventions=conventions,
-                notes=tuple(projection.notes) + tuple(resolver_notes)
+                notes=tuple(projection.notes) + tuple(resolver_notes) + base_notes
                 + tuple("%s <- %s" % (k, ", ".join(v)) for k, v in sorted(moved.items())))
 
 

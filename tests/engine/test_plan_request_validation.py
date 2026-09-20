@@ -261,3 +261,47 @@ def test_a_rate_the_book_does_not_price_refuses_in_a_rate_s_words():
         project_plan(realestate, (), PlanRequest(total_years=3, shocks=(
             Shock("a", "dio_cogs_days", "add_days", F(2)),)), None)
     assert caught.value.code == "days_not_measured", caught.value
+
+
+def test_a_supplied_rate_prices_the_base_plan_the_engine_asked_it_for():
+    """B5V-7e, decision B5R-4. SYNTHETIC: agras with its interest expense
+    removed carries 3.64M of debt it cannot price, and the engine's own
+    sentence says "Supply interest_rate_debt". A request that supplies it must
+    be served: the BASE run inherits exactly that rate (both runs are priced
+    the same, so the rate is not a lever's delta), and says so in a note. A
+    request that does not supply it still refuses, and an unrelated override
+    does not cure it."""
+    import copy
+
+    from engine.forecast import AssumptionError
+
+    book = copy.deepcopy(BOOK)
+    statements = book.get("statements") if isinstance(book.get("statements"), dict) else book
+    assert statements["assembled_pl"].pop("interest_expense") is not None, "TC-3"
+    with pytest.raises(AssumptionError) as caught:
+        project_plan(book, (), PlanRequest(total_years=3), None)
+    assert caught.value.key == "interest_rate_debt"
+    with pytest.raises(AssumptionError):
+        project_plan(book, (), PlanRequest(total_years=3, overrides=(
+            ("revenue_growth", (F("0.03"),) * 3),)), None)
+    rate = (("interest_rate_debt", (F("0.08"),) * 3),)
+    shock = Shock("a", "volume_index", "level_pct", F("-0.10"))
+    plan = project_plan(book, (), PlanRequest(total_years=3, overrides=rate,
+                                              shocks=(shock,)), None)
+    alone = project_plan(book, (), PlanRequest(total_years=3, overrides=rate), None)
+    first = plan.base.periods[0]
+    assert first.pl["interest_expense_debt"] != 0, (
+        "the base run carried the debt free of charge")
+    # the base is priced at the supplied rate: with no other lever the plan IS the base
+    assert ([p.pl["interest_expense_debt"] for p in alone.base.periods]
+            == [p.pl["interest_expense_debt"] for p in alone.projection.periods])
+    assert ([p.pl["interest_expense_debt"] for p in plan.base.periods]
+            == [p.pl["interest_expense_debt"] for p in alone.base.periods])
+    assert any("interest_rate_debt" in note and "base" in note for note in plan.notes), plan.notes
+    # nothing else is inherited: a growth override beside the rate moves the
+    # plan, never the base it is measured against
+    grown = project_plan(book, (), PlanRequest(total_years=3, overrides=rate + (
+        ("revenue_growth", (F("0.10"),) * 3),)), None)
+    assert ([p.pl["revenue"] for p in grown.base.periods]
+            == [p.pl["revenue"] for p in alone.base.periods])
+    assert grown.projection.periods[-1].pl["revenue"] != grown.base.periods[-1].pl["revenue"]
