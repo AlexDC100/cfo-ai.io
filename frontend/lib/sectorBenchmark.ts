@@ -16,7 +16,7 @@
 // and the year come from the document.
 
 import i18n from "@/i18n";
-import { getSupabase, currentOrgId } from "@/lib/supabase";
+import { authOrgHeaders } from "@/lib/apiHeaders";
 
 export const SECTOR_BENCHMARK_SCHEMA = "sector_benchmark/1";
 
@@ -145,16 +145,12 @@ export type SectorBenchmarkFetch =
   | { kind: "error"; status: number };
 
 export async function fetchSectorBenchmark(periodId: string): Promise<SectorBenchmarkFetch> {
-  const supabase = getSupabase();
-  if (!supabase) return { kind: "error", status: 0 };
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) return { kind: "error", status: 401 };
-  // The route resolves the ACTIVE workspace from this header; without it
-  // the engine falls back to the oldest membership and the period 403s.
-  const orgId = await currentOrgId();
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (orgId) headers["X-Org-Id"] = orgId;
+  // The route resolves the ACTIVE workspace from X-Org-Id; without it the
+  // engine falls back to the oldest membership and the period 403s. The ONE
+  // helper builds both headers (and degrades to the bare bearer when the
+  // workspace will not resolve) — gate: lib/__tests__/orgScopedFetch.test.ts.
+  const headers = await authOrgHeaders();
+  if (!headers) return { kind: "error", status: 401 };
   try {
     const res = await fetch(`${API_URL}/api/period/${encodeURIComponent(periodId)}/sector-benchmark`, { headers });
     if (!res.ok) return { kind: "error", status: res.status };
@@ -334,14 +330,19 @@ export function printSectorMovements(doc: SectorBenchmarkDoc, locale?: string | 
 /** The ratio card's band-source line: the sector band beside the general
  *  ladder, or the sentence saying the ladder is the general fallback and
  *  why. `null` doc (no served document) prints the general sentence. */
+export function bandSourceOf(doc: SectorBenchmarkDoc | null, censusKey: string): "sector" | "general" {
+  const card = doc?.ratio_cards?.[censusKey];
+  if (!doc || !card || card.band_source !== "sector") return "general";
+  return lawfulFigure(card, doc.min_peers) ? "sector" : "general";
+}
+
 export function bandSourceText(doc: SectorBenchmarkDoc | null, censusKey: string, locale?: string | null): string {
   const loc = localeOf(locale);
   const t = tFor(loc);
   const card = doc?.ratio_cards?.[censusKey];
   if (!doc || !card) return t("benchmarkPage.sector.bandGeneral");
-  if (card.band_source === "sector") {
-    const fig = lawfulFigure(card, doc.min_peers);
-    if (!fig) return t("benchmarkPage.sector.bandGeneral");
+  if (bandSourceOf(doc, censusKey) === "sector" && card.band_source === "sector") {
+    const fig = lawfulFigure(card, doc.min_peers)!;
     return t("benchmarkPage.sector.bandSector", {
       median: sectorValueText(fig.median, card.unit, loc),
       p25: sectorValueText(fig.p25, card.unit, loc),
@@ -352,6 +353,7 @@ export function bandSourceText(doc: SectorBenchmarkDoc | null, censusKey: string
       position: t(`benchmarkPage.sector.position.${card.position}`),
     });
   }
+  if (card.band_source === "sector") return t("benchmarkPage.sector.bandGeneral");
   return t("benchmarkPage.sector.bandGeneralBecause", { reason: reasonSentence(card.reason, t) });
 }
 

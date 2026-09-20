@@ -33,7 +33,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
 import { useSectorBenchmarkDoc } from "@/components/cfo/benchmark/SectorBenchmarkSection";
-import { bandSourceText } from "@/lib/sectorBenchmark";
+import { bandSourceOf, bandSourceText } from "@/lib/sectorBenchmark";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { BandMovementLists } from "@/components/cfo/ratios/BandMovementLists";
@@ -258,7 +258,7 @@ export function RatioTile({
         <div
           className="text-[10.5px] leading-snug text-ink-mute mt-1 break-words"
           data-testid="ratio-band-source"
-          data-band-source={sectorDoc?.ratio_cards?.[engineKey ?? ""]?.band_source ?? "general"}
+          data-band-source={bandSourceOf(sectorDoc, engineKey ?? "")}
         >
           {bandSourceText(sectorDoc, engineKey ?? "", i18n.language)}
         </div>

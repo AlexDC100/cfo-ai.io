@@ -6,9 +6,9 @@
 //
 // Scope (printed): every .ts/.tsx under frontend/ except tests and cfoApi.ts
 // (whose call() chokepoint attaches the header itself). Fails on: a raw
-// fetch( to /api/benchmarks, /api/industry, /api/forecast or /api/radar in a
-// file that does not build its headers with authOrgHeaders; the helper no
-// longer attaching X-Org-Id.
+// fetch( to /api/benchmarks, /api/industry, /api/forecast, /api/radar or a
+// sector-benchmark path in a file that does not build its headers with
+// authOrgHeaders; the helper no longer attaching X-Org-Id.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +19,11 @@ const ROOT = resolve(__dirname, "../..");
 // first version of this gate missed lib/industryApi.ts, whose request() helper
 // builds `${API_URL}${path}`: the picker's detect and save calls 403'd in
 // production on the very workspace the benchmark fix had just repaired.
-const FAMILY_PATH = /\/api\/(benchmarks|industry|forecast|radar)\b/;
+// `/api/period/{id}/sector-benchmark` resolves the org the same way and was
+// outside every family above, so the rule had no gate on the sourced sector
+// benchmark's own fetch. The wider `/api/period` family is NOT in scope yet:
+// ten further files name it and would need auditing one by one.
+const FAMILY_PATH = /\/api\/(benchmarks|industry|forecast|radar)\b|\/sector-benchmark\b/;
 const OWN_FETCH = /\bfetch\(/;
 const FAMILIES = { test: (src: string) => FAMILY_PATH.test(src.replace(/^\s*\/\/.*$/gm, "")) && OWN_FETCH.test(src) };
 
@@ -43,7 +47,7 @@ describe("org-scoped raw fetches", () => {
     const offenders = hits.filter((f) => !/authOrgHeaders\(/.test(readFileSync(f, "utf8")));
     console.info(`[gate] ${files.length} files scanned, ${hits.length} with a raw fetch to an org-resolving family`);
     expect(files.length).toBeGreaterThan(300);
-    expect(hits.length).toBeGreaterThanOrEqual(4); // non-vacuity: three benchmark callers + the industry client
+    expect(hits.length).toBeGreaterThanOrEqual(5); // non-vacuity: three benchmark callers, the industry client, the sector benchmark
     expect(offenders.map((f) => relative(ROOT, f))).toEqual([]);
   });
 

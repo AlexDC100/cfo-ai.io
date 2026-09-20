@@ -1052,4 +1052,38 @@ describe("ratio tile: where the band comes from", () => {
     const sectorLine = within(tile(feKeyOf("net_margin"))).getByTestId("ratio-band-source").textContent!;
     expect(sectorLine).toMatch(/n=\d+ · FY\d{4} · Ministerul Finantelor - situatii financiare anuale/);
   });
+
+  // The attribute is a TEST HOOK. It read the raw served card while the
+  // sentence read THE LAW's door, so a card that says "sector" and fails the
+  // law would have rendered the general sentence under `data-band-source=
+  // "sector"` — a gate going green over the wrong render.
+  // REDS ON, AFTER THE REPAIR: the attribute disagreeing with the sentence
+  // for any served tile, on any document.
+  it("the attribute is the same decision as the sentence, never the raw card", () => {
+    const p = fresh();
+    const doc = sectorDoc();
+    // a card that CLAIMS the sector but carries no lawful n
+    delete (doc.ratio_cards.net_margin as unknown as { n?: number }).n;
+    const { statements, ratios, credit } = pageInputs(p);
+    renderWithProviders(
+      <SectorBenchmarkCtx.Provider value={doc}>
+        <RatioCompareCtx.Provider value={viewOf(p)}>
+          <RatiosTabContent ratios={ratios} statements={statements} altman={altmanRatio(credit)} />
+        </RatioCompareCtx.Provider>
+      </SectorBenchmarkCtx.Provider>,
+    );
+    for (const el of document.querySelectorAll<HTMLElement>('[data-testid="ratio-band-source"]')) {
+      const tl = el.closest('[data-testid="ratio-tile"]')!;
+      const engineKey = engineKeyOf(tl.getAttribute("data-ratio-key")!);
+      const said = el.textContent!;
+      const claimed = el.getAttribute("data-band-source");
+      const isSectorSentence = said === bandSourceText(doc, engineKey, "en")
+        && said.includes("Ministerul");
+      expect(claimed, `${engineKey}: the hook must not claim what the line does not say`)
+        .toBe(isSectorSentence ? "sector" : "general");
+    }
+    const nm = within(tile(feKeyOf("net_margin"))).getByTestId("ratio-band-source");
+    expect(nm.getAttribute("data-band-source")).toBe("general");
+    expect(nm.textContent).not.toContain("Ministerul");
+  });
 });
