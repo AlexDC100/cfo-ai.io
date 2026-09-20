@@ -209,6 +209,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     _add_src_to_path()
+    # THE IMAGE MUST BE ABLE TO BOOT (2026-09-20). This gate once printed GREEN
+    # inside an image that could not start: packs/credit/model.yaml had not
+    # been synced, the credit boundary failed CLOSED (every rating withheld,
+    # every period still 200), and the container then crash-looped on
+    # boot_verify for six minutes of production downtime. A gate that imports
+    # the handlers without running the boot checks certifies an app that will
+    # never serve. Older images without boot_verify skip this honestly.
+    try:
+        from engine import boot_verify
+    except ImportError:
+        boot_verify = None
+    if boot_verify is not None and hasattr(boot_verify, "verify_config"):
+        try:
+            boot_verify.verify_config()
+        except Exception as exc:  # noqa: BLE001
+            print(f"SERVED PERIODS: RED — this image cannot boot: {exc}")
+            return 2
     try:
         from engine.api import _supabase
         periods = _list_periods(_supabase.admin, args.org, args.limit)

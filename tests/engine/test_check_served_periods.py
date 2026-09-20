@@ -127,3 +127,17 @@ def test_the_listing_asks_only_for_columns_get_period_itself_reads():
     assert asked["table"] == "financial_periods"
     assert set(asked["columns"].split(",")) == {"id", "org_id", "period_end"}
     assert "created_at" not in asked["order"] and "period_label" not in asked["columns"]
+
+
+def test_an_image_that_cannot_boot_is_red_before_any_period_is_read(monkeypatch, capsys):
+    """Production 2026-09-20: GREEN was printed inside an image that crash-looped on boot_verify."""
+    from engine import boot_verify
+    from engine.api import _supabase
+
+    def refuse():
+        raise RuntimeError("[boot_verify] the credit pack at /app/packs/credit/model.yaml is unusable")
+
+    monkeypatch.setattr(boot_verify, "verify_config", refuse)
+    monkeypatch.setattr(_supabase, "admin", lambda: pytest.fail("a period was read from an image that cannot boot"))
+    assert gate.main([]) == 2
+    assert "cannot boot" in capsys.readouterr().out
