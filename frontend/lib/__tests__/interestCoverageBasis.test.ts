@@ -41,6 +41,103 @@ describe("the no-envelope credit model's coverage row divides EBIT", () => {
   });
 });
 
+// ── THE NO-ENVELOPE MODEL DOES NOT FLOOR A ZERO-INTEREST BOOK (owner floors
+// ruling, 2026-09-18; surfaces re-verify, low) ─────────────────────────────
+// `safeDiv(ebit, 0) = 0` read "Below covenant", sub-score 15. Carniprod has
+// no debt, no interest and a positive EBIT: it scored 67.8 BB+ here against
+// the engine's labelled rung and 79.3 A. The model now does what the engine
+// does (R-D1): the top rung, LABELLED as declared, only when debt == 0,
+// interest == 0 and EBIT > 0 are all reported; otherwise the component
+// refuses, and the completeness law mints no composite and no letter.
+// REDS ON, after the repair: a coverage or DSCR sub-score of 15 (or any
+// measured-looking value) on a book whose interest expense is zero or
+// declared absent; a declared rung on a book with debt, a non-positive EBIT
+// or an unreported operand; a composite or letter beside a refused term.
+// CANNOT SEE: the engine path (creditRefusedSubscores.test.tsx), and
+// whether the feed should have carried the line (publicCompanyAdapters).
+describe("the no-envelope model refuses or declares the rung on a zero interest expense", () => {
+  const rows = (s: ReturnType<typeof statementsFor>) => {
+    const credit = computeCreditScore(s);
+    return {
+      credit,
+      cov: credit.components.find((c) => c.label.startsWith("Interest coverage"))!,
+      dscr: credit.components.find((c) => c.label.startsWith("~DSCR"))!,
+    };
+  };
+
+  it("carniprod (no debt, no interest, EBIT > 0): the declared top rung, labelled, and a composite", () => {
+    const s = statementsFor("carniprod");
+    expect(s.incomeStatement.interestExpense).toBe(0);
+    expect(s.balanceSheet.shortTermDebt + s.balanceSheet.longTermDebt).toBe(0);
+    const { credit, cov, dscr } = rows(s);
+    expect(cov.value).toBeNull();
+    expect(cov.subscore).toBe(95);
+    expect(dscr.subscore).toBe(90);
+    for (const r of [cov, dscr]) {
+      expect(r.refusal ?? null).toBeNull();
+      expect(r.declaredRung?.label).toContain("by declared rule, not measured");
+      expect(r.read).toContain("not measured");
+      expect(r.read).not.toContain("Below");
+    }
+    expect(credit.score).not.toBeNull();
+    expect(credit.rating).not.toBeNull();
+  });
+
+  it("the same book WITH debt declares nothing: both terms refuse, no composite, no letter", () => {
+    const s = statementsFor("carniprod");
+    s.balanceSheet = { ...s.balanceSheet, longTermDebt: 1000 };
+    // the reader takes debt from the served totals when they are present
+    if (s.assembled_bs) s.assembled_bs = { ...s.assembled_bs, total_debt: 1000, long_term_debt: 1000 };
+    const { credit, cov, dscr } = rows(s);
+    expect(cov.subscore).toBeNull();
+    expect(cov.value).toBeNull();
+    expect(cov.refusal?.code).toBe("interest_expense_not_positive");
+    expect(cov.declaredRung ?? null).toBeNull();
+    // 1,000 of debt gives a principal estimate, so DSCR is measured
+    expect(dscr.subscore).not.toBeNull();
+    expect(credit.score).toBeNull();
+    expect(credit.rating).toBeNull();
+    expect(credit.grade).toBeNull();
+  });
+
+  it.each([["interestExpense"], ["longTermDebt"], ["shortTermDebt"]])(
+    "an operand the source declares absent (%s) declares nothing either",
+    (absent) => {
+      const s = statementsFor("carniprod");
+      s.absentInputs = [...(s.absentInputs ?? []), absent as never];
+      const { credit, cov, dscr } = rows(s);
+      expect(cov.declaredRung ?? null).toBeNull();
+      expect(dscr.declaredRung ?? null).toBeNull();
+      expect(cov.subscore).toBeNull();
+      expect(dscr.subscore).toBeNull();
+      expect(cov.refusal?.code).toBe(absent === "interestExpense" ? "credit_inputs_absent" : "interest_expense_not_positive");
+      expect(credit.score).toBeNull();
+      expect(credit.rating).toBeNull();
+    },
+  );
+
+  it("a non-positive EBIT declares nothing (retail: EBIT < 0, with its interest zeroed and its debt removed)", () => {
+    const s = statementsFor("retail");
+    s.incomeStatement = { ...s.incomeStatement, interestExpense: 0 };
+    s.balanceSheet = { ...s.balanceSheet, shortTermDebt: 0, longTermDebt: 0 };
+    if (s.assembled_pl) s.assembled_pl = { ...s.assembled_pl, interest_expense: 0 };
+    if (s.assembled_bs) s.assembled_bs = { ...s.assembled_bs, total_debt: 0, long_term_debt: 0, short_term_debt: 0 };
+    const { credit, cov } = rows(s);
+    expect(cov.subscore).toBeNull();
+    expect(cov.declaredRung ?? null).toBeNull();
+    expect(cov.refusal?.code).toBe("interest_expense_not_positive");
+    expect(credit.rating).toBeNull();
+  });
+
+  it("a measured book is banded exactly as before", () => {
+    const { cov, credit } = rows(statementsFor("agras"));
+    expect(cov.subscore).toBe(95);
+    expect(cov.refusal ?? null).toBeNull();
+    expect(cov.declaredRung ?? null).toBeNull();
+    expect(credit.score).not.toBeNull();
+  });
+});
+
 describe("each coverage key's label states its own basis, in both languages", () => {
   const load = (lang: string) =>
     JSON.parse(readFileSync(resolve(__dirname, `../../i18n/locales/${lang}.json`), "utf-8"))

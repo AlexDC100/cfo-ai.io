@@ -428,7 +428,7 @@ describe("a served composite outside the model's range on a fully scored envelop
 
   // AN UNREAD FIGURE DOES NOT RENDER (credit re-verify, medium, FE half).
   // An envelope that states a `basis` left the engine under the revision-2
-  // serving contract, whose boundary (serving/credit_boundary.py) serves
+  // serving contract, whose boundary (ratios/credit_boundary.py) serves
   // `ranges` beside every figure. With `ranges` stripped the reader once
   // fell back to a LITERAL [0, 100] kept in the browser (TC-10) and had no
   // Altman bound at all: a persisted Z″ 1584.89 / composite 88.5 on an

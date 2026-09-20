@@ -3157,6 +3157,7 @@
     "ratingUnavailable": "Rating indisponibil: {{figure}} nu este raportat în această situație financiară depusă",
     "ratingUnavailableMany": "Rating indisponibil: {{figures}} nu sunt raportate în această situație financiară depusă",
     "ratingUnavailableGeneric": "Rating indisponibil: o cifră necesară nu este raportată în această situație financiară depusă",
+    "ratingUnavailableUndefinedCoverage": "Rating indisponibil: cheltuiala cu dobânzile raportată în această situație financiară depusă nu este pozitivă, deci acoperirea dobânzilor nu este definită",
     "figure": {
       "retainedEarnings": "rezultatul reportat",
       "currentAssets": "totalul activelor circulante",
@@ -3164,7 +3165,8 @@
       "ebit": "rezultatul din exploatare (EBIT)",
       "totalAssets": "totalul activelor",
       "totalEquity": "totalul capitalurilor proprii",
-      "totalLiabilities": "totalul datoriilor"
+      "totalLiabilities": "totalul datoriilor",
+      "interestExpense": "cheltuielile cu dobânzile"
     }
   },
   "forecast": {

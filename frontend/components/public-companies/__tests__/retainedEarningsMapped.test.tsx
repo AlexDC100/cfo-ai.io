@@ -159,7 +159,10 @@ describe("statements adapter — retained earnings is read from where the feed p
     expect(credit.altman.score).toBeNull();
     expect(credit.rating).toBeNull();
     const refusal = ratingRefusalFor(built.statements, credit);
-    expect(refusal?.figures).toEqual(["currentAssets", "currentLiabilities"]);
+    // ...and this fixture's period carries no interest-expense leaf (SF1
+    // `intexp` -> `interest_expense_bank`), so the coverage term refuses too
+    // and the sentence names it - it used to be scored as a coverage of 0.
+    expect(refusal?.figures).toEqual(["currentAssets", "currentLiabilities", "interestExpense"]);
     expect(refusal?.figures).not.toContain("retainedEarnings");
   });
 
@@ -216,6 +219,10 @@ describe("statements adapter — retained earnings is read from where the feed p
     const complete = {
       ...built.statements,
       absentInputs: [],
+      // the feed carries no interest expense; a complete statement does
+      // (Apple FY2023 10-K, for the shape only). Without it the coverage
+      // term refuses - the two tests below.
+      incomeStatement: { ...built.statements.incomeStatement, interestExpense: 3_933_000_000 },
       reportedTotals: {
         ...built.statements.reportedTotals,
         totalCurrentAssets: 152_987_000_000, // Apple FY2024 10-K, for the shape only
@@ -225,5 +232,59 @@ describe("statements adapter — retained earnings is read from where the feed p
     const credit = computeCreditScore(complete);
     expect(credit.rating).not.toBeNull();
     expect(ratingRefusalFor(complete, credit)).toBeNull();
+  });
+
+  // ABSENT IS NEVER ZERO ON THE STOREFRONT EITHER (owner floors ruling,
+  // 2026-09-18). The no-envelope model read `safeDiv(ebit, 0) = 0` as an
+  // interest coverage of zero - "Below covenant", sub-score 15 - and minted
+  // a letter on it for every feed that carries no interest expense.
+  // REDS ON after the repair: a letter minted while interest expense is
+  // declared absent or reported as not positive; a refusal with no reason.
+  // CANNOT SEE: whether the feed SHOULD have carried the line (the concept
+  // map, publicCompanyAdapters / edgar_concepts).
+  const completeBut = (over: Record<string, unknown>) => {
+    const built = buildPublicStatements(sharadar)!;
+    return {
+      ...built.statements,
+      absentInputs: [],
+      incomeStatement: { ...built.statements.incomeStatement, interestExpense: 3_933_000_000 },
+      reportedTotals: {
+        ...built.statements.reportedTotals,
+        totalCurrentAssets: 152_987_000_000,
+        totalCurrentLiabilities: 176_392_000_000,
+      },
+      ...over,
+    } as typeof built.statements;
+  };
+
+  it("an interest expense the filing does not report refuses the rating and names the figure", () => {
+    const base = completeBut({});
+    const s = completeBut({
+      absentInputs: ["interestExpense"],
+      incomeStatement: { ...base.incomeStatement, interestExpense: 0 },
+    });
+    const credit = computeCreditScore(s);
+    expect(credit.rating).toBeNull();
+    expect(credit.score).toBeNull();
+    const refusal = ratingRefusalFor(s, credit)!;
+    expect(refusal.figures).toEqual(["interestExpense"]);
+    render(<RatingRefusalNote refusal={refusal} />);
+    expect(screen.getByTestId("rating-refusal")).toHaveTextContent(
+      "Rating unavailable: interest expense not reported in this filing",
+    );
+  });
+
+  it("a reported interest expense of zero beside debt refuses with its own sentence, never 'not reported'", () => {
+    const base = completeBut({});
+    const s = completeBut({ incomeStatement: { ...base.incomeStatement, interestExpense: 0 } });
+    expect(s.balanceSheet.longTermDebt + s.balanceSheet.shortTermDebt).toBeGreaterThan(0);
+    const credit = computeCreditScore(s);
+    expect(credit.rating).toBeNull();
+    const refusal = ratingRefusalFor(s, credit)!;
+    expect(refusal).toEqual({ figures: [], undefinedCoverage: true });
+    render(<RatingRefusalNote refusal={refusal} />);
+    expect(screen.getByTestId("rating-refusal")).toHaveTextContent(
+      "Rating unavailable: the interest expense reported in this filing is not positive, so interest coverage is undefined",
+    );
   });
 });

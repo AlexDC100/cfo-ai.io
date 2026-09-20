@@ -1319,7 +1319,7 @@ export interface CreditEnvelope {
   /** Which rows this envelope was read off: the serve-time model
    *  ("serve") or the persisted rows ("as_filed"). An envelope that states
    *  a basis is under the revision-2 serving contract, which ALWAYS serves
-   *  `ranges` beside a figure (engine: serving/credit_boundary.py). */
+   *  `ranges` beside a figure (engine: ratios/credit_boundary.py). */
   basis?: "serve" | "as_filed" | null;
   subscores?: {
     altman?: number | null; profitability?: number | null; leverage?: number | null;
@@ -2202,8 +2202,49 @@ export function computeCreditScore(
   const altmanScore = scoreAltman(altman);
   const piotroskiScore = scorePiotroski(piotroski);
   const dteScore = scoreDebtEbitda(dte, isCre);
-  const intCovScore = scoreInterestCoverage(intCov);
-  const dscrScore = scoreDscr(dscr);
+  // ── ABSENT IS NEVER ZERO, HERE TOO (owner floors ruling, 2026-09-18) ──
+  // `safeDiv(ebit, 0)` is 0, and 0 read "Below covenant", sub-score 15: a
+  // book with no debt and no interest (carniprod) scored 67.8 BB+ against
+  // the engine's labelled-rung 79.3 A, and a public filing that reports no
+  // interest expense was rated on a coverage of zero. This model now does
+  // exactly what the engine does (credit_model.component_refusals /
+  // declared_rungs, R-D1):
+  //   measured   interest expense reported and > 0  -> banded as before;
+  //   declared   debt == 0, interest == 0, EBIT > 0, ALL THREE REPORTED
+  //              -> the top rung, labelled as declared, never as measured;
+  //   otherwise  the component REFUSES - and the completeness law below
+  //              then mints no composite and no letter.
+  const interestReported = !declaredAbsent(s, "interestExpense");
+  const debtReported =
+    !declaredAbsent(s, "shortTermDebt") && !declaredAbsent(s, "longTermDebt");
+  const coverageMeasured = interestReported && c.interestExpense > 0;
+  const dscrMeasured = interestReported && debtReported && c.interestExpense + principalProxy > 0;
+  const declaredDebtFree =
+    interestReported && debtReported && c.totalDebt === 0 && c.interestExpense === 0 && c.ebitStatutory > 0;
+  const coverageRefusal: CreditSubscoreRefusal | null = coverageMeasured || declaredDebtFree
+    ? null
+    : {
+        code: interestReported ? "interest_expense_not_positive" : "credit_inputs_absent",
+        subject: "interest coverage",
+        sentence: interestReported
+          ? "Not scored — interest expense is not positive, so EBIT / interest is undefined"
+          : "Not scored — interest expense is not reported, so EBIT / interest cannot be read",
+      };
+  const dscrRefusal: CreditSubscoreRefusal | null = dscrMeasured || declaredDebtFree
+    ? null
+    : {
+        code: interestReported && debtReported ? "interest_expense_not_positive" : "credit_inputs_absent",
+        subject: "DSCR",
+        sentence: interestReported && debtReported
+          ? "Not scored — interest plus estimated principal is not positive, so debt service coverage is undefined"
+          : "Not scored — interest expense or debt is not reported, so debt service coverage cannot be read",
+      };
+  const intCovScore: number | null = coverageMeasured
+    ? scoreInterestCoverage(intCov)
+    : declaredDebtFree ? COVERAGE_TOP_RUNG : null;
+  const dscrScore: number | null = dscrMeasured
+    ? scoreDscr(dscr)
+    : declaredDebtFree ? DSCR_TOP_RUNG : null;
   const cashRatioScore = scoreCashRatio(cashRatio);
 
   const components: CreditScoreResult["components"] = [
@@ -2285,12 +2326,15 @@ export function computeCreditScore(
     },
     {
       label: "Interest coverage (EBIT / interest)",
-      value: intCov,
+      value: coverageMeasured ? intCov : null,
       subscore: intCovScore,
       weight: 0.1,
-      contribution: intCovScore * 0.1,
-      read:
-        intCov >= 4 ? "Strong" : intCov >= 2 ? "Adequate" : intCov >= 1 ? "Tight" : "Below covenant",
+      contribution: contributionOf(intCovScore, 0.1),
+      refusal: coverageRefusal,
+      declaredRung: !coverageMeasured && declaredDebtFree ? declaredDebtFreeRung(COVERAGE_TOP_RUNG) : null,
+      read: coverageMeasured
+        ? intCov >= 4 ? "Strong" : intCov >= 2 ? "Adequate" : intCov >= 1 ? "Tight" : "Below covenant"
+        : declaredDebtFree ? DECLARED_DEBT_FREE_READ : null,
     },
     {
       // "~" marks the approximation: the principal in the denominator is an
@@ -2298,12 +2342,15 @@ export function computeCreditScore(
       // amortization schedule from the upload. FE-fallback path only; the
       // engine-canonical branch above bypasses this entirely.
       label: "~DSCR (EBITDA / est. debt service)",
-      value: dscr,
+      value: dscrMeasured ? dscr : null,
       subscore: dscrScore,
       weight: 0.1,
-      contribution: dscrScore * 0.1,
-      read:
-        (dscr >= 1.4
+      contribution: contributionOf(dscrScore, 0.1),
+      refusal: dscrRefusal,
+      declaredRung: !dscrMeasured && declaredDebtFree ? declaredDebtFreeRung(DSCR_TOP_RUNG) : null,
+      read: !dscrMeasured
+        ? declaredDebtFree ? DECLARED_DEBT_FREE_READ : null
+        : (dscr >= 1.4
           ? "Inside typical 1.20× covenant with modest headroom"
           : dscr >= 1.2
             ? "At covenant floor — limited shock absorption"
@@ -2432,6 +2479,18 @@ function scoreDebtEbitda(dte: number, isCre: boolean): number {
   if (dte <= t.watch) return 55;
   if (dte <= t.critical) return 35;
   return 15;
+}
+
+/** The top rung of each coverage ladder below - what R-D1 DECLARES for a
+ *  book with no interest-bearing debt, no interest expense and a positive
+ *  EBIT, all three reported. Read off the ladders themselves, never typed
+ *  a second time. */
+const COVERAGE_TOP_RUNG = scoreInterestCoverage(Number.MAX_VALUE);
+const DSCR_TOP_RUNG = scoreDscr(Number.MAX_VALUE);
+const DECLARED_DEBT_FREE_READ =
+  "No interest-bearing debt and no interest expense on a positive EBIT: scored at the top rung by declared rule, not measured";
+function declaredDebtFreeRung(score: number): { score: number; label: string; source: string; file: string } {
+  return { score, label: DECLARED_DEBT_FREE_READ, source: "client-fallback-v1 R-D1", file: "frontend/lib/financialValuation.ts" };
 }
 
 function scoreInterestCoverage(ic: number): number {

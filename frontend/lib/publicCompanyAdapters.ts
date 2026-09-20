@@ -789,7 +789,8 @@ export type RatingFigure =
   | "ebit"
   | "totalAssets"
   | "totalEquity"
-  | "totalLiabilities";
+  | "totalLiabilities"
+  | "interestExpense";
 
 export interface RatingRefusal {
   /** The figures the filing did not report, in Altman component order
@@ -797,6 +798,11 @@ export interface RatingRefusal {
    *  does not name — the sentence then names no figure rather than
    *  inventing one. */
   figures: RatingFigure[];
+  /** The filing REPORTS an interest expense that is not positive (and the
+   *  book is not the declared debt-free case), so EBIT / interest is
+   *  undefined and the coverage term refuses (the owner's floors ruling: a zero divisor is not a coverage
+   *  of zero). This is not "not reported" - the sentence says what it is. */
+  undefinedCoverage?: boolean;
 }
 
 const X1_CURRENT_ASSET_INPUTS: readonly StatementInput[] = [
@@ -831,7 +837,15 @@ export function ratingRefusalFor(s: Statements, credit: CreditScoreResult): Rati
   const anyNull = [x.x1_wc_to_assets, x.x2_re_to_assets, x.x3_ebit_to_assets, x.x4_equity_to_liabilities]
     .some((v) => v === null);
   if (anyNull && !reported("totalAssets")) push("totalAssets");
-  return { figures };
+  // The coverage terms (interest coverage, DSCR) refuse on an interest
+  // expense the filing does not report, or reports as not positive beside
+  // debt. Without this the refusal printed with an EMPTY reason.
+  const coverage = credit.components.filter((c) => c.refusal && /coverage|DSCR/i.test(c.refusal.subject));
+  if (coverage.some((c) => c.refusal?.code === "credit_inputs_absent") && absent.has("interestExpense")) {
+    push("interestExpense");
+  }
+  const undefinedCoverage = coverage.some((c) => c.refusal?.code === "interest_expense_not_positive");
+  return undefinedCoverage ? { figures, undefinedCoverage } : { figures };
 }
 
 /** The sentence, composed from the i18n keys under `publicCompany.*`.
@@ -841,6 +855,9 @@ export function ratingRefusalSentence(
   refusal: RatingRefusal,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
+  if (refusal.figures.length === 0 && refusal.undefinedCoverage) {
+    return t("publicCompany.ratingUnavailableUndefinedCoverage");
+  }
   if (refusal.figures.length === 0) return t("publicCompany.ratingUnavailableGeneric");
   const names = refusal.figures.map((f) => t(`publicCompany.figure.${f}`));
   if (names.length === 1) return t("publicCompany.ratingUnavailable", { figure: names[0] });
