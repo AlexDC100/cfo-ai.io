@@ -2530,7 +2530,21 @@
       "analyzingPerformance": "Se analizează performanța portofoliului…",
       "writingExecBriefing": "Se scrie briefingul executiv…"
     },
-    "stepOf": "Pasul {{current}} din {{total}}"
+    "stepOf": "Pasul {{current}} din {{total}}",
+    "failedTitle": "Analiza fișierului {{filename}} nu s-a încheiat",
+    "failedTitleNoFile": "Analiza nu s-a încheiat",
+    "failedBody": "Lunile tale existente sunt neatinse. Încearcă din nou, înlocuiește fișierul sau gestionează fișierele lunii.",
+    "failedRetry": "Reîncearcă",
+    "failedRetrying": "Se reîncearcă…",
+    "failedReplace": "Înlocuiește fișierul",
+    "failedManage": "Gestionează fișierele",
+    "failedViewError": "Vezi eroarea",
+    "failedHideError": "Ascunde eroarea",
+    "failedDismiss": "Închide",
+    "failedErrorNone": "Nu a fost înregistrat niciun detaliu de eroare.",
+    "failedDetailFile": "Fișier",
+    "failedDetailDoc": "Document",
+    "failedDetailWhen": "Când"
   },
   "budgetX": {
     "stepRead": "Citește fișierul",

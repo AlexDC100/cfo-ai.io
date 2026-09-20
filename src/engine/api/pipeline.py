@@ -6972,10 +6972,11 @@ def build_router() -> APIRouter:
         from datetime import datetime, timezone, timedelta
 
         recovered: List[Dict[str, Any]] = []
+        needs_confirmation: List[Dict[str, Any]] = []
         # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
         # on the sales-dataset handlers: an expired bearer must be a 401
         # from the verifier, not a PostgREST 401 escaping as a 500.
-        _org.verified_user_id(jwt)
+        caller_id = str(_org.verified_user_id(jwt))
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "documents",
@@ -7030,10 +7031,45 @@ def build_router() -> APIRouter:
                     except Exception:  # noqa: BLE001
                         logger.exception("[pipeline] failed to mark stale doc as failed")
                     continue
+                # THE SAME METER AS /api/pipeline/run (2026-09-20). A document
+                # whose run was REFUSED — 402 extra-document confirmation, 429
+                # blocked — is left exactly as the browser inserted it:
+                # status='queued', no pipeline_started_at. That is this
+                # watchdog's definition of "stuck", so it used to enqueue the
+                # very documents the meter had just refused, with no
+                # reservation: an unbilled extra on every page load (measured
+                # in production: two documents ran with metered_extra false
+                # after their 402). Recovery reserves under the CALLER's
+                # verified identity, as /run does; a refusal leaves the
+                # document queued and says so, and the FE's Retry sends it
+                # back through /run where the confirm dialog lives.
+                from . import _usage_gate as _ug
+                try:
+                    decision = _ug.reserve_document(caller_id)
+                except Exception:  # noqa: BLE001 — an unreachable meter refuses
+                    logger.exception("[pipeline] recover-stuck: meter unreachable for doc %s", d["id"])
+                    needs_confirmation.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"), "reason": "metering_unavailable",
+                    })
+                    continue
+                if decision.kind not in ("allowed", "disabled"):
+                    logger.info(
+                        "[pipeline] recover-stuck: doc %s not re-enqueued — meter says %s",
+                        d["id"], decision.kind,
+                    )
+                    needs_confirmation.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"), "reason": decision.kind,
+                    })
+                    continue
                 logger.warning(
                     "[pipeline] recover-stuck: doc %s (%s, scope=%s) stuck — re-enqueuing",
                     d["id"], d.get("original_filename"), d.get("scope"),
                 )
+                if decision.was_extra:
+                    with _supabase.admin() as ac:
+                        ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
                 _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
                 _enqueue(d["id"])
                 recovered.append({
@@ -7046,6 +7082,8 @@ def build_router() -> APIRouter:
             "recovered": recovered,
             "stale_failed_count": len(stale_failed),
             "stale_failed": stale_failed,
+            "needs_confirmation_count": len(needs_confirmation),
+            "needs_confirmation": needs_confirmation,
         }
 
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)

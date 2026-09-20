@@ -3267,3 +3267,50 @@ threshold is ever written as prose — it renders from the same data the
 verdict used; and for every gate, state what it fails on AFTER the defect is
 repaired, because three green gates in one day were found asserting the
 bug as their law.
+
+---
+
+## 24. "Analysis failed" dead end — not a deploy, not the engine (2026-09-20)
+
+Reported as "a production regression from today's deploy". Nothing had been
+deployed (both containers dated 18 Sep) and the period served 200 throughout.
+Read from the owner's browser: `cfo-upload-current` held `status:"failed"`,
+first with `Failed to fetch dynamically imported module: …/uploadRefusals-MkRGsgxP.js`,
+later with `502: Claude extraction failed … credit balance is too low`.
+
+Two frontend defects made one symptom:
+
+1. `lib/uploadRefusals` was imported ONLY with `await import()`, on the non-OK
+   branch of `enqueuePipeline` — so it was its own content-hashed chunk. A tab
+   older than the last deploy 404'd it exactly when the backend answered 402,
+   and the rejection became `transport_failed` → "Analysis failed" for a
+   document the server went on to analyze. **Never put a module on an error
+   path behind a lazy import.**
+2. `FinancialStatements` rendered the scan view INSTEAD of the dashboard
+   whenever the persisted upload store held any entry — including a terminal
+   `failed`. Every reload restored it; the only control sat below the fold.
+   **A persisted terminal state must never replace a surface.**
+
+Fixed and LIVE (frontend only, bundle `index-BFMwA5BS.js`, rollback anchor
+image `2356c8dc4f00`): static import; `splitSurfaceUpload()` makes `failed` a
+banner (`FailedUploadBanner`: Retry · Replace file · Manage files · View error
+· Dismiss) over the dashboard, SOURCE line visible in every state;
+`UploadResumeProvider` reconciles a persisted failure with the server once;
+failures expire after a day; `lib/staleChunkReload.ts` reloads a stale tab once
+on `vite:preloadError`. Verified on production signed in: planted failed entry
+→ banner + five controls, no takeover, SOURCE line present, Dismiss clears.
+
+Committed, NOT deployed (engine): `USAGE_UNMETERED_USER_IDS` (fail-closed UUID
+allowlist on both quota rails — the env line is the owner's to add; the
+permission classifier refuses it as a security weakening when the assistant
+tries); `recover-stuck` now reserves through the same meter as `/run` (it was
+running 402-refused documents unbilled — measured twice in production);
+`scripts/check_served_periods.py`, the post-deploy DATA gate (every stored
+period through the real `GET /api/period`, read-only proxy, vacuous = red).
+Add it to §14 as step 5 once the backend carries it.
+
+**PDF uploads depend on Anthropic credits** (`financial_statements.parse_document`);
+xlsx/xls trial balances do not. With credits at zero every PDF 502s.
+
+Fast unblock for the pre-fix bundle: remove `cfo-upload-current` from
+localStorage and reload.

@@ -2508,7 +2508,21 @@
       "analyzingPerformance": "Analyzing portfolio performance…",
       "writingExecBriefing": "Writing your executive briefing…"
     },
-    "stepOf": "Step {{current}} of {{total}}"
+    "stepOf": "Step {{current}} of {{total}}",
+    "failedTitle": "The analysis of {{filename}} did not finish",
+    "failedTitleNoFile": "The analysis did not finish",
+    "failedBody": "Your existing months are untouched. Try again, replace the file, or manage this month's files.",
+    "failedRetry": "Retry",
+    "failedRetrying": "Retrying…",
+    "failedReplace": "Replace file",
+    "failedManage": "Manage files",
+    "failedViewError": "View error",
+    "failedHideError": "Hide error",
+    "failedDismiss": "Dismiss",
+    "failedErrorNone": "No error detail was recorded.",
+    "failedDetailFile": "File",
+    "failedDetailDoc": "Document",
+    "failedDetailWhen": "When"
   },
   "budgetX": {
     "stepRead": "Read file",

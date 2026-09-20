@@ -62,7 +62,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
-from . import _plan_state, _pricing_config, _supabase
+from . import _plan_state, _pricing_config, _supabase, _unmetered
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,19 @@ logger = logging.getLogger(__name__)
 
 def enforcement_enabled() -> bool:
     return _plan_state.enforcement_enabled()
+
+
+def enforced_for(user_id: Optional[str]) -> bool:
+    """The kill-switch as ONE user sees it: the global switch, minus the
+    operator exemption (USAGE_UNMETERED_USER_IDS, see `_unmetered`).
+
+    Every reserve / confirm / commit / release below asks THIS, never the
+    global switch directly — all of them, so a reservation can never be made
+    on one side of a run and skipped on the other.
+    """
+    if _unmetered.is_unmetered(user_id):
+        return False
+    return enforcement_enabled()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -206,7 +219,7 @@ def reserve_document(user_id: str) -> DocReserveDecision:
     its UPDATE ... WHERE uploads+reserved < cap is one transactional
     statement, so two concurrent calls cannot both pass at the boundary.
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return DocReserveDecision(
             kind="disabled", plan_key="trial", used=0, reserved=0, cap=0,
             extra_doc_eur=None, message="",
@@ -314,7 +327,7 @@ def confirm_extra_document(user_id: str) -> DocReserveDecision:
     explicit two-step keeps the "user confirmed" intent visible in
     server logs.
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return DocReserveDecision(
             kind="disabled", plan_key="trial", used=0, reserved=0, cap=0,
             extra_doc_eur=None, message="", was_extra=True,
@@ -355,7 +368,7 @@ def commit_document(user_id: str, *, was_extra: bool) -> None:
     Idempotency: floors prevent underflow; calling twice is a no-op
     after the first call.
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("commit_user_upload", {
         "p_user_id":   user_id,
@@ -368,7 +381,7 @@ def release_document(user_id: str, *, was_extra: bool) -> None:
     """Pipeline reported analysis FAILURE. Drop the reservation; no
     quota consumed, no charge (gap D).
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("release_user_upload", {
         "p_user_id":   user_id,
@@ -400,7 +413,7 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     reservation made at /api/pipeline/run. The generic slot covers the
     doc count; this one covers the non-RO dimension.
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return NonRoReserveDecision(
             kind="disabled", plan_key="trial", used=0, cap=0,
             extra_nonro_doc_eur=None, was_extra=False, refusal=None,
@@ -515,7 +528,7 @@ def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
     """Analysis of a non-RO doc SUCCEEDED — reservation → consumed; when
     `was_extra`, the billed-extras tally bumps too (the Stripe metered
     usage record is the caller's job, mirroring commit_document)."""
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("commit_user_nonro_upload", {
         "p_user_id":   user_id,
@@ -526,7 +539,7 @@ def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
 
 def release_nonro_document(user_id: str, *, was_extra: bool) -> None:
     """Analysis of a non-RO doc FAILED — drop the reservation, no bill."""
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("release_user_nonro_upload", {
         "p_user_id":   user_id,
@@ -546,7 +559,7 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
     (FOR UPDATE) before deciding, so concurrent calls serialize on the
     lock — gap C atomicity holds across the two-counter dual-cap check.
     """
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return ChatReserveDecision(
             kind="disabled", plan_key="trial",
             daily_used=0, daily_cap=None,
@@ -610,7 +623,7 @@ def reserve_chat(user_id: str) -> ChatReserveDecision:
 def commit_chat(user_id: str) -> None:
     """Opus call returned a complete response. Convert reservation →
     consumed in both the daily and monthly counters."""
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("commit_user_chat", {
         "p_user_id": user_id,
@@ -623,7 +636,7 @@ def release_chat(user_id: str) -> None:
     """Opus call errored before producing a complete response (gap D,
     optional principle applied to chat). Drop the reservation; nothing
     counted against the user."""
-    if not enforcement_enabled():
+    if not enforced_for(user_id):
         return
     _rpc("release_user_chat", {
         "p_user_id": user_id,
