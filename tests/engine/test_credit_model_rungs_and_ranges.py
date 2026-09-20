@@ -128,6 +128,42 @@ def test_with_no_operands_nothing_is_declared_and_every_withheld_row_refuses_as_
         assert block["reason"]["code"] == CM.CREDIT_COMPONENT_UNDEFINED
 
 
+@pytest.mark.parametrize("absent", [
+    ("balanceSheet", "shortTermDebt"), ("balanceSheet", "longTermDebt"),
+    ("incomeStatement", "interestExpense"),
+    ("balanceSheet", "shortTermDebt", "longTermDebt", "incomeStatement", "interestExpense"),
+])
+def test_an_absent_debt_or_interest_leaf_declares_nothing(absent):
+    """R-D1: debt == 0, interest == 0 and EBIT > 0, ALL MEASURED. A leaf the
+    statements do not carry is absent, never 0.0: read as zero, agras (debt
+    3.64M, interest 278k) was declared "no interest-bearing debt" and served
+    the labelled top rung beside composite 80.7 AA (repair-round verifier's
+    plant: `bs.get(k) or 0.0` in statement_operands — every suite green).
+    REDS ON, after the repair: any declared rung, or a refusal other than
+    `credit_inputs_absent`, over statements missing one of the three leaves."""
+    statements = _agras_statements()
+    assert statements["balanceSheet"]["shortTermDebt"] + statements["balanceSheet"]["longTermDebt"] > 0
+    rows = CM.compute_period_metrics(copy.deepcopy(statements))
+    if len(absent) == 2:
+        statements[absent[0]].pop(absent[1])
+    else:
+        for k in ("shortTermDebt", "longTermDebt"):
+            statements["balanceSheet"].pop(k)
+        statements["incomeStatement"].pop("interestExpense")
+    assert CM.statement_operands(statements) is None
+    # a legacy period's rows, coverage withheld, over the thinned statements
+    nulled = _set(rows, credit_subscore_coverage=None, credit_subscore_dscr=None, credit_composite=None)
+    block = CM.credit_block(nulled, statements)
+    assert block["declared_rungs"] == {}, block["declared_rungs"]
+    refused = CM._refused_subscores(_rows_by_name(nulled), statements)
+    assert set(refused) == {"coverage", "dscr"}
+    for comp in list(refused.values()) + list(block["refused_subscores"].values()):
+        assert comp["code"] == CM.CREDIT_INPUTS_ABSENT, comp
+    assert block["composite"] is None and block["letter"] is None
+    # ... and with the full rows nothing is declared either
+    assert CM.credit_block(rows, statements)["declared_rungs"] == {}
+
+
 def test_the_d1_rung_needs_all_three_operands_measured_and_the_others_their_own():
     pack = CP.credit_pack()["declared_rungs"]
     base = {"total_assets": 100.0, "current_liab_positive": True, "total_liab": 50.0, "tl_material": True,
