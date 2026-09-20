@@ -237,20 +237,160 @@
    }
   },
   {
-   "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+   "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
    "derived_from": [],
-   "id": "pool_fixed_share.operating_costs",
-   "label": "pool fixed share.operating costs",
+   "id": "pool_fixed_share.personnel",
+   "label": "pool fixed share.personnel",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.energy_utilities",
+   "label": "pool fixed share.energy utilities",
    "unit": "ratio",
    "values": {
     "FY2028": 0.0
    }
   },
   {
-   "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+   "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
    "derived_from": [],
-   "id": "pool_level.operating_costs",
-   "label": "pool level.operating costs",
+   "id": "pool_fixed_share.rent_insurance",
+   "label": "pool fixed share.rent insurance",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.transport_logistics",
+   "label": "pool fixed share.transport logistics",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.third_party_services",
+   "label": "pool fixed share.third party services",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.other_operating",
+   "label": "pool fixed share.other operating",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.84286
+   }
+  },
+  {
+   "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.materials_non_inventory",
+   "label": "pool fixed share.materials non inventory",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+   "derived_from": [],
+   "id": "pool_fixed_share.unallocated_operating",
+   "label": "pool fixed share.unallocated operating",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 0.0
+   }
+  },
+  {
+   "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.personnel",
+   "label": "pool level.personnel",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.energy_utilities",
+   "label": "pool level.energy utilities",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.rent_insurance",
+   "label": "pool level.rent insurance",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.transport_logistics",
+   "label": "pool level.transport logistics",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.third_party_services",
+   "label": "pool level.third party services",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.other_operating",
+   "label": "pool level.other operating",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.materials_non_inventory",
+   "label": "pool level.materials non inventory",
+   "unit": "ratio",
+   "values": {
+    "FY2028": 1.0
+   }
+  },
+  {
+   "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+   "derived_from": [],
+   "id": "pool_level.unallocated_operating",
+   "label": "pool level.unallocated operating",
    "unit": "ratio",
    "values": {
     "FY2028": 1.0
@@ -461,8 +601,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -495,18 +649,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -574,8 +840,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual"
    ],
    "basis": [
@@ -604,18 +884,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -644,8 +1036,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -689,18 +1095,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -923,8 +1441,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -1004,18 +1536,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -1248,8 +1892,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -1293,18 +1951,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -1477,8 +2247,22 @@
    "assumption_ids": [
     "revenue_growth",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs"
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating"
    ],
    "basis": [
     {
@@ -1498,18 +2282,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     }
@@ -1605,8 +2501,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -1647,18 +2557,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -1928,8 +2950,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -1977,18 +3013,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -2272,8 +3420,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -2318,18 +3480,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -2837,8 +4111,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -2904,18 +4192,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -3247,8 +4647,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -3321,18 +4735,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -3563,8 +5089,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -3611,18 +5151,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -3979,8 +5631,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -4028,18 +5694,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -4401,8 +6179,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -4447,18 +6239,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -4642,8 +6546,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -4709,18 +6627,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -4947,8 +6977,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -4996,18 +7040,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -5222,8 +7378,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -5267,18 +7437,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -5452,8 +7734,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -5501,18 +7797,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -5727,8 +8135,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -5777,18 +8199,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -6011,8 +8545,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -6061,18 +8609,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -6401,8 +9061,22 @@
     "revenue_growth",
     "pool_fixed_share.cost_of_sales",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -6448,18 +9122,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
@@ -6655,8 +9441,22 @@
     "min_cash",
     "revolver_rate",
     "inflation",
-    "pool_fixed_share.operating_costs",
-    "pool_level.operating_costs",
+    "pool_fixed_share.personnel",
+    "pool_fixed_share.energy_utilities",
+    "pool_fixed_share.rent_insurance",
+    "pool_fixed_share.transport_logistics",
+    "pool_fixed_share.third_party_services",
+    "pool_fixed_share.other_operating",
+    "pool_fixed_share.materials_non_inventory",
+    "pool_fixed_share.unallocated_operating",
+    "pool_level.personnel",
+    "pool_level.energy_utilities",
+    "pool_level.rent_insurance",
+    "pool_level.transport_logistics",
+    "pool_level.third_party_services",
+    "pool_level.other_operating",
+    "pool_level.materials_non_inventory",
+    "pool_level.unallocated_operating",
     "other_operating_income_annual",
     "capex_pct_of_revenue",
     "depreciation_rate",
@@ -6756,18 +9556,130 @@
      "value": 0.025
     },
     {
-     "basis": "operating_costs: no statement line items reached this projection, so operating costs cannot be split into pools and are carried as one pool that follows sales volume in full (anchor base 29,854,906.77) [engine_default]",
+     "basis": "personnel: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool) (anchor base 20,642,734.00) [engine_default]",
      "derived_from": [],
-     "id": "pool_fixed_share.operating_costs",
-     "label": "pool fixed share.operating costs",
+     "id": "pool_fixed_share.personnel",
+     "label": "pool fixed share.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,504,584.77) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.energy_utilities",
+     "label": "pool fixed share.energy utilities",
      "unit": "ratio",
      "value": 0.0
     },
     {
-     "basis": "operating_costs: no index move is assumed, so the anchor level holds [engine_default]",
+     "basis": "rent_insurance: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool) (anchor base 1,001,641.29) [engine_default]",
      "derived_from": [],
-     "id": "pool_level.operating_costs",
-     "label": "pool level.operating costs",
+     "id": "pool_fixed_share.rent_insurance",
+     "label": "pool fixed share.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 867,800.36) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.transport_logistics",
+     "label": "pool fixed share.transport logistics",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "third_party_services: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 2,913,532.37) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.third_party_services",
+     "label": "pool fixed share.third party services",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "other_operating: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool) (anchor base 517,862.43) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.other_operating",
+     "label": "pool fixed share.other operating",
+     "unit": "ratio",
+     "value": 0.84286
+    },
+    {
+     "basis": "materials_non_inventory: fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool) (anchor base 1,406,751.55) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.materials_non_inventory",
+     "label": "pool fixed share.materials non inventory",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "unallocated_operating: this cost pool is nil on this book (anchor base 0.00) [engine_default]",
+     "derived_from": [],
+     "id": "pool_fixed_share.unallocated_operating",
+     "label": "pool fixed share.unallocated operating",
+     "unit": "ratio",
+     "value": 0.0
+    },
+    {
+     "basis": "personnel: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.personnel",
+     "label": "pool level.personnel",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "energy_utilities: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.energy_utilities",
+     "label": "pool level.energy utilities",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "rent_insurance: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.rent_insurance",
+     "label": "pool level.rent insurance",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "transport_logistics: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.transport_logistics",
+     "label": "pool level.transport logistics",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "third_party_services: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.third_party_services",
+     "label": "pool level.third party services",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "other_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.other_operating",
+     "label": "pool level.other operating",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "materials_non_inventory: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.materials_non_inventory",
+     "label": "pool level.materials non inventory",
+     "unit": "ratio",
+     "value": 1.0
+    },
+    {
+     "basis": "unallocated_operating: no index move is assumed, so the anchor level holds [engine_default]",
+     "derived_from": [],
+     "id": "pool_level.unallocated_operating",
+     "label": "pool level.unallocated operating",
      "unit": "ratio",
      "value": 1.0
     },
