@@ -552,6 +552,21 @@ describe("B6 the export-side served-row paths print the served row and compute n
     // left to the rules above: these paths concatenate strings.)
     /\bas\s+(?:unknown\s+as\s+)?number\b/,
     /[\w)\]]\s*[-*/%]\s*[\w(]/,
+    // ALIAS ARITHMETIC WITHOUT A BINARY MINUS (surfaces re-verify plant:
+    // `const cq: any = row.current.value_q; const d = +cq + (-pq);` then
+    // `String(d).slice(0, 3)` - 144 passed with the pp change recomputed).
+    // So: no unary `+` / `-` on a name or a parenthesis, no `+` of a
+    // negated operand, nothing typed or cast to `any` (the door every
+    // alias walks through), and no String()/slice() re-printing of a value.
+    /(?:[(=,?:]|\breturn)\s*[+-]\s*[A-Za-z_(]/,
+    /\+\s*\(?\s*-\s*[\w(]/,
+    /:\s*any\b/,
+    /\bas\s+any\b/,
+    // (`String(u.band ?? "")` names a band and is left alone; a String()
+    // whose result is then cut or rewritten is a re-print.)
+    /\bString\([^)]*\)\s*\./,
+    /\.slice\(/,
+    /\.substring\(/,
   ];
 
   const exportsCode = codeOnly(read("frontend/lib/financialExports.ts"));
