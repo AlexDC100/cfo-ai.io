@@ -77,12 +77,20 @@ def compute_sku_metrics(
         ap = absolute_profit(rm, s.niv_kron)
 
         # WOCA: prefer SKU-supplied → proportional from parent → DIO approx.
-        cat_total_niv = cat_niv_totals.get(s.category, 0.0) or 1.0
-        share = s.niv_kron / cat_total_niv
+        # The SKU's share of its category is defined only over a positive
+        # category NIV total. It used to be `total or 1.0`: measured, a
+        # category whose SKU NIV nets to zero allocated 500,000 kRON of a
+        # 500 kRON parent WOCA to a 1,000 kRON SKU (a 1,000x share) and
+        # -500,000 to its mirror. An undefined share allocates nothing —
+        # the SKU keeps only what it supplied itself.
+        cat_total_niv = cat_niv_totals.get(s.category, 0.0)
+        share: Optional[float] = (
+            s.niv_kron / cat_total_niv if cat_total_niv > 0 else None
+        )
         if s.woca_kron is not None:
             sku_woca = s.woca_kron
             woca_source = "sku_supplied"
-        elif parent.woca_kron is not None:
+        elif parent.woca_kron is not None and share is not None:
             sku_woca = parent.woca_kron * share
             woca_source = "allocated"
         else:
@@ -90,18 +98,21 @@ def compute_sku_metrics(
             woca_source = "estimated_dio"
 
         # Average inventory: SKU-supplied if present, else share of parent's
-        # NIV*DIO/365 approximation
+        # NIV*DIO/365 approximation — absent when the share is undefined.
+        avg_inv: Optional[float]
         if s.avg_inventory_kron is not None:
             avg_inv = s.avg_inventory_kron
-        else:
+        elif share is not None:
             avg_inv = (parent.niv_kron * parent.dio_days / 365.0) * share
+        else:
+            avg_inv = None
 
-        cap_trapped = capital_trapped(avg_inv)
-        roic_val = roic(ap, cap_trapped) if cap_trapped > 0 else None
+        cap_trapped = capital_trapped(avg_inv) if avg_inv is not None else None
+        roic_val = roic(ap, cap_trapped) if cap_trapped is not None and cap_trapped > 0 else None
         gm_value = (s.gm_pct / 100.0) * s.niv_kron
-        gmroii_val = (gm_value / avg_inv * 100.0) if avg_inv > 0 else None
+        gmroii_val = (gm_value / avg_inv * 100.0) if avg_inv is not None and avg_inv > 0 else None
         cogs = max(s.niv_kron - gm_value, 0.0)
-        inv_turns = inventory_turns(cogs, avg_inv) if avg_inv > 0 else None
+        inv_turns = inventory_turns(cogs, avg_inv) if avg_inv is not None and avg_inv > 0 else None
 
         out.append(
             CategoryMetrics(

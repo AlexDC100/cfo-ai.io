@@ -52,18 +52,33 @@ export interface CategoryDecision {
   grossMargin?: number;      // %
 }
 
+/** Why a run-level figure is null. Mirrors the `refusals` entries
+ *  src/engine/api/frontend.py serves beside `roicPct` / `anchorProfitShare`
+ *  (codes ROIC_UNDEFINED / ANCHOR_PROFIT_SHARE_UNDEFINED). */
+export interface RunRefusal {
+  code: string;
+  component: "roicPct" | "anchorProfitShare" | string;
+  inputs: Record<string, number>;
+  text: string;
+}
+
 /** One classification run over a dataset — the unit the dashboard renders. */
 export interface DailyRun {
   date: string;              // YYYY-MM-DD
   period: string;            // human label, e.g. "10 months to Apr 2026"
   workingCapitalMRon: number;
-  roicPct: number;
+  /** Portfolio ROIC in %, or null when the engine refused it (the capital
+   *  base is not measurable) — `refusals` carries the reason. Never 0. */
+  roicPct: number | null;
   costOfCapitalPct: number;
   runCompletedAt: string;    // HH:MM
   nextRunAt: string;         // HH:MM
   confidence: "high" | "medium" | "low";
-  /** Share of total profit carried by anchor categories, 0..1. */
-  anchorProfitShare: number;
+  /** Share of total profit carried by anchor categories, 0..1, or null when
+   *  the portfolio's profit nets to zero or a loss (no share to take). */
+  anchorProfitShare: number | null;
+  /** The engine's reasons for each null run-level figure; absent on the seed. */
+  refusals?: RunRefusal[];
   eliminate: CategoryDecision[];
   review: CategoryDecision[];
   scale: CategoryDecision[];

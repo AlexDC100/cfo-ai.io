@@ -90,11 +90,13 @@ def test_composite_score_basic() -> None:
     assert composite_score(real_margin_pct=10.0, sales=1000.0, dio_days=100) == pytest.approx(100.0)
 
 
-def test_composite_score_dio_zero_uses_floor_of_one() -> None:
-    """Avoid div-by-zero; per CLAUDE.md formula uses max(DIO, 1)."""
-    assert composite_score(real_margin_pct=10.0, sales=1000.0, dio_days=0) == pytest.approx(
-        10000.0
-    )
+def test_composite_score_dio_zero_is_undefined() -> None:
+    """A velocity ratio over a non-positive DIO is undefined, not DIO=1.
+
+    This test used to assert the max(DIO, 1) floor from files/CLAUDE.md as
+    law; owner ruling 2026-09-15 retires the floor (absent is never zero
+    and never a floor)."""
+    assert composite_score(real_margin_pct=10.0, sales=1000.0, dio_days=0) is None
 
 
 # ─────────── ccc ───────────

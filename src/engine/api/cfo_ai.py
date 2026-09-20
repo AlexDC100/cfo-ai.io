@@ -22,6 +22,7 @@ from sqlalchemy.engine import Engine
 
 from ..buckets import BUCKET_KEYS, Bucket, bucket_priority
 from ..config import Config
+from ..metrics import niv_weighted_margin, portfolio_roic
 from ..models import (
     CategoryRow,
     Recommendation,
@@ -142,6 +143,10 @@ def _to_cat_rows(rows: List[CategoryRowIn]) -> List[CategoryRow]:
     ]
 
 
+def _round_or_none(value: Optional[float], ndigits: int) -> Optional[float]:
+    return round(value, ndigits) if value is not None else None
+
+
 def _company_block(ctx: CompanyContext, cfg: Config) -> Dict[str, Any]:
     return {
         "name": ctx.name,
@@ -201,7 +206,9 @@ def create_cfo_router(
         else:
             persisted = fresh_recs[:20]
 
-        # Aggregate financials
+        # Aggregate financials. capital_trapped_kron is always a float from
+        # run_pipeline (NIV*DIO/365), so `or 0.0` never stands in for an
+        # absent value; capital_freed_kron sums only the estimates that exist.
         total_capital_trapped = sum(
             (m.capital_trapped_kron or 0.0) for m in cat_metrics
         )
@@ -210,16 +217,11 @@ def create_cfo_router(
             for d in sku_decisions
             if d.bucket in ("LIQUIDATE", "REDUCE")
         )
-        total_niv = sum(m.niv_kron for m in cat_metrics) or 1.0
-        weighted_real_margin = (
-            sum(m.real_margin_pct * m.niv_kron for m in cat_metrics) / total_niv
+        weighted_real_margin, rm_refusal = niv_weighted_margin(
+            [(m.real_margin_pct, m.niv_kron) for m in cat_metrics]
         )
         total_abs_profit = sum(m.abs_profit_kron for m in cat_metrics)
-        portfolio_roic = (
-            (total_abs_profit / total_capital_trapped * 100.0)
-            if total_capital_trapped > 0
-            else 0.0
-        )
+        roic, roic_refusal = portfolio_roic(total_abs_profit, total_capital_trapped)
 
         bucket_counts: Dict[str, int] = {key: 0 for key in BUCKET_KEYS.values()}
         for d in sku_decisions:
@@ -240,8 +242,9 @@ def create_cfo_router(
             "executive_summary": {
                 "cash_trapped_kron": round(total_capital_trapped, 2),
                 "cash_recovery_potential_kron": round(cash_recovery_potential, 2),
-                "roic_pct": round(portfolio_roic, 2),
-                "real_margin_pct": round(weighted_real_margin, 2),
+                "roic_pct": _round_or_none(roic, 2),
+                "real_margin_pct": _round_or_none(weighted_real_margin, 2),
+                "refusals": [r for r in (roic_refusal, rm_refusal) if r is not None],
                 "products_analyzed": len(sku_decisions),
                 "categories_analyzed": len(cat_decisions),
                 "urgent_actions": bucket_counts.get("liquidate", 0)
@@ -252,6 +255,7 @@ def create_cfo_router(
                 cat_decisions, sku_decisions, bucket_counts,
                 total_capital_trapped, cash_recovery_potential,
                 weighted_real_margin, req.company.name,
+                real_margin_refusal=rm_refusal,
             ),
             "top_actions": [_rec_to_dict(r) for r in top_actions],
             "run_at": datetime.utcnow().isoformat(),
@@ -367,12 +371,14 @@ def create_cfo_router(
             [
                 {
                     "category": m.category,
-                    "roic_pct": round(m.roic_pct or 0.0, 2),
+                    "roic_pct": _round_or_none(m.roic_pct, 2),
                     "abs_profit_kron": round(m.abs_profit_kron, 2),
                 }
                 for m in cat_metrics
             ],
-            key=lambda x: x["roic_pct"],
+            # A category with no ROIC (no capital trapped) is undefined, not
+            # 0.00: it ranks after every measured one instead of among them.
+            key=lambda x: (x["roic_pct"] is not None, x["roic_pct"] or 0.0),
             reverse=True,
         )
 
@@ -380,30 +386,38 @@ def create_cfo_router(
             [
                 {
                     "category": m.category,
-                    "gmroii_pct": round(m.gmroii_pct or 0.0, 2),
+                    "gmroii_pct": _round_or_none(m.gmroii_pct, 2),
                     "inventory_turns": (
                         round(m.inventory_turns, 2) if m.inventory_turns else None
                     ),
                 }
                 for m in cat_metrics
             ],
-            key=lambda x: x["gmroii_pct"],
+            key=lambda x: (x["gmroii_pct"] is not None, x["gmroii_pct"] or 0.0),
             reverse=True,
         )
 
-        total_niv = sum(m.niv_kron for m in cat_metrics) or 1.0
-        weighted_gross = sum(m.gm_pct * m.niv_kron for m in cat_metrics) / total_niv
-        weighted_real = (
-            sum(m.real_margin_pct * m.niv_kron for m in cat_metrics) / total_niv
+        weighted_gross, gross_refusal = niv_weighted_margin(
+            [(m.gm_pct, m.niv_kron) for m in cat_metrics],
+            component="weighted_gross_margin_pct", label="Portfolio gross margin",
+        )
+        weighted_real, real_refusal = niv_weighted_margin(
+            [(m.real_margin_pct, m.niv_kron) for m in cat_metrics],
+            component="weighted_real_margin_pct",
+        )
+        leak = (
+            weighted_gross - weighted_real
+            if weighted_gross is not None and weighted_real is not None else None
         )
 
         return {
             "company": _company_block(req.company, cfg),
             "portfolio": {
-                "weighted_gross_margin_pct": round(weighted_gross, 2),
-                "weighted_real_margin_pct": round(weighted_real, 2),
-                "margin_leak_pp": round(weighted_gross - weighted_real, 2),
+                "weighted_gross_margin_pct": _round_or_none(weighted_gross, 2),
+                "weighted_real_margin_pct": _round_or_none(weighted_real, 2),
+                "margin_leak_pp": _round_or_none(leak, 2),
                 "cost_of_capital_pct": cfg.cost_of_capital_pct,
+                "refusals": [r for r in (gross_refusal, real_refusal) if r is not None],
             },
             "margin_comparison": margin_comparison,
             "roic_ranking": roic_ranking,
@@ -480,14 +494,11 @@ def create_cfo_router(
             for d in decisions
             if d.bucket in ("LIQUIDATE", "REDUCE")
         )
-        total_niv = sum(m.niv_kron for m in cat_metrics) or 1.0
-        weighted_real_margin = (
-            sum(m.real_margin_pct * m.niv_kron for m in cat_metrics) / total_niv
+        weighted_real_margin, rm_refusal = niv_weighted_margin(
+            [(m.real_margin_pct, m.niv_kron) for m in cat_metrics]
         )
         total_abs_profit = sum(m.abs_profit_kron for m in cat_metrics)
-        portfolio_roic = (
-            (total_abs_profit / total_capital * 100.0) if total_capital > 0 else 0.0
-        )
+        roic, roic_refusal = portfolio_roic(total_abs_profit, total_capital)
         bucket_counts: Dict[str, int] = {key: 0 for key in BUCKET_KEYS.values()}
         for d in decisions:
             bucket_counts[BUCKET_KEYS.get(Bucket(d.bucket), "watch")] += 1
@@ -496,8 +507,9 @@ def create_cfo_router(
             company=req.company.name,
             cash_trapped_keur=total_capital,
             cash_recovery_keur=cash_recovery,
-            roic_pct=portfolio_roic,
+            roic_pct=roic,
             real_margin_pct=weighted_real_margin,
+            refusals=[r for r in (roic_refusal, rm_refusal) if r is not None],
             cost_of_capital_pct=cfg.cost_of_capital_pct,
             bucket_counts=bucket_counts,
             decisions=decisions,
@@ -558,8 +570,9 @@ def _build_briefing(
     bucket_counts: Dict[str, int],
     cash_trapped: float,
     cash_recovery: float,
-    real_margin: float,
+    real_margin: Optional[float],
     company_name: str,
+    real_margin_refusal: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Plain-prose CFO briefing. The AI-flavored version layers on top."""
     fix_count = bucket_counts.get("fix", 0)
@@ -574,7 +587,10 @@ def _build_briefing(
     )
 
     parts: List[str] = []
-    if real_margin > 0:
+    if real_margin is None:
+        if real_margin_refusal is not None:
+            parts.append(real_margin_refusal["text"])
+    elif real_margin > 0:
         parts.append(
             f"Portfolio real margin sits at {real_margin:.1f}% after "
             f"working-capital cost."
@@ -637,14 +653,15 @@ def _board_summary_markdown(
     company: str,
     cash_trapped_keur: float,
     cash_recovery_keur: float,
-    roic_pct: float,
-    real_margin_pct: float,
+    roic_pct: Optional[float],
+    real_margin_pct: Optional[float],
     cost_of_capital_pct: float,
     bucket_counts: Dict[str, int],
     decisions: List[Any],
+    refusals: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """One-page executive memo, paste-ready Markdown."""
-    spread = roic_pct - cost_of_capital_pct
+    refused = {r["component"]: r["text"] for r in (refusals or [])}
     lines: List[str] = []
     lines.append(f"# {company} — CFO AI Board Summary")
     lines.append("")
@@ -657,8 +674,15 @@ def _board_summary_markdown(
     lines.append("")
     lines.append("## Portfolio at a glance")
     lines.append(f"- Working capital trapped: **{cash_trapped_keur / 1000:.1f}M EUR**")
-    lines.append(f"- ROIC: **{roic_pct:.1f}%** vs cost of capital {cost_of_capital_pct:.1f}% → spread {spread:.1f}pp")
-    lines.append(f"- Real margin (weighted): **{real_margin_pct:.1f}%**")
+    if roic_pct is None:
+        lines.append(f"- ROIC: {refused.get('roic_pct', 'unavailable')}")
+    else:
+        spread = roic_pct - cost_of_capital_pct
+        lines.append(f"- ROIC: **{roic_pct:.1f}%** vs cost of capital {cost_of_capital_pct:.1f}% → spread {spread:.1f}pp")
+    if real_margin_pct is None:
+        lines.append(f"- Real margin (weighted): {refused.get('real_margin_pct', 'unavailable')}")
+    else:
+        lines.append(f"- Real margin (weighted): **{real_margin_pct:.1f}%**")
     lines.append(
         f"- Decision queue: "
         f"Protect {bucket_counts.get('protect', 0)} · "

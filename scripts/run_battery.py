@@ -540,6 +540,61 @@ def _engine_gates() -> List[Gate]:
              # can be satisfied by accident is not a canary.
              canaries=("PM1  no AI-authored numerics in the facts path",
                        "PM7  BVB / public_ro untouched")),
+        # ── FLOOR C6-C8 (wave/floor-c6-public-sku, 2026-09-18) ──────────
+        # The owner's rule "absent is never zero and never a floor" over the
+        # three non-credit clusters of the floor sweep (scratchpad/specs/
+        # floor_sweep.json): public risk/opportunity scores (C6), the SKU /
+        # portfolio engine (C7), industry detection (C8). Each defect served
+        # a number where none was defined — a neutral 50 for a company with
+        # no financials, a 20,000% portfolio margin over a 1.0 divisor, a
+        # real-estate CAEN read off absent cost lines — and nothing crashed.
+        # Named separately from `pytest` so the battery record shows them.
+        # Plant log: docs/engine_book/gates.md § floor-public-score,
+        # § floor-sku-portfolio, § floor-industry-absent.
+        # 2026-09-19 repair round: the ai-market-read fallback joined the
+        # public gate (its watch sentence claimed a composite that had
+        # refused); the SKU gate gained the served anchorProfitShare and
+        # DIO-sheet period-range refusals two verifier plants had shown were
+        # ungated; the industry gate now drives the real /report router.
+        # R-PUBLIC-ABSENT (2026-09-19): the producer-coverage file joined —
+        # a category no producer can fill is dropped with its weight
+        # redistributed and the coverage stated; a per-company gap still
+        # refuses; the declaration is measured against the producers.
+        Gate("floor-public-score",
+             [PY, "-m", "pytest",
+              "tests/engine/public/intelligence/test_risk_scoring_engine.py",
+              "tests/engine/public/intelligence/test_opportunity_scoring_engine.py",
+              "tests/engine/public/intelligence/test_public_score_refusal_route.py",
+              "tests/engine/public/intelligence/test_ai_market_read.py",
+              "tests/engine/public/intelligence/test_risk_producer_coverage.py",
+              "-q"],
+             work_junit=True, floor=52, units="tests",
+             canaries=("test_no_financials_refuses_every_financial_category_and_the_composite",
+                       "test_snapshot_boundary_converts_points_and_keeps_a_measured_zero",
+                       "test_no_financials_refuses_instead_of_scoring_medium",
+                       "test_top_risk_contribution_is_null_when_every_mapped_category_is_refused",
+                       "test_fallback_watch_flags_state_a_refused_composite_not_composite_low",
+                       "test_the_declaration_is_measured_against_the_live_producers",
+                       "test_a_per_company_absence_still_refuses_the_category_and_the_composite",
+                       "test_per_ticker_route_serves_the_composite_with_its_coverage_block")),
+        Gate("floor-sku-portfolio",
+             [PY, "-m", "pytest", "tests/engine/test_floor_sku_portfolio.py",
+              "tests/test_metrics.py", "-q"],
+             work_junit=True, floor=42, units="tests",
+             canaries=("test_skus_share_of_category_profit_refuses_net_zero",
+                       "test_zero_volume_dio_rows_fall_through_to_the_upload_sheet",
+                       "test_zero_revenue_category_is_refused_not_eliminated",
+                       "test_composite_score_dio_zero_is_undefined",
+                       "test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss",
+                       "test_dio_sheet_out_of_range_banner_span_is_not_used",
+                       "test_analyze_route_states_refused_roic_and_share_instead_of_500")),
+        Gate("floor-industry-absent",
+             [PY, "-m", "pytest",
+              "tests/engine/test_industry_classifier_absent_inputs.py", "-q"],
+             work_junit=True, floor=15, units="tests",
+             canaries=("test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate",
+                       "test_detect_industry_for_period_reads_the_pl_line_items",
+                       "test_report_route_gates_a_no_line_items_period_with_the_refusal")),
     ]
 
 

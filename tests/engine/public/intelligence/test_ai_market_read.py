@@ -233,3 +233,29 @@ def test_parse_envelope_returns_none_on_malformed():
     assert _parse_llm_envelope("not even close") is None
     assert _parse_llm_envelope("") is None
     assert _parse_llm_envelope("{") is None
+
+
+def test_fallback_watch_flags_state_a_refused_composite_not_composite_low():
+    """Measured 2026-09-19 on f68d45a: an unknown-sector shell with no
+    snapshot served headline "XYZ composite risk unavailable, opportunity
+    unavailable." beside what_to_watch ["No specific watch flags — score is
+    composite-low."] — a claim about a composite that does not exist."""
+    saved = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        profile = build_company_exposure_profile("XYZ", "Xyz Corp", "Unknown", None,
+                                                 try_filings=False)
+        assert not profile.main_risks
+        risk = compute_risk_score(profile, {}, [])
+        opp = compute_opportunity_score(profile, {}, [])
+        assert risk.overall_risk_score is None
+        read = compose_ai_market_read(
+            ticker="XYZ", company_name="Xyz Corp", sector="Unknown", industry=None,
+            risk=risk, opportunity=opp, exposure=profile, signals=[],
+            feed_status="sector_model_only", client=None,
+        )
+        assert read.headline.startswith("XYZ composite risk unavailable,")
+        assert read.what_to_watch == ["No watch flags: composite risk unavailable."]
+        assert not any("composite-low" in w for w in read.what_to_watch)
+    finally:
+        if saved is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved
