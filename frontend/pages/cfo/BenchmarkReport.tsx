@@ -59,6 +59,7 @@ import { LearnableMetricCard } from "@/components/learning/LearnableMetricCard";
 import { LearnableRowLabel } from "@/components/learning/LearnableRowLabel";
 import { benchmarkMetricToConcept } from "@/lib/learning/benchmarkMetricToConcept";
 import { getSupabase } from "@/lib/supabase";
+import { authOrgHeaders } from "@/lib/apiHeaders";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { PUBLIC_RECORDS_ENABLED } from "@/config/features";
 
@@ -217,13 +218,9 @@ interface ApiError {
 const apiBase = (): string =>
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
-async function authHeaders(): Promise<Record<string, string> | null> {
-  const sb = getSupabase();
-  if (!sb) return null;
-  const { data } = await sb.auth.getSession();
-  const token = data.session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : null;
-}
+// Authorization AND the active workspace — see lib/apiHeaders.ts for why a
+// bare bearer 403s on every workspace but the user's oldest.
+const authHeaders = () => authOrgHeaders();
 
 async function fetchReport(periodId: string): Promise<Report | ApiError | null> {
   try {

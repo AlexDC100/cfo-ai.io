@@ -25,6 +25,7 @@
 //   (bad industry_key), and the rest.
 
 import { getSupabase } from "@/lib/supabase";
+import { authOrgHeaders } from "@/lib/apiHeaders";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -165,12 +166,15 @@ async function authHeaders(): Promise<Record<string, string>> {
   if (!sb) {
     throw new IndustryApiError("Supabase not configured", 401, null);
   }
-  const { data } = await sb.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) {
+  // Bearer AND the active workspace (lib/apiHeaders.ts). Every industry route
+  // resolves the caller's organization from X-Org-Id; without it the engine
+  // falls back to the user's OLDEST workspace and 403s the picker's detect and
+  // save calls on any other one (measured on production 2026-09-20).
+  const headers = await authOrgHeaders();
+  if (!headers) {
     throw new IndustryApiError("Not signed in", 401, null);
   }
-  return { Authorization: `Bearer ${token}` };
+  return headers;
 }
 
 async function request<T>(
