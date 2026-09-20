@@ -1495,10 +1495,10 @@ export function computeRatios(
     : bsPctOr("debt_to_assets", pctOf(totalDebt, totalAssets, "total assets"));
 
   // Coverage ─────────────────────────────────────────────────────────────────
-  // F2.2 — interest_coverage switches from FE EBIT-basis to engine
-  // EBITDA-basis canonical. Engine emits the same value as
-  // `ebitda_to_interest`. Visible value shift expected (small — depreciation
-  // delta between EBIT and EBITDA on both fixtures is modest).
+  // interest_coverage is EBIT / interest on BOTH sides of this `mOr`: the
+  // engine row (since 2026-09-19, decisions D14 — before that it divided
+  // EBITDA and equalled `ebitda_to_interest`) and the no-metric fallback.
+  // EBITDA / interest is the separate `ebitda_to_interest` row.
   const interestCoverage = mOr("interest_coverage", div(ebit, interestExpense, "interest expense"));
   // F2.2 — DSCR switches from FE cash-EBITDA basis to engine statutory-
   // EBITDA basis (aligns with F1.e canonical decision). EEI shift is
@@ -2626,13 +2626,15 @@ export function generateRecommendations(
       debt_to_equity: stated("debt_to_equity"),
       debt_to_assets: statedFraction("ltv"),
       equity_ratio: statedFraction("equity_ratio"),
-      // NOT PLUMBED, AND SAID SO. The document prints interest coverage
-      // on an EBITDA basis; the EBIT basis is a different number on every
-      // levered book (55.64× against 66.28× on agras) and no row states
-      // it, so there is nothing here for a rule to quote.
-      interest_coverage_ebit: null,
+      // TWO ROWS, TWO BASES, EACH UNDER ITS OWN NAME. Since 2026-09-19 the
+      // `interest_coverage` row IS EBIT / interest (the methodology; D14)
+      // and `ebitda_to_interest` is the EBITDA row — 55.64× against 66.28×
+      // on agras. Before that date this block fed the EBIT-named fact null
+      // and put the `interest_coverage` row under the EBITDA name, which
+      // after the move handed a rule the EBIT figure labelled EBITDA.
+      interest_coverage_ebit: stated("interest_coverage"),
       ebitda_to_interest:
-        stated("interest_coverage") ?? (interest > 0 ? ebitdaStatutory / interest : null),
+        stated("ebitda_to_interest") ?? (interest > 0 ? ebitdaStatutory / interest : null),
       dscr: stated("dscr") ?? (ebitdaStatutory > 0 ? dscr : null),
       debt_to_ebitda:
         stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : null),

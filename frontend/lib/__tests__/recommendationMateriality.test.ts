@@ -713,3 +713,21 @@ describe("§7 the same amount grades differently on books of different size", ()
     expect(grades["x20"], `graded ${shown}`).toBe("did not fire");
   });
 });
+
+// ── §8 the two coverage facts carry their own bases (B8 repair round) ────
+//
+// `interest_coverage` IS EBIT / interest since 2026-09-19 (D14). The facts
+// block kept feeding the EBIT-named fact null ("NOT PLUMBED") and put that
+// row under `ebitda_to_interest` — so the EBITDA-named fact carried the
+// EBIT figure (55.644 on agras, where EBITDA / interest is 66.2774). No
+// rule reads either fact today, which is why nothing reddened: latent.
+// REDS ON, after the repair: either fact carrying the other's figure, or
+// the EBIT fact unplumbed. Literals are the engine's served rows (D14).
+describe("§8 the coverage facts the rules are handed", () => {
+  it("agras: EBIT / interest 55.64 and EBITDA / interest 66.28, each under its own name", () => {
+    const { facts } = run("agras");
+    expect(facts.ratios.interest_coverage_ebit).not.toBeNull();
+    expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("55.64");
+    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("66.28");
+  });
+});
