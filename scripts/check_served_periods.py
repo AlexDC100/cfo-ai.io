@@ -84,7 +84,16 @@ class ReadOnlyClient:
 Fetch = Callable[[str], Tuple[int, Any]]
 
 
-def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch) -> Dict[str, Any]:
+def credit_snapshot(body: Any) -> Dict[str, Any]:
+    """The lender-facing verdict of one served body, for a before/after diff
+    across a deploy (`--dump`). Reads what is served; computes nothing."""
+    credit = ((body or {}).get("assembled_metrics") or {}).get("credit") if isinstance(body, dict) else None
+    credit = credit if isinstance(credit, dict) else {}
+    return {k: credit.get(k) for k in ("letter_grade", "composite_score", "altman_z_score", "model_revision")}
+
+
+def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch,
+                  observe: Optional[Callable[[Dict[str, Any], int, Any], None]] = None) -> Dict[str, Any]:
     """Pure core: request every period, judge every answer. No I/O of its own."""
     rows = list(periods)
     failures: List[Dict[str, Any]] = []
@@ -95,6 +104,8 @@ def check_periods(periods: Iterable[Dict[str, Any]], fetch: Fetch) -> Dict[str, 
         try:
             status, body = fetch(pid)
             problem = _judge(pid, status, body)
+            if observe is not None:
+                observe(row, status, body)
         except Exception as exc:  # noqa: BLE001 — a crash IS the finding
             problem = f"{type(exc).__name__}: {exc}"
             status = 0
@@ -188,13 +199,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--org")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--dump", help="write one JSON line per period (id, org, status, served credit verdict) "
+                                   "— run before and after a deploy and diff the two files")
     args = ap.parse_args(argv)
 
     _add_src_to_path()
     try:
         from engine.api import _supabase
         periods = _list_periods(_supabase.admin, args.org, args.limit)
-        report = check_periods(periods, _served_fetch())
+        seen: List[Dict[str, Any]] = []
+        report = check_periods(
+            periods, _served_fetch(),
+            observe=(lambda row, status, body: seen.append(
+                {"period_id": row.get("id"), "org_id": row.get("org_id"), "status": status, **credit_snapshot(body)}))
+            if args.dump else None,
+        )
+        if args.dump:
+            with open(args.dump, "w", encoding="utf-8") as fh:
+                for rec in sorted(seen, key=lambda r: str(r["period_id"])):
+                    fh.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         print("SERVED PERIODS: COULD NOT RUN — treat as RED")

@@ -93,3 +93,18 @@ def test_get_period_opens_no_client_of_its_own():
     assert "_supabase.per_user(jwt)" in body
     assert not re.search(r"_supabase\.admin\(\)", body), \
         "get_period opened a service-role client — the gate's read-only proxy no longer covers it"
+
+
+def test_the_credit_snapshot_reads_what_is_served_and_invents_nothing():
+    body = {"assembled_metrics": {"credit": {"letter_grade": "A", "composite_score": 71.9, "altman_z_score": 3.11}}}
+    assert gate.credit_snapshot(body) == {"letter_grade": "A", "composite_score": 71.9,
+                                          "altman_z_score": 3.11, "model_revision": None}
+    for absent in (None, [], {}, {"assembled_metrics": None}, {"assembled_metrics": {"credit": "refused"}}):
+        assert set(gate.credit_snapshot(absent).values()) == {None}, "an absent verdict is None, never a default"
+
+
+def test_observe_sees_every_period_including_the_failing_one():
+    seen = []
+    fetch = lambda pid: (500, {"detail": "boom"}) if pid == "p-2" else ok(pid)  # noqa: E731
+    gate.check_periods([P1, P2], fetch, observe=lambda row, status, body: seen.append((row["id"], status)))
+    assert seen == [("p-1", 200), ("p-2", 500)]
