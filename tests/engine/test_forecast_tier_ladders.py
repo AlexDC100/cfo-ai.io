@@ -614,18 +614,27 @@ def test_the_route_answers_the_refusal_as_422(monkeypatch):
                 "period_label": "FY2025", "currency": "RON",
                 "company_name": None}
 
+    # plan/2 B5 (28.3 B5 "Retires", the same move as test_forecast_route.py):
+    # the route's loader is _forecast_history.load_plan_inputs, which hands
+    # back (anchor payload, prior periods, PlanContext, history block). The
+    # context is left None so the jurisdiction is read from the envelope
+    # under test, as project_plan documents.
+    from engine.api import _forecast_history as FH
+    assert not hasattr(FR, "_load_period")
+
+    def _inputs(payload):
+        return lambda jwt, org_id, period_id: (payload, [], None, {})
+
     monkeypatch.setattr(_org, "resolve_org", lambda jwt, org: ("u", "o"))
-    monkeypatch.setattr(FR, "_load_period", _load)
+    monkeypatch.setattr(FH, "load_plan_inputs", _inputs(_load(None, None, None)))
     client = TestClient(create_app(), raise_server_exceptions=False)
     res = client.get("/api/forecast/p-hu?horizon=3",
                      headers={"Authorization": "Bearer t"})
     assert res.status_code == 422, (res.status_code, res.text[:300])
     assert "jurisdiction HU" in res.json()["detail"]
-    monkeypatch.setattr(FR, "_load_period",
-                        lambda jwt, org_id, period_id: dict(
-                            _load(jwt, org_id, period_id),
-                            envelope=load("agras")["envelope"],
-                            statements=load("agras")["statements"]))
+    monkeypatch.setattr(FH, "load_plan_inputs", _inputs(dict(
+        _load(None, None, None), envelope=load("agras")["envelope"],
+        statements=load("agras")["statements"])))
     assert client.get("/api/forecast/p-ro?horizon=3",
                       headers={"Authorization": "Bearer t"}).status_code == 200
 

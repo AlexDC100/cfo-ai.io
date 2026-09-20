@@ -954,3 +954,53 @@ the as-built log, B4R-6.
 Not reaching a served figure today, by construction: the absent-total refusal (the
 route rebuild always emits both totals), the per-family contra decision (every real
 book prints both families on one sign), `tb_parser_v6` (a provenance stamp).
+
+## plan/2 B5 — plan compilation, project_plan, the unwind, the partial refusal, debt timing, the one period reader (wave/plan-b5 on 5bf8b23)
+
+**Served figures that move, per book: none.** GET /api/forecast is held to the
+recorded B4 GET (`tests/engine/fixtures/forecast/get_b4.json`, battery gate
+forecast-get-b4-parity) on agras, carniprod, realestate and retail at horizons
+3 and 5: every byte equal, status 200 on all eight cells, except the one named
+org-row field, printed by the gate on every run:
+
+| book | horizon | field | B4 | B5 |
+|---|---|---|---|---|
+| agras, carniprod, realestate, retail | 3 and 5 | company_name | null (read off `financial_periods`, which has no such column) | `organizations.name` of the period's org |
+
+GET /api/period/{id}: unchanged; its reads go through `pipeline.load_period_rows`
+with no rebuild, and period-loader-parity holds the loader's rebuilt statements
+to the served ones byte for byte on the four books.
+
+**A status that can move: 200/422 to 409.** An anchor whose statements do not
+rebuild now answers 409 {code: statements_rebuild_failed} where B4 projected off
+statements None. `scripts/measure_statement_rebuilds.py` (read-only): four
+corpus books rebuilt 4, StatementsRebuildError 0; the local Scandia FY2025 book
+rebuilds. **The live count is not measured: no session reads production. The
+owner runs `python scripts/measure_statement_rebuilds.py --live` (read-only)
+before B13**, because from B13 those periods show the Scenarios refusal state.
+
+**A refusal that is new: absent source revenue** (B4RV-2). A payload whose
+assembled P&L carries no revenue line refuses (`levers.yaml#request_refusals.revenue_absent`)
+where B4 projected revenue 0.00. No corpus book and not Scandia is such a book.
+
+**The lever path (engine only; reached by a route in B6).** Not served anywhere
+yet, printed so B6's cut-over has its before-picture. total_years 3,
+monthly_months 12, from each book's own anchor:
+
+| book | year-one EBITDA, base plan | year-one EBITDA, volume -20% (growth and inflation 0) | same, base at growth and inflation 0 | first shortfall under the shock | served in year one |
+|---|---:|---:|---:|---|---|
+| agras | 11,036,035.43 | 4,282,948.51 | 10,776,378.24 | none | 12 of 12 months |
+| carniprod | 5,083,673.55 | -744,209.66 | 4,993,979.59 | FY2028 | 12 of 12 months (partial refusal 6.5) |
+| realestate | -29,765,224.58 | -29,071,184.61 | -29,038,838.12 | 2026-01 | 12 of 12 months |
+| retail | 2,301,831.21 | -498,833.89 | 2,263,417.48 | 2026-03 | 12 of 12 months |
+
+Local Scandia FY2025 (aggregates only, never committed; growth and inflation 0,
+monthly_months 24, a caller revolver rate): base year-one revenue
+413,727,560.16, EBITDA 54,443,833.33 (the calibration figure); measured
+aggregate opex fixed share 0.590128. Volume -10% / -15% / -20%: EBITDA
+40,787,257.60 / 33,958,969.77 / 27,130,682.03; the same with every opex pool
+level at -5%: 48,406,385.18 / 41,415,280.45 / 34,424,176.01; cash stays above
+the floor for all 24 modelled months in every case. The owner ruling's
+"about 35.5M with the template's -5 percent opex" sits between the -15% and
+-20% volume rows; the Recession template itself is B10's, so its exact figure
+is B10's to print. -3.9M is not reachable from the measured split.

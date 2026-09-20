@@ -670,7 +670,11 @@ def _fraction(value: Any, noun: str) -> Fraction:
     if not isinstance(value, str):
         raise _refuse("not_exact", noun, key=noun, value=repr(value),
                       unit="a decimal string")
-    return _exact_fraction(value, noun)
+    try:
+        return _exact_fraction(value, noun, allow_percent=False)
+    except (ValueError, ZeroDivisionError):
+        raise _refuse("not_exact", noun, key=noun, value=repr(value),
+                      unit="a decimal string")
 
 
 def plan_request_from_body(body: Mapping[str, Any]) -> PlanRequest:

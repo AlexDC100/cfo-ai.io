@@ -124,6 +124,33 @@ def test_law_a_downturn_never_raises_ebitda_where_costs_fit_inside_revenue(name)
     WORK["units"] += 1
 
 
+@pytest.mark.parametrize("name", BOOKS)
+def test_a_pool_level_moves_the_whole_pool_and_nothing_else(name):
+    """5.4 / B4R-8b (pool_level was held by no gate): every opex pool's level
+    at -5% moves each monthly operating cost to 95% of base, within one
+    minor unit per pool (each pool is rounded once), and leaves revenue and
+    cost of sales byte-identical."""
+    base = _plan(name)
+    keys = base.projection.assumptions.pools.level_keys()
+    assert keys, "TC-3: %s serves no opex pool" % name
+    shocked = _plan(name, *[Shock("rail:%s" % k, k, "level_pct", F("-0.05")) for k in keys])
+    served = len(shocked.projection.periods)
+    assert served >= 1
+    for b, s in zip(base.projection.periods[:served], shocked.projection.periods):
+        expected = mul_div(b.pl["operating_costs"], 950000, MICRO)
+        assert abs(s.pl["operating_costs"] - expected) <= len(keys), (
+            "%s %s: operating costs %s, 95%% of base is %s (band %d minor units, one "
+            "per pool)" % (name, b.label, fmt(s.pl["operating_costs"]), fmt(expected),
+                           len(keys)))
+        assert s.pl["revenue"] == b.pl["revenue"]
+        assert s.pl["cost_of_sales"] == b.pl["cost_of_sales"]
+        WORK["units"] += 1
+    if any(b.pl["operating_costs"] for b in base.projection.periods):
+        assert any(s.pl["operating_costs"] != b.pl["operating_costs"] for b, s in
+                   zip(base.projection.periods, shocked.projection.periods)), (
+            "%s: the pool levels reached nothing" % name)
+
+
 def test_a_volume_move_over_a_refused_split_refuses_by_name():
     """B4R-8a / B4RV-4 (measured at B4: retail served +1,956,107.72 EBITDA
     where the measured split gives -805,701.65). SYNTHETIC: agras and retail

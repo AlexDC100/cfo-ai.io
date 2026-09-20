@@ -4965,3 +4965,304 @@ and a projection that ignored it would still pass (B5 compiles the first
 non-neutral level and owns that red — VP9); the anchor-gap residual beyond the
 production-stock movement is PRINTED, not judged (agras 1,018,671.15, carniprod
 185,677.27, realestate −0.05).
+
+## forecast-balance
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row F1). `tests/engine/test_forecast_levers_f1.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. Every projected period of every run project_plan makes (base and plan) closes assets to equity plus liabilities to the minor unit, over four books x monthly_months {12, 24} x total_years {3, 5} x one lever set per shock op plus a behaviour override with a debt schedule. The test re-adds the balance sheet from the served lines; it never reads the engine's own balance_delta.
+
+THE DEFECT. Before B5 nothing projected a lever set: the engine had no shocks, no per-year drivers and no debt rows by plan year, so F1 was held on the base run only (forecast-model). The Scenarios page computed its own cascade in the browser with no balance sheet at all (defect 0.5).
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. add 1 minor unit to closing PP&E in one period (project.py: closing_ppe + (1 if period.index == 5 else 0)). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f1-1-ppe-plus-one.log).
+
+RED (plant):
+
+    E   engine.forecast.errors.BalanceViolation: projected period 2026-06 does not balance: assets 42,910,075.48 − (equity + liabilities) 42,910,075.47 = 0.01 (must be exactly 0)
+    FAILED tests/engine/test_forecast_levers_f1.py::test_every_period_of_every_run_closes[agras-12-3]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'BehaviourOverride' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): any period of any run kind with a non-zero difference; a run that catches BalanceViolation and continues; a run kind of this batch missing from the scope line; a matrix cell that projected nothing. The legacy-opening plant (OpeningPositionError at period zero) stays in forecast-model, where it has lived since B0; the tornado-probe, FY-aggregate and export plants land with B11, B6 and B20, which create those run kinds.
+
+## scenario-funding-line
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row S3). `tests/engine/test_scenario_funding_line.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. On the Plan returned by project_plan: over four books x three template-like shock sets x volume_index {0 .. -1.0} at monthly_months 24, closing cash never below min_cash, every draw equal to the shortfall, the revolver equal to cumulative draws less repayments, next-period funding interest equal to the _period_charge identity at revolver_rate, summary and runway per 6.6, the ShortfallRefusal of 6.5 wherever a book cannot price the line it draws, and the runway annual-tail case found by integer bisection on retail.
+
+THE DEFECT. Defect 0.3, engine half: an unpriceable funding line refused the WHOLE plan as a bare AssumptionError naming no period, so a probe could not count it as a breach and a reader got a blanket 422; the page had no floor at all (cash 6.105M to -107.630M on Scandia). There was no runway.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. funding draw forced to 0. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-1-draw-zero.log).
+
+RED (plant):
+
+    E   engine.forecast.errors.BalanceViolation: projected period 2026-02 does not balance: assets -1,278,497.27 − (equity + liabilities) 0.00 = -1,278,497.27 (must be exactly 0)
+    E   AssertionError: ('agras vol 0 recession-like', BalanceViolation('projected period 2026-02 does not balance: assets -1,278,497.27 − (equity + liabilities) 0.00 = -1,278,497.27 (must be exactly 0)'))
+    E   assert None == 'days_not_measured'
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. revolver interest 0. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-2-revolver-interest-zero.log).
+
+RED (plant):
+
+    E   AssertionError: ('agras vol 0 recession-like', '2026-03')
+    E   assert -0 == 829044
+    E    +  where 829044 = _period_charge(127849727, 76350, 31, 365)
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. revolver_rate defaulted to 0 when unavailable (`or 0`). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-3-rate-defaults-to-zero.log).
+
+RED (plant):
+
+    E   AssertionError: ('carniprod vol 0 recession-like', '2027-12')
+    E   assert None is not None
+    FAILED tests/engine/test_scenario_funding_line.py::test_the_funding_line_identities_hold_over_the_grid[carniprod]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 4. the bare AssumptionError without a period (period_label dropped). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-4-bare-error-no-period.log).
+
+RED (plant):
+
+    E   AssertionError: carniprod vol 0 recession-like
+    E   assert None == '2027-11'
+    E    +  where None = AssumptionError("assumption 'revolver_rate': the plan draws 19,851.61 on the funding line in 2027-11 and this book can...% would be an invented rate, and the cheapest one. Supply revolver_rate, or change the plan so the line is not drawn.").period_label
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 5. count the annual index as months in the runway. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-5-annual-index-as-months.log).
+
+RED (plant):
+
+    E   AssertionError: {'bound': 'exact', 'facility_limit': {'refused': {'code': 'facility_limit_not_loaded', 'text': 'facility limit not loaded'}}, 'first_shortfall_period': 'FY2027', 'months': 12, ...}
+    E   assert ('exact' == 'at_least'
+    E     
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): served cash below the floor, a draw not equal to the shortfall, funding interest not at revolver_rate, an unpriceable line served at a zero rate or refused without its period, a runway that reads an annual period as months. AS-BUILT B0-8: carniprod's BASE plan never draws (measured), so the refusal is asserted on every cell that draws an unpriceable line (17 carniprod cells, printed) and zero such cells reds. The page-fixture plant lands with B13.
+
+## scenario-cost-behaviour
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row S1). `tests/engine/test_scenario_cost_behaviour.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. The shock half of S1 on four books with revenue_growth and inflation overridden to 0: template growth_pp -0.20 moves year-one cost of sales to mul_div(base, 800000, MICRO); volume_index -0.20 moves every monthly cost of sales; price_index -0.10 leaves cost of sales byte-identical; the EBITDA law where variable bases fit inside revenue; and B4R-8a: a volume move over a refused cost split refuses by name (cost_split_refused).
+
+THE DEFECT. Defect 0.1: the page cascade held cost of sales flat under a revenue move (Scandia Recession EBITDA 54.444M to -20.257M, 42.407M understated). Over a refused split the B4 engine made every cost fully variable, the optimistic end in a downturn: measured at B4RV-4, retail served +1,956,107.72 where the measured split gives -805,701.65 (a loss served as a profit).
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. hold cost_of_sales flat against volume (the cascade). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-1-cogs-flat.log).
+
+RED (plant):
+
+    E   AssertionError: agras 2026-01: cost of sales -5,992,522.07, expected -4,794,017.66
+    E   assert -599252207 == -479401766
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_volume_index_moves_every_monthly_cost_of_sales[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. drop G from the variable part. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-2-drop-G.log).
+
+RED (plant):
+
+    E   AssertionError: agras: year-one cost of sales -70,557,114.68 under growth -20%, expected -56,445,691.74 (base -70,557,114.68)
+    E   assert -7055711468 == -5644569174
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_growth_pp_moves_year_one_cost_of_sales_in_full[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. serve a volume move over a refused split. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-3-serve-refused-split.log).
+
+RED (plant):
+
+    E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_a_volume_move_over_a_refused_split_refuses_by_name
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 4. ignore the pool level (project.py: `operating_costs += parts`). B4R-8b: pool_level.<pool> was held by no gate; the check added here moves every opex pool's level by -5% on the four books and holds each monthly operating cost to 95% of base within one minor unit per pool, revenue and cost of sales byte-identical.
+
+RED (plant):
+
+    E   AssertionError: agras 2026-01: operating costs -2,535,622.20, 95% of base is -2,408,841.09 (band 8 minor units, one per pool)
+
+REVERT. Byte-exact; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): a pool flat against volume, cost of sales following the selling price, a variable part that ignores growth, a downturn that raises EBITDA where costs fit inside revenue, a volume or input-price move served over a refused split, zero books meeting the law's precondition.
+
+## forecast-magnitude
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row F6). `tests/engine/test_forecast_magnitude_f6.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. Year-one revenue equals source x (1 + effective year-one growth) with the effective volume and price indices applied per period, within the number of rounding operations the run itself counted on year-one revenue (Projection.work; half a minor unit each). At zero growth and neutral indices year one equals source exactly. An absent source revenue refuses.
+
+THE DEFECT. B4RV-2: pools.py read an absent assembled_pl.revenue as 0 and the engine projected revenue 0.00 (agras year-one EBITDA -102,532,231.44), where wave/plan-b3 refused the same payload. No gate compared projected revenue with its source under levers, because there were no levers.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. multiply revenue by 100 in the by-year loop. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-1-revenue-x100.log).
+
+RED (plant):
+
+    E   AssertionError: agras [default]: year-one revenue 11,356,826,687.00, source 110,798,309.14 x (1 + 1/40) with the indices applied is 113,568,266.86; difference 22486516840263/20 minor units, band 13/2 (13 rounding operations)
+    E   assert Fraction(22486516840263, 20) <= Fraction(13, 2)
+    E    +  where Fraction(22486516840263, 20) = abs((1135682668700 - Fraction(227136533737, 20)))
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. stamp a year-one growth of 0.08 without applying it. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-2-growth-stamped-not-applied.log).
+
+RED (plant):
+
+    E   AssertionError: agras [growth override 0.08]: year-one revenue 113,568,266.87, source 110,798,309.14 x (1 + 2/25) with the indices applied is 119,662,173.87; difference -15234767503/25 minor units, band 13/2 (13 rounding operations)
+    E   assert Fraction(15234767503, 25) <= Fraction(13, 2)
+    E    +  where Fraction(15234767503, 25) = abs((11356826687 - Fraction(299155434678, 25)))
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. read an absent source revenue as nil. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-3-absent-revenue-as-nil.log).
+
+RED (plant):
+
+    E   TypeError: unsupported operand type(s) for *: 'NoneType' and 'Fraction'
+    FAILED tests/engine/test_forecast_magnitude_f6.py::test_an_absent_source_revenue_refuses_and_is_never_read_as_nil
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): year-one revenue outside the band on any book, a stamped growth that was never applied, a missing source revenue projected, a band the run did not render (zero counted roundings reds as vacuous). The frontend-fixture and export-formatter plants land with B9 and B20.
+
+## period-loader-parity
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_load_period_rows.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. pipeline.load_period_rows, the one module-scope period reader, rebuilds the statements GET /api/period/{id} serves: assembled_pl, assembled_bs, assembled_cf and assembled_canonical_v1 byte for byte on four books, through create_app. A rebuild failure raises StatementsRebuildError and the forecast GET answers 409 with its sentence; a period outside the resolved workspace is not found.
+
+THE DEFECT. The forecast route had its own copy of the period read and swallowed a rebuild failure into statements=None, then projected off it. get_period, nested in a router factory, could not be imported as a loader.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. drop the last line item before the rebuild. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/loader-1-drop-last-row.log).
+
+RED (plant):
+
+    E   AssertionError: agras: assembled_pl differs; assembled_cf differs; assembled_canonical_v1 differs
+    E   assert not ['assembled_pl differs', 'assembled_cf differs', 'assembled_canonical_v1 differs']
+    FAILED tests/engine/test_load_period_rows.py::test_loader_statements_equal_the_statements_get_period_serves[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. swallow the rebuild failure into statements None. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/loader-2-swallow-rebuild-failure.log).
+
+RED (plant):
+
+    E   Failed: DID NOT RAISE <class 'engine.api.pipeline.StatementsRebuildError'>
+    FAILED tests/engine/test_load_period_rows.py::test_a_rebuild_failure_raises_and_a_foreign_org_is_not_found
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   AttributeError: module 'engine.api.pipeline' has no attribute 'load_period_rows'
+
+AFTER THE REPAIR IT REDS ON (TC-11): any byte of the four keys differing on any book (named by key and book), a key absent on either side, a swallowed rebuild failure, a foreign-org period returned.
+
+## forecast-get-b4-parity
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_forecast_get_b4_parity.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. GET /api/forecast bytes on four books at horizons 3 and 5 equal the recorded B4 GET (tests/engine/fixtures/forecast/get_b4.json, a digest recorded from 5bf8b23 by the file's own --record), except the named org-row field company_name, which is printed with both values (null -> organizations.name).
+
+THE DEFECT. Not a defect gate: B5 moves GET onto project_plan and the loader, and this gate is the proof no served byte moved. It is retired by B6 when fp1.2 replaces the bytes.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. add one minor unit to month-one revenue. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/getb4-1-one-cent-of-revenue.log).
+
+RED (plant):
+
+    E   AssertionError: GET moved off the recorded B4 bytes:
+    E       agras:h3 figure bs.ar 2026-01: recorded 872621972, served 872621973
+    E       agras:h3 figure bs.cash 2026-02: recorded 201209777, served 201209778
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. let the organization name leak into a field outside the allowed list (notes). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/getb4-2-org-name-into-notes.log).
+
+RED (plant):
+
+    E   AssertionError: GET moved off the recorded B4 bytes:
+    E       agras:h3 root key 'notes' moved
+    E       agras:h5 root key 'notes' moved
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): not applicable in the usual sense and recorded as such: the fixture IS the parent commit's GET, so the gate is green on 5bf8b23 by construction. Its two plant reds above stand in for it; the census marker is kept so the entry reads as a gate that lands with a change (the GET's move onto project_plan), not as a registration of an existing test.
+
+AFTER THE REPAIR IT REDS ON (TC-11): any served byte outside company_name differing from the recorded B4 GET, a changed status, a fixture that does not cover the eight cells.
+
+## forecast-debt-timing
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_forecast_debt_timing.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. packs/forecast/levers.yaml#debt_timing: a debt_schedule row's draws land in the first period of its plan year and its repayments in the last, on four books at monthly_months 12 and 24, with identical per-plan-year sums at both; a year beyond total_years is refused naming it.
+
+THE DEFECT. DebtSchedule was indexed by period index, so the same plan-year schedule meant different cash timing at monthly_months 12 and 24, and a request could not state a plan year at all.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. land draws in the last period of the plan year. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/debt-1-draws-land-last.log).
+
+RED (plant):
+
+    E   AssertionError: agras mm12: a draw of 200000000 landed in 2026-12, the first period of plan year 1 is 2026-01
+    E   assert '2026-12' == '2026-01'
+    E     
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'DebtRow' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): a draw or repayment in any other period of its year, per-year sums that depend on the monthly window, a year beyond the horizon accepted, a schedule that moved nothing.
+
+## forecast-wc-unwind (joins forecast-model)
+
+plan/2 B5 (contract 6.2; 28.3 B5 "forecast-model command extended with test_forecast_wc_unwind.py"). Not a first registration: `tests/engine/test_forecast_wc_unwind.py` joins the forecast-model battery command, with two canaries added under the B5 anchor.
+
+PLANT. Restore the full re-price in the period a lever lands (project.py: the unwind branch disabled).
+
+RED (plant), both tests, as the contract requires:
+
+    E   AssertionError: agras 2026-01 inventory 7,325,332.54, the 6.2 formula gives 7,928,198.65 (target 7,325,332.54, base target 9,156,665.67)
+    E   assert 732533254 == 792819865
+    E   AssertionError: retail 2026-01 inventory moved 2,089,525.72 in the month the lever landed; a month of its flow change is 1,655,171.64
+    E   assert 208952572 <= 165517164
+
+REVERT. Byte-exact; green again. SCOPE printed by the test. Measured fact recorded in the test: on agras the receivable days (28.05) are shorter than the first month, so receivables land on target inside it and only inventory (46.21 days) and payables (37.18 days) can show a full re-price; the test walks all three balances and reds as vacuous when none is still mid-unwind after month one.
+
+RED (parent commit): `E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'` (the parent tree has no lever path to unwind).

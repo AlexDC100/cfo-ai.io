@@ -46,33 +46,47 @@ def _volume(name, value, total_years=3, monthly_months=12):
 
 
 def test_agras_receivables_follow_the_unwind_formula_every_month():
+    """Receivables, as 6.2 names them, and inventory and payables by the same
+    formula. On agras the receivable days (28.05, printed) are shorter than
+    the first month, so receivables land on their target within it and ONLY
+    inventory (46.21 days) and payables (37.18 days) can show a full
+    re-price; the test asserts at least one balance is still mid-unwind at
+    the end of month one, so it cannot pass vacuously."""
+    from engine.forecast.project import WC_BALANCES
     plan = _volume("agras", "-0.20")
-    dso = plan.projection.assumptions.micro_days_or_none("dso_days")
-    assert dso, "TC-3: agras measures no dso_days"
-    previous = plan.projection.opening.balances()["ar"]
-    elapsed = 0
-    months = 0
-    for base, item in zip(plan.base.periods, plan.projection.periods):
-        if item.period.granularity != "monthly":
-            continue
-        span = item.period.days * MICRO_DAY
-        target = mul_div(item.pl["revenue"], dso, span)
-        base_target = mul_div(base.pl["revenue"], dso, span)
-        elapsed += item.period.days
-        expected = base_target + mul_div(target - base_target,
-                                         min(elapsed * MICRO_DAY, dso), dso)
-        assert item.bs["ar"] == expected, (
-            "agras %s receivables %s, the 6.2 formula gives %s (target %s, base target %s)"
-            % (item.label, fmt(item.bs["ar"]), fmt(expected), fmt(target), fmt(base_target)))
-        assert item.cf["change_in_receivables"] == -(expected - previous), item.label
-        previous = expected
-        months += 1
-    assert months == 12
-    assert plan.projection.periods[0].bs["ar"] != mul_div(
-        plan.projection.periods[0].pl["revenue"], dso,
-        plan.projection.periods[0].period.days * MICRO_DAY) or dso <= 31 * MICRO_DAY, (
-        "month one landed on the full re-price")
-    WORK["units"] += months
+    assumptions = plan.projection.assumptions
+    cf_line = {"ar": ("change_in_receivables", -1), "inventory": ("change_in_inventory", -1),
+               "ap": ("change_in_payables", 1)}
+    mid_unwind = []
+    for balance, days_key, flow in WC_BALANCES:
+        days = assumptions.micro_days_or_none(days_key)
+        assert days, "TC-3: agras measures no %s" % days_key
+        previous = plan.projection.opening.balances()[balance]
+        elapsed = 0
+        months = 0
+        for base, item in zip(plan.base.periods, plan.projection.periods):
+            if item.period.granularity != "monthly":
+                continue
+            span = item.period.days * MICRO_DAY
+            target = mul_div(abs(item.pl[flow]), days, span)
+            base_target = mul_div(abs(base.pl[flow]), days, span)
+            elapsed += item.period.days
+            expected = base_target + mul_div(target - base_target,
+                                             min(elapsed * MICRO_DAY, days), days)
+            assert item.bs[balance] == expected, (
+                "agras %s %s %s, the 6.2 formula gives %s (target %s, base target %s)"
+                % (item.label, balance, fmt(item.bs[balance]), fmt(expected),
+                   fmt(target), fmt(base_target)))
+            line, sign = cf_line[balance]
+            assert item.cf[line] == sign * (expected - previous), (item.label, line)
+            if months == 0 and expected != target:
+                mid_unwind.append(balance)
+            previous = expected
+            months += 1
+        assert months == 12
+        WORK["units"] += months
+    WORK["mid_unwind"] = mid_unwind
+    assert mid_unwind, "vacuous: every agras balance landed on its target in month one"
 
 
 def test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change():
@@ -124,5 +138,7 @@ def test_zz_scope_and_work(capsys):
               "retail volume -30%, from month 1; total_years 3, monthly_months 12; "
               "a caller revolver_rate so the whole horizon is served; reach: "
               "engine.forecast.levers.project_plan")
+        print("agras balances still mid-unwind at the end of month one: %s"
+              % ", ".join(WORK.get("mid_unwind", [])))
         print("GATE-WORK forecast-wc-unwind units=%d" % WORK["units"])
     assert WORK["units"] >= 12

@@ -835,7 +835,6 @@ def project(opening: OpeningPosition, history: PlHistory,
     debt_rate = assumptions.micros_or_none("interest_rate_debt")
     revolver_rate = assumptions.micros_or_none("revolver_rate")
     cash_rate = assumptions.micros_or_none("interest_income_rate")
-    cash_rate_priced = cash_rate is not None
     book_rates = {"interest_rate_debt": debt_rate, "revolver_rate": revolver_rate,
                   "interest_income_rate": cash_rate}
     interest_income_held = assumptions.cents("interest_income_annual")
@@ -1151,7 +1150,9 @@ def project(opening: OpeningPosition, history: PlHistory,
         interest_income = (
             _period_charge(opening_cash, cash_rate, period.days,
                            days_basis)
-            if (cash_rate_priced and cash_rate is not None)
+            # priced in a plan year whose rate has a VALUE (the book's own,
+            # or a lever's for that year, 2.6); otherwise carried. Never both.
+            if cash_rate is not None
             else interest_income_of[period.index])
         other_financial_income = other_fin_income_of[period.index]
         other_financial_expense = other_fin_expense_of[period.index]

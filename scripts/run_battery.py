@@ -375,8 +375,11 @@ def _engine_gates() -> List[Gate]:
               # 6.3) join this gate; floor re-measured over both files (the
               # F1 matrix axis became monthly_months {12, 24}, so the model
               # file itself holds 20 fewer parametrised cases than at B0).
-              "tests/engine/test_forecast_timeline_tax.py", "-q"],
-             work_junit=True, floor=240, units="tests",
+              "tests/engine/test_forecast_timeline_tax.py",
+              # plan/2 B5: the working-capital unwind of contract 6.2 joins
+              # this gate (28.3 B5 "command extended"); floor re-measured.
+              "tests/engine/test_forecast_wc_unwind.py", "-q"],
+             work_junit=True, floor=244, units="tests",
              canaries=("test_f1_every_projected_period_closes_to_zero",
                        "test_f1_one_cent_is_enough_to_red_it",
                        "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
@@ -384,6 +387,9 @@ def _engine_gates() -> List[Gate]:
                        # plan/2 B2
                        "test_a_loss_month_then_profit_months_is_taxed_on_the_years_result",
                        "test_every_period_is_charged_the_tax_on_its_year_to_date_result",
+                       # plan/2 B5
+                       "test_agras_receivables_follow_the_unwind_formula_every_month",
+                       "test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change",
                        "test_the_calendar_is_monthly_months_then_one_period_per_plan_year")),
         Gate("forecast-serving-boundary",
              [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
@@ -490,6 +496,57 @@ def _engine_gates() -> List[Gate]:
                        "capped pools per book",
                        "nil pools per book")),
         # ── end plan/2 B4b ───────────────────────────────────────────────
+        # ── plan/2 B5 (plan_contract_v2 28.3 B5): project_plan, the partial
+        # refusal, the unwind, debt timing, the one period reader ─────────
+        # Seven first registrations. Each test prints its own SCOPE line and a
+        # GATE-WORK line; floors are the counts measured at registration,
+        # rounded down. forecast-get-b4-parity is retired by B6 (fp1.2).
+        Gate("forecast-balance",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_levers_f1.py",
+              # the request refusals of 2.3-2.6: a malformed lever must
+              # refuse, never project (33 cases; counted by the canary below)
+              "tests/engine/test_plan_request_validation.py", "-q", "-s", "-rA"],
+             work_rx=r"GATE-WORK forecast-balance units=(\d+)", floor=7000,
+             units="projected periods re-added by the test (base and plan runs)",
+             canaries=("SCOPE forecast-balance (plan/2 B5, gate row F1)",
+                       "run kinds covered: base, plan",
+                       "test_the_wire_body_and_the_dataclass_give_the_same_plan")),
+        Gate("scenario-funding-line",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_funding_line.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-funding-line units=(\d+)", floor=1500,
+             units="period identities (floor, draw, revolver, interest) plus runway cases",
+             canaries=("SCOPE scenario-funding-line (plan/2 B5, contract 6.4-6.6, S3 engine half)",
+                       "ShortfallRefusal cells (6.5)",
+                       "runway annual tail: bracket")),
+        Gate("scenario-cost-behaviour",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_cost_behaviour.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-cost-behaviour units=(\d+)", floor=110,
+             units="cost-of-sales checks under shocks, pool levels, the EBITDA law, refused-split refusals",
+             canaries=("SCOPE scenario-cost-behaviour (plan/2 B5, contract 5.6)",
+                       "law precondition met on")),
+        Gate("forecast-magnitude",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_magnitude_f6.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-magnitude units=(\d+)", floor=20,
+             units="year-one revenue checks with the band rendered from the run",
+             canaries=("SCOPE forecast-magnitude (plan/2 B5, gate row F6 engine half)",
+                       "bands rendered from the run")),
+        Gate("period-loader-parity",
+             [PY, "-m", "pytest", "tests/engine/test_load_period_rows.py", "-q", "-s"],
+             work_rx=r"GATE-WORK period-loader-parity units=(\d+)", floor=20,
+             units="statement keys compared byte for byte, plus the refusal paths",
+             canaries=("SCOPE period-loader-parity (plan/2 B5, contract 1.4)",)),
+        Gate("forecast-get-b4-parity",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_get_b4_parity.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-get-b4-parity units=(\d+)", floor=8,
+             units="GET cells (book x horizon) held to the recorded B4 bytes",
+             canaries=("SCOPE forecast-get-b4-parity (plan/2 B5, contract 28.3 B5)",
+                       "allowed org-row fields ['company_name']")),
+        Gate("forecast-debt-timing",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_debt_timing.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-debt-timing units=(\d+)", floor=30,
+             units="debt movements checked for their period, plus the horizon refusal",
+             canaries=("SCOPE forecast-debt-timing (plan/2 B5, contract 6.7)",)),
+        # ── end plan/2 B5 ────────────────────────────────────────────────
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

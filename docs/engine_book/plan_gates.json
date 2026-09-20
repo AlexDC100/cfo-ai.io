@@ -25,7 +25,13 @@
       "F3"
     ],
     "B4a": [],
-    "B4b": []
+    "B4b": [],
+    "B5": [
+      "F1",
+      "F6",
+      "S1",
+      "S3"
+    ]
   },
   "required_gates": {
     "B0": [
@@ -48,6 +54,15 @@
     ],
     "B4b": [
       "forecast-pools"
+    ],
+    "B5": [
+      "forecast-balance",
+      "scenario-funding-line",
+      "scenario-cost-behaviour",
+      "forecast-magnitude",
+      "period-loader-parity",
+      "forecast-get-b4-parity",
+      "forecast-debt-timing"
     ]
   },
   "gates": [
@@ -222,6 +237,129 @@
         "nil pools per book"
       ],
       "plant_log": "forecast-pools"
+    },
+    {
+      "id": "forecast-balance",
+      "gate": "forecast-balance",
+      "rows": [
+        "F1"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_levers_f1.py",
+        "src/engine/forecast/levers.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-balance (plan/2 B5, gate row F1)",
+        "run kinds covered: base, plan"
+      ],
+      "plant_log": "forecast-balance"
+    },
+    {
+      "id": "scenario-funding-line",
+      "gate": "scenario-funding-line",
+      "rows": [
+        "S3"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_scenario_funding_line.py",
+        "src/engine/forecast/levers.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-funding-line (plan/2 B5, contract 6.4-6.6, S3 engine half)",
+        "ShortfallRefusal cells (6.5)",
+        "runway annual tail: bracket"
+      ],
+      "plant_log": "scenario-funding-line"
+    },
+    {
+      "id": "scenario-cost-behaviour",
+      "gate": "scenario-cost-behaviour",
+      "rows": [
+        "S1"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_scenario_cost_behaviour.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-cost-behaviour (plan/2 B5, contract 5.6)",
+        "law precondition met on"
+      ],
+      "plant_log": "scenario-cost-behaviour"
+    },
+    {
+      "id": "forecast-magnitude",
+      "gate": "forecast-magnitude",
+      "rows": [
+        "F6"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_magnitude_f6.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-magnitude (plan/2 B5, gate row F6 engine half)",
+        "bands rendered from the run"
+      ],
+      "plant_log": "forecast-magnitude"
+    },
+    {
+      "id": "period-loader-parity",
+      "gate": "period-loader-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_load_period_rows.py",
+        "src/engine/api/_forecast_history.py"
+      ],
+      "canaries": [
+        "SCOPE period-loader-parity (plan/2 B5, contract 1.4)"
+      ],
+      "plant_log": "period-loader-parity"
+    },
+    {
+      "id": "forecast-get-b4-parity",
+      "gate": "forecast-get-b4-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_get_b4_parity.py",
+        "tests/engine/fixtures/forecast/get_b4.json"
+      ],
+      "canaries": [
+        "SCOPE forecast-get-b4-parity (plan/2 B5, contract 28.3 B5)",
+        "allowed org-row fields ['company_name']"
+      ],
+      "plant_log": "forecast-get-b4-parity"
+    },
+    {
+      "id": "forecast-debt-timing",
+      "gate": "forecast-debt-timing",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_debt_timing.py",
+        "packs/forecast/levers.yaml"
+      ],
+      "canaries": [
+        "SCOPE forecast-debt-timing (plan/2 B5, contract 6.7)"
+      ],
+      "plant_log": "forecast-debt-timing"
     }
   ]
 }

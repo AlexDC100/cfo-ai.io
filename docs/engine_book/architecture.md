@@ -36,7 +36,7 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (103 modules)"]
+    pkg_api["api (104 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
     pkg_comparatives["comparatives (5 modules)"]
@@ -47,7 +47,7 @@ graph LR
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
-    pkg_forecast["forecast (11 modules)"]
+    pkg_forecast["forecast (13 modules)"]
     pkg_forecast_drivers["forecast_drivers (7 modules)"]
     pkg_forecast_serving["forecast_serving (6 modules)"]
     pkg_frontends["frontends (11 modules)"]
@@ -91,7 +91,7 @@ graph LR
     pkg_api -->|4| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
-    pkg_api -->|1| pkg_forecast
+    pkg_api -->|2| pkg_forecast
     pkg_api -->|1| pkg_forecast_serving
     pkg_api -->|1| pkg_industry
     pkg_api -->|1| pkg_insights
