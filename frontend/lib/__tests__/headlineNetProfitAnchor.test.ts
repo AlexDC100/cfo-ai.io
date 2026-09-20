@@ -69,7 +69,13 @@ interface Served {
 
 function servedBook(book: Book): Served {
   const statements = statementsFor(book);
-  const pl = pickPLBuilder(lineItemsFor(book), statements);
+  // The SAME call shape the dashboard makes — `pickPLBuilder` takes an
+  // options object, and handing it a bare array silently routes to the
+  // aggregates branch instead of the line-item one.
+  const pl = pickPLBuilder(
+    { lineItems: lineItemsFor(book), currency: statements.currency },
+    statements,
+  );
   const apl = statements.assembled_pl ?? {};
   return {
     statements,
