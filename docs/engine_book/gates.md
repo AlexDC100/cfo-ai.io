@@ -5300,8 +5300,24 @@ is not byte-for-byte what the route serves. What it cannot see: the medians
 themselves (`test_benchmarks_ro.py`), and Scandia's own figures — the corpus
 pair is Agras FY2025 / Carniprod FY2024 under CAEN 1011.
 
-TC-10: size-band cut-offs, the minimum peer count and the percentile minimum
-are served in the document (`size_bands`, `min_peers`, `percentile_min_n`);
+### Repair pass, 2026-09-20 (plant I)
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| I | the persisted-metric refusal narrowed back to ROE alone (`and (key != "roe" or _card_states_its_filed_basis(row))`) | `test_sector_benchmark_route_real_app.py::test_no_company_figure_rests_on_a_persisted_metric`, `::test_the_company_side_is_the_ratio_table_the_same_app_serves` | `AssertionError: [('net_margin', 'ratio_table.net_margin', 'metrics.net_margin')]` · `- ratio_table.net_margin` / `+ restated_on_filed_basis` · `2 failed \| 11 passed` |
+
+TC-11, after the repair: (I) reds on any served row whose printed operands
+cite `metrics.` — a number that states no basis, so nothing holds it to the
+account-121 anchor the dashboard prints; on net_margin differing from that
+anchored net income over revenue as the SAME app serves them in
+`GET /api/period`; and on a ratio card keeping its sector band while what the
+card PRINTS is a different number from the filed-basis figure the band was
+positioned against. A card keeps its band by proof, not by provenance:
+`card_agrees` is true only within the served `card_agreement_tolerance`.
+
+TC-10: size-band cut-offs, the minimum peer count, the percentile minimum and
+the card-agreement tolerance are served in the document (`size_bands`,
+`min_peers`, `percentile_min_n`, `card_agreement_tolerance`);
 nothing downstream types them. TC-12 coverage: nine sourced ratio keys, all
 census keys on `ratio_cards` (asserted equal to `CENSUS`). The percentile is
 refused (`quartiles_only`): the dataset holds quartiles, and a percentile
@@ -5339,8 +5355,26 @@ in either language — label, company, median, middle half, n, FY, position.
 ladder gates pin, and on a general ladder labelled "sector" (the same test
 asserts `dio` and `gross_margin` stay general and say why).
 
-TC-10: the size-band cut-offs, the peer minimum, the year and the peer-set
-sentence are interpolated from the served document; the string gate
+### Repair pass, 2026-09-20 (plants J, K)
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| J | the report's `cols` list drops `level`, so a band that fell back to the CAEN division is disclosed on the page and not in the report | `sectorBenchmark.test.tsx::a band that fell back to the CAEN division says so everywhere > the report row carries the division marker, byte-identical to the page` | `AssertionError: net_margin: the report row must carry the division marker: expected null not to be null` · `4 failed \| 17 passed` |
+| K | the ratio tile's `data-band-source` reads the raw served card (`sectorDoc?.ratio_cards?.[engineKey]?.band_source ?? "general"`) instead of the law's door | `ratioCompareTab.test.tsx::ratio tile… > the attribute is the same decision as the sentence, never the raw card` | `AssertionError: net_margin: the hook must not claim what the line does not say: expected 'sector' to be 'general'` · `1 failed \| 42 skipped` |
+
+TC-11, after the repair: (J) reds on a fallback band printed in the report
+without its `level` cell, on a `level` cell whose bytes differ from the page's,
+on a class-level band that prints a marker anyway, and on a card band line that
+names a division number without saying it is a division — in either language.
+(K) reds on the test hook disagreeing with the sentence the reader sees, on any
+served tile, on any document. `orgScopedFetch.test.ts` now also scopes a
+sector-benchmark path, and reds on a raw fetch there that does not build its
+headers with `authOrgHeaders` (`expected [ 'lib/sectorBenchmark.ts' ] to deeply
+equal []`). The wider `/api/period` family is deliberately NOT in scope yet —
+ten further files name it and each needs its own audit.
+
+TC-10: the size-band cut-offs, the peer minimum, the year, the peer-set
+sentence and the CAEN level are interpolated from the served document; the string gate
 (`EN and RO carry the same keys, and no numeral is typed into either`) reds on
 any numeral typed into a `benchmarkPage.sector.*` string in either language.
 TC-12 coverage: every served row, every served `ratio_cards` key, every served
