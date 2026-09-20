@@ -160,6 +160,15 @@ function extreme(points: readonly Plot[], pick: "max" | "min"): Plot | null {
   );
 }
 
+/** The last period the engine served on a line. For a RUNNING TOTAL that is
+ *  the figure the reader is after — the total over the horizon — and it is not
+ *  the extreme, which on a plan that spends cash is merely the least negative
+ *  point on the way down. */
+function lastServed(points: readonly Plot[]): Plot | null {
+  const served = points.filter((p) => p.minor !== null);
+  return served.length ? served[served.length - 1] : null;
+}
+
 export interface ChartProps {
   readonly basePeriodLabel: string;
   readonly format: (value: number) => string;
@@ -488,8 +497,23 @@ export function FreeCashFlowChart({
   const { t } = useTranslation();
   const bars = useMemo(() => plotted(fcf, props.basePeriodLabel), [fcf, props.basePeriodLabel]);
   const line = useMemo(() => plotted(cumulative, props.basePeriodLabel), [cumulative, props.basePeriodLabel]);
-  const s = scaleFor([bars, line], bars.length);
   const barsUntil = grainBreak(bars);
+  /** TWO SERIES, TWO VERTICAL SCALES.
+   *
+   *  A per-period FLOW and a RUNNING TOTAL of that same flow do not share a
+   *  range: by the end of the horizon the cumulative is the sum of every bar,
+   *  so on one domain it sets the top and every bar renders a sliver on the
+   *  axis — the chart read as a flat line. Each gets its own scale, the x band
+   *  is shared so the periods still line up, and the header says so rather than
+   *  leaving a reader to compare two heights that are not comparable.
+   *
+   *  The bar scale is built from the bars that are actually DRAWN. The annual
+   *  points are deliberately not painted (no FY aggregate for `fcf` exists on
+   *  the wire), and letting an undrawn point widen the domain would squash the
+   *  ones that are. */
+  const drawn = bars.filter((p, i) => !(barsUntil >= 0 && i >= barsUntil));
+  const sBars = scaleFor([drawn], bars.length);
+  const sLine = scaleFor([line], bars.length);
   if (!bars.length) return null;
   return (
     <ChartFrame
@@ -509,10 +533,22 @@ export function FreeCashFlowChart({
             props={props}
             testid="forecast-chart-fcf-weakest"
           />
+          <AxisReadout
+            label={t("forecast.chart.overHorizon", "Over the horizon")}
+            plot={lastServed(line)}
+            props={props}
+            testid="forecast-chart-fcf-cumulative"
+          />
         </>
       }
       footer={
         <>
+          <p data-testid="forecast-chart-fcf-scale-note">
+            {t(
+              "forecast.chart.fcfScaleNote",
+              "The bars and the cumulative line are drawn on separate vertical scales: a running total ends at the sum of every bar, so on one scale the bars would be a flat line on the axis. Compare each series with itself, not with the other.",
+            )}
+          </p>
           {barsUntil > 0 ? (
             <p data-testid="forecast-chart-fcf-grain-note">
               {t(
@@ -526,27 +562,32 @@ export function FreeCashFlowChart({
       }
     >
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img">
-        <line x1={PAD_L} y1={s.zero} x2={W - PAD_R} y2={s.zero} className="stroke-rule" strokeWidth="1" />
-        {bars.map((p, i) =>
-          p.minor === null || (barsUntil >= 0 && i >= barsUntil) ? null : (
-            <rect
-              key={p.period}
-              x={PAD_L + s.band * i + s.band * 0.2}
-              y={Math.min(s.zero, s.y(p.minor))}
-              width={s.band * 0.6}
-              height={Math.max(1, Math.abs(s.y(p.minor) - s.zero))}
-              className={p.minor < 0 ? "fill-alert/70" : "fill-caution"}
-            />
-          ),
-        )}
-        <path d={linePath(line, s)} fill="none" className="stroke-brand" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <g data-scale="bars">
+          <line x1={PAD_L} y1={sBars.zero} x2={W - PAD_R} y2={sBars.zero} className="stroke-rule" strokeWidth="1" />
+          {bars.map((p, i) =>
+            p.minor === null || (barsUntil >= 0 && i >= barsUntil) ? null : (
+              <rect
+                key={p.period}
+                data-testid={`forecast-chart-fcf-bar-${p.period}`}
+                x={PAD_L + sBars.band * i + sBars.band * 0.2}
+                y={Math.min(sBars.zero, sBars.y(p.minor))}
+                width={sBars.band * 0.6}
+                height={Math.max(1, Math.abs(sBars.y(p.minor) - sBars.zero))}
+                className={p.minor < 0 ? "fill-alert/70" : "fill-caution"}
+              />
+            ),
+          )}
+        </g>
+        <g data-scale="cumulative">
+          <path d={linePath(line, sLine)} fill="none" className="stroke-brand" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        </g>
         <GrainDivider
           points={bars}
-          s={s}
+          s={sBars}
           monthsLabel={t("forecast.chart.months", "months")}
           yearsLabel={t("forecast.chart.years", "years")}
         />
-        <XAxis points={bars} s={s} />
+        <XAxis points={bars} s={sBars} />
       </svg>
     </ChartFrame>
   );

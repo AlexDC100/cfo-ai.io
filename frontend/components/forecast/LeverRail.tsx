@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  displayBound,
   displayStep,
   displaySuffix,
   displayToWire,
@@ -37,6 +38,9 @@ export interface LeverRailProps {
   readonly edits: readonly LeverEdit[];
   readonly recomputing: boolean;
   readonly error: string | null;
+  /** The lever the engine's refusal NAMES, so the cell the reader must undo is
+   *  marked instead of left to be found by re-reading the sentence. */
+  readonly refusedKey: string | null;
   onChange(key: string, index: number, text: string): void;
   onReset(key: string): void;
   onAdopt(key: string, values: readonly string[]): void;
@@ -69,14 +73,14 @@ function LeverCell({
   index,
   yearLabel,
   served,
-  disabled,
+  refused,
   onChange,
 }: {
   lever: LeverRef;
   index: number;
   yearLabel: string | null;
   served: string;
-  disabled: boolean;
+  refused: boolean;
   onChange: LeverRailProps["onChange"];
 }) {
   const [text, setText] = useState(served);
@@ -84,18 +88,33 @@ function LeverCell({
     setText(served);
   }, [served]);
   return (
-    <label className="flex min-w-0 items-center gap-1 rounded border border-rule px-2 py-1">
+    <label
+      className={`flex min-w-0 items-center gap-1 rounded border px-2 py-1 ${
+        refused ? "border-alert bg-alert/5" : "border-rule"
+      }`}
+    >
       {yearLabel ? (
         <span className="font-mono text-[9px] uppercase tracking-wider text-ink-mute">
           {yearLabel}
         </span>
       ) : null}
+      {/* NOT DISABLED WHILE THE SERVER ANSWERS. The debounce already coalesces
+          keystrokes and a stale answer is dropped by the query key, so the only
+          thing disabling buys is dropped characters: the first keystroke fires
+          the debounce, the field goes dead for the round trip, and "12.5"
+          arrives as "1". In a real browser it also BLURS, because disabling a
+          focused element blurs it. The MIN and MAX are the engine's own served
+          bounds, so the refusal it would answer with is one the control does
+          not let the reader reach in the first place. */}
       <input
         type="number"
         inputMode="decimal"
-        disabled={disabled}
         data-testid={`forecast-lever-input-${lever.key}-${index}`}
+        data-refused={refused ? "true" : undefined}
+        aria-invalid={refused || undefined}
         value={text}
+        min={displayBound(lever, "min")}
+        max={displayBound(lever, "max")}
         step={displayStep(lever)}
         onChange={(e) => {
           setText(e.target.value);
@@ -116,7 +135,8 @@ function LeverRow({
   lever,
   edit,
   years,
-  disabled,
+  busy,
+  refused,
   onChange,
   onReset,
   onAdopt,
@@ -124,7 +144,12 @@ function LeverRow({
   lever: LeverRef;
   edit: LeverEdit | undefined;
   years: readonly string[];
-  disabled: boolean;
+  /** A recompute is in flight. It holds back the controls that replace the
+   *  WHOLE lever in one click — reset and adopt — because a second set queued
+   *  behind the first is a request the reader did not mean to make. It does not
+   *  hold back the number cells. */
+  busy: boolean;
+  refused: boolean;
   onChange: LeverRailProps["onChange"];
   onReset: LeverRailProps["onReset"];
   onAdopt: LeverRailProps["onAdopt"];
@@ -154,6 +179,7 @@ function LeverRow({
           <button
             type="button"
             data-testid={`forecast-lever-reset-${lever.key}`}
+            disabled={busy}
             onClick={() => onReset(lever.key)}
             className="rounded border border-rule px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-ink-mute hover:text-ink"
           >
@@ -179,7 +205,7 @@ function LeverRow({
             index={i}
             yearLabel={count > 1 ? (years[i] ?? String(i + 1)) : null}
             served={cellValue(i)}
-            disabled={disabled}
+            refused={refused}
             onChange={onChange}
           />
         ))}
@@ -203,7 +229,7 @@ function LeverRow({
           <button
             key={alt.tier}
             type="button"
-            disabled={disabled}
+            disabled={busy}
             data-testid={`forecast-lever-adopt-${lever.key}-${alt.tier}`}
             onClick={() => onAdopt(lever.key, alt.values)}
             className="mt-1.5 block text-left text-[11px] leading-snug text-brand hover:underline"
@@ -227,6 +253,7 @@ export function LeverRail({
   edits,
   recomputing,
   error,
+  refusedKey,
   onChange,
   onReset,
   onAdopt,
@@ -287,7 +314,8 @@ export function LeverRail({
             lever={lever}
             edit={editByKey.get(lever.key)}
             years={years}
-            disabled={recomputing}
+            busy={recomputing}
+            refused={refusedKey === lever.key}
             onChange={onChange}
             onReset={onReset}
             onAdopt={onAdopt}

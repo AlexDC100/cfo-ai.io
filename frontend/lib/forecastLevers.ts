@@ -93,6 +93,21 @@ export function wireToDisplay(wire: string | null, lever: LeverRef): string {
   return exactDecimal(scaled, displayFactor(lever));
 }
 
+/** A bound the ENGINE serves, in the displayed unit.
+ *
+ *  The engine refuses a value outside `bounds` by design — `dso_days: 400 is
+ *  outside 0 to 365`. Putting that same bound on the control turns a refusal
+ *  the reader has to read into one the control will not let them reach, and it
+ *  is the engine's own number either way (TC-10): nothing here is typed, the
+ *  wire value is only moved into the unit the cell is shown in. */
+export function displayBound(lever: LeverRef, end: "min" | "max"): string | undefined {
+  const wire = end === "min" ? lever.bounds.minText : lever.bounds.maxText;
+  if (wire === null) return undefined;
+  const scaled = parseDecimal(wire, lever.scale);
+  if (scaled === null) return undefined;
+  return exactDecimal(scaled, displayFactor(lever));
+}
+
 /** The step a control moves in, in the displayed unit. The engine's own
  *  `reach_step`, never a number chosen here (TC-10). */
 export function displayStep(lever: LeverRef): string | undefined {

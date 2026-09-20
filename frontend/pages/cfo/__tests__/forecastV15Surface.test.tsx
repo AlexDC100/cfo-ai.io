@@ -389,3 +389,170 @@ describe("THE PAGE COMPUTES NOTHING — a source scan", () => {
     expect(text.includes("<ProjectedAmount")).toBe(true);
   });
 });
+
+describe("a refused recompute does not take the page away", () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** Drive one lever edit through the pack's own debounce, with the recompute
+   *  answering `answer`. Returns once the POST has been made. */
+  async function editThrough(value: string) {
+    renderPage();
+    await screen.findByTestId("forecast-levers");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fireEvent.change(screen.getByTestId("forecast-lever-input-revenue_growth-0"), {
+      target: { value },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(SERVED.client.debounce_ms + 25);
+    });
+    await waitFor(() => expect(forecastRecompute).toHaveBeenCalled());
+    vi.useRealTimers();
+  }
+
+  it("keeps the last projection the SERVER produced, and says why it did not move", async () => {
+    // The engine refuses a value outside the bounds it serves, by design. That
+    // refusal is the reader having asked a question the plan cannot answer —
+    // it is not the projection ceasing to exist. Before this repair the whole
+    // body unmounted and the only ways back were a horizon switch, which
+    // discards every edit, or a reload.
+    const sentence =
+      "revenue_growth 9.000000 is outside the bounds this engine accepts";
+    forecastRecompute.mockRejectedValue(new Error(sentence));
+    await editThrough("900");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("forecast-recompute-error").textContent).toContain(
+        sentence,
+      ),
+    );
+    for (const id of [
+      "forecast-strip",
+      "forecast-chart-revenue-ebitda",
+      "forecast-chart-cash-curve",
+      "forecast-chart-fcf",
+      "forecast-chart-capex-depreciation",
+      "forecast-levers",
+      "forecast-block-pl",
+    ]) {
+      expect(
+        screen.queryByTestId(id),
+        `${id} was unmounted by a refusal the reader can produce by typing. ` +
+          `A refused recompute leaves the last SERVED projection on screen ` +
+          `with the engine's sentence beside the control that caused it.`,
+      ).not.toBeNull();
+    }
+    // "No projection" is the copy for the FIRST read failing. Saying it here
+    // tells the reader the book cannot be projected, which is false.
+    expect(screen.queryByTestId("forecast-refusal")).toBeNull();
+    // The strip still holds the figures of the projection that WAS produced.
+    expect(
+      screen.getByTestId("forecast-strip-closing-cash").querySelector(
+        '[data-projected="true"]',
+      ),
+    ).not.toBeNull();
+    // And the page says, in its own row, that what is shown is not the edit.
+    expect(screen.getByTestId("forecast-stale-notice")).toBeTruthy();
+    // The offending control is marked, so the reader knows which cell to undo.
+    expect(
+      screen
+        .getByTestId("forecast-lever-input-revenue_growth-0")
+        .getAttribute("data-refused"),
+    ).toBe("true");
+  });
+
+  it("puts the engine's OWN bounds on the control, so the refusal is not the first thing a reader finds", async () => {
+    renderPage();
+    await screen.findByTestId("forecast-levers");
+    const input = screen.getByTestId(
+      "forecast-lever-input-revenue_growth-0",
+    ) as HTMLInputElement;
+    const bounds = SERVED.drivers.revenue_growth.bounds;
+    expect(bounds.min).toBeTruthy();
+    expect(bounds.max).toBeTruthy();
+    // Shown in the DISPLAYED unit, like the value and the step beside them:
+    // a ratio bound of "3.000000" is 300% on screen, never 3.
+    expect(input.min).toBe("-100");
+    expect(input.max).toBe("300");
+    const dso = screen.getByTestId("forecast-lever-input-dso_days-0") as HTMLInputElement;
+    expect(dso.min).toBe("0");
+    expect(dso.max).toBe("365");
+  });
+
+  it("a cell stays typeable while its own recompute is in flight", async () => {
+    // The debounce already coalesces keystrokes and a stale answer is dropped
+    // by the query key. Disabling the field for the round trip drops every
+    // keystroke after the first — and in a real browser it also BLURS the
+    // field, because disabling a focused element blurs it. "12.5" became "1".
+    forecastRecompute.mockImplementation(() => new Promise(() => {}));
+    await editThrough("1");
+    const input = screen.getByTestId(
+      "forecast-lever-input-revenue_growth-0",
+    ) as HTMLInputElement;
+    expect(
+      input.disabled,
+      "the lever cell is disabled while the server answers, so a multi-digit " +
+        "value cannot be typed at normal speed",
+    ).toBe(false);
+    fireEvent.change(input, { target: { value: "12.5" } });
+    expect(input.value).toBe("12.5");
+    // The page still says a recompute is in flight — the rail reports the
+    // state, it just no longer takes the keyboard away to report it.
+    expect(
+      screen.getByTestId("forecast-recompute-state").getAttribute("data-recomputing"),
+    ).toBe("true");
+  });
+
+  it("the buttons that would send a DIFFERENT set are the ones held back", async () => {
+    // Reset and adopt each replace the whole lever in one click, so firing one
+    // mid-flight would queue a second set behind the first. They stay disabled;
+    // the number cells do not. Served over a copy whose revenue growth stands
+    // on `user`, which is what makes the reset control render at all.
+    const edited = JSON.parse(JSON.stringify(SERVED));
+    edited.drivers.revenue_growth.basis.original = {
+      ...edited.drivers.revenue_growth.basis,
+      tier: "macro",
+    };
+    edited.drivers.revenue_growth.basis.tier = "user";
+    forecast.mockResolvedValue(edited);
+    forecastRecompute.mockImplementation(() => new Promise(() => {}));
+    await editThrough("1");
+    expect(
+      (screen.getByTestId("forecast-lever-reset-revenue_growth") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByTestId("forecast-lever-input-revenue_growth-0") as HTMLInputElement)
+        .disabled,
+    ).toBe(false);
+  });
+});
+
+describe("the free-cash-flow chart is readable", () => {
+  it("draws the per-period bars on their own scale, not squashed under the running total", async () => {
+    // A per-period FLOW and a RUNNING TOTAL do not share a range: the
+    // cumulative's last point set the domain and every bar rendered two to
+    // five pixels in a 166 px plot — the chart read as a flat line on the axis.
+    renderPage();
+    const chart = await screen.findByTestId("forecast-chart-fcf");
+    const bars = Array.from(
+      chart.querySelectorAll("rect[data-testid^='forecast-chart-fcf-bar-']"),
+    );
+    expect(bars.length).toBeGreaterThan(0);
+    const heights = bars.map((b) => Number(b.getAttribute("height")));
+    expect(
+      Math.max(...heights),
+      "the tallest free-cash-flow bar is a sliver: the bars are being scaled " +
+        "against the cumulative line's domain instead of their own",
+    ).toBeGreaterThan(40);
+    // The second scale is declared, and labelled with a served figure.
+    expect(chart.querySelector("[data-scale='cumulative']")).not.toBeNull();
+    expect(
+      screen.getByTestId("forecast-chart-fcf-cumulative").querySelector(
+        '[data-projected="true"]',
+      ),
+    ).not.toBeNull();
+    // And the reader is told the two series are not on one vertical scale.
+    expect(screen.getByTestId("forecast-chart-fcf-scale-note").textContent)
+      .toMatch(/scale/i);
+  });
+});

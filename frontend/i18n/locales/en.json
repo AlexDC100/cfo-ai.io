@@ -3104,7 +3104,9 @@
       "refused": "Not served from {{period}}: ",
       "months": "months",
       "years": "years",
-      "fcfBarsNote": "The per-period bars stop where the monthly periods do: this engine serves no financial-year total for free cash flow, and one summed here would be a figure the projection never stated. The cumulative line runs the whole horizon."
+      "fcfBarsNote": "The per-period bars stop where the monthly periods do: this engine serves no financial-year total for free cash flow, and one summed here would be a figure the projection never stated. The cumulative line runs the whole horizon.",
+      "overHorizon": "Over the horizon",
+      "fcfScaleNote": "The bars and the cumulative line are drawn on separate vertical scales: a running total ends at the sum of every bar, so on one scale the bars would be a flat line on the axis. Compare each series with itself, not with the other."
     },
     "strip": {
       "peakFunding": "Peak funding need",
@@ -3145,7 +3147,8 @@
       "showFy": "Show financial years",
       "showMonthly": "Show months of year one",
       "note": "Both grains are served by the engine"
-    }
+    },
+    "stale": "The server would not take that change, so every figure below is still the last projection it produced. Your edit is in the rail; correct it or reset the lever."
   },
   "radar": {
     "eyebrow": "Radar",

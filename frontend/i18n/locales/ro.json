@@ -3128,7 +3128,9 @@
       "refused": "Nu se servește din {{period}}: ",
       "months": "luni",
       "years": "ani",
-      "fcfBarsNote": "Barele pe perioadă se opresc acolo unde se termină lunile: motorul nu servește un total anual pentru fluxul de numerar liber, iar unul însumat aici ar fi o cifră pe care proiecția nu a spus-o niciodată. Linia cumulată merge pe tot orizontul."
+      "fcfBarsNote": "Barele pe perioadă se opresc acolo unde se termină lunile: motorul nu servește un total anual pentru fluxul de numerar liber, iar unul însumat aici ar fi o cifră pe care proiecția nu a spus-o niciodată. Linia cumulată merge pe tot orizontul.",
+      "overHorizon": "Pe tot orizontul",
+      "fcfScaleNote": "Barele și linia cumulată sunt desenate pe scări verticale separate: un total care se adună ajunge la suma tuturor barelor, așa că pe o singură scară barele ar fi o linie dreaptă pe axă. Compară fiecare serie cu ea însăși, nu una cu cealaltă."
     },
     "strip": {
       "peakFunding": "Necesarul maxim de finanțare",
@@ -3169,7 +3171,8 @@
       "showFy": "Arată anii financiari",
       "showMonthly": "Arată lunile primului an",
       "note": "Ambele granulații sunt servite de motor"
-    }
+    },
+    "stale": "Serverul nu a acceptat schimbarea, așa că toate cifrele de mai jos sunt tot ultima proiecție pe care a produs-o. Ce ai scris rămâne în panoul de pârghii; corectează valoarea sau resetează pârghia."
   },
   "radar": {
     "eyebrow": "Radar",

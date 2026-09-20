@@ -486,9 +486,37 @@ export default function Forecast() {
   }, [query.data]);
 
   const ready = view && !("error" in view) ? (view as ProjectionView) : null;
+
+  /** THE LAST PROJECTION THE SERVER ACTUALLY PRODUCED, for this book at this
+   *  horizon.
+   *
+   *  A recompute the engine REFUSES — and it refuses any lever value outside
+   *  the bounds it serves, by design — leaves the query with no data. Dropping
+   *  the whole surface at that moment is the page telling the reader their book
+   *  cannot be projected, which is false: it was projected, they then asked a
+   *  question the plan cannot answer. So the last served projection stays on
+   *  screen, the engine's sentence goes beside the control that caused it, and
+   *  the reader can undo their own edit.
+   *
+   *  Keyed by book AND horizon: a horizon whose FIRST read fails has no earlier
+   *  answer of its own, and showing the other horizon's projection under the
+   *  new horizon's label would be a figure wearing the wrong span. */
+  const answerKey = `${period.id}|${horizon}`;
+  const [lastGood, setLastGood] = useState<{
+    key: string;
+    view: ProjectionView;
+  } | null>(null);
   useEffect(() => {
-    if (ready) leversRef.current = ready.levers;
-  }, [ready]);
+    if (!ready) return;
+    leversRef.current = ready.levers;
+    setLastGood({ key: answerKey, view: ready });
+  }, [ready, answerKey]);
+  const held = lastGood && lastGood.key === answerKey ? lastGood.view : null;
+  const shown = ready ?? held;
+  /** The surface is showing an answer that is NOT the edit the reader has
+   *  made. Said out loud rather than left for them to infer from figures that
+   *  did not move. */
+  const stale = !ready && !!held;
 
   /** THE DEBOUNCE IS THE PACK'S OWN (`client.debounce_ms`), read off the
    *  payload. A number typed here would be a cut-off written as prose. */
@@ -542,6 +570,22 @@ export default function Forecast() {
     // tier it stands on.
     setEdits((prev) => prev.filter((e) => e.key !== key));
   };
+
+  /** The engine's refusal sentence, and the lever it names.
+   *
+   *  The sentence leads with the driver key it would not take
+   *  (`revenue_growth 9.000000 is outside the bounds this engine accepts`), so
+   *  the cell the reader must undo is MEASURED from the engine's own words
+   *  against the levers this payload declares — never guessed from whichever
+   *  field was touched last, which would mark the wrong cell whenever two
+   *  edits settle together. */
+  const recomputeError = query.isError
+    ? ((query.error as Error)?.message ?? null)
+    : null;
+  const refusedLeverKey =
+    recomputeError === null
+      ? null
+      : (leversRef.current.find((l) => recomputeError.includes(l.key))?.key ?? null);
 
   const onAdopt = (key: string, values: readonly string[]) => {
     setEdits((prev) => [
@@ -601,7 +645,11 @@ export default function Forecast() {
         </p>
       ) : null}
 
-      {query.isError ? (
+      {/* "No projection" is the copy for the FIRST read failing — the book
+          could not be projected at all. It is the wrong sentence for a reader
+          who typed a number outside the engine's bounds, so it renders only
+          when there is no served projection to stand on. */}
+      {query.isError && !held ? (
         <div
           data-testid="forecast-refusal"
           className="rounded-xl border border-rule bg-surface px-4 py-3 text-[13px] leading-snug"
@@ -628,18 +676,18 @@ export default function Forecast() {
         </div>
       ) : null}
 
-      {ready ? (
+      {shown ? (
         <ProjectionBody
-          view={ready}
+          view={shown}
           locale={locale}
           projectedLabel={projectedLabel}
           monthly={monthly}
           onToggleMonthly={() => setMonthly((m) => !m)}
           edits={edits}
           recomputing={query.isFetching}
-          recomputeError={
-            query.isError ? ((query.error as Error)?.message ?? null) : null
-          }
+          stale={stale}
+          recomputeError={recomputeError}
+          refusedLeverKey={refusedLeverKey}
           onChange={onChange}
           onReset={onReset}
           onAdopt={onAdopt}
@@ -657,7 +705,9 @@ function ProjectionBody({
   onToggleMonthly,
   edits,
   recomputing,
+  stale,
   recomputeError,
+  refusedLeverKey,
   onChange,
   onReset,
   onAdopt,
@@ -669,7 +719,9 @@ function ProjectionBody({
   onToggleMonthly: () => void;
   edits: readonly LeverEdit[];
   recomputing: boolean;
+  stale: boolean;
   recomputeError: string | null;
+  refusedLeverKey: string | null;
   onChange: (key: string, index: number, text: string) => void;
   onReset: (key: string) => void;
   onAdopt: (key: string, values: readonly string[]) => void;
@@ -723,6 +775,22 @@ function ProjectionBody({
         </div>
       ) : null}
 
+      {/* THE FIGURES BELOW ARE NOT THE EDIT. Said in a row of its own, because
+          a reader who has just typed a number and seen nothing move would
+          otherwise have to work out for themselves which projection they are
+          looking at. */}
+      {stale ? (
+        <p
+          data-testid="forecast-stale-notice"
+          className="rounded border border-alert/40 bg-alert/5 px-4 py-2 text-[12px] leading-snug text-ink"
+        >
+          {t(
+            "forecast.stale",
+            "The server would not take that change, so every figure below is still the last projection it produced. Your edit is in the rail; correct it or reset the lever.",
+          )}
+        </p>
+      ) : null}
+
       <ExecutiveStrip
         view={view}
         format={format}
@@ -762,6 +830,7 @@ function ProjectionBody({
         edits={edits}
         recomputing={recomputing}
         error={recomputeError}
+        refusedKey={refusedLeverKey}
         onChange={onChange}
         onReset={onReset}
         onAdopt={onAdopt}
