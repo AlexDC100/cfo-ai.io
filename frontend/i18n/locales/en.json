@@ -3101,7 +3101,10 @@
       "capexBar": "Capex",
       "depreciation": "Depreciation",
       "signNote": "Both are cash and charge OUT, as the engine signs them",
-      "refused": "Not served from {{period}}: "
+      "refused": "Not served from {{period}}: ",
+      "months": "months",
+      "years": "years",
+      "fcfBarsNote": "The per-period bars stop where the monthly periods do: this engine serves no financial-year total for free cash flow, and one summed here would be a figure the projection never stated. The cumulative line runs the whole horizon."
     },
     "strip": {
       "peakFunding": "Peak funding need",

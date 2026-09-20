@@ -31,6 +31,15 @@
 // satisfying its purpose; `check_forecast_boundary.mjs` names that as a blind
 // spot it cannot see, and choosing it would be choosing to sit in the hole.
 //
+// ── TWO SERIES, TWO COLOURS THAT SURVIVE THE THEME ──────────────────────
+//
+// `brand-2` is NOT a class in this palette — the tokens are `accent2` / `gold`
+// — so `stroke-brand-2` was a silent no-op and the bars painted black. And
+// `gold` itself resolves to `--brand-2`, which in the dark palette is a second
+// TEAL: the second series came out in the first series' colour. Categories are
+// `brand` and `caution`, which differ in hue in both themes. `alert` is held
+// back for the funding band and the trough and is never a category.
+//
 // ── INLINE SVG, NOT A CHART LIBRARY ─────────────────────────────────────
 //
 // The house idiom for a financial trend render (`pages/cfo/MultiYearHistory
@@ -212,6 +221,45 @@ function ChartFrame({
   );
 }
 
+/** The index of the first ANNUAL period, or -1 when every point is one grain.
+ *
+ *  `series` is served over the months of plan year one and then over the
+ *  annual periods. A month and a year are not the same length, so the step
+ *  where the grain changes is drawn and labelled rather than left to read as
+ *  growth. The flow charts avoid the question entirely by standing on the
+ *  engine's own FY aggregates; the CASH chart keeps every served point
+ *  because cash is a level, not a total over a length. */
+function grainBreak(points: readonly Plot[]): number {
+  return points.findIndex((p) => !/^\d{4}-\d{2}$/.test(p.period));
+}
+
+function GrainDivider({
+  points,
+  s,
+  monthsLabel,
+  yearsLabel,
+}: {
+  points: readonly Plot[];
+  s: Scale;
+  monthsLabel: string;
+  yearsLabel: string;
+}) {
+  const at = grainBreak(points);
+  if (at <= 0 || at >= points.length) return null;
+  const x = PAD_L + s.band * at;
+  return (
+    <g data-testid="forecast-chart-grain-break">
+      <line x1={x} y1={PAD_T} x2={x} y2={PAD_T + INNER_H} className="stroke-rule" strokeDasharray="3 3" />
+      <text x={x - 4} y={PAD_T + 9} textAnchor="end" fontSize="8" className="fill-ink-mute font-mono">
+        {monthsLabel}
+      </text>
+      <text x={x + 4} y={PAD_T + 9} textAnchor="start" fontSize="8" className="fill-ink-mute font-mono">
+        {yearsLabel}
+      </text>
+    </g>
+  );
+}
+
 /** X labels thin out on a narrow screen by rendering every other one; the
  *  first and last always render, so the span is never ambiguous. */
 function XAxis({ points, s }: { points: readonly Plot[]; s: Scale }) {
@@ -309,7 +357,7 @@ export function RevenueEbitdaChart({
       legend={
         <>
           <Swatch className="bg-brand" label={t("forecast.chart.revenue", "Revenue")} />
-          <Swatch className="bg-brand-2" label={t("forecast.chart.ebitda", "EBITDA")} />
+          <Swatch className="bg-caution" label={t("forecast.chart.ebitda", "EBITDA")} />
           <AxisReadout
             label={t("forecast.chart.peak", "Peak")}
             plot={extreme(rev, "max")}
@@ -323,7 +371,7 @@ export function RevenueEbitdaChart({
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img">
         <line x1={PAD_L} y1={s.zero} x2={W - PAD_R} y2={s.zero} className="stroke-rule" strokeWidth="1" />
         <path d={linePath(rev, s)} fill="none" className="stroke-brand" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        <path d={linePath(eb, s)} fill="none" className="stroke-brand-2" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <path d={linePath(eb, s)} fill="none" className="stroke-caution" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         <XAxis points={rev} s={s} />
       </svg>
     </ChartFrame>
@@ -415,6 +463,12 @@ export function CashCurveChart({
             className="fill-alert"
           />
         ) : null}
+        <GrainDivider
+          points={cash}
+          s={s}
+          monthsLabel={t("forecast.chart.months", "months")}
+          yearsLabel={t("forecast.chart.years", "years")}
+        />
         <XAxis points={cash} s={s} />
       </svg>
     </ChartFrame>
@@ -435,6 +489,7 @@ export function FreeCashFlowChart({
   const bars = useMemo(() => plotted(fcf, props.basePeriodLabel), [fcf, props.basePeriodLabel]);
   const line = useMemo(() => plotted(cumulative, props.basePeriodLabel), [cumulative, props.basePeriodLabel]);
   const s = scaleFor([bars, line], bars.length);
+  const barsUntil = grainBreak(bars);
   if (!bars.length) return null;
   return (
     <ChartFrame
@@ -446,7 +501,7 @@ export function FreeCashFlowChart({
       })}
       legend={
         <>
-          <Swatch className="bg-brand-2" label={t("forecast.chart.perPeriod", "Per period")} />
+          <Swatch className="bg-caution" label={t("forecast.chart.perPeriod", "Per period")} />
           <Swatch className="bg-brand" label={t("forecast.chart.cumulative", "Cumulative")} />
           <AxisReadout
             label={t("forecast.chart.weakest", "Weakest")}
@@ -456,23 +511,41 @@ export function FreeCashFlowChart({
           />
         </>
       }
-      footer={<RefusedNote points={bars} />}
+      footer={
+        <>
+          {barsUntil > 0 ? (
+            <p data-testid="forecast-chart-fcf-grain-note">
+              {t(
+                "forecast.chart.fcfBarsNote",
+                "The per-period bars stop where the monthly periods do: this engine serves no financial-year total for free cash flow, and one summed here would be a figure the projection never stated. The cumulative line runs the whole horizon.",
+              )}
+            </p>
+          ) : null}
+          <RefusedNote points={bars} />
+        </>
+      }
     >
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" role="img">
         <line x1={PAD_L} y1={s.zero} x2={W - PAD_R} y2={s.zero} className="stroke-rule" strokeWidth="1" />
         {bars.map((p, i) =>
-          p.minor === null ? null : (
+          p.minor === null || (barsUntil >= 0 && i >= barsUntil) ? null : (
             <rect
               key={p.period}
               x={PAD_L + s.band * i + s.band * 0.2}
               y={Math.min(s.zero, s.y(p.minor))}
               width={s.band * 0.6}
               height={Math.max(1, Math.abs(s.y(p.minor) - s.zero))}
-              className={p.minor < 0 ? "fill-alert/70" : "fill-brand-2"}
+              className={p.minor < 0 ? "fill-alert/70" : "fill-caution"}
             />
           ),
         )}
         <path d={linePath(line, s)} fill="none" className="stroke-brand" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <GrainDivider
+          points={bars}
+          s={s}
+          monthsLabel={t("forecast.chart.months", "months")}
+          yearsLabel={t("forecast.chart.years", "years")}
+        />
         <XAxis points={bars} s={s} />
       </svg>
     </ChartFrame>

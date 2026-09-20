@@ -685,6 +685,18 @@ function ProjectionBody({
     projectedLabel,
   };
   const fyColumns = planYearLabels(view.horizon, view.horizonAnnual);
+  /** A FLOW at the financial-year grain, read from the engine's own
+   *  `projected_aggregate` rows.
+   *
+   *  Revenue, EBITDA, capex and depreciation are TOTALS OVER A LENGTH, and
+   *  `series` serves them over the months of plan year one and then over the
+   *  annual periods. Drawn on one axis, a month beside a year steps twelvefold
+   *  and reads as explosive growth — every figure true, the picture false. The
+   *  engine serves an FY aggregate for each of these lines, so the chart reads
+   *  those instead. This is a SELECTION of served figures, not a sum: a browser
+   *  adding twelve months would be stating a total the projection never did. */
+  const fyFlow = (line: string) =>
+    fyColumns.map((period) => ({ period, result: view.figure(line, period) }));
   // The monthly view is only offered when the engine actually served months.
   const hasMonths = view.horizon.some((p) => /^\d{4}-\d{2}$/.test(p));
   const columns = monthly && hasMonths ? view.horizon : fyColumns;
@@ -719,8 +731,8 @@ function ProjectionBody({
 
       <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
         <RevenueEbitdaChart
-          revenue={view.series("revenue")}
-          ebitda={view.series("ebitda")}
+          revenue={fyFlow("pl.revenue")}
+          ebitda={fyFlow("pl.ebitda")}
           {...chartProps}
         />
         <CashCurveChart
@@ -737,8 +749,8 @@ function ProjectionBody({
           {...chartProps}
         />
         <CapexDepreciationChart
-          capex={view.series("capex")}
-          depreciation={view.series("depreciation")}
+          capex={fyFlow("cf.capital_expenditure")}
+          depreciation={fyFlow("pl.depreciation")}
           {...chartProps}
         />
       </div>

@@ -116,16 +116,40 @@ describe("the executive strip", () => {
 });
 
 describe("the charts", () => {
-  it("render from the served series, each stating the grain it is on", async () => {
+  it("render from served figures, each stating the grain it is on", async () => {
     renderPage();
     for (const id of ["revenue-ebitda", "cash-curve", "fcf", "capex-depreciation"]) {
       const chart = await screen.findByTestId(`forecast-chart-${id}`);
       expect(chart.querySelector("svg")).not.toBeNull();
-      // The charts are on the SERVED period grain and the table defaults to FY
-      // columns. Two grids over one plan; the reader is told which.
-      const grain = within(chart).getByTestId(`forecast-chart-grain-${id}`);
-      expect(grain.textContent).toContain(SERVED.series.revenue[0].period);
+      expect(within(chart).getByTestId(`forecast-chart-grain-${id}`).textContent)
+        .toBeTruthy();
     }
+    // A FLOW is a total over a length, so the two flow charts stand on the
+    // engine's own FY aggregates — a month beside a year on one axis steps
+    // twelvefold and reads as growth that is not there.
+    expect(
+      screen.getByTestId("forecast-chart-grain-revenue-ebitda").textContent,
+    ).toContain(SERVED.horizon.labels_annual[0]);
+    expect(
+      screen.getByTestId("forecast-chart-grain-capex-depreciation").textContent,
+    ).toContain(SERVED.horizon.labels_annual[0]);
+    // CASH is a level and is comparable at either grain, so it keeps every
+    // served point — with the step where the grain changes drawn and labelled.
+    expect(
+      screen.getByTestId("forecast-chart-grain-cash-curve").textContent,
+    ).toContain(SERVED.series.closing_cash[0].period);
+    expect(document.querySelectorAll("[data-testid='forecast-chart-grain-break']").length)
+      .toBeGreaterThan(0);
+  });
+
+  it("free cash flow bars stop where the served monthly periods do", async () => {
+    // There is no FY aggregate for `fcf` on the wire and summing twelve months
+    // in the browser would state a total the projection never did. The bars
+    // stop, the note says why, and the cumulative line runs the horizon.
+    renderPage();
+    await screen.findByTestId("forecast-chart-fcf");
+    expect(screen.getByTestId("forecast-chart-fcf-grain-note").textContent)
+      .toMatch(/no financial-year total/i);
   });
 
   it("the chart readouts carry the marker too", async () => {

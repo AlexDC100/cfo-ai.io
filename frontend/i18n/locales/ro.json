@@ -3125,7 +3125,10 @@
       "capexBar": "Investiții",
       "depreciation": "Amortizare",
       "signNote": "Ambele ies din numerar și din rezultat, cu semnul dat de motor",
-      "refused": "Nu se servește din {{period}}: "
+      "refused": "Nu se servește din {{period}}: ",
+      "months": "luni",
+      "years": "ani",
+      "fcfBarsNote": "Barele pe perioadă se opresc acolo unde se termină lunile: motorul nu servește un total anual pentru fluxul de numerar liber, iar unul însumat aici ar fi o cifră pe care proiecția nu a spus-o niciodată. Linia cumulată merge pe tot orizontul."
     },
     "strip": {
       "peakFunding": "Necesarul maxim de finanțare",
