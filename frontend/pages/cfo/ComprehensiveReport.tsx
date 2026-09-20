@@ -101,6 +101,7 @@ function sumOf(...parts: Array<number | null | undefined>): number | undefined {
   return total;
 }
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
+import { ratioLabelForKey } from "@/lib/ratioTable";
 import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
 import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
@@ -1226,7 +1227,12 @@ function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
     {
       title: "Coverage",
       rows: [
-        ["Interest coverage", mult(m("interest_coverage"))],
+        // The name comes from the ONE label authority (ratioTable.ts), so
+        // the basis — EBIT / interest — prints here as it does on the tab,
+        // the exports and the workbook. A bare "Interest coverage" beside
+        // a figure whose definition was revised states no basis at all.
+        [ratioLabelForKey("interest_coverage") ?? "Interest coverage (EBIT / interest)",
+          mult(m("interest_coverage"))],
       ],
     },
     {

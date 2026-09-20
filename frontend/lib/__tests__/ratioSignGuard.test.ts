@@ -204,7 +204,7 @@ describe("D3 — a negative denominator never earns a grade", () => {
 
 describe("D3 — the printed export, on the book that was wrong", () => {
   it("realestate: Debt / EBITDA states its figure and withholds its verdict", () => {
-    const card = cardNamed(exportDoc("realestate"), "Debt / EBITDA");
+    const card = cardNamed(exportDoc("realestate"), "Debt to EBITDA");
     expect(
       card.meta,
       `the printed card still grades leverage on a book whose EBITDA is negative: ` +
@@ -225,7 +225,7 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     // draw — asserted here rather than assumed, because a track built
     // from a SECOND copy of the bands would reappear silently.
     const doc = exportDoc("realestate");
-    for (const label of ["Debt / EBITDA", "Gross Margin"]) {
+    for (const label of ["Debt to EBITDA", "Gross margin"]) {
       const card = Array.from(doc.querySelectorAll(".ratio-card")).find(
         (c) => (c.querySelector(".label")?.textContent ?? "").trim() === label,
       );
@@ -238,13 +238,13 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     }
     // Non-vacuity: a graded row on the same page still draws one.
     const graded = Array.from(doc.querySelectorAll(".ratio-card")).find(
-      (c) => (c.querySelector(".label")?.textContent ?? "").trim() === "Debt / Equity",
+      (c) => (c.querySelector(".label")?.textContent ?? "").trim() === "Debt to equity",
     );
     expect(graded!.querySelector("svg.chart")).not.toBeNull();
   });
 
   it("realestate: Gross Margin states 100.0% and says why it is not a grade", () => {
-    const card = cardNamed(exportDoc("realestate"), "Gross Margin");
+    const card = cardNamed(exportDoc("realestate"), "Gross margin");
     expect(card.value).toBe("100.0%");
     expect(card.meta).not.toMatch(GRADE_WORDS);
     expect(card.meta).toMatch(/cost of sales of RON 0/);
@@ -264,9 +264,9 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     // The guard must not become a way to make a bad book look quiet.
     const doc = exportDoc("realestate");
     for (const label of [
-      "Interest Coverage (EBITDA / Interest)",
-      "DSCR (interest + ST debt)",
-      "Net Margin",
+      "Interest coverage (EBIT / interest)",
+      "Debt service coverage",
+      "Net margin",
     ]) {
       expect(cardNamed(doc, label).meta, label).toContain("Critical");
     }

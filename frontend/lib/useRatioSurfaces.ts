@@ -1,0 +1,126 @@
+// What the dashboard page feeds its ratio surfaces, decided in ONE place.
+//
+// FinancialStatements.tsx hands four RatioCompareCtx providers (the Ratios
+// tab, both hero footers, the Risks tab), the credit readers and the
+// exports their inputs. Those inputs used to be four memos inline in the
+// page, where nothing but tsc read them: the provider could be handed
+// null, the view built from nothing, or the export handed no served
+// document, with every ratio gate green (the complete-and-unreachable
+// class). They live here so the join is a function a test runs over the
+// served fixture (ratioCompareTab.test.tsx, G9), and the page's use of it
+// is held by a source gate in the same file.
+//
+// Nothing is computed: the served comparatives fetch is sorted into a
+// document, a refusal, a failure or a pending request, and each served
+// block is handed on as served.
+
+import { useMemo } from "react";
+
+import type { ExportComparisonState, Statements } from "@/lib/financialReport";
+import {
+  statementsForExportOf,
+  type ComparativesFetch,
+  type ComparativesResponse,
+  type StatementsForExport,
+} from "@/lib/comparatives";
+import {
+  buildRatioCompareView,
+  readRatioTable,
+  servedCreditEnvelopes,
+  type RatioCompareView,
+  type ServedCreditEnvelopes,
+} from "@/lib/ratioCompareView";
+
+/** The fields of the comparatives query result this module reads (a
+ *  @tanstack/react-query `useQuery` result satisfies it). */
+export interface ComparativesQueryState {
+  data?: ComparativesFetch | undefined;
+  isError?: boolean;
+}
+
+export interface RatioSurfaceInputs {
+  /** GET /api/period `assembled_metrics`, verbatim. */
+  assembledMetrics: unknown;
+  statements: Statements | null;
+  metricsByName: Record<string, number | null>;
+  /** The current period's own label, for a view no comparison names. */
+  currentLabel: string;
+  /** The period the comparison is FOR, and the prior requested for it
+   *  (null: comparatives off or no earlier period). */
+  periodId: string | null;
+  priorId: string | null;
+  comparatives: ComparativesQueryState;
+}
+
+export interface RatioSurfaces {
+  /** The served comparatives document, or null. */
+  cmpDoc: ComparativesResponse | null;
+  /** The engine's refusal of the comparison, or null. */
+  cmpRefused: { code: string; message: string } | null;
+  /** The view every RatioCompareCtx provider on the page is handed. */
+  ratioCompareView: RatioCompareView | null;
+  /** What the Export tab hands the report and the workbook. */
+  statementsForExport: StatementsForExport | null;
+  /** The credit envelopes the hero, the Risks tab and the exports read. */
+  creditEnvelopes: ServedCreditEnvelopes;
+}
+
+export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
+  const data = input.comparatives.data;
+  const cmpDoc = data?.kind === "ok" ? data.data : null;
+  const cmpRefused = data?.kind === "refused" ? { code: data.code, message: data.message } : null;
+  const requested = input.priorId !== null && input.periodId !== null && input.priorId !== input.periodId;
+  const failure =
+    !requested
+      ? null
+      : data?.kind === "error"
+        ? { status: data.status }
+        : data === undefined && input.comparatives.isError === true
+          ? { status: 0 }
+          : null;
+  // The outcome the exports are built under, when no document is served:
+  // the refusal, the failure, or a request not yet answered. The report
+  // and the workbook print it in every prior-dependent cell (never "no
+  // prior period was supplied" while the tab states the refusal).
+  const comparisonOutcome: ExportComparisonState | null = cmpRefused
+    ? { kind: "refused", code: cmpRefused.code, message: cmpRefused.message }
+    : failure
+      ? { kind: "failed", status: failure.status }
+      : requested && data === undefined
+        ? { kind: "pending" }
+        : null;
+  const ratioCompareView = buildRatioCompareView({
+    periodTable: readRatioTable(input.assembledMetrics),
+    comparativesDoc: cmpDoc,
+    refusal: cmpRefused ? { message: cmpRefused.message } : null,
+    requested,
+    failure,
+    currentLabel: input.currentLabel,
+  });
+  return {
+    cmpDoc,
+    cmpRefused,
+    ratioCompareView,
+    statementsForExport: statementsForExportOf(input.statements, cmpDoc, comparisonOutcome),
+    creditEnvelopes: servedCreditEnvelopes(input.assembledMetrics, input.statements, input.metricsByName),
+  };
+}
+
+export function useRatioSurfaces(input: RatioSurfaceInputs): RatioSurfaces {
+  const { assembledMetrics, statements, metricsByName, currentLabel, periodId, priorId } = input;
+  const data = input.comparatives.data;
+  const isError = input.comparatives.isError === true;
+  return useMemo(
+    () =>
+      ratioSurfacesOf({
+        assembledMetrics,
+        statements,
+        metricsByName,
+        currentLabel,
+        periodId,
+        priorId,
+        comparatives: { data, isError },
+      }),
+    [assembledMetrics, statements, metricsByName, currentLabel, periodId, priorId, data, isError],
+  );
+}

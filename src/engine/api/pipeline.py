@@ -76,6 +76,7 @@ from engine.ai_lane import routes as _ai_lane_routes
 # (RomaniaPack.assemble_parsed_tb) stamps with, so the served and
 # offline `assembled_pl` can never carry different field sets.
 from engine.core import net_income_anchor as _net_income_anchor
+from engine.ratios import credit_boundary as _credit_boundary
 from engine.ratios import credit_model as _credit_model
 # sv1 FACTS GATEWAY — the ONE typed reader of served (reconciliation-
 # adjusted) balance-sheet truth. Every totals-level read in this module
@@ -2090,7 +2091,9 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
 # `compositeToGrade()` in `CreditScoreCard.tsx` mirrors those rungs;
 # `tests/engine/test_credit_ladder_single_source.py` reds on a second
 # literal copy anywhere in this module or in `engine/ratios/`.
-def _composite_to_letter_grade(composite: float) -> str:
+def _composite_to_letter_grade(composite: Optional[float]) -> Optional[str]:
+    # None for a null, non-finite or out-of-range composite (R-RANGE): a
+    # letter is never minted from a score the model did not validly produce.
     return _credit_model.composite_to_letter_grade(composite)
 
 
@@ -3101,9 +3104,12 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         "briefing_facts": briefing_facts,
         "balance_sheet": assembled["statements"]["balanceSheet"],
         "income_statement": assembled["statements"]["incomeStatement"],
+        # The narrator is a SURFACE (R-RANGE, absolute): persisted credit
+        # rows reach it only under the law - a filed Z'' 1584.89 handed to
+        # the model becomes a sentence about the company.
         "metrics": [
             {"name": m["name"], "value": m["value"], "unit": m["unit"], "direction": m["direction"]}
-            for m in metrics
+            for m in _credit_boundary.enforce_metric_rows(metrics, assembled["statements"])
         ],
         # Server-computed valuation. Briefing must reference equity_p50 and never
         # invent a different headline number. See VALUATION FRAMING in system.
@@ -7465,6 +7471,15 @@ def build_router() -> APIRouter:
         # here at read time from data already on the response (no new
         # math, no new persistence).
         _m_by_name = {m["name"]: m for m in (metrics or [])}
+        # THE CREDIT CONTENT IS COMPOSED AND CHECKED AT THE SERVING BOUNDARY
+        # (engine.ratios.credit_boundary, owner 2026-09-20). This route hands
+        # the boundary the PERSISTED rows untouched; when the serve-time
+        # model below does not replace the credit block, the boundary
+        # composes the `basis: as_filed` envelope under the whole law
+        # (range, the model's own domain, no composite beside a refused
+        # component, a pack that cannot be read) at the moment the body
+        # leaves - so no fallback on this route can serve an unchecked
+        # figure. Nothing credit-family is read here.
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
             return None if row is None else row.get("value")
@@ -7514,42 +7529,10 @@ def build_router() -> APIRouter:
                 },
             },
             "bands": statements.get("assembled_bands"),
-            "credit": {
-                "altman_z_score":            _m("altman_z_score"),
-                "altman_variant":            "Z\"",
-                "altman_components": {
-                    "x1": _m("altman_x1"),
-                    "x2": _m("altman_x2"),
-                    "x3": _m("altman_x3"),
-                    "x4": _m("altman_x4"),
-                },
-                "composite_score":           _m("credit_composite"),
-                # F1.h — letter grade emitted as a canonical field on the
-                # envelope so the FE can be a pure reader (no FE-side
-                # mapping). Uses the same _composite_to_letter_grade helper
-                # as stage_compute, so engine logging and envelope agree.
-                "letter_grade": (
-                    None if _m("credit_composite") is None
-                    else _composite_to_letter_grade(float(_m("credit_composite")))
-                ),
-                # The rungs the letter above was read off — the same
-                # `CREDIT_LETTER_LADDER`, served, never a second copy.
-                "letter_grade_bands": _credit_model.letter_grade_bands(),
-                # The one weights table the composite multiplies by.
-                "composite_weights": dict(_credit_model.CREDIT_COMPOSITE_WEIGHTS),
-                # Until the serve-time model below replaces this block,
-                # these are the PERSISTED rows, and say so.
-                "basis": "as_filed",
-                "subscores": {
-                    "altman":        _m("credit_subscore_altman"),
-                    "profitability": _m("credit_subscore_profitability"),
-                    "leverage":      _m("credit_subscore_leverage"),
-                    "coverage":      _m("credit_subscore_coverage"),
-                    "dscr":          _m("credit_subscore_dscr"),
-                    "liquidity":     _m("credit_subscore_liquidity"),
-                    "equity":        _m("credit_subscore_equity"),
-                },
-            },
+            # A stub: `credit_boundary.enforce_credit_boundary` composes the
+            # as-filed envelope from `metrics` + `statements` on the way out
+            # (or the serve-time model replaces this block below).
+            "credit": {"basis": "as_filed"},
             "piotroski": statements.get("assembled_piotroski"),
             # `valuation` is deferred to F1.j (new override endpoint) —
             # the existing `valuation` key on the response carries the
@@ -7642,26 +7625,22 @@ def build_router() -> APIRouter:
                 and _serve_rows is not None):
             served_metric_rows, credit_metrics_as_filed = _credit_model.serve_credit_rows(
                 metrics or [], _serve_rows)
-            _cb = ratio_table_block["credit"]
-            _alt = _cb.get("altman") or {}
-            assembled_metrics_envelope["credit"] = {
-                "altman_z_score": _alt.get("z"),
-                "altman_variant": "Z\"",
-                "altman_components": {x: _alt.get(x) for x in ("x1", "x2", "x3", "x4")},
-                "altman_zone": _alt.get("zone"),
-                "composite_score": _cb.get("composite"),
-                "letter_grade": _cb.get("letter"),
-                "letter_grade_bands": _cb.get("ladder"),
-                "composite_weights": _cb.get("weights"),
-                "subscores": _cb.get("subscores"),
-                "credit_model_revision": _cb.get("revision"),
-                "basis": "serve",
-                "reason": _cb.get("reason"),
-                "as_filed": _cb.get("as_filed"),
-                "as_filed_differs": _cb.get("as_filed_differs"),
-            }
+            assembled_metrics_envelope["credit"] = _credit_model.serve_credit_envelope(
+                ratio_table_block["credit"])
+            # The typed ratios block was composed from the PERSISTED rows
+            # above. A definition-revised row (interest_coverage: EBITDA
+            # basis as filed before 2026-09-19, EBIT since) must carry the
+            # figure `metrics[]` and `ratio_table` carry — one key, one
+            # value, on every surface of this body.
+            _served_by_name = {m.get("name"): m.get("value") for m in served_metric_rows}
+            for _group in assembled_metrics_envelope["ratios"].values():
+                if not isinstance(_group, dict):
+                    continue
+                for _name in _credit_model.DEFINITION_REVISED_METRICS:
+                    if _name in _group:
+                        _group[_name] = _served_by_name.get(_name)
 
-        return {
+        _period_body = {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract
             # extensions (assembled_metrics envelope, ratio expansion,
             # bands, piotroski, F1.a/b/c canonical extras). v2.1 = F1.e
@@ -7801,6 +7780,10 @@ def build_router() -> APIRouter:
             # should switch to the canonical replacements before sunset.
             "deprecated_fields": _deprecated_fields_for_response(),
         }
+        # THE CHOKEPOINT: the credit content of this body is composed (the
+        # unswitched period) and read against the pack ranges HERE, as it
+        # leaves - whichever branch above produced it.
+        return _credit_boundary.enforce_credit_boundary(_period_body, surface="period")
 
     @router.get("/api/period/{period_id}/comparatives")
     def get_period_comparatives(
@@ -7829,10 +7812,19 @@ def build_router() -> APIRouter:
             with _supabase.per_user(jwt) as client:
                 cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
                 pri_row = _cmp.load_period_in_org(client, prior, org_id=org_id)
+                # The workspace's CAEN, from its ONE authority (ruling Q6):
+                # without it the band findings' company profile is inferred
+                # from the account mix alone, while the Capsule, Radar and
+                # the firm lane all qualify the same company by its code.
+                # Fails open to None, as `caen_for_org` documents.
+                caen = _org.caen_for_org(client, org_id)
             cur_payload = get_period(period_id, authorization)
             pri_payload = get_period(prior, authorization)
-            return _cmp.compare_payloads(
-                cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row)
+            return _credit_boundary.enforce_credit_boundary(
+                _cmp.compare_payloads(
+                    cur_payload, pri_payload, current_row=cur_row, prior_row=pri_row,
+                    caen=caen),
+                surface="comparatives")
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
 

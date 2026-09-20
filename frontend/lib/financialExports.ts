@@ -15,18 +15,35 @@
 import * as XLSX from "xlsx";
 import {
   canonicalBsSectionMeta,
-  computeRatios,
+  exportRatioBundle,
   deriveTotals,
   generateRecommendations,
   formatRatio,
-  verdictLabel,
+  ratioBadgeLabel,
   altmanRatio,
   renderReportHtml,
   reportChartBlocks,
   VERDICT_UNAVAILABLE_NOTE,
   saveHtmlReport,
+  ALTMAN_RATIO_KEY,
+  RATIO_CMP_EXPORT_LOCALE,
+  printedRatioCells,
+  printRatioCompareRow,
+  priorColumnHeading,
+  priorRatioAbsence,
+  ratioRowAbsence,
+  ratioCompareHeadings,
+  servedMovableRows,
+  servedRatioComparison,
+  servedRatioKey,
+  servedRatioLabel,
   type Statements,
 } from "./financialReport";
+// The band-movement headline, read off the served two-period table — the
+// SAME model the report's executive summary renders, so the workbook's
+// improved / deteriorated lists cannot differ from the document's.
+import { buildBandMovements } from "./executiveSummary";
+import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // servedFacts gateway — BS totals + the balance-status wording. The Excel
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
@@ -34,7 +51,7 @@ import { factsFrom } from "./servedFacts";
 // ONE sentence for "there is nothing to compare against", shared with
 // the report model — so the workbook and the printed document cannot
 // describe the same absence two different ways.
-import { NO_COMPARATIVE_CELL, NO_COMPARATIVES_NOTE } from "./reportComparatives";
+import { NO_COMPARATIVE_CELL } from "./reportComparatives";
 import {
   computeCostOfCapital,
   computeCreditScore,
@@ -109,7 +126,9 @@ export function buildExcelWorkbook(
   // A "Critical" interest-coverage verdict that exists only in the file
   // the user forwards. The map is threaded through, so the sheet quotes
   // the engine wherever the engine spoke — exactly as the screen does.
-  const ratios = computeRatios(s, undefined, envelopes?.metricsByName);
+  // …and, with a served two-period table, every row it carries is read off
+  // the served current side, as the document's cards are.
+  const ratios = exportRatioBundle(s, envelopes?.metricsByName);
   const recs = generateRecommendations(s, ratios);
   const cf = deriveCashFlow(s);
   const wacc = computeCostOfCapital(s);
@@ -214,7 +233,7 @@ export function buildExcelWorkbook(
     // header made the whole column ambiguous before a single cell was
     // read; the sentence says the column is empty because there is no
     // period behind it, not because nothing moved.
-    ["Profit & Loss", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
+    ["Profit & Loss", s.periodLabel, priorColumnHeading(s), "Δ Abs", "Δ %"],
     plRow("Revenue", s.incomeStatement.revenue, priorIs?.revenue),
     plRow("Cost of goods sold", -s.incomeStatement.costOfGoodsSold, priorIs ? -priorIs.costOfGoodsSold : undefined),
     plRow("Gross profit", t.grossProfit, priorT?.grossProfit),
@@ -330,7 +349,7 @@ export function buildExcelWorkbook(
     const bs = s.balanceSheet;
     const bsP = s.prior?.balanceSheet;
     const bsRows: (string | number)[][] = [
-      ["Balance Sheet", s.periodLabel, s.prior?.periodLabel ?? NO_COMPARATIVES_NOTE, "Δ Abs", "Δ %"],
+      ["Balance Sheet", s.periodLabel, priorColumnHeading(s), "Δ Abs", "Δ %"],
       plRow("Cash & equivalents", bs.cash, bsP?.cash),
       plRow("Accounts receivable", bs.accountsReceivable, bsP?.accountsReceivable),
       plRow("Inventory", bs.inventory, bsP?.inventory),
@@ -362,8 +381,41 @@ export function buildExcelWorkbook(
   }
 
   // ─ Ratios ────────────────────────────────────────────────────────────────
+  //
+  // THE SIX COLUMNS — [current] [prior] [Δ] [band now] [band prior] [band
+  // movement] — read off the served two-period table and printed by the one
+  // formatter, the same cells the report's cards print. The value column is
+  // still the one right after the ratio's name, so every reader that takes
+  // "the figure after the label" reads the current figure, as before.
+  //
+  // With no served table: current and band from the row the sheet has
+  // always printed, and the four prior-dependent cells state why there is
+  // nothing to print ("no prior period", or the reason a comparison reached
+  // this export without its table). Never a dash, never a blank.
+  const ratioCmp = servedRatioComparison(s);
+  const ratioCmpRows = new Map<string, RatioCompareRow>(
+    ratioCmp ? servedMovableRows(ratioCmp).map((row) => [row.key, row]) : [],
+  );
+  const cmpHeadings = ratioCmp
+    ? ratioCompareHeadings(ratioCmp)
+    : ratioCompareHeadingsFor(s.periodLabel, priorColumnHeading(s), RATIO_CMP_EXPORT_LOCALE);
+  // A prior attached, a document attached, or a comparison requested and
+  // refused / failed / pending: the four cells state the reason.
+  const outcomeKind = s.comparison?.kind ?? "none";
+  const cmpAbsent =
+    ratioCmp === null && (s.prior !== undefined || (s.comparatives ?? null) !== null || outcomeKind !== "none")
+      ? priorRatioAbsence(s)
+      : null;
+  const sixCells = (key: string, label: string, figure: string | number, band: string): (string | number)[] => {
+    const row = ratioCmpRows.get(key);
+    if (row) return printedRatioCells(printRatioCompareRow(row, label));
+    // THE SAME SENTENCE THE REPORT CELL PRINTS (`ratioRowAbsence`,
+    // `priorRatioAbsence`), so the two documents are byte-identical here.
+    const why = ratioCmp ? ratioRowAbsence(label) : (cmpAbsent ?? NO_COMPARATIVE_CELL);
+    return [figure, why, why, band, why, why];
+  };
   const ratioRows: (string | number)[][] = [
-    ["Group", "Ratio", "Value", "Verdict", "Benchmark", "Commentary"],
+    ["Group", "Ratio", ...cmpHeadings, "Benchmark", "Commentary"],
   ];
   // ── `ratios.bankruptcy` IS NOT IN THIS LIST, AND THAT IS THE FIX ───
   //
@@ -401,10 +453,95 @@ export function buildExcelWorkbook(
   ];
   for (const [groupName, group] of groups) {
     for (const r of group) {
-      ratioRows.push([groupName, r.label, formatRatio(r), verdictLabel(r.verdict), r.benchmark, r.commentary]);
+      // `r.label` is the one label authority (the `row` helper in
+      // financialReport.ts resolves it from the i18n table the tab reads),
+      // so this cell, the report card and the tab print one name.
+      ratioRows.push([
+        groupName,
+        r.label,
+        ...sixCells(servedRatioKey(r.key), r.label, formatRatio(r), ratioBadgeLabel(r)),
+        r.benchmark,
+        r.commentary,
+      ]);
     }
   }
-  ratioRows.push(altmanRowFor(credit));
+  // The census rows the engine serves with no `computeRatios` row: they
+  // exist only in the served table, so they are listed only when one was
+  // served — with the same six columns.
+  if (ratioCmp) {
+    const carded = new Set(groups.flatMap(([, g]) => g.map((r) => servedRatioKey(r.key))));
+    for (const row of ratioCmp.rows) {
+      if (carded.has(row.key)) continue;
+      const label = servedRatioLabel(row.key, ratios, null);
+      ratioRows.push([
+        GROUP_WORD[row.group] ?? row.group,
+        label,
+        ...printedRatioCells(printRatioCompareRow(row, label)),
+        "served by the engine from its metric rows; no card in the document",
+        "",
+      ]);
+    }
+  }
+  ratioRows.push(altmanRowFor(credit, sixCells));
+  // THE TWO CREDIT COMPOSITES, beside the Altman, when a table was served:
+  // their prior, change and movement are the engine's (points, notches).
+  if (ratioCmp) {
+    for (const key of ["credit_composite", "letter_grade"]) {
+      const row = ratioCmpRows.get(key);
+      if (!row) continue;
+      const label = servedRatioLabel(key, ratios, null);
+      ratioRows.push(["Credit", label, ...printedRatioCells(printRatioCompareRow(row, label)), credit.model, credit.modelLabel]);
+    }
+  }
+
+  // ── BAND MOVEMENTS — the headline, the same model the document prints ─
+  const altmanLabel = altmanRatio(credit).label;
+  const bands = buildBandMovements(s, ratios, altmanLabel);
+  ratioRows.push([], ["Band movements"]);
+  if (!bands.available) {
+    ratioRows.push([bands.absence ?? NO_COMPARATIVE_CELL]);
+  } else {
+    ratioRows.push([`${bands.priorLabel} → ${bands.currentLabel}`], [bands.basis ?? ""]);
+    const counts =
+      `${bands.bothSides === null ? "The served table states no count of" : bands.bothSides} ratios and composites valued in both periods: ` +
+      `moved up a band ${bands.improved.length}, moved down ${bands.deteriorated.length}, ` +
+      `held their band ${bands.unchanged.length}, not comparable ${bands.notComparable.length}`;
+    ratioRows.push([counts]);
+    // Column order keeps the current figure right after the name, as in
+    // the table above: [list, ratio, current, prior, Δ, movement, rung,
+    // finding].
+    ratioRows.push(["List", "Ratio", cmpHeadings[0], cmpHeadings[1], cmpHeadings[2], cmpHeadings[5], "Rung crossed", "Finding"]);
+    for (const [title, entries, absence] of [
+      ["Improved", bands.improved, bands.improvedAbsence],
+      ["Deteriorated", bands.deteriorated, bands.deterioratedAbsence],
+    ] as const) {
+      if (entries.length === 0) {
+        ratioRows.push([title, absence ?? ""]);
+        continue;
+      }
+      for (const e of entries) {
+        ratioRows.push([
+          title,
+          e.label,
+          e.printed.current,
+          e.printed.prior,
+          e.printed.delta,
+          e.printed.movement,
+          e.rung ?? "no rung named",
+          e.findingStatus === "surfaced"
+            ? (e.findingTitle ?? "")
+            : e.findingStatus === "demoted"
+              ? `listed as a check: the finding is missing ${e.findingMissing.join(", ") || "an element it does not name"}`
+              : "no finding row was served for this crossing",
+        ]);
+      }
+    }
+    for (const n of bands.notComparable) ratioRows.push(["Not comparable", n.label, n.reason]);
+    for (const n of bands.refused) ratioRows.push(["Not compared", n.label, n.reason]);
+    if (bands.unlisted.length > 0) {
+      ratioRows.push(["Unlisted", `the served lists name ${bands.unlisted.join(", ")}, which the served table carries no row for`]);
+    }
+  }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "Ratios");
 
   // ─ Cash flow ─────────────────────────────────────────────────────────────
@@ -500,8 +637,12 @@ export function buildExcelWorkbook(
     ["Model", credit.modelLabel],
     // A workbook is forwarded; the reason a verdict is missing has to
     // travel with it, because the recipient cannot ask the app.
+    // R-COMPOSITE: a refused composite ships its reason and the refused
+    // components; the extraction note is for a period the engine never scored.
     ...(credit.score === null || credit.rating === null
-      ? [[EXPORT_UNAVAILABLE_NOTE]]
+      ? credit.compositeRefusal?.stated
+        ? [["Composite and rating refused", credit.compositeRefusal.sentence]]
+        : [[EXPORT_UNAVAILABLE_NOTE]]
       : []),
     [],
     // ── THE VERDICT WORDS BELONG BESIDE THE AUTHORITY'S NUMBER ──────
@@ -514,11 +655,11 @@ export function buildExcelWorkbook(
     ...credit.components.map((c) => [
       c.label,
       fixedCell(c.value, 2),
-      c.weight === null ? EXPORT_UNREPORTED : `${(c.weight * 100).toFixed(0)}%`,
+      c.weight === null ? (c.refusal ? "refused" : EXPORT_UNREPORTED) : `${(c.weight * 100).toFixed(0)}%`,
       fixedCell(c.contribution, 1),
       // A component with no number has no sentence — never the intact
       // period's words over an absent figure.
-      c.read ?? EXPORT_UNREPORTED,
+      c.read ?? c.refusal?.sentence ?? EXPORT_UNREPORTED,
     ]),
     [],
     ["Piotroski F-Score"],
@@ -644,7 +785,21 @@ const EXPORT_PIOTROSKI_UNRESOLVED_NOTE =
  *  verdict. The model rides along, because the value differs BY MODEL
  *  (engine 0.22 vs client fallback 0.20131 on this same period) and a
  *  forwarded workbook cannot ask which one ran. */
-function altmanRowFor(credit: CreditScoreResult): (string | number)[] {
+/** The served group word for a census row with no `computeRatios` row. */
+const GROUP_WORD: Readonly<Record<string, string>> = {
+  liquidity: "Liquidity",
+  profitability: "Profitability",
+  leverage: "Leverage",
+  coverage: "Coverage",
+  efficiency: "Efficiency",
+  distress: "Bankruptcy",
+  credit: "Credit",
+};
+
+function altmanRowFor(
+  credit: CreditScoreResult,
+  sixCells: (key: string, label: string, figure: string | number, band: string) => (string | number)[],
+): (string | number)[] {
   // ⚠ THIS USED TO SPELL THE ROW ITSELF — label, zone word, threshold
   // string and sentence, all assembled here from `credit.altman`. That was
   // correct and it still produced a SECOND SPELLING of one row, because
@@ -653,16 +808,21 @@ function altmanRowFor(credit: CreditScoreResult): (string | number)[] {
   // the workbook cell, the on-screen card and the printed document are now
   // three renderings of ONE object rather than three descriptions of it.
   const r = altmanRatio(credit);
-  const zoneWord =
-    credit.altman.zone === "safe" ? "Safe"
-    : credit.altman.zone === "grey" ? "Grey"
-    : credit.altman.zone === "distress" ? "Distress"
-    : EXPORT_UNREPORTED;
+  // With a served two-period table, the six cells are the served
+  // `altman_z` composite row; without one, the reader's value and the SAME
+  // band word the document's Altman card prints in its "Band now" cell
+  // (`ratioBadgeLabel`: safe zone → Healthy, grey → Watch, distress →
+  // Critical — the words the served Altman ladder uses). It used to print
+  // the zone word "Safe" here while the document printed "Healthy" in the
+  // same cell for the same state; the zones stay spelled in the benchmark.
+  // `r.label` is the reader's label, which is the one label authority
+  // (i18n "Altman Z″" — `altmanLabelOf` in financialValuation.ts), so the
+  // Ratios sheet, the Credit & Risk sheet, the card and the tab print one
+  // name.
   return [
     "Bankruptcy",
     r.label,
-    fixedCell(r.value, 2),
-    zoneWord,
+    ...sixCells(ALTMAN_RATIO_KEY, r.label, fixedCell(r.value, 2), ratioBadgeLabel(r)),
     r.benchmark,
     // Value and sentence agree about existence — a score the reader
     // refused has no verdict prose, and never the other model's.

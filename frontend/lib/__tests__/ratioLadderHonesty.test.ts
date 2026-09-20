@@ -93,8 +93,8 @@ import {
 import { computeRatios, ladderSentence, type Ratio } from "@/lib/financialReport";
 import { getRatioKnowledge } from "@/lib/ratioKnowledge";
 
-const DPO_LABEL = "Days Payables Outstanding (on total operating cost)";
-const ADJ_DSCR_LABEL = "Adjusted DSCR (incl. lease)";
+const DPO_LABEL = "Days payables outstanding (on total operating cost)";
+const ADJ_DSCR_LABEL = "Debt service coverage, lease-adjusted";
 
 function ratiosOf(book: Book): Ratio[] {
   const r = computeRatios(statementsFor(book), undefined, metricsFor(book));
@@ -227,7 +227,7 @@ describe("G-L1b — an absent lease input is never a finding about the company",
 
   it.each(BOOKS)("%s: no card restates the plain DSCR under a name claiming a lease", (book: Book) => {
     const doc = exportDoc(book);
-    const plain = cardNamed(doc, "DSCR (interest + ST debt)").value;
+    const plain = cardNamed(doc, "Debt service coverage").value;
     const adjusted = cardNamed(doc, ADJ_DSCR_LABEL).value;
     const both = parsePrinted(plain) !== null && parsePrinted(adjusted) !== null;
     expect(
@@ -338,7 +338,7 @@ describe("G-L1d — the cash ratio says which cash", () => {
     const cash = bs.cash;
     const cl = bs.total_current_liabilities;
     expect(typeof cash, `${book}: the envelope carries no cash`).toBe("number");
-    const rendered = parsePrinted(cardNamed(exportDoc(book), "Cash Ratio").value);
+    const rendered = parsePrinted(cardNamed(exportDoc(book), "Cash ratio").value);
     expect(rendered).not.toBeNull();
     expect(Math.abs(rendered! - cash / cl)).toBeLessThan(0.006);
   });

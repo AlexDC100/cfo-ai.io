@@ -42,11 +42,13 @@ reads, and each is gated on its own:
     ``calculated_metrics`` are absent), the FE fallback computes a
     DIFFERENT formula under the same key: ``net_margin`` over the class-6/7
     reconstruction while ROA/ROE beside it read account 121, and
-    ``interest_coverage`` on EBIT while the metric is EBITDA ÷ interest,
-    and ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
+    ``interest_coverage`` on EBIT while the metric divided EBITDA (until
+    2026-09-19; the metric is now EBIT ÷ interest, the methodology's
+    definition, and ``ebitda_to_interest`` is the EBITDA row), and
+    ``dscr`` / ``dscr_with_lt_principal`` on cash EBITDA while the
     metric is statutory EBITDA. The engine's fallback is the metric's own
     definition (``pipeline.stage_compute``): ``net_margin`` =
-    anchored net income ÷ revenue; ``interest_coverage`` = cash EBITDA ÷
+    anchored net income ÷ revenue; ``interest_coverage`` = EBIT ÷
     interest; the two DSCRs = ``assembled_pl.ebitda_statutory`` (else the
     metric, else cash EBITDA + ``incomeStatement.capitalizedOwnWork``) ÷
     their debt service. ``test_ratio_table.py`` holds the no-metric route
@@ -165,6 +167,7 @@ REASON_CODES: Tuple[str, ...] = (
     # refused (no value)
     "operand_absent",
     "zero_denominator",
+    "nonpositive_denominator",
     "non_finite",
     "engine_metric_absent",
     "user_input_absent",
@@ -398,8 +401,13 @@ def _pct_of(a: _Fig, b: _Fig, denominator: str) -> _Fig:
     return _mul(_div(a, b, denominator), _known(100.0))
 
 
-def _at_least(f: _Fig, floor: float) -> _Fig:
-    return f if f.value is None else _Fig(max(f.value, floor), None, f.ops)
+def _positive(f: _Fig, denominator: str) -> _Fig:
+    """A denominator that must be positive: a negative value is an absence
+    (`nonpositive_denominator`), never a floor. Zero is left to `_div`, which
+    names it `zero_denominator`."""
+    if f.value is None or f.value >= 0:
+        return f
+    return _Fig(None, ("nonpositive", denominator), f.ops)
 
 
 # ── quantization and rungs ──────────────────────────────────────────────────
@@ -577,6 +585,8 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
         return {"code": "operand_absent", "inputs": inputs}
     if kind == "undefined":
         return {"code": "zero_denominator", "inputs": [absence[1]]}
+    if kind == "nonpositive":
+        return {"code": "nonpositive_denominator", "inputs": [absence[1]]}
     if kind == "metric":
         return {"code": "engine_metric_absent", "inputs": [absence[1]]}
     return {"code": "non_finite", "inputs": [str(absence[1])]}
@@ -690,18 +700,24 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
     figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
     figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
+    # ROIC is DEFINED only for positive invested capital (ruling R-OTHER,
+    # C2.1): zero refuses as `zero_denominator`, negative (negative equity
+    # exceeding debt) as `nonpositive_denominator` — the value is never
+    # served with its band merely withheld. The 1-RON floor this replaced
+    # served 25,200,000.0% "strong" on a book with no debt and no equity.
     invested_capital = _add(total_debt, total_equity)
     figs["roic"] = mPctOr("roic", _pct_of(_mul(ebit, _known(1 - 0.16)),
-                                          _at_least(invested_capital, 1.0), "invested capital"))
+                                          _positive(invested_capital, "invested capital"), "invested capital"))
 
     figs["debt_to_ebitda"] = bsOr("debt_to_ebitda", _div(total_debt, ebitda, "EBITDA"))
     figs["debt_to_equity"] = bsOr("debt_to_equity", _div(total_debt, total_equity, "total equity"))
     figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
     figs["debt_to_assets"] = bsPctOr("debt_to_assets", _pct_of(total_debt, total_assets, "total assets"))
 
-    # Fallback = the metric's definition: cash EBITDA ÷ interest (the FE
-    # fallback divides EBIT — a different ratio under the same key).
-    figs["interest_coverage"] = mOr("interest_coverage", _div(ebitda, interest, "interest expense"))
+    # Fallback = the metric's definition: EBIT ÷ interest (the methodology's
+    # interest coverage, CLAUDE.md Appendix A section 5). EBITDA ÷ interest
+    # is the separate `ebitda_to_interest` row below.
+    figs["interest_coverage"] = mOr("interest_coverage", _div(ebit, interest, "interest expense"))
     debt_service = _add(interest, B("shortTermDebt"))
     figs["dscr"] = mOr("dscr", _div(ebitda_statutory, debt_service, "interest + short-term debt"))
     lease = sup.get("annualLeaseExpense")
@@ -756,9 +772,12 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
             sign[k] = fig
     # The MONEY denominator of each ratio (materiality reads it): the sign
     # denominators, plus the coverage denominators no ladder sign-guards.
-    # ccc (a sum of three day counts) and adjusted_dscr (user input) have
-    # none.
+    # ccc is a sum of three day counts with no single denominator of its
+    # own; its WORKING-CAPITAL money basis is revenue (ruling Q3,
+    # 2026-09-15): days past the rung x revenue / period days is the
+    # working capital those days tie up. adjusted_dscr (user input) has none.
     denominators: Dict[str, _Fig] = dict(sign)
+    denominators["ccc"] = revenue
     denominators["interest_coverage"] = interest
     denominators["ebitda_to_interest"] = interest
     denominators["dscr"] = debt_service
@@ -797,7 +816,7 @@ def ratio_denominators(served_payload: Mapping[str, Any], *,
                        serve_time_metrics: bool = False) -> Dict[str, Dict[str, Any]]:
     """The money denominator each census ratio divides, as the table
     computes it: `{key: {"value": float | None, "source": str}}`. Keys with
-    no single money denominator (ccc, adjusted_dscr, and every row of a
+    no single money denominator (adjusted_dscr, and every row of a
     source that declares its absences) are absent. Read by the two-period
     composer's materiality; never by the table's own grading."""
     payload = dict(served_payload) if isinstance(served_payload, Mapping) else {}
@@ -832,13 +851,21 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
     # served from the serve-time model carries the persisted ones under
     # `credit_metrics_as_filed`; any other payload's rows ARE persisted.
     if isinstance(payload.get("credit_metrics_as_filed"), list):
-        persisted_rows = payload.get("credit_metrics_as_filed")
+        # A filed figure the serving boundary withheld from these rows
+        # (credit_boundary: value None, `withheld: {code, inputs, value}`)
+        # is still EVIDENCE of what was filed: `credit_block` reads it back
+        # to withdraw it by name and value, never to serve it.
+        persisted_rows = [
+            dict(r, value=r["withheld"].get("value"))
+            if isinstance(r, Mapping) and r.get("value") is None and isinstance(r.get("withheld"), Mapping)
+            else r
+            for r in payload.get("credit_metrics_as_filed")]
     else:
         persisted_rows = payload.get("metrics") if isinstance(payload.get("metrics"), list) else []
     if serve_time_metrics:
         payload = dict(payload)
         payload["metrics"] = list(serve_rows or [])
-    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows)
+    credit = _cm.credit_block(serve_rows or [], as_filed_rows=persisted_rows, statements=statements)
     if serve_rows is None:
         credit["reason"] = {"code": _cm.CREDIT_INPUTS_ABSENT,
                             "inputs": ["statements.balanceSheet", "statements.incomeStatement"]}

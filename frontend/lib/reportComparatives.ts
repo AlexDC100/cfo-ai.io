@@ -88,7 +88,16 @@ export interface ComparisonPeriod {
 export interface ComparativeLine {
   key: string;
   label: string;
-  unit: "money" | "pct" | "x";
+  /** MONEY ONLY. This module used to carry four ratio lines (EBITDA
+   *  margin, net margin, equity ratio, net debt / EBITDA), each a
+   *  division of its own over `deriveTotals` — a third ratio arithmetic
+   *  beside `computeRatios` and the engine's served table, printing a
+   *  prior ratio nothing else in the product agreed with. Ratios and their
+   *  movements are the engine's: they are read off the served two-period
+   *  table (`statements.comparatives.ratios`) by `executiveSummary.ts` and
+   *  the report, and never computed here. `reportComparativesNoSecondRatio
+   *  .test.ts` reds if a ratio line, a ratio unit or a division returns. */
+  unit: "money";
   current: number | null;
   /** FALSE when the two sides are not built the same way. `vs` then
    *  carries the stated reason on both kinds. */
@@ -119,6 +128,42 @@ export const NO_COMPARATIVES_NOTE =
 export const NO_COMPARATIVE_CELL = "no prior period";
 
 const NO_PRIOR = "no prior period was supplied with this book";
+
+/** The outcome of the comparison request an export was built under. */
+export type ExportComparisonState =
+  | { kind: "none" }
+  | { kind: "served" }
+  | { kind: "refused"; code: string; message: string }
+  | { kind: "failed"; status: number }
+  | { kind: "pending" };
+
+/** The sentence for a comparison that was requested and is not served:
+ *  refused, failed or pending. Null when none was requested (or one is
+ *  served — then the served document speaks). */
+export function comparisonOutcomeSentence(
+  s: Pick<Statements, "comparison">,
+  consequence: string,
+): string | null {
+  const c = s.comparison ?? null;
+  if (!c || c.kind === "none" || c.kind === "served") return null;
+  if (c.kind === "refused") return `the engine refused the comparison (${c.code}): ${c.message} — so ${consequence}`;
+  if (c.kind === "failed") {
+    return `the comparison request failed (HTTP ${c.status}${c.status === 0 ? ", no response" : ""}), so ${consequence}`;
+  }
+  return `the comparison had not been answered when this export was built, so ${consequence}`;
+}
+
+/** The prior column's heading when no prior statements are attached:
+ *  the comparison's outcome in two words, or the position-report note. */
+export function priorColumnHeading(s: Pick<Statements, "prior" | "comparison">): string {
+  if (s.prior) return s.prior.periodLabel;
+  const c = s.comparison ?? null;
+  if (c?.kind === "refused") return "comparison refused";
+  if (c?.kind === "failed") return "comparison failed";
+  if (c?.kind === "pending") return "comparison pending";
+  return NO_COMPARATIVES_NOTE;
+}
+
 
 const degraded = (reason: string): Variance => ({
   absolute: null,
@@ -166,8 +211,6 @@ interface LineSpec {
   reportedAs?: readonly ReportedTotalKey[];
 }
 
-const safeRatio = (a: number, b: number): number | null => (b === 0 ? null : a / b);
-
 const REVENUE: readonly StatementInput[] = ["revenue"];
 const PL_TO_EBITDA: readonly StatementInput[] = [
   "revenue",
@@ -214,22 +257,6 @@ export const COMPARATIVE_LINES: readonly LineSpec[] = [
     inputs: PL_TO_NET, reportedAs: ["netIncome", "pbt"], of: (x) => x.totals.netIncome,
   },
   {
-    key: "ebitda_margin", label: "EBITDA margin", unit: "pct",
-    inputs: PL_TO_EBITDA, reportedAs: ["ebitda"],
-    of: (x) => {
-      const r = safeRatio(x.totals.ebitda, x.incomeStatement.revenue);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
-    key: "net_margin", label: "Net margin", unit: "pct",
-    inputs: PL_TO_NET, reportedAs: ["netIncome"],
-    of: (x) => {
-      const r = safeRatio(x.totals.netIncome, x.incomeStatement.revenue);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
     key: "total_assets", label: "Total assets", unit: "money",
     inputs: BS_ASSETS, reportedAs: ["totalAssets", "totalCurrentAssets", "totalNonCurrentAssets"],
     of: (x) => x.totals.totalAssets,
@@ -239,21 +266,8 @@ export const COMPARATIVE_LINES: readonly LineSpec[] = [
     inputs: BS_EQUITY, reportedAs: ["totalEquity"], of: (x) => x.totals.totalEquity,
   },
   {
-    key: "equity_ratio", label: "Equity ratio", unit: "pct",
-    inputs: [...BS_EQUITY, ...BS_ASSETS], reportedAs: ["totalEquity", "totalAssets"],
-    of: (x) => {
-      const r = safeRatio(x.totals.totalEquity, x.totals.totalAssets);
-      return r === null ? null : r * 100;
-    },
-  },
-  {
     key: "net_debt", label: "Net debt", unit: "money",
     inputs: BS_DEBT, reportedAs: ["totalDebt"], of: (x) => x.totals.netDebt,
-  },
-  {
-    key: "net_debt_ebitda", label: "Net debt / EBITDA", unit: "x",
-    inputs: [...BS_DEBT, ...PL_TO_EBITDA], reportedAs: ["totalDebt", "ebitda"],
-    of: (x) => safeRatio(x.totals.netDebt, x.totals.ebitda),
   },
 ] as const;
 
@@ -332,10 +346,15 @@ export function buildComparatives(
   const history = s.historicalPeriods ?? [];
 
   if (priors.length === 0 && history.length === 0) {
+    // A comparison that was requested and refused, failed or is pending
+    // is stated as such on every line — the prior exists; it is the
+    // comparison that is unavailable.
+    const outcome = comparisonOutcomeSentence(s, "no line's variance is stated");
+    const reason = outcome ?? NO_PRIOR;
     return {
       available: false,
-      degradedNote: NO_COMPARATIVES_NOTE,
-      degradedReason: NO_PRIOR,
+      degradedNote: outcome ?? NO_COMPARATIVES_NOTE,
+      degradedReason: reason,
       periods: [],
       lines: COMPARATIVE_LINES.map((spec) => ({
         key: spec.key,
@@ -343,7 +362,7 @@ export function buildComparatives(
         unit: spec.unit,
         current: currentOf(spec),
         comparable: false,
-        vs: { prior_period: degraded(NO_PRIOR), prior_year: degraded(NO_PRIOR) },
+        vs: { prior_period: degraded(reason), prior_year: degraded(reason) },
       })),
     };
   }
@@ -420,14 +439,10 @@ export function comparativeLine(c: Comparatives, key: string): ComparativeLine |
  *  invents "0.0%" for a move nobody measured. */
 export function formatVariance(v: Variance, unit: ComparativeLine["unit"]): string {
   if (v.absolute === null) return NO_COMPARATIVES_NOTE;
+  void unit; // money is the only unit a comparative line carries
   const arrow = v.direction === "up" ? "+" : v.direction === "down" ? "−" : "±";
   const abs = Math.abs(v.absolute);
-  const magnitude =
-    unit === "pct"
-      ? `${abs.toFixed(1)} pp`
-      : unit === "x"
-        ? `${abs.toFixed(2)}×`
-        : abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const magnitude = abs.toLocaleString("en-US", { maximumFractionDigits: 0 });
   const share =
     v.percent === null
       ? " (no percentage — the comparison period is zero on this line)"

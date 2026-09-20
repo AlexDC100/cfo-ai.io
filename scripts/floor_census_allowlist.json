@@ -1,0 +1,131 @@
+{
+  "_": "floor-census allow-list (scripts/check_floor_census.py). `code` is normalised ast.unparse text \u2014 an edited site stops matching and re-triggers review. Legitimacy vocabulary: true_value, refused_downstream:<file:line>, presentation_only:<where>, band_saturation:<file>:<the domain guard's code text>, threshold_only.",
+  "entries": [
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, 70 + (altman_z - ALTMAN_SAFE_FROM) * 15)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:altman_z >= ALTMAN_SAFE_FROM",
+      "reason": "Altman safe-zone band saturates at 100; altman_z is None unless X4 is defined (R-D4, materiality from packs/credit/model.yaml) and inside its derived range (R-RANGE)",
+      "evidence": "guard 843 `altman_z >= ALTMAN_SAFE_FROM` under 840 `altman_z is not None`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, altman_z * 36)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:altman_z >= ALTMAN_GREY_FROM",
+      "reason": "Altman distress band saturates at 0 for a negative Z''; the operand is the measured, range-checked Z''",
+      "evidence": "guard 845 `altman_z >= ALTMAN_GREY_FROM` (else branch is the distress band); CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5))",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if total_equity > 0:",
+      "reason": "profitability blend saturates at [0, 100]; ROE and net margin are measured (revenue > 0 per R-D2, equity > 0 on this branch)",
+      "evidence": "guard 863 `total_equity > 0` under 861 `'profitability' not in refusals`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, (roe_val * 100 * 0.5 + net_margin_val * 100 * 5) / 1.5)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if total_equity > 0:",
+      "reason": "inner floor of the same profitability band (negative blends saturate at 0)",
+      "evidence": "guard 863 `total_equity > 0`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, max(0, net_margin_val * 100 * 5 / 1.5))",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if total_equity > 0:",
+      "reason": "R-D2 net-margin-only profitability variant (equity <= 0, revenue > 0, disclosed on the served block) saturates at [0, 100]",
+      "evidence": "else-branch of guard 863 `total_equity > 0`; profitability_disclosure served; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, net_margin_val * 100 * 5 / 1.5)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if total_equity > 0:",
+      "reason": "inner floor of the R-D2 net-margin-only band",
+      "evidence": "else-branch of guard 863; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, 50 - (nde - 5) * 10)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:nde <= 5.0",
+      "reason": "leverage band above 5x net debt / EBITDA saturates at 0; nde is measured (net debt > 0, EBITDA > 0 \u2014 EBITDA <= 0 takes the declared rung per R-D3 at 876)",
+      "evidence": "guard 886 `nde <= 5.0` (else branch); 878 `net_debt <= 0` routes net cash to 100; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, ic * 30)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:ic >= 1",
+      "reason": "interest-coverage band below 1x saturates at 0; ic is measured (interest > 0 per R-D1, else refused at 900 or the declared rung at 898)",
+      "evidence": "guard 908 `ic >= 1` (else branch); CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "max(0, dscr * 50)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:dscr >= 1.25",
+      "reason": "DSCR band below 1.25x saturates at 0; dscr is measured (interest > 0 per R-D1)",
+      "evidence": "guard 922 `dscr >= 1.25` (else branch); CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, cur_ratio * 50)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if liq_out_of_range is None:",
+      "reason": "current-ratio term saturates at 100 (2.0x); current liabilities > 0 (else refused at 935) and every term >= 0 (else credit_out_of_range at 941)",
+      "evidence": "guard 943 `liq_out_of_range is None` after 941 `term < 0`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, quick_ratio * 80)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if liq_out_of_range is None:",
+      "reason": "quick-ratio term saturates at 100 (1.25x); same domain as the current-ratio term",
+      "evidence": "guard 943 `liq_out_of_range is None`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, cash_ratio * 250)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if liq_out_of_range is None:",
+      "reason": "cash-ratio term saturates at 100 (0.4x); same domain as the current-ratio term",
+      "evidence": "guard 943 `liq_out_of_range is None`; CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/credit_model.py",
+      "enclosing_function": "compute_period_metrics",
+      "class": "CLAMP",
+      "code": "min(100, total_equity / total_assets * 200)",
+      "legitimacy": "band_saturation:src/engine/ratios/credit_model.py:if \"equity\" in rungs:",
+      "reason": "equity-ratio band saturates at 100 (50%); equity ratio <= 0 takes the declared rung 0 per R-D2 at 951, total assets > 0 or the model does not run",
+      "evidence": "guard 951 `'equity' in rungs` (else branch is the measured band); CLAUDE.md Appendix A section 7 (composite credit score): the documented piecewise map of a measured, domain-checked ratio onto the 0-100 scale; saturation at a band edge is the map, not a stand-in for an absent input"
+    },
+    {
+      "file": "src/engine/ratios/table.py",
+      "enclosing_function": "quantize_display",
+      "class": "CLAMP",
+      "code": "max(28, exact.adjusted() + digits + 2)",
+      "legitimacy": "presentation_only:src/engine/ratios/table.py:427 (Decimal context precision for the printed figure)",
+      "reason": "a Decimal context precision, not a financial figure: the default 28-digit context raises InvalidOperation on a quantize wider than it; raising the precision changes no value",
+      "evidence": "table.py:425-428; the quantized string is byte-compared to the FE on every shared key by test_ratio_table"
+    }
+  ]
+}

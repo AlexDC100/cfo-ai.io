@@ -108,7 +108,8 @@ function totalLiabilities(h: Headline | null | undefined): number | null {
 // in schema v1 and are shelved the same way — `bank_loans_lt`,
 // `cfi_capex`, `cogs_materials`, `depreciation_total`,
 // `external_services_other`, `external_services_rnd`,
-// `interest_expense_bank`, `ppe_grossbook_buildings` and (now bridged)
+// `interest_expense_bank` (now bridged: `reportedInterestExpense`),
+// `ppe_grossbook_buildings` and (now bridged)
 // `retained_earnings_accumulated`. Only `ar_trade_gross`,
 // `income_tax_current`, `intangibles_goodwill` and
 // `inventory_merchandise_resale` are leaves a producer can emit. Each
@@ -129,6 +130,24 @@ function shelvedReported(p: PublicCompanyPeriod | null, sourceName: string): num
     if (typeof u.amount === "number" && Number.isFinite(u.amount)) return u.amount;
   }
   return undefined;
+}
+
+/** Interest expense, as the feed reported it. SF1 `intexp` is normalised
+ *  under the source name `interest_expense` toward the canonical leaf
+ *  `interest_expense_bank` — which has NO bucket in schema v1, so the
+ *  record is shelved under `unmapped` and `leaves.interest_expense_bank`
+ *  is never emitted (measured: engine.public.normalizer.normalize over a
+ *  Fundamentals carrying interest_expense 2.935e9 -> leaves without it,
+ *  unmapped with it). Reading only the leaf put interest expense on the
+ *  absence manifest for EVERY SF1 ticker by construction, and the public
+ *  sentence then said "not reported in this filing" about a filing that
+ *  reported it (CLAUDE.md section 23: map first, then refuse). The shelved
+ *  record is read first; an expense is a magnitude, so it is taken
+ *  absolute exactly as the normalizer's own "abs" rule states it. */
+export function reportedInterestExpense(p: PublicCompanyPeriod | null): number | undefined {
+  const shelved = shelvedReported(p, "interest_expense");
+  if (shelved !== undefined) return Math.abs(shelved);
+  return leaf(p, "interest_expense_bank");
 }
 
 /** Retained earnings (accumulated deficit when negative), as reported. */
@@ -193,7 +212,7 @@ function buildPL(entity: string, period: string, currency: string, p: PublicComp
   const ebitda  = h.ebitda ?? 0;
   const ebit    = h.ebit ?? 0;
   const da      = leaf(p, "depreciation_total") ?? Math.max(0, ebitda - ebit);
-  const interestExp = h.net_income != null ? (leaf(p, "interest_expense_bank") ?? 0) : 0;
+  const interestExp = h.net_income != null ? (reportedInterestExpense(p) ?? 0) : 0;
   const tax     = leaf(p, "income_tax_current") ?? 0;
   const netProfit = h.net_income ?? 0;
 
@@ -683,7 +702,7 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
         : (leaf(cur, "external_services_other") ?? 0) + (leaf(cur, "external_services_rnd") ?? 0),
     ),
     depreciationAmortization: a.reported("depreciationAmortization", daLeaf ?? daIdentity),
-    interestExpense: a.reported("interestExpense", leaf(cur, "interest_expense_bank")),
+    interestExpense: a.reported("interestExpense", reportedInterestExpense(cur)),
     // ABSENT — the feed carries no "other operating income" concept, and
     // a 0 here would silently enter the EBITDA reconstruction.
     otherIncome: a.none("otherIncome"),
@@ -762,7 +781,7 @@ function buildStatements(env: PublicCompanyEnvelope, cur: PublicCompanyPeriod, p
             costOfGoodsSold: leaf(prior, "cogs_materials") ?? 0,
             operatingExpenses: (leaf(prior, "external_services_other") ?? 0) + (leaf(prior, "external_services_rnd") ?? 0),
             depreciationAmortization: leaf(prior, "depreciation_total") ?? Math.max(0, (p.ebitda ?? 0) - (p.ebit ?? 0)),
-            interestExpense: leaf(prior, "interest_expense_bank") ?? 0,
+            interestExpense: reportedInterestExpense(prior) ?? 0,
             otherIncome: 0,
             taxExpense: leaf(prior, "income_tax_current") ?? 0,
           },
@@ -789,7 +808,8 @@ export type RatingFigure =
   | "ebit"
   | "totalAssets"
   | "totalEquity"
-  | "totalLiabilities";
+  | "totalLiabilities"
+  | "interestExpense";
 
 export interface RatingRefusal {
   /** The figures the filing did not report, in Altman component order
@@ -797,6 +817,11 @@ export interface RatingRefusal {
    *  does not name — the sentence then names no figure rather than
    *  inventing one. */
   figures: RatingFigure[];
+  /** The filing REPORTS an interest expense that is not positive (and the
+   *  book is not the declared debt-free case), so EBIT / interest is
+   *  undefined and the coverage term refuses (the owner's floors ruling: a zero divisor is not a coverage
+   *  of zero). This is not "not reported" - the sentence says what it is. */
+  undefinedCoverage?: boolean;
 }
 
 const X1_CURRENT_ASSET_INPUTS: readonly StatementInput[] = [
@@ -831,7 +856,15 @@ export function ratingRefusalFor(s: Statements, credit: CreditScoreResult): Rati
   const anyNull = [x.x1_wc_to_assets, x.x2_re_to_assets, x.x3_ebit_to_assets, x.x4_equity_to_liabilities]
     .some((v) => v === null);
   if (anyNull && !reported("totalAssets")) push("totalAssets");
-  return { figures };
+  // The coverage terms (interest coverage, DSCR) refuse on an interest
+  // expense the filing does not report, or reports as not positive beside
+  // debt. Without this the refusal printed with an EMPTY reason.
+  const coverage = credit.components.filter((c) => c.refusal && /coverage|DSCR/i.test(c.refusal.subject));
+  if (coverage.some((c) => c.refusal?.code === "credit_inputs_absent") && absent.has("interestExpense")) {
+    push("interestExpense");
+  }
+  const undefinedCoverage = coverage.some((c) => c.refusal?.code === "interest_expense_not_positive");
+  return undefinedCoverage ? { figures, undefinedCoverage } : { figures };
 }
 
 /** The sentence, composed from the i18n keys under `publicCompany.*`.
@@ -841,6 +874,9 @@ export function ratingRefusalSentence(
   refusal: RatingRefusal,
   t: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
+  if (refusal.figures.length === 0 && refusal.undefinedCoverage) {
+    return t("publicCompany.ratingUnavailableUndefinedCoverage");
+  }
   if (refusal.figures.length === 0) return t("publicCompany.ratingUnavailableGeneric");
   const names = refusal.figures.map((f) => t(`publicCompany.figure.${f}`));
   if (names.length === 1) return t("publicCompany.ratingUnavailable", { figure: names[0] });

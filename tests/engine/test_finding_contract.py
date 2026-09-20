@@ -466,6 +466,26 @@ def test_render_is_deterministic():
            json.dumps(_complete_finding().to_payload(), sort_keys=True)
 
 
+def test_an_index_prints_as_a_plain_two_decimal_figure():
+    """Ruling Q7: Altman Z'' is written "3.09", not "3.09x"."""
+    assert F._format_value(3.0912, F.UNIT_INDEX, "RON") == "3.09"
+    assert F._format_value(-0.5, F.UNIT_INDEX, "RON") == "-0.50"
+    assert F._format_signed(-0.29, F.UNIT_INDEX, "RON") == "-0.29"
+    assert F.UNIT_INDEX in F._ratio_units._DIMENSIONLESS
+
+
+def test_a_day_count_agrees_with_its_printed_number():
+    """Ruling Q8. Reds on "1 days" / "-1 days", on a singular for any other
+    printed count, or on the noun following the float instead of the
+    printed text (0.6 prints "1", so "1 day")."""
+    cases = {1.0: "1 day", 0.6: "1 day", 1.4: "1 day", 2.0: "2 days", 0.0: "0 days",
+             0.4: "0 days", 45.0: "45 days", -1.0: "-1 day", 11.0: "11 days", 21.0: "21 days"}
+    for value, want in cases.items():
+        assert F._format_value(value, F.UNIT_DAYS, "RON") == want, (value, want)
+    assert F._format_signed(-1.0, F.UNIT_DAYS, "RON") == "-1 day"
+    assert F._format_signed(3.0, F.UNIT_DAYS, "RON") == "+3 days"
+
+
 def test_an_undeclared_unit_refuses_to_render():
     with pytest.raises(F.UnknownUnitError):
         F._format_value(1.0, F.UNIT_UNKNOWN, "RON")

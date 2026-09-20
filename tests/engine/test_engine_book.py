@@ -102,6 +102,9 @@ def test_generator_never_writes_agent_owned_pages(book):
         # the tree; tests/engine/test_gate_canaries.py enforces that
         # every battery gate has an entry.
         "gates.md",
+        # Hand-maintained: the ratios wave-three decision log (short, one
+        # entry per decision; the commit messages carry the detail).
+        "decisions_ratios_wave3.md",
     }
     pages = book.generate()
     for foreign in book.FOREIGN_PAGES:

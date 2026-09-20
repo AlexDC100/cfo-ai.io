@@ -254,7 +254,7 @@ describe("0.1 — THE NEGATIVE: with the sector agreeing, all of it renders", ()
 
   it("the FMCG band — the exact string the owner saw — comes back on a food book", () => {
     const card = ratioCards(exportDoc("agras", agreeingBook("agras"))).find(
-      (c) => c.label === "Days Inventory Outstanding",
+      (c) => c.label === "Days inventory outstanding",
     );
     expect(card!.meta).toContain("≤ 60 days for FMCG");
   });

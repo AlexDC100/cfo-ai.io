@@ -2523,14 +2523,18 @@ from a different model, and nothing crashes.
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py -q` |
-| work count | junit-xml, floor **20** tests (measured 22: 7 cases × the purity claims, plus the ladder scan) |
-| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder` |
+| command | `python -m pytest tests/engine/test_credit_model_pure.py tests/engine/test_credit_ladder_single_source.py tests/engine/test_credit_model_refusals.py tests/engine/test_credit_model_rungs_and_ranges.py tests/engine/test_credit_refusal_fe_fixture.py -q` |
+| work count | junit-xml, floor **60** tests (measured 70: the purity claims, the ladder scan, the refusal gates, the 35 rung / range / withdrawal / pack gates and the FE fixture capture) |
+| canary | `test_pure_rows_are_the_pre_extraction_rows_byte_for_byte`, `test_stage_compute_inserts_exactly_the_pure_rows`, `test_there_is_exactly_one_literal_ladder`, `test_a_book_with_no_liabilities_refuses_the_composite_and_the_letter_through_the_real_route`, `test_every_book_refuses_exactly_where_its_liabilities_are_below_the_model`, `test_the_block_and_the_refusals_take_no_rows_only_fallback`, `test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted`, `test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves`, `test_the_fe_credit_fixture_is_what_the_route_serves_today`, `test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda` |
 
 **Reds on, after the repair (TC-11):** any persisted row (weight, sub-score
 mapping, Altman coefficient, rounding, operand, unit, direction, order) on
 any of the seven cases differing from the golden captured from
-`stage_compute` BEFORE the extraction; an I/O call or client import in
+`stage_compute` BEFORE the extraction; an `interest_coverage` row that is
+not EBIT ÷ interest by operands, an `ebitda_to_interest` row that is not
+statutory EBITDA ÷ interest, or the two rows printing one figure on an
+interest-paying book with D&A (the basis gate, added 2026-09-19 — it reds by
+operands, so a re-captured golden cannot carry the EBITDA basis back); an I/O call or client import in
 `credit_model.py`; `stage_compute` inserting anything but the pure rows; a
 second ladder literal in `pipeline.py` or `engine/ratios`. It proves no
 change against the pre-extraction commit, not that the numbers are right,
@@ -2542,6 +2546,34 @@ stays green — recorded by the B1 verifier; not re-measured by this section).
 **PLANT** — `src/engine/ratios/credit_model.py`: the Altman weight in the
 composite raised by 0.01
 (`(CREDIT_COMPOSITE_WEIGHTS["altman"] + 0.01) * altman_subscore`).
+
+**PLANT 2 (2026-09-19, the interest-coverage basis)** —
+`src/engine/ratios/credit_model.py` `compute_period_metrics`: the
+`interest_coverage` row restored to `safe(ebitda, interest)` (the basis it
+carried until 2026-09-19; the methodology, CLAUDE.md Appendix A section 5,
+defines interest coverage as EBIT ÷ interest expense, and `ebitda_to_interest`
+is the EBITDA row).
+
+**RED 2** — exit `1`, `11 failed, 62 passed` on
+`tests/engine/test_credit_model_pure.py` (the golden's five interest-paying
+cases ×2 and the basis gate):
+
+```
+E   AssertionError: scandia_fy2025_baseline: interest_coverage 17.704 is not EBIT / interest = 13.2654 (EBITDA / interest would be 17.704)
+E       scandia_fy2025_baseline: interest_coverage and ebitda_to_interest print one figure 17.704 under two names
+E       saga_10_col_retail: interest_coverage 0.0909 is not EBIT / interest = -0.519 (EBITDA / interest would be 0.0909)
+E   AssertionError: [saga_10_col_agras] compute_period_metrics drifted from what stage_compute persisted before the extraction:
+E     interest_coverage: pure {'name': 'interest_coverage', 'value': 66.2774, ...} vs persisted {'name': 'interest_coverage', 'value': 55.644, ...}
+FAILED tests/engine/test_credit_model_pure.py::test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda
+FAILED tests/engine/test_credit_model_pure.py::test_pure_rows_are_the_pre_extraction_rows_byte_for_byte[scandia_fy2025_baseline]
+```
+
+**REVERT 2** — exit `0`: `18 passed` on the file. Verdict: proven RED. The
+golden was re-captured deliberately in the same commit
+(`rows_moved_on_recapture_2026_09_19_interest_coverage_ebit` inside the
+file): scandia 17.704 → 13.2654, agras 66.2774 → 55.644 (both cases),
+realestate −25.0795 → −25.1332, retail 0.0909 → −0.519 (a sign flip),
+carniprod unchanged (no interest expense: the R-D1 rung, not a division).
 
 **RED** — exit `1`, `10 failed, 12 passed`, battery record `FAIL`:
 
@@ -2555,6 +2587,40 @@ RECORD ratio-credit-model {'state': 'FAIL', 'exit_code': 1, 'work_units': 22}
 
 **REVERT** — exit `0`: `PASS ratio-credit-model (1.9s, 22 tests)`. Verdict:
 proven RED.
+
+**REVISION 2 (2026-09-15, ruling Q2: absent is never zero).** Added
+`tests/engine/test_credit_model_refusals.py`. Reds on, after the repair:
+`corpus/saga_compact_6_col` through the real GET /api/period route serving a
+number for X4, Z'' or the Altman or liquidity sub-score; a refused sub-score
+missing from `refused_subscores` or carrying another code; served `weights`
+that are not the computed sub-scores' weights renormalised; a composite that
+is not those weights times the served sub-scores; the envelope's
+composite_weights differing from the ratio table's; on every deterministic
+corpus book and the five served books, a refused set other than exactly
+{liquidity when current liabilities are not positive, altman when total
+liabilities are not positive} (census: 20 books, 7 with a refusal); the
+two-period block giving a refused row any reason but the model's own.
+
+**GREEN** — `PASS ratio-credit-model (19.6s, 26 tests)`.
+
+**PLANT A** — `credit_model.py`: X4 back on the revision-1 divisor
+(`x4 = total_equity / max(total_liab, 1)`). **RED** — exit `1`,
+`FAIL ratio-credit-model (exit 1, 9.7s)`, `3 failed, 23 passed`:
+
+```
+E   AssertionError: saga_compact_6_col: refused sub-scores {'liquidity': 'current_liabilities_not_positive'}, expected {'liquidity': 'current_liabilities_not_positive', 'altman': 'total_liabilities_not_positive'} from the liabilities
+```
+
+**PLANT B** — liquidity back to zero (`liq_subscore = 0.0` before the
+`current_liab > 0` branch): 4 failed. **PLANT C** — no renormalisation
+(`CREDIT_COMPOSITE_WEIGHTS[k]` without `/ total`): 3 failed,
+`AssertionError: ('saga_compact_6_col', {'coverage': 0.1, 'dscr': 0.1, 'equity': 0.05, 'leverage': 0.15, ...})`.
+**PLANT D** — `credit_block` serving the model table as `weights`: 3 failed.
+**PLANT E** — `ratio_compare._composite_rows.refused` ignoring the
+sub-score's own refusal: 1 failed,
+`AssertionError: ('altman_z', {'code': 'credit_inputs_absent', 'inputs': []})`.
+
+**REVERT** — `PASS ratio-credit-model (19.6s, 26 tests)`. Verdict: proven RED.
 
 ## ratio-table
 
@@ -2660,8 +2726,8 @@ named it.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_bands.py -q` |
-| work count | junit-xml, floor **50** tests (measured 56, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
-| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding` |
+| work count | junit-xml, floor **55** tests (measured 60 after R2b, all over REAL GET /api/period bodies; 20 of them the every-finding check, 20 the prose check, one per ordered pair) |
+| canary | `test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven` (current_ratio present; one crossing surfaces), `test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank`, `test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces`, `test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed`, `test_a_lower_is_better_crossing_is_classified_by_direction`, `test_a_ratio_that_did_not_cross_produces_no_finding`, `test_a_two_period_finding_never_says_no_prior_period_was_supplied`, `test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount`, `test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served` |
 
 **Reds on, after the repair (TC-11):** the planted current_ratio crossing
 (prior agras with its served current liabilities raised to a 1.30 ratio,
@@ -2771,6 +2837,560 @@ test), the threshold comparator ignoring `higher_is_better`
 
 **REVERT** — exit `0`: `PASS ratio-band-findings (3.8s, 9 tests)` after each
 plant; no `# PLANT` marker left. Verdict: proven RED.
+
+**R2b (2026-09-15, rulings Q3 Q4 Q5 Q7 Q8 Q9).** The 48 impact-only
+demotions described above are gone: ccc carries working-capital money
+(days past the rung x revenue / period days), Altman Z'' headroom in Z units
+and the letter in notches of the served band width; 350 of 350 crossings
+surface. Added reds: a composite finding without its own-unit impact or
+demoted; a ccc crossing without materiality on the dso revenue denominator;
+"no prior period was supplied" in any two-period finding (Q4); a contra
+account (28x/29x/39x/49x) in any subject, or a subject not ranked by signed
+amount (Q5); a Z'' figure printed with the ratio marker, or not UNIT_INDEX
+(Q7 — the previous `"z": "\u00d7"` expectation was the defect written into
+the gate); a day count not agreeing with its printed number (Q8); a served
+materiality floor, or a crossing of any share missing from its list or
+findings (Q9).
+
+**GREEN** — `PASS ratio-band-findings (16.2s, 60 tests)`.
+
+**PLANT** — `c_bands._headroom`: the `NON_MONEY_IMPACT_KEYS` branch removed.
+**RED** — `FAIL ratio-band-findings (exit 1, 13.9s)`, `18 failed, 42 passed`:
+
+```
+E   AssertionError: ('agras|carniprod letter_grade', None)
+```
+
+Also observed RED (direct pytest, each reverted): `denominators["ccc"]`
+removed (`('agras|carniprod ccc', 'ccc crossed with no materiality')`);
+notches unsigned (`('carniprod|agras letter_grade', 0.07000000000000028, -1)`);
+notches not divided by the width (`('agras|carniprod letter_grade',
+0.7000000000000028, '0.070')`); the two-period caveat override dropped
+(`('agras|carniprod roic', 'Cash-flow lines are indirect-method
+approximations because no prior period was supplied; ...')`); abs()
+ranking back (`('carniprod|agras letter_grade', ['117.1', '4111.01',
+'401.01'], ['4111.01', '5124.9.8', '401.01'])`); the contra exclusion
+removed (planted bucket only — on the real pairs signed ranking already
+keeps contra lines out of the top slots, measured); "z" back to UNIT_RATIO
+(`('agras|realestate altman_z', 'prior', '2.43\u00d7', '2.43')`); the days
+printer back to "days" (`('carniprod|retail dso', 'prior', '1 days',
+'1 day')`); findings filtered below a 1% share (`agras|carniprod
+cash_ratio`); materiality_floor "0.01" (`('agras', 'carniprod')`).
+
+**REVERT** — `PASS ratio-band-findings (16.2s, 60 tests)`. Verdict: proven RED.
+
+**REPAIR-ROUND PLANTS (B8 verifier, 2026-09-19)** — `tests/engine/test_credit_model_rungs_and_ranges.py`
+(the file the refusals docstring had named before it existed), each
+applied to `src/engine/ratios/credit_model.py`, run, and reverted
+(`33 passed` clean before each):
+
+**P1** — the rows-only fallback restored (`statements: Optional[...] = None`
+on `credit_block`). **RED** — `1 failed, 32 passed`:
+`AssertionError: credit_block: statements must be required, got default None`.
+
+**P2** — the as-filed withdrawal off (`filed_bad = {}`). **RED** —
+`1 failed`: `assert (1584.89 is None)` on `as_filed.altman_z`
+(`{'altman_z': 1584.89, 'composite': 88.5, 'credit_model_revision': 1, 'letter': 'AA', ...}`).
+
+**P2b** — the withdrawal kept but `as_filed_differs` compared AFTER nulling
+(the defect this gate found while being written). **RED** — `1 failed`:
+`assert False is True` on `as_filed_differs` — the withdrawal note was
+never served.
+
+**P3** — the served re-check off (`served_bad = {}`). **RED** — `3 failed`:
+`assert (200.0 is None)` (X4), `assert (140.0 is None)` (composite),
+`assert 120.0 is None` (leverage).
+
+**P4** — the liquidity negative-term refusal off (`if False:`). **RED** —
+`2 failed`: `assert (66.7 is None)` / `assert (59.3 is None)` (liquidity
+scored on cash -1 / -1,000,000).
+
+**P5** — the -0.0 row read with `v < 0`. **RED** — `1 failed`:
+`['credit_subscore_liquidity'] == ['cash_ratio']` (the refusal named the
+sub-score, not the negative term).
+
+**P6** — a letter minted from an out-of-range composite (the range check
+removed from `composite_to_letter_grade`). **RED** — `3 failed`:
+`'CC' == None` (nan), `'CC' == None` (-5.0), `'AAA' == None` (140.0).
+
+**FE (vitest, `ratioCompareTab.test.tsx`)** — `asFiledSentence` ignoring
+`withdrawn` (`new Set<string>()`). **RED** — `1 failed | 38 passed`:
+`expected "As filed: composite not filed, letter…" to contain "composite
+withdrawn, letter withdrawn…"`.
+
+**FE (vitest, `creditRefusedSubscores.test.tsx`)** — the reader's range
+branch off (`if (false)` on `compositeRefusalOf`) over the fully scored
+agras envelope (`agras_serve` in `served_credit_refusals.json`) with a
+planted composite 140 / AAA. **RED** — `4 failed | 45 passed`:
+`expected 140 to be null` (the reader), `expected 'strong' to be
+'pending'` (the hero band), the Risks tab and the exports. Over the
+compact cases alone this plant reds on ONE assertion only (the code:
+`expected 'credit_component_undefined' to be 'credit_out_of_range'`) —
+the beside-refused branch withholds the composite anyway — which is why
+the agras case exists.
+
+**REVERT** after each — `33 passed`. Verdict: proven RED.
+
+## comparatives-route
+
+`GET /api/period/{id}/comparatives` UN-INTERCEPTED (batch B8). Every
+frontend ratio gate renders a committed capture, the hermetic Playwright
+harness answers the route from a file, and the earlier route test mounts one
+router on a bare `FastAPI()` with `_org.resolve_org` stubbed — so no gate had
+sent a request to the route the Ratios tab and the exports call. An
+intercepted route is a route with no gate (CLAUDE.md 22). This one builds
+`engine.api.create_app()` itself, points `_supabase.per_user` / `admin` at
+`firm_postgrest_double` (it refuses a column no migration declares and
+verifies ES256 signatures against the session JWKS), carries agras and
+carniprod through the production write seam (parse -> `stage_map` ->
+`stage_persist`) as two periods of one workspace (with a CAEN), persists
+their metric rows as `stage_compute` does, and a third book (retail) into
+another workspace. `tests/engine/_real_app_comparatives.py` is that world,
+shared with `scripts/capture_comparatives_pair.py --current/--prior`, so an
+owner's local capture is produced by exactly the path this gate proves.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_comparatives_route_real_app.py -q` |
+| work count | junit-xml, floor **7** tests (measured 7) |
+| canary | `test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite`, `test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair`, `test_a_prior_from_another_workspace_is_not_found`, `test_a_current_period_from_another_workspace_is_not_found` |
+
+**Reds on, after the repair (TC-11):** the route unmounted, renamed or its
+query binding broken (404 / 405 / 422); the served document without `ratios`,
+a census row or composite missing, or a prior Altman Z'', composite or letter
+that is not a number on this pair; the route's `ratios` serialising
+differently from `compare_payloads` over the two GET /api/period bodies the
+same app serves; `pair_served.json` (what `ratio-byte-match` and the Ratios
+tab gates render) carrying a quantized figure, band, change or movement the
+route does not serve for the pair; a band finding whose profile is not
+resolved from the workspace's CAEN (ruling Q6 — this closes the "the route
+passes none" blind spot recorded under ratio-band-findings); a forged bearer
+served (not 401), a caller outside the workspace served (not 403), a prior
+from another workspace served (not 404 `period_not_in_workspace`); a CURRENT
+period from another workspace served through the path parameter (the B8
+verifier's plant A11: `cur_row` loaded by an id-only select left all six
+earlier tests green while `current_label 2024-12-31` — the foreign book —
+was served; `test_a_current_period_from_another_workspace_is_not_found`
+now reds on it: `AssertionError: (200, '{"ratios":{...,"current_label":
+"2024-12-31",...')`; reverted, 7 passed).
+**Cannot see:** whether the ratios are right (ratio-compare,
+ratio-band-findings); the frontend's reading of the response
+(ratio-byte-match); row-level security — the double does not model RLS, so
+the cross-workspace case proves the org filter in `load_period_in_org`, the
+wall the route owns, not Postgres policies.
+
+**GREEN** — `PASS comparatives-route (5.9s, 6 tests)` (through
+`run_battery.main` with the gate list narrowed to the two B8 gates).
+
+**PLANT** — `src/engine/api/_comparatives.py` `load_period_in_org`: the
+filter without `org_id` (`filters={"id": "eq.%s" % period_id}`).
+
+**RED** — `FAIL comparatives-route (exit 1, 6.4s)`, battery record
+`{'state': 'FAIL', 'exit_code': 1, 'work_units': 6}`:
+
+```
+E   AssertionError: (200, '{"ratios":{"table_version":"ratio_compare.v1","current_label":"2025-12-31","prior_label":"2024-12-31","stamps":...
+E   assert 200 == 404
+FAILED tests/engine/test_comparatives_route_real_app.py::test_a_prior_from_another_workspace_is_not_found
+========================= 1 failed, 5 passed in 5.33s ==========================
+```
+
+Also observed RED (direct pytest, each reverted): the route path renamed to
+`/comparatives-v0` (`6 failed`, `AssertionError: (404, '{"detail":"Not
+Found"}')`); the route passing `caen=None` (`2 failed, 4 passed`, `('roic',
+'profile inventory_operator/band_mid/fin_related_party_funded resolved from
+structure')` and the recomposition with the CAEN no longer equal); the
+committed fixture's current_ratio prior `1.82` -> `1.83` (`{'current_ratio':
+('2.10', '1.82', 'strong', 'healthy', '+0.28', '+15.4', ...)} !=
+{'current_ratio': ('2.10', '1.83', ...)}`).
+
+**REVERT** — `PASS comparatives-route (5.9s, 6 tests)` after each plant.
+Verdict: proven RED.
+
+## served-range
+
+THE SERVED-RANGE LAW (ruling R-RANGE, 2026-09-15; owner 2026-09-18: the
+range gate is absolute). Credit model revision 2 refuses instead of
+flooring — but a refusal that lives only in the product can be undone by
+the product. `tests/engine/served_range_law.py` states every credit score's
+bound, domain and refusal vocabulary as literals with their source and
+IMPORTS NOTHING from the engine (pinned by
+`test_the_law_is_independent_of_the_product`), so the product's own
+`score_out_of_range` cannot pass its own bug. The domain predicates read
+operands from the SERVED statements' leaves, never from a served total or
+ratio.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_served_range.py -q` |
+| work count | junit-xml, floor **44** tests (measured 51: 4 parametrised laws × 11 books + 7 named gates) |
+| canary | `test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason`, `test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter`, `test_one_ron_of_liabilities_is_not_a_capital_structure`, `test_the_law_is_independent_of_the_product`, `test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route`, `test_the_r_d1_debt_leg_declares_no_rung_on_the_route`, `test_roic_refuses_on_the_route_when_invested_capital_is_not_positive` |
+
+Eleven books through the real `GET /api/period` router over the
+projection-faithful Supabase double: agras, carniprod, realestate, retail,
+the Scandia FY2025 regression baseline, `corpus/imbalance_03pct` (no
+liabilities, empty P&L), `synthetic_thin_equity` (no liabilities), the
+same thin book assembled through the production write seam with ONE
+planted 401 row of exactly 1 RON (R-D4: a divisor that is rounding, not a
+capital structure), and — added in the B8 repair round because two rows
+of the law matched no book — `saga_compact_6_col` with one planted 1621
+row of 1,000 (R-D1's debt leg: debt > 0, interest 0, EBIT > 0 declares
+NO rung), `synthetic_negative_equity` (invested capital not positive:
+ROIC refuses) and `saga_compact_6_col` with its REVISION-1 rows persisted
+(X4 1500 / Z'' 1584.89 / composite 88.5: withdrawn as filed, by name and
+value — the fourth law, `AS_FILED_LAW`).
+
+**Reds on, after the repair (TC-11):** a zero-liability book (or the 1-RON
+book) serving any Altman figure, a liquidity score or a composite; a
+composite or letter beside a refused component; a sub-score outside
+[0, 100]; X1 above 1, X4 above 1 / share, Z'' above the bound derived from
+the component bounds with the book's own X2 and X3; a refused score with
+no reason or a reason outside the law's vocabulary; ROIC served with
+invested capital <= 0; the composite envelope disagreeing with the
+ratio-table credit block; fewer than five scoring books (non-vacuity).
+
+**What it cannot see (TC-13):** whether an in-range value is the RIGHT
+value (ratio-credit-model's golden), the FE reader (creditRefusedSubscores
+in vitest re-checks the range there), any book outside these eight.
+
+**GREEN** — exit `0`: `28 passed in 3.25s`.
+
+**PLANT A** — `credit_model.py`: `tl_material` forced true and X4 back on
+`max(ops["total_liab"], 1)` (the revision-1 divisor). **RED** — exit `1`,
+`1 failed, 27 passed`: only the 1-RON gate trips, because the model's own
+range check withholds the exploded X4 (`credit_out_of_range` where the law
+demands `total_liabilities_below_materiality`):
+
+```
+FAILED tests/engine/test_served_range.py::test_one_ron_of_liabilities_is_not_a_capital_structure
+E   AssertionError: assert 'credit_out_of_range' == 'total_liabil...w_materiality'
+```
+
+**PLANT A3** — Plant A plus the model's Altman range check off
+(`bad = None`) plus the served block's re-check off
+(`_served_out_of_range` returning `{}`): three independent guards down, so
+the zero-liability book RENDERS an Altman value. **RED** — exit `1`,
+`5 failed, 23 passed`:
+
+```
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[imbalance_03pct]
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[synthetic_thin_equity]
+FAILED ...::test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason[thin_plus_1_ron]
+FAILED ...::test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter
+FAILED ...::test_one_ron_of_liabilities_is_not_a_capital_structure
+E   AssertionError: imbalance_03pct credit_subscore_altman (subscores.altman): served 100.0 outside its domain (absent is never a value)
+```
+
+**PLANT B** — `credit_model.py`: the coverage refusal removed and the
+revision-1 sentinel restored (`ic = (operating_profit / interest) if
+interest > 0 else 999`). **RED** — exit `1`, `3 failed, 25 passed`:
+
+```
+E   AssertionError: imbalance_03pct credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+E   AssertionError: synthetic_thin_equity credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+```
+
+**REVERT** — exit `0`: `28 passed in 3.23s`. Verdict: proven RED. The gate
+is independent of all three product-side guards: with every one of them
+down it still reds, and with one of them up it reds on the refusal code.
+
+**REPAIR-ROUND PLANTS (B8 verifier, 2026-09-19)** — over the widened
+eleven books (`51 passed` clean before each), each reverted:
+
+**SR-A** — `credit_model.py`: the as-filed withdrawal off (`filed_bad =
+{}`). **RED** — `2 failed`:
+```
+E   AssertionError: compact_filed_rev1 altman_z_score (as_filed.altman_z): filed 1584.89 reprinted outside [-inf, 114.88666666666667]
+E   assert (1584.89 is None)
+```
+
+**SR-B** — `credit_model.py`: the R-D1 rung without `total_debt == 0`
+(`if ops["interest_zero"] and ops["ebit"] > 0:`). **RED** — `2 failed`:
+```
+E   AssertionError: compact_ltd_1000 credit_subscore_coverage (subscores.coverage): served 95.0 outside its domain (absent is never a value)
+E   assert {'coverage': ...'score': 90, ...}} == {}
+```
+(Before the widening this plant stayed GREEN on served-range; only the FE
+fixture capture caught it, and that file was not in the credit gate.)
+
+**SR-C** — `ratios/table.py`: the ROIC floor restored
+(`_positive(_known(max(invested_capital.value or 0.0, 1.0)), ...)`).
+**RED** — `2 failed`:
+```
+E   AssertionError: ('negative_equity', 'roic', {'code': 'negative_denominator', ...})
+E   assert (-10080000.0 is None)
+```
+(Before the widening this plant stayed GREEN on served-range: no book had
+invested capital <= 0.)
+
+**REVERT** after each — `51 passed`. Verdict: proven RED.
+
+## credit-boundary
+
+THE CREDIT SERVING BOUNDARY (owner, 2026-09-20: "the credit range gate goes
+at the serving boundary so no fallback can bypass it; plant a model-failure
+path serving an exploded value -> RED"). Until this gate the range law was
+held per path: `credit_block` on the switched path, `withhold_persisted` in
+get_period's as-filed branch, `lawful_persisted_rows` in the narrator. Each
+was correct and each was one fallback away from being skipped.
+`engine.ratios.credit_boundary.enforce_credit_boundary(payload, surface=)`
+is now the one function applied to the object a route returns:
+GET /api/period, GET /api/period/{id}/comparatives, and the briefing
+narrator's payload (`enforce_metric_rows`). It finds credit content BY SHAPE
+(envelope, block, metric rows, comparatives rows) under any key, so a cache
+or a future fallback is read against the pack ranges without registering
+itself. The unswitched period's as-filed envelope is COMPOSED there: the
+route hands over the persisted rows untouched and no longer reads a
+credit-family value at all. It fails closed (a pack that cannot be read, or
+an exception in the check, withholds the whole family).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_credit_boundary.py -q` |
+| work count | junit-xml, floor **32** tests (measured 35) |
+| canary | `test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter`, `test_with_the_boundary_bypassed_the_failure_path_serves_the_exploded_value`, `test_the_independent_law_holds_on_every_surface_of_every_path`, `test_the_comparatives_prior_serves_no_exploded_figure`, `test_the_narrator_payload_passes_the_boundary`, `test_the_boundary_fails_closed`, `test_every_credit_reader_in_the_api_layer_is_behind_the_boundary` |
+
+What is real: `engine.api.create_app()` over the tenancy double with an
+ES256 bearer; `saga_compact_6_col` carried through the production write
+seam with its revision-1 rows persisted (X4 1500 / Z'' 1584.89 / composite
+88.5 AA, measured 2026-09-14) beside a healthy agras period. The model is
+broken at three seams the route has a fallback for:
+`credit_model.compute_period_metrics` raises, `table.serve_time_metric_rows`
+returns None, `table.build_ratio_table` raises.
+
+**PLANT (RED first), 2026-09-20.** The route's return replaced by
+`return _period_body  # PLANT: boundary bypassed`:
+
+```
+FAILED test_credit_boundary.py::test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter[build_ratio_table raises]
+FAILED ...[compute_period_metrics raises]
+FAILED ...[serve_time_metric_rows returns None]
+FAILED test_credit_boundary.py::test_the_switched_path_serves_the_filed_figures_only_as_withheld_records
+FAILED test_credit_boundary.py::test_every_credit_reader_in_the_api_layer_is_behind_the_boundary
+FAILED test_served_range.py::test_the_unswitched_path_serves_no_persisted_figure_outside_the_law[...] (x5)
+FAILED test_served_range.py::test_a_planted_persisted_altman_of_1584_89_never_renders_on_an_unswitched_period
+FAILED test_served_range.py::test_the_comparatives_prior_inherits_the_law_on_an_unswitched_prior
+E   AssertionError: compute_period_metrics raises: the exploded figure 1584.89 is served as a figure
+E   AssertionError: switched: the exploded figure 1584.89 is served as a figure
+15 failed, 70 passed
+```
+
+REVERT (the saved pipeline.py copied back, `git diff` clean of the plant):
+35 passed, and test_served_range 61 passed. The same plant is kept IN
+the suite: `test_with_the_boundary_bypassed_...` replaces the boundary with
+the identity and asserts the route then serves 1584.89 / 1500.0 / 88.5 -
+the day that stops being true the route has a second authority and the gate
+above no longer measures the boundary.
+
+**What the independent law found on its first run (a live defect, not a
+plant).** `served_range_law.served_figures` reads every surface of a body;
+on the SWITCHED path it redded on
+`credit_metrics_as_filed[] serves credit_subscore_liquidity = 0.0 outside
+the law (domain False)` - and the same list served Z'' 1584.89 and X4 1500
+verbatim on every analysed zero-liability period. The boundary now holds
+those rows to the whole law over the period's statements and serves a
+failing row as a record (`value: null, withheld: {code, inputs, value,
+text}`); `build_ratio_table` reads the record back as as-filed EVIDENCE, so
+the comparatives' `as_filed` disclosure is unchanged.
+
+REDS ON, after the repair (TC-11): any exploded figure, a zone beside no
+Z'' or a letter beside no composite on any surface of the period body, the
+comparatives body or the narrator payload, healthy or with the model
+broken; a withheld body that does not say `credit_out_of_range`; a new file
+under `src/engine/api` that names a credit-family figure; the route reading
+the persisted credit rows itself again. CANNOT SEE (TC-13): whether an
+in-range figure is the right figure (ratio-credit-model); the domain half
+of the law where a payload carries no statements (comparatives rows, a
+cached envelope: range, finiteness and dependents only); the comparatives
+route under a RAISING model - it has no fallback and answers 500, which the
+gate pins as "500, or 200 without the figure"; the FE reader
+(creditRefusedSubscores.test.tsx); Capsule tools and exports serve no
+credit figure from the engine today (the census test reds the day one
+does).
+
+## floor-census
+
+THE FLOOR CENSUS, engine half (owner rule 2026-09-15 / 2026-09-18: absent
+is never zero and never a floor). Measured before the repair:
+`max(total_liabilities, 1)` served X4 1500.0 and Z'' 1584.89 on a book
+with no liabilities; the `999` sentinel scored coverage 95 on a book with
+no interest and no EBIT; ROIC over a 1-RON floor printed 1,299,072,170.8 %.
+A stdlib-`ast` census over an explicit, printed 14-file scope
+(`scripts/check_floor_census.py`, scope from the floor sweep's
+`synth.census_gate`) for the eight substitute classes — S1 divisor floor,
+S2 or-floor, S3 sentinel-on-undefined, S4 epsilon swap, S5 helper floor,
+S6 none-to-constant, S7 domain replacement, S8 constant period — plus the
+soft CLAMP class and the OR_ZERO ratchet. Denominator reach is computed
+inside each function (direct, through a local, inside a denominator
+expression, or as the denominator argument of a registered division
+helper).
+
+| | |
+|---|---|
+| command | `python scripts/check_floor_census.py` |
+| work count | `GATE-WORK floor-census units=(\d+)`, floor **100** candidate sites (measured 131 over 14 files) |
+| canary | `self-test S1 DIVISOR_FLOOR`, `self-test S8 CONSTANT_PERIOD`, `credit   src/engine/ratios/credit_model.py`, `credit tier clean` |
+
+Two tiers, printed on every run. The CREDIT TIER (credit_model.py,
+credit_pack.py, ratios/table.py, comparatives/ratio_compare.py) is RED on
+any S1-S7 or CLAMP site without an allow-list entry
+(`scripts/floor_census_allowlist.json`: 14 entries — the 13 band
+saturations of the documented 0-100 piecewise map, each naming its domain
+guard by CODE TEXT, and the Decimal precision context in
+`quantize_display`). The RATCHET TIER (the other ten files, and S8 /
+OR_ZERO everywhere) holds every (file, class) count to
+`scripts/floor_census_baseline.json` and reds when a count moves in
+EITHER direction — a baseline left stale would hide the next regression
+back up to the old count. A self-test over
+`tests/engine/fixtures/floor_census/substitutes.py` (one verbatim pre-fix
+instance per class) runs first; a class going undetected is DISCOVERY
+BROKEN (exit 2), as is a missing scope file.
+
+**Reds on, after the repair (TC-11):** `max(total_liab, 1)` back in
+credit_model.py; a `999` sentinel back on coverage; an unlisted clamp in
+the credit tier; a stale allow-list row (its code no longer matches, its
+guard text gone from the file, or its legitimacy outside the vocabulary);
+any ratchet row rising or falling without its baseline; any of the eight
+classes going undetected on the fixture.
+
+**What it cannot see (TC-13):** a floor written as arithmetic (`x + 1` as
+a divisor), a literal fed through a name defined in another function, the
+FE half (a TypeScript census, not yet built), anything outside the printed
+scope.
+
+**GREEN** — exit `0`:
+`PASS floor-census — 131 candidate site(s) over 14 files; credit tier clean; ratchet held.`
+
+**PLANT A** — `credit_model.py`: X4 back on `max(ops["total_liab"], 1)`.
+**RED** — exit `1`:
+
+```
+GATE-WORK floor-census units=132 label=candidate-sites scope=14 files credit_tier=4 ratchet_tier=10
+FAIL floor-census — 1 problem(s):
+  FLOOR in the credit tier: src/engine/ratios/credit_model.py:825 [S1 DIVISOR_FLOOR] in compute_period_metrics: max(ops['total_liab'], 1)
+```
+
+**PLANT B** — the coverage `999` sentinel restored. **RED** — exit `1`:
+
+```
+  FLOOR in the credit tier: src/engine/ratios/credit_model.py:899 [S3 SENTINEL_ON_UNDEFINED] in compute_period_metrics: operating_profit / interest if interest > 0 else 999
+```
+
+**PLANT C** — a new `x / max(total_assets, 1)` appended to
+`src/engine/api/_valuation.py` (ratchet tier). **RED** — exit `1`:
+
+```
+FAIL floor-census — 1 problem(s):
+  ratchet: src/engine/api/_valuation.py [S1 DIVISOR_FLOOR] rose 1 -> 2 (a new floor)
+```
+
+**REVERT** — exit `0`:
+`PASS floor-census — 131 candidate site(s) over 14 files; credit tier clean; ratchet held.`
+Verdict: proven RED.
+
+## ratio-byte-match
+
+The owner's brief as one assertion: every ratio's six cells — [current]
+[prior] [change] [band now] [band prior] [band movement] — print the same
+bytes on the dashboard Ratios tab, in the exported report and in the
+workbook Ratios sheet, and the improved / deteriorated lists carry the same
+order and cells on the tab, in the report's executive summary and in the
+workbook's Band movements block (batch B8). B6 (the tab) and B7 (the
+exports) were built on sibling branches; each held its own surfaces to a
+handle named `data-ratio-cmp-json` with DIFFERENT contents, and a turns row's
+change printed `+0.28x` over `+15.4%` on the tab and `+0.28x (+15.4%)` in
+the report. Every per-surface gate was green. On the merged state before the
+fix (225e48f) this gate was `68 failed, 2 passed`.
+
+The fixture is `pair_served.json` — the agras corpus book's real GET
+/api/period body and the comparatives document for agras against carniprod,
+rebuilt from the committed corpus by `scripts/capture_comparatives_pair.py`
+(`--check` for freshness; comparatives-route holds it equal to what the
+route serves) — plus the same pair with the prior blocking sector bands. No
+Scandia data (ruling Q10). The surfaces are fed through `ratioSurfacesOf`,
+the page's own join.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/ratioTableByteMatch.test.tsx --reporter=verbose` |
+| work count | stdout `Tests N passed`, floor **120** (measured 144: 2 documents x (31 rows x {six cells, name} + non-vacuity + handles + headings + 2 lists) + the 10 B6 source-gate tests) |
+| canary | `B4 non-vacuity: every census row and composite is compared`, `B1/B2 altman_z: the tab, the report and the workbook print the same six cells`, `B3 the deteriorated list: the served order and the same cells`, `B5 altman_z: the same name beside the six cells`, `B5 the six column headings are one string`, `B6 non-vacuity: every named path is extracted whole and is the real served-row path` |
+
+**Reds on, after the repair (TC-11):** any census row or composite whose six
+cells differ by one byte between the tab table, the report (card table,
+served-only row, every element embedding the row) and the workbook; a
+surface's `data-ratio-cmp-json` that is not the served row serialised, or a
+row absent from a surface; a blank or dash cell; the lists in another order
+or with other cells on any of the three; fewer than every served row
+compared, no turns row with its percent, no refused prior, no numeric prior
+Altman, an empty list; **B5 (2026-09-19)** the NAME beside the six cells, or
+any of the six headings, differing by one byte between the three surfaces,
+or the tab's name not being the i18n label `ratioLabelForKey` prints, or a
+heading not its i18n word (the B8 verifier's 31 mismatched rows: "Current
+Ratio" / "Current ratio", "Δ" / "Change", "Band now" / "Band, 2025-12-31";
+one label authority: `statements.ratioCmp.label.<key>`, resolved by the
+report's `row()` helper into `Ratio.label` so the cover line, rail, charts,
+cards and workbook move together, and by `altmanLabelOf` for the credit
+reader); **B6 (2026-09-19, the export-side source gate)** browser
+arithmetic on a served value inside the export paths that print the six
+cells — `financialExports.ts` `sixCells` and its Band-movements region,
+`financialReport.ts` `ratioCmpCells` / `ratioCmpCardTable` /
+`servedOnlyRatioTable` / `bandMovementsBlock` / `ratioCmpBasisClause` /
+`creditMovementBlock`, `executiveSummary.ts` `buildBandMovements` — each
+body extracted by balanced braces from comment/string-blanked source and
+scanned for `toFixed`, `toPrecision`, `Math.*`, `parseFloat`, `parseInt`,
+`Number(`, unary `+`, `Intl.NumberFormat`, `toLocaleString` or an operator
+on `.value` / `.value_q`; a named path renamed or inlined out of the scan
+(the B8 verifier's plant A8: a same-bytes recompute that every byte gate
+passed). **Cannot see:** the one formatter printing a figure
+wrongly on every surface at once (ratioTableFormat.test.ts owns that); the
+Romanian tab (the exports print English); the PDF; the live route
+(comparatives-route).
+
+**GREEN** — `PASS ratio-byte-match (2.5s, 70 row x surface comparisons)`.
+
+**PLANT** — one rounding on ONE surface each, applied, run, reverted:
+
+| plant | surface | red |
+|---|---|---|
+| `frontend/lib/financialExports.ts` `sixCells`: a days row's current printed `toFixed(1)` | workbook | `FAIL ratio-byte-match (exit 1, 2.4s)`, battery record `work_units 62` (`8 failed, 62 passed`) |
+| `frontend/lib/ratioCompareView.ts` `printRatioRow`: a pct row's current printed `toFixed(0)` | tab | `22 failed, 48 passed` |
+| `frontend/lib/financialReport.ts` `ratioCmpCardTable`: the prior cell cut to one decimal | report | `14 failed, 56 passed` |
+
+**RED** — excerpts, one per plant:
+
+```
+→ dso: the workbook's six cells differ from the tab's: expected [ '26.0 days', '40 days', …(4) ] to deeply equal [ '26 days', '40 days', …(4) ]
+→ roe: the report's six cells differ from the tab's: expected [ '31.5%', '1.3%', '+30.2 pp', …(3) ] to deeply equal [ '32%', '1.3%', '+30.2 pp', …(3) ]
+→ roic: report summary vs tab list: expected [ '4.6%', '47.1%', '+42.5 pp', …(1) ] to deeply equal [ '4.6%', '47%', '+42.5 pp', …(1) ]
+→ current_ratio: the report's six cells differ from the tab's: expected [ '2.10×', '1.8×', …(4) ] to deeply equal [ '2.10×', '1.82×', …(4) ]
+→ altman_z: the report's six cells differ from the tab's: expected [ '7.31', '6.6', '+0.69', …(3) ] to deeply equal [ '7.31', '6.62', '+0.69', …(3) ]
+```
+
+**PLANT (B5, 2026-09-19)** — applied, run, reverted (134 passed after each):
+
+| plant | red |
+|---|---|
+| `financialReport.ts` `row()`: `const label = fallbackLabel` (the card keeps its own words) | `current_ratio: no single row in the workbook Ratios sheet: expected undefined to be defined` (B1/B2, 22 rows) plus B5 `the report's name differs from the tab's` |
+| `financialValuation.ts` `altmanLabelOf`: `return fallback` (the reader spells `Altman Z"-Score`) | `altman_z: the report's name differs from the tab's: expected 'Altman Z"-Score' to be 'Altman Z″'` |
+| `financialExports.ts` `cmpHeadings`: `"Δ", "Band now", …` spelled by hand | `B5 the six column headings …: expected [ 'Dec 2025', 'Dec 2024', 'Δ', …(3) ] to deeply equal [ 'Dec 2025', 'Dec 2024', …(4) ]` |
+
+The tile and the drawer are held to the table's one joined change cell by
+`ratioCompareTab.test.tsx` G13 (plant: the tile prints the percent as a
+second string → `current_ratio: the tile's change is not the table's one
+cell: expected '+0.28×+15.4%' to be '+0.28× (+15.4%)'`; the same on the
+drawer; reverted, 1 passed).
+
+**PLANT (B6, 2026-09-19)** — applied, run, reverted (144 passed after each):
+
+| plant | red |
+|---|---|
+| `financialExports.ts` `sixCells`: the pp change recomputed as `Number(current.value_q) − Number(prior.value_q)` printed `toFixed(1)` — the SAME bytes as the served cell (verifier plant A8; B1–B5 stay green) | `1 failed \| 143 passed`: `B6 financialExports.ts sixCells parses, rounds, formats and operates on no number` — `browser arithmetic on a served value — /\.toFixed\(/ matched ".toFixed("` |
+| `financialReport.ts` `ratioCmpCardTable`: the prior cell re-rounded from `row.prior.value` with `Math.round(x * 100) / 100` | B6 (`-t B6`): `financialReport.ts ratioCmpCardTable … /\bMath\.\w+\(/ matched "Math.round("`; and, unfiltered, B1/B2 on 22 rows (`current_ratio: … expected [ '2.10×', '1.82', …] to deeply equal [ '2.10×', '1.82×', …]`) because this plant also moved the bytes |
+
+**REVERT** — `Tests 70 passed (70)` after each of the first plants,
+`144 passed (144)` after the B5 and B6 plants; no `# PLANT` marker left.
+Verdict: proven RED.
 
 ## cron-auth
 
@@ -4557,3 +5177,59 @@ FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_the_benchmar
 ```
 
 **REVERT** — restored; exit `0`, `18 passed`.
+
+## ratios wave three — second repair round (2026-09-20)
+
+Seven verifier findings on `wave/ratios-b8-milestone` (one medium, six low).
+Every plant below was applied to the product, run, and reverted; the gate
+named is green at HEAD. What each gate reds on AFTER the repair (TC-11) is
+stated in the gate's own docstring.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `serve_credit_rows`: `family = set(CREDIT_FAMILY_METRICS)` (the definition-revised row not replaced) | `tests/engine/test_period_route_revised_rows.py` (battery `ratio-credit-model`, canary) | `agras: metrics[] serves 66.2774, ratio_table serves '55.64' under ONE key` · `retail: … 0.0909 … '-0.52'` — 5 failed |
+| 2 | get_period: the typed `ratios.coverage` patch disabled | same | `agras: assembled_metrics.ratios.coverage serves 66.2774, ratio_table '55.64'` — 3 failed |
+| 3 | `/report` coverage row back to the bare `"Interest coverage"` | `frontend/pages/cfo/__tests__/comprehensiveReportRatioLabel.test.tsx` | 1 failed (row name ≠ label authority) |
+| 4 | `statement_operands`: absent BS leaves and `interestExpense` read as `0.0` (verifier's plant) | `test_credit_model_rungs_and_ranges.py::test_an_absent_debt_or_interest_leaf_declares_nothing` (canary) | `assert {…operands…} is None` — 4 failed |
+| 5 | `SUBJECT_BUCKETS["interest_coverage"]` → `_EBITDA` | `test_comparatives_bands.py::test_the_interest_coverage_subject_names_ebit_accounts_and_the_ebitda_row_does_not` | `assert ('depreciation' in ('revenue', 'otherIncome', 'cogs', 'operatingExpenses'))` |
+| 6 | no-envelope FE model: `intCov` on `ebitdaStatutory` | `frontend/lib/__tests__/interestCoverageBasis.test.ts` | `expected '66.28' to be '55.64'` · `expected '0.09' to be '-0.52'` — 3 failed |
+| 7 | `ro.json` interest_coverage label `(EBITDA / dobânzi)` | same | `expected 'Gradul de acoperire a dobânzilor (EBI…' to match /\(EBIT \/ /` |
+| 8 | workbook served-only loop: pp change recomputed, `toFixed(1)` (verifier's X_b6gap) | `ratioTableByteMatch.test.tsx` B6 (battery `ratio-byte-match`) | `financialExports.ts Ratios-sheet builder: … /\.toFixed\(/ matched ".toFixed("` |
+| 9 | `sixCells`: `value_q as unknown as number; cq * 1 - pq * 1` (verifier's A8-alias) | same | `/\bas\s+(?:unknown\s+as\s+)?number\b/ matched "as unknown as number"` — 2 failed |
+| 10 | the same alias typed `any`, no cast | same | `/[\w)\]]\s*[-*/%]\s*[\w(]/ matched "q * 1"` — 2 failed |
+| 11 | FE `engineWeightOf`: Altman range breach ignored | `creditRefusedSubscores.test.tsx` (agras block) | `expected 100 to be null` — 3 failed |
+| 12 | FE `altmanFromEngine`: breach not withdrawn | same | `expected 10416.74 to be null` — 3 failed |
+| 13 | get_period as-filed branch: `withhold_out_of_range` dropped | `test_credit_model_rungs_and_ranges.py::test_the_as_filed_basis_withdraws_a_filed_altman_outside_its_range_on_the_route` | `assert (1584.89 is None)` |
+| 14 | same branch: `metrics[]` rows left raw | same | `AssertionError: ('altman_z_score', 1584.89)` |
+| 15 | `safeFacts` as before the repair (git stash) | `recommendationMateriality.test.ts` §8 | `expected null not to be null` |
+
+B6 now blanks template-literal TEXT and keeps its `${…}` expressions: the
+binary-operator rule would otherwise read `data-ratio-key` and `</td>` as
+arithmetic (first run: 5 false reds on the report closures).
+
+## ratios wave three — repair round credit2 (2026-09-20)
+
+One medium and six lows from the credit re-verify. Every plant below was
+applied to the product, run, and reverted; the gate named is green at HEAD.
+What each gate reds on AFTER the repair and what it cannot see (TC-11) is in
+the gate's own docstring.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `reportedInterestExpense`: shelved-record bridge removed | `retainedEarningsMapped.test.tsx` | `expected undefined to be 2935000000` · `expected [ 'longTermDebt', …(15) ] to not include 'interestExpense'` — 2 failed |
+| 2 | `debtReported` reads the two (always shelved) legs only | same | `expected +0 to be 2` (no declared rung on a reported total debt of 0) |
+| 3 | `canonical()` rebuilds EBIT instead of reading the reported level | same | `expected 129.3321976149915 to be close to 41.98160136286201` |
+| 4 | M7b — `enforce_metric_rows` except branch returns the rows raw | `test_credit_boundary.py::test_the_narrator_rows_fail_closed` | `assert {'altman_x4':...} == {'altman_x4':...}` (1584.89 / 1500.0 / 88.5 reach the narrator) |
+| 5 | M8 — comparatives route returns `compare_payloads(...)` raw | `::test_the_comparatives_composer_itself_exploding_is_refused_at_the_boundary` | `AssertionError: ('altman_z', {...})  assert (1584.89 is None)` |
+| 6 | A — envelope recognised by `altman_components` only | `::test_shape_a_…` | `assert (250 is None)` |
+| 7 | B — `beside = False` (R-COMPOSITE not held by shape) | `::test_shape_b_…` | `AssertionError: null sub-score  assert (80.0 is None)` |
+| 8 | C — last row of a name wins | `::test_shape_c_…` | `assert '1584.89' not in '[1584.89, 1...5, 3.1, 1.2]'` |
+| 9 | D1 — a mixed compare list skipped whole under its parent | `::test_shape_d_…` | `assert 100.0 is None` |
+| 10 | D2 — `_COMPARE_DEPENDENTS = {}` | same | `assert 100.0 is None` (the Altman sub-score row of the exploded side survives) |
+| 11 | E — filed Z'' read for finiteness only | `::test_shape_e_…` | `assert 1584.89 is None` |
+| 12 | `def _planted_floor(tl, e): return e / max(tl, 1)` in `credit_boundary.py` | `scripts/check_floor_census.py` (battery `floor-census`) | `FLOOR in the credit tier: src/engine/ratios/credit_boundary.py:665 [S1 DIVISOR_FLOOR] in _planted_floor: max(tl, 1)` — before the scope change: `PASS … credit tier clean` |
+| 13 | `_planted = {"operands": [{"name": "net_debt", "value": 123456.0, "source": "x"}]}` in `ratio_compare.py` | `scripts/check_metric_units.py` (battery `metric-units`) | `METRIC UNIT GATE: FAIL — the operand scope-out moved · ratio_compare.py::<module>  scoped out 1, pinned 0` — before the pin: `PASS … 4 operand record(s)` |
+
+Plant 9 reds on the sibling-list assertion, not on the composite: the list
+branch of the walk reads compare rows per row as well, so a mixed list is
+covered twice. Stated so the redundancy is not mistaken for the gate.

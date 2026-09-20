@@ -41,8 +41,10 @@ period's day count for days). `share` divides it by the base of the
 statement the NUMERATOR belongs to: total assets for a balance-sheet
 numerator (liquidity, leverage, working-capital days, net debt / EBITDA),
 revenue for a P&L numerator (margins, returns, coverage, turnover). ccc
-(a sum of three day counts) and adjusted_dscr (a user input) have no money
-denominator and carry no materiality. `MATERIALITY_BASES` is that table;
+(a sum of three day counts) is valued on its working-capital basis: days
+past the rung x revenue / period days, shared over total assets (ruling Q3).
+adjusted_dscr (a user input) has no money denominator and carries no
+materiality. `MATERIALITY_BASES` is that table;
 it is served as `band_movements.rank_basis.bases`. No floor is ruled:
 `materiality_floor` is served null, and nothing is hidden for being small.
 
@@ -141,11 +143,23 @@ MOVEMENT_REASON_CODES: Tuple[str, ...] = (
     "graded_by_letter",
 )
 
-#: Codes the composite rows and the Piotroski block carry.
+#: Codes the composite rows and the Piotroski block carry. The two
+#: liabilities codes are the credit model's sub-score refusals
+#: (`credit_model.CREDIT_SUBSCORE_REFUSAL_CODES`, revision 2): a refused
+#: Altman or liquidity row carries its own reason. `credit_component_undefined`
+#: is the composite's and the letter's refusal when any component refused
+#: (R-COMPOSITE), listing every refused component — never
+#: `credit_inputs_absent`, which means the model did not run at all.
 COMPOSITE_REASON_CODES: Tuple[str, ...] = (
     "credit_inputs_absent",
     "graded_by_letter",
     "piotroski_prior_capped",
+    "current_liabilities_not_positive",
+    "total_liabilities_below_materiality",
+    "revenue_not_positive",
+    "interest_expense_not_positive",
+    "credit_out_of_range",
+    "credit_component_undefined",
 )
 
 DELTA_UNIT_OF = {"x": "turns", "pct": "pp", "days": "days", "z": "z", "score": "points",
@@ -172,7 +186,7 @@ MATERIALITY_BASES: Dict[str, Dict[str, str]] = {
         ("current_ratio", _BS), ("quick_ratio", _BS), ("cash_ratio", _BS),
         ("debt_to_ebitda", _BS), ("debt_to_equity", _BS), ("equity_ratio", _BS),
         ("debt_to_assets", _BS), ("net_debt_to_ebitda", _BS), ("lt_debt_to_equity", _BS),
-        ("dso", _BS), ("dio", _BS), ("dpo", _BS),
+        ("dso", _BS), ("dio", _BS), ("dpo", _BS), ("ccc", _BS),
         ("gross_margin", _PL), ("ebitda_margin", _PL), ("net_margin", _PL),
         ("operating_margin", _PL), ("core_ebitda_margin", _PL),
         ("roa", _PL), ("roe", _PL), ("roic", _PL),
@@ -432,8 +446,12 @@ def _movement(key: str, cur: Mapping[str, Any], pri: Mapping[str, Any], display_
 
 def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
                     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    def refused(credit: Mapping[str, Any]) -> Dict[str, Any]:
-        reason = credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
+    def refused(credit: Mapping[str, Any], subscore: Optional[str] = None) -> Dict[str, Any]:
+        # A sub-score the model refused states its own reason; the
+        # composite and the letter state the block's (which lists every
+        # refused component).
+        own = (credit.get("refused_subscores") or {}).get(subscore) if subscore else None
+        reason = own or credit.get("reason") or {"code": CM.CREDIT_INPUTS_ABSENT, "inputs": []}
         return {"value": None, "value_q": None, "band": None, "band_status": "refused",
                 "ladder": None, "ladder_floor": None, "operands": [], "reason": copy.deepcopy(reason)}
 
@@ -441,7 +459,7 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         altman = credit.get("altman") or {}
         z = altman.get("z")
         if z is None:
-            return refused(credit)
+            return refused(credit, "altman")
         th = altman.get("thresholds") or {}
         return {
             "value": z, "value_q": T.quantize_display(z, "z"),
@@ -455,9 +473,10 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
             "reason": None,
         }
 
-    def score_side(credit: Mapping[str, Any], value: Optional[float], source: str) -> Dict[str, Any]:
+    def score_side(credit: Mapping[str, Any], value: Optional[float], source: str,
+                   subscore: Optional[str] = None) -> Dict[str, Any]:
         if value is None:
-            return refused(credit)
+            return refused(credit, subscore)
         return {"value": value, "value_q": T.quantize_display(value, "score"), "band": None,
                 "band_status": "not_banded", "ladder": None, "ladder_floor": None,
                 "operands": [{"name": source, "value": value, "source": "credit_model." + source}],
@@ -529,8 +548,8 @@ def _composite_rows(cur_credit: Mapping[str, Any], pri_credit: Mapping[str, Any]
         key = "credit_subscore_%s" % short
         cur_v = (cur_credit.get("subscores") or {}).get(short)
         pri_v = (pri_credit.get("subscores") or {}).get(short)
-        cur_s = score_side(cur_credit, cur_v, key)
-        pri_s = score_side(pri_credit, pri_v, key)
+        cur_s = score_side(cur_credit, cur_v, key, short)
+        pri_s = score_side(pri_credit, pri_v, key, short)
         for s_ in (cur_s, pri_s):
             if s_["band_status"] == "not_banded":
                 s_["reason"] = {"code": "not_in_pack_bands", "inputs": [key]}

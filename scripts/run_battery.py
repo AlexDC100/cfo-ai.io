@@ -366,14 +366,31 @@ def _engine_gates() -> List[Gate]:
         # prior composite silently absent, a band crossing that demotes and
         # vanishes from the list that should name it.
         # Plant log: docs/engine_book/gates.md
+        # + the rung / range / withdrawal gates and the FE fixture capture
+        # (B8 verifier repair round, 2026-09-19): statements required on the
+        # block, the as-filed withdrawal, the served re-check, a broken
+        # pack refusing the block (never the period) and failing boot.
         Gate("ratio-credit-model",
              [PY, "-m", "pytest",
               "tests/engine/test_credit_model_pure.py",
-              "tests/engine/test_credit_ladder_single_source.py", "-q"],
-             work_junit=True, floor=20, units="tests",
+              "tests/engine/test_credit_ladder_single_source.py",
+              "tests/engine/test_credit_model_refusals.py",
+              "tests/engine/test_credit_model_rungs_and_ranges.py",
+              "tests/engine/test_credit_refusal_fe_fixture.py",
+              "tests/engine/test_period_route_revised_rows.py", "-q"],
+             work_junit=True, floor=60, units="tests",
              canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
                        "test_stage_compute_inserts_exactly_the_pure_rows",
-                       "test_there_is_exactly_one_literal_ladder")),
+                       "test_there_is_exactly_one_literal_ladder",
+                       "test_a_book_with_no_liabilities_refuses_the_composite_and_the_letter_through_the_real_route",
+                       "test_every_book_refuses_exactly_where_its_liabilities_are_below_the_model",
+                       "test_the_block_and_the_refusals_take_no_rows_only_fallback",
+                       "test_a_filed_altman_and_composite_outside_the_range_are_withdrawn_never_reprinted",
+                       "test_a_broken_pack_refuses_the_credit_block_and_the_period_still_serves",
+                       "test_the_fe_credit_fixture_is_what_the_route_serves_today",
+                       "test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda",
+                       "test_a_legacy_ebitda_basis_row_is_served_as_one_figure_on_every_surface",
+                       "test_an_absent_debt_or_interest_leaf_declares_nothing")),
         Gate("ratio-table",
              [PY, "-m", "pytest", "tests/engine/test_ratio_table.py", "-q"],
              work_junit=True, floor=50, units="tests",
@@ -389,13 +406,82 @@ def _engine_gates() -> List[Gate]:
                        "test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair")),
         Gate("ratio-band-findings",
              [PY, "-m", "pytest", "tests/engine/test_comparatives_bands.py", "-q"],
-             work_junit=True, floor=50, units="tests",
+             work_junit=True, floor=55, units="tests",
              canaries=("test_a_planted_current_ratio_crossing_across_the_1_5_rung_surfaces_with_all_seven",
+                       "test_a_two_period_finding_never_says_no_prior_period_was_supplied",
+                       "test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount",
+                       "test_the_smallest_crossing_is_listed_with_its_surfaced_finding_and_no_floor_is_served",
                        "test_every_finding_carries_the_served_rows_figures_rung_headroom_severity_and_rank",
                        "test_a_served_code_the_contract_rejects_is_never_named_and_the_crossing_surfaces",
                        "test_the_movement_lists_partition_both_sides_and_demoted_crossings_stay_listed",
                        "test_a_lower_is_better_crossing_is_classified_by_direction",
                        "test_a_ratio_that_did_not_cross_produces_no_finding")),
+        # THE SERVED-RANGE LAW (ruling R-RANGE; owner 2026-09-18: range gate
+        # absolute). An independent law file that imports nothing from the
+        # product, read against the real GET /api/period route over eight
+        # books: the five scoring books, imbalance_03pct and
+        # synthetic_thin_equity (no liabilities), the thin book carrying
+        # exactly 1 RON of liabilities, the compact book with 1,000 of
+        # long-term debt (R-D1's debt leg), synthetic_negative_equity (ROIC)
+        # and the compact book with its revision-1 rows persisted (the
+        # as-filed withdrawal). Plant log: docs/engine_book/gates.md.
+        Gate("served-range",
+             [PY, "-m", "pytest", "tests/engine/test_served_range.py", "-q"],
+             work_junit=True, floor=44, units="tests",
+             canaries=("test_every_served_credit_score_is_inside_the_law_or_refused_with_a_reason",
+                       "test_the_zero_liability_books_refuse_altman_liquidity_the_composite_and_the_letter",
+                       "test_one_ron_of_liabilities_is_not_a_capital_structure",
+                       "test_the_law_is_independent_of_the_product",
+                       "test_the_revision_1_filing_of_the_compact_book_is_withdrawn_on_the_route",
+                       "test_the_r_d1_debt_leg_declares_no_rung_on_the_route",
+                       "test_roic_refuses_on_the_route_when_invested_capital_is_not_positive")),
+        # THE CREDIT SERVING BOUNDARY (owner, 2026-09-20: "the credit range
+        # gate goes at the serving boundary so no fallback can bypass it").
+        # create_app() over the tenancy double, a period whose persisted
+        # revision-1 rows carry X4 1500 / Z'' 1584.89 / 88.5 AA, and the
+        # model broken three ways (compute_period_metrics raises,
+        # serve_time_metric_rows -> None, build_ratio_table raises): no such
+        # figure, no zone and no letter on GET /api/period, the comparatives
+        # prior or the narrator payload; the independent served_range_law on
+        # every surface of every path. The bypass plant lives IN the suite.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("credit-boundary",
+             [PY, "-m", "pytest", "tests/engine/test_credit_boundary.py", "-q"],
+             work_junit=True, floor=32, units="tests",
+             canaries=("test_a_model_failure_path_serves_no_exploded_figure_no_zone_and_no_letter",
+                       "test_with_the_boundary_bypassed_the_failure_path_serves_the_exploded_value",
+                       "test_the_independent_law_holds_on_every_surface_of_every_path",
+                       "test_the_comparatives_prior_serves_no_exploded_figure",
+                       "test_the_narrator_payload_passes_the_boundary",
+                       "test_the_boundary_fails_closed",
+                       "test_every_credit_reader_in_the_api_layer_is_behind_the_boundary")),
+        # THE FLOOR CENSUS, engine half (owner rule: absent is never zero and
+        # never a floor). stdlib-ast over a printed 14-file scope for the
+        # eight substitute classes of the floor sweep; the credit tier is
+        # red on any unlisted site, the rest of the scope is a two-way
+        # ratchet. Self-tests its own detection on a committed fixture every
+        # run. Plant log: docs/engine_book/gates.md.
+        Gate("floor-census", [PY, "scripts/check_floor_census.py"],
+             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=80,  # measured 88 after the C6 floors merge (was 112)
+             units="candidate sites",
+             canaries=("self-test S1 DIVISOR_FLOOR",
+                       "self-test S8 CONSTANT_PERIOD",
+                       "credit   src/engine/ratios/credit_model.py",
+                       "credit tier clean")),
+        # The route the Ratios tab and the exports call, UN-INTERCEPTED:
+        # create_app() itself over the tenancy double, a real ES256 bearer,
+        # two corpus books as two periods of one workspace. Every FE ratio
+        # gate renders a committed capture and the Playwright harness
+        # answers the route from a file, so without this nothing on the
+        # request path (mount, query binding, identity wall, org filter,
+        # CAEN) is gated. Plant log: docs/engine_book/gates.md.
+        Gate("comparatives-route",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_route_real_app.py", "-q"],
+             work_junit=True, floor=7, units="tests",
+             canaries=("test_the_route_serves_every_ratio_and_a_numeric_prior_for_every_composite",
+                       "test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair",
+                       "test_a_prior_from_another_workspace_is_not_found",
+                       "test_a_current_period_from_another_workspace_is_not_found")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.
@@ -762,6 +848,24 @@ def _frontend_gates() -> List[Gate]:
              canaries=("capsuleFactIndex.test.ts",
                        "forecastPage.test.tsx",
                        "socialLinksFromConfig.test.ts")),
+        # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
+        # byte-matching" as a gate. It also rides `vitest`, and is named on
+        # its own because its defect prints a believable figure on one
+        # surface: a rounding, a unit or a joined change cell that differs
+        # between the Ratios tab, the report and the workbook while every
+        # per-surface gate stays green (it did, on the merged B6+B7 state:
+        # 68 of 70 red). Plant log: docs/engine_book/gates.md.
+        Gate("ratio-byte-match",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/ratioTableByteMatch.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=120,
+             units="row x surface comparisons",
+             canaries=("B4 non-vacuity: every census row and composite is compared",
+                       "B1/B2 altman_z: the tab, the report and the workbook print the same six cells",
+                       "B5 altman_z: the same name beside the six cells",
+                       "B5 the six column headings are one string",
+                       "B3 the deteriorated list: the served order and the same cells",
+                       "B6 non-vacuity: every named path is extracted whole and is the real served-row path")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

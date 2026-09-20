@@ -1,0 +1,106 @@
+# THE CREDIT MODEL PACK — pure data, no code.
+#
+# Read by `engine.ratios.credit_model` (through `credit_pack()`), and by
+# nothing else. Every cutoff, rung and range below is RENDERED from this
+# file wherever a surface states it (TC-10): the refusal a component
+# carries names the share and this file; a declared rung carries its score,
+# its label and its source; a range refusal prints the bound it was read
+# against. A reader who disagrees with a threshold can see where it lives.
+#
+# ALTMAN X4 MATERIALITY (ruling R-D4, 2026-09-15)
+# -----------------------------------------------
+# X4 = book equity / total liabilities. It is DEFINED only when total
+# liabilities are at least `share` of total assets. Below it the divisor is
+# not a capital structure, it is rounding: a book carrying 1 RON of
+# liabilities served X4 10,000.0, Z'' 10,416.74, zone "safe" and an Altman
+# sub-score of 100. Below the threshold X4, Z'', the zone and the Altman
+# component REFUSE, and so does the composite (ruling R-COMPOSITE: the
+# weights are never redistributed over the components that did score).
+#
+# The share is the balance-sheet materiality CLAUDE.md states for this
+# platform (section 3, Step 5, Gate 2: a balance sheet reconciliation gap
+# within +/-1% of total assets is noise, beyond it is a misclassification),
+# applied to the same base.
+#
+# DECLARED RUNGS (rulings R-D1, R-D2, R-D3; owner 2026-09-18: a labelled
+# top rung only where reality is genuinely best-case and the label says why)
+# --------------------------------------------------------------------------
+# A declared rung is a score the model STATES rather than measures, for a
+# state its formula cannot express. It is served with `declared: true`, its
+# label and this file, so no surface prints it as a measurement. Every
+# other zero or absent state REFUSES the component (and so the composite).
+#
+# RANGES (ruling R-RANGE)
+# -----------------------
+# Every sub-score and the composite lie in [0, 100] (the weights sum to
+# one). X1 = (CA - CL) / TA is at most 1 because current assets are part
+# of total assets and the leaves are non-negative. X4 = BE / TL is at most
+# 1 / share on the D4 domain (TL >= share x TA and BE <= TA). X2 and X3 have
+# no structural bound (retained earnings and EBIT are not bounded by total
+# assets) — they are required finite. Z'' is required finite and no greater
+# than the bound DERIVED from the bounded components with the book's own
+# X2 and X3: 6.56 x x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x x4.max, printed
+# with that derivation. A value outside its range refuses with
+# `credit_out_of_range`; a letter is never minted from a null or
+# out-of-range composite.
+
+schema_version: credit2
+altman_x4:
+  liabilities_materiality:
+    share: "0.01"
+    basis: total_assets
+    source: "CLAUDE.md section 3 Step 5 Gate 2 - balance-sheet materiality, 1% of total assets"
+
+declared_rungs:
+  coverage:
+    no_interest_bearing_debt:
+      score: 95
+      when: "total debt == 0 and interest expense == 0 and EBIT > 0, all three measured"
+      label: "no interest-bearing debt: coverage scored at the top rung by declared rule, not measured"
+      source: "floor_rulings R-D1 (2026-09-15); CLAUDE.md Appendix A section 7 coverage band map (top rung 95)"
+  dscr:
+    no_interest_bearing_debt:
+      score: 90
+      when: "total debt == 0 and interest expense == 0 and EBIT > 0, all three measured"
+      label: "no interest-bearing debt: DSCR scored at the top rung by declared rule, not measured"
+      source: "floor_rulings R-D1 (2026-09-15); CLAUDE.md Appendix A section 7 DSCR band map (top rung 90)"
+  leverage:
+    ebitda_not_positive:
+      score: 0
+      when: "net debt > 0 and EBITDA <= 0, both measured"
+      label: "EBITDA not positive: net debt cannot be serviced from earnings; leverage scored at the bottom rung by declared rule, not measured"
+      source: "floor_rulings R-D3 (2026-09-15)"
+  equity:
+    equity_ratio_not_positive:
+      score: 0
+      when: "equity ratio <= 0, measured"
+      label: "book equity not positive: the equity component takes the bottom rung by declared rule (Law 31/1990 art. 153^24 capital reconstitution applies), not measured"
+      source: "floor_rulings R-D2 (2026-09-15); Law 31/1990 art. 153^24"
+
+profitability:
+  # R-D2: with equity not positive and revenue positive, ROE is undefined
+  # and the sub-score is the net-margin term of the blend alone; the block
+  # discloses it. With revenue not positive the component refuses.
+  roe_undefined:
+    formula: "min(100, max(0, net_margin x 100 x 5 / 1.5)) - the net-margin term of the blend, ROE term dropped"
+    label: "book equity not positive: ROE is undefined, so profitability is scored on net margin alone"
+    source: "floor_rulings R-D2 (2026-09-15)"
+
+ranges:
+  subscore:
+    min: 0
+    max: 100
+    source: "CLAUDE.md Appendix A section 7: seven sub-scores on a 0-100 scale"
+  composite:
+    min: 0
+    max: 100
+    source: "CLAUDE.md Appendix A section 7: composite credit score (0-100, weighted); the weights sum to 1"
+  altman_x1:
+    max: 1
+    source: "structural: current assets are part of total assets and the leaves are non-negative"
+  altman_x4:
+    max_is: "1 / altman_x4.liabilities_materiality.share"
+    source: "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
+  altman_z:
+    bound_is: "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max"
+    source: "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"

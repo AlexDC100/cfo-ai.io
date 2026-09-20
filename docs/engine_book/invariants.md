@@ -79,6 +79,7 @@ it (bare single-letter markers are file-level attributions).
 | `M4` | Scale-neutrality: same minor units at different Money scales produce byte-identical statements. | — | `tests/engine/test_metamorphic.py` |
 | `M5` | Label immutability: scrambled account labels change no number in the assembled envelope. | — | `tests/engine/test_consensus.py`, `tests/engine/test_metamorphic.py` |
 | `M6` | Row order: any permutation yields a byte-identical canonical_bs and assembled envelope. | — | `tests/engine/test_metamorphic.py` |
+| `M8` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_credit_boundary.py` |
 
 ## V-family — AI advisory pass (additive, never blocking)
 

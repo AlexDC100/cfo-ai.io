@@ -186,18 +186,33 @@ def test_the_credit_model_imports_no_client():
     """Stubbing Supabase catches a Supabase call; this catches the other
     ways out (an HTTP client, a clock, a file). Scope: this one module."""
     tree = ast.parse(MODULE.read_text("utf-8"))
-    allowed = {"__future__", "logging", "typing"}
+    # `decimal` and `math` are arithmetic. `engine.ratios.credit_pack` is the ONE module
+    # allowed to open a file on the model's behalf — the pack data the X4
+    # materiality is read from (ruling R-D4, TC-10) — and it is held below
+    # to that: yaml + the path to the pack, no client, no clock.
+    allowed = {"__future__", "logging", "typing", "decimal", "math", "engine.ratios.credit_pack"}
     imported = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom):
-            imported.add((node.module or "").split(".")[0] if node.level == 0 else "." * node.level)
+            mod = node.module or ""
+            imported.add(mod if mod == "engine.ratios.credit_pack" else
+                         mod.split(".")[0] if node.level == 0 else "." * node.level)
     assert imported <= allowed, "credit_model imports %r" % sorted(imported - allowed)
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert not names & {"open", "_supabase", "admin", "per_user", "httpx", "requests"}, (
         names & {"open", "_supabase", "admin", "per_user", "httpx", "requests"}
     )
+    pack_tree = ast.parse((MODULE.parent / "credit_pack.py").read_text("utf-8"))
+    pack_imports = set()
+    for node in ast.walk(pack_tree):
+        if isinstance(node, ast.Import):
+            pack_imports.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            pack_imports.add((node.module or "").split(".")[0])
+    assert pack_imports <= {"__future__", "functools", "os", "decimal", "pathlib", "typing", "yaml"}, (
+        "credit_pack imports %r" % sorted(pack_imports))
 
 
 # ── stage_compute persists exactly the pure rows ──────────────────────
@@ -247,3 +262,50 @@ def test_stage_compute_inserts_exactly_the_pure_rows(name, case, monkeypatch):
     # extraction, plus the one deliberate revision row.
     assert _dump(inserted[:-1]) == _dump(case["rows"])
     assert inserted[-1] == {"period_id": "period-gate", "org_id": "org-gate", **_revision_row()}
+
+
+# ── the interest-coverage basis is the methodology's, by operands ────────
+
+
+def test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda(io_forbidden):
+    """Interest coverage = EBIT / interest expense (CLAUDE.md Appendix A,
+    section 5: "Interest coverage | EBIT / Interest expense"); EBITDA /
+    interest is the SEPARATE `ebitda_to_interest` row. Until 2026-09-19 both
+    rows divided EBITDA and printed one figure under two names (17.70x twice
+    on the Scandia FY2025 baseline; EBIT gives 13.27x). The golden above
+    pins the figures; this reds by OPERANDS, so a re-captured golden cannot
+    quietly carry the EBITDA basis back in.
+
+    Reds on: an `interest_coverage` row that is not round(operating_profit /
+    interest, 4); an `ebitda_to_interest` row that is not
+    round(ebitda_statutory / interest, 4); the two rows agreeing on any
+    interest-paying book whose EBIT and statutory EBITDA differ (D&A > 0);
+    fewer than three such books (vacuity). Cannot see: the served route
+    (test_ratio_table's operand check) or the FE labels (ratio-byte-match).
+    """
+    from engine.ratios import credit_model as CM
+
+    distinct = []
+    failures = []
+    for name, case in CASES:
+        statements, sq = _case_input(case)
+        interest = statements["incomeStatement"]["interestExpense"]
+        rows = {r["name"]: r["value"] for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
+        ebit, ebitda_stat = rows["operating_profit"], rows["ebitda_statutory"]
+        if not interest:
+            if rows["interest_coverage"] is not None or rows["ebitda_to_interest"] is not None:
+                failures.append("%s: no interest expense yet a coverage figure is served" % name)
+            continue
+        if rows["interest_coverage"] != round(ebit / interest, 4):
+            failures.append("%s: interest_coverage %r is not EBIT / interest = %r (EBITDA / interest would be %r)"
+                            % (name, rows["interest_coverage"], round(ebit / interest, 4), round(ebitda_stat / interest, 4)))
+        if rows["ebitda_to_interest"] != round(ebitda_stat / interest, 4):
+            failures.append("%s: ebitda_to_interest %r is not statutory EBITDA / interest = %r"
+                            % (name, rows["ebitda_to_interest"], round(ebitda_stat / interest, 4)))
+        if ebit != ebitda_stat:
+            distinct.append(name)
+            if rows["interest_coverage"] == rows["ebitda_to_interest"]:
+                failures.append("%s: interest_coverage and ebitda_to_interest print one figure %r under two names"
+                                % (name, rows["interest_coverage"]))
+    assert not failures, "\n  ".join(failures)
+    assert len(distinct) >= 3, "vacuous: interest-paying books with D&A: %r" % distinct

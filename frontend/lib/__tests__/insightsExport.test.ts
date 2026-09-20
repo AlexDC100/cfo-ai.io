@@ -568,7 +568,7 @@ describe("G-R13 · R1 — the KPI strip quotes the document's own figures", () =
       "agras prints DPO twice — 37.2 days inside trade_float, 27 days on a ratio card — with nothing between them",
     ).toBeTruthy();
     const said = text(note);
-    expect(said).toContain("Days Payables Outstanding");
+    expect(said).toContain("Days payables outstanding");
     expect(said).toContain("27 days");
     expect(said).toContain("TOTAL operating expense");
     expect(said).toContain("cost of goods sold");

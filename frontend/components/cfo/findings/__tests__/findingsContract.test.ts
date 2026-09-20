@@ -207,6 +207,32 @@ describe("absent is not zero", () => {
     expect(formatDimensionless(2.5, "ratio")).toBe("2.50×");
     expect(formatDimensionless(45.2, "days", { daysWord: "days" })).toBe("45 days");
   });
+
+  // The engine's band findings (ratios R2b) print Altman Z'' as a plain
+  // index and the letter's headroom in notches, and a day count agrees
+  // with its printed number. `unit()` mapped both new units to "unknown",
+  // so a served impact in notches parsed as a refusal and rendered no
+  // delta; and "1 days" printed wherever the engine printed "1 day".
+  // Expected strings are `_finding._format_value`'s own output for the same
+  // inputs (src/engine/api/_finding.py).
+  it("mirrors the engine printer for index, notches and a singular day", () => {
+    expect(formatDimensionless(3.0915, "index")).toBe("3.09");
+    expect(formatDimensionless(1, "notches")).toBe("1.00 notches");
+    expect(formatDimensionless(1, "days")).toBe("1 day");
+    expect(formatDimensionless(0.6, "days")).toBe("1 day");
+    expect(formatDimensionless(2, "days")).toBe("2 days");
+    expect(formatDimensionless(0, "days")).toBe("0 days");
+    expect(formatDimensionless(1, "days", { daysWord: "zile", dayWord: "zi" })).toBe("1 zi");
+  });
+
+  it("parses the engine's index and notches units rather than refusing them", () => {
+    for (const u of ["index", "notches"] as const) {
+      const row = surfacedRow();
+      const th = (row.contract_elements as Record<string, Record<string, unknown>>).threshold;
+      th.unit = u;
+      expect(parseFinding(row)!.elements.threshold?.unit).toBe(u);
+    }
+  });
 });
 
 // ── money never leaves the currency path ───────────────────────────────
