@@ -114,6 +114,28 @@ def test_a_book_with_debt_is_never_declared_debt_free_because_rows_are_missing()
     assert block["composite"] is not None and block["letter"] is not None
 
 
+def test_the_block_holds_the_composition_invariant_on_rows_it_did_not_compute():
+    """R-COMPOSITE, held by `credit_block` ITSELF (credit re-verify, low). The
+    two product callers pass `compute_period_metrics` rows, which already null
+    the composite beside a refused component - so the block trusted its rows,
+    and rows from anywhere else (persisted, cached, a future caller) carrying a
+    null sub-score beside an intact composite served 80.7 AA while
+    `refused_subscores` listed coverage and `reason` was None.
+    REDS ON, after the repair: a composite or a letter in a block that lists
+    any refused component; a refused block with no reason naming the component.
+    CANNOT SEE: rows whose sub-score is present and wrong."""
+    statements = _agras_statements()
+    rows = CM.compute_period_metrics(copy.deepcopy(statements))
+    assert _rows_by_name(rows)["credit_composite"] is not None
+    for key in ("coverage", "liquidity", "altman"):
+        block = CM.credit_block(_set(rows, **{"credit_subscore_%s" % key: None}), statements)
+        assert key in block["refused_subscores"], key
+        assert block["composite"] is None and block["letter"] is None, (key, block["composite"], block["letter"])
+        assert block["reason"]["code"] == "credit_component_undefined", key
+        assert [c["component"] for c in block["reason"]["components"]] == [key]
+        assert block["weights"] == dict(CM.CREDIT_COMPOSITE_WEIGHTS)  # never renormalised
+
+
 def test_with_no_operands_nothing_is_declared_and_every_withheld_row_refuses_as_inputs_absent():
     rows = CM.compute_period_metrics(_agras_statements())
     nulled = _set(rows, credit_subscore_coverage=None, credit_subscore_dscr=None, credit_composite=None)

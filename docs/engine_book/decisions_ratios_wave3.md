@@ -289,3 +289,130 @@ own name; the stage_compute golden has a committed writer
 (`fixtures/credit_model/recapture_stage_compute_golden.py`). Main merged
 again (22 commits; clean; engine book unchanged). Still unwritten:
 `e2e/ratios-comparatives.spec.ts`.
+
+## D16 — the range gate sits at the serving boundary (owner, 2026-09-20)
+
+**Instruction.** "The credit range gate goes at the serving boundary so no
+fallback can bypass it; plant a model-failure path serving an exploded value
+→ RED."
+
+**Decided.** One function, `engine.ratios.credit_boundary.
+enforce_credit_boundary(payload, surface=)`, is applied to the object a
+route returns: GET /api/period, GET /api/period/{id}/comparatives, and the
+narrator payload (`enforce_metric_rows`). It lives in `engine/ratios`, not
+`engine/serving`: that package's public API is closed by
+`check_import_boundary.py` and is the facts gateway; the credit law's home
+is beside the model and the pack it reads.
+
+- **By shape, not by path.** It recognises an envelope, a ratio-table block,
+  metric rows and comparatives rows under any key, so a cache or a future
+  fallback is read without registering itself.
+- **The as-filed envelope is composed there.** The per-path check in
+  get_period was correct and one fallback away from being skipped. The route
+  now hands the boundary the persisted rows untouched and reads no
+  credit-family value itself; bypass the boundary and the rows are served
+  raw — which is what makes the plant RED and keeps the gate a measurement
+  of the boundary (the bypass is kept IN the suite).
+- **Fails closed.** A pack that cannot be read, or any exception inside the
+  check, withholds the whole credit family.
+- **`credit_metrics_as_filed` was a live leak** (found by the independent
+  law, not by a plant): on every switched zero-liability period it served Z''
+  1584.89 / X4 1500 / liquidity 0.0 verbatim. Those rows are evidence, and
+  they are rows in a served body: they are held to the whole law and a failing
+  one is served as a record (`value: null, withheld: {code, inputs, value,
+  text}`), which `build_ratio_table` reads back as evidence so the
+  comparatives' as-filed disclosure does not change.
+- **Comparatives reads the GATED period bodies** (it calls get_period
+  in-process) and gates its own output. Under a raising model that route has
+  no fallback and answers 500; the gate pins "500, or 200 without the figure".
+- **Capsule tools and exports** serve no credit figure from the engine today
+  (`_capsule_tools.py` names none; exports are FE-side and read the gated
+  body). A census test reds when a new file under `src/engine/api` names a
+  credit-family figure.
+
+Blast radius (boundary on vs identity, persisted rows = today's model): agras
+7.31 / 80.7 AA, carniprod 6.62 / 79.3 A, realestate 2.43 / 29.3 CCC, retail
+0.6 / 15.8 CC, Scandia baseline 3.1 / 71.9 A — body identical on 6 of 6; no
+pinning fixture moved.
+
+## D17 — the items the two re-verifies left (2026-09-20)
+
+**FE, an unread figure does not render.** `scoreRangeOf` fell back to a
+literal [0, 100] (TC-10) and the Altman reader had no bound without served
+`ranges`. An envelope that states a `basis` owes a range beside every figure
+(the boundary guarantees it) and withholds a figure that has none; an envelope
+with no `basis` (cached before the contract) is checked for finiteness alone.
+The wider rule — refuse on every range-less envelope — was measured first: it
+redded 38 tests across 5 suites built on hand-made envelopes that state no
+basis, so the narrower, contract-keyed rule was chosen.
+
+**FE no-envelope model's zero-interest floor (held in D15) — now closed** by
+the owner's floors ruling: declared labelled top rung only when debt == 0,
+interest == 0, EBIT > 0 are all reported; otherwise the term refuses and the
+completeness law mints no letter. The storefront wiring D15 asked for first is
+in the same commit (`interestExpense` figure; a reported non-positive interest
+gets its own sentence, never "not reported"). Mapping checked before refusing
+(§23): SF1 `intexp` is mapped. Blast radius: carniprod 67.8 BB+ → 83.3 BBB on
+the no-envelope path only; the three other firm books and every served figure
+unchanged. **Open beside it:** the EDGAR lane (`public_market/edgar_concepts`)
+extracts no `InterestExpense` concept; that lane serves the pm1 presentation
+and does not feed this reader today, so nothing refuses because of it — if it
+is ever wired to the rating reader, map the concept first.
+
+**`metric-units`.** An operand record `{name, value, source}` under an
+`"operands"` key is not a metric row; scoped out by shape and position,
+counted and printed (3). Declaring a unit on the one operand that happened to
+have a literal name would have made it the only operand of ~100 with one.
+
+**`floor-census`.** Baseline tightened after the C6 merge (every movement
+DOWN); the 3 new OR_ZERO sites in `_industry_classifier.py` reviewed by
+measurement and found legitimate; the review is stored in the baseline file
+and a stale review is RED; the script now runs inside tests/engine.
+
+**B6.** Unary sign on a name, `+ (-x)`, `: any` / `as any`, `String(x).<m>`,
+`.slice(` / `.substring(` are banned in the nine served-row paths.
+
+**`credit_block` composition invariant.** Already held by the block since
+31a8fca; now pinned by a rows-only unit test (plant: guard off →
+`('coverage', 80.7, 'AA')`).
+
+### D13a — DECIDED: liquidity is NOT gated by the liabilities materiality share
+
+The open question: with exactly 1 RON of current liabilities the liquidity
+sub-score is defined and saturates at 100 while Altman refuses by materiality
+on the same book. Should the 1 % share also gate liquidity (pack and
+`served_range_law._liquidity_defined` changed together)?
+
+**No — Q2 stands: liquidity refuses only when current liabilities are not
+positive.** Reasons, in order of weight:
+
+1. *The two cases are not the same defect.* X4 = equity / total liabilities is
+   UNBOUNDED as liabilities → 0 and fed Z'' an exploded operand (1500 →
+   1584.89). The liquidity sub-score is a bounded ladder of three ratios; what
+   is served is a score in [0, 100] by construction (the allow-listed band
+   saturations), and the owner's rule "exploded values refuse" is about what is
+   served as a figure. No liquidity figure outside its range can be served, and
+   the boundary holds that on every path.
+2. *A small current-liability base is a real, common state, not an artefact:*
+   a single-asset property vehicle or a holding funded by a long-term loan
+   carries almost nothing due within the year. Gating at 1 % of total assets
+   would refuse liquidity — and with it the composite and the letter
+   (R-COMPOSITE) — for exactly the Path B / Path C companies this platform
+   analyses, for a reason the reader would rightly dispute: nothing falling
+   due is the best liquidity there is, not an unknown one.
+3. *Measured:* current liabilities are 33.1 % (agras), 13.6 % (carniprod),
+   33.7 % (realestate), 24.3 % (retail) and 33.2 % (Scandia baseline) of total
+   assets, so the gate would change nothing on the corpus today and could only
+   ever act on the books in (2).
+4. The 1-RON book still serves no composite and no letter: Altman, coverage,
+   DSCR and profitability refuse on it.
+
+Not changed: `packs/credit/model.yaml`, `served_range_law._liquidity_defined`.
+**Revisit if** a real book is found whose liquidity score is materially driven
+by a current-liability base under 1 % of total assets AND the score misleads;
+the honest repair then is the owner's other floors tool — a LABELLED declared
+rung ("nothing material falls due within the year"), not a refusal — and it
+changes the pack, the law and the model revision together.
+
+**Still open after this round:** `e2e/ratios-comparatives.spec.ts` is
+unwritten; the branch is not merged or deployed.
