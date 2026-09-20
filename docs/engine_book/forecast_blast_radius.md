@@ -922,3 +922,35 @@ engine over the repaired books), so the delta below is B4b's alone.
 | 5 | closing cash | 18,376,168.35 | 18,094,425.36 | -281,742.99 |
 | 5 | peak funding | 0.00 | 0.00 | 0 |
 | 5 | first shortfall | none | none | same |
+
+## B4 REPAIR ROUND — what moves at the default GET between 50cc222 and the repaired branch (plan/2, 2026-09-20)
+
+Measured with `scripts/measure_plan_blast_radius.py --markdown` on a checkout of
+50cc222 and on the repaired tree, then diffed; tax, pre-tax result and net income
+read off the same served body (sums over the five plan years, horizon 5). All
+four books answer 200 on both trees.
+
+| book | served figure | 50cc222 | repaired | delta | cause |
+|---|---|---:|---:|---:|---|
+| agras | every line | — | — | 0.00 | none of the repairs reaches a served figure |
+| carniprod | every line | — | — | 0.00 | same |
+| realestate | every line | — | — | 0.00 | same (loss-making: no tax on either tree) |
+| retail | pre-tax result, 5 plan years | 16,327,446.15 | 16,327,446.15 | 0.00 | unchanged |
+| retail | income tax, 5 plan years | 0.00 | -2,612,391.38 | -2,612,391.38 | the book files NO class-69 row: the charge is ABSENT, not a measured 0%; the ladder falls to the statutory rung (16.0% of pre-tax) |
+| retail | net income, 5 plan years | 16,327,446.15 | 13,715,054.77 | -2,612,391.38 | follows the tax |
+| retail | closing cash, plan year 1 | 4,518,570.44 | 4,000,929.28 | -517,641.16 | follows the tax |
+| retail | closing cash, plan year 2 | 7,905,005.75 | 6,864,724.97 | -1,040,280.78 | |
+| retail | closing cash, plan year 3 | 11,270,367.69 | 9,708,105.18 | -1,562,262.51 | |
+| retail | closing cash, plan year 4 | 14,689,464.15 | 12,602,343.09 | -2,087,121.06 | |
+| retail | closing cash, plan year 5 | 18,094,425.36 | 15,482,033.98 | -2,612,391.38 | equals the cumulative tax, to the cent |
+
+Revenue, EBITDA, peak funding and first shortfall do not move on any book. The
+retail move is the direction of caution: 50cc222 served a plan with no profit tax
+in any year on a profitable book. It restores what the same book took before B4a
+(the statutory rate); the definition ("no class-69 row = absent charge; a class-69
+row closing at 0.00 = a measured nil") is recorded for the owner's confirmation in
+the as-built log, B4R-6.
+
+Not reaching a served figure today, by construction: the absent-total refusal (the
+route rebuild always emits both totals), the per-family contra decision (every real
+book prints both families on one sign), `tb_parser_v6` (a provenance stamp).
