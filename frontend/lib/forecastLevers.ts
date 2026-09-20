@@ -109,12 +109,18 @@ export function displayBound(lever: LeverRef, end: "min" | "max"): string | unde
 }
 
 /** The step a control moves in, in the displayed unit. The engine's own
- *  `reach_step`, never a number chosen here (TC-10). */
+ *  `reach_step`, never a number chosen here (TC-10).
+ *
+ *  A step arrives on the wire in the driver's natural unit, exactly like a
+ *  value does, so it converts exactly like one — parse at the WIRE scale, print
+ *  at the DISPLAY factor. This used to compose the two the other way round and
+ *  rendered the revenue-growth step as `0.0001` on a field measured in percent,
+ *  a spinner tick ten thousand times smaller than the 1 pp the pack states. */
 export function displayStep(lever: LeverRef): string | undefined {
   if (!lever.stepText) return undefined;
-  const scaled = parseDecimal(lever.stepText, displayFactor(lever));
+  const scaled = parseDecimal(lever.stepText, lever.scale);
   if (scaled === null) return undefined;
-  return exactDecimal(scaled, lever.scale);
+  return exactDecimal(scaled, displayFactor(lever));
 }
 
 /** One lever the reader has moved. `values` are wire strings, one per plan

@@ -511,12 +511,66 @@ describe("a refused recompute does not take the page away", () => {
     expect(bounds.min).toBeTruthy();
     expect(bounds.max).toBeTruthy();
     // Shown in the DISPLAYED unit, like the value and the step beside them:
-    // a ratio bound of "3.000000" is 300% on screen, never 3.
-    expect(input.min).toBe("-100");
-    expect(input.max).toBe("300");
-    const dso = screen.getByTestId("forecast-lever-input-dso_days-0") as HTMLInputElement;
-    expect(dso.min).toBe("0");
-    expect(dso.max).toBe("365");
+    // a ratio bound of "3" is 300% on screen, never 3. Rendered as a sentence
+    // the reader can read rather than as `min`/`max` on the element, which the
+    // browser only uses to tint the field after the fact — it does not stop
+    // anyone typing 400 — and which a text field ignores outright.
+    const range = screen.getByTestId("forecast-lever-bounds-revenue_growth");
+    expect(range.getAttribute("data-min")).toBe("-100");
+    expect(range.getAttribute("data-max")).toBe("300");
+    expect(range.textContent).toContain("-100");
+    expect(range.textContent).toContain("300");
+    const dso = screen.getByTestId("forecast-lever-bounds-dso_days");
+    expect(dso.getAttribute("data-min")).toBe("0");
+    expect(dso.getAttribute("data-max")).toBe("365");
+    // The step is the pack's own `reach_step`, in the unit the cell is in:
+    // 0.01 of a ratio is ONE percentage point on a field measured in percent.
+    expect(SERVED.drivers.revenue_growth.reach_step).toBe("0.01");
+    expect(
+      screen.getByTestId("forecast-lever-step-revenue_growth").textContent,
+    ).toContain("1");
+    expect(
+      screen.getByTestId("forecast-lever-step-revenue_growth").textContent,
+    ).not.toContain("0.0001");
+  });
+
+  it("an answer landing mid-word does not rewrite what the reader is typing", async () => {
+    // `<input type="number">` reports `value === ""` the instant a decimal
+    // point is typed ("12." is not a valid floating-point number), this page
+    // reads an empty cell as "leave the year at the engine's own value", and
+    // the re-sync then wrote the SERVED figure back under the cursor. Measured
+    // in Chrome, one keypress at a time: "1" -> "1", "2" -> "12", "." -> "2.5",
+    // "5" -> "2.55". The cell is a text field now, and the re-sync stops while
+    // the cell has focus.
+    renderPage();
+    await screen.findByTestId("forecast-levers");
+    const input = screen.getByTestId(
+      "forecast-lever-input-revenue_growth-0",
+    ) as HTMLInputElement;
+    expect(
+      input.getAttribute("type"),
+      "a number input eats the decimal point out of every lever on this page",
+    ).toBe("text");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "12" } });
+    // The empty read is exactly what a number input hands back mid-decimal;
+    // whatever produces it, the served value must not land on top of the
+    // reader while the cell is theirs.
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input.value).toBe("");
+    fireEvent.change(input, { target: { value: "12.5" } });
+    expect(input.value).toBe("12.5");
+    // On blur the re-sync is live again — and what it syncs TO is the value
+    // the cell stands on, which is still the reader's own pending edit. A
+    // blurred cell showing the engine's old figure while the override is in
+    // flight would be the page contradicting the request it just sent.
+    fireEvent.blur(input);
+    await waitFor(() => expect(input.value).toBe("12.5"));
+    // Drop the override and the cell goes back to the engine's figure.
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(input.value).toBe("2.5"));
   });
 
   it("a cell stays typeable while its own recompute is in flight", async () => {

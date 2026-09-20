@@ -62,12 +62,29 @@ function TierChip({ tier, testid }: { tier: string | null; testid: string }) {
 
 /** ONE EDITABLE CELL. The typed text is local — and ONLY the typed text.
  *
- *  The re-sync effect fires on the SERVED value, so the field is not clobbered
- *  mid-recompute (the served value has not moved yet) and does adopt whatever
- *  the engine answers — including a value the engine clamped or refused to
- *  take, which the reader then sees rather than being left looking at their own
- *  number as though it had been accepted. Same shape as `ValuationSection`,
- *  the page in this product that already round-trips an input to the server. */
+ *  ── IT IS A TEXT FIELD, NOT `type="number"` ───────────────────────────
+ *
+ *  Measured in Chrome: `<input type="number">` runs the HTML value-sanitization
+ *  algorithm, and `"12."` is not a valid floating-point number, so the moment
+ *  the reader presses the decimal point the element reports `value === ""`.
+ *  This page reads an empty cell as "leave this year at the engine's own
+ *  value", so the override was dropped and the re-sync below wrote the SERVED
+ *  figure back under the cursor. Probe, one keypress at a time into the revenue
+ *  growth cell: `"1"` -> "1", `"2"` -> "12", `"."` -> "2.5", `"5"` -> "2.55".
+ *  No decimal could be typed into any lever on this page. A text field with
+ *  `inputMode="decimal"` reports what was typed; `displayToWire` was already
+ *  the only thing deciding what is a number, and it already refuses junk.
+ *
+ *  ── THE RE-SYNC STOPS AT THE CURSOR ───────────────────────────────────
+ *
+ *  It fires on the SERVED value, so the field adopts whatever the engine
+ *  answers — including a value the engine clamped or refused to take, which the
+ *  reader then sees rather than being left looking at their own number as
+ *  though it had been accepted. But NOT while the cell has focus: a reader
+ *  half-way through "12.5" is mid-sentence, and an answer landing on top of
+ *  them rewrites what they are typing. It catches up on blur. Same shape as
+ *  `ValuationSection`, the page in this product that already round-trips an
+ *  input to the server. */
 function LeverCell({
   lever,
   index,
@@ -84,9 +101,11 @@ function LeverCell({
   onChange: LeverRailProps["onChange"];
 }) {
   const [text, setText] = useState(served);
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
+    if (focused) return;
     setText(served);
-  }, [served]);
+  }, [served, focused]);
   return (
     <label
       className={`flex min-w-0 items-center gap-1 rounded border px-2 py-1 ${
@@ -107,15 +126,16 @@ function LeverCell({
           bounds, so the refusal it would answer with is one the control does
           not let the reader reach in the first place. */}
       <input
-        type="number"
+        type="text"
         inputMode="decimal"
+        autoComplete="off"
         data-testid={`forecast-lever-input-${lever.key}-${index}`}
         data-refused={refused ? "true" : undefined}
         aria-invalid={refused || undefined}
+        aria-describedby={`forecast-lever-bounds-${lever.key}`}
         value={text}
-        min={displayBound(lever, "min")}
-        max={displayBound(lever, "max")}
-        step={displayStep(lever)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onChange={(e) => {
           setText(e.target.value);
           onChange(lever.key, index, e.target.value);
@@ -159,6 +179,10 @@ function LeverRow({
   const isUser = lever.basis.tier === "user";
   // The value the reader is looking at: their own edit if they have made one,
   // otherwise the engine's served value for that plan year.
+  const step = displayStep(lever);
+  const min = displayBound(lever, "min");
+  const max = displayBound(lever, "max");
+  const bounds = min !== undefined && max !== undefined ? { min, max } : null;
   const cellValue = (i: number): string => {
     const own = edit?.values[i];
     if (own !== undefined && own !== null) return wireToDisplay(own, lever);
@@ -210,6 +234,32 @@ function LeverRow({
           />
         ))}
       </div>
+
+      {/* THE RANGE THE ENGINE TAKES, in the same unit as the cells above it.
+          Both ends come off the payload's own `bounds` (TC-10) — nothing here
+          is a number somebody typed. It is shown rather than enforced: the
+          engine decides what it will accept, and a second rule living on this
+          page is a rule that can drift away from the one that is applied. */}
+      {bounds ? (
+        <p
+          id={`forecast-lever-bounds-${lever.key}`}
+          data-testid={`forecast-lever-bounds-${lever.key}`}
+          data-min={bounds.min}
+          data-max={bounds.max}
+          className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute"
+        >
+          {t("forecast.lever.range", "Takes {{min}} to {{max}}{{suffix}}", {
+            min: bounds.min,
+            max: bounds.max,
+            suffix: displaySuffix(lever),
+          })}
+          {step ? (
+            <span data-testid={`forecast-lever-step-${lever.key}`}>
+              {t("forecast.lever.step", ", in steps of {{step}}", { step })}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
 
       <p
         data-testid={`forecast-lever-basis-${lever.key}`}

@@ -3165,7 +3165,9 @@
       "capex_pct_of_revenue": "Investiții, pondere în venituri",
       "dividend_payout_pct": "Distribuire de dividende",
       "gross_margin": "Marja brută",
-      "opex_growth": "Creșterea costurilor de exploatare"
+      "opex_growth": "Creșterea costurilor de exploatare",
+      "range": "Acceptă de la {{min}} la {{max}}{{suffix}}",
+      "step": ", în pași de {{step}}"
     },
     "grain": {
       "showFy": "Arată anii financiari",

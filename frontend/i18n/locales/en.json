@@ -3141,7 +3141,9 @@
       "capex_pct_of_revenue": "Capex, share of revenue",
       "dividend_payout_pct": "Dividend payout",
       "gross_margin": "Gross margin",
-      "opex_growth": "Operating cost growth"
+      "opex_growth": "Operating cost growth",
+      "range": "Takes {{min}} to {{max}}{{suffix}}",
+      "step": ", in steps of {{step}}"
     },
     "grain": {
       "showFy": "Show financial years",
