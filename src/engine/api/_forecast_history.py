@@ -161,7 +161,7 @@ def _history_block(client: Any, org_id: str, period_id: str,
     """(prior_periods, history block). The org filter is ON THIS SELECT: a
     period in another workspace is never a candidate, never loaded and never
     named in the block."""
-    from .pipeline import StatementsRebuildError
+    from .pipeline import PeriodNotFound, StatementsRebuildError
 
     rows = client.select(
         "financial_periods",
@@ -196,6 +196,15 @@ def _history_block(client: Any, org_id: str, period_id: str,
                 "code": "statements_not_rebuilt",
                 "text": "this period's statements could not be rebuilt, so "
                         "its turnover cannot be read: %s" % failed}))
+            continue
+        except PeriodNotFound:
+            # The candidate select saw the row and the id+org_id load did
+            # not. That means RLS refused it, so the row is not this
+            # workspace's to read whatever the candidate select thought:
+            # the PRIOR is dropped, never the anchor's whole plan.
+            excluded.append(dict(entry, reason={
+                "code": "prior_not_readable",
+                "text": "this period is not readable in this workspace"}))
             continue
         prior_periods.append({
             "period_id": entry["period_id"],

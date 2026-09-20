@@ -281,6 +281,18 @@ def test_the_cash_trough_is_the_minimum_of_the_served_cash_series(name):
     # ...and the mark sits on the curve the chart actually draws
     on_curve = [p for p in points if p["period"] == trough["period"]][0]
     assert on_curve["amount_minor"] == trough["amount"]["amount_minor"]
+    # The shaded band of the same chart. realestate's closing cash is FLAT
+    # ZERO in every period (it sits on its floor and draws the line), so the
+    # minimum check above cannot see a drift on that book — a constant
+    # series reads the same however it is picked. This tie to the revolver
+    # is what makes the realestate case non-vacuous.
+    shaded = set(body["summary"]["funding_gap_periods"])
+    assert shaded <= set(p["period"] for p in points), shaded
+    for point in body["series"]["revolver"]:
+        if "amount_minor" not in point:
+            continue
+        drawn = point["amount_minor"] > 0
+        assert drawn == (point["period"] in shaded), point
 
 
 # ── G3: the growth default, and what it may never silently be ────────────
