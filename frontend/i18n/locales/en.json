@@ -899,6 +899,10 @@
       "iqr": "{{p25}} to {{p75}}",
       "cite": "n={{n}} · FY{{year}}",
       "levelDivision": "CAEN division {{caen}}, not the class",
+      "sectorRef": {
+        "caen4": "CAEN {{caen}}",
+        "caen2": "CAEN division {{caen}}"
+      },
       "noteDiffers": "Restated on the filed basis; not the same definition as the {{card}} card.",
       "movedFromTo": "{{from}} → {{to}}",
       "comparedCount": "{{compared}} of {{of}} ratios compared in both periods",
@@ -909,7 +913,7 @@
       "refusedTitle": "Not compared",
       "refusedIntro": "The summary-level filing does not publish the lines these ratios need, so no sector figure exists for them.",
       "barAria": "{{label}}: company {{company}}, sector median {{median}}, middle half {{iqr}}",
-      "bandSector": "Sector: median {{median}}, middle half {{p25}} to {{p75}} · CAEN {{caen}} · {{sizeBand}} · n={{n}} · FY{{year}} · {{source}}. Your position: {{position}}. The band above is the general SME ladder.",
+      "bandSector": "Sector: median {{median}}, middle half {{p25}} to {{p75}} · {{sectorRef}} · {{sizeBand}} · n={{n}} · FY{{year}} · {{source}}. Your position: {{position}}. The band above is the general SME ladder.",
       "bandGeneral": "General SME band, not calibrated to your sector.",
       "bandGeneralBecause": "General SME band. No sector band: {{reason}}",
       "loading": "Loading sector figures…",
@@ -922,7 +926,8 @@
         "iqr": "Middle half",
         "n": "n",
         "fy": "Year",
-        "position": "Position"
+        "position": "Position",
+        "level": "Sector level"
       },
       "position": {
         "below_p25": "below the lower quartile",

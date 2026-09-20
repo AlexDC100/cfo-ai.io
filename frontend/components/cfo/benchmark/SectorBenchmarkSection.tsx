@@ -125,7 +125,7 @@ export function SectorBenchmarkView({ doc }: { doc: SectorBenchmarkDoc }) {
                       <div className={`text-[12px] ${toneOf(r.vsSector)}`} data-cell="position">{r.position}</div>
                       <div className="mt-0.5 font-mono tabular-nums text-[11px] text-ink-mute">
                         n=<span data-cell="n">{r.n}</span> · <span data-cell="fy">{r.fy}</span>
-                        {r.level ? <span> · {r.level}</span> : null}
+                        {r.level ? " · " : ""}<span data-cell="level">{r.level}</span>
                       </div>
                       <div className="mt-0.5 text-[10.5px] leading-snug text-ink-mute break-words" data-cell="source">{r.source}</div>
                     </div>

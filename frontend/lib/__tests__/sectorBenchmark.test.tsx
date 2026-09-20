@@ -268,3 +268,79 @@ describe("the CFO report", () => {
     for (const el of sector) expect(el.textContent).toMatch(/n=\d+ · FY\d{4} · Ministerul Finantelor/);
   });
 });
+
+// ─── the CAEN division fallback, disclosed on EVERY surface ─────────────
+//
+// When the company's 4-digit class carries too few filers, the served band
+// falls back to the 2-digit DIVISION. That is a different peer set from the
+// one the context line names, so every surface that prints the band must
+// say so. The page said it; the report did not, and the ratio card wrote
+// "CAEN 10" — a class code that does not exist.
+//
+// WHAT THIS REDS ON, AFTER THE REPAIR (TC-11): a fallback band printed in
+// the report without its `level` cell, a `level` cell whose bytes differ
+// from the page's, or a ratio-card band line that names the division
+// number without saying it is a division.
+
+const DIVISION_DOC = (): SectorBenchmarkDoc => {
+  const doc = DOC();
+  for (const r of doc.rows) {
+    if (r.sector) { r.sector.level = "caen2"; r.sector.sector_caen = "10"; }
+  }
+  for (const card of Object.values(doc.ratio_cards)) {
+    if (card.band_source === "sector") { card.level = "caen2"; card.sector_caen = "10"; }
+  }
+  return doc;
+};
+
+describe("a band that fell back to the CAEN division says so everywhere", () => {
+  it("the report row carries the division marker, byte-identical to the page", () => {
+    const doc = DIVISION_DOC();
+    renderWithProviders(<SectorBenchmarkView doc={doc} />);
+    const report = new DOMParser().parseFromString(sectorReportSectionHtml(doc, "en"), "text/html");
+    const printed = printSectorRows(doc, "en");
+    expect(printed.length).toBeGreaterThan(0);
+    for (const p of printed) {
+      expect(p.level, p.key).toBe(en.benchmarkPage.sector.levelDivision.replace("{{caen}}", "10"));
+      const tr = report.querySelector(`tr[data-sector-row="${p.key}"]`)!;
+      const inReport = tr.querySelector('[data-cell="level"]');
+      expect(inReport, `${p.key}: the report row must carry the division marker`).not.toBeNull();
+      expect(inReport!.textContent, `${p.key}.level`).toBe(p.level);
+      const onPage = screen.getAllByTestId("sector-row")
+        .find((el) => el.getAttribute("data-sector-row") === p.key)!
+        .querySelector('[data-cell="level"]');
+      expect(onPage, `${p.key}: the page row must carry the division marker`).not.toBeNull();
+      expect(onPage!.textContent, `${p.key}.level page vs report`).toBe(inReport!.textContent);
+    }
+  });
+
+  it("a class-level band leaves the marker empty on both surfaces", () => {
+    const doc = DOC();
+    const report = new DOMParser().parseFromString(sectorReportSectionHtml(doc, "en"), "text/html");
+    for (const p of printSectorRows(doc, "en")) {
+      expect(p.level, p.key).toBe("");
+      expect(report.querySelector(`tr[data-sector-row="${p.key}"] [data-cell="level"]`)!.textContent).toBe("");
+    }
+  });
+
+  it("the ratio card names the division as a division, never as a class", () => {
+    const doc = DIVISION_DOC();
+    for (const locale of ["en", "ro"] as const) {
+      const line = bandSourceText(doc, "net_margin", locale);
+      const pack = locale === "en" ? en : ro;
+      const division = pack.benchmarkPage.sector.sectorRef.caen2.replace("{{caen}}", "10");
+      expect(line, `${locale}: the card must say the band is the division`).toContain(division);
+      // and nowhere does the bare class form stand on its own: "CAEN 10" is
+      // a class code that does not exist. (In RO the division phrase itself
+      // ends in "CAEN 10", so the check is on what remains without it.)
+      const rest = line.split(division).join("␡");
+      expect(rest, `${locale}: "CAEN 10" alone is a class code that does not exist`)
+        .not.toContain(pack.benchmarkPage.sector.sectorRef.caen4.replace("{{caen}}", "10"));
+    }
+  });
+
+  it("a class-level card still names the class", () => {
+    const line = bandSourceText(DOC(), "net_margin", "en");
+    expect(line).toContain(en.benchmarkPage.sector.sectorRef.caen4.replace("{{caen}}", "1011"));
+  });
+});

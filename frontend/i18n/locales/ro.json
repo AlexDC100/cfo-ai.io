@@ -899,6 +899,10 @@
       "iqr": "{{p25}} până la {{p75}}",
       "cite": "n={{n}} · FY{{year}}",
       "levelDivision": "diviziunea CAEN {{caen}}, nu clasa",
+      "sectorRef": {
+        "caen4": "CAEN {{caen}}",
+        "caen2": "diviziunea CAEN {{caen}}"
+      },
       "noteDiffers": "Recalculat pe baza situației depuse; nu are aceeași definiție ca indicatorul {{card}}.",
       "movedFromTo": "{{from}} → {{to}}",
       "comparedCount": "{{compared}} din {{of}} indicatori comparați în ambele perioade",
@@ -909,7 +913,7 @@
       "refusedTitle": "Necomparat",
       "refusedIntro": "Situația depusă, la nivel de sinteză, nu publică rândurile de care au nevoie acești indicatori, deci nu există o cifră de sector pentru ei.",
       "barAria": "{{label}}: compania {{company}}, mediana sectorului {{median}}, jumătatea de mijloc {{iqr}}",
-      "bandSector": "Sector: mediană {{median}}, jumătatea de mijloc {{p25}} până la {{p75}} · CAEN {{caen}} · {{sizeBand}} · n={{n}} · FY{{year}} · {{source}}. Poziția ta: {{position}}. Banda de mai sus este scara generală pentru IMM-uri.",
+      "bandSector": "Sector: mediană {{median}}, jumătatea de mijloc {{p25}} până la {{p75}} · {{sectorRef}} · {{sizeBand}} · n={{n}} · FY{{year}} · {{source}}. Poziția ta: {{position}}. Banda de mai sus este scara generală pentru IMM-uri.",
       "bandGeneral": "Bandă generală pentru IMM-uri, necalibrată pe sectorul tău.",
       "bandGeneralBecause": "Bandă generală pentru IMM-uri. Fără bandă de sector: {{reason}}",
       "loading": "Se încarcă cifrele sectorului…",
@@ -922,7 +926,8 @@
         "iqr": "Jumătatea de mijloc",
         "n": "n",
         "fy": "An",
-        "position": "Poziție"
+        "position": "Poziție",
+        "level": "Nivel sector"
       },
       "position": {
         "below_p25": "sub cuartila inferioară",

@@ -283,6 +283,17 @@ export function printSectorRows(doc: SectorBenchmarkDoc, locale?: string | null)
   });
 }
 
+/** How the peer set is NAMED: the 4-digit class, or the 2-digit division
+ *  the band fell back to. A fallback band is a different peer set from the
+ *  one the context line names, so every surface that prints the band says
+ *  which level it came from. */
+export function sectorRefText(fig: SectorFigure | undefined | null, fallbackCaen: string | null, locale?: string | null): string {
+  const loc = localeOf(locale);
+  const caen = fig?.sector_caen ?? fallbackCaen ?? "";
+  const level = fig?.level === "caen2" ? "caen2" : "caen4";
+  return tFor(loc)(`benchmarkPage.sector.sectorRef.${level}`, { caen });
+}
+
 /** The context line: CAEN, sector, size band with cut-offs, FY. */
 export function sectorContextText(doc: SectorBenchmarkDoc, locale?: string | null): string {
   const loc = localeOf(locale);
@@ -335,7 +346,7 @@ export function bandSourceText(doc: SectorBenchmarkDoc | null, censusKey: string
       median: sectorValueText(fig.median, card.unit, loc),
       p25: sectorValueText(fig.p25, card.unit, loc),
       p75: sectorValueText(fig.p75, card.unit, loc),
-      caen: card.sector_caen ?? doc.caen,
+      sectorRef: sectorRefText(card, doc.caen, loc),
       sizeBand: sizeBandText(card.size_band, loc),
       n: fig.n, year: fig.year, source: fig.source,
       position: t(`benchmarkPage.sector.position.${card.position}`),
@@ -361,15 +372,15 @@ export function sectorReportSectionHtml(doc: SectorBenchmarkDoc | null, locale?:
   const head = `<h3>${esc(t("benchmarkPage.sector.title"))}</h3>`
     + `<p class="meta" data-sector-context>${esc(sectorContextText(doc, loc))}</p>`;
   if (doc.status !== "ok") return `<section data-sector-benchmark>${head}</section>`;
-  const cols = ["ratio", "company", "median", "iqr", "n", "fy", "position"] as const;
+  const cols = ["ratio", "company", "median", "iqr", "n", "fy", "position", "level"] as const;
   const th = cols.map((c) => `<th>${esc(t(`benchmarkPage.sector.col.${c}`))}</th>`).join("");
   const body = printSectorRows(doc, loc).map((r) => {
     const cell = (name: string, text: string, cls = "") =>
       `<td data-cell="${name}"${cls ? ` class="${cls}"` : ""}>${esc(text)}</td>`;
     const tail = r.status === "sourced"
       ? cell("median", r.median, "num") + cell("iqr", r.iqr, "num") + cell("n", r.n, "num")
-        + cell("fy", r.fy) + cell("position", r.position)
-      : `<td data-cell="reason" colspan="5">${esc(r.reason)}</td>`;
+        + cell("fy", r.fy) + cell("position", r.position) + cell("level", r.level)
+      : `<td data-cell="reason" colspan="6">${esc(r.reason)}</td>`;
     const note = r.note ? `<div class="meta" data-cell="note">${esc(r.note)}</div>` : "";
     return `<tr data-sector-row="${esc(r.key)}" data-status="${r.status}">`
       + `<td data-cell="label">${esc(r.label)}${note}</td>${cell("company", r.company, "num")}${tail}</tr>`;
