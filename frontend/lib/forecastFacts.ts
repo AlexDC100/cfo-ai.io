@@ -350,6 +350,10 @@ export interface BookInput {
   readonly fact: string;
   readonly periodEnd: string;
   readonly valueMinor: number | null;
+  /** The same figure in MAJOR units, converted here at the gateway edge —
+   *  exactly like `projectedDisplay`'s single division — so a surface that
+   *  shows a book input formats it and computes nothing. */
+  readonly value: number | null;
 }
 
 export interface LeverBasisView {
@@ -643,7 +647,12 @@ const WIRE_UNITS: Record<string, [AssumptionUnit, number]> = {
   ratio_micros: ["ratio", 1_000_000],
   index_micros: ["index", 1_000_000],
   micro_days: ["days", 1_000_000],
-  money_minor: ["money_minor", 1],
+  // A MONEY DRIVER'S NATURAL UNIT IS THE MAJOR ONE — `min_cash` at 12,000,000
+  // rides the wire as 1,200,000,000 minor and the engine takes "12000000"
+  // back. This divisor was 1, which left the surface to divide by 100 on its
+  // own (it did) and left a lever control sending a hundredfold value (it
+  // would have). One divisor, at the gateway, for both readers.
+  money_minor: ["money_minor", 100],
 };
 
 const sentenceText = (x: unknown): string => asString(asRecord(x)?.text);
@@ -706,11 +715,13 @@ const bookInputsOf = (book: RawRecord | null): BookInput[] => {
   return inputs.flatMap((i) => {
     const rec = asRecord(i);
     if (!rec) return [];
+    const minor = asInt(rec.value_minor);
     return [
       {
         fact: asString(rec.fact),
         periodEnd: asString(rec.period_end),
-        valueMinor: asInt(rec.value_minor),
+        valueMinor: minor,
+        value: minor === null ? null : minor / 100,
       },
     ];
   });

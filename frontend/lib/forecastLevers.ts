@@ -16,7 +16,11 @@
 // undoes it — not two conversions in two components that can drift apart. Days
 // and money are shown as they are sent.
 
-import { exactDecimal, type LeverRef } from "@/lib/forecastFacts";
+import {
+  exactDecimal,
+  type AssumptionRef,
+  type LeverRef,
+} from "@/lib/forecastFacts";
 
 /** The levers the product offers, in the order they are shown.
  *
@@ -150,4 +154,54 @@ export function planYearLabels(
 ): string[] {
   const monthly = /^\d{4}-\d{2}$/;
   return [...horizonAnnual, ...horizon.filter((p) => !monthly.test(p))];
+}
+
+// ── The assumption schedule's own display ────────────────────────────────
+//
+// Lives here, with the lever conversions, rather than on the page: the page
+// PAINTS, and every unit conversion in this lane — a ratio shown as a percent,
+// a money driver shown in major units — is one decision made in one module. A
+// second conversion beside a figure is how a surface ends up contradicting its
+// own assumption schedule, which this page has already done once.
+
+/** A driver's value, in its own unit.
+ *
+ *  Absent renders as the WORDS, never as a zero: a rate the book could not
+ *  measure and a rate of 0% are opposite claims, and the driver's own basis
+ *  says which one this is.
+ *
+ *  `valuedFor === null` is a THIRD state and it is not absence — it is the
+ *  ref saying nobody asked it about a period. Rendering the absent label
+ *  there would put "not measurable from this book" beside a driver supplied
+ *  at 8%, which is what this page did until a test caught it. */
+export function assumptionValue(
+  a: AssumptionRef,
+  locale: string,
+  absentLabel: string,
+): string {
+  if (a.unit === "convention") return "—";
+  if (a.valuedFor === null) return "—";
+  if (a.value === null || a.value === undefined) return absentLabel;
+  const n = a.value;
+  if (a.unit === "pct" || a.unit === "ratio") {
+    return `${(n * 100).toLocaleString(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    })}%`;
+  }
+  if (a.unit === "index") {
+    return `×${n.toLocaleString(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })}`;
+  }
+  if (a.unit === "days") {
+    return `${n.toLocaleString(locale, { maximumFractionDigits: 1 })}`;
+  }
+  if (a.unit === "money_minor") {
+    // Already in MAJOR units: `WIRE_UNITS` divides at the gateway, exactly
+    // like `projectedDisplay` does for a figure.
+    return n.toLocaleString(locale, { maximumFractionDigits: 0 });
+  }
+  return n.toLocaleString(locale, { maximumFractionDigits: 0 });
 }

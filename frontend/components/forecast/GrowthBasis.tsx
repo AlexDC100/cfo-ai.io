@@ -68,9 +68,9 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
               <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
                 {input.periodEnd}
               </span>{" "}
-              {input.valueMinor === null
+              {input.value === null
                 ? t("forecast.growth.absentInput", "not measurable from this book")
-                : format(input.valueMinor / 100)}
+                : format(input.value)}
               <span className="text-ink-mute"> · {input.fact}</span>
             </li>
           ))}

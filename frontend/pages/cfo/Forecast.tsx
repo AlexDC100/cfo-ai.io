@@ -47,7 +47,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
@@ -70,6 +70,7 @@ import {
   type ProjectionView,
 } from "@/lib/forecastFacts";
 import {
+  assumptionValue,
   buildRecomputeBody,
   planYearLabels,
   type LeverEdit,
@@ -167,45 +168,6 @@ const BLOCKS: ReadonlyArray<{
   },
 ];
 
-/** A driver's value, in its own unit.
- *
- *  Absent renders as the WORDS, never as a zero: a rate the book could not
- *  measure and a rate of 0% are opposite claims, and the driver's own basis
- *  says which one this is.
- *
- *  `valuedFor === null` is a THIRD state and it is not absence — it is the
- *  ref saying nobody asked it about a period. Rendering the absent label
- *  there would put "not measurable from this book" beside a driver supplied
- *  at 8%, which is what this page did until a test caught it. */
-function assumptionValue(
-  a: AssumptionRef,
-  locale: string,
-  absentLabel: string,
-): string {
-  if (a.unit === "convention") return "—";
-  if (a.valuedFor === null) return "—";
-  if (a.value === null || a.value === undefined) return absentLabel;
-  const n = a.value;
-  if (a.unit === "pct" || a.unit === "ratio") {
-    return `${(n * 100).toLocaleString(locale, {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 2,
-    })}%`;
-  }
-  if (a.unit === "index") {
-    return `×${n.toLocaleString(locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
-    })}`;
-  }
-  if (a.unit === "days") {
-    return `${n.toLocaleString(locale, { maximumFractionDigits: 1 })}`;
-  }
-  if (a.unit === "money_minor") {
-    return (n / 100).toLocaleString(locale, { maximumFractionDigits: 0 });
-  }
-  return n.toLocaleString(locale, { maximumFractionDigits: 0 });
-}
 
 function AssumptionSchedule({
   view,
@@ -498,6 +460,13 @@ export default function Forecast() {
             ) as unknown as Record<string, unknown>,
           ),
     enabled: !!period.id,
+    // THE LAST ANSWER STAYS ON SCREEN WHILE THE NEXT ONE IS COMPUTED. Stated
+    // here rather than inherited from the query client's defaults, because it
+    // is this page's promise and not a convenience: while a recompute is in
+    // flight the reader keeps looking at a projection the server actually
+    // produced, with the rail saying so, instead of the page blanking or —
+    // worse — filling the wait with figures computed in the browser.
+    placeholderData: keepPreviousData,
     // A projection is deterministic in its inputs: same book, same horizon,
     // same levers, same bytes. Refetching on focus would spend a request to be
     // told the same thing.
