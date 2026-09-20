@@ -351,8 +351,12 @@ the owner's floors ruling: declared labelled top rung only when debt == 0,
 interest == 0, EBIT > 0 are all reported; otherwise the term refuses and the
 completeness law mints no letter. The storefront wiring D15 asked for first is
 in the same commit (`interestExpense` figure; a reported non-positive interest
-gets its own sentence, never "not reported"). Mapping checked before refusing
-(§23): SF1 `intexp` is mapped. Blast radius: carniprod 67.8 BB+ → 83.3 BBB on
+gets its own sentence, never "not reported"). ~~Mapping checked before refusing
+(§23): SF1 `intexp` is mapped.~~ **CORRECTED in D18: that sentence was false at
+the reader.** `intexp` is mapped by the NORMALIZER (`interest_expense` →
+`interest_expense_bank`), but that leaf has no schema-v1 bucket, so the record
+is shelved under `unmapped` and the adapter, which read only the leaf, saw an
+absence for every SF1 ticker. Blast radius: carniprod 67.8 BB+ → 83.3 BBB on
 the no-envelope path only; the three other firm books and every served figure
 unchanged. **Open beside it:** the EDGAR lane (`public_market/edgar_concepts`)
 extracts no `InterestExpense` concept; that lane serves the pm1 presentation
@@ -416,3 +420,78 @@ changes the pack, the law and the model revision together.
 
 **Still open after this round:** `e2e/ratios-comparatives.spec.ts` is
 unwritten; the branch is not merged or deployed.
+
+## D18 — repair round credit2 (2026-09-20)
+
+**The storefront named a reported figure as "not reported" (medium).** D17's
+"mapping checked" read the normalizer's map and stopped there; the reader is
+where a mapping is true or false. Measured on the real normalizer:
+`normalize(Fundamentals(interest_expense=2.935e9, ...))` → `leaves
+['cash_operating']`, `unmapped [... interest_expense ...]`,
+`bucket_by_name('interest_expense_bank')` → `None`. Repaired in 4a48299:
+`reportedInterestExpense` reads the shelved record first; `debtReported` also
+holds on the feed's reported `totalDebt` (both legs are shelved for every
+ticker, so R-D1's declared rung was unreachable on the storefront); and
+`canonical()` reads the feed's reported EBIT / EBITDA / net income before the
+reconstruction — a defect the bridge EXPOSED: with interest finally measured,
+AAPL's coverage read 129.3× on an "EBIT" rebuilt as revenue − 0 − D&A, against
+42.0× on the reported 123.2 B. Blast radius: no rating moves (every SF1 ticker
+still refuses on X1's unreported current side); the committed real AAPL capture
+carries no `interest_expense` record at all, so its sentence still names
+interest expense and is true about that body. Private books carry no
+`reportedTotals` and do not move. The wording "not reported in this filing" is
+kept for a record the feed body truly lacks; R-PUBLIC-ABSENT's "input not
+carried by the data producer" is reserved for a structural absence, of which
+this reader now has none for interest expense.
+
+**The lesson, general:** a "mapping checked" claim is checked at the last
+reader, with the real producer's output in hand — not at the map.
+
+**The boundary's contract is held by shape (low, six gaps).** (a) an envelope
+is any dict carrying `altman_components`, `composite_score`, `altman_z_score`
+or `letter_grade`; (b) R-COMPOSITE is held by the boundary itself — a composite
+present beside a present-and-null sub-score, or beside a component the payload
+lists in `refused_subscores`, is withheld with `credit_component_undefined`
+(an ABSENT sub-score row says nothing: revision-1 filings carry none, and
+`withhold_persisted` holds those over the statements); (c) every row of a name
+is read, in layers, and a name withheld in any layer is withheld on every row;
+(d) a document's credit compare rows are read together, per row, across sibling
+lists, and an Altman breach takes that side's Altman sub-score; (e) a filed
+Z'' is read against the bound derived from the X2 and X3 served beside it —
+with none beside it, it is unread and not served. (f) lower bounds: not added.
+R-RANGE as ruled declares upper bounds for X1/X4/Z''; a deeply negative X4 is a
+real (distress) book, not an exploded operand, and its sub-score is in range.
+
+**Gates added for ungated hunks:** `enforce_metric_rows`' fail-closed branch
+(M7b) and the comparatives chokepoint, behaviourally (M8 — the composer itself
+explodes a side from lawful inputs; only the comparatives boundary can refuse
+it). **Gate scopes:** the floor census credit tier is DISCOVERED (every module
+under `src/engine/ratios` + `ratio_compare.py`), with a pinned minimum so an
+emptied package is DISCOVERY BROKEN; the metric-units operand scope-out is
+PINNED by `file::function` and count.
+
+**Queued, not done (pre-existing, measured this round, outside this step's
+hunks):** the FE no-envelope model's own Altman has no R-D4 materiality and no
+R-RANGE (1 RON of liabilities on 1,000,000 of assets → Z'' 1,050,006.52
+"safe", sub-score 90), and leverage still floors a debt-free book at 30 (C9.1).
+The repair needs the materiality share and the X4 maximum in the browser, and
+they are pack data (TC-10): it must arrive served or packaged, never as a
+literal. It goes with the C9 lane. Rare on listed companies; the engine refuses
+the same book.
+
+### D13a — IN FRONT OF THE OWNER (not a code defect)
+
+D13a was decided as asked and its outcome sits against the floors wording: with
+1 RON of current liabilities the liquidity sub-score is served as a MEASURED
+100, not as a labelled declared rung. Nothing lender-facing is minted from it
+today (that book serves no composite and no letter). The two options:
+
+1. **Keep measured** (today): liquidity refuses only when current liabilities
+   are not positive; a tiny base saturates the ladder at 100, unlabelled.
+2. **Pack-declared labelled rung**: below a pack-declared share of total assets
+   the liquidity sub-score is STATED at the top rung with the label "nothing
+   material falls due within the year", never measured. Changes
+   `packs/credit/model.yaml`, `served_range_law._liquidity_defined` and the
+   model revision together, and re-captures the credit fixtures.
+
+Owner call. No code changed for it in this round.

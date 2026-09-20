@@ -5206,3 +5206,30 @@ stated in the gate's own docstring.
 B6 now blanks template-literal TEXT and keeps its `${…}` expressions: the
 binary-operator rule would otherwise read `data-ratio-key` and `</td>` as
 arithmetic (first run: 5 false reds on the report closures).
+
+## ratios wave three — repair round credit2 (2026-09-20)
+
+One medium and six lows from the credit re-verify. Every plant below was
+applied to the product, run, and reverted; the gate named is green at HEAD.
+What each gate reds on AFTER the repair and what it cannot see (TC-11) is in
+the gate's own docstring.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `reportedInterestExpense`: shelved-record bridge removed | `retainedEarningsMapped.test.tsx` | `expected undefined to be 2935000000` · `expected [ 'longTermDebt', …(15) ] to not include 'interestExpense'` — 2 failed |
+| 2 | `debtReported` reads the two (always shelved) legs only | same | `expected +0 to be 2` (no declared rung on a reported total debt of 0) |
+| 3 | `canonical()` rebuilds EBIT instead of reading the reported level | same | `expected 129.3321976149915 to be close to 41.98160136286201` |
+| 4 | M7b — `enforce_metric_rows` except branch returns the rows raw | `test_credit_boundary.py::test_the_narrator_rows_fail_closed` | `assert {'altman_x4':...} == {'altman_x4':...}` (1584.89 / 1500.0 / 88.5 reach the narrator) |
+| 5 | M8 — comparatives route returns `compare_payloads(...)` raw | `::test_the_comparatives_composer_itself_exploding_is_refused_at_the_boundary` | `AssertionError: ('altman_z', {...})  assert (1584.89 is None)` |
+| 6 | A — envelope recognised by `altman_components` only | `::test_shape_a_…` | `assert (250 is None)` |
+| 7 | B — `beside = False` (R-COMPOSITE not held by shape) | `::test_shape_b_…` | `AssertionError: null sub-score  assert (80.0 is None)` |
+| 8 | C — last row of a name wins | `::test_shape_c_…` | `assert '1584.89' not in '[1584.89, 1...5, 3.1, 1.2]'` |
+| 9 | D1 — a mixed compare list skipped whole under its parent | `::test_shape_d_…` | `assert 100.0 is None` |
+| 10 | D2 — `_COMPARE_DEPENDENTS = {}` | same | `assert 100.0 is None` (the Altman sub-score row of the exploded side survives) |
+| 11 | E — filed Z'' read for finiteness only | `::test_shape_e_…` | `assert 1584.89 is None` |
+| 12 | `def _planted_floor(tl, e): return e / max(tl, 1)` in `credit_boundary.py` | `scripts/check_floor_census.py` (battery `floor-census`) | `FLOOR in the credit tier: src/engine/ratios/credit_boundary.py:665 [S1 DIVISOR_FLOOR] in _planted_floor: max(tl, 1)` — before the scope change: `PASS … credit tier clean` |
+| 13 | `_planted = {"operands": [{"name": "net_debt", "value": 123456.0, "source": "x"}]}` in `ratio_compare.py` | `scripts/check_metric_units.py` (battery `metric-units`) | `METRIC UNIT GATE: FAIL — the operand scope-out moved · ratio_compare.py::<module>  scoped out 1, pinned 0` — before the pin: `PASS … 4 operand record(s)` |
+
+Plant 9 reds on the sibling-list assertion, not on the composite: the list
+branch of the walk reads compare rows per row as well, so a mixed list is
+covered twice. Stated so the redundancy is not mistaken for the gate.
