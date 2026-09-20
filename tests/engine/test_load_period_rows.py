@@ -121,6 +121,47 @@ def test_a_rebuild_failure_raises_and_a_foreign_org_is_not_found(monkeypatch):
     WORK["units"] += 3
 
 
+def test_the_rebuild_s_own_swallowed_failure_is_a_rebuild_failure(monkeypatch):
+    """B5V-6: _rebuild_assembled_for_briefing catches its canonical
+    re-assembly failure and returns statements with no assembled P&L. The
+    loader accepted that dict, the GET answered 422 about a cost pool, and
+    scripts/measure_statement_rebuilds.py counted the period as rebuilt — the
+    owner's live count before B13 would have read a false zero.
+
+    RED ON: the assembled_pl / assembled_bs presence check removed from
+    load_period_rows."""
+    from engine.api import pipeline
+    M = _measure()
+    book = M._corpus_book("agras")
+    server = M._RowServer(book, "p", "org-a")
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("SYNTHETIC inner assembly failure")
+
+    monkeypatch.setattr(pipeline, "_assemble_with_statutory_anchor", _boom)
+    # TC-3: the inner failure really is swallowed by the rebuild itself
+    rebuilt = pipeline._rebuild_assembled_for_briefing(
+        server._tables["statement_line_items"], server._tables["financial_periods"][0],
+        None)
+    assert not isinstance((rebuilt.get("statements") or {}).get("assembled_pl"), dict), (
+        "TC-3: the rebuild no longer swallows its assembly failure; this case is vacuous")
+    with pytest.raises(pipeline.StatementsRebuildError):
+        pipeline.load_period_rows(server, "p", org_id="org-a")
+    from fastapi.testclient import TestClient
+    with M._patched(book, "p", "org-a"):
+        res = TestClient(M._app(), raise_server_exceptions=False).get(
+            "/api/forecast/p?horizon=3",
+            headers={"Authorization": "Bearer x", "X-Org-Id": "org-a"})
+    assert res.status_code == 409, (res.status_code, res.text[:300])
+    assert res.json()["detail"]["code"] == "statements_rebuild_failed"
+    # and the owner's count sees it
+    import measure_statement_rebuilds as counter
+    tally = {}
+    ok, failed = counter._count("agras", server, ["p"], "org-a", tally)
+    assert (ok, failed) == (0, 1), (ok, failed, tally)
+    WORK["units"] += 3
+
+
 def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE period-loader-parity (plan/2 B5, contract 1.4): books %s; keys %s; "

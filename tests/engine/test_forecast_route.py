@@ -372,3 +372,54 @@ def test_get_through_the_real_app_answers_200_with_no_clause_violation(name, hor
         "%s h%d serves the REFUSED single pool through the real app" % (name, horizon))
     by_id = dict((a["id"], a) for a in body["assumptions"])
     assert "cost_behaviour.yaml#no_line_items" not in json.dumps(by_id), (name, horizon)
+
+
+# ── plan/2 B5 repair (B5V-5): the batch's "ships because" — a truncated
+# projection is never served through fp1 ────────────────────────────────
+
+
+def test_a_base_plan_that_draws_an_unpriceable_line_answers_422_never_a_partial_fp1(
+        monkeypatch):
+    """SYNTHETIC: carniprod (which prices no revolver) with resolved defaults
+    that make its BASE plan draw: payout 95%, a 2M cash floor, capex 20% of
+    revenue. No corpus book's base plan draws, so forecast-get-b4-parity
+    cannot see this. Through create_app the GET answers 422 naming the period
+    and the amount of the first draw.
+
+    RED ON: the route's `stop_at_unpriced_draw=False` flipped to True — the
+    GET answers 200 with 6 of 16 periods and no refusal or served_through
+    field: a truncated plan through fp1, which 6.5 says is never served."""
+    import sys
+    scripts = str(REPO / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import measure_plan_blast_radius as M
+    import engine.forecast.levers as levers
+    real = levers.resolve_defaults
+
+    def stressed(opening, history, context, prior, overrides):
+        forced = dict(overrides)
+        forced.update(dividend_payout_pct=0.95, min_cash=2000000.0,
+                      capex_pct_of_revenue=0.20)
+        return real(opening, history, context, prior, forced)
+
+    book = M._corpus_book("carniprod")
+    previous = M.HORIZON_YEARS
+    M.HORIZON_YEARS = 5
+    try:
+        status, body = M.default_get(book)
+        assert status == 200, "TC-3: carniprod's own base plan no longer serves"
+        full = len(set(f["period"] for f in body["figures"]))
+        monkeypatch.setattr(levers, "resolve_defaults", stressed)
+        status, body = M.default_get(book)
+    finally:
+        M.HORIZON_YEARS = previous
+    assert status == 422, (
+        "the GET answered %s with %s period(s) of %d on a base plan that draws a line "
+        "this book cannot price" % (
+            status, len(set(f["period"] for f in body.get("figures", []))), full))
+    detail = str(body.get("detail"))
+    assert "funding line" in detail and "cannot price" in detail, detail
+    import re
+    assert re.search(r"\d{4}-\d{2}", detail) and re.search(r"\d[\d,]*\.\d{2}", detail), (
+        "the refusal names neither the period nor the amount: %s" % detail)

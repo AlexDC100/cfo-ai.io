@@ -4912,6 +4912,15 @@ def load_period_rows(client: Any, period_id: str, org_id: Optional[str] = None,
                 line_items, row, org).get("statements")
             if not isinstance(statements, dict):
                 raise ValueError("the rebuild returned no statements")
+            # B5V-6: _rebuild_assembled_for_briefing SWALLOWS its canonical
+            # re-assembly failure ("non-fatal; falling back to bucket
+            # aggregates only") and returns statements with no assembled
+            # P&L. That is this function's failure mode, not a success: a
+            # caller that asked for the rebuild gets the refusal, and
+            # scripts/measure_statement_rebuilds.py counts it.
+            for name in ("assembled_pl", "assembled_bs"):
+                if not isinstance(statements.get(name), dict):
+                    raise ValueError("the rebuild returned no %s" % name)
         except Exception as exc:  # noqa: BLE001
             logger.exception("[load_period_rows] statements rebuild failed for %s",
                              period_id)

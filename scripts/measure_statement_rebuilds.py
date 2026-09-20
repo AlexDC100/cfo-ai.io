@@ -44,7 +44,11 @@ def _count(label: str, client: Any, period_ids: List[str], org_id: Optional[str]
             pipeline.load_period_rows(client, period_id, org_id=org_id, rebuild=True)
             ok += 1
         except pipeline.StatementsRebuildError as exc:
-            tally.setdefault(exc.text, []).append("%s:%s" % (label, period_id))
+            # the cause distinguishes an outer raise from the rebuild's own
+            # swallowed assembly failure (B5V-6: statements with no assembled
+            # P&L or balance sheet), which the loader now refuses too
+            tally.setdefault("%s [%s]" % (exc.text, exc.cause), []).append(
+                "%s:%s" % (label, period_id))
             failed += 1
         except pipeline.PeriodNotFound:
             tally.setdefault("period not readable", []).append("%s:%s" % (label, period_id))
