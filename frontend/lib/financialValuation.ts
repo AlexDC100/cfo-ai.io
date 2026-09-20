@@ -1316,6 +1316,11 @@ export interface CreditEnvelope {
   } | null;
   /** The credit model revision that produced this envelope's composite. */
   credit_model_revision?: number | null;
+  /** Which rows this envelope was read off: the serve-time model
+   *  ("serve") or the persisted rows ("as_filed"). An envelope that states
+   *  a basis is under the revision-2 serving contract, which ALWAYS serves
+   *  `ranges` beside a figure (engine: serving/credit_boundary.py). */
+  basis?: "serve" | "as_filed" | null;
   subscores?: {
     altman?: number | null; profitability?: number | null; leverage?: number | null;
     coverage?: number | null; dscr?: number | null; liquidity?: number | null; equity?: number | null;
@@ -1498,10 +1503,22 @@ function mergeEngineEnvelope(
 /** The first served Altman figure outside the range the envelope declares
  *  for it (`ranges.altman_x1.max`, `ranges.altman_x4.max`,
  *  `ranges.altman_z.bound`), or a non-finite one; null when all are in
- *  range. The bounds are PACK DATA and are read only as served (TC-10):
- *  with no served bound a figure is checked for finiteness alone, never
- *  against a constant kept in the browser. Mirrors
+ *  range. The bounds are PACK DATA and are read only as served (TC-10),
+ *  never against a constant kept in the browser: with NO served bound on
+ *  an envelope that owes one (`rangeIsOwed`) the figure has not been read
+ *  against its range and is a breach (R-RANGE is absolute). Mirrors
  *  credit_model.altman_out_of_range. */
+/** True when this envelope OWES a range beside every figure: it states a
+ *  `basis`, so it left the engine under the revision-2 serving contract,
+ *  whose boundary serves `ranges` with any credit figure. A figure on such
+ *  an envelope with no range beside it was not read against its range and
+ *  does not render. An envelope with no `basis` (a body cached before the
+ *  contract) is checked for finiteness alone - never against a constant
+ *  kept in the browser (TC-10). */
+function rangeIsOwed(e: CreditEnvelope): boolean {
+  return e.basis === "serve" || e.basis === "as_filed";
+}
+
 function altmanRangeBreachOf(
   e: CreditEnvelope,
   metricsByName?: Record<string, number | null>,
@@ -1517,7 +1534,11 @@ function altmanRangeBreachOf(
   ];
   for (const [name, v, max] of figures) {
     if (typeof v !== "number") continue;
-    if (!Number.isFinite(v) || (max !== null && v > max)) return name;
+    // No served bound -> the figure was not read against its range, and an
+    // unread figure does not render (mirrors credit_model: a Z″ with no
+    // derivable bound is withheld). A persisted Z″ 1584.89 on an envelope
+    // without `ranges` rendered here as "Altman Z″ 1584.89, safe zone".
+    if (!Number.isFinite(v) || (max === null ? rangeIsOwed(e) : v > max)) return name;
   }
   return null;
 }
@@ -1630,20 +1651,35 @@ export interface CreditCompositeRefusalRead {
 }
 
 /** The range a served score is re-checked against before it renders
- *  (C9.4): the envelope's pack range when served, else the model's own
- *  [0, 100] (CLAUDE.md Appendix A §7). */
+ *  (C9.4): the envelope's pack range, AS SERVED. There is no browser
+ *  constant behind it (TC-10: a range is pack data) — this once fell back
+ *  to a literal [0, 100], so an envelope that served no `ranges` had its
+ *  figures "checked" against a number the engine never sent. NULL when the
+ *  envelope serves no usable range: on an envelope that owes one
+ *  (`rangeIsOwed`) the figure has then not been read against its range,
+ *  and R-RANGE is absolute — an unread figure does not render
+ *  (`outOfRange` below). */
 function scoreRangeOf(
   e: CreditEnvelope,
   which: "subscore" | "composite",
-): { min: number; max: number } {
+): { min: number; max: number } | null {
   const r = e.ranges?.[which];
   const min = numOrNull(r?.min);
   const max = numOrNull(r?.max);
-  return min !== null && max !== null && min < max ? { min, max } : { min: 0, max: 100 };
+  return min !== null && max !== null && min < max ? { min, max } : null;
 }
 
-function outOfRange(v: number | null, r: { min: number; max: number }): boolean {
-  return v !== null && (!Number.isFinite(v) || v < r.min || v > r.max);
+/** True when a served figure may NOT render: it is not finite, it lies
+ *  outside the served range, or no range was served to read it against on
+ *  an envelope that owes one. */
+function outOfRange(
+  v: number | null,
+  r: { min: number; max: number } | null,
+  owed: boolean,
+): boolean {
+  if (v === null) return false;
+  if (r === null) return owed || !Number.isFinite(v);
+  return !Number.isFinite(v) || v < r.min || v > r.max;
 }
 
 const SUBSCORE_SUBJECT: Record<CreditSubscoreKey, string> = {
@@ -1703,7 +1739,7 @@ function engineWeightOf(
   // its contribution and, with it, the composite.
   const weight = basis === "served" ? numOrNull(weights[key]) : ENGINE_MODEL_WEIGHTS[key];
   const rangeBreach =
-    outOfRange(subscore, scoreRangeOf(e, "subscore")) ||
+    outOfRange(subscore, scoreRangeOf(e, "subscore"), rangeIsOwed(e)) ||
     (key === "altman" && altmanRangeBreachOf(e, metricsByName) !== null);
   // A REFUSAL IS SOMETHING THE ENGINE SAID, not a hole in the envelope:
   //   · a served `refused_subscores` entry;
@@ -1774,7 +1810,7 @@ function compositeRefusalOf(
 ): { score: number | null; refusal: CreditCompositeRefusalRead | null } {
   const refusedSubjects = components.filter((c) => c.refusal).map((c) => c.refusal!.subject);
   const range = scoreRangeOf(e, "composite");
-  if (score !== null && outOfRange(score, range)) {
+  if (score !== null && outOfRange(score, range, rangeIsOwed(e))) {
     const also =
       refusedSubjects.length > 0
         ? ` ${joinSubjects(refusedSubjects)} ${refusedSubjects.length === 1 ? "was" : "were"} not scored either.`
@@ -1783,7 +1819,10 @@ function compositeRefusalOf(
       score: null,
       refusal: {
         code: "credit_out_of_range",
-        sentence: `No composite and no letter: the served composite ${score} lies outside the model's declared range [${range.min}, ${range.max}], so it is withheld.${also}`,
+        sentence:
+          range === null
+            ? `No composite and no letter: the composite was served with no declared range to read it against, so it is withheld.${also}`
+            : `No composite and no letter: the served composite ${score} lies outside the model's declared range [${range.min}, ${range.max}], so it is withheld.${also}`,
         components: refusedSubjects,
         stated: true,
       },

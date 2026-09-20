@@ -426,6 +426,30 @@ describe("a served composite outside the model's range on a fully scored envelop
     expect(r.components.every((c) => !c.refusal)).toBe(true);
   });
 
+  // AN UNREAD FIGURE DOES NOT RENDER (credit re-verify, medium, FE half).
+  // An envelope that states a `basis` left the engine under the revision-2
+  // serving contract, whose boundary (serving/credit_boundary.py) serves
+  // `ranges` beside every figure. With `ranges` stripped the reader once
+  // fell back to a LITERAL [0, 100] kept in the browser (TC-10) and had no
+  // Altman bound at all: a persisted Z″ 1584.89 / composite 88.5 on an
+  // as-filed envelope rendered "Altman Z″ 1584.89, 88.5 AA".
+  // REDS ON, after the repair: any figure rendering off a basis-stating
+  // envelope that serves no range for it. CANNOT SEE: an envelope with no
+  // `basis` (a body cached before the contract) - finiteness alone there.
+  it.each(["as_filed", "serve"])("a %s envelope that serves no ranges renders no figure", (basis) => {
+    const env = { ...raw.credit, basis, ranges: null, altman_z_score: 1584.89, composite_score: 88.5, letter_grade: "AA",
+      altman_components: { ...raw.credit.altman_components, x4: 1500 } };
+    for (const m of [{ ...metrics, altman_z_score: 1584.89, altman_x4: 1500, credit_composite: 88.5 }, undefined]) {
+      const r = computeCreditScore(statements, env, undefined, m as Record<string, number | null> | undefined);
+      expect(r.score).toBeNull();
+      expect(r.rating).toBeNull();
+      expect(r.components[0].value).toBeNull();
+      expect(r.components[0].subscore).toBeNull();
+      expect(r.components.every((c) => c.subscore === null)).toBe(true);
+      expect(JSON.stringify(r)).not.toContain("1584.89");
+    }
+  });
+
   // R-RANGE on the ALTMAN figures (B8 repair round): the 1-RON-liabilities
   // shape, Z″ 10416.74 / X4 10000, served beside the envelope's own
   // `ranges.altman_z.bound` 114.83 and `altman_x4.max` 100. Before the
