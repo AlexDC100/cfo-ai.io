@@ -1308,6 +1308,11 @@ export interface CreditEnvelope {
   ranges?: {
     subscore?: { min?: number | null; max?: number | null } | null;
     composite?: { min?: number | null; max?: number | null } | null;
+    /** R-D4 / R-RANGE: the Altman figures' declared bounds. `altman_z.bound`
+     *  is derived per book (its own X2 and X3), so it exists only as served. */
+    altman_x1?: { max?: number | null } | null;
+    altman_x4?: { max?: number | null } | null;
+    altman_z?: { bound?: number | null } | null;
   } | null;
   /** The credit model revision that produced this envelope's composite. */
   credit_model_revision?: number | null;
@@ -1490,6 +1495,33 @@ function mergeEngineEnvelope(
  *  neither, the result REFUSES rather than falling back to the FE model,
  *  because a score computed by a different model off different operands
  *  is a different claim about the company. */
+/** The first served Altman figure outside the range the envelope declares
+ *  for it (`ranges.altman_x1.max`, `ranges.altman_x4.max`,
+ *  `ranges.altman_z.bound`), or a non-finite one; null when all are in
+ *  range. The bounds are PACK DATA and are read only as served (TC-10):
+ *  with no served bound a figure is checked for finiteness alone, never
+ *  against a constant kept in the browser. Mirrors
+ *  credit_model.altman_out_of_range. */
+function altmanRangeBreachOf(
+  e: CreditEnvelope,
+  metricsByName?: Record<string, number | null>,
+): "altman_x1" | "altman_x4" | "altman_z_score" | null {
+  const raw = (name: string, env: unknown): unknown => {
+    const m = metricsByName?.[name];
+    return m !== null && m !== undefined ? m : env;
+  };
+  const figures: Array<["altman_x1" | "altman_x4" | "altman_z_score", unknown, number | null]> = [
+    ["altman_x1", raw("altman_x1", e.altman_components?.x1), numOrNull(e.ranges?.altman_x1?.max)],
+    ["altman_x4", raw("altman_x4", e.altman_components?.x4), numOrNull(e.ranges?.altman_x4?.max)],
+    ["altman_z_score", raw("altman_z_score", e.altman_z_score), numOrNull(e.ranges?.altman_z?.bound)],
+  ];
+  for (const [name, v, max] of figures) {
+    if (typeof v !== "number") continue;
+    if (!Number.isFinite(v) || (max !== null && v > max)) return name;
+  }
+  return null;
+}
+
 function altmanFromEngine(
   e: CreditEnvelope,
   metricsByName?: Record<string, number | null>,
@@ -1501,6 +1533,15 @@ function altmanFromEngine(
     altman_x3: numOrNull(metricsByName?.altman_x3) ?? numOrNull(e.altman_components?.x3),
     altman_x4: numOrNull(metricsByName?.altman_x4) ?? numOrNull(e.altman_components?.x4),
   };
+  // R-RANGE, on the reader: a served Z″, X1 or X4 outside the range the
+  // SAME envelope declares is withheld here whatever else was served (the
+  // 1-RON-liabilities shape: Z″ 10416.74 / X4 10000 rendered "Altman Z″
+  // 10416.74, sub-score 100" beside `ranges.altman_z.bound` 114.83).
+  const breach = altmanRangeBreachOf(e, metricsByName);
+  if (breach !== null) {
+    merged.altman_z_score = null;
+    if (breach !== "altman_z_score") merged[breach] = null;
+  }
   if (merged.altman_z_score !== null) return altmanReaderOf(merged);
   // No engine score. Emit the components the engine DID send (so the
   // breakdown table still shows what is known) with no score and no zone.
@@ -1661,7 +1702,9 @@ function engineWeightOf(
   // or not (R-COMPOSITE: never renormalised). What a refused row loses is
   // its contribution and, with it, the composite.
   const weight = basis === "served" ? numOrNull(weights[key]) : ENGINE_MODEL_WEIGHTS[key];
-  const rangeBreach = outOfRange(subscore, scoreRangeOf(e, "subscore"));
+  const rangeBreach =
+    outOfRange(subscore, scoreRangeOf(e, "subscore")) ||
+    (key === "altman" && altmanRangeBreachOf(e, metricsByName) !== null);
   // A REFUSAL IS SOMETHING THE ENGINE SAID, not a hole in the envelope:
   //   · a served `refused_subscores` entry;
   //   · a served weights object that OMITS this key — the renormalised

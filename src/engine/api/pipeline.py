@@ -7441,8 +7441,19 @@ def build_router() -> APIRouter:
         from engine.ratios.credit_pack import CREDIT_PACK_FILE as _CREDIT_PACK_FILE
         from engine.ratios.credit_pack import CreditPackError as _CreditPackError
         _pack_error: Optional[str] = None
+        _as_filed_bad: Dict[str, str] = {}
         try:
+            # R-RANGE is absolute on EVERY surface, this one included: a
+            # persisted figure outside its pack range is withheld before
+            # the as-filed envelope is composed (the serve-time block does
+            # the same through the same function). When the serve-time
+            # model cannot run, this envelope is what is served.
+            _as_filed_by_name, _as_filed_bad = _credit_model.withhold_out_of_range(_as_filed_by_name)
             _as_filed_refused = _credit_model._refused_subscores(_as_filed_by_name, statements)
+            for _k, _figure in _as_filed_bad.items():
+                if _k != "composite":
+                    _as_filed_refused[_k] = _credit_model.subscore_refusal(
+                        _k, _credit_model.CREDIT_OUT_OF_RANGE, _figure)
         except _CreditPackError as exc:
             _pack_error = str(exc)
             _as_filed_refused = {}
@@ -7450,7 +7461,11 @@ def build_router() -> APIRouter:
                          period.get("id"), exc)
         def _m(name: str) -> Optional[float]:
             row = _m_by_name.get(name)
-            return None if row is None else row.get("value")
+            if row is None:
+                return None
+            if name in _credit_model.CREDIT_FAMILY_METRICS:
+                return _as_filed_by_name.get(name)  # range-checked above
+            return row.get("value")
         assembled_metrics_envelope = {
             "pl": statements.get("assembled_pl") or {},
             "bs": statements.get("assembled_bs") or {},
@@ -7532,6 +7547,10 @@ def build_router() -> APIRouter:
                     else (_credit_model.credit_reason(_as_filed_by_name, _as_filed_refused,
                                                       _m("credit_composite"))
                           if metrics else None)),
+                # The pack ranges the figures above were read against.
+                "ranges": None if _pack_error else _credit_model.credit_ranges(
+                    _credit_model._num(_as_filed_by_name.get("altman_x2")),
+                    _credit_model._num(_as_filed_by_name.get("altman_x3"))),
                 # Until the serve-time model below replaces this block,
                 # these are the PERSISTED rows, and say so.
                 "basis": "as_filed",
@@ -7651,6 +7670,16 @@ def build_router() -> APIRouter:
                 for _name in _credit_model.DEFINITION_REVISED_METRICS:
                     if _name in _group:
                         _group[_name] = _served_by_name.get(_name)
+
+        if credit_metrics_as_filed is None and _as_filed_bad:
+            # `basis: as_filed` stayed: the FE reads the credit rows of
+            # `metrics[]` FIRST, so a figure withheld from the envelope is
+            # withheld from its row too — one figure, one state.
+            _family = set(_credit_model.CREDIT_FAMILY_METRICS)
+            served_metric_rows = [
+                dict(m, value=_as_filed_by_name.get(m.get("name"))) if m.get("name") in _family else m
+                for m in served_metric_rows
+            ]
 
         return {
             # F1.k — canonical_version stamp. v2.0 = the F1 contract

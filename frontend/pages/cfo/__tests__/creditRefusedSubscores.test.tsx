@@ -426,6 +426,42 @@ describe("a served composite outside the model's range on a fully scored envelop
     expect(r.components.every((c) => !c.refusal)).toBe(true);
   });
 
+  // R-RANGE on the ALTMAN figures (B8 repair round): the 1-RON-liabilities
+  // shape, Z″ 10416.74 / X4 10000, served beside the envelope's own
+  // `ranges.altman_z.bound` 114.83 and `altman_x4.max` 100. Before the
+  // repair the reader printed "Altman Z″ 10416.74, sub-score 100, 80.7 AA".
+  // REDS ON, after the repair: a served Z″, X1 or X4 above the bound the
+  // same envelope declares rendering a value, a sub-score, a composite or
+  // a letter. CANNOT SEE: an envelope that serves no Altman bounds (the
+  // bounds are pack data, read only as served — the engine's as-filed
+  // branch withdraws those itself, test_credit_model_rungs_and_ranges.py).
+  it.each([
+    ["Z″ and X4", { altman_z_score: 10416.74, altman_x4: 10000 }, { altman_z_score: 10416.74, x4: 10000 }],
+    ["Z″ alone, above its bound", { altman_z_score: 120 }, { altman_z_score: 120 }],
+    ["X1 above 1", { altman_x1: 1.5 }, { x1: 1.5 }],
+  ])("a served Altman figure outside its declared range is withheld: %s", (_n, rowPlant, envPlant) => {
+    expect(raw.credit.ranges.altman_z.bound).toBeGreaterThan(100);
+    expect(raw.credit.ranges.altman_x4.max).toBe(100);
+    const { altman_z_score: envZ, ...comps } = envPlant as Record<string, number>;
+    const env = {
+      ...raw.credit,
+      ...(envZ !== undefined ? { altman_z_score: envZ } : {}),
+      altman_components: { ...raw.credit.altman_components, ...comps },
+    };
+    // through the metric rows AND through the envelope alone
+    for (const m of [{ ...metrics, ...rowPlant }, undefined]) {
+      const r = computeCreditScore(statements, env, undefined, m as Record<string, number | null> | undefined);
+      const altman = r.components[0];
+      expect(altman.label).toContain("Altman");
+      expect(altman.value).toBeNull();
+      expect(altman.subscore).toBeNull();
+      expect(altman.refusal?.code).toBe("credit_out_of_range");
+      expect(r.score).toBeNull();
+      expect(r.rating).toBeNull();
+      expect(r.compositeRefusal?.components).toEqual(["Altman Z″"]);
+    }
+  });
+
   it("the hero and the Risks tab print no score and no letter", () => {
     const r = computeCreditScore(statements, planted, undefined, plantedMetrics);
     render(

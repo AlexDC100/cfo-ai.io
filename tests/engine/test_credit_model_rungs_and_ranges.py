@@ -246,6 +246,46 @@ def test_a_filed_in_range_composite_that_differs_is_disclosed_with_its_value():
 # ── 3. the served block's independent re-check (R-RANGE) ─────────────────────
 
 
+def test_the_as_filed_basis_withdraws_a_filed_altman_outside_its_range_on_the_route(monkeypatch):
+    """GET /api/period's `basis: as_filed` envelope (served when the
+    serve-time model cannot run) printed persisted revision-1 rows raw:
+    Z'' 1584.89 / X4 1500 beside composite 80.7 AA, no `ranges`, while the
+    same body's `ratio_table.credit` refused (repair-round verifier's probe).
+    REDS ON, after the repair: a filed Altman figure, its sub-score, the
+    composite or the letter served on that branch — in the envelope OR in
+    the `metrics[]` rows the FE reads first — or the envelope serving no
+    `ranges`. CANNOT SEE: the serve basis (the tests below own it)."""
+    import _served_books as SB
+    from engine.ratios import table as T
+
+    bk = SB.book("agras")
+    legacy = []
+    for r in T.serve_time_metric_rows(SB.routed_body(bk)["statements"]):
+        r = dict(r)
+        if r["name"] == "altman_z_score":
+            r["value"] = 1584.89
+        if r["name"] == "altman_x4":
+            r["value"] = 1500.0
+        if r["name"] == CM.CREDIT_MODEL_REVISION_METRIC:
+            r["value"] = 1
+        legacy.append(r)
+    monkeypatch.setattr(T, "serve_time_metric_rows", lambda statements: None)
+    body = SB.routed_body(bk, metrics=legacy)
+    env = body["assembled_metrics"]["credit"]
+    assert env["basis"] == "as_filed"
+    assert env["altman_z_score"] is None and env["altman_components"]["x4"] is None
+    assert env["subscores"]["altman"] is None
+    assert env["composite_score"] is None and env["letter_grade"] is None
+    assert env["refused_subscores"]["altman"]["code"] == CM.CREDIT_OUT_OF_RANGE
+    assert env["reason"]["code"] == CM.CREDIT_COMPONENT_UNDEFINED
+    assert env["ranges"]["altman_x4"]["max"] == CP.credit_pack()["ranges"]["altman_x4"]["max"]
+    rows = {r["name"]: r["value"] for r in body["metrics"]}
+    for name in ("altman_z_score", "altman_x4", "credit_subscore_altman", "credit_composite"):
+        assert rows[name] is None, (name, rows[name])
+    # an in-range filed figure on the same branch is untouched
+    assert rows["altman_x2"] is not None and env["subscores"]["equity"] is not None
+
+
 def test_a_served_x4_above_its_bound_is_withheld_with_z_the_zone_and_the_composite():
     statements = _agras_statements()
     rows = _set(CM.compute_period_metrics(copy.deepcopy(statements)), altman_x4=200.0)

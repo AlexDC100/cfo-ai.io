@@ -1160,6 +1160,32 @@ def _served_out_of_range(rows_by_name: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
+def withhold_out_of_range(rows_by_name: Mapping[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    """`(checked_rows, breaches)`: the rows with every figure outside its
+    pack range WITHHELD (R-RANGE, absolute, every surface) — the sub-score
+    of a breaching component, the Altman figure that breached together with
+    Z'', and the composite whenever anything breached (R-COMPOSITE: no
+    composite over a component that did not score). `breaches` is
+    `_served_out_of_range`'s `{component or "composite": figure}`. The ONE
+    withdrawal, used by the serve-time block and by get_period's
+    `basis: as_filed` envelope alike — the as-filed branch once served a
+    persisted revision-1 Z'' 1584.89 / X4 1500 raw beside composite 80.7 AA
+    while the same body's ratio table refused."""
+    m = dict(rows_by_name)
+    bad = _served_out_of_range(m)
+    for key, figure in bad.items():
+        if key == "composite":
+            m["credit_composite"] = None
+            continue
+        m["credit_subscore_%s" % key] = None
+        if key == "altman":
+            m[figure] = None
+            m["altman_z_score"] = None
+    if any(k != "composite" for k in bad):
+        m["credit_composite"] = None
+    return m, bad
+
+
 def credit_reason(rows_by_name: Dict[str, Any],
                   refused: Dict[str, Dict[str, Any]],
                   composite: Optional[float] = None) -> Optional[Dict[str, Any]]:
@@ -1209,20 +1235,9 @@ def credit_block(
     persisted rows at all -> `as_filed` null and `as_filed_differs` false:
     nothing was filed to differ from.
     """
-    m = dict(_rows_by_name(rows))
     # The independent re-check: a served figure outside its range is
     # withheld here whatever produced the rows.
-    served_bad = _served_out_of_range(m)
-    for key, figure in served_bad.items():
-        if key == "composite":
-            m["credit_composite"] = None
-            continue
-        m["credit_subscore_%s" % key] = None
-        if key == "altman":
-            m[figure] = None
-            m["altman_z_score"] = None
-    if served_bad and any(k != "composite" for k in served_bad):
-        m["credit_composite"] = None
+    m, _served_bad = withhold_out_of_range(_rows_by_name(rows))
     z = _num(m.get("altman_z_score"))
     composite = _num(m.get("credit_composite"))
     letter = composite_to_letter_grade(composite)
