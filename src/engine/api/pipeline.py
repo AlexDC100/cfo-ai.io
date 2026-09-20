@@ -4849,6 +4849,77 @@ def _rebuild_assembled(
     return {"balanceSheet": bs, "incomeStatement": pl}
 
 
+# ── plan/2 B5 (plan_contract_v2 1.4): the ONE period reader ─────────────
+class PeriodNotFound(LookupError):
+    """No financial_periods row answers this id (and org, when given)
+    through the caller's client."""
+
+
+class StatementsRebuildError(RuntimeError):
+    """The statements of a persisted period could not be rebuilt from its
+    rows. Carries the sentence a reader is answered with; never swallowed
+    into ``statements=None`` (the forecast route did that until B5 and then
+    projected off a period with no statements)."""
+
+    CODE = "statements_rebuild_failed"
+
+    def __init__(self, period_id: str, cause: BaseException) -> None:
+        self.period_id = period_id
+        self.cause = cause
+        self.text = ("the statements of this period could not be rebuilt from "
+                     "its stored rows (%s), so nothing is projected from it"
+                     % (type(cause).__name__,))
+        RuntimeError.__init__(self, self.text)
+
+    def sentence(self) -> Dict[str, str]:
+        return {"code": self.CODE, "text": self.text}
+
+
+def load_period_rows(client: Any, period_id: str, org_id: Optional[str] = None,
+                     rebuild: bool = True,
+                     line_item_columns: Optional[str] = None) -> Dict[str, Any]:
+    """Read one persisted period through the CALLER'S client (RLS scopes it).
+
+    Selects the financial_periods row filtered on id, and on org_id when one
+    is given (a second lock on top of RLS, never the only one); the period's
+    statement_line_items; the organizations row of that period's org; and,
+    when ``rebuild`` is true, the statements of
+    ``_rebuild_assembled_for_briefing(line_items, row, org)``. Returns
+    ``{row, org, line_items, statements}``; ``statements`` is None when
+    ``rebuild`` is false. Raises PeriodNotFound, or StatementsRebuildError
+    when the rebuild fails."""
+    filters = {"id": f"eq.{period_id}"}
+    if org_id is not None:
+        filters["org_id"] = f"eq.{org_id}"
+    rows = client.select("financial_periods", filters=filters, single=True) or []
+    if not rows:
+        raise PeriodNotFound(period_id)
+    row = rows[0]
+    item_kwargs: Dict[str, Any] = {}
+    if line_item_columns is not None:
+        item_kwargs["columns"] = line_item_columns
+    line_items = client.select("statement_line_items",
+                               filters={"period_id": f"eq.{period_id}"},
+                               **item_kwargs) or []
+    org_rows = client.select("organizations",
+                             filters={"id": f"eq.{row.get('org_id')}"},
+                             single=True) or []
+    org = org_rows[0] if org_rows else None
+    statements = None
+    if rebuild:
+        try:
+            statements = _rebuild_assembled_for_briefing(
+                line_items, row, org).get("statements")
+            if not isinstance(statements, dict):
+                raise ValueError("the rebuild returned no statements")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[load_period_rows] statements rebuild failed for %s",
+                             period_id)
+            raise StatementsRebuildError(period_id, exc)
+    return {"row": row, "org": org, "line_items": line_items,
+            "statements": statements}
+
+
 def _rebuild_assembled_for_briefing(
     line_items: List[Dict[str, Any]],
     period: Dict[str, Any],
@@ -6930,15 +7001,16 @@ def build_router() -> APIRouter:
         """
         jwt = _require_jwt(authorization)
         with _supabase.per_user(jwt) as client:
-            periods = client.select("financial_periods", filters={"id": f"eq.{period_id}"}, single=True)
-            if not periods:
+            # plan/2 B5 (contract 1.4): the period, its line items and its
+            # organization are read through the one module-scope reader,
+            # id-only (RLS scopes the row) and with no rebuild, so this
+            # handler's served assembly below is unchanged.
+            try:
+                loaded = load_period_rows(client, period_id, org_id=None, rebuild=False)
+            except PeriodNotFound:
                 raise HTTPException(404, "Period not found.")
-            period = periods[0]
-
-            line_items = client.select(
-                "statement_line_items",
-                filters={"period_id": f"eq.{period_id}"},
-            )
+            period = loaded["row"]
+            line_items = loaded["line_items"]
             metrics = client.select(
                 "calculated_metrics",
                 filters={"period_id": f"eq.{period_id}"},
@@ -6980,8 +7052,7 @@ def build_router() -> APIRouter:
                 },
             )
 
-            org_rows = client.select("organizations", filters={"id": f"eq.{org_id}"}, single=True)
-            org = org_rows[0] if org_rows else None
+            org = loaded["org"]
 
             # Valuation row (one per period). Returned at the top level so the
             # dashboard can render the EBITDA-multiple primary card.

@@ -148,7 +148,11 @@ def test_the_route_resolves_the_workspace_and_scopes_the_read_to_it(app, monkeyp
 
     from engine.api import _org
     monkeypatch.setattr(_org, "resolve_org", _fake_resolve)
-    monkeypatch.setattr(FR, "_load_period", _fake_load)
+    # plan/2 B5 (28.3 B5 "Retires"): the route's loader moved to
+    # _forecast_history.load_plan_inputs; the canary name is unchanged.
+    from engine.api import _forecast_history as FH
+    assert not hasattr(FR, "_load_period")
+    monkeypatch.setattr(FH, "load_plan_inputs", _fake_load)
 
     client = TestClient(app, raise_server_exceptions=False)
     client.get("/api/forecast/p-1?horizon=3",
@@ -165,10 +169,11 @@ def test_the_route_resolves_the_workspace_and_scopes_the_read_to_it(app, monkeyp
 
 
 def test_the_period_read_filters_on_the_resolved_workspace():
-    """RED ON: `_load_period` reading a period by id alone. RLS is the
+    """RED ON: `load_plan_inputs` (the route's loader since plan/2 B5,
+    over pipeline.load_period_rows) reading a period by id alone. RLS is the
     first lock and the org_id filter is the second; a route that drops the
     second is relying on a policy it does not itself state."""
-    from engine.api import _forecast_routes as FR
+    from engine.api import _forecast_history as FH
 
     calls = []
 
@@ -193,7 +198,7 @@ def test_the_period_read_filters_on_the_resolved_workspace():
     real.per_user = _Supabase.per_user
     try:
         with pytest.raises(Exception):
-            FR._load_period("jwt", "org-7", "p-1")
+            FH.load_plan_inputs("jwt", "org-7", "p-1")
     finally:
         real.per_user = original
 

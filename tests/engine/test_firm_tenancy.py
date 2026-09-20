@@ -1942,15 +1942,17 @@ DECLARED_CLIENT_DATA_READERS = (
     "engine.actions", "engine.ai.numerals", "engine.ai_lane", "engine.ai_lane.routes",
     "engine.api._benchmarks", "engine.api._billing", "engine.api._capsule_tools",
     "engine.api._features", "engine.api._firm", "engine.api._firm_attention",
-    # PRODUCT route, under its own membership gate: `GET
-    # /api/forecast/{period_id}` resolves the workspace through
-    # `_org.resolve_org` (403 on a non-member org, never a silent
-    # fallback), reads `financial_periods` and `statement_line_items`
-    # through the CALLER's own RLS-scoped client, and filters on org_id
-    # as a second lock on top of that. Not a firm module and not under a
-    # swept prefix. Pinned behaviourally by
-    # tests/engine/test_forecast_route.py.
-    "engine.api._forecast_routes",
+    # ── plan/2 B5 (plan_contract_v2 1.4, 9.2) ──────────────────────────
+    # `engine.api._forecast_routes` LEFT this tuple: its `_load_period`
+    # moved to `engine.api._forecast_history.load_plan_inputs`, which reads
+    # through `engine.api.pipeline.load_period_rows` (declared below) and
+    # names no client-data table of its own, so neither forecast module
+    # quotes one. The product route keeps its own membership gate:
+    # `_org.resolve_org` (403 on a non-member org), the CALLER's RLS-scoped
+    # client, and the org_id filter as the second lock, pinned by
+    # tests/engine/test_forecast_route.py
+    # (test_the_period_read_filters_on_the_resolved_workspace).
+    # ── end plan/2 B5 ──────────────────────────────────────────────────
     "engine.api._firm_import", "engine.api._firm_requests", "engine.api._industry_detection",
     "engine.api._industry_intelligence", "engine.api._journal_routes", "engine.api._ops_routes",
     "engine.api._org", "engine.api._period_move", "engine.api._reconcile", "engine.api.cfo_ai",

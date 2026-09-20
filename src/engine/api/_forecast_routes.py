@@ -71,53 +71,6 @@ def _require_jwt(authorization: Optional[str]) -> str:
     return authorization.split(" ", 1)[1].strip()
 
 
-def _load_period(jwt: str, org_id: str, period_id: str) -> Dict[str, Any]:
-    """The period's persisted envelope and its assembled statements.
-
-    Read through the caller's OWN Supabase client, so RLS scopes the row
-    to their memberships — the `org_id` filter is a second lock on top of
-    that, never the only one.
-    """
-    from . import _supabase
-
-    with _supabase.per_user(jwt) as client:
-        rows = client.select(
-            "financial_periods",
-            filters={"id": "eq.%s" % period_id, "org_id": "eq.%s" % org_id},
-            limit=1,
-        ) or []
-        if not rows:
-            raise HTTPException(404, "No such period in this workspace.")
-        row = rows[0]
-        line_items = client.select(
-            "statement_line_items",
-            filters={"period_id": "eq.%s" % period_id},
-            columns="statement,bucket,ro_account_code,ro_account_name,amount",
-        ) or []
-
-    statements = None  # type: Optional[Dict[str, Any]]
-    try:
-        from .pipeline import _rebuild_assembled_for_briefing
-        statements = _rebuild_assembled_for_briefing(
-            line_items, row, None).get("statements")
-    except Exception:  # noqa: BLE001
-        logger.exception("[forecast] statements rebuild failed for %s",
-                         period_id)
-        statements = None
-
-    return {
-        "envelope": row.get("assembled_canonical_v1"),
-        "statements": statements,
-        # plan/2 B4b (contract 5.1): the anchor's line items are the ONLY
-        # pool source, so the loader no longer drops them.
-        "line_items": line_items,
-        "period_end": row.get("period_end"),
-        "period_label": row.get("period_label"),
-        "currency": row.get("currency") or "RON",
-        "company_name": row.get("company_name"),
-    }
-
-
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/forecast", tags=["forecast"])
 
@@ -151,16 +104,33 @@ def build_router() -> APIRouter:
         # is handed a filter that matches nothing. The route would answer
         # 404 to every caller and read as "no such period".
         _user_id, org_id = _org.resolve_org(jwt, x_org_id)
-        period = _load_period(jwt, org_id, period_id)
+        from . import _forecast_history
+        from .pipeline import PeriodNotFound, StatementsRebuildError
+        try:
+            period, prior_periods, context, _history = (
+                _forecast_history.load_plan_inputs(jwt, org_id, period_id))
+        except PeriodNotFound:
+            raise HTTPException(404, "No such period in this workspace.")
+        except StatementsRebuildError as exc:
+            # plan/2 B5 (contract 1.4): never a projection built with
+            # statements None, and never cached.
+            raise HTTPException(409, exc.sentence())
 
-        from engine.forecast import project_payload
         from engine.forecast.errors import ForecastError
+        from engine.forecast.levers import PlanRequest, project_plan
         from engine.forecast_serving import boundary, contract
         from engine.forecast_serving.adapter import fp1_from_forecast_v1
         from engine.forecast_serving.gateway import ProjectionGateway
 
         try:
-            projection = project_payload(period, horizon_years=horizon)
+            # GET keeps fp1 and today's 422 on a book whose base plan draws
+            # a funding line it cannot price (6.5): a truncated projection
+            # is never served through fp1. The partial serve arrives with
+            # fp1.2 in B6.
+            projection = project_plan(
+                period, prior_periods,
+                PlanRequest(total_years=horizon, monthly_months=12), context,
+                stop_at_unpriced_draw=False).projection
         except ForecastError as exc:
             # The engine's own sentence, verbatim. It names the driver
             # that could not be measured and the basis that failed to
