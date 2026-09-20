@@ -237,7 +237,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "Anon_5e9826c8c9",
     "source_format": "saga_10_col"
    },

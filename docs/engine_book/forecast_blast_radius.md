@@ -555,7 +555,7 @@ splits into B4a (statements repair, on the critical path) and B4b (pools),
 two commit groups on `wave/plan-b4`. B4a repairs the parser, not the leaf:
 the leaf's `expense_negative` is the declared nature the repair reads. The
 owner is asked to confirm the reading of the positive-writing exporter and to
-count live periods persisted by `tb_parser_v5` that carry mirrored 609/709
+count live periods persisted by `tb_parser_v5` or earlier (the repaired parser stamps `tb_parser_v6`) that carry mirrored 609/709
 rows (every such period's revenue and opex are overstated until
 re-processed).
 
@@ -755,7 +755,7 @@ horizons 5 and 3.
   by name. This is the ruled rule on a book that now ties, not a new rule; if
   the owner wants a tying book with no charge to take the statutory rung, that
   is a definition change (stop condition) and is not made here.
-- Every live period persisted by `tb_parser_v5` from an entry-magnitude
+- Every live period persisted by `tb_parser_v5` or earlier (the repaired parser stamps `tb_parser_v6`) from an entry-magnitude
   export carries revenue and operating cost overstated by twice its mirrored
   709/609 rows until re-processed; the count is owed by the owner (above,
   under 609).
@@ -790,7 +790,7 @@ variable part grow by the same factor and every pool reproduces the B3
 share-of-revenue cost to within the rounding the parity gate bounds. The one
 figure that moves is other operating income: B3 grew it with revenue, B4b
 holds it. Plan-year-one EBITDA deltas are that line's growth on each book
-(agras -9,727.79 on 390,120.85 of other operating income at the anchor's
+(agras -9,727.79 on 390,090.55 of other operating income at the anchor's
 2.494 percent; carniprod -35,176.21; retail -18,154.19; realestate -414.91),
 compounding through cash in later years. Revenue is byte-identical on every
 book and plan year; no funding-line first-shortfall period moves; realestate's

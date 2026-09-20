@@ -581,7 +581,7 @@
      "header_row_index": 0,
      "method": "deterministic",
      "number_locale": "anglo",
-     "parser_version": "tb_parser_v5",
+     "parser_version": "tb_parser_v6",
      "sheet": "Document_CH14",
      "source_format": "saga_10_col"
     },
@@ -2446,7 +2446,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "Document_CH14",
     "source_format": "saga_10_col"
    },

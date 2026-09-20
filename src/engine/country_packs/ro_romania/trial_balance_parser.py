@@ -39,7 +39,16 @@ logger = logging.getLogger(__name__)
 
 # Contract `extraction.parser_version` (docs/CANONICAL_BS_V2_CONTRACT.md).
 # Bump whenever parser logic changes what rows/values are extracted.
-PARSER_VERSION = "tb_parser_v5"
+PARSER_VERSION = "tb_parser_v6"
+# v6 (2026-09-20, plan/2 B4a repair, owner-ruled P0): the CONTRA CONVENTION.
+# A document's mirrored 609/709 rows decide whether it prints contra
+# reductions natural-signed or as entry magnitudes; on an entry-magnitude
+# book `accounts_to_assemble_shape` now NEGATES them (commercial reductions
+# granted reduce revenue, reductions received reduce cost). Every period
+# persisted by v5 OR EARLIER from an entry-magnitude exporter carries the
+# reductions counted twice (retail missed account 121 by 2.04M); the bump
+# is what lets a re-processing sweep tell a repaired period from a stale
+# one, and clears the reconcile suppression key as any version change does.
 # v5 (2026-08-19, found by the Hypothesis property suite P3/P4): sign=−1
 # contra rules (129/169/269, 28x/29x/39x/49x/59x) now emit SIGNED closing
 # math in `accounts_to_assemble_shape` instead of the magnitude of
