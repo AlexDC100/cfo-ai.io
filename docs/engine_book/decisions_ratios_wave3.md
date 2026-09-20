@@ -226,3 +226,66 @@ depreciation on `interest_coverage`, not on `ebitda_to_interest`),
 `risk_scoring_engine.py` (its own EBITDA-based tiers on filings, not the
 RAS ratio census) and the scenarios covenant key `ebitda_to_interest`
 (its own metric, correctly named).
+
+## D15 — second repair round (2026-09-20): a revised definition is served, never left to the persisted row
+
+**The medium.** D14 moved `interest_coverage` to EBIT ÷ interest and said
+nothing about rows persisted before it. A reanalyze never recomputes
+metrics, so every period analysed before this branch ships still holds the
+EBITDA figure under that name. `GET /api/period` then served two figures
+under one key in one body — `metrics[]` and
+`assembled_metrics.ratios.coverage` persisted, `ratio_table` serve-time:
+agras 66.28 beside 55.64, realestate −25.08 beside −25.13, retail **+0.09
+beside −0.52** (a sign flip between two surfaces of one period). Readers of
+the persisted row: `/report` `RatiosTables`, `computeRatios(…, metricsByName)`
+on Alerts and Decisions, `periodFacts`.
+
+Decision: **serve it, do not reprocess.** `DEFINITION_REVISED_METRICS =
+("interest_coverage",)` joins the rows `serve_credit_rows` replaces from the
+serve-time model; the filed value moves, verbatim, to
+`credit_metrics_as_filed`; the typed `ratios.coverage` block follows the
+served rows. No deploy precondition, no backfill: a period is correct the
+moment the build is live. The set is a tuple so the next revised definition
+is one entry, not a second mechanism. `ebitda_to_interest` is not in it (its
+definition never moved). `/report` names the row through `ratioLabelForKey`,
+so the basis prints there too.
+
+Blast radius: fresh periods — none (the persisted row already equals the
+serve-time one; `test_ratio_compare` and the served fixtures did not move).
+Legacy periods — the one row, to the D14 figures above. No fixture
+re-captured.
+
+**R-RANGE on the two surfaces it missed.** (1) The FE reader re-checks a
+served Z″, X1 and X4 against the bounds the SAME envelope serves
+(`ranges.altman_x1.max`, `altman_x4.max`, `altman_z.bound`). The Altman row
+refuses `credit_out_of_range`; the composite then refuses as
+`credit_component_undefined` listing Altman — the engine's own shape
+(`credit_reason`), not a second code. **No browser fallback constant**: the
+bounds are pack data (TC-10) and `altman_z.bound` is derived per book, so
+with no served bound only finiteness is checked. (2) That gap is closed at
+the source instead: get_period's `basis: as_filed` envelope now runs the ONE
+withdrawal (`withhold_out_of_range`, factored out of `credit_block`), nulls
+the `metrics[]` rows it withdrew (the FE reads rows first), and serves its
+`ranges`.
+
+**Not done, on purpose — the no-envelope FE model's zero-interest floor.**
+`computeCreditScore` without an envelope reads `safeDiv(ebit, 0) = 0` as
+"Below covenant", sub-score 15 (carniprod: no debt, no interest, EBIT > 0 →
+67.8 BB+; the engine serves the labelled rung and 79.3). The R-D1/refuse
+repair was written and measured: it is correct on the four private books,
+but the SAME model rates the public-company storefront, where feeds
+commonly carry no interest expense — `retainedEarningsMapped.test.tsx` lost
+its minted rating, and `ratingRefusalFor` has no figure for "interest
+expense", so every such public page would print a rating refusal with an
+empty reason. That is a storefront change (CLAUDE.md §23: refuse, in the
+filing's register, naming the figure) and needs the public refusal wiring
+first. Held for the owner; the patch is not on the branch.
+
+Also: the three ungated D14 hunks got gates (band subject buckets, the
+no-envelope coverage term, the RO label); R-D1's "all measured" is held by
+a test over each absent leaf; B6 scans the whole Ratios-sheet builder and
+catches an alias; `safeFacts` hands the rules each coverage basis under its
+own name; the stage_compute golden has a committed writer
+(`fixtures/credit_model/recapture_stage_compute_golden.py`). Main merged
+again (22 commits; clean; engine book unchanged). Still unwritten:
+`e2e/ratios-comparatives.spec.ts`.

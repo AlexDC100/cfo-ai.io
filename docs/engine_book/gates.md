@@ -5094,3 +5094,32 @@ FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_the_benchmar
 ```
 
 **REVERT** — restored; exit `0`, `18 passed`.
+
+## ratios wave three — second repair round (2026-09-20)
+
+Seven verifier findings on `wave/ratios-b8-milestone` (one medium, six low).
+Every plant below was applied to the product, run, and reverted; the gate
+named is green at HEAD. What each gate reds on AFTER the repair (TC-11) is
+stated in the gate's own docstring.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `serve_credit_rows`: `family = set(CREDIT_FAMILY_METRICS)` (the definition-revised row not replaced) | `tests/engine/test_period_route_revised_rows.py` (battery `ratio-credit-model`, canary) | `agras: metrics[] serves 66.2774, ratio_table serves '55.64' under ONE key` · `retail: … 0.0909 … '-0.52'` — 5 failed |
+| 2 | get_period: the typed `ratios.coverage` patch disabled | same | `agras: assembled_metrics.ratios.coverage serves 66.2774, ratio_table '55.64'` — 3 failed |
+| 3 | `/report` coverage row back to the bare `"Interest coverage"` | `frontend/pages/cfo/__tests__/comprehensiveReportRatioLabel.test.tsx` | 1 failed (row name ≠ label authority) |
+| 4 | `statement_operands`: absent BS leaves and `interestExpense` read as `0.0` (verifier's plant) | `test_credit_model_rungs_and_ranges.py::test_an_absent_debt_or_interest_leaf_declares_nothing` (canary) | `assert {…operands…} is None` — 4 failed |
+| 5 | `SUBJECT_BUCKETS["interest_coverage"]` → `_EBITDA` | `test_comparatives_bands.py::test_the_interest_coverage_subject_names_ebit_accounts_and_the_ebitda_row_does_not` | `assert ('depreciation' in ('revenue', 'otherIncome', 'cogs', 'operatingExpenses'))` |
+| 6 | no-envelope FE model: `intCov` on `ebitdaStatutory` | `frontend/lib/__tests__/interestCoverageBasis.test.ts` | `expected '66.28' to be '55.64'` · `expected '0.09' to be '-0.52'` — 3 failed |
+| 7 | `ro.json` interest_coverage label `(EBITDA / dobânzi)` | same | `expected 'Gradul de acoperire a dobânzilor (EBI…' to match /\(EBIT \/ /` |
+| 8 | workbook served-only loop: pp change recomputed, `toFixed(1)` (verifier's X_b6gap) | `ratioTableByteMatch.test.tsx` B6 (battery `ratio-byte-match`) | `financialExports.ts Ratios-sheet builder: … /\.toFixed\(/ matched ".toFixed("` |
+| 9 | `sixCells`: `value_q as unknown as number; cq * 1 - pq * 1` (verifier's A8-alias) | same | `/\bas\s+(?:unknown\s+as\s+)?number\b/ matched "as unknown as number"` — 2 failed |
+| 10 | the same alias typed `any`, no cast | same | `/[\w)\]]\s*[-*/%]\s*[\w(]/ matched "q * 1"` — 2 failed |
+| 11 | FE `engineWeightOf`: Altman range breach ignored | `creditRefusedSubscores.test.tsx` (agras block) | `expected 100 to be null` — 3 failed |
+| 12 | FE `altmanFromEngine`: breach not withdrawn | same | `expected 10416.74 to be null` — 3 failed |
+| 13 | get_period as-filed branch: `withhold_out_of_range` dropped | `test_credit_model_rungs_and_ranges.py::test_the_as_filed_basis_withdraws_a_filed_altman_outside_its_range_on_the_route` | `assert (1584.89 is None)` |
+| 14 | same branch: `metrics[]` rows left raw | same | `AssertionError: ('altman_z_score', 1584.89)` |
+| 15 | `safeFacts` as before the repair (git stash) | `recommendationMateriality.test.ts` §8 | `expected null not to be null` |
+
+B6 now blanks template-literal TEXT and keeps its `${…}` expressions: the
+binary-operator rule would otherwise read `data-ratio-key` and `</td>` as
+arithmetic (first run: 5 false reds on the report closures).
