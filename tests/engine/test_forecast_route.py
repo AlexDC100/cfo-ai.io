@@ -535,6 +535,19 @@ def test_a_base_plan_that_draws_an_unpriceable_line_is_served_partially_and_says
     assert fy not in [b["period"] for b in body["balance_check"]]
     for point in body["series"]["closing_cash"][cut:]:
         assert "refused" in point and "amount_minor" not in point, point
+    # B6RV2-5 repair: the curve has NO hole at from_period — the three the
+    # refusal can defend without the rate are served there, and only there.
+    assert refusal["cash_before_funding_minor"] + refusal["shortfall_minor"] == \
+        body["series"]["min_cash"][cut]["amount_minor"], refusal
+    for key, expected in (("cash_before_funding", refusal["cash_before_funding_minor"]),
+                          ("funding_draw", refusal["shortfall_minor"])):
+        point = body["series"][key][cut]
+        assert point["amount_minor"] == expected, (key, point)
+    for key in ("closing_cash", "revolver", "revenue", "ebitda", "fcf"):
+        assert "refused" in body["series"][key][cut], key
+    for key in body["series"]:
+        for point in body["series"][key][cut + 1:]:
+            assert "refused" in point and "amount_minor" not in point, (key, point)
     assert "refused" in body["summary"]["peak_funding_gap"]
     text = refusal["sentence"]["text"]
     assert "cannot price" in text or "funding line" in text, text
@@ -546,10 +559,22 @@ def test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served():
     month, so zero periods are served. Contract 6.5: 200 with the refusal.
 
     RED ON: a 500 (strip.py indexed periods[-1] of an empty tuple); a
-    from_period other than the first label; a served_through; any series
-    point or strip field served as a number; a figure carrying an amount.
-    AFTER THE REPAIR (TC-11) it fails on exactly those; it cannot see a
-    refusal that begins later (the partial test above holds that)."""
+    from_period other than the first label; a served_through; any strip
+    field served as a number; a figure carrying an amount.
+
+    B6RV2-5 REPAIR (TC-11): this test used to assert that EVERY series
+    point of every key is refused. That assertion pinned the defect as
+    law — ``ShortfallRefusal`` computes ``cash_before_funding_minor`` and
+    ``amount_minor`` and defends both in its own docstring (the first
+    shortfall accrues no funding interest, so neither needs the rate the
+    book cannot price), and the hand-composed refusal block in
+    plan_response.py dropped them, leaving the cash curve a hole at
+    exactly the period the plan runs out. It now asserts the repaired
+    law. AFTER THE REPAIR it reds on: a FOURTH key served at from_period
+    (closing_cash and revolver need the priced line; nothing else is
+    defensible); any of the three going missing again; anything at all
+    served at a period AFTER from_period; and a served amount that does
+    not equal the refusal's own figure."""
     request = {"horizon": {"total_years": 3, "monthly_months": 12},
                "overrides": {"min_cash": {"values": ["12000000"]}}}
     for want in (None, ["strip"], ["figures", "series", "summary", "strip"]):
@@ -565,9 +590,22 @@ def test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served():
         for name in ("peak_funding_gap", "cumulative_fcf", "closing_cash"):
             assert answer["strip"][name]["refused"] == sentence, name
         if want is None or "series" in want:
-            points = [p for series in answer["series"].values() for p in series]
-            assert points and all("refused" in p and "amount_minor" not in p
-                                  for p in points)
+            refusal = answer["refusal"]
+            cut = refusal["from_period"]
+            # the three the engine can defend without the rate, AT the
+            # refusal period only, each equal to the refusal's own figure
+            expected = {"cash_before_funding": refusal["cash_before_funding_minor"],
+                        "funding_draw": refusal["shortfall_minor"],
+                        "min_cash": 1200000000}
+            for key, series in answer["series"].items():
+                for point in series:
+                    served = "amount_minor" in point
+                    if point["period"] == cut and key in expected:
+                        assert served and point["amount_minor"] == expected[key], \
+                            (key, point)
+                        assert "refused" not in point, (key, point)
+                    else:
+                        assert not served and "refused" in point, (key, point)
         if want is None or "figures" in want:
             assert answer["figures"] and not [
                 f for f in answer["figures"] if "amount_minor" in f]

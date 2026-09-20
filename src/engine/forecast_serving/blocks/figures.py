@@ -47,7 +47,7 @@ class Attribution(object):
     """driver_ids and lever_ids of a (line, period) for one response."""
 
     def __init__(self, line_assumptions, inert, plan_periods, base_periods,
-                 removals, static_levers, totals):
+                 removals, static_levers, totals, plan_run=None):
         self._totals = totals
         self._static = line_assumptions
         self._inert = inert
@@ -57,6 +57,11 @@ class Attribution(object):
         self._removals = [(lever_id,
                            None if run is None else dict((p.label, p) for p in run.periods))
                           for lever_id, run, _keys in removals]
+        #: the RUN objects themselves, kept beside the period maps so a
+        #: removal test can read a run's own ShortfallRefusal — the only
+        #: place a value exists for a period no run serves (6.5).
+        self._plan_run = plan_run
+        self._removal_runs = [(lever_id, run) for lever_id, run, _keys in removals]
         self._levers_of_driver = static_levers
 
     def driver_ids(self, line: str) -> List[str]:
@@ -81,6 +86,25 @@ class Attribution(object):
 
     def refused_removals(self) -> List[str]:
         return [lever_id for lever_id, periods in self._removals if periods is None]
+
+    def lever_ids_at_refusal(self, read) -> Tuple[List[str], bool]:
+        """3.6 at the period a partial serve does NOT reach.
+
+        The removal test is the same one 3.6 states — removing the lever
+        changes THIS amount — but read off each run's own
+        :class:`~engine.forecast.project.ShortfallRefusal` rather than off a
+        served period, because no run serves this period. A run that does
+        not refuse here at all (the lever lifted or moved the shortfall) is
+        a run the lever changed, so ``read`` returns None for it and the
+        lever is found. Never the joint fallback: the base run has no
+        refusal to compare against, so there is nothing to be joint about.
+        """
+        served = read(self._plan_run)
+        found = []  # type: List[str]
+        for lever_id, run in self._removal_runs:
+            if run is None or read(run) != served:
+                found.append(lever_id)
+        return found, False
 
     def lever_ids_of(self, line, read) -> Tuple[List[str], bool]:
         """3.6: a lever reaches a served amount when removing it changes THAT

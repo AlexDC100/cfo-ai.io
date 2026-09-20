@@ -209,7 +209,7 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
     line_assumptions = dict(plan.line_assumptions)
     attribution = Attribution(line_assumptions, inert, projection.periods,
                               plan.base.periods, removals, static_levers,
-                              inputs["totals"])
+                              inputs["totals"], plan_run=projection)
 
     timeline = projection.timeline
     years = monthly_years(timeline)
@@ -268,10 +268,13 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
                  "history_hash": _sha(pins_history)},
         "lever_set_hash": lever_set_hash(plan.request),
         "pins_changed": [],
-        "refusal": (None if refusal is None else {
-            "driver_key": "revolver_rate", "from_period": refusal.period.label,
-            "shortfall_minor": refusal.amount_minor,
-            "sentence": dict(refusal.sentence)}),
+        # 6.5 (B6RV2-5 repair): the refusal block is the engine's OWN
+        # ``ShortfallRefusal.as_dict()``, not a second hand-composed copy of
+        # it. The hand-composed one dropped ``cash_before_funding_minor`` —
+        # a figure the engine computes, holds and defends in that class's
+        # docstring — so the cash curve had a hole at exactly the period the
+        # plan runs out. One authority for the shape, so it cannot drift.
+        "refusal": (None if refusal is None else refusal.as_dict()),
         "debt_schedule": _debt_echo(plan, inputs),
         "balance_check": balance,
         "unbalanced_periods": [b["period"] for b in balance if b["difference_minor"] != 0],
