@@ -100,6 +100,7 @@ import { convertFromTo } from "@/lib/money";
 import { openStagedFile } from "@/lib/stagedFilePreview";
 import { clearStagedFiles, readStagedFiles, writeStagedFiles } from "@/lib/stagedFilesStore";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { FailedUploadBanner } from "@/components/cfo/FailedUploadBanner";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { AiReadBadge, BSStatementView } from "@/components/cfo/BSStatementView";
 import {
@@ -214,6 +215,7 @@ import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import {
   clearUpload,
   patchUpload,
+  splitSurfaceUpload,
   startUpload,
   useUploadStore,
 } from "@/lib/uploadStore";
@@ -1166,7 +1168,13 @@ function FinancialStatementsInner() {
   // progress. A products (SKU) upload lives in the same store but must NOT make
   // the dashboard flip into its scan view — it renders on /products instead.
   const _upload = useUploadStore().current;
-  const uploadInFlight = _upload && _upload.surface !== "products" ? _upload : null;
+  // A FAILED upload never takes over the surface (2026-09-20 P0). The store is
+  // persisted, so a `failed` entry used to replace the whole dashboard with the
+  // scan view on every load — a period the server served correctly became
+  // unreachable, with no action but a Cancel button below the fold. Failure is
+  // a banner over the dashboard (FailedUploadBanner: Retry · Replace file ·
+  // Manage files · View error); the period header and the SOURCE line stay.
+  const { takeover: uploadInFlight, failed: failedUpload } = splitSurfaceUpload(_upload, "dashboard");
 
   // When a scan lands, we HOLD the analyzed upload on screen (instead of
   // auto-routing into State B) so the scan view can show its "Scan complete"
@@ -1339,6 +1347,94 @@ function FinancialStatementsInner() {
     setStagedFiles([]);
   }
 
+  // Follow ONE document to its terminal status. Shared by a fresh scan and by
+  // Retry on a failed upload, so both hand off to the dashboard identically.
+  async function watchDocument(
+    docId: string,
+    filename: string,
+    navigateOnDone: boolean,
+    resolve: () => void,
+  ): Promise<void> {
+    const { subscribeToDocumentStatus, getSupabase } = await import("@/lib/supabase");
+    const unsub = subscribeToDocumentStatus(docId, (next) => {
+      patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
+      if (next.status === "analyzed") {
+        unsub();
+        // A new month/period row now exists for this workspace. Refresh the
+        // workspace Months lists (Workspace-tab card pills + the active
+        // workspace's Months section, keyed ["org-periods", orgId]) AND the
+        // active-workspace month selector (["periods-with-documents"]) so
+        // the new month item shows up in the workspaces' months list right
+        // away instead of lagging a full staleTime behind.
+        if (next.period_id) {
+          void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
+          void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
+          // The period PAYLOAD too (2026-07-26). The cache used to rely on
+          // "a re-run produces a brand-new period_id, so the URL key
+          // changes" — no longer true: replace-month semantics and the
+          // adopt-the-selected-empty-period flow reuse the SAME id, so
+          // navigating to ?period=<id> after the scan repainted the STALE
+          // payload for its full 30-min staleTime and the dashboard
+          // "didn't change" (operator-reported). Two traps here:
+          //   · The stale entry can even be a cached `{kind:"not_found"}` —
+          //     fetchPeriodFromApi resolves 404s as SUCCESS data, so an
+          //     empty period viewed before the upload caches "not found"
+          //     as fresh.
+          //   · removeQueries (the first fix) is NOT reliable on a query
+          //     with active observers — the observer can keep serving its
+          //     in-memory data without refetching. resetQueries is the
+          //     API documented to reset AND refetch active observers.
+          void queryClient.resetQueries({ queryKey: periodQueryKey(next.period_id) });
+          // …and the month's Source-files tiles, so the file that just
+          // landed shows up there immediately instead of a staleTime
+          // later. Prefix key — matches the scoped
+          // ["period-documents", id, "financial"] entry.
+          void queryClient.invalidateQueries({ queryKey: ["period-documents", next.period_id] });
+        }
+        void (async () => {
+          if (navigateOnDone) {
+            // Public-records summary → route to multi-year history.
+            if (!next.period_id) {
+              try {
+                const sb = getSupabase();
+                const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
+                const token = session?.session?.access_token;
+                const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+                const r = await fetch(`${apiUrl}/api/public-records/by-document/${docId}`, {
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (r.ok) {
+                  toast({ title: t("dash.multiYearReadyTitle"), description: t("dash.multiYearReadyBody", { filename: filename }) });
+                  window.location.href = `/multi-year-history?doc=${docId}`;
+                  return;
+                }
+              } catch { /* fall through */ }
+            }
+            if (next.period_id) {
+              // Don't route into State B yet — hold the analyzed upload on
+              // screen so the scan view shows its "Scan complete" card; the
+              // card's "View results" button (viewResults) navigates. The
+              // completion card is skipped when the tab isn't mounted, so a
+              // background batch that finishes off-screen still resolves.
+              console.info("[scan] analyzed → period", next.period_id, "— opening in 2.4s");
+              setAwaitingView({ periodId: next.period_id });
+              resolve();
+              return;
+            }
+            toast({ title: t("dash.analysisCompleteTitle"), description: t("dash.noPeriodCreatedBody", { filename: filename }) });
+          }
+          clearUpload();
+          resolve();
+        })();
+      }
+      if (next.status === "failed") {
+        unsub();
+        toast({ title: t("dash.analysisFailedTitle"), description: next.error ?? t("dash.unknownError"), variant: "destructive" });
+        resolve();
+      }
+    });
+  }
+
   // Upload + enqueue + await terminal status for ONE staged file. Hand-off to
   // State B (navigation / toast) happens only when navigateOnDone — the last
   // file in a batch; earlier files are processed silently, periods persist.
@@ -1354,8 +1450,7 @@ function FinancialStatementsInner() {
       void (async () => {
         setUploadName(file.name);
         startUpload({ docId: "", filename: file.name, status: "queued" });
-        const { uploadDocument, subscribeToDocumentStatus, getSupabase } =
-          await import("@/lib/supabase");
+        const { uploadDocument } = await import("@/lib/supabase");
         const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
         if (!row) {
           clearUpload();
@@ -1382,85 +1477,43 @@ function FinancialStatementsInner() {
           resolve();
           return;
         }
-        const unsub = subscribeToDocumentStatus(row.id, (next) => {
-          patchUpload({ status: next.status, error: next.error, periodId: next.period_id ?? null });
-          if (next.status === "analyzed") {
-            unsub();
-            // A new month/period row now exists for this workspace. Refresh the
-            // workspace Months lists (Workspace-tab card pills + the active
-            // workspace's Months section, keyed ["org-periods", orgId]) AND the
-            // active-workspace month selector (["periods-with-documents"]) so
-            // the new month item shows up in the workspaces' months list right
-            // away instead of lagging a full staleTime behind.
-            if (next.period_id) {
-              void queryClient.invalidateQueries({ queryKey: ["org-periods"] });
-              void queryClient.invalidateQueries({ queryKey: ["periods-with-documents"] });
-              // The period PAYLOAD too (2026-07-26). The cache used to rely on
-              // "a re-run produces a brand-new period_id, so the URL key
-              // changes" — no longer true: replace-month semantics and the
-              // adopt-the-selected-empty-period flow reuse the SAME id, so
-              // navigating to ?period=<id> after the scan repainted the STALE
-              // payload for its full 30-min staleTime and the dashboard
-              // "didn't change" (operator-reported). Two traps here:
-              //   · The stale entry can even be a cached `{kind:"not_found"}` —
-              //     fetchPeriodFromApi resolves 404s as SUCCESS data, so an
-              //     empty period viewed before the upload caches "not found"
-              //     as fresh.
-              //   · removeQueries (the first fix) is NOT reliable on a query
-              //     with active observers — the observer can keep serving its
-              //     in-memory data without refetching. resetQueries is the
-              //     API documented to reset AND refetch active observers.
-              void queryClient.resetQueries({ queryKey: periodQueryKey(next.period_id) });
-              // …and the month's Source-files tiles, so the file that just
-              // landed shows up there immediately instead of a staleTime
-              // later. Prefix key — matches the scoped
-              // ["period-documents", id, "financial"] entry.
-              void queryClient.invalidateQueries({ queryKey: ["period-documents", next.period_id] });
-            }
-            void (async () => {
-              if (navigateOnDone) {
-                // Public-records summary → route to multi-year history.
-                if (!next.period_id) {
-                  try {
-                    const sb = getSupabase();
-                    const { data: session } = sb ? await sb.auth.getSession() : { data: { session: null } };
-                    const token = session?.session?.access_token;
-                    const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
-                    const r = await fetch(`${apiUrl}/api/public-records/by-document/${row.id}`, {
-                      headers: token ? { Authorization: `Bearer ${token}` } : {},
-                    });
-                    if (r.ok) {
-                      toast({ title: t("dash.multiYearReadyTitle"), description: t("dash.multiYearReadyBody", { filename: file.name }) });
-                      window.location.href = `/multi-year-history?doc=${row.id}`;
-                      return;
-                    }
-                  } catch { /* fall through */ }
-                }
-                if (next.period_id) {
-                  // Don't route into State B yet — hold the analyzed upload on
-                  // screen so the scan view shows its "Scan complete" card; the
-                  // card's "View results" button (viewResults) navigates. The
-                  // completion card is skipped when the tab isn't mounted, so a
-                  // background batch that finishes off-screen still resolves.
-                  console.info("[scan] analyzed → period", next.period_id, "— opening in 2.4s");
-                  setAwaitingView({ periodId: next.period_id });
-                  resolve();
-                  return;
-                }
-                toast({ title: t("dash.analysisCompleteTitle"), description: t("dash.noPeriodCreatedBody", { filename: file.name }) });
-              }
-              clearUpload();
-              resolve();
-            })();
-          }
-          if (next.status === "failed") {
-            unsub();
-            toast({ title: t("dash.analysisFailedTitle"), description: next.error ?? t("dash.unknownError"), variant: "destructive" });
-            resolve();
-          }
-        });
+        await watchDocument(row.id, file.name, navigateOnDone, resolve);
       })();
     });
+  }
+
+  // Retry on a failed upload — re-run the SAME document. When the upload never
+  // produced a document row there is nothing on the server to re-run, so Retry
+  // opens the file picker instead of pretending.
+  const [retryingFailed, setRetryingFailed] = useState(false);
+  function replaceFailedUpload() {
+    if (hasPeriodLoaded) setAddMonthOpen(true);
+    else fileRef.current?.click();
+  }
+  async function retryFailedUpload() {
+    const failed = failedUpload;
+    if (!failed || retryingFailed) return;
+    if (!failed.docId) { replaceFailedUpload(); return; }
+    setRetryingFailed(true);
+    try {
+      startUpload({ docId: failed.docId, filename: failed.filename, status: "queued" });
+      const enq = await uploadEnqueue.enqueue(failed.docId);
+      if (enq.kind === "extra_doc_cancelled") {
+        // Dialog dismissed — nothing ran. Put the failed banner back so the
+        // user keeps every action; clearing here would lose the document.
+        patchUpload({ status: "failed", error: failed.error ?? null });
+        return;
+      }
+      if (enq.kind !== "queued") {
+        patchUpload({ status: "failed", error: enq.message ?? t("dash.unknownError") });
+        return;
+      }
+      await watchDocument(failed.docId, failed.filename, true, () => {});
+    } catch (e) {
+      patchUpload({ status: "failed", error: e instanceof Error ? e.message : t("dash.unknownError") });
+    } finally {
+      setRetryingFailed(false);
+    }
   }
 
   // Start scan → first confirm each file's period-end date (auto-detected from
@@ -1725,6 +1778,16 @@ function FinancialStatementsInner() {
             (both State A entry and State B loaded-month) reduces to the pipeline
             steps + council sphere, so scanning a new month from the dashboard
             dropzone looks identical to the first upload. */}
+        {failedUpload && (
+          <FailedUploadBanner
+            upload={failedUpload}
+            periodId={remotePeriod.id ?? searchParams.get("period")}
+            onRetry={() => void retryFailedUpload()}
+            onReplace={replaceFailedUpload}
+            onDismiss={clearUpload}
+            retrying={retryingFailed}
+          />
+        )}
         {uploadInFlight ? (
           <ScanProgressView
             status={uploadInFlight.status}

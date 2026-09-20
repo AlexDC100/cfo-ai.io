@@ -10,6 +10,14 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Alert, AlertStatus } from "@/lib/alerts";
 import { getActiveOrgId, setActiveOrgId } from "@/lib/activeOrg";
+// STATIC on purpose (2026-09-20 P0). This used to be `await import(...)` on
+// the refusal path only, which made uploadRefusals its own content-hashed
+// chunk. A tab loaded before a deploy then 404'd that chunk exactly when the
+// backend answered 402 (extra-document confirmation), the rejection fell into
+// enqueuePipeline's catch, and the user saw "Analysis failed" for a document
+// the server was ready to run. The refusal path must never depend on a
+// network fetch of code. Gate: lib/__tests__/uploadRefusalsStatic.test.ts.
+import { friendlyDocumentError, parseUploadRefusal } from "@/lib/uploadRefusals";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -473,7 +481,6 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
     // 2026-08 — typed non-RO refusal (jurisdiction != RO on a plan
     // without the Multi-Country entitlement). Recognized on ANY error
     // status so the FE doesn't depend on which code the backend chose.
-    const { parseUploadRefusal } = await import("@/lib/uploadRefusals");
     const nonRo = parseUploadRefusal(body);
     if (nonRo) {
       return { kind: "non_ro_blocked", upgradeTo: nonRo.upgradeTo, message: nonRo.message };
@@ -607,13 +614,10 @@ export function subscribeToDocumentStatus(
   // of a JSON blob. Non-refusal errors pass through untouched.
   const emit = (row: DocumentRow) => {
     if (row?.error) {
-      try {
-        // Dynamic import keeps this hot module free of a static i18n dep.
-        void import("@/lib/uploadRefusals").then(({ friendlyDocumentError }) => {
-          onChange({ ...row, error: friendlyDocumentError(row.error) ?? row.error });
-        });
-        return;
-      } catch { /* fall through to raw row */ }
+      let friendly: string | null = null;
+      try { friendly = friendlyDocumentError(row.error) ?? null; } catch { friendly = null; }
+      onChange({ ...row, error: friendly ?? row.error });
+      return;
     }
     onChange(row);
   };
@@ -676,6 +680,21 @@ export function subscribeToDocumentStatus(
     if (poll) { clearInterval(poll); poll = null; }
     void activeClient.removeChannel(channel);
   };
+}
+
+/** One-shot read of a document's pipeline status (RLS-scoped). Null when the
+ *  client is not configured, the row is not visible, or the read failed —
+ *  callers treat null as "unknown", never as a status. */
+export async function fetchDocumentStatus(documentId: string): Promise<DocumentRow | null> {
+  if (!client || !documentId) return null;
+  try {
+    const { data, error } = await client.from("documents").select("*").eq("id", documentId).maybeSingle();
+    if (error || !data) return null;
+    const row = data as DocumentRow;
+    return row.error ? { ...row, error: friendlyDocumentError(row.error) ?? row.error } : row;
+  } catch {
+    return null;
+  }
 }
 
 export interface UploadResult {
