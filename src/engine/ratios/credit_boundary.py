@@ -102,23 +102,71 @@ def _json_value(v: Any) -> Any:
     return None
 
 
-def range_law(rows_by_name: Mapping[str, Any]
+#: `breaches` key under which `range_law` reports a composite served beside
+#: components that did not score (R-COMPOSITE held BY SHAPE): the value is
+#: the comma-joined component keys.
+BESIDE_UNSCORED = "composite_beside_unscored"
+
+
+def _unscored_components(rows_by_name: Mapping[str, Any], checked: Mapping[str, Any],
+                         refused: Optional[Mapping[str, Any]]) -> List[str]:
+    """Components that did not score, read off the shape being served: a
+    sub-score row that is PRESENT and null (as filed or as just withheld),
+    or a component listed in the payload's own `refused_subscores`. An
+    absent row says nothing (revision-1 rows carry no sub-score rows at
+    all; `withhold_persisted` holds those to the law over the statements)."""
+    out = [key for key, name in CM.CREDIT_SUBSCORE_METRICS
+           if name in rows_by_name and checked.get(name) is None]
+    for key in (refused or {}):
+        if key in CM.CREDIT_COMPOSITE_WEIGHTS and key not in out:
+            out.append(key)
+    return [k for k in CM.CREDIT_COMPOSITE_WEIGHTS if k in out]
+
+
+def range_law(rows_by_name: Mapping[str, Any], refused: Optional[Mapping[str, Any]] = None
               ) -> Tuple[Dict[str, Any], Dict[str, str], List[Dict[str, Any]]]:
     """`(checked, breaches, withdrawn)` for one set of credit figures keyed
     by their `calculated_metrics` names. `breaches` is `{component or
     "composite": the figure that left its range}`; `withdrawn` names every
-    figure that was present and is withheld, with the value it carried."""
+    figure that was present and is withheld, with the value it carried.
+
+    R-COMPOSITE IS HELD HERE TOO, BY SHAPE: a composite that is present
+    beside a sub-score that is present-and-null, or beside a component the
+    payload itself lists as refused (`refused`), is withheld with
+    `credit_component_undefined` - whatever composed it (a renormalising
+    model planted in compute_period_metrics let credit_composite 97.5 out in
+    metrics[] past a boundary that read ranges only). `breaches` then
+    carries `BESIDE_UNSCORED: "<component>,<component>"`."""
     given = {k: _lawful_number(v) for k, v in rows_by_name.items()}
     checked, bad = CM.withhold_out_of_range(given)
+    bad = dict(bad)
     withdrawn: List[Dict[str, Any]] = []
+    unscored = _unscored_components(rows_by_name, checked, refused)
+    beside = bool(unscored) and rows_by_name.get("credit_composite") is not None \
+        and checked.get("credit_composite") is not None
+    if beside:
+        checked["credit_composite"] = None
+        bad[BESIDE_UNSCORED] = ",".join(unscored)
     if not bad:
         return dict(rows_by_name), {}, withdrawn
     for name in CM.CREDIT_FAMILY_METRICS:
         if name not in rows_by_name or rows_by_name[name] is None or checked.get(name) is not None:
             continue
+        if name == "credit_composite" and beside:
+            withdrawn.append({
+                "figure": name, "value": _json_value(rows_by_name[name]),
+                "as_served": repr(rows_by_name[name]),
+                "code": CM.CREDIT_COMPONENT_UNDEFINED,
+                "inputs": ["credit_model.%s" % k for k in unscored],
+                "text": "withheld at the serving boundary: a composite was about to be served beside "
+                        "component(s) that did not score (%s); the model's weights are never "
+                        "redistributed (%s)" % (", ".join(unscored), CREDIT_PACK_FILE),
+            })
+            continue
         key = ("composite" if name == "credit_composite"
                else "altman" if name.startswith("altman_") else _SUBSCORE_NAMES.get(name))
-        cause = bad.get(key) or next(iter(bad.values()))
+        ranged = {k: v for k, v in bad.items() if k != BESIDE_UNSCORED}
+        cause = ranged.get(key) or next(iter(ranged.values()))
         withdrawn.append({
             "figure": name, "value": _json_value(rows_by_name[name]),
             "as_served": repr(rows_by_name[name]),
@@ -136,7 +184,11 @@ def range_law(rows_by_name: Mapping[str, Any]
 def _refusals_for(bad: Mapping[str, str], refused: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     out = dict(refused or {})
     for key, figure in bad.items():
-        if key != "composite" and key not in out:
+        if key == BESIDE_UNSCORED:
+            for comp in figure.split(","):
+                if comp and comp not in out:
+                    out[comp] = CM.subscore_refusal(comp)
+        elif key != "composite" and key not in out:
             out[key] = CM.subscore_refusal(key, CM.CREDIT_OUT_OF_RANGE, figure)
     return out
 
@@ -158,13 +210,19 @@ def _envelope_rows(env: Mapping[str, Any]) -> Dict[str, Any]:
     for x in _COMPONENTS:
         rows["altman_%s" % x] = comps.get(x)
     for key, name in CM.CREDIT_SUBSCORE_METRICS:
-        rows[name] = subs.get(key)
+        if key in subs:
+            rows[name] = subs.get(key)
     return rows
+
+
+def _listed_refusals(node: Mapping[str, Any]) -> Dict[str, Any]:
+    r = node.get("refused_subscores")
+    return dict(r) if isinstance(r, Mapping) else {}
 
 
 def _check_envelope(env: Dict[str, Any]) -> List[Dict[str, Any]]:
     """`assembled_metrics.credit`. Returns what was withdrawn."""
-    checked, bad, withdrawn = range_law(_envelope_rows(env))
+    checked, bad, withdrawn = range_law(_envelope_rows(env), _listed_refusals(env))
     if bad:
         env["altman_z_score"] = checked["altman_z_score"]
         if isinstance(env.get("altman_components"), dict):
@@ -175,7 +233,7 @@ def _check_envelope(env: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if key in env["subscores"]:
                     env["subscores"][key] = checked[name]
         env["composite_score"] = None
-        env["refused_subscores"] = _refusals_for(bad, env.get("refused_subscores"))
+        env["refused_subscores"] = _refusals_for(bad, _listed_refusals(env))
         env["reason"] = _reason_for(bad, env["refused_subscores"])
         env["withdrawn"] = list(env.get("withdrawn") or []) + withdrawn
     # dependents: no zone without a Z'', no letter without a composite
@@ -187,7 +245,8 @@ def _check_envelope(env: Dict[str, Any]) -> List[Dict[str, Any]]:
         # a figure is never served without the range it was read against
         comps = env.get("altman_components") or {}
         env["ranges"] = CM.credit_ranges(CM._num(comps.get("x2")), CM._num(comps.get("x3")))
-    _check_as_filed(env.get("as_filed"))
+    comps_now = env.get("altman_components") if isinstance(env.get("altman_components"), Mapping) else {}
+    _check_as_filed(env.get("as_filed"), comps_now.get("x2"), comps_now.get("x3"))
     return withdrawn
 
 
@@ -198,13 +257,14 @@ def _block_rows(block: Mapping[str, Any]) -> Dict[str, Any]:
     for x in _COMPONENTS:
         rows["altman_%s" % x] = alt.get(x)
     for key, name in CM.CREDIT_SUBSCORE_METRICS:
-        rows[name] = subs.get(key)
+        if key in subs:
+            rows[name] = subs.get(key)
     return rows
 
 
 def _check_block(block: Dict[str, Any]) -> List[Dict[str, Any]]:
     """`ratio_table.credit` and the comparatives' `ratios.credit.*`."""
-    checked, bad, withdrawn = range_law(_block_rows(block))
+    checked, bad, withdrawn = range_law(_block_rows(block), _listed_refusals(block))
     alt = block.get("altman") if isinstance(block.get("altman"), dict) else None
     if bad:
         if alt is not None:
@@ -216,26 +276,29 @@ def _check_block(block: Dict[str, Any]) -> List[Dict[str, Any]]:
                 if key in block["subscores"]:
                     block["subscores"][key] = checked[name]
         block["composite"] = None
-        block["refused_subscores"] = _refusals_for(bad, block.get("refused_subscores"))
+        block["refused_subscores"] = _refusals_for(bad, _listed_refusals(block))
         block["reason"] = _reason_for(bad, block["refused_subscores"])
         block["withdrawn"] = list(block.get("withdrawn") or []) + withdrawn
         if isinstance(block.get("declared_rungs"), dict):
             for key in bad:
-                block["declared_rungs"].pop(key, None)
+                if key != BESIDE_UNSCORED:
+                    block["declared_rungs"].pop(key, None)
     if alt is not None and alt.get("z") is None and alt.get("zone") is not None:
         alt["zone"] = None
     if block.get("composite") is None and block.get("letter") is not None:
         block["letter"] = None
-    _check_as_filed(block.get("as_filed"))
+    _check_as_filed(block.get("as_filed"), (alt or {}).get("x2"), (alt or {}).get("x3"))
     return withdrawn
 
 
-def _check_as_filed(filed: Any) -> None:
+def _check_as_filed(filed: Any, x2: Any = None, x3: Any = None) -> None:
     """The as-filed disclosure inside an envelope or a block: `{composite,
-    altman_z, letter, withdrawn}`. The composite is read against its range;
-    a Z'' that is not a finite number is withheld (its bound rests on the
-    FILED X2 and X3, which `credit_block` read when it composed this
-    disclosure - the boundary re-reads what it can see)."""
+    altman_z, letter, withdrawn}`. The composite is read against its range.
+    The filed Z'' is read against the bound derived from the X2 and X3 the
+    SAME envelope or block serves (`x2`, `x3`) - the only components the
+    boundary can see beside it; with none beside it the figure is unread
+    and an unread figure is not served (a filed 1584.89 once passed here on
+    a finiteness check alone)."""
     if not isinstance(filed, dict):
         return
     out: List[Dict[str, Any]] = []
@@ -246,10 +309,11 @@ def _check_as_filed(filed: Any) -> None:
                     "text": "withheld at the serving boundary: the filed composite lies outside its declared range"})
         filed["composite"] = None
     z = filed.get("altman_z")
-    if z is not None and not math.isfinite(_lawful_number(z)):
-        out.append({"figure": "altman_z_score", "value": None, "code": CM.CREDIT_OUT_OF_RANGE,
+    if z is not None and CM.altman_out_of_range(None, CM._num(x2), CM._num(x3), None, _lawful_number(z)):
+        out.append({"figure": "altman_z_score", "value": _json_value(z), "code": CM.CREDIT_OUT_OF_RANGE,
                     "inputs": ["altman_z_score"],
-                    "text": "withheld at the serving boundary: the filed Z'' is not a finite number"})
+                    "text": "withheld at the serving boundary: the filed Z'' is not a finite number inside "
+                            "the bound derived from the X2 and X3 served beside it (%s)" % CREDIT_PACK_FILE})
         filed["altman_z"] = None
     if filed.get("composite") is None and filed.get("letter") is not None:
         filed["letter"] = None
@@ -263,18 +327,31 @@ def _is_metric_rows(v: Any) -> bool:
 
 
 def _check_metric_rows(rows: List[Any]) -> List[Dict[str, Any]]:
-    by_name = {r["name"]: r.get("value") for r in rows
-               if isinstance(r, dict) and isinstance(r.get("name"), str)}
-    checked, bad, withdrawn = range_law(by_name)
-    if not bad:
-        return withdrawn
-    named = {w["figure"]: w for w in withdrawn}
+    """EVERY row of a name is read, not the last one: `calculated_metrics`
+    has no unique (period_id, name) constraint, and a by-name dict let an
+    exploded FIRST row out behind a lawful second. Layer i holds the i-th
+    occurrence of each name (the last one where a name has fewer); a name
+    withheld in any layer is withheld on every row that carries it."""
+    occurrences: Dict[str, List[Any]] = {}
     for r in rows:
-        if isinstance(r, dict) and r.get("name") in named:
+        if isinstance(r, dict) and isinstance(r.get("name"), str):
+            occurrences.setdefault(r["name"], []).append(r.get("value"))
+    depth = max([len(v) for v in occurrences.values()] or [0])
+    named: Dict[str, Dict[str, Any]] = {}
+    for i in range(depth):
+        layer = {name: vals[min(i, len(vals) - 1)] for name, vals in occurrences.items()}
+        _checked, bad, withdrawn = range_law(layer)
+        if bad:
+            for w in withdrawn:
+                named.setdefault(w["figure"], w)
+    if not named:
+        return []
+    for r in rows:
+        if isinstance(r, dict) and r.get("name") in named and r.get("value") is not None:
+            w = named[r["name"]]
+            r["withheld"] = {"code": w["code"], "inputs": list(w["inputs"]), "value": _json_value(r["value"])}
             r["value"] = None
-            r["withheld"] = {"code": CM.CREDIT_OUT_OF_RANGE, "inputs": list(named[r["name"]]["inputs"]),
-                             "value": named[r["name"]]["value"]}
-    return withdrawn
+    return list(named.values())
 
 
 def _is_compare_row(v: Any) -> bool:
@@ -300,38 +377,50 @@ def _compare_side_breach(key: str, side: Mapping[str, Any]) -> Optional[str]:
     return None
 
 
+#: A breach on the key (left) takes these rows of the SAME side with it.
+_COMPARE_DEPENDENTS = {"altman_z": ("credit_subscore_altman",)}
+
+
 def _check_compare_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The comparatives' composite and sub-score rows. A side that fails
-    the law refuses; a component breach takes that side's composite and
-    letter with it; the row's delta and movement are re-read over the
+    """The comparatives' composite and sub-score rows - ALL of one
+    document's credit compare rows together, whichever lists they sit in. A
+    side that fails the law refuses; any breach takes that side's composite
+    and letter with it, and an Altman breach takes that side's Altman
+    sub-score too; the row's delta and movement are re-read over the
     refused side, so no movement is minted from a withheld figure."""
     from engine.comparatives import ratio_compare as RC  # lazy: RC imports credit_model
 
     withdrawn: List[Dict[str, Any]] = []
-    broken: Dict[str, str] = {}
+    broken: Dict[str, Dict[str, str]] = {}
     for row in rows:
         for which in ("current", "prior"):
             figure = _compare_side_breach(row["key"], row[which])
             if figure is not None:
-                broken.setdefault(which, figure)
+                broken.setdefault(which, {})[row["key"]] = figure
     if not broken:
         return withdrawn
     for row in rows:
         touched = False
-        for which, figure in broken.items():
+        for which, figures in broken.items():
             side = row[which]
-            own = _compare_side_breach(row["key"], side)
-            dependent = row["key"] in ("credit_composite", "letter_grade") and side.get("value") is not None
-            if own is None and not dependent:
+            own = figures.get(row["key"])
+            cause = own
+            if cause is None and side.get("value") is not None:
+                if row["key"] in ("credit_composite", "letter_grade"):
+                    cause = next(iter(figures.values()))
+                else:
+                    cause = next((figures[k] for k, deps in _COMPARE_DEPENDENTS.items()
+                                  if k in figures and row["key"] in deps), None)
+            if cause is None:
                 continue
             withdrawn.append({"figure": "%s.%s" % (row["key"], which), "value": _json_value(side.get("value")),
                               "as_served": repr(side.get("value")), "code": CM.CREDIT_OUT_OF_RANGE,
-                              "inputs": [own or figure],
+                              "inputs": [cause],
                               "text": "withheld at the serving boundary: %s lies outside its declared range "
-                                      "(%s)" % (own or figure, CREDIT_PACK_FILE)})
+                                      "(%s)" % (cause, CREDIT_PACK_FILE)})
             row[which] = {"value": None, "value_q": None, "band": None, "band_status": "refused",
                           "ladder": None, "ladder_floor": None, "operands": [],
-                          "reason": {"code": CM.CREDIT_OUT_OF_RANGE, "inputs": [own or figure]}}
+                          "reason": {"code": CM.CREDIT_OUT_OF_RANGE, "inputs": [cause]}}
             touched = True
         if touched:
             row["delta"] = RC._delta(row["current"], row["prior"], row["display_unit"], row["higher_is_better"])
@@ -341,16 +430,36 @@ def _check_compare_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return withdrawn
 
 
-def _is_compare_list(v: Any) -> bool:
-    return isinstance(v, list) and bool(v) and all(_is_compare_row(r) for r in v)
+def _compare_rows_under(node: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """Every credit compare row in the list-valued children of one dict
+    (the comparatives' `ratios.composites` and `ratios.subscores` are
+    siblings: a breach in one must reach the other)."""
+    out: List[Dict[str, Any]] = []
+    for k, v in node.items():
+        if k not in _SKIP_KEYS and isinstance(v, list):
+            out += [r for r in v if _is_compare_row(r)]
+    return out
+
+
+#: (a) An envelope is recognised by ANY key only an envelope carries, not
+#: by `altman_components` alone: `{composite_score: 250, letter_grade: AAA,
+#: altman_z_score: 1584.89}` once walked through unread.
+_ENVELOPE_KEYS = ("altman_components", "composite_score", "altman_z_score", "letter_grade")
+
+
+def _is_envelope(node: Mapping[str, Any]) -> bool:
+    return any(k in node for k in _ENVELOPE_KEYS)
 
 
 def _walk(node: Any, withdrawn: List[Dict[str, Any]], where: str) -> None:
     if isinstance(node, dict):
-        if "altman_components" in node:
+        if _is_envelope(node):
             withdrawn += [dict(w, where=where) for w in _check_envelope(node)]
         elif isinstance(node.get("altman"), dict) and "z" in node["altman"] and "subscores" in node:
             withdrawn += [dict(w, where=where) for w in _check_block(node)]
+        compare = _compare_rows_under(node)
+        if compare:
+            withdrawn += [dict(w, where=where) for w in _check_compare_rows(compare)]
         for k, v in node.items():
             if k in _SKIP_KEYS:
                 continue
@@ -358,12 +467,13 @@ def _walk(node: Any, withdrawn: List[Dict[str, Any]], where: str) -> None:
     elif isinstance(node, list):
         if _is_metric_rows(node):
             withdrawn += [dict(w, where=where) for w in _check_metric_rows(node)]
-        elif _is_compare_list(node):
-            withdrawn += [dict(w, where=where) for w in _check_compare_rows(node)]
-        else:
-            for i, v in enumerate(node):
-                if isinstance(v, (dict, list)):
-                    _walk(v, withdrawn, "%s[%d]" % (where, i))
+        compare = [r for r in node if _is_compare_row(r)]
+        if compare:
+            # idempotent: a side already refused under its parent dict has no value left to breach
+            withdrawn += [dict(w, where=where) for w in _check_compare_rows(compare)]
+        for i, v in enumerate(node):
+            if isinstance(v, (dict, list)) and not _is_compare_row(v):
+                _walk(v, withdrawn, "%s[%d]" % (where, i))
 
 
 # ── the unswitched period: the as-filed envelope is composed HERE ────────────
@@ -461,7 +571,7 @@ def _lawful_as_filed_rows(body: Dict[str, Any]) -> List[Dict[str, Any]]:
 def _withhold_everything(node: Any, why: str) -> None:
     """No check could run: every credit figure in the payload is withheld."""
     if isinstance(node, dict):
-        if "altman_components" in node or (node.get("basis") == "as_filed" and "composite_weights" not in node):
+        if _is_envelope(node) or (node.get("basis") == "as_filed" and "composite_weights" not in node):
             basis = node.get("basis") or "as_filed"
             node.clear()
             node.update(refused_envelope(why, basis))

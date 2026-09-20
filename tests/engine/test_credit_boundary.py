@@ -479,6 +479,186 @@ def test_the_boundary_fails_closed(monkeypatch):
     assert out["metrics"] == [{"name": "altman_z_score", "value": None}, {"name": "revenue", "value": 10.0}]
 
 
+def test_the_narrator_rows_fail_closed(monkeypatch):
+    """credit2 repair (low, plant M7b): `enforce_metric_rows`' own except
+    branch. `lawful_persisted_rows` breaking must withhold the credit family
+    from the narrator's rows, never hand them over raw.
+    REDS ON after the repair: the branch planted open (`return [dict(r) for
+    r in rows]`) -> the 1584.89 row reaches the narrator.
+    CANNOT SEE: a consumer that reads persisted rows without calling
+    `enforce_metric_rows` at all (the api-layer census below)."""
+    from engine.ratios import credit_boundary as CB
+
+    monkeypatch.setattr(CB.CM, "lawful_persisted_rows", _boom)
+    rows = [{"name": "altman_z_score", "value": 1584.89}, {"name": "altman_x4", "value": 1500.0},
+            {"name": "credit_composite", "value": 88.5}, {"name": "revenue", "value": 10.0}]
+    out = CB.enforce_metric_rows(rows, {"balanceSheet": {}})
+    by = {r["name"]: r["value"] for r in out}
+    assert by == {"altman_z_score": None, "altman_x4": None, "credit_composite": None, "revenue": 10.0}
+    assert rows[0]["value"] == 1584.89  # new rows: the caller's are not mutated
+
+
+# ── the contract BY SHAPE (credit2 repair, low): one test per gap ────────────
+#
+# Each test below was RED before its repair (the probe served the figure
+# unchanged) and is plant-proven in docs/engine_book/gates.md.
+
+
+def _lawful_envelope() -> Dict[str, Any]:
+    env = dict(_exploded_envelope(), altman_z_score=3.1, composite_score=80.0, letter_grade="A")
+    env["altman_components"] = dict(env["altman_components"], x4=1.2)
+    return env
+
+
+def test_shape_a_an_envelope_without_altman_components_is_still_an_envelope():
+    from engine.ratios import credit_boundary as CB
+
+    env = {"composite_score": 250, "letter_grade": "AAA", "altman_z_score": 1584.89, "altman_zone": "safe"}
+    out = CB.enforce_credit_boundary({"cache": env}, surface="period")["cache"]
+    assert out["composite_score"] is None and out["letter_grade"] is None
+    assert out["altman_z_score"] is None and out["altman_zone"] is None
+    assert "credit_out_of_range" in json.dumps(out)
+
+
+@pytest.mark.parametrize("how", ["null sub-score", "listed refusal"])
+def test_shape_b_no_composite_and_no_letter_beside_a_component_that_did_not_score(how):
+    """R-COMPOSITE held by the boundary itself: never renormalised,
+    whatever composed the figure."""
+    from engine.ratios import credit_boundary as CB
+
+    env = _lawful_envelope()
+    if how == "null sub-score":
+        env["subscores"]["coverage"] = None
+    else:
+        env["refused_subscores"] = {"coverage": {"code": "interest_expense_not_positive", "component": "coverage",
+                                                 "inputs": [], "text": "x"}}
+    block = {"altman": {"z": 3.1, "zone": "safe", "x1": 0.2, "x2": 0.1, "x3": 0.05, "x4": 1.2},
+             "subscores": dict(env["subscores"]), "composite": 80.7, "letter": "AA",
+             "refused_subscores": dict(env["refused_subscores"])}
+    rows = [{"name": "credit_composite", "value": 97.5}, {"name": "credit_subscore_coverage", "value": None},
+            {"name": "credit_subscore_altman", "value": 100.0}]
+    out = CB.enforce_credit_boundary({"assembled_metrics": {"credit": env, "ratio_table": {"credit": block}},
+                                      "metrics": rows}, surface="period")
+    got = out["assembled_metrics"]["credit"]
+    assert got["composite_score"] is None and got["letter_grade"] is None, how
+    assert got["reason"]["code"] == "credit_component_undefined"
+    assert "coverage" in got["refused_subscores"]
+    assert got["altman_z_score"] == 3.1 and got["altman_zone"] == "safe"  # what scored is kept
+    blk = out["assembled_metrics"]["ratio_table"]["credit"]
+    assert blk["composite"] is None and blk["letter"] is None and blk["altman"]["z"] == 3.1
+    if how == "null sub-score":
+        assert {r["name"]: r["value"] for r in out["metrics"]}["credit_composite"] is None
+        assert out["metrics"][0]["withheld"]["code"] == "credit_component_undefined"
+    codes = {w["figure"]: w["code"] for w in out["credit_boundary"]["withdrawn"]}
+    assert codes["credit_composite"] == "credit_component_undefined"
+
+
+def test_shape_c_every_row_of_a_name_is_read_not_the_last():
+    from engine.ratios import credit_boundary as CB
+
+    rows = [{"name": "altman_z_score", "value": 1584.89}, {"name": "altman_x4", "value": 1500.0},
+            {"name": "altman_x2", "value": 0.1}, {"name": "altman_x3", "value": 0.05},
+            {"name": "altman_z_score", "value": 3.1}, {"name": "altman_x4", "value": 1.2}]
+    out = CB.enforce_credit_boundary({"metrics": rows}, surface="period")
+    assert "1584.89" not in json.dumps([r["value"] for r in out["metrics"]])
+    assert [r["value"] for r in out["metrics"] if r["name"] in ("altman_z_score", "altman_x4")] == [None] * 4
+
+
+def _cmp_side(v, q, operands=()):
+    return {"value": v, "value_q": q, "band": None, "band_status": "not_banded", "ladder": None,
+            "ladder_floor": None, "reason": None, "operands": [{"name": n, "value": x} for n, x in operands]}
+
+
+def _cmp_row(key, cur, pri):
+    return {"key": key, "display_unit": "score", "higher_is_better": True, "current": cur, "prior": pri,
+            "delta": {"value": "1"}, "movement": {"status": "crossed_down"}, "finding_id": "f-1"}
+
+
+def test_shape_d_compare_rows_are_read_per_row_and_a_breach_reaches_the_sibling_list():
+    from engine.ratios import credit_boundary as CB
+
+    xs = (("x1", 0.2), ("x2", 0.1), ("x3", 0.05))
+    doc = {"ratios": {
+        "composites": [
+            {"key": "ebitda_margin", "current": {"value": 0.1}, "prior": {"value": 0.2}},  # not a credit row
+            _cmp_row("credit_composite", _cmp_side(80.0, "80.0"), _cmp_side(250.0, "250.0")),
+            _cmp_row("altman_z", _cmp_side(3.1, "3.10", xs + (("x4", 1.2),)),
+                     _cmp_side(1584.89, "1584.89", xs + (("x4", 1500.0),))),
+        ],
+        "subscores": [_cmp_row("credit_subscore_altman", _cmp_side(100.0, "100.0"), _cmp_side(100.0, "100.0")),
+                      _cmp_row("credit_subscore_leverage", _cmp_side(90.0, "90.0"), _cmp_side(90.0, "90.0"))],
+    }}
+    out = CB.enforce_credit_boundary(doc, surface="comparatives")["ratios"]
+    comps = {c["key"]: c for c in out["composites"]}
+    subs = {c["key"]: c for c in out["subscores"]}
+    assert comps["credit_composite"]["prior"]["value"] is None  # a mixed list is no longer skipped whole
+    assert comps["altman_z"]["prior"]["value"] is None
+    assert subs["credit_subscore_altman"]["prior"]["value"] is None  # the Altman breach reached the sibling list
+    assert subs["credit_subscore_altman"]["prior"]["reason"]["inputs"] == ["altman_x4"]
+    assert subs["credit_subscore_leverage"]["prior"]["value"] == 90.0  # a component that scored is kept
+    assert all(c["current"]["value"] is not None for c in list(comps.values())[1:] + list(subs.values()))
+    assert comps["ebitda_margin"] == {"key": "ebitda_margin", "current": {"value": 0.1}, "prior": {"value": 0.2}}
+
+
+def test_shape_e_a_filed_z_is_read_against_the_bound_beside_it():
+    from engine.ratios import credit_boundary as CB
+
+    def block(z):
+        return {"altman": {"z": 3.1, "zone": "safe", "x1": 0.2, "x2": 0.1, "x3": 0.05, "x4": 1.2},
+                "subscores": {"altman": 100.0}, "composite": 80.0, "letter": "A",
+                "as_filed": {"composite": 80.7, "altman_z": z, "letter": "A", "withdrawn": []}}
+
+    out = CB.enforce_credit_boundary({"credit": block(1584.89)}, surface="period")["credit"]
+    assert out["as_filed"]["altman_z"] is None
+    assert out["as_filed"]["withdrawn"][0]["code"] == "credit_out_of_range"
+    assert out["altman"]["z"] == 3.1 and out["composite"] == 80.0  # the served side is lawful and kept
+    kept = CB.enforce_credit_boundary({"credit": block(2.9)}, surface="period")["credit"]
+    assert kept["as_filed"]["altman_z"] == 2.9 and kept["as_filed"]["withdrawn"] == []
+
+
+# ── the comparatives chokepoint, BEHAVIOURALLY (credit2 repair, low, M8) ─────
+
+
+def test_the_comparatives_composer_itself_exploding_is_refused_at_the_boundary(app, world, monkeypatch):
+    """get_period's boundary gates the two period bodies the composer READS;
+    it cannot gate what the composer WRITES. Here the composer itself
+    produces an exploded prior side (composite 250, Z'' 1584.89 on X4 1500)
+    from lawful inputs, and only the comparatives boundary stands between it
+    and the response.
+    REDS ON after the repair: the route returning `compare_payloads(...)`
+    raw (plant M8) -> the served prior carries 250 / 1584.89.
+    CANNOT SEE: an exploded figure the composer writes under a shape the
+    boundary does not recognise (the shape tests above)."""
+    from engine.comparatives import ratio_compare as RC
+
+    real = RC._composite_rows
+
+    def exploding(cur_credit, pri_credit):
+        composites, subscores = real(cur_credit, pri_credit)
+        for row in composites:
+            if row["key"] == "credit_composite":
+                row["prior"] = dict(row["current"], value=250.0, value_q="250.0")
+            if row["key"] == "altman_z":
+                row["prior"] = dict(row["current"], value=1584.89, value_q="1584.89", operands=[
+                    {"name": "x1", "value": 0.2}, {"name": "x2", "value": 0.1},
+                    {"name": "x3", "value": 0.05}, {"name": "x4", "value": 1500.0}])
+        return composites, subscores
+
+    monkeypatch.setattr(RC, "_composite_rows", exploding)
+    resp = RA.get(app, "/api/period/%s/comparatives?prior=%s" % (HEALTHY, EXPLODED), D.mint_jwt(USER), ORG)
+    assert resp.status_code == 200, resp.text[:300]
+    doc = resp.json()
+    comps = {c["key"]: c for c in doc["ratios"]["composites"]}
+    for key in ("altman_z", "credit_composite"):
+        pri = comps[key]["prior"]
+        assert pri["value"] is None and pri["value_q"] is None, (key, pri)
+        assert pri["reason"]["code"] == "credit_out_of_range", (key, pri)
+        assert comps[key]["movement"]["status"] == "not_comparable"
+    assert comps["altman_z"]["current"]["value"] is not None  # the lawful side is kept
+    assert {w["figure"] for w in doc["credit_boundary"]["withdrawn"]} >= {"altman_z.prior", "credit_composite.prior"}
+    assert doc["credit_boundary"]["surface"] == "comparatives"
+
+
 def test_an_unknown_surface_is_refused():
     from engine.ratios import credit_boundary as CB
 
