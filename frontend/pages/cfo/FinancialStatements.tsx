@@ -653,10 +653,21 @@ function FinancialStatementsInner() {
   // ‡ F1.e — Engine canonical statutory net profit (ct.121). Plumbed into
   // the dashboard tile and the CFO AI Summary block so the RON figure
   // agrees with the margin.
-  const canonicalNetIncomeStatutory = useMemo(() => {
-    const row = remotePeriod.metrics.find((mt) => mt.name === "net_income_statutory");
-    return typeof row?.value === "number" ? row.value : null;
-  }, [remotePeriod.metrics]);
+  // ONE SEAM, THREE SITES (2026-09-21). This used to read the persisted
+  // metrics row ALONE — the rung `resolveHeadlineNetProfit` demotes, because
+  // it is stale or absent on a period the engine already re-anchors on every
+  // request. The KPI card was moved onto the seam and these two were left
+  // behind, so one page printed the anchor in its card and the reconstruction
+  // in its balance sheet: on agras 7,533,676.02 against 14,106,102.03. Every
+  // site that says "net profit as filed" resolves through the same function.
+  const canonicalNetIncomeStatutory = useMemo(
+    () => resolveHeadlineNetProfit(
+      statements,
+      remotePeriod.metrics,
+      statements ? buildPLStatementFromAggregates(statements) : { netProfit: NaN, netProfitStatutory: null },
+    ),
+    [statements, remotePeriod.metrics],
+  );
   // F3.11 — F3.9 source-data quality telemetry. Derived FE-side from
   // the four numeric metrics the BE persists post-F3.11
   // (source_imbalance_pct / _abs / _closing_debit_sum / _closing_credit_sum).
@@ -2346,10 +2357,7 @@ function FinancialStatementsInner() {
                   // Fallback chain handles older cached periods that
                   // lack the canonical row: FE statutory (operational +
                   // 722) → FE operational (the prior behavior).
-                  currentYearNetProfit:
-                    canonicalNetIncomeStatutory
-                    ?? buildPLStatementFromAggregates(statements).netProfitStatutory
-                    ?? buildPLStatementFromAggregates(statements).netProfit,
+                  currentYearNetProfit: canonicalNetIncomeStatutory,
                   // F2.1 — Engine canonical `assembled_bs` for top-level
                   // totals + per-engine-bucket residual surfacing. When
                   // present, BS totals match engine to the cent and any

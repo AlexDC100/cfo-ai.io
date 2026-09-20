@@ -56,8 +56,14 @@ export function formatRONSigned(value: number, sign: "positive" | "negative"): s
  *   formatPercent(0.437) → "43.7%"
  *   formatPercent(0.029) → "2.9%"
  */
-export function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return "—";
+export function formatPercent(value: number | null | undefined): string {
+  // null/undefined = REFUSED, and it renders as an em dash, never 0.0%.
+  // Widened deliberately 2026-09-21: PLKeyMargin.value became nullable so a
+  // margin the payload cannot support stops claiming the company earned
+  // nothing. This signature is what makes that refusal typed rather than
+  // accidental (the old `number` signature accepted a null only because
+  // strict null checks are off in this project).
+  if (value == null || !Number.isFinite(value)) return "—";
   return `${(value * 100).toFixed(1)}%`;
 }
 

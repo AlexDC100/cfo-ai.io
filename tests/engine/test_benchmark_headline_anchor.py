@@ -303,16 +303,23 @@ def test_a_legacy_period_without_the_anchor_keeps_the_operating_view():
 
 
 def test_a_period_with_no_profit_at_all_prints_no_row_rather_than_722():
-    """`net_income_operating` is ALWAYS derived (`net_income or 0` plus 722),
-    so it is present even for a period that reported no profit of either
-    kind. The company row must stay blank there rather than print the
-    capitalized-own-work figure as a bottom line — absent is not zero, and it
-    is certainly not 722."""
+    """A period that reported no profit of either kind must show no bottom
+    line — absent is not zero, and it is certainly not 722.
+
+    RESTATED 2026-09-21. This test used to open by ASSERTING the defect it was
+    written to guard against: `assert cm["net_income_operating"] == 40.0`,
+    i.e. the capitalized-own-work figure standing in for a profit nobody
+    filed, with a docstring saying in the same breath that 722 is not a
+    profit. The `or 0` floor behind it has since been removed, so the metric
+    is now ABSENT — and the row stays blank for the honest reason rather than
+    by a second guard downstream. (See "gates that encode the defect": the
+    red on a repair is sometimes the gate.)"""
     rows = [{"name": "revenue", "value": 1_000.0, "unit": None}]
     line_items = [{"statement": "PL", "bucket": "capitalizedOwnWork", "amount": 40.0},
                   {"statement": "PL", "bucket": "revenue", "amount": 1_000.0}]
     cm = be.compute_company_metrics(rows, line_items)
-    assert cm["net_income_operating"] == pytest.approx(40.0)
+    assert "net_income_operating" not in cm or cm["net_income_operating"] is None, \
+        "722 stood in for a profit that was never reported"
     r = be.build_benchmark_report(
         period_id="p1", caen_code="1013", caen_label="Meat",
         industry_category="manufacturing_consumer", calculated_metrics=rows,
@@ -323,3 +330,40 @@ def test_a_period_with_no_profit_at_all_prints_no_row_rather_than_722():
     deep = r.get("sections", {}).get("deep") or r.get("deep") or {}
     me = next(p for p in deep["peers"] if p.get("tier") == "self")
     assert me["net_profit_mlei"] is None
+
+
+# ── `or 0` is a floor, and this one reached the screen ──────────────────────
+
+def test_a_period_with_no_reported_profit_refuses_instead_of_printing_zero():
+    """`net_income_operating = (out.get("net_income") or 0) + cap_own` gave a
+    period with no reported profit a net income of cap_own — commonly 0.00 —
+    printed as a figure, and every sector margin was graded against it. Absent
+    is not zero: with nothing filed, the headline, the peer row and the margin
+    refuse together."""
+    metrics = be.compute_company_metrics(
+        [{"name": "revenue", "value": 84_000_000.0, "unit": None}], [])
+    assert metrics.get("net_income_operating") is None
+    assert metrics.get("net_margin") is None
+    assert be.headline_net_income_of(metrics) is None
+
+    r = be.build_benchmark_report(
+        period_id="p1", caen_code="1013", caen_label="Meat",
+        industry_category="manufacturing_consumer",
+        calculated_metrics=[{"name": "revenue", "value": 84_000_000.0, "unit": None}],
+        line_items=[], benchmarks={}, company_name="No-profit SRL",
+    )
+    head = r["sections"]["headline"] if "headline" in r.get("sections", {}) else r["headline"]
+    slot = head["metrics"][-1]
+    assert head["company_values"].get(slot) is None, \
+        "the headline printed a profit for a period that reported none"
+
+
+def test_a_reported_zero_profit_is_still_a_figure():
+    """A company that filed exactly zero filed a number. Only ABSENCE refuses."""
+    metrics = be.compute_company_metrics([
+        {"name": "revenue", "value": 84_000_000.0, "unit": None},
+        {"name": "net_income", "value": 0.0, "unit": None},
+    ], [])
+    assert metrics.get("net_income_operating") == 0.0
+    assert metrics.get("net_margin") == 0.0
+    assert be.headline_net_income_of(metrics) == 0.0

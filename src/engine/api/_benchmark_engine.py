@@ -251,9 +251,21 @@ def compute_company_metrics(
     # 711 inventory-variation memo — already routed to inv_var_memo in
     # the API layer; for older payloads it's inside otherIncome.
     ebitda_operating = ebitda_cash + cap_own_bucket
-    net_income = out.get("net_income") or 0
-    net_income_operating = net_income + cap_own_bucket
-    out["net_income_operating"] = net_income_operating
+    # `or 0` IS A FLOOR, and this one reached the screen (2026-09-21). A period
+    # whose calculated_metrics carry no `net_income` row got a profit of
+    # cap_own_bucket — commonly 0.00 — printed as a figure rather than refused,
+    # and every margin graded against the sector bands was built on it. Absent
+    # is not zero: with no reported profit this view has no value, and
+    # `headline_net_income_key` then has nothing to choose, so the headline,
+    # the peer row and the margin all refuse together instead of grading a
+    # company against its peers on a profit nobody filed.
+    net_income_reported = out.get("net_income")
+    if net_income_reported is None:
+        net_income_operating = None
+    else:
+        net_income_operating = net_income_reported + cap_own_bucket
+    if net_income_operating is not None:
+        out["net_income_operating"] = net_income_operating
 
     # ── ONE PROFIT PER PAGE ─────────────────────────────────────────────
     # `headline_metrics` decided on 2026-09-20 which profit the headline
