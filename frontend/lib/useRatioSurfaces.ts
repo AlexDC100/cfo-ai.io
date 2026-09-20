@@ -42,6 +42,8 @@ export interface RatioSurfaceInputs {
   /** GET /api/period `assembled_metrics`, verbatim. */
   assembledMetrics: unknown;
   statements: Statements | null;
+  /** The served sector benchmark document, or null/absent. */
+  sector?: unknown;
   metricsByName: Record<string, number | null>;
   /** The current period's own label, for a view no comparison names. */
   currentLabel: string;
@@ -63,6 +65,12 @@ export interface RatioSurfaces {
   statementsForExport: StatementsForExport | null;
   /** The credit envelopes the hero, the Risks tab and the exports read. */
   creditEnvelopes: ServedCreditEnvelopes;
+}
+
+/** The served sector document rides to the exports on the same
+ *  statements object the comparatives ride on; absent stays absent. */
+function withSector(s: StatementsForExport | null, sector: unknown): StatementsForExport | null {
+  return s && sector ? { ...s, sectorBenchmark: sector } : s;
 }
 
 export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
@@ -101,13 +109,14 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
     cmpDoc,
     cmpRefused,
     ratioCompareView,
-    statementsForExport: statementsForExportOf(input.statements, cmpDoc, comparisonOutcome),
+    statementsForExport: withSector(
+      statementsForExportOf(input.statements, cmpDoc, comparisonOutcome), input.sector),
     creditEnvelopes: servedCreditEnvelopes(input.assembledMetrics, input.statements, input.metricsByName),
   };
 }
 
 export function useRatioSurfaces(input: RatioSurfaceInputs): RatioSurfaces {
-  const { assembledMetrics, statements, metricsByName, currentLabel, periodId, priorId } = input;
+  const { assembledMetrics, statements, metricsByName, currentLabel, periodId, priorId, sector } = input;
   const data = input.comparatives.data;
   const isError = input.comparatives.isError === true;
   return useMemo(
@@ -115,12 +124,13 @@ export function useRatioSurfaces(input: RatioSurfaceInputs): RatioSurfaces {
       ratioSurfacesOf({
         assembledMetrics,
         statements,
+        sector,
         metricsByName,
         currentLabel,
         periodId,
         priorId,
         comparatives: { data, isError },
       }),
-    [assembledMetrics, statements, metricsByName, currentLabel, periodId, priorId, data, isError],
+    [assembledMetrics, statements, sector, metricsByName, currentLabel, periodId, priorId, data, isError],
   );
 }

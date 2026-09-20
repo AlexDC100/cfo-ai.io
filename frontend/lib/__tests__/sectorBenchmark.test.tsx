@@ -227,3 +227,44 @@ describe("refused ratios", () => {
     }
   });
 });
+
+// ── the report document itself ──────────────────────────────────────────
+
+import { buildReportHtml } from "@/lib/financialExports";
+import { metricsFor, statementsFor } from "./exportBooks";
+
+describe("the CFO report", () => {
+  const envelopes = { metricsByName: metricsFor("agras") };
+
+  it("carries no sector section, contents entry or band-source line when no document was served", () => {
+    const html = buildReportHtml(statementsFor("agras"), envelopes);
+    expect(html).not.toContain("data-sector-benchmark");
+    expect(html).not.toContain('id="sec-sector"');
+    expect(html).not.toContain("data-ratio-band-source");
+  });
+
+  it("prints the served document: the section the page prints, and a band-source line on every census card", () => {
+    const doc = DOC();
+    const html = buildReportHtml({ ...statementsFor("agras"), sectorBenchmark: doc }, envelopes);
+    const dom = new DOMParser().parseFromString(html, "text/html");
+    const section = dom.querySelector("#sec-sector [data-sector-benchmark]")!;
+    expect(section).not.toBeNull();
+    const printed = printSectorRows(doc, "en");
+    expect(section.querySelectorAll("tr[data-sector-row]").length).toBe(printed.length);
+    for (const p of printed) {
+      const tr = section.querySelector(`tr[data-sector-row="${p.key}"]`)!;
+      expect(tr.querySelector('[data-cell="n"]')!.textContent, p.key).toBe(p.n);
+      expect(tr.querySelector('[data-cell="median"]')!.textContent, p.key).toBe(p.median);
+    }
+    expect(section.querySelector("[data-sector-source]")!.textContent).toContain(doc.source!);
+    const lines = [...dom.querySelectorAll("[data-ratio-band-source]")];
+    expect(lines.length).toBeGreaterThan(10);
+    for (const el of lines) {
+      const key = el.getAttribute("data-ratio-band-source")!;
+      expect(el.textContent, key).toBe(bandSourceText(doc, key, "en"));
+    }
+    const sector = lines.filter((el) => doc.ratio_cards[el.getAttribute("data-ratio-band-source")!].band_source === "sector");
+    expect(sector.length).toBeGreaterThan(0);
+    for (const el of sector) expect(el.textContent).toMatch(/n=\d+ · FY\d{4} · Ministerul Finantelor/);
+  });
+});

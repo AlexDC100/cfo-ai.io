@@ -5306,3 +5306,47 @@ nothing downstream types them. TC-12 coverage: nine sourced ratio keys, all
 census keys on `ratio_cards` (asserted equal to `CENSUS`). The percentile is
 refused (`quartiles_only`): the dataset holds quartiles, and a percentile
 between them would be an interpolation.
+
+## benchmarks-ro-surface — company vs sector on the page, the card and the report (2026-09-20)
+
+One reader and one printer (`frontend/lib/sectorBenchmark.ts`) behind three
+surfaces: the `/benchmark` page section
+(`components/cfo/benchmark/SectorBenchmarkSection.tsx` + `SectorRangeBar.tsx`),
+the ratio card's band-source line (`components/cfo/ratios/RatiosTab.tsx`) and
+the CFO report section (`lib/financialReport.ts`). Gates:
+`frontend/lib/__tests__/sectorBenchmark.test.tsx` (17) and the
+`ratio tile: where the band comes from` block of
+`frontend/lib/__tests__/ratioCompareTab.test.tsx` (2). Both read the committed
+document `frontend/lib/__tests__/fixtures/sectorBenchmark/served_pair.json`,
+which `tests/engine/test_sector_benchmark_route_real_app.py::test_the_committed_frontend_fixture_is_what_this_route_serves`
+holds byte-for-byte to what the route serves — so the FE gates cannot drift
+onto a document the engine would never send.
+
+| # | Plant | Reds | Excerpt |
+|---|---|---|---|
+| E | `lawfulFigure` no longer requires `n` (the law's door accepts a figure without a peer count) | `sectorBenchmark.test.tsx::THE LAW… > a row without n prints words, no number and no bar`, `::a sector card without n falls back to the general sentence` | `AssertionError: expected 'sourced' to be 'refused'` · `AssertionError: expected 'Sector: median 3.1%, middle half 1.3%…' to be 'General SME band, not calibrated to y…'` · `2 failed \| 15 passed` |
+| F | the served minimum peer count is not enforced at the boundary (`n < minPeers` → `n < 1`) | `::fewer peers than the served minimum is words, never a median` | `AssertionError: expected { Object (median, p25, ...) } to be null` · `1 failed \| 16 passed` |
+| G | the report prints a median the page does not (`r.median.replace("%", " pct")` in `sectorReportSectionHtml`) | `::page rows and report rows are the same bytes > every cell, en` and `> every cell, ro`, `::the CFO report > prints the served document…` | `AssertionError: net_margin.median: expected '3.1 pct' to be '3.1%'` · `AssertionError: net_margin.median: expected '3,1 pct' to be '3,1%'` · `3 failed \| 14 passed` |
+| H | the band-source sentence written INSIDE `ratio-ladder` instead of the sibling element | `ratioCompareTab.test.tsx::ratio tile… > with one: sector lines carry n, FY and source…`, and the seven pre-existing ladder gates (G10–G12) | `expected 'Strong from 15%, Healthy from 8%, Wat…' not to contain 'Ministerul'` · `Expected: "Strong from 2×, Healthy from 1.5×, Watch from 1×, Critical below General SME band, not calibrated to your sector."` · `8 failed \| 34 passed` |
+
+TC-11, after the repair: (E) reds on any sector figure reaching a page row, a
+report cell, a ratio-card line or a movement item without its n, year or
+source — the row turns into words and loses its bar. (F) reds on a median
+printed on a cell thinner than the served minimum, on any surface. (G) reds
+when the page cell and the report cell for the same ratio differ by one byte,
+in either language — label, company, median, middle half, n, FY, position.
+(H) reds on anyone folding the band's provenance into the ladder element the
+ladder gates pin, and on a general ladder labelled "sector" (the same test
+asserts `dio` and `gross_margin` stay general and say why).
+
+TC-10: the size-band cut-offs, the peer minimum, the year and the peer-set
+sentence are interpolated from the served document; the string gate
+(`EN and RO carry the same keys, and no numeral is typed into either`) reds on
+any numeral typed into a `benchmarkPage.sector.*` string in either language.
+TC-12 coverage: every served row, every served `ratio_cards` key, every served
+`refused` key and every served reason code is asserted to have a sentence in
+both languages; the report gate asserts a band-source line on more than ten
+cards and none at all when no document was served. What these gates cannot
+see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
+the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
+layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).

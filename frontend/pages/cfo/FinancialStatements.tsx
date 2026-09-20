@@ -736,6 +736,7 @@ function FinancialStatementsInner() {
     periodId: remotePeriod.id,
     priorId: cmpPriorId,
     comparatives: cmpQuery,
+    sector: sectorQuery.data ?? null,
   });
 
   // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
@@ -2421,15 +2422,15 @@ function FinancialStatementsInner() {
         {/* RATIOS ──────────────────────────────────────────────────────── */}
         {enabled.ratios && ratios && (
           <TabsContent value="ratios" className="mt-6 space-y-8 min-h-[400px]">
+            <SectorBenchmarkCtx.Provider value={sectorQuery.data ?? null}>
             <RatioCompareCtx.Provider value={ratioCompareView}>
-              <SectorBenchmarkCtx.Provider value={sectorQuery.data ?? null}>
-                <RatiosTabContent
-                  ratios={ratios}
-                  statements={statements}
-                  altman={heroCredit ? altmanRatio(heroCredit) : null}
-                />
-              </SectorBenchmarkCtx.Provider>
+              <RatiosTabContent
+                ratios={ratios}
+                statements={statements}
+                altman={heroCredit ? altmanRatio(heroCredit) : null}
+              />
             </RatioCompareCtx.Provider>
+            </SectorBenchmarkCtx.Provider>
           </TabsContent>
         )}
 

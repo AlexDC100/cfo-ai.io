@@ -123,6 +123,7 @@ import { printCss } from "./reportPrintCss";
 // reasons as sentences, no arithmetic). It imports `@/i18n` and a type; it
 // imports nothing from this module, so there is no cycle.
 import i18n from "@/i18n";
+import { bandSourceText, readSectorBenchmark, sectorReportSectionHtml } from "./sectorBenchmark";
 import {
   deltaTone,
   formatRatioBand,
@@ -638,6 +639,12 @@ export interface Statements {
    *  the Ratios tab is stating the refusal beside it (B8 verifier). Absent
    *  or `none`: no comparison was requested. */
   comparison?: ExportComparisonState | null;
+  /** The SERVED sector benchmark document for this period
+   *  (`GET /api/period/{id}/sector-benchmark`), attached by the caller
+   *  that hands the statements to an exporter. The report prints it with
+   *  the page's own printer (`lib/sectorBenchmark.ts`); absent, the
+   *  document carries no sector section at all. */
+  sectorBenchmark?: unknown;
   /** Optional multi-year history (oldest → newest, NOT including current). */
   historicalPeriods?: PriorPeriod[];
   /** Canonical period_facts views — single source of truth across DCF,
@@ -4329,6 +4336,19 @@ export function renderReportHtml(
     return `<table class="fin ratio-cmp"${got.attrs}><tbody>${body}</tbody></table>`;
   };
 
+  // Company vs sector: the served document, printed by the page's printer
+  // in the export locale. Every figure carries source, year and n or is
+  // words (`lawfulFigure`); nothing here computes or grades.
+  const sectorDoc = readSectorBenchmark(s.sectorBenchmark);
+  const sectorTitle = i18n.getFixedT(RATIO_CMP_EXPORT_LOCALE)("benchmarkPage.sector.title");
+  /** Where the card's band comes from — printed only when a sector
+   *  document was served, and only for a census key it speaks about. */
+  const bandSourceLine = (rt: Ratio): string => {
+    const key = servedRatioKey(rt.key);
+    if (sectorDoc === null || !sectorDoc.ratio_cards[key]) return "";
+    return `<div class="meta" data-ratio-band-source="${escapeHtml(key)}">${escapeHtml(
+      bandSourceText(sectorDoc, key, RATIO_CMP_EXPORT_LOCALE))}</div>`;
+  };
   const ratioCard = (rt: Ratio): string => `
       <div class="ratio-card">
         <div class="label">${escapeHtml(rt.label)}</div>
@@ -4343,7 +4363,7 @@ export function renderReportHtml(
           <span class="badge v-${rt.verdict}" data-ratio-badge="${escapeHtml(rt.key)}">${escapeHtml(ratioBadgeLabel(rt))}</span>
           &nbsp;${escapeHtml(rt.value === null ? rt.commentary : rt.benchmark)}
         </div>
-        ${cardTrack(rt)}
+        ${cardTrack(rt)}${bandSourceLine(rt)}
         <div class="formula" data-ratio-formula="${escapeHtml(rt.key)}">${escapeHtml(rt.formula)}</div>
         ${ratioCmpCardTable(servedRatioKey(rt.key), rt.label, formatRatio(rt), ratioBadgeLabel(rt))}
       </div>
@@ -5303,6 +5323,8 @@ export function renderReportHtml(
     { id: "sec-profit", title: "Profitability" },
     { id: "sec-leverage", title: "Leverage and coverage" },
     { id: "sec-credit", title: "Credit and distress" },
+    // Listed only when a sector document was served for this period.
+    ...(sectorDoc === null ? [] : [{ id: "sec-sector", title: sectorTitle }]),
     // Listed only when the block is there to link to. A contents entry
     // pointing at a section this document does not carry is a dead
     // anchor in the rail AND a page-number row in the printed contents
@@ -5513,6 +5535,8 @@ export function renderReportHtml(
   ${chartById("chart-asset-age")}
   `,
   )}
+
+  ${sectorDoc === null ? "" : section("sec-sector", sectorTitle, sectorReportSectionHtml(sectorDoc, RATIO_CMP_EXPORT_LOCALE))}
 
   ${insightsSection()}
 
