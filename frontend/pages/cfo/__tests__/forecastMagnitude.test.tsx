@@ -112,7 +112,6 @@ describe("FC1 — a painted figure equals its payload value", () => {
     await screen.findByTestId("forecast-assumptions");
 
     const figures = (PAYLOAD.figures ?? []) as Array<Record<string, unknown>>;
-    const horizon = ((PAYLOAD.horizon as { labels?: string[] })?.labels ?? []) as string[];
     const byKey = new Map<string, number>();
     for (const f of figures) {
       const minor = Number(f.amount_minor);
@@ -120,11 +119,17 @@ describe("FC1 — a painted figure equals its payload value", () => {
     }
 
     let checked = 0;
+    // THE PERIOD IS READ OFF THE CELL, not off its index. v1.5 gave the table
+    // FY columns by default with the months of year one behind a toggle, so a
+    // gate that maps column i to `horizon.labels[i]` is asserting the old
+    // column choice rather than the magnitude it exists to check — it went red
+    // on a correct page. The cell states which period it is.
     for (const row of Array.from(document.querySelectorAll("[data-testid^='forecast-row-']"))) {
       const line = (row.getAttribute("data-testid") || "").replace("forecast-row-", "");
-      const cells = Array.from(row.querySelectorAll("td")).slice(1);
-      cells.forEach((cell, i) => {
-        const period = horizon[i];
+      const cells = Array.from(row.querySelectorAll("td[data-period]"));
+      cells.forEach((cell) => {
+        const period = cell.getAttribute("data-period") || "";
+        expect(cell.getAttribute("data-line")).toBe(line);
         if (!period) return;
         const expected = byKey.get(`${line}|${period}`);
         if (expected === undefined) return;              // refused — its own test

@@ -3097,6 +3097,75 @@
     "balance": {
       "ok": "Fiecare perioadă proiectată se închide la bănuț. Verificarea este exactă, nu o marjă de toleranță.",
       "broken": "Bilanțul proiectat nu se închide în: {{periods}}. Este o eroare, nu o notă de rotunjire — proiecția este construită în unități întregi, deci verificarea este exactă."
+    },
+    "tier": {
+      "book": "balanță",
+      "sector": "sector",
+      "macro": "macro",
+      "user": "tu",
+      "convention": "convenție",
+      "absent": "absent"
+    },
+    "chart": {
+      "trajectory": "Venituri și EBITDA",
+      "grain": "Perioade servite: {{first}} → {{last}}",
+      "revenue": "Venituri",
+      "ebitda": "EBITDA",
+      "peak": "Vârf",
+      "cash": "Numerar",
+      "closingCash": "Numerar la final",
+      "minCash": "Pragul de numerar",
+      "onTheLine": "Pe linia de finanțare",
+      "trough": "Minim",
+      "fcf": "Flux de numerar liber",
+      "perPeriod": "Pe perioadă",
+      "cumulative": "Cumulat",
+      "weakest": "Cel mai slab",
+      "capex": "Investiții și amortizare",
+      "capexBar": "Investiții",
+      "depreciation": "Amortizare",
+      "signNote": "Ambele ies din numerar și din rezultat, cu semnul dat de motor",
+      "refused": "Nu se servește din {{period}}: "
+    },
+    "strip": {
+      "peakFunding": "Necesarul maxim de finanțare",
+      "peakAt": "Vârful este atins în {{period}}",
+      "noDraw": "Planul nu trage niciodată pe linia de finanțare",
+      "firstBreach": "Prima încălcare de covenant",
+      "shortfallInstead": "Un deficit de numerar — alt lucru decât o încălcare de covenant — începe în {{period}}.",
+      "cumulativeFcf": "Flux de numerar liber cumulat",
+      "closingCash": "Numerar la final",
+      "atPeriod": "La {{period}}",
+      "unexpected": "—"
+    },
+    "growth": {
+      "title": "Creșterea veniturilor se sprijină pe",
+      "absentInput": "nu se poate măsura din această balanță"
+    },
+    "levers": {
+      "title": "Pârghii",
+      "lead": "Miști una și proiecția este refăcută integral pe server. Nimic din pagină nu se schimbă până nu răspunde el.",
+      "recomputing": "Se recalculează…",
+      "settled": "La zi",
+      "notServed": "Ce nu servește motorul",
+      "undeclared": "această proiecție nu declară un astfel de driver, deci nu există un control onest pentru el"
+    },
+    "lever": {
+      "resetTo": "Revino la {{tier}}",
+      "useTier": "Folosește cifra {{tier}}",
+      "revenue_growth": "Creșterea veniturilor",
+      "dso_days": "Zile de încasare a creanțelor",
+      "dio_cogs_days": "Zile de stoc",
+      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "capex_pct_of_revenue": "Investiții, pondere în venituri",
+      "dividend_payout_pct": "Distribuire de dividende",
+      "gross_margin": "Marja brută",
+      "opex_growth": "Creșterea costurilor de exploatare"
+    },
+    "grain": {
+      "showFy": "Arată anii financiari",
+      "showMonthly": "Arată lunile primului an",
+      "note": "Ambele granulații sunt servite de motor"
     }
   },
   "radar": {

@@ -45,21 +45,41 @@
 // and a second opinion computed in IEEE-754 here would be a different model
 // wearing the same labels.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { ProjectedAmount } from "@/components/forecast/ProjectedAmount";
+import { ExecutiveStrip } from "@/components/forecast/ExecutiveStrip";
+import { GrowthBasis } from "@/components/forecast/GrowthBasis";
+import { LeverRail, cellToWire } from "@/components/forecast/LeverRail";
+import {
+  CapexDepreciationChart,
+  CashCurveChart,
+  FreeCashFlowChart,
+  RevenueEbitdaChart,
+} from "@/components/forecast/ForecastCharts";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { cfoApi, FORECAST_HORIZONS, type ForecastHorizon } from "@/lib/cfoApi";
 import {
   readProjection,
   type AssumptionRef,
+  type LeverRef,
   type ProjectionView,
 } from "@/lib/forecastFacts";
+import {
+  buildRecomputeBody,
+  planYearLabels,
+  type LeverEdit,
+} from "@/lib/forecastLevers";
 import { useActiveLocale } from "@/lib/locale";
+
+/** The months of plan year one the engine serves alongside the annual
+ *  periods. Mirrors `HorizonBody.monthly_months`'s default; the response's own
+ *  labels are what the page renders, this is only what it ASKS for. */
+const MONTHLY_MONTHS = 12;
 
 /** The statement blocks, in the order an accountant reads them. Line ids
  *  mirror `engine.forecast.project`'s `PL_LINES` / `LINES` / `CF_LINES`
@@ -306,11 +326,16 @@ function makeFormatter(currency: string, locale: string) {
 function StatementBlock({
   view,
   block,
+  periods,
   format,
   projectedLabel,
 }: {
   view: ProjectionView;
   block: (typeof BLOCKS)[number];
+  /** The columns to paint. FY aggregates by default — the engine SERVES those
+   *  totals (`projected_aggregate` rows), so choosing them is choosing which
+   *  served figure to read, never summing months in the browser. */
+  periods: readonly string[];
   format: (v: number) => string;
   projectedLabel: string;
 }) {
@@ -332,7 +357,7 @@ function StatementBlock({
               <th className="sticky left-0 bg-surface px-4 py-2">
                 {t("forecast.line", "Line")}
               </th>
-              {view.horizon.map((period) => (
+              {periods.map((period) => (
                 <th key={period} className="px-4 py-2 text-right">
                   {period}
                 </th>
@@ -353,9 +378,15 @@ function StatementBlock({
                 >
                   {row.label}
                 </td>
-                {view.horizon.map((period) => (
+                {periods.map((period) => (
                   <td
                     key={period}
+                    // WHICH PERIOD THIS CELL IS. Stated, not positional: the
+                    // columns are FY aggregates by default and the months of
+                    // year one behind a toggle, so a gate that reads a cell's
+                    // period off its index is reading the old column choice.
+                    data-period={period}
+                    data-line={row.line}
                     className="px-4 py-1.5 text-right tabular-nums"
                   >
                     <ProjectedAmount
@@ -407,19 +438,69 @@ function BalanceCheck({ view }: { view: ProjectionView }) {
   );
 }
 
+
+/** ONE LEVER EDIT APPLIED TO THE SET. A cell the reader cleared goes back to
+ *  `null`, which is the request saying "leave this year at the engine's own
+ *  value" — not zero, which would be the reader asserting a rate of nothing. */
+function withEdit(
+  edits: readonly LeverEdit[],
+  lever: LeverRef,
+  index: number,
+  wire: string | null,
+  length: number,
+): LeverEdit[] {
+  const next = edits.filter((e) => e.key !== lever.key);
+  const current = edits.find((e) => e.key === lever.key);
+  const values: (string | null)[] = Array.from(
+    { length },
+    (_, i) => current?.values[i] ?? null,
+  );
+  values[index] = wire;
+  if (values.every((v) => v === null)) return next;
+  return [...next, { key: lever.key, values }].sort((a, b) =>
+    a.key.localeCompare(b.key),
+  );
+}
+
 export default function Forecast() {
   const { t } = useTranslation();
   const locale = useActiveLocale();
   const period = useActivePeriod();
   const [horizon, setHorizon] = useState<ForecastHorizon>(5);
+  /** FY columns by default. The monthly view is the SAME response — one GET
+   *  already carries the months of plan year one and the annual periods after
+   *  it — so the toggle changes which served labels are painted and fires no
+   *  second request. */
+  const [monthly, setMonthly] = useState(false);
+  /** What the reader has typed. `committed` is what has been SENT. */
+  const [edits, setEdits] = useState<readonly LeverEdit[]>([]);
+  const [committed, setCommitted] = useState<readonly LeverEdit[]>([]);
+  /** The levers of the last projection read, so a body can be built while a
+   *  recompute is in flight (the shape decides how many values an override
+   *  must carry, and a wrong length is 422 `override_length`). */
+  const leversRef = useRef<readonly LeverRef[]>([]);
+
+  const editsKey = JSON.stringify(edits);
+  const committedKey = JSON.stringify(committed);
 
   const query = useQuery({
-    queryKey: ["forecast", period.id, horizon],
-    queryFn: () => cfoApi.forecast(period.id as string, horizon),
+    queryKey: ["forecast", period.id, horizon, committedKey],
+    queryFn: () =>
+      committed.length === 0
+        ? cfoApi.forecast(period.id as string, horizon)
+        : cfoApi.forecastRecompute(
+            period.id as string,
+            buildRecomputeBody(
+              horizon,
+              MONTHLY_MONTHS,
+              committed,
+              leversRef.current,
+            ) as unknown as Record<string, unknown>,
+          ),
     enabled: !!period.id,
     // A projection is deterministic in its inputs: same book, same horizon,
-    // same bytes. Refetching on focus would spend a request to be told the
-    // same thing.
+    // same levers, same bytes. Refetching on focus would spend a request to be
+    // told the same thing.
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -435,6 +516,27 @@ export default function Forecast() {
     }
   }, [query.data]);
 
+  const ready = view && !("error" in view) ? (view as ProjectionView) : null;
+  useEffect(() => {
+    if (ready) leversRef.current = ready.levers;
+  }, [ready]);
+
+  /** THE DEBOUNCE IS THE PACK'S OWN (`client.debounce_ms`), read off the
+   *  payload. A number typed here would be a cut-off written as prose. */
+  const debounceMs = ready?.client.debounceMs ?? 0;
+  useEffect(() => {
+    if (editsKey === committedKey) return undefined;
+    const id = setTimeout(() => setCommitted(JSON.parse(editsKey)), debounceMs);
+    return () => clearTimeout(id);
+  }, [editsKey, committedKey, debounceMs]);
+
+  // A change of horizon resizes every per-year override; rather than send a
+  // stale length the page drops the edits and re-opens on the engine's values.
+  useEffect(() => {
+    setEdits([]);
+    setCommitted([]);
+  }, [horizon, period.id]);
+
   if (!period.id) {
     return (
       <PageHeader
@@ -449,6 +551,35 @@ export default function Forecast() {
   }
 
   const projectedLabel = t("forecast.projected", "projected");
+
+  const onChange = (key: string, index: number, text: string) => {
+    const lever = leversRef.current.find((l) => l.key === key);
+    if (!lever) return;
+    const length =
+      lever.shape === "scalar"
+        ? 1
+        : planYearLabels(
+            ready?.horizon ?? [],
+            ready?.horizonAnnual ?? [],
+          ).length || horizon;
+    setEdits((prev) =>
+      withEdit(prev, lever, index, text === "" ? null : cellToWire(text, lever), length),
+    );
+  };
+
+  const onReset = (key: string) => {
+    // Reset is DROPPING the override, not sending the old number back: the
+    // engine then re-derives the value on its own ladder and re-states the
+    // tier it stands on.
+    setEdits((prev) => prev.filter((e) => e.key !== key));
+  };
+
+  const onAdopt = (key: string, values: readonly string[]) => {
+    setEdits((prev) => [
+      ...prev.filter((e) => e.key !== key),
+      { key, values: [...values] },
+    ].sort((a, b) => a.key.localeCompare(b.key)));
+  };
 
   return (
     <div className="space-y-4 pb-16">
@@ -528,11 +659,21 @@ export default function Forecast() {
         </div>
       ) : null}
 
-      {view && !("error" in view) && view !== null ? (
+      {ready ? (
         <ProjectionBody
-          view={view}
+          view={ready}
           locale={locale}
           projectedLabel={projectedLabel}
+          monthly={monthly}
+          onToggleMonthly={() => setMonthly((m) => !m)}
+          edits={edits}
+          recomputing={query.isFetching}
+          recomputeError={
+            query.isError ? ((query.error as Error)?.message ?? null) : null
+          }
+          onChange={onChange}
+          onReset={onReset}
+          onAdopt={onAdopt}
         />
       ) : null}
     </div>
@@ -543,48 +684,141 @@ function ProjectionBody({
   view,
   locale,
   projectedLabel,
+  monthly,
+  onToggleMonthly,
+  edits,
+  recomputing,
+  recomputeError,
+  onChange,
+  onReset,
+  onAdopt,
 }: {
   view: ProjectionView;
   locale: string;
   projectedLabel: string;
+  monthly: boolean;
+  onToggleMonthly: () => void;
+  edits: readonly LeverEdit[];
+  recomputing: boolean;
+  recomputeError: string | null;
+  onChange: (key: string, index: number, text: string) => void;
+  onReset: (key: string) => void;
+  onAdopt: (key: string, values: readonly string[]) => void;
 }) {
   const { t } = useTranslation();
   const format = useMemo(
     () => makeFormatter(view.currency, locale),
     [view.currency, locale],
   );
+  const chartProps = {
+    basePeriodLabel: view.basePeriodLabel,
+    format,
+    projectedLabel,
+  };
+  const fyColumns = planYearLabels(view.horizon, view.horizonAnnual);
+  // The monthly view is only offered when the engine actually served months.
+  const hasMonths = view.horizon.some((p) => /^\d{4}-\d{2}$/.test(p));
+  const columns = monthly && hasMonths ? view.horizon : fyColumns;
   return (
     <>
-          <div
-            className="flex flex-wrap items-center gap-2"
-            data-testid="forecast-provenance"
+      <div
+        className="flex flex-wrap items-center gap-2"
+        data-testid="forecast-provenance"
+      >
+        <Chip>
+          {t("forecast.basePeriod", "Stands on")} {view.basePeriodLabel}
+        </Chip>
+        <Chip>{view.currency}</Chip>
+        <Chip>
+          {view.horizon.length} {t("forecast.periods", "periods")}
+        </Chip>
+      </div>
+      {view.refusal ? (
+        <div
+          data-testid="forecast-partial-refusal"
+          className="rounded border border-rule bg-surface px-4 py-3 text-[13px] text-ink"
+        >
+          {view.refusal.sentence}
+        </div>
+      ) : null}
+
+      <ExecutiveStrip
+        view={view}
+        format={format}
+        projectedLabel={projectedLabel}
+      />
+
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+        <RevenueEbitdaChart
+          revenue={view.series("revenue")}
+          ebitda={view.series("ebitda")}
+          {...chartProps}
+        />
+        <CashCurveChart
+          closingCash={view.series("closing_cash")}
+          minCash={view.series("min_cash")}
+          troughPeriod={view.summary.cashTrough.period}
+          troughResult={view.summary.cashTrough.result}
+          fundingGapPeriods={view.summary.fundingGapPeriods}
+          {...chartProps}
+        />
+        <FreeCashFlowChart
+          fcf={view.series("fcf")}
+          cumulative={view.series("fcf_cumulative")}
+          {...chartProps}
+        />
+        <CapexDepreciationChart
+          capex={view.series("capex")}
+          depreciation={view.series("depreciation")}
+          {...chartProps}
+        />
+      </div>
+
+      <GrowthBasis view={view} format={format} />
+
+      <LeverRail
+        view={view}
+        edits={edits}
+        recomputing={recomputing}
+        error={recomputeError}
+        onChange={onChange}
+        onReset={onReset}
+        onAdopt={onAdopt}
+      />
+
+      <AssumptionSchedule view={view} locale={locale} />
+
+      {hasMonths ? (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="forecast-grain-toggle"
+            aria-pressed={monthly}
+            onClick={onToggleMonthly}
+            className="rounded-md border border-rule px-3 py-1 font-mono text-[11px] uppercase tracking-wider text-ink-mute hover:text-ink"
           >
-            <Chip>
-              {t("forecast.basePeriod", "Stands on")} {view.basePeriodLabel}
-            </Chip>
-            <Chip>{view.currency}</Chip>
-            <Chip>
-              {view.horizon.length} {t("forecast.periods", "periods")}
-            </Chip>
-          </div>
-          {view.refusal ? (
-            <div
-              data-testid="forecast-partial-refusal"
-              className="rounded border border-rule bg-surface px-4 py-3 text-[13px] text-ink"
-            >
-              {view.refusal.sentence}
-            </div>
-          ) : null}
-          <AssumptionSchedule view={view} locale={locale} />
-          {BLOCKS.map((block) => (
-            <StatementBlock
-              key={block.id}
-              view={view}
-              block={block}
-              format={format}
-              projectedLabel={projectedLabel}
-            />
-          ))}
+            {monthly
+              ? t("forecast.grain.showFy", "Show financial years")
+              : t("forecast.grain.showMonthly", "Show months of year one")}
+          </button>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+            {/* Both grains are SERVED totals. The browser does not sum months
+                into a year — the engine serves the FY aggregate itself. */}
+            {t("forecast.grain.note", "Both grains are served by the engine")}
+          </span>
+        </div>
+      ) : null}
+
+      {BLOCKS.map((block) => (
+        <StatementBlock
+          key={block.id}
+          view={view}
+          block={block}
+          periods={columns}
+          format={format}
+          projectedLabel={projectedLabel}
+        />
+      ))}
       <BalanceCheck view={view} />
     </>
   );
