@@ -277,7 +277,8 @@ def compute_company_metrics(
     headline_net_income = headline_net_income_of(out)
 
     out["ebitda_margin"] = (ebitda_operating / rev_denom) * 100.0
-    out["net_margin"] = (headline_net_income / rev_denom) * 100.0
+    if headline_net_income is not None:
+        out["net_margin"] = (headline_net_income / rev_denom) * 100.0
     # Surface both views explicitly so the FE / future surfaces can show
     # cash-vs-operating side by side without re-deriving.
     out["ebitda_margin_cash"] = (ebitda_cash / rev_denom) * 100.0
@@ -409,13 +410,37 @@ def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:
     return preferred if company_metrics.get(preferred) is not None else fallback
 
 
-def headline_net_income_of(company_metrics: Dict[str, Any]) -> float:
-    """The VALUE in that slot, 0.0 when the period carries neither view."""
+def headline_net_income_of(company_metrics: Dict[str, Any]) -> Optional[float]:
+    """The VALUE in that slot, or None when the period carries neither view.
+
+    None, not 0.0: a period that reported no profit of either kind has an
+    ABSENT bottom line, and a zero printed in its place is a figure the
+    filing does not contain.
+    """
     v = company_metrics.get(headline_net_income_key(company_metrics))
+    if v is None:
+        return None
     try:
-        return float(v) if v is not None else 0.0
+        return float(v)
     except (TypeError, ValueError):
-        return 0.0
+        return None
+
+
+def _self_net_profit_mlei(company_metrics: Dict[str, Any]) -> Optional[float]:
+    """The "Compania ta" row's net profit, in millions — the SAME figure the
+    headline tile prints, or None.
+
+    PRESENCE is tested on a REPORTED figure, never on the derived
+    `net_income_operating` (which is `net_income or 0` plus 722 and is
+    therefore always there): testing that one would print a
+    capitalized-own-work total as the bottom line of a period that reported
+    no profit at all.
+    """
+    if (company_metrics.get("net_income_statutory") is None
+            and company_metrics.get("net_income") is None):
+        return None
+    v = headline_net_income_of(company_metrics)
+    return None if v is None else round(v / 1_000_000, 1)
 
 
 def headline_metrics(company_metrics: Dict[str, Any]) -> List[str]:
@@ -553,12 +578,7 @@ def _build_deep_section(
         # `net_income or 0` plus 722), so testing it would print a
         # capitalized-own-work total as the bottom line of a period that
         # reported no profit at all. Absent stays blank.
-        "net_profit_mlei": (
-            round(headline_net_income_of(company_metrics) / 1_000_000, 1)
-            if (company_metrics.get("net_income_statutory") is not None
-                or company_metrics.get("net_income") is not None)
-            else None
-        ),
+        "net_profit_mlei": _self_net_profit_mlei(company_metrics),
         "net_margin_pct": company_metrics.get("net_margin"),
         "ebitda_margin_pct": company_metrics.get("ebitda_margin"),
         "equity_ratio_pct": company_metrics.get("equity_ratio"),

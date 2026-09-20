@@ -4,9 +4,6 @@
     "src/engine/actions.py": {
       "OR_ZERO": 7
     },
-    "src/engine/api/_benchmark_engine.py": {
-      "OR_ZERO": 1
-    },
     "src/engine/api/_industry_classifier.py": {
       "OR_ZERO": 3
     },
