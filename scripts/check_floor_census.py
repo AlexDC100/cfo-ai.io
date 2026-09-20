@@ -543,12 +543,25 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                             % (f, c, CLASS_NAMES[c], base, now, now))
         print("  %-4s %-62s %-8s %3d (baseline %s)" % (mark, f, c, now, "-" if base is None else base))
 
+    # REVIEWED ROWS. A ratchet row is a COUNT; a count says nothing about
+    # whether its sites were ever read. `reviewed` in the baseline file holds,
+    # per "file [CLASS]", the measured review of a row that entered the
+    # baseline AFTER the first census (a merge brought the sites in). A
+    # review naming a row that no longer exists is stale, and red.
+    reviewed = (json.loads(BASELINE.read_text(encoding="utf-8")).get("reviewed") or {}) if BASELINE.is_file() else {}
+    for row_key in sorted(reviewed):
+        f_, _, c_ = row_key.rpartition(" [")
+        if counts.get(f_, {}).get(c_.rstrip("]"), 0) == 0:
+            failures.append("stale review: %s has no site left — remove it from `reviewed`" % row_key)
+
     if args.write_baseline:
         BASELINE.write_text(json.dumps({
             "_": "floor-census ratchet baseline: (file, class) site counts outside the credit tier's hard classes. "
                  "Rewritten only by `scripts/check_floor_census.py --write-baseline` in a named commit; "
                  "the gate reds when a count moves in EITHER direction.",
             "counts": {f: dict(sorted(per.items())) for f, per in sorted(counts.items())},
+            "reviewed": {k: v for k, v in sorted(reviewed.items())
+                         if counts.get(k.rpartition(" [")[0], {}).get(k.rpartition(" [")[2].rstrip("]"), 0)},
         }, indent=2) + "\n", encoding="utf-8")
         print("baseline written: %s" % BASELINE.relative_to(REPO))
         return 0
