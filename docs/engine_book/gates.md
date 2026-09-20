@@ -5233,3 +5233,42 @@ the gate's own docstring.
 Plant 9 reds on the sibling-list assertion, not on the composite: the list
 branch of the walk reads compare rows per row as well, so a mixed list is
 covered twice. Stated so the redundancy is not mistaken for the gate.
+
+## benchmarks-ro — sourced sector benchmark, data layer (2026-09-20)
+
+`tests/engine/test_benchmarks_ro.py` over `engine.benchmarks_ro` and the
+committed aggregate `src/engine/data/ro_sector_benchmarks.json`, built from
+the Ministry of Finance annual filings (data.gov.ro, CC-BY-4.0) by
+`scripts/build_ro_sector_benchmarks.py`. The law: no figure without source,
+year and n; fewer peers than `MIN_PEERS` (declared in
+`benchmarks_ro/definitions.py`, printed from there) is "insufficient peers"
+with no median; absent is never zero; a ratio the filed summary does not
+carry is refused with the reason. Every plant was applied to the product,
+run, and reverted; all gates are green at HEAD.
+
+| # | Plant (product side) | Gate | RED excerpt |
+|---|---|---|---|
+| 1 | `specs.CANONICAL_LABELS` without "profitul brut" / "profitul net" | `test_public_ro_spine.py::test_real_data_gov_ro_2024_bl_spec_resolves` | `SpecResolutionError: spec for FY2024 family BL cannot be resolved: unrecognized indicator label 'Profitul brut' (normalized 'profitul brut') at source code I16` |
+| 2 | `dataset.check_law` no longer reports a figure without n | `::test_a_figure_without_source_year_or_n_does_not_load[n]` | `Failed: DID NOT RAISE <class 'engine.benchmarks_ro.dataset.DatasetLawError'>` |
+| 3 | `build.figure` publishes below the minimum (`if len(values) < 1`) | `::test_fewer_than_min_peers_has_no_median` | `KeyError: 'insufficient_peers'` |
+| 4 | `build._div` reads an absent numerator as zero (`num = num or 0`) | `::test_an_empty_field_is_absent_not_zero`, `::test_two_builds_are_byte_identical`, `::test_committed_class_cells_equal_a_build_from_the_real_slice` | `assert Decimal('0') == 'absent_operand'` · slice build sha `4ecbb16b…` != pinned `8634fb11…` · 3 failed |
+
+TC-11, what each reds on after the repair: (1) either articulated label
+leaving the vocabulary, a byte change in the real BL spec fixture, or BL
+resolving differently from UU. (2) any figure in a dataset handed to
+`validate` lacking n, year, source or filed lines, or carrying a median on
+fewer peers than the minimum — the check runs at load, so such a dataset
+cannot be served at all. (3) the builder emitting median/p25/p75 on a thin
+cell. (4) any change to per-row arithmetic, drop rules, quantisation,
+percentile method or key order: the slice build is pinned by sha256 and its
+CAEN-class cells must equal the committed dataset's. What they cannot see:
+the CAEN-division ("10") cells are not rebuilt in the suite (the slice holds
+classes 1011 and 1013 only); they are covered by the law walk, not by a
+rebuild. The full mass files are not in git, so a re-issue of a file by the
+portal is caught only at build time, by the manifest sha check
+(`::test_a_tampered_file_aborts_the_build` demonstrates the abort).
+
+TC-12 coverage: the law walk visits every figure in the dataset (asserted to
+be at least one hundred); the slice holds every FY2024 filer in CAEN 1011 and
+1013 and the FY2023 filings of the same CUIs, real bytes, per-file sha256 in
+`tests/engine/fixtures/benchmarks_ro/slice_manifest.json`.
