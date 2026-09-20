@@ -450,9 +450,13 @@ beforeAll(async () => {
   }
 }, 300_000);
 
+// Closing the headless browser is as slow as opening it when the whole
+// suite is running beside it: the 10 s default hook timeout marked this
+// FILE failed (every test green) on three full-suite runs. Same allowance
+// as the setup that opened it.
 afterAll(async () => {
   await closePdfRenderer();
-});
+}, 300_000);
 
 const of = (book: Book): Built => {
   const b = built.get(book);
