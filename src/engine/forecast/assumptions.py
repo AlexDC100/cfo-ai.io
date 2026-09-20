@@ -1367,9 +1367,10 @@ def derive_assumptions(opening: Any, history: Any, *,
     #: absent, the book rung is absent and the ladder takes the statutory
     #: rung — never a best-case 0% on every plan year.
     tax_rows = getattr(context, "tax_charge_rows", None)
-    #: Only where the rows are THERE to show it: a set built without line
-    #: items (tax_rows None) keeps the tie as its measurement, as before.
-    charge_absent = (tax is not None and tax == 0 and tax_rows == 0)
+    #: B4RV-3 (plan/2 B5 repair): a payload with no statement rows at all
+    #: (tax_rows None) cannot show that row either, so its 0.00 is absent
+    #: for the same reason. It used to keep the tie as a measured 0%.
+    charge_absent = (tax is not None and tax == 0 and not tax_rows)
     measured = (pretax is not None and pretax > 0 and gap is not None
                 and gap == 0 and not charge_absent
                 and not refused_by_authority("tax_rate"))
@@ -1402,7 +1403,10 @@ def derive_assumptions(opening: Any, history: Any, *,
                    "nothing in every year would be the most favourable "
                    "reading of a figure that is not there"
                    % (fmt(filed), fmt(pretax),
-                      "its statement carries no profit-tax row"))
+                      "its statement carries no profit-tax row"
+                      if tax_rows is not None else
+                      "its statement rows were not supplied, so no "
+                      "profit-tax row can be shown"))
         elif pretax is not None and pretax > 0 and gap is not None:
             why = ("this book's reconstructed result of %s (pre-tax %s less "
                    "tax %s) does not reach the %s it filed in account 121, "

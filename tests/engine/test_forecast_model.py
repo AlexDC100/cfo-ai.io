@@ -1442,6 +1442,24 @@ def test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung():
           % (driver.exact, driver.tier, fmt(pretax), fmt(charged)))
 
 
+def test_a_tying_book_with_no_statement_rows_at_all_cannot_show_a_nil_charge():
+    """B4RV-3 (plan/2 B5 repair): retail sent with NO line_items key. The
+    rows that could show a profit-tax row closing at 0.00 are not there, so
+    the 0.00 on the tax line is an absent charge, exactly as it is when the
+    rows are there and carry no tax row. Before the repair tax_rows None kept
+    the book rung: year-one income tax 0.00 against -517,641.16 with the
+    rows. Not reachable through the route, which always loads the rows."""
+    payload = load("retail")
+    payload.pop("line_items")
+    projection = project_payload(payload, horizon_years=1,
+                                 revolver_rate=_CALLER_REVOLVER_RATE)
+    driver = projection.assumptions["tax_rate"]
+    assert (driver.tier, driver.source) == ("macro", "engine_default"), (
+        driver.tier, driver.source, driver.exact)
+    assert "statement rows were not supplied" in driver.basis, driver.basis
+    assert sum(-p.pl["income_tax"] for p in projection.periods) > 0
+
+
 def test_a_tying_book_whose_profit_tax_row_closes_at_nil_keeps_the_book_rung():
     """TC-3 control for the rule above, on a test-built retail: the SAME
     book with a profit-tax row that closes at 0.00 has a MEASURED nil
