@@ -435,6 +435,58 @@ def test_a_comparable_prior_in_ANOTHER_workspace_is_never_read():
     assert _growth(moved)["basis"]["tier"] == "book", moved["history"]
 
 
+def _post(periods, period_id, org_id, body):
+    from engine.api import _forecast_history, _org, _supabase
+    M = _measure()
+    saved = (_org.resolve_org, _supabase.per_user)
+    _org.resolve_org = lambda jwt, requested: ("v15-user", org_id)
+    _supabase.per_user = lambda jwt: _Rows(periods)
+    _forecast_history.clear_cache()
+    try:
+        client = TestClient(M._app(), raise_server_exceptions=False)
+        res = client.post("/api/forecast/%s/recompute" % period_id,
+                          headers={"Authorization": "Bearer v15",
+                                   "X-Org-Id": org_id},
+                          json=body, follow_redirects=False)
+    finally:
+        _org.resolve_org, _supabase.per_user = saved
+        _forecast_history.clear_cache()
+    return res.status_code, res.json()
+
+
+def test_a_user_set_lever_carries_the_book_value_it_resets_to():
+    """Scope: "each lever shows its basis tier [book]/[sector]/[user], with
+    reset-to-book". Nothing new is served for it — ``basis.original`` is the
+    WHOLE pre-user basis (its values AND its own tier and evidence), so the
+    page reads the reset target and the chip it goes back to from one place.
+
+    RED ON: ``original`` arriving as bare values with no basis (the page
+    could then show a number to reset to but not what it is); the pre-user
+    basis losing its book tier or its two turnovers while a prior is held;
+    the user tier arriving without ``source``, which the fp1.2 clause
+    ``basis_user_without_original`` already refuses on the way out."""
+    book = _book("agras")
+    oid = "v15-org-reset"
+    periods = [("v15-anchor", oid, "2025-12-31", book),
+               ("v15-prior", oid, "2024-12-31", _scaled(book, 0.8))]
+    status, body = _post(periods, "v15-anchor", oid, {
+        "horizon": {"total_years": 3, "monthly_months": 12},
+        "want": ["summary"],
+        "overrides": {"revenue_growth": {"values": ["0.07", "0.07", "0.07"]}}})
+    assert status == 200, (status, str(body)[:300])
+    basis = _growth(body)["basis"]
+    assert basis["tier"] == "user" and basis["source"], basis
+    assert _growth(body)["values"] == [70000, 70000, 70000]
+    original = basis["original"]
+    assert original is not None and original["values"], original
+    assert original["basis"]["tier"] == "book", original["basis"]
+    inputs = original["basis"]["book"]["inputs"]
+    assert [i["period_end"] for i in inputs] == ["2024-12-31", "2025-12-31"]
+    # the reset target is the measurement, not the lever
+    assert original["values"] != _growth(body)["values"]
+    assert all(v == original["values"][0] for v in original["values"])
+
+
 # ── G4: every projected period balances, on every corpus book ────────────
 
 
