@@ -28,7 +28,8 @@ from pathlib import Path
 
 import pytest
 
-from engine.forecast import (PlanRequest, PlanRequestError, Shock, project_plan)
+from engine.forecast import (BehaviourOverride, PlanRequest, PlanRequestError, Shock,
+                             project_plan)
 from engine.forecast.money import MICRO, fmt, mul_div
 
 REPO = Path(__file__).resolve().parents[2]
@@ -151,21 +152,119 @@ def test_a_pool_level_moves_the_whole_pool_and_nothing_else(name):
             "%s: the pool levels reached nothing" % name)
 
 
-def test_a_volume_move_over_a_refused_split_refuses_by_name():
-    """B4R-8a / B4RV-4 (measured at B4: retail served +1,956,107.72 EBITDA
-    where the measured split gives -805,701.65). SYNTHETIC: agras and retail
-    with their statement rows removed, which refuses the split."""
+def _formula(pools, overrides, elasticity, volume):
+    """5.3 written by the test: per pool, fixed = base x share and the rest
+    is variable; only the variable part of an elastic pool follows volume.
+    Growth and inflation are 0 here (_flat), so year one is the anchor base."""
+    cost_of_sales = opex = 0
+    for pool in pools.pools():
+        share = overrides.get(pool.name, F(pool.fixed_share_micros, 1000000))
+        fixed = pool.base_cents * share
+        variable = pool.base_cents - fixed
+        if elasticity.get(pool.name, 1) == 1:
+            variable *= 1 + volume
+        if pool.name == pools.cost_of_sales.name:
+            cost_of_sales += fixed + variable
+        else:
+            opex += fixed + variable
+    return cost_of_sales, opex
+
+
+HALF = F("0.50")
+BEHAVIOUR_CASES = (
+    ("the measured split", (), {}, {}),
+    ("personnel fixed share 0.50", (BehaviourOverride("personnel", HALF),),
+     {"personnel": HALF}, {}),
+    ("personnel fixed share 0.50, volume elasticity 0",
+     (BehaviourOverride("personnel", HALF, 0),), {"personnel": HALF}, {"personnel": 0}),
+)
+
+
+@pytest.mark.parametrize("name", ("agras", "retail"))
+@pytest.mark.parametrize("label,behaviour,shares,elasticity", BEHAVIOUR_CASES,
+                         ids=[c[0] for c in BEHAVIOUR_CASES])
+def test_volume_moves_only_the_variable_part_of_each_pool(name, label, behaviour,
+                                                          shares, elasticity):
+    """B5V-3 (V1, V11, V13) and the owner ruling of 2026-09-18: a Recession
+    is priced on the book's MEASURED fixed/variable split. Volume -20% on a
+    profitable book: year-one cost of sales and operating costs equal the 5.3
+    formula per pool, within one minor unit per rounding the engine performs
+    (rendered below from the period and pool counts)."""
+    volume = F("-0.20")
+    request = _flat(Shock("rail:volume_index", "volume_index", "level_pct", volume))
+    request = PlanRequest(total_years=request.total_years, overrides=request.overrides,
+                          shocks=request.shocks, behaviour_overrides=behaviour)
+    plan = project_plan(_book(name), (), request, None, stop_at_unpriced_draw=True)
+    pools = plan.base.assumptions.pools
+    personnel = pools.pool("personnel")
+    assert personnel.base_cents > 0 and personnel.fixed_share_micros != 500000, (
+        "TC-3: %s personnel pool cannot show a behaviour override" % name)
+    periods = [p for p in plan.projection.periods if p.period.year_offset == 1]
+    want_cogs, want_opex = _formula(pools, shares, elasticity, volume)
+    # roundings: fixed slice, variable slice, the volume index and the pool
+    # level, per pool per period
+    band_cogs = 3 * len(periods)
+    band_opex = 4 * len(periods) * len(pools.opex)
+    # the statement carries costs as negative amounts
+    got_cogs = -sum(p.pl["cost_of_sales"] for p in periods)
+    got_opex = -sum(p.pl["operating_costs"] for p in periods)
+    assert abs(got_cogs - want_cogs) <= band_cogs, (
+        "%s [%s] year-one cost of sales %s, the 5.3 formula gives %s (band %d minor units)"
+        % (name, label, fmt(got_cogs), fmt(int(want_cogs)), band_cogs))
+    assert abs(got_opex - want_opex) <= band_opex, (
+        "%s [%s] year-one operating costs %s, the 5.3 formula gives %s (band %d minor units)"
+        % (name, label, fmt(got_opex), fmt(int(want_opex)), band_opex))
+    # TC-3: the case is distinguishable from the measured split by more than the band
+    if behaviour:
+        # the neighbour: the same case with the override dropped (the share)
+        # or flipped (the elasticity)
+        neighbour = (_formula(pools, shares, {}, volume) if elasticity
+                     else _formula(pools, {}, {}, volume))
+        assert abs(neighbour[1] - want_opex) > band_opex, (
+            "vacuous: %s is indistinguishable from its neighbour case" % label)
+    # and from "everything follows volume"
+    assert abs(sum(p.base_cents for p in pools.opex) * (1 + volume) - want_opex) > band_opex
+    WORK["units"] += 2
+
+
+SPLIT_MOVES = (
+    ("volume_index", dict(shocks=(Shock("rail:volume_index", "volume_index",
+                                        "level_pct", F("-0.20")),))),
+    ("input_price_index", dict(shocks=(Shock("rail:input_price_index", "input_price_index",
+                                             "level_pct", F("0.05")),))),
+    ("inflation", dict(shocks=(Shock("rail:inflation", "inflation", "add_pp", F("0.10")),))),
+    ("inflation override", dict(overrides=(("inflation", (F("0.12"),) * YEARS),))),
+    ("revenue_growth", dict(overrides=(("revenue_growth", (F("-0.10"),) * YEARS),))),
+)
+
+
+@pytest.mark.parametrize("label,levers", SPLIT_MOVES, ids=[m[0] for m in SPLIT_MOVES])
+def test_a_move_that_needs_the_split_refuses_over_a_refused_split(label, levers):
+    """B4R-8a / B4RV-4 / B5V-4 (measured at B4: retail served +1,956,107.72
+    EBITDA where the measured split gives -805,701.65; at B5 an inflation
+    lever of +10pp was served unmoved, agras 11,036,035.43 against the
+    measured split's 8,827,949.35). SYNTHETIC: agras and retail with their
+    statement rows removed, which refuses the split. Each move is sent ALONE,
+    with no other override: the first form of this test sent its volume shock
+    through _flat, whose growth override was itself the move that refused."""
     for name in ("agras", "retail"):
         book = _book(name)
         book["line_items"] = []
         with pytest.raises(PlanRequestError) as caught:
-            project_plan(book, (), _flat(Shock("rail:volume_index", "volume_index",
-                                               "level_pct", F("-0.20"))), None)
-        assert caught.value.code == "cost_split_refused", caught.value
-        # a selling-price move needs no split and still projects
-        project_plan(book, (), PlanRequest(total_years=YEARS, shocks=(
+            project_plan(book, (), PlanRequest(total_years=YEARS, **levers), None)
+        assert caught.value.code == "cost_split_refused", (label, caught.value)
+        WORK["units"] += 1
+
+
+def test_a_move_that_needs_no_split_still_projects_over_a_refused_split():
+    for name in ("agras", "retail"):
+        book = _book(name)
+        book["line_items"] = []
+        plan = project_plan(book, (), PlanRequest(total_years=YEARS, shocks=(
             Shock("rail:price_index", "price_index", "level_pct", F("-0.10")),)), None)
-        WORK["units"] += 2
+        assert _year_one(plan, "revenue") < sum(
+            p.pl["revenue"] for p in plan.base.periods if p.period.year_offset == 1)
+        WORK["units"] += 1
 
 
 def test_zz_scope_and_work(capsys):

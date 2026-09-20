@@ -697,11 +697,16 @@ request_refusals:
   days_not_measured: >-
     {key} is not measured on this book, so a change in days has nothing to
     add to; set it instead
+  rate_not_measured: >-
+    {key} is not priced on this book, so a change in percentage points has
+    nothing to add to; set it instead
   cost_split_refused: >-
     this book's operating costs could not be split into fixed and variable
-    parts ({reason}), so a plan that moves sales volume or input prices
-    would treat every cost as fully variable, which flatters a downturn.
-    The plan is refused; pool levels and selling prices can still be moved
+    parts ({reason}), so a plan that moves growth, sales volume, input
+    prices or inflation would treat every cost as fully variable and none
+    as fixed, which flatters a downturn and leaves inflation reaching no
+    cost. The plan is refused; pool levels and selling prices can still be
+    moved
   scalar_window: >-
     shock {id}: {key} holds one value for the whole plan, so a shock on it
     starts in the first month, never ends and has no ramp

@@ -374,7 +374,10 @@ class _Compiler(object):
                     series[m] = _exact_units(key, entry.unit, shock.value)
                     continue
                 if series[m] is None:
-                    raise _refuse("days_not_measured", key, key=key)
+                    # by the driver's unit: a rate the book does not price
+                    # is not refused in a days driver's words (B5V-7b)
+                    raise _refuse("days_not_measured" if entry.unit == "days"
+                                  else "rate_not_measured", key, key=key)
                 if shock.op == "level_pct":
                     factor = 1 + shock.value * _ramp(shock, month)
                     if entry.unit == "money":
@@ -584,7 +587,12 @@ def _summary(projection: Projection) -> Dict[str, Any]:
 # ── the entry point ───────────────────────────────────────────────────────
 
 #: The drivers whose move needs the fixed/variable split to mean anything.
-_SPLIT_DEPENDENT = ("revenue_growth", "volume_index", "input_price_index")
+#: The drivers whose effect on cost IS the fixed/variable split: growth,
+#: volume and input prices move the variable part, inflation the fixed part.
+#: Over a refused split (fixed share 0) the first three move every cost and
+#: inflation moves none (B5V-4: agras +10pp inflation was served unmoved).
+_SPLIT_DEPENDENT = ("revenue_growth", "volume_index", "input_price_index",
+                    "inflation")
 
 
 def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[str, Any]],
@@ -627,9 +635,10 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
         compiled = compiler.compile()
         moved = compiler.moved
         if pools.refused and any(k in moved for k in _SPLIT_DEPENDENT):
-            # B4R-8a / B4RV-4: over a refused split every cost is fully
-            # variable, the optimistic end in a downturn (retail served a
-            # loss as a profit). Refused by name, never labelled and served.
+            # B4R-8a / B4RV-4 / B5V-4: over a refused split every cost is
+            # fully variable and none is fixed, the optimistic end in a
+            # downturn and under inflation (retail served a loss as a
+            # profit). Refused by name, never labelled and served.
             raise _refuse("cost_split_refused", "shocks",
                           reason=pools.refusal_rule_id or "the split was refused")
         compiled.wc_base_targets = dict(base.wc_targets)
@@ -677,6 +686,15 @@ def _fraction(value: Any, noun: str) -> Fraction:
                       unit="a decimal string")
 
 
+def _elasticity(value: Any, pool: str) -> int:
+    """5.2: volume elasticity is 0 or 1 and nothing between. A wire value is
+    never truncated to fit (2.3): 0.5 refuses, it does not become 0."""
+    exact = _fraction(value, pool)
+    if exact not in (0, 1):
+        raise _refuse("elasticity_value", pool, value=_text(exact), pool=pool)
+    return int(exact)
+
+
 def plan_request_from_body(body: Mapping[str, Any]) -> PlanRequest:
     """The validated wire fields as a plain mapping of decimal strings, to a
     PlanRequest. Never receives the Pydantic class (1.1)."""
@@ -700,7 +718,7 @@ def plan_request_from_body(body: Mapping[str, Any]) -> PlanRequest:
             fixed_share=(None if b.get("fixed_share") is None
                          else _fraction(b["fixed_share"], str(b["pool"]))),
             volume_elasticity=(None if b.get("volume_elasticity") is None
-                               else int(_fraction(b["volume_elasticity"], str(b["pool"])))))
+                               else _elasticity(b["volume_elasticity"], str(b["pool"]))))
         for b in body.get("behaviour_overrides") or [])
     debt = tuple(
         DebtRow(year=int(r["year"]),
