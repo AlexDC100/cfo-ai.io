@@ -74,7 +74,17 @@
 // these against the Python module's own constants, so a rename on either
 // side fails a gate before it can fail a reader.
 
-export const FORECAST_CONTRACT_VERSION = "fp1";
+// plan/2 B6: the wire speaks fp1.2 (plan_contract_v2 section 3). This constant,
+// engine.forecast_serving.contract.PLAN_CONTRACT_VERSION and the route changed
+// in ONE commit; GET /api/forecast/{id} and POST .../recompute serve nothing else.
+export const FORECAST_CONTRACT_VERSION = "fp1.2";
+
+/** The six tiers a driver's default can stand on (3.3). Rendered as a chip
+ *  beside every driver; never inferred from sentence text. */
+export const DRIVER_TIERS = [
+  "book", "sector", "macro", "user", "convention", "absent",
+] as const;
+export type DriverTier = (typeof DRIVER_TIERS)[number];
 export const PROJECTION_KIND = "projection";
 export const PROJECTED_MARKER = "projected";
 
@@ -111,6 +121,9 @@ export const ASSUMPTION_UNITS = [
   "money_minor",
   "count",
   "months",
+  // fp1.2: an index driver (volume, price, input price, pool level); 1 is the
+  // anchor level.
+  "index",
   // The one non-quantitative unit: a stated rule with no number. A HELD
   // balance-sheet line ("other receivables at 2028-12-31 will be exactly
   // what they were at 2025-12-31") is a falsifiable claim the model made,
@@ -208,6 +221,11 @@ export interface AssumptionRef {
   readonly valuedFor: string | null;
   readonly basis: string;
   readonly derivedFrom: readonly string[];
+  /** fp1.2 (3.3): the tier the served value stands on; null for a convention. */
+  readonly tier: DriverTier | null;
+  /** fp1.2 (12): the engine's sentence when moving this driver changes no
+   *  figure of this plan; null when it is live. */
+  readonly inert: string | null;
 }
 
 /** One projected number. Note what is NOT here: no `amount_minor`, no
@@ -256,6 +274,15 @@ export interface ProjectionView {
   readonly basePeriodLabel: string;
   readonly baseSnapshotId: string | null;
   readonly horizon: readonly string[];
+  /** fp1.2 (3.6): the FY aggregate labels of the monthly plan years. Served
+   *  totals; the browser never sums months (F2). */
+  readonly horizonAnnual: readonly string[];
+  /** fp1.2 (6.5): the last period served; earlier than the horizon's end
+   *  only on a partial refusal. */
+  readonly servedThrough: string | null;
+  readonly bodyHash: string | null;
+  readonly refusal: { fromPeriod: string; sentence: string } | null;
+  readonly notes: readonly string[];
   /** The DECLARED drivers, valued for no period — every `value` here is
    *  null and every `valuedFor` is null, which is the ref saying it was
    *  never asked. To render a number, ask `assumptionsFor(period)`. */
@@ -352,6 +379,10 @@ export function looksProjected(x: unknown): boolean {
   }
   if ("amount_minor_projected" in o) return true;
   if ("assumption_ids" in o && "amount_minor" in o) return true;
+  // fp1.2 (plan/2 B6): a figure's kind, or (driver_ids, amount) when a
+  // serializer stripped the kind. Mirrors boundary._is_projection_node.
+  if (o.kind === "projected" || o.kind === "projected_aggregate") return true;
+  if ("driver_ids" in o && ("amount_minor" in o || "value_micros" in o)) return true;
   return false;
 }
 
@@ -447,19 +478,81 @@ const asNumber = (x: unknown): number | null =>
 const asInt = (x: unknown): number | null =>
   typeof x === "number" && Number.isInteger(x) ? x : null;
 
-function assumptionFrom(raw: RawRecord, period: string): AssumptionRef {
-  const values = asRecord(raw.values);
-  const derived = raw.derived_from ?? raw.derivedFrom;
+/** fp1.2 DRIVER.unit -> the display unit and the divisor that turns the
+ *  served integer into it. A unit conversion for display, never arithmetic
+ *  BETWEEN served values (F2). */
+const WIRE_UNITS: Record<string, [AssumptionUnit, number]> = {
+  ratio_micros: ["ratio", 1_000_000],
+  index_micros: ["index", 1_000_000],
+  micro_days: ["days", 1_000_000],
+  money_minor: ["money_minor", 1],
+};
+
+const sentenceText = (x: unknown): string => asString(asRecord(x)?.text);
+
+/** One served DRIVER (3.2), valued for `period` through horizon.year_of. */
+function driverRef(
+  raw: RawRecord,
+  period: string,
+  yearOf: RawRecord,
+): AssumptionRef {
   const asked = period !== NO_PERIOD;
+  const [unit, divisor] = WIRE_UNITS[asString(raw.unit)] ?? [asString(raw.unit), 1];
+  const values = Array.isArray(raw.values) ? raw.values : [];
+  let value: number | null = null;
+  if (asked) {
+    const year = asInt(yearOf[period]);
+    const index = raw.shape === "scalar" ? 0 : year === null ? -1 : year - 1;
+    const served = index >= 0 ? asInt(values[index]) : null;
+    value = served === null ? null : served / divisor;
+  }
+  const basis = asRecord(raw.basis) ?? {};
+  const book = asRecord(basis.book);
+  const inputs = book && Array.isArray(book.inputs) ? book.inputs : [];
+  const tier = asString(basis.tier);
+  return {
+    id: asString(raw.key),
+    label: sentenceText(raw.label) || asString(raw.key),
+    unit,
+    value,
+    valuedFor: asked ? period : null,
+    basis: sentenceText(basis.sentence),
+    derivedFrom: inputs.map((i) => asString(asRecord(i)?.fact)).filter(Boolean),
+    tier: (DRIVER_TIERS as readonly string[]).includes(tier)
+      ? (tier as DriverTier)
+      : null,
+    inert: sentenceText(raw.inert_in_this_plan) || null,
+  };
+}
+
+function conventionRef(raw: RawRecord, period: string): AssumptionRef {
   return {
     id: asString(raw.id),
-    label: asString(raw.label) || asString(raw.id),
-    unit: asString(raw.unit),
-    value: asked && values && period in values ? asNumber(values[period]) : null,
-    valuedFor: asked ? period : null,
-    basis: asString(raw.basis),
-    derivedFrom: Array.isArray(derived) ? derived.map((d) => String(d)) : [],
+    label: asString(raw.id).replace(/_/g, " "),
+    unit: "convention",
+    value: null,
+    valuedFor: period !== NO_PERIOD ? period : null,
+    basis: asString(raw.sentence),
+    derivedFrom: [],
+    tier: null,
+    inert: null,
   };
+}
+
+/** 3.14: the one TypeScript reader of a GET /api/period payload's snapshot
+ *  id: statements.assembled_canonical_v1.provenance.content_hash, else
+ *  source_document_id (the rule of FactsGateway._snapshot_id_of). */
+export function periodPayloadSnapshotId(payload: unknown): string | null {
+  const statements = asRecord(asRecord(payload)?.statements);
+  const provenance = asRecord(
+    asRecord(statements?.assembled_canonical_v1)?.provenance,
+  );
+  if (!provenance) return null;
+  return (
+    asString(provenance.content_hash) ||
+    asString(provenance.source_document_id) ||
+    null
+  );
 }
 
 /**
@@ -488,19 +581,32 @@ export function readProjection(payload: unknown): ProjectionView | null {
   const base = asRecord(root.base_period) ?? asRecord(root.basePeriod) ?? {};
   const basePeriodLabel = asString(base.label);
   const baseSnapshotId = asString(base.snapshot_id) || null;
-  const horizon = Array.isArray(root.horizon)
-    ? root.horizon.map((h) => String(h))
+  const horizonBlock = asRecord(root.horizon) ?? {};
+  const horizon = Array.isArray(horizonBlock.labels)
+    ? horizonBlock.labels.map((h) => String(h))
     : [];
+  const horizonAnnual = Array.isArray(horizonBlock.labels_annual)
+    ? horizonBlock.labels_annual.map((h) => String(h))
+    : [];
+  const yearOf = asRecord(horizonBlock.year_of) ?? {};
+  const servedThrough = asString(horizonBlock.served_through) || null;
 
-  const rawAssumptions = Array.isArray(root.assumptions) ? root.assumptions : [];
-  const assumptionById = new Map<string, RawRecord>();
+  // drivers in driver_order, then conventions: every id a figure may name.
+  const drivers = asRecord(root.drivers) ?? {};
+  const conventions = asRecord(root.conventions) ?? {};
+  const assumptionById = new Map<string, (period: string) => AssumptionRef>();
   const assumptionOrder: string[] = [];
-  for (const raw of rawAssumptions) {
-    const rec = asRecord(raw);
+  const order = Array.isArray(root.driver_order) ? root.driver_order : [];
+  for (const key of order) {
+    const rec = asRecord(drivers[String(key)]);
     if (!rec) continue;
-    const id = asString(rec.id);
-    if (!id) continue;
-    assumptionById.set(id, rec);
+    assumptionById.set(String(key), (p) => driverRef(rec, p, yearOf));
+    assumptionOrder.push(String(key));
+  }
+  for (const id of Object.keys(conventions).sort()) {
+    const rec = asRecord(conventions[id]);
+    if (!rec) continue;
+    assumptionById.set(id, (p) => conventionRef(rec, p));
     assumptionOrder.push(id);
   }
 
@@ -517,18 +623,22 @@ export function readProjection(payload: unknown): ProjectionView | null {
   }
 
   const basisFor = (raw: RawRecord, period: string): AssumptionRef[] => {
-    const ids = raw.assumption_ids ?? raw.assumptionIds;
+    const ids = raw.driver_ids;
     if (!Array.isArray(ids)) return [];
     const out: AssumptionRef[] = [];
     for (const id of ids) {
       const declared = assumptionById.get(String(id));
-      if (declared) out.push(assumptionFrom(declared, period));
+      if (declared) out.push(declared(period));
     }
     return out;
   };
 
   const figure = (line: string, period: string): ProjectedResult => {
-    if (horizon.length > 0 && !horizon.includes(period)) {
+    if (
+      horizon.length > 0 &&
+      !horizon.includes(period) &&
+      !horizonAnnual.includes(period)
+    ) {
       return {
         projected: true,
         refused: true,
@@ -549,6 +659,19 @@ export function readProjection(payload: unknown): ProjectionView | null {
         detail: `this projection does not carry ${line} for ${period}`,
       };
     }
+    const refusedBy = asRecord(raw.refused);
+    if (refusedBy) {
+      // 6.5: a period or FY aggregate the partial serve does not reach. The
+      // engine's sentence, verbatim; never a zero.
+      return {
+        projected: true,
+        refused: true,
+        line,
+        period,
+        code: "not_projected",
+        detail: asString(refusedBy.text),
+      };
+    }
     const basis = basisFor(raw, period);
     if (basis.length === 0) {
       return {
@@ -562,7 +685,7 @@ export function readProjection(payload: unknown): ProjectionView | null {
           "is not served",
       };
     }
-    const minor = asInt(raw.amount_minor ?? raw.amount_minor_projected);
+    const minor = asInt(raw.amount_minor);
     if (minor === null) {
       return {
         projected: true,
@@ -610,16 +733,28 @@ export function readProjection(payload: unknown): ProjectionView | null {
     basePeriodLabel,
     baseSnapshotId,
     horizon,
+    horizonAnnual,
+    servedThrough,
+    bodyHash: asString(root.body_hash) || null,
+    refusal: (() => {
+      const r = asRecord(root.refusal);
+      return r
+        ? { fromPeriod: asString(r.from_period), sentence: sentenceText(r.sentence) }
+        : null;
+    })(),
+    notes: (Array.isArray(root.notes) ? root.notes : [])
+      .map((n) => sentenceText(n))
+      .filter(Boolean),
     assumptions: assumptionOrder.map((id) =>
       // With no single period in view the driver values do not apply, and
       // ABSENT != ZERO. The refs come back with `valuedFor: null`, which is
       // the ref saying it was never asked — read `assumptionsFor(period)`
       // to get numbers.
-      assumptionFrom(assumptionById.get(id) as RawRecord, NO_PERIOD),
+      (assumptionById.get(id) as (p: string) => AssumptionRef)(NO_PERIOD),
     ),
     assumptionsFor: (period: string) =>
       assumptionOrder.map((id) =>
-        assumptionFrom(assumptionById.get(id) as RawRecord, String(period)),
+        (assumptionById.get(id) as (p: string) => AssumptionRef)(String(period)),
       ),
     balanceCheck,
     // Horizon order, never Set order: same input, same bytes.

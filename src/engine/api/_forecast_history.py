@@ -19,12 +19,70 @@ Python 3.9 - no ``match``, no ``X | Y`` unions.
 
 from __future__ import annotations
 
+import json
+import threading
+from collections import OrderedDict
 from typing import Any, Dict, List, Tuple
 
-__all__ = ["LINE_ITEM_COLUMNS", "load_plan_inputs"]
+__all__ = ["LINE_ITEM_COLUMNS", "cache_key", "clear_cache", "load_plan_inputs"]
 
 #: The statement_line_items columns the rebuild and the cost pools read.
 LINE_ITEM_COLUMNS = "statement,bucket,ro_account_code,ro_account_name,amount"
+
+
+#: The 1.5 cache: key -> the loaded rows and rebuilt statements as ONE
+#: immutable JSON byte string. A hit is deserialised into fresh objects per
+#: request, so nothing a run does to its inputs can reach the cached value
+#: (bytes cannot be mutated), and OpeningPosition and every FactsGateway are
+#: rebuilt per request from those fresh objects, which keeps one access-log
+#: line per served read. A 409 rebuild failure is never stored.
+_CACHE = OrderedDict()  # type: "OrderedDict[Tuple[Any, ...], bytes]"
+_CACHE_LOCK = threading.Lock()
+CACHE_ENTRIES = 32
+
+
+def cache_key(org_id: str, period_id: str, updated_at: Any,
+              history: Tuple[Tuple[str, Any], ...] = ()) -> Tuple[Any, ...]:
+    """(org_id, anchor period_id, anchor updated_at, the ordered (period_id,
+    updated_at) of every candidate history period, engine_version,
+    pack_hash). org_id is IN the key: a period id alone never reaches another
+    workspace's cached rows. B7 extends ``history``."""
+    import engine
+    from engine.forecast_serving.plan_response import pack_hash
+    return (org_id, period_id, updated_at, tuple(history), engine.__version__,
+            pack_hash())
+
+
+def clear_cache() -> None:
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def _loaded(client: Any, org_id: str, period_id: str) -> Dict[str, Any]:
+    """The org-filtered financial_periods select runs on EVERY request,
+    before any cache lookup; the cache is consulted only after it returned
+    the row (1.5)."""
+    from .pipeline import PeriodNotFound, load_period_rows
+    rows = client.select("financial_periods",
+                         filters={"id": "eq.%s" % period_id,
+                                  "org_id": "eq.%s" % org_id},
+                         columns="id,org_id,updated_at", single=True) or []
+    if not rows:
+        raise PeriodNotFound(period_id)
+    key = cache_key(org_id, period_id, rows[0].get("updated_at"))
+    with _CACHE_LOCK:
+        blob = _CACHE.get(key)
+        if blob is not None:
+            _CACHE.move_to_end(key)
+    if blob is None:
+        loaded = load_period_rows(client, period_id, org_id=org_id, rebuild=True,
+                                  line_item_columns=LINE_ITEM_COLUMNS)
+        blob = json.dumps(loaded, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        with _CACHE_LOCK:
+            _CACHE[key] = blob
+            while len(_CACHE) > CACHE_ENTRIES:
+                _CACHE.popitem(last=False)
+    return json.loads(blob.decode("utf-8"))
 
 
 def load_plan_inputs(jwt: str, org_id: str, period_id: str
@@ -35,14 +93,12 @@ def load_plan_inputs(jwt: str, org_id: str, period_id: str
     workspace and ``pipeline.StatementsRebuildError`` when the anchor's
     statements cannot be rebuilt."""
     from . import _supabase
-    from .pipeline import load_period_rows
     from engine.forecast.assumptions import jurisdiction_of
     from engine.forecast.levers import PlanContext
     from engine.forecast.resolve import HISTORY_NOT_READ
 
     with _supabase.per_user(jwt) as client:
-        loaded = load_period_rows(client, period_id, org_id=org_id, rebuild=True,
-                                  line_item_columns=LINE_ITEM_COLUMNS)
+        loaded = _loaded(client, org_id, period_id)
 
     row = loaded["row"]
     org = loaded["org"] or {}
@@ -61,5 +117,6 @@ def load_plan_inputs(jwt: str, org_id: str, period_id: str
     context = PlanContext(jurisdiction=jurisdiction, jurisdiction_source=source,
                           industry_key=org.get("industry_key"))
     history = {"held": [], "eligible": [], "excluded": [],
-               "notes": [dict(HISTORY_NOT_READ)]}
+               "notes": [dict(HISTORY_NOT_READ)],
+               "anchor_updated_at": row.get("updated_at")}
     return anchor_payload, [], context, history

@@ -23,7 +23,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .assumptions import (KEYS, AssumptionSet, BookContext, DebtMove,
                           DebtSchedule)
-from .errors import AssumptionError, PlanRequestError
+from .errors import (AssumptionError, BalanceViolation, ForecastError,
+                     PlanRequestError)
 from .levers_pack import PackError, RegistryEntry, plan_pack
 from .money import MICRO, MICRO_DAY, _exact_fraction
 from .pools import (FIXED_SHARE_PREFIX, LEVEL_PREFIX, TEMPLATE_FIXED_SHARE,
@@ -126,10 +127,14 @@ class Plan(object):
 
     __slots__ = ("request", "base", "projection", "compiled", "refusal",
                  "runway", "summary", "line_assumptions", "driver_order",
-                 "conventions", "notes")
+                 "conventions", "notes", "inputs")
 
     def __init__(self, request, base, projection, compiled, refusal, runway,
-                 summary, line_assumptions, driver_order, conventions, notes):
+                 summary, line_assumptions, driver_order, conventions, notes,
+                 inputs=None):
+        #: plan/2 B6: what the in-process probes (removal runs, inert
+        #: nudges) re-run ``project`` with. Never serialised.
+        self.inputs = inputs
         self.request = request
         self.base = base
         self.projection = projection
@@ -417,8 +422,14 @@ class _Compiler(object):
         # 2.6: the day-weighted mean of the compiled monthly schedule.
         return sum(series[m] * self.month_days[m] for m in months) / days
 
-    def compile(self) -> CompiledPlan:
+    def compile(self, nudge: Optional[Tuple[str, Fraction, Fraction]] = None
+                ) -> CompiledPlan:
+        """``nudge`` = (driver key, reach_step, probe_value): the lever-reach
+        probe of contract 12. The key's compiled value is moved by reach_step
+        (down when up leaves its bounds), or set to probe_value where its
+        default is null. In process only; a request never carries it."""
         request = self.request
+        nudge_key = None if nudge is None else nudge[0]
         by_key = {}  # type: Dict[str, List[Shock]]
         seen = set()  # type: set
         for shock in request.shocks:
@@ -437,7 +448,9 @@ class _Compiler(object):
 
         plan = CompiledPlan()
         for key, entry in self.entries.items():
-            if key not in overrides and key not in by_key:
+            if key.startswith(FIXED_SHARE_PREFIX) and key == nudge_key:
+                continue  # nudged after the behaviour overrides, below
+            if key not in overrides and key not in by_key and key != nudge_key:
                 continue
             default = _default_value(key, entry, self.assumptions, self.pools)
             series = [default] * self.months  # type: List[Optional[Fraction]]
@@ -445,6 +458,8 @@ class _Compiler(object):
             if key in overrides:
                 self._override_months(key, entry, overrides[key], series)
             self._apply_shocks(key, entry, by_key.get(key, ()), series, level)
+            if key == nudge_key:
+                series = self._nudged(entry, series, nudge[1], nudge[2])
             self._check_bounds(key, entry, series)
             scale = _scale_of(entry.unit)
 
@@ -491,9 +506,31 @@ class _Compiler(object):
                 self.moved.setdefault(FIXED_SHARE_PREFIX + item.pool, []).append(
                     "behaviour:%s" % item.pool)
 
+        if nudge_key is not None and nudge_key.startswith(FIXED_SHARE_PREFIX):
+            pool = nudge_key[len(FIXED_SHARE_PREFIX):]
+            now = plan.scalars.get(nudge_key)
+            if now is None:
+                now = self.pools.pool(pool).fixed_share_micros
+            step = _round(nudge[1] * MICRO)
+            plan.scalars[nudge_key] = now + step if now + step <= MICRO else now - step
+
         if request.debt_schedule:
             plan.debt_schedule = self._debt_schedule()
         return plan
+
+    @staticmethod
+    def _nudged(entry: RegistryEntry, series: Sequence[Optional[Fraction]],
+                step: Fraction, probe: Fraction) -> List[Optional[Fraction]]:
+        low, high = entry.bounds
+        out = []  # type: List[Optional[Fraction]]
+        for value in series:
+            if value is None:
+                out.append(probe)
+            elif high is not None and value + step > high:
+                out.append(value - step)
+            else:
+                out.append(value + step)
+        return out
 
     def _debt_schedule(self) -> DebtSchedule:
         """6.7: where a plan year's draws and repayments land is pack data
@@ -697,7 +734,99 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
                 driver_order=[key for key, _entry in registry_for(pools)],
                 conventions=conventions,
                 notes=tuple(projection.notes) + tuple(resolver_notes) + base_notes
-                + tuple("%s <- %s" % (k, ", ".join(v)) for k, v in sorted(moved.items())))
+                + tuple("%s <- %s" % (k, ", ".join(v)) for k, v in sorted(moved.items())),
+                inputs={"opening": opening, "history": history,
+                        "assumptions": assumptions, "book": book, "pools": pools,
+                        "timeline": timeline, "anchor": anchor,
+                        "stop_at_unpriced_draw": stop_at_unpriced_draw,
+                        "moved": dict(moved)})
+
+
+# ── in-process probes (plan/2 B6, contract 1.1, 3.6, 12) ──────────────────
+# Every probe calls ``project`` with the objects project_plan already built.
+# None is serialised; none goes through project_payload, a gateway or an
+# adapter.
+
+def _probe(plan: Plan, request: PlanRequest,
+           nudge: Optional[Tuple[str, Fraction, Fraction]] = None
+           ) -> Optional[Projection]:
+    """One levered re-run. None when the variant itself refuses (a removal
+    that leaves an unpriceable plan, a nudge outside what the book can
+    carry): a refused probe is no evidence either way."""
+    inputs = plan.inputs
+    if not request.has_levers() and nudge is None:
+        return plan.base
+    try:
+        compiled = _Compiler(request, inputs["assumptions"], inputs["pools"],
+                             inputs["timeline"], inputs["anchor"], False).compile(nudge)
+        compiled.wc_base_targets = dict(plan.base.wc_targets)
+        unwind = plan_pack().wc_unwind_days
+        compiled.wc_unwind_micro_days = (None if unwind is None
+                                         else _round(unwind * MICRO_DAY))
+        return project(inputs["opening"], inputs["history"], inputs["assumptions"],
+                       total_years=request.total_years,
+                       monthly_months=request.monthly_months,
+                       context=inputs["book"], plan=compiled,
+                       stop_at_unpriced_draw=inputs["stop_at_unpriced_draw"])
+    except BalanceViolation:
+        raise  # F1 holds on every run kind; the route answers 422
+    except ForecastError:
+        return None
+
+
+def lever_removals(request: PlanRequest) -> "List[Tuple[str, PlanRequest, Tuple[str, ...]]]":
+    """(lever id, the request without that lever, the driver keys it moves),
+    one per lever or group_id (3.6), in a stable order."""
+    from dataclasses import replace
+    out = []  # type: List[Tuple[str, PlanRequest, Tuple[str, ...]]]
+    for key, _values in request.overrides:
+        out.append(("override:%s" % key,
+                    replace(request, overrides=tuple(
+                        o for o in request.overrides if o[0] != key)), (key,)))
+    groups = {}  # type: Dict[str, List[Shock]]
+    for shock in request.shocks:
+        groups.setdefault(shock.group_id or shock.id, []).append(shock)
+    for lever_id in sorted(groups):
+        gone = set(s.id for s in groups[lever_id])
+        out.append((lever_id,
+                    replace(request, shocks=tuple(
+                        s for s in request.shocks if s.id not in gone)),
+                    tuple(sorted(set(s.driver_key for s in groups[lever_id])))))
+    for item in request.behaviour_overrides:
+        out.append(("behaviour:%s" % item.pool,
+                    replace(request, behaviour_overrides=tuple(
+                        b for b in request.behaviour_overrides if b.pool != item.pool)),
+                    (FIXED_SHARE_PREFIX + item.pool,)))
+    for row in request.debt_schedule:
+        out.append(("debt:%d" % row.year,
+                    replace(request, debt_schedule=tuple(
+                        r for r in request.debt_schedule if r.year != row.year)),
+                    ()))
+    return out
+
+
+def removal_runs(plan: Plan) -> "List[Tuple[str, Optional[Projection], Tuple[str, ...]]]":
+    """One removal run per lever (3.6): the plan re-projected without it."""
+    return [(lever_id, _probe(plan, without), keys)
+            for lever_id, without, keys in lever_removals(plan.request)]
+
+
+def _amounts(projection: Projection) -> "List[Tuple[int, ...]]":
+    return [tuple(p.pl[k] for k in sorted(p.pl)) + tuple(p.bs[k] for k in sorted(p.bs))
+            + tuple(p.cf[k] for k in sorted(p.cf)) for p in projection.periods]
+
+
+def inert_drivers(plan: Plan) -> Dict[str, bool]:
+    """Contract 12: driver key -> True when moving it by its reach_step (or
+    setting it to probe_value where its default is null) changes no amount of
+    this plan. One in-process ``project`` per driver. A nudge the plan cannot
+    carry (the probe refuses) is not evidence of inertness."""
+    served = _amounts(plan.projection)
+    out = {}  # type: Dict[str, bool]
+    for key, entry in registry_for(plan.inputs["pools"]):
+        probe = _probe(plan, plan.request, (key, entry.reach_step, entry.probe_value))
+        out[key] = probe is not None and _amounts(probe) == served
+    return out
 
 
 # ── the wire form (B6 calls this once per request) ────────────────────────

@@ -726,3 +726,124 @@ runway:
     code: "facility_limit_not_loaded"
     text: "facility limit not loaded"
 # ── end plan/2 B5 ───────────────────────────────────────────────────────
+
+# ── plan/2 B6: fp1.2 serving (contract 2.2, 1.4, 3.1, 3.6, 11, 12) ─────────
+# latency: the client block of 3.1 and the in-process F9 budgets. Every
+# number is data (TC-10): the page reads debounce values from the response,
+# the latency gate reads its budgets and the body cap from here.
+# body_cap_bytes was set from the measured B6 chart-profile body (the
+# largest of the four corpus books at total_years 5, monthly_months 12),
+# rounded up with headroom; the gate prints the measured size beside it.
+latency:
+  debounce_ms: 150
+  analysis_debounce_ms: 600
+  chart_inprocess_p50_ms: 1500
+  body_cap_bytes: 1500000
+# 2.2: the plan length a request that omits total_years is compiled with.
+scenarios:
+  total_years: 2
+  max_total_years: 5
+  horizon_required:
+    code: horizon_required
+    text: a request states its horizon unless it replays a saved case
+  total_years_range:
+    code: total_years_out_of_range
+    text: "total_years is a whole count from one to {max}; the request asked for {got}"
+# 1.4: the month a period must end in for its flows to be read as a full
+# year (base_period.flow_months); a period_start is not persisted.
+history:
+  fiscal_year_end_month: 12
+  flow_span_not_stated:
+    code: anchor_flow_span_not_stated
+    text: >-
+      the anchor's flow span is not stated; its flows are read as a full year
+# 12: what a driver that moves no figure in this plan is served with. A key
+# with its own sentence uses it; every other key the default, rendered with
+# the driver's served label.
+inert:
+  default: >-
+    moving {label} changes no figure in this plan
+  revolver_rate: >-
+    no funding draw in this plan, so the revolver rate charges nothing
+  interest_rate_debt: >-
+    this plan carries no debt balance, so the debt rate charges nothing
+  interest_income_rate: >-
+    no cash balance earns interest in this plan, so the rate earns nothing
+# 3.6: FY aggregate formulas and the partial-serve sentence of an aggregate
+# whose plan year is not fully served (6.5).
+aggregates:
+  flow_formula: sum of months
+  balance_formula: closing month
+  opening_formula: opening month
+  cumulative_fcf_formula: sum of operating and investing cash over the served periods
+  not_fully_served:
+    code: plan_year_not_fully_served
+    text: >-
+      this plan year is served only up to the period the funding line could
+      not be priced in, so its total is not served
+# 3.9, 2.9: what a field or block whose batch has not landed is served as.
+not_served:
+  code: not_served_in_this_build
+  text: this is not served in this build
+# 3.6: the served figure order and each line's formula, in words. The order
+# of this mapping IS the figure order; the loader refuses a line the engine
+# does not project and an engine line this mapping omits.
+lines:
+  pl.revenue: prior revenue x (1 + revenue growth) x volume index x price index, sliced by days
+  pl.cost_of_sales: fixed part held, variable part x volume index x input price index
+  pl.operating_costs: sum over pools of (fixed part x inflation x pool level + variable part x volume)
+  pl.other_operating_income: the annual amount in force, sliced by days
+  pl.ebitda: revenue - cost of sales - operating costs + other operating income
+  pl.depreciation: opening net fixed assets x depreciation rate x days / days basis
+  pl.amortisation: opening net intangibles x depreciation rate x days / days basis
+  pl.ebit: ebitda - depreciation - amortisation
+  pl.interest_expense_debt: opening debt x debt rate x days / days basis
+  pl.interest_expense_funding_line: opening funding line x revolver rate x days / days basis
+  pl.interest_income: opening cash x interest income rate x days / days basis, else the annual amount in force
+  pl.other_financial_income: the annual amount in force, sliced by days
+  pl.other_financial_expense: the annual amount in force, sliced by days
+  pl.pretax_result: ebit - interest expense + interest income + other financial income - other financial expense
+  pl.income_tax: tax rate x year-to-date pre-tax result, less tax already charged this plan year
+  pl.net_income: pre-tax result - income tax
+  bs.cash: closing cash of the cash flow statement
+  bs.ar: revenue x dso days / days basis, reached over the unwind window
+  bs.inventory: cost of sales x dio days / days basis, reached over the unwind window
+  bs.other_current_assets: held at the opening balance
+  bs.ppe_net: opening + capital expenditure - depreciation
+  bs.intangibles_net: opening + intangible additions - amortisation
+  bs.investment_property: held at the opening balance
+  bs.other_non_current_assets: held at the opening balance
+  bs.ap: cost of sales x dpo days / days basis, reached over the unwind window
+  bs.other_current_liabilities: held at the opening balance
+  bs.st_debt: opening + scheduled draws - scheduled repayments
+  bs.revolver: opening + funding line draw - funding line repayment
+  bs.lt_debt: opening + scheduled draws - scheduled repayments
+  bs.other_non_current_liabilities: held at the opening balance
+  bs.equity_contributed: held at the opening balance
+  bs.equity_reserves: held at the opening balance
+  bs.equity_retained: opening + net income - dividends paid
+  bs.equity_other: held at the opening balance
+  bs_totals.assets: sum of every asset line
+  bs_totals.current_assets: cash + receivables + inventory + other current assets
+  bs_totals.current_liabilities: payables + other current liabilities + short-term debt + funding line
+  bs_totals.equity: contributed + reserves + retained + other equity
+  bs_totals.equity_plus_liabilities: sum of every equity and liability line
+  cf.net_income: net income of the income statement
+  cf.depreciation: depreciation added back
+  cf.amortisation: amortisation added back
+  cf.change_in_receivables: opening receivables - closing receivables
+  cf.change_in_inventory: opening inventory - closing inventory
+  cf.change_in_payables: closing payables - opening payables
+  cf.cash_from_operating: net income + depreciation + amortisation + working-capital changes
+  cf.capital_expenditure: revenue x capex share of revenue
+  cf.intangible_additions: revenue x intangible additions share of revenue
+  cf.cash_from_investing: capital expenditure + intangible additions
+  cf.debt_drawdowns: scheduled draws of the plan year, placed by the debt timing convention
+  cf.debt_repayments: scheduled repayments of the plan year, placed by the debt timing convention
+  cf.dividends_paid: net income x dividend payout share, when positive
+  cf.funding_line_movement: the draw that brings cash to the floor, or the repayment cash above it allows
+  cf.cash_from_financing: drawdowns - repayments - dividends + funding line movement
+  cf.net_change_in_cash: operating + investing + financing cash
+  cf.opening_cash: closing cash of the prior period
+  cf.closing_cash: opening cash + net change in cash
+# ── end plan/2 B6 ───────────────────────────────────────────────────────

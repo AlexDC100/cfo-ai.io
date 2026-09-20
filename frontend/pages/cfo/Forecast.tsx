@@ -172,6 +172,12 @@ function assumptionValue(
       maximumFractionDigits: 2,
     })}%`;
   }
+  if (a.unit === "index") {
+    return `×${n.toLocaleString(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })}`;
+  }
   if (a.unit === "days") {
     return `${n.toLocaleString(locale, { maximumFractionDigits: 1 })}`;
   }
@@ -226,12 +232,31 @@ function AssumptionSchedule({
                 data-assumption-unit={a.unit}
                 className="border-b border-rule-soft/60 align-top last:border-0"
               >
-                <td className="px-4 py-2 text-ink">{a.label || a.id}</td>
+                <td className="px-4 py-2 text-ink">
+                  {a.label || a.id}
+                  {a.tier ? (
+                    <span
+                      data-testid={`forecast-tier-${a.id}`}
+                      data-tier={a.tier}
+                      className="ml-2 rounded-full border border-rule px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-ink-mute"
+                    >
+                      {t(`forecast.tier.${a.tier}`, a.tier)}
+                    </span>
+                  ) : null}
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums text-ink">
                   {assumptionValue(a, locale, absent)}
                 </td>
                 <td className="px-4 py-2 text-[12px] leading-snug text-ink-soft">
                   {a.basis}
+                  {a.inert ? (
+                    <span
+                      data-testid={`forecast-inert-${a.id}`}
+                      className="mt-1 block text-ink-mute"
+                    >
+                      {a.inert}
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -542,6 +567,14 @@ function ProjectionBody({
               {view.horizon.length} {t("forecast.periods", "periods")}
             </Chip>
           </div>
+          {view.refusal ? (
+            <div
+              data-testid="forecast-partial-refusal"
+              className="rounded border border-rule bg-surface px-4 py-3 text-[13px] text-ink"
+            >
+              {view.refusal.sentence}
+            </div>
+          ) : null}
           <AssumptionSchedule view={view} locale={locale} />
           {BLOCKS.map((block) => (
             <StatementBlock

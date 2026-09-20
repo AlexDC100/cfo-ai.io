@@ -241,3 +241,84 @@ def served_wire_payload(**kwargs: Any) -> Dict[str, Any]:
     if gateway is None:  # pragma: no cover - the payload is a projection
         raise AssertionError("the stand-in payload stopped being a projection")
     return gateway.as_dict()
+
+
+# ── plan/2 B6: the same stand-in in the fp1.2 wire shape ──────────────────
+# fp1.2 has ONE form (there is no separate input and served shape), so the
+# frontend suites read this file where they read fp1_agras.json and
+# fp1_agras_served.json before. Same lines, same periods, same amounts, same
+# driver values: only the shape changed, so every assertion about a driver
+# value or an amount is kept. Values become integers in the driver's wire
+# unit (3.12: no float in the body), through Fraction(str(x)), never x * 1e6.
+
+_FP12_UNITS = {"pct": ("ratio_micros", 1000000), "ratio": ("ratio_micros", 1000000),
+               "days": ("micro_days", 1000000), "money_minor": ("money_minor", 1)}
+
+
+def fp12_payload(**kwargs: Any) -> Dict[str, Any]:
+    from fractions import Fraction
+
+    fp1 = projection_payload(**kwargs)
+    labels = list(fp1["horizon"])
+    every = list(HORIZON)
+    drivers = {}  # type: Dict[str, Any]
+    conventions = {}  # type: Dict[str, Any]
+    for raw in fp1["assumptions"]:
+        if raw["unit"] == "convention":
+            conventions[raw["id"]] = {"id": raw["id"], "sentence": raw["basis"]}
+            continue
+        unit, scale = _FP12_UNITS[raw["unit"]]
+        values = []
+        for label in every:
+            value = raw["values"].get(label)
+            if value is None:
+                values.append(None)
+            else:
+                exact = Fraction(str(value)) * scale
+                assert exact.denominator == 1, (raw["id"], value)
+                values.append(int(exact))
+        absent = all(v is None for v in values)
+        drivers[raw["id"]] = {
+            "key": raw["id"], "model_key": raw["id"], "pack_key": None,
+            "label": {"code": raw["id"], "text": raw["label"]},
+            "unit": unit, "shape": "per_year", "granularity": "annual",
+            "values": values, "inert_in_this_plan": None,
+            "basis": {
+                "tier": "absent" if absent else "convention",
+                "sentence": {"code": raw["id"], "text": raw["basis"]},
+                "book": None, "sector": None, "macro": None,
+                "convention": (None if absent else {
+                    "rule_id": "tests#stand_in", "pack_address": "tests#stand_in",
+                    "evidence": [{"fact": f} for f in raw.get("derived_from") or []]}),
+                "fallback_steps": ([{"tier": "book", "outcome": "absent",
+                                     "reason": {"code": "book_absent",
+                                                "text": raw["basis"]}}]
+                                   if absent else []),
+                "original": None, "accepted_from_proposal": None, "source": None},
+        }
+    return {
+        "kind": fp1["kind"], "contract": "fp1.2", "currency": fp1["currency"],
+        "base_period": dict(fp1["base_period"]),
+        "horizon": {"labels": labels, "labels_annual": [],
+                    "year_of": dict((label, every.index(label) + 1) for label in every),
+                    "served_through": labels[-1]},
+        "driver_order": [raw["id"] for raw in fp1["assumptions"]
+                         if raw["unit"] != "convention"],
+        "drivers": drivers, "conventions": conventions,
+        "figures": [{"line": f["line"], "period": f["period"], "kind": "projected",
+                     "amount_minor": f["amount_minor"],
+                     "driver_ids": list(f["assumption_ids"]), "lever_ids": [],
+                     "joint": False, "formula": f["formula"]}
+                    for f in fp1["figures"]],
+        "balance_check": list(fp1["balance_check"]),
+        "unbalanced_periods": [], "refusal": None, "notes": [],
+    }
+
+
+FP12_FIXTURE = REPO / "tests" / "engine" / "fixtures" / "forecast" / "fp1_2_agras.json"
+
+
+def fp12_bytes(**kwargs: Any) -> str:
+    import json
+    return json.dumps(fp12_payload(**kwargs), indent=1, sort_keys=True,
+                      ensure_ascii=False) + "\n"

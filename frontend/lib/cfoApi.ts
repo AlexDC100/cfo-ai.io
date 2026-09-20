@@ -347,6 +347,20 @@ export const cfoApi = {
     call<unknown>(
       `/api/forecast/${encodeURIComponent(periodId)}?horizon=${horizon}`,
     ),
+  /** plan/2 B6: POST /api/forecast/{id}/recompute (plan_contract_v2 1.2, 2.1).
+   *  The body is a PlanRequestBody: every decimal a STRING, unknown fields
+   *  422. Returns the raw fp1.2 payload; `readProjection()` is its one
+   *  reader. GET `forecast` above is exactly this with a bare horizon. */
+  forecastRecompute: (
+    periodId: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) =>
+    call<unknown>(`/api/forecast/${encodeURIComponent(periodId)}/recompute`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+    }),
   today: (req: TodayRequest) =>
     call<TodayResponse>("/api/cfo/today", { method: "POST", body: JSON.stringify(req) }),
   cash: (req: TodayRequest) =>

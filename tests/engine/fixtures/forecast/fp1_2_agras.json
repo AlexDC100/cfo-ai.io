@@ -1,0 +1,371 @@
+{
+ "balance_check": [
+  {
+   "difference_minor": 0,
+   "period": "FY+1"
+  },
+  {
+   "difference_minor": 0,
+   "period": "FY+2"
+  },
+  {
+   "difference_minor": 0,
+   "period": "FY+3"
+  }
+ ],
+ "base_period": {
+  "label": "Imported period",
+  "snapshot_id": "saga_10_col_agras"
+ },
+ "contract": "fp1.2",
+ "conventions": {},
+ "currency": "RON",
+ "driver_order": [
+  "revenue_growth",
+  "ebitda_margin",
+  "asset_intensity"
+ ],
+ "drivers": {
+  "asset_intensity": {
+   "basis": {
+    "accepted_from_proposal": null,
+    "book": null,
+    "convention": {
+     "evidence": [
+      {
+       "fact": "canonical_bs.totals.assets"
+      },
+      {
+       "fact": "assembled_pl.revenue"
+      }
+     ],
+     "pack_address": "tests#stand_in",
+     "rule_id": "tests#stand_in"
+    },
+    "fallback_steps": [],
+    "macro": null,
+    "original": null,
+    "sector": null,
+    "sentence": {
+     "code": "asset_intensity",
+     "text": "Base-year total assets over base-year revenue, held constant; the balance sheet therefore grows with the top line and nothing else."
+    },
+    "source": null,
+    "tier": "convention"
+   },
+   "granularity": "annual",
+   "inert_in_this_plan": null,
+   "key": "asset_intensity",
+   "label": {
+    "code": "asset_intensity",
+    "text": "Assets per unit of revenue"
+   },
+   "model_key": "asset_intensity",
+   "pack_key": null,
+   "shape": "per_year",
+   "unit": "ratio_micros",
+   "values": [
+    331600,
+    331600,
+    331600
+   ]
+  },
+  "ebitda_margin": {
+   "basis": {
+    "accepted_from_proposal": null,
+    "book": null,
+    "convention": {
+     "evidence": [
+      {
+       "fact": "assembled_pl.ebitda"
+      },
+      {
+       "fact": "assembled_pl.revenue"
+      }
+     ],
+     "pack_address": "tests#stand_in",
+     "rule_id": "tests#stand_in"
+    },
+    "fallback_steps": [],
+    "macro": null,
+    "original": null,
+    "sector": null,
+    "sentence": {
+     "code": "ebitda_margin",
+     "text": "Base-year margin carried forward unchanged, so any movement in projected EBITDA comes from revenue alone."
+    },
+    "source": null,
+    "tier": "convention"
+   },
+   "granularity": "annual",
+   "inert_in_this_plan": null,
+   "key": "ebitda_margin",
+   "label": {
+    "code": "ebitda_margin",
+    "text": "EBITDA margin"
+   },
+   "model_key": "ebitda_margin",
+   "pack_key": null,
+   "shape": "per_year",
+   "unit": "ratio_micros",
+   "values": [
+    155000,
+    155000,
+    155000
+   ]
+  },
+  "revenue_growth": {
+   "basis": {
+    "accepted_from_proposal": null,
+    "book": null,
+    "convention": {
+     "evidence": [
+      {
+       "fact": "assembled_pl.revenue"
+      }
+     ],
+     "pack_address": "tests#stand_in",
+     "rule_id": "tests#stand_in"
+    },
+    "fallback_steps": [],
+    "macro": null,
+    "original": null,
+    "sector": null,
+    "sentence": {
+     "code": "revenue_growth",
+     "text": "Held flat at the operator's stated plan; not fitted to history, and stated as a plan figure rather than a measurement."
+    },
+    "source": null,
+    "tier": "convention"
+   },
+   "granularity": "annual",
+   "inert_in_this_plan": null,
+   "key": "revenue_growth",
+   "label": {
+    "code": "revenue_growth",
+    "text": "Revenue growth"
+   },
+   "model_key": "revenue_growth",
+   "pack_key": null,
+   "shape": "per_year",
+   "unit": "ratio_micros",
+   "values": [
+    80000,
+    60000,
+    50000
+   ]
+  }
+ },
+ "figures": [
+  {
+   "amount_minor": 11966217387,
+   "driver_ids": [
+    "revenue_growth"
+   ],
+   "formula": "prior.revenue * (1 + revenue_growth)",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "revenue",
+   "period": "FY+1"
+  },
+  {
+   "amount_minor": 1854763694,
+   "driver_ids": [
+    "revenue_growth",
+    "ebitda_margin"
+   ],
+   "formula": "revenue * ebitda_margin",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "ebitda",
+   "period": "FY+1"
+  },
+  {
+   "amount_minor": 3967997685,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity"
+   ],
+   "formula": "revenue * asset_intensity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_assets",
+   "period": "FY+1"
+  },
+  {
+   "amount_minor": 4247172066,
+   "driver_ids": [
+    "ebitda_margin"
+   ],
+   "formula": "base.equity + cumulative ebitda",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_equity",
+   "period": "FY+1"
+  },
+  {
+   "amount_minor": -279174381,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity",
+    "ebitda_margin"
+   ],
+   "formula": "total_assets - total_equity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_liabilities",
+   "period": "FY+1"
+  },
+  {
+   "amount_minor": 12684190430,
+   "driver_ids": [
+    "revenue_growth"
+   ],
+   "formula": "prior.revenue * (1 + revenue_growth)",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "revenue",
+   "period": "FY+2"
+  },
+  {
+   "amount_minor": 1966049516,
+   "driver_ids": [
+    "revenue_growth",
+    "ebitda_margin"
+   ],
+   "formula": "revenue * ebitda_margin",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "ebitda",
+   "period": "FY+2"
+  },
+  {
+   "amount_minor": 4206077546,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity"
+   ],
+   "formula": "revenue * asset_intensity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_assets",
+   "period": "FY+2"
+  },
+  {
+   "amount_minor": 6324507404,
+   "driver_ids": [
+    "ebitda_margin"
+   ],
+   "formula": "base.equity + cumulative ebitda",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_equity",
+   "period": "FY+2"
+  },
+  {
+   "amount_minor": -2118429858,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity",
+    "ebitda_margin"
+   ],
+   "formula": "total_assets - total_equity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_liabilities",
+   "period": "FY+2"
+  },
+  {
+   "amount_minor": 13318399951,
+   "driver_ids": [
+    "revenue_growth"
+   ],
+   "formula": "prior.revenue * (1 + revenue_growth)",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "revenue",
+   "period": "FY+3"
+  },
+  {
+   "amount_minor": 2064351992,
+   "driver_ids": [
+    "revenue_growth",
+    "ebitda_margin"
+   ],
+   "formula": "revenue * ebitda_margin",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "ebitda",
+   "period": "FY+3"
+  },
+  {
+   "amount_minor": 4416381423,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity"
+   ],
+   "formula": "revenue * asset_intensity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_assets",
+   "period": "FY+3"
+  },
+  {
+   "amount_minor": 8585464348,
+   "driver_ids": [
+    "ebitda_margin"
+   ],
+   "formula": "base.equity + cumulative ebitda",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_equity",
+   "period": "FY+3"
+  },
+  {
+   "amount_minor": -4169082925,
+   "driver_ids": [
+    "revenue_growth",
+    "asset_intensity",
+    "ebitda_margin"
+   ],
+   "formula": "total_assets - total_equity",
+   "joint": false,
+   "kind": "projected",
+   "lever_ids": [],
+   "line": "total_liabilities",
+   "period": "FY+3"
+  }
+ ],
+ "horizon": {
+  "labels": [
+   "FY+1",
+   "FY+2",
+   "FY+3"
+  ],
+  "labels_annual": [],
+  "served_through": "FY+3",
+  "year_of": {
+   "FY+1": 1,
+   "FY+2": 2,
+   "FY+3": 3
+  }
+ },
+ "kind": "projection",
+ "notes": [],
+ "refusal": null,
+ "unbalanced_periods": []
+}

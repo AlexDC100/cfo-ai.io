@@ -631,7 +631,8 @@ def test_the_route_answers_the_refusal_as_422(monkeypatch):
     res = client.get("/api/forecast/p-hu?horizon=3",
                      headers={"Authorization": "Bearer t"})
     assert res.status_code == 422, (res.status_code, res.text[:300])
-    assert "jurisdiction HU" in res.json()["detail"]
+    # plan/2 B6 (3.11): a 422 detail is {code, text, field}
+    assert "jurisdiction HU" in res.json()["detail"]["text"]
     monkeypatch.setattr(FH, "load_plan_inputs", _inputs(dict(
         _load(None, None, None), envelope=load("agras")["envelope"],
         statements=load("agras")["statements"])))

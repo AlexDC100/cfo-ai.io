@@ -500,6 +500,100 @@ def plan_pack(path=None):
 # ── end plan/2 B5 ───────────────────────────────────────────────────────
 
 
+# ── plan/2 B6: the serving sections (contract 2.2, 1.4, 3.1, 3.6, 11, 12) ──
+
+class ServingPack(object):
+    """latency, scenarios, history, inert, aggregates and not_served."""
+
+    __slots__ = ("latency", "scenarios_total_years", "fiscal_year_end_month",
+                 "flow_span_not_stated", "inert", "flow_formula",
+                 "balance_formula", "not_fully_served", "not_served", "lines", "opening_formula",
+                 "cumulative_fcf_formula", "max_total_years",
+                 "horizon_required", "total_years_range")
+
+    def __init__(self, raw):
+        body = _mapping(raw, PACK_FILE)
+        where = "%s#latency" % PACK_FILE
+        latency = _mapping(body.get("latency"), where)
+        self.latency = {}
+        for field in ("debounce_ms", "analysis_debounce_ms",
+                      "chart_inprocess_p50_ms", "body_cap_bytes"):
+            value = latency.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise PackError("%s.%s: a positive whole number" % (where, field))
+            self.latency[field] = value
+        where = "%s#scenarios" % PACK_FILE
+        years = _mapping(body.get("scenarios"), where).get("total_years")
+        if not isinstance(years, int) or isinstance(years, bool) or not 1 <= years <= 5:
+            raise PackError("%s.total_years: a whole count from 1 to 5" % (where,))
+        self.scenarios_total_years = years
+        scenarios = _mapping(body.get("scenarios"), where)
+        top = scenarios.get("max_total_years")
+        if not isinstance(top, int) or isinstance(top, bool) or top < years:
+            raise PackError("%s.max_total_years: a whole count >= total_years" % (where,))
+        self.max_total_years = top
+        self.horizon_required = self._sentence(scenarios.get("horizon_required"),
+                                               where + ".horizon_required")
+        self.total_years_range = self._sentence(scenarios.get("total_years_range"),
+                                                where + ".total_years_range")
+        where = "%s#history" % PACK_FILE
+        history = _mapping(body.get("history"), where)
+        month = history.get("fiscal_year_end_month")
+        if not isinstance(month, int) or isinstance(month, bool) or not 1 <= month <= 12:
+            raise PackError("%s.fiscal_year_end_month: a month 1-12" % (where,))
+        self.fiscal_year_end_month = month
+        self.flow_span_not_stated = self._sentence(
+            history.get("flow_span_not_stated"), where + ".flow_span_not_stated")
+        where = "%s#inert" % PACK_FILE
+        inert = _mapping(body.get("inert"), where)
+        if "default" not in inert:
+            raise PackError("%s: a default sentence is required" % (where,))
+        self.inert = dict((str(k), _clean(_text(inert, k, where))) for k in inert)
+        where = "%s#aggregates" % PACK_FILE
+        aggregates = _mapping(body.get("aggregates"), where)
+        self.flow_formula = _clean(_text(aggregates, "flow_formula", where))
+        self.balance_formula = _clean(_text(aggregates, "balance_formula", where))
+        self.opening_formula = _clean(_text(aggregates, "opening_formula", where))
+        self.cumulative_fcf_formula = _clean(
+            _text(aggregates, "cumulative_fcf_formula", where))
+        self.not_fully_served = self._sentence(
+            aggregates.get("not_fully_served"), where + ".not_fully_served")
+        self.not_served = self._sentence(body.get("not_served"),
+                                         "%s#not_served" % PACK_FILE)
+        where = "%s#lines" % PACK_FILE
+        lines = _mapping(body.get("lines"), where)
+        self.lines = tuple((str(k), _clean(_text(lines, k, where))) for k in lines)
+        if not self.lines:
+            raise PackError("%s: no lines" % (where,))
+
+    @staticmethod
+    def _sentence(raw, where):
+        body = _mapping(raw, where)
+        return {"code": _text(body, "code", where),
+                "text": _clean(_text(body, "text", where))}
+
+
+_SERVING_CACHE = {}  # type: Dict[str, ServingPack]
+
+
+def serving_pack(path=None):
+    # type: (Optional[str]) -> ServingPack
+    target = path or _pack_path()
+    cached = _SERVING_CACHE.get(target)
+    if cached is not None:
+        return cached
+    if not os.path.isfile(target):
+        raise PackError("forecast lever pack not found: %s" % target)
+    with open(target, "r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh)
+    pack = ServingPack(raw)
+    _SERVING_CACHE[target] = pack
+    return pack
+
+
+# ── end plan/2 B6 ───────────────────────────────────────────────────────
+
+
 # ── plan/2 B3: accessors ────────────────────────────────────────────────
 
 def terminal_rung(key, path=None):

@@ -329,97 +329,201 @@ def test_a_convention_is_served_without_a_number():
 # horizon with the pool drivers expanded ────────────────────────────────
 
 
+def _measure():
+    import sys
+    scripts = str(REPO / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import measure_plan_blast_radius as M
+    return M
+
+
+def _call(name, method, horizon=5, body=None, mutate=None):
+    """GET or POST through create_app and the route's own loader, rebuild,
+    engine, fp1.2 builder and boundary guard, with the org and per-user seams
+    replaced as scripts/measure_plan_blast_radius replaces them."""
+    from engine.api import _forecast_history, _org, _supabase
+    M = _measure()
+    book = M._corpus_book(name)
+    if mutate is not None:
+        mutate(book)
+    period_id, org_id = "route-period-%s" % name, "route-org-%s" % name
+    saved = (_org.resolve_org, _supabase.per_user)
+    _org.resolve_org = lambda jwt, requested: ("route-user", org_id)
+    _supabase.per_user = lambda jwt: M._RowServer(book, period_id, org_id)
+    _forecast_history.clear_cache()
+    try:
+        client = TestClient(M._app(), raise_server_exceptions=False)
+        headers = {"Authorization": "Bearer route", "X-Org-Id": org_id}
+        if method == "GET":
+            res = client.get("/api/forecast/%s?horizon=%d" % (period_id, horizon),
+                             headers=headers, follow_redirects=False)
+        else:
+            res = client.post("/api/forecast/%s/recompute" % period_id,
+                              headers=headers, json=body, follow_redirects=False)
+    finally:
+        _org.resolve_org, _supabase.per_user = saved
+        _forecast_history.clear_cache()
+    return res.status_code, res.json()
+
+
 @pytest.mark.parametrize("horizon", (3, 5))
 @pytest.mark.parametrize("name", BOOKS)
 def test_get_through_the_real_app_answers_200_with_no_clause_violation(name, horizon):
-    """RED ON: a pool template id (pool_fixed_share.*, pool_level.*) or one
-    of its per-book expansions reaching a figure's assumption_ids without an
-    fp1_assumptions entry — contract.py CLAUSE_FIGURE_UNKNOWN_ASSUMPTION
-    refuses it and the route answers 500 (the plant: drop one pool entry
-    from fp1_assumptions). The GET goes through create_app and the route's
-    own loader, rebuild, engine, adapter, contract and boundary guard, with
-    the org and per-user seams replaced as scripts/measure_plan_blast_radius
-    replaces them."""
-    import sys
-    scripts = str(REPO / "scripts")
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
-    import measure_plan_blast_radius as M
-    previous = M.HORIZON_YEARS
-    M.HORIZON_YEARS = horizon
-    try:
-        status, body = M.default_get(M._corpus_book(name))
-    finally:
-        M.HORIZON_YEARS = previous
+    """fp1.2 (plan/2 B6). RED ON: the GET not answering 200 on a corpus book;
+    a body that breaks an fp1.2 clause (a figure naming an id that resolves
+    in neither drivers nor conventions, an empty formula, a tier without its
+    evidence, a float anywhere); a pool template token (``.*``) reaching the
+    wire; the statement line items not reaching the engine (the refused
+    single pool served through the real app — complete and unreachable)."""
+    from engine.forecast_serving import plan_response
+    status, body = _call(name, "GET", horizon)
     assert status == 200, (name, horizon, status, str(body)[:400])
-    assert contract.clause_violations(body) == [], (name, horizon)
-    ids = set(a["id"] for a in body["assumptions"])
-    assert any(i.startswith("pool_fixed_share.") for i in ids), sorted(ids)
-    assert any(i.startswith("pool_level.") for i in ids), sorted(ids)
+    assert body["contract"] == "fp1.2"
+    checked = dict((k, v) for k, v in body.items()
+                   if k not in ("body_hash", "recompute_ms"))
+    assert plan_response.clause_violations(checked) == [], (name, horizon)
+    assert body["body_hash"] == plan_response.body_hash(body)
+    assert isinstance(body["recompute_ms"], int)
+    ids = set(body["drivers"])
+    assert list(body["driver_order"]) == [k for k in body["driver_order"] if k in ids]
     assert not any(i.endswith(".*") for i in ids), sorted(ids)
-    # plan/2 B4 repair (B4V-4): the JOIN that makes the pools reachable in
-    # production. RED ON: `"line_items": line_items` deleted from
-    # _forecast_routes._load_period — the GET still answers 200, serving the
-    # refused single pool (pool_fixed_share.operating_costs under
-    # #no_line_items), which satisfied the startswith() checks above. Every
-    # corpus book splits, so a refused pool on the wire means the rows never
-    # reached the engine.
-    assert "pool_fixed_share.personnel" in ids, (
-        "%s h%d: the served pools are %s — the statement line items did not "
-        "reach the engine (complete and unreachable)"
-        % (name, horizon, sorted(i for i in ids if i.startswith("pool_fixed_share."))))
+    assert "pool_fixed_share.personnel" in ids, sorted(ids)
     assert "pool_fixed_share.operating_costs" not in ids, (
         "%s h%d serves the REFUSED single pool through the real app" % (name, horizon))
-    by_id = dict((a["id"], a) for a in body["assumptions"])
-    assert "cost_behaviour.yaml#no_line_items" not in json.dumps(by_id), (name, horizon)
+    assert "cost_behaviour.yaml#no_line_items" not in json.dumps(body["drivers"])
+    assert body["unbalanced_periods"] == []
+    assert len(body["horizon"]["labels"]) == 12 + horizon - 1
+    assert body["horizon"]["served_through"] == body["horizon"]["labels"][-1]
+    assert len(body["figures"]) > 500
+    for figure in body["figures"]:
+        assert figure["kind"] in ("projected", "projected_aggregate"), figure
+        assert "basis" not in figure, "per-figure basis prose is back on the wire"
+    assert set(body["conventions"]) >= {
+        "held_at_opening_balance", "interest_charged_on_opening_balance",
+        "tax_accrued_year_to_date", "tax_no_loss_carry_forward",
+        "wc_unwind_ramp", "debt_timing", "days_basis"}
 
 
-# ── plan/2 B5 repair (B5V-5): the batch's "ships because" — a truncated
-# projection is never served through fp1 ────────────────────────────────
+@pytest.mark.parametrize("horizon", (3, 5))
+@pytest.mark.parametrize("name", BOOKS)
+def test_get_equals_post_with_the_default_body(name, horizon):
+    """1.2: GET ?horizon=h IS a POST of {"horizon": {"total_years": h,
+    "monthly_months": 12}}. RED ON: a second code path behind either verb
+    (the body_hash differs), or lever_set_hash differing between them."""
+    _s, got = _call(name, "GET", horizon)
+    status, posted = _call(name, "POST", body={
+        "horizon": {"total_years": horizon, "monthly_months": 12}})
+    assert status == 200, str(posted)[:300]
+    assert got["body_hash"] == posted["body_hash"], (name, horizon)
+    assert got["lever_set_hash"] == posted["lever_set_hash"]
 
 
-def test_a_base_plan_that_draws_an_unpriceable_line_answers_422_never_a_partial_fp1(
+def test_the_post_body_binds_at_module_scope(app):
+    """CLAUDE.md 22. RED ON: PlanRequestBody (or any model it nests) defined
+    inside the router factory, where a future-annotations module binds it as
+    a QUERY parameter and every body answers 422 loc [query, body]."""
+    from engine.api import _forecast_routes as FR
+    for name in ("PlanRequestBody", "HorizonBody", "ShockBody", "OverrideBody",
+                 "BehaviourOverrideBody", "DebtRowBody", "SpreadBody"):
+        assert getattr(FR, name).__module__ == FR.__name__
+        assert getattr(FR, name).__qualname__ == name, "nested: %s" % name
+    paths = [(r.path, sorted(getattr(r, "methods", ()) or ())) for r in app.routes]
+    assert ("/api/forecast/{period_id}/recompute", ["POST"]) in paths
+    assert not any(p.endswith("/scenario") for p, _m in paths)
+    status, body = _call("agras", "POST", body={"horizon": {"total_years": 3}})
+    assert status == 200, str(body)[:300]
+    assert "query" not in json.dumps(body.get("detail", ""))
+
+
+@pytest.mark.parametrize("body,code,field", [
+    ({"horizon": {"total_years": 3}, "case": "upside"}, "not_served_in_this_build", "case"),
+    ({"horizon": {"total_years": 3}, "want": ["tornado"]}, "unknown_want_key", "tornado"),
+    ({"horizon": {"total_years": 3}, "surface": "cockpit"}, "invalid_request", "surface"),
+    ({"horizon": {"total_years": 9}}, "total_years_out_of_range", "horizon.total_years"),
+    ({}, "horizon_required", "horizon"),
+    ({"horizon": {"total_years": 3},
+      "shocks": [{"id": "rail:volume_index", "driver_key": "volume_index",
+                  "op": "level_pct", "value": -0.2}]}, "invalid_request", "shocks.0.value"),
+    ({"horizon": {"total_years": 3},
+      "shocks": [{"id": "override:x", "driver_key": "volume_index",
+                  "op": "level_pct", "value": "-0.2"}]}, "reserved_shock_id", "override:x"),
+    ({"horizon": {"total_years": 3},
+      "shocks": [{"id": "rail:revenue_growth", "driver_key": "revenue_growth",
+                  "op": "add_pp", "value": "0.01"}]},
+     "growth_change_is_an_override", "rail:revenue_growth"),
+])
+def test_an_invalid_request_is_422_with_code_text_and_field(body, code, field):
+    """3.11. RED ON: a float accepted where a decimal string belongs, an
+    unknown field or an unlanded field served, a reserved id accepted from a
+    client, or a refusal leaving without its {code, text, field}."""
+    status, answer = _call("agras", "POST", body=body)
+    assert status == 422, (status, str(answer)[:300])
+    detail = answer["detail"]
+    assert detail["code"] == code, detail
+    assert detail["field"] == field, detail
+    assert detail["text"].strip()
+
+
+# ── 6.5 through the route (retires the B5 pin "answers 422 never a partial
+# fp1": fp1.2 carries refusal and served_through, so the partial serve is
+# now the contract) ─────────────────────────────────────────────────────
+
+
+def test_a_base_plan_that_draws_an_unpriceable_line_is_served_partially_and_says_so(
         monkeypatch):
     """SYNTHETIC: carniprod (which prices no revolver) with resolved defaults
     that make its BASE plan draw: payout 95%, a 2M cash floor, capex 20% of
-    revenue. No corpus book's base plan draws, so forecast-get-b4-parity
-    cannot see this. Through create_app the GET answers 422 naming the period
-    and the amount of the first draw.
+    revenue. No corpus book's base plan draws.
 
-    RED ON: the route's `stop_at_unpriced_draw=False` flipped to True — the
-    GET answers 200 with 6 of 16 periods and no refusal or served_through
-    field: a truncated plan through fp1, which 6.5 says is never served."""
-    import sys
-    scripts = str(REPO / "scripts")
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
-    import measure_plan_blast_radius as M
+    RED ON: a truncated plan served with no refusal or served_through; a
+    period after the refusal served as a number or a zero; an FY aggregate of
+    a partly served year served as a total; the refusal naming neither the
+    period nor the amount."""
     import engine.forecast.levers as levers
     real = levers.resolve_defaults
 
     def stressed(opening, history, context, prior, overrides):
+        from engine.forecast.assumptions import Assumption
         forced = dict(overrides)
         forced.update(dividend_payout_pct=0.95, min_cash=2000000.0,
                       capex_pct_of_revenue=0.20)
-        return real(opening, history, context, prior, forced)
+        resolved, notes = real(opening, history, context, prior, forced)
+        # The caller channel stamps tier "user" with no original, which no
+        # request can produce and the fp1.2 clause rightly refuses. The
+        # SYNTHETIC defaults are re-stamped as a labelled convention.
+        for key in ("dividend_payout_pct", "min_cash", "capex_pct_of_revenue"):
+            was = resolved.get(key)
+            resolved._by_key[key] = Assumption(
+                key, was.unit, was.exact, "engine_default",
+                "SYNTHETIC stress default", tier="convention",
+                rule_id="tests#synthetic_stress",
+                evidence={"rule_id": "tests#synthetic_stress",
+                          "pack_address": "tests#synthetic_stress", "evidence": []})
+        return resolved, notes
 
-    book = M._corpus_book("carniprod")
-    previous = M.HORIZON_YEARS
-    M.HORIZON_YEARS = 5
-    try:
-        status, body = M.default_get(book)
-        assert status == 200, "TC-3: carniprod's own base plan no longer serves"
-        full = len(set(f["period"] for f in body["figures"]))
-        monkeypatch.setattr(levers, "resolve_defaults", stressed)
-        status, body = M.default_get(book)
-    finally:
-        M.HORIZON_YEARS = previous
-    assert status == 422, (
-        "the GET answered %s with %s period(s) of %d on a base plan that draws a line "
-        "this book cannot price" % (
-            status, len(set(f["period"] for f in body.get("figures", []))), full))
-    detail = str(body.get("detail"))
-    assert "funding line" in detail and "cannot price" in detail, detail
-    import re
-    assert re.search(r"\d{4}-\d{2}", detail) and re.search(r"\d[\d,]*\.\d{2}", detail), (
-        "the refusal names neither the period nor the amount: %s" % detail)
+    status, whole = _call("carniprod", "GET", 5)
+    assert status == 200, "TC-3: carniprod's own base plan no longer serves"
+    assert whole["refusal"] is None
+    monkeypatch.setattr(levers, "resolve_defaults", stressed)
+    status, body = _call("carniprod", "GET", 5)
+    assert status == 200, (status, str(body)[:300])
+    refusal = body["refusal"]
+    assert refusal and refusal["driver_key"] == "revolver_rate", refusal
+    assert refusal["shortfall_minor"] > 0
+    labels = body["horizon"]["labels"]
+    assert refusal["from_period"] in labels
+    cut = labels.index(refusal["from_period"])
+    assert body["horizon"]["served_through"] == labels[cut - 1]
+    served = set(f["period"] for f in body["figures"] if "amount_minor" in f)
+    assert not served & set(labels[cut:]), "a period after the refusal is served"
+    fy = body["horizon"]["labels_annual"][0]
+    aggregates = [f for f in body["figures"] if f["period"] == fy]
+    assert aggregates and all("refused" in f and "amount_minor" not in f
+                              for f in aggregates), aggregates[:1]
+    assert fy not in [b["period"] for b in body["balance_check"]]
+    for point in body["series"]["closing_cash"][cut:]:
+        assert "refused" in point and "amount_minor" not in point, point
+    assert "refused" in body["summary"]["peak_funding_gap"]
+    text = refusal["sentence"]["text"]
+    assert "cannot price" in text or "funding line" in text, text
