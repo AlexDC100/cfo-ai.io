@@ -5266,3 +5266,101 @@ RED (plant), both tests, as the contract requires:
 REVERT. Byte-exact; green again. SCOPE printed by the test. Measured fact recorded in the test: on agras the receivable days (28.05) are shorter than the first month, so receivables land on target inside it and only inventory (46.21 days) and payables (37.18 days) can show a full re-price; the test walks all three balances and reds as vacuous when none is still mid-unwind after month one.
 
 RED (parent commit): `E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'` (the parent tree has no lever path to unwind).
+
+### plan/2 B5 REPAIR ROUND (2026-09-20) — the verifier's unheld behaviours, each with its red
+
+Eighteen plants. R1-R16 were applied by byte-exact replacement, run and
+reverted by byte copy (`scratchpad/b5r2/plants.py`, log
+`scratchpad/suite/b5r2_plants.log`); R17-R18 the same way by hand
+(`scratchpad/b5r3`). Each names WHAT IT REDS ON AFTER THE REPAIR (TC-11); none
+pins a served number the repair itself would have to move.
+
+**R1 — the unwind measured from the first divergence ever, never reset**
+(forecast-wc-unwind, `test_a_lever_that_lands_after_an_earlier_one_still_unwinds`
+and the every-month formula test). Plant: the closing balance ramps from the
+first period whose target ever left the base target. **RED**:
+
+    E   AssertionError: agras 2026-04 inventory 7,325,332.53, the 6.2 trailing window gives 7,325,332.54 (target 7,325,332.53, base target 9,156,665.68)
+    2 failed, 3 passed
+
+Reds after the repair on: a lever that lands after an earlier one on the same
+flow and books more than (days of the month / days in force) of ITS OWN move in
+its landing month, measured against the same request without it; a shock that
+ends and snaps back. Does not red on the single-step case, where the trailing
+window and the contract's min(E, D) / D are the same number.
+
+**R2 (V8) — op rank swapped, level_pct before set** (forecast-balance command,
+test_plan_request_validation.py). **RED**: `E   AssertionError: ('a', 500000)` /
+`assert 500000 == 550000`. Reds on: set-then-level order on one driver.
+
+**R3 (V9) — end_month ignored.** **RED**:
+`E   assert [1000000, 800...00000, 800000] == [1000000, 800...0000, 1000000]`.
+Reds on: a windowed shock still in force after its end month.
+
+**R4 (V10) — the annual tail takes the last month.** **RED**:
+`E   AssertionError: (700000, 0.7246575342465753)` / `assert Fraction(9, 365) <= Fraction(1, 1000000)`.
+Reds on: an annual-period compiled value that is not the day-weighted mean.
+
+**R5 (V11) — a behaviour override's fixed_share never reaches the pool**
+(scenario-cost-behaviour). **RED**:
+
+    E   AssertionError: agras [personnel fixed share 0.50] year-one operating costs 28,300,097.58, the 5.3 formula gives 26,235,824.17 (band 384 minor units)
+
+**R6 (V12) — tax_rate lever ignored.** **RED**: `E   assert -130963805 == -245557135`.
+
+**R7 (V13) — volume_elasticity 0 ignored.** **RED**:
+
+    E   AssertionError: agras [personnel fixed share 0.50, volume elasticity 0] year-one operating costs 26,235,824.17, the 5.3 formula gives 28,300,097.57 (band 384 minor units)
+
+**R8 (V14) — min_cash lever ignored.** **RED**: `E   assert 0 == (248978821 - 148978821)`
+(the draw moves by exactly the floor's move).
+
+**R9 (V1) — the fixed part follows volume**, now held by a direct 5.3 formula
+check under volume -20% on agras and retail (the owner's measured-split ruling),
+not only by realestate's EBITDA law. **RED** (6 failed):
+
+    E   AssertionError: agras [the measured split] year-one operating costs 23,883,925.44, the 5.3 formula gives 28,300,097.57 (band 384 minor units)
+
+**R10 (V2) — only growth needs the split.** The refused-split test now sends
+volume_index, input_price_index and inflation each ALONE, with no `_flat`
+override. **RED** (4 failed): `E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>`.
+
+**R11 — inflation served over a refused split** (inflation dropped from
+`_SPLIT_DEPENDENT`). **RED** (2 failed): `E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>`.
+Reds on: any inflation lever projected over `#no_line_items` (agras served
+11,036,035.43 = base where the measured split gives 8,827,949.35).
+
+**R12 (V3) — the route serves a truncated plan** (forecast-route; SYNTHETIC
+carniprod whose base plan draws: payout 0.95, min_cash 2M, capex 20%, through
+`create_app`). Plant: the route's `stop_at_unpriced_draw=False` flipped. **RED**:
+
+    E   AssertionError: the GET answered 200 with 6 period(s) of 16 on a base plan that draws a line this book cannot price
+    E   assert 200 == 422
+
+**R13 — the loader accepts statements with no assembled P&L**
+(period-loader-parity). Plant: the presence check loops over `()`. **RED**:
+`E   Failed: DID NOT RAISE <class 'engine.api.pipeline.StatementsRebuildError'>`.
+Reds on: a rebuild that swallowed its own assembly failure reaching a caller as
+statements; the route answers 409 statements_rebuild_failed.
+
+**R14 — the wire elasticity truncated** (`int(Fraction)`). **RED**:
+`E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>` ("0.5", "1.9", "-0.4").
+
+**R15 — an unpriced rate refused in a days driver's words.** **RED**:
+`E   assert 'days_not_measured' == 'rate_not_measured'`.
+
+**R16 (B4RV-3) — a payload with no statement rows keeps the nil tax rate**
+(forecast-model, `-k tying_book`). **RED**: `E   AssertionError: ('book', 'derived', 0)` /
+`assert ('book', 'derived') == ('macro', 'engine_default')`.
+
+**R17 — the base run inherits every override** (decision B5R-4; SYNTHETIC agras
+with its interest expense removed). Plant: the base is compiled from
+`request.overrides`. **RED**: `E   assert [1035129409, ...] == [964552404, ...]`
+(the base's revenue moved with the request's growth). **R18 — no inheritance**
+(`_BASE_PRICING_RATES = ()`). **RED**:
+
+    E   engine.forecast.errors.AssumptionError: assumption 'interest_rate_debt': the plan carries 3,640,202.33 of interest-bearing debt in 2026-01 and this book cannot price it ...
+
+Reds after the repair on: a request that supplies the rate the base refused for
+and is still refused, or a base that takes anything but that rate. Does not red
+on a request that omits the rate: it refuses, as before.
