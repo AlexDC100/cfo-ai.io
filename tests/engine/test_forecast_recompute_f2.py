@@ -11,7 +11,8 @@ differing from the sum of its months (flows), its closing month (balances) or
 its opening month (cf.opening_cash); a balance-sheet total differing from the
 sum of its served lines; summary.cash_trough, peak_funding_gap,
 funding_interest_total or strip.cumulative_fcf / closing_cash differing from
-the walk; a float anywhere in the body; zero checks (TC-3).
+the walk; on a partial refusal, a strip headline served as a number (the
+truncated total of the served months) instead of the refusal sentence; a float anywhere in the body; zero checks (TC-3).
 CANNOT SEE: what the page does with the values (forecast-boundary, vitest).
 
 Python 3.9 - no ``match``, no ``X | Y`` unions.
@@ -96,8 +97,17 @@ def _walk(name, body):
         assert summary["peak_funding_gap"]["amount_minor"] == peak, name
         assert summary["funding_interest_total"]["amount_minor"] == -sum(
             fig[("pl.interest_expense_funding_line", l)] for l in labels), name
-    assert strip["cumulative_fcf"]["amount_minor"] == running, name
-    assert strip["closing_cash"]["amount_minor"] == fig[("bs.cash", labels[-1])], name
+    if body["refusal"] is None:
+        assert labels == body["horizon"]["labels"], name
+        assert strip["cumulative_fcf"]["amount_minor"] == running, name
+        assert strip["closing_cash"]["amount_minor"] == fig[("bs.cash", labels[-1])], name
+    else:
+        # 3.9 / 6.5: a headline over the horizon is not the total of the
+        # months that happened to be served (B6V-2b)
+        assert labels != body["horizon"]["labels"], name
+        sentence = body["refusal"]["sentence"]
+        for field in ("peak_funding_gap", "cumulative_fcf", "closing_cash"):
+            assert strip[field] == {"refused": sentence}, (name, field, strip[field])
     return checks + 5
 
 
@@ -110,8 +120,21 @@ def test_every_served_number_equals_the_walk_over_the_served_figures(name):
     _WORK.append((name, total))
 
 
+def test_a_partial_refusal_refuses_the_strip_headlines_it_cannot_reach():
+    """carniprod, volume_index level_pct -0.6: the plan draws an unpriceable
+    line part-way through year one. RED ON: strip.closing_cash served as the
+    cash of the last SERVED month, strip.cumulative_fcf as the sum of the
+    served months (plant: gates.md). TC-3: the request stops refusing."""
+    body = post("carniprod", dict(BASE3, shocks=[
+        {"id": "rail:volume_index", "driver_key": "volume_index",
+         "op": "level_pct", "value": "-0.6"}]))
+    assert body["refusal"] is not None, "TC-3: carniprod -60% volume no longer refuses"
+    assert body["horizon"]["served_through"] is not None, "TC-3: nothing served"
+    _WORK.append(("carniprod-partial", _walk("carniprod-partial", body)))
+
+
 def test_zz_scope_and_work(capsys):
-    assert len(_WORK) == len(BOOKS)
+    assert len(_WORK) == len(BOOKS) + 1
     with capsys.disabled():
         print("\nSCOPE forecast-server-side (plan/2 B6, gate row F2): books %s; requests "
               "base 3y/12m, base 2y/24m, levered 3y/12m (every lever kind B6 accepts); "

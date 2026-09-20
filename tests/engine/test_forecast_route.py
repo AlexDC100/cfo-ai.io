@@ -527,3 +527,38 @@ def test_a_base_plan_that_draws_an_unpriceable_line_is_served_partially_and_says
     assert "refused" in body["summary"]["peak_funding_gap"]
     text = refusal["sentence"]["text"]
     assert "cannot price" in text or "funding line" in text, text
+
+
+def test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served():
+    """plan/2 B6 repair (B6V-2a): carniprod opens with about 10.0M RON cash
+    and prices no funding line; a 12M cash floor draws in the FIRST plan
+    month, so zero periods are served. Contract 6.5: 200 with the refusal.
+
+    RED ON: a 500 (strip.py indexed periods[-1] of an empty tuple); a
+    from_period other than the first label; a served_through; any series
+    point or strip field served as a number; a figure carrying an amount.
+    AFTER THE REPAIR (TC-11) it fails on exactly those; it cannot see a
+    refusal that begins later (the partial test above holds that)."""
+    request = {"horizon": {"total_years": 3, "monthly_months": 12},
+               "overrides": {"min_cash": {"values": ["12000000"]}}}
+    for want in (None, ["strip"], ["figures", "series", "summary", "strip"]):
+        body = dict(request) if want is None else dict(request, want=want)
+        status, answer = _call("carniprod", "POST", body=body)
+        assert status == 200, (want, status, str(answer)[:300])
+        labels = answer["horizon"]["labels"]
+        assert answer["refusal"]["from_period"] == labels[0], answer["refusal"]
+        assert answer["horizon"]["served_through"] is None
+        sentence = answer["refusal"]["sentence"]
+        for name, field in answer["strip"].items():
+            assert "refused" in field and "amount_minor" not in field, (name, field)
+        for name in ("peak_funding_gap", "cumulative_fcf", "closing_cash"):
+            assert answer["strip"][name]["refused"] == sentence, name
+        if want is None or "series" in want:
+            points = [p for series in answer["series"].values() for p in series]
+            assert points and all("refused" in p and "amount_minor" not in p
+                                  for p in points)
+        if want is None or "figures" in want:
+            assert answer["figures"] and not [
+                f for f in answer["figures"] if "amount_minor" in f]
+        if want is None or "summary" in want:
+            assert answer["summary"]["cash_trough"] is None
