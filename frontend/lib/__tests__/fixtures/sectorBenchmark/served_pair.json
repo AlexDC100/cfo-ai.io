@@ -2,6 +2,7 @@
  "with_prior": {
   "caen": "1011",
   "caen_source": "workspace",
+  "card_agreement_tolerance": 5e-05,
   "company_turnover": 118576819.64,
   "coverage": {
    "cards": 28,
@@ -17,8 +18,8 @@
    "deteriorated": [],
    "improved": [
     {
-     "company_now": 0.0635,
-     "company_prior": 0.0144,
+     "company_now": 0.06353413797799848,
+     "company_prior": 0.014438394183277291,
      "from": "p25_to_median",
      "key": "net_margin",
      "n": 35,
@@ -535,15 +536,22 @@
   "rows": [
    {
     "company": {
-     "basis": "ratio_table.net_margin",
+     "basis": "restated_on_filed_basis",
+     "card_agrees": true,
+     "card_value": 0.0635,
      "operands": [
       {
-       "name": "net_margin",
-       "source": "metrics.net_margin",
-       "value": 0.0635
+       "name": "net_result",
+       "source": "assembled_pl.net_income_statutory",
+       "value": 7533676.02
+      },
+      {
+       "name": "net_turnover",
+       "source": "assembled_pl.revenue",
+       "value": 118576819.64
       }
      ],
-     "value": 0.0635
+     "value": 0.06353413797799848
     },
     "definition": {
      "card_key": "net_margin",
@@ -589,6 +597,8 @@
    {
     "company": {
      "basis": "ratio_table.roe",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_income_statutory",
@@ -647,6 +657,8 @@
    {
     "company": {
      "basis": "ratio_table.roa",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_income_statutory",
@@ -707,6 +719,8 @@
    {
     "company": {
      "basis": "ratio_table.equity_ratio",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "equity",
@@ -766,6 +780,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "liabilities_filed",
@@ -825,6 +841,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "receivables_all",
@@ -882,6 +900,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "inventory",
@@ -939,6 +959,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "current_assets",
@@ -998,6 +1020,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_turnover",
@@ -1095,6 +1119,7 @@
  "without_prior": {
   "caen": "1011",
   "caen_source": "workspace",
+  "card_agreement_tolerance": 5e-05,
   "company_turnover": 99424740.16,
   "coverage": {
    "cards": 28,
@@ -1595,15 +1620,22 @@
   "rows": [
    {
     "company": {
-     "basis": "ratio_table.net_margin",
+     "basis": "restated_on_filed_basis",
+     "card_agrees": true,
+     "card_value": 0.0144,
      "operands": [
       {
-       "name": "net_margin",
-       "source": "metrics.net_margin",
-       "value": 0.0144
+       "name": "net_result",
+       "source": "assembled_pl.net_income_statutory",
+       "value": 1435533.59
+      },
+      {
+       "name": "net_turnover",
+       "source": "assembled_pl.revenue",
+       "value": 99424740.16
       }
      ],
-     "value": 0.0144
+     "value": 0.014438394183277291
     },
     "definition": {
      "card_key": "net_margin",
@@ -1649,6 +1681,8 @@
    {
     "company": {
      "basis": "ratio_table.roe",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_income_statutory",
@@ -1707,6 +1741,8 @@
    {
     "company": {
      "basis": "ratio_table.roa",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_income_statutory",
@@ -1767,6 +1803,8 @@
    {
     "company": {
      "basis": "ratio_table.equity_ratio",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "equity",
@@ -1826,6 +1864,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "liabilities_filed",
@@ -1885,6 +1925,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "receivables_all",
@@ -1942,6 +1984,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "inventory",
@@ -1999,6 +2043,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "current_assets",
@@ -2058,6 +2104,8 @@
    {
     "company": {
      "basis": "restated_on_filed_basis",
+     "card_agrees": null,
+     "card_value": null,
      "operands": [
       {
        "name": "net_turnover",

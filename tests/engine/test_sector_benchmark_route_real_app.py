@@ -13,6 +13,10 @@ WHAT IT REDS ON, AFTER THE REPAIR (TC-11):
   · the company figure of a same-definition row differing from the
     ratio-table row the SAME app serves in GET /api/period (a second
     assembly path for a lender-facing figure);
+  · a company figure resting on a PERSISTED metric — a number that states
+    no basis, so nothing holds it to the account-121 anchor — or a ratio
+    card keeping its sector band while what it prints is a different
+    number from the filed-basis figure the band was positioned against;
   · an absent company operand served as a number (absent != zero);
   · the prior period found outside the workspace, or the movement list
     served without a prior;
@@ -122,19 +126,58 @@ def test_the_company_side_is_the_ratio_table_the_same_app_serves(app, world):
     table = {r["key"]: r for r in body["assembled_metrics"]["ratio_table"]["rows"]}
     rows = {r["key"]: r for r in doc["rows"]}
     checked = 0
-    for key in ("net_margin", "roa", "equity_ratio"):
+    for key in ("roa", "equity_ratio"):
         if table[key]["value"] is None:
             continue
         assert rows[key]["company"]["basis"] == "ratio_table.%s" % key
         assert rows[key]["company"]["value"] == pytest.approx(table[key]["value"] / 100.0, abs=1e-12)
         checked += 1
     assert checked >= 2
+
+    # net_margin's table row is built from the PERSISTED metric, which
+    # states no basis. It is restated here on the filed basis — the same
+    # account-121 anchored net income and revenue the dashboard prints —
+    # and the card keeps its sector band only because what the card PRINTS
+    # is proved to be that same number, within the served tolerance.
+    nm = rows["net_margin"]["company"]
+    assert nm["basis"] == "restated_on_filed_basis"
+    assert [o["name"] for o in nm["operands"]] == ["net_result", "net_turnover"]
+    assert [o["source"] for o in nm["operands"]] == [
+        "assembled_pl.net_income_statutory", "assembled_pl.revenue"]
+    pl = body["statements"]["assembled_pl"]
+    anchored = pl["net_income_statutory"] / pl["revenue"]
+    assert nm["value"] == pytest.approx(anchored, abs=1e-12)
+    assert nm["card_agrees"] is True
+    assert abs(nm["card_value"] - nm["value"]) <= doc["card_agreement_tolerance"]
+    assert rows["net_margin"]["definition"]["differs_from_card"] is False
+    assert doc["ratio_cards"]["net_margin"]["band_source"] == "sector"
     restated = rows["inventory_days_on_turnover"]
     assert restated["company"]["basis"] == "restated_on_filed_basis"
     assert restated["definition"]["differs_from_card"] is True
     assert restated["definition"]["card_key"] == "dio"
     names = [o["name"] for o in restated["company"]["operands"]]
     assert names == ["inventory", "net_turnover"], names
+
+
+def test_no_company_figure_rests_on_a_persisted_metric(app, world):
+    """THE BASIS RULE. A served company figure is either the ratio-table
+    row whose own printed operands come from the canonical statements, or
+    it is restated here on the filed basis. It is NEVER a persisted metric:
+    that number states no basis, so nothing guarantees it shares the
+    account-121 anchor the dashboard prints — the exact defect family
+    measured on production. The guard existed for ROE only; the other
+    same-definition rows took whatever the table held.
+
+    Reds on: any served row whose operands cite `metrics.`.
+    """
+    doc = _served(app)
+    offenders = []
+    for row in doc["rows"]:
+        for operand in row["company"]["operands"] or []:
+            source = str((operand or {}).get("source") or "")
+            if source.startswith("metrics."):
+                offenders.append((row["key"], row["company"]["basis"], source))
+    assert offenders == [], offenders
 
 
 def test_the_prior_period_is_found_in_the_workspace_and_feeds_the_movements(app, world):

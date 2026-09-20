@@ -45,6 +45,15 @@ SCHEMA = "sector_benchmark/1"
 #: A percentile needs at least this many peers AND the distribution.
 PERCENTILE_MIN_N = 20
 
+#: How far a ratio-card figure may sit from the same ratio restated on the
+#: filed basis and still be the SAME number for comparison purposes. The
+#: card's table stores percents rounded to two decimals, so the printed
+#: figure can sit up to half of the last digit (0.005 pct = 5e-5 as a
+#: fraction) from the exact one. A card farther away than this is a
+#: different number, not a rounding of the same one, and keeps the general
+#: ladder. Served as ``card_agreement_tolerance`` so no surface types it.
+CARD_AGREEMENT_TOLERANCE = 5e-5
+
 #: Which way is better, per sourced ratio. ``None`` = no direction: the
 #: position is stated, never graded, never in a movement list.
 DIRECTION: Dict[str, Optional[str]] = {
@@ -185,10 +194,17 @@ def _table_row(payload: Mapping[str, Any], key: str) -> Optional[Mapping[str, An
     return None
 
 
-def _roe_is_year_end(row: Mapping[str, Any]) -> bool:
-    """The card's ROE is like-with-like only when its printed operands
-    show it divided the year-end equity total (not a persisted metric,
-    whose basis the row does not state)."""
+def _card_states_its_filed_basis(row: Mapping[str, Any]) -> bool:
+    """A ratio-table row may stand in for the filed computation only when
+    its PRINTED OPERANDS say what it divided. A row whose operands cite
+    ``metrics.`` states no basis at all: it is a persisted number, and
+    nothing guarantees it shares the account-121 anchor the dashboard
+    prints — the defect family measured on production. Such a row is
+    refused here and the figure is restated on the filed basis instead.
+
+    This was applied to ROE alone; net_margin, ROA and equity_ratio took
+    whatever the table held, and net_margin's table row is built by a
+    helper that PREFERS the persisted metric."""
     ops = row.get("operands") or []
     return bool(ops) and not any(
         str(o.get("source") or "").startswith("metrics.") for o in ops
@@ -232,13 +248,22 @@ def company_figures(payload: Mapping[str, Any],
         card_key = SAME_AS_CARD.get(key)
         row = _table_row(payload, card_key) if card_key else None
         if (row is not None and _is_num(row.get("value"))
-                and (key != "roe" or _roe_is_year_end(row))):
+                and _card_states_its_filed_basis(row)):
             # Table pct rows are 0-100; the dataset holds fractions.
             put(key, float(row["value"]) / 100.0, None,
                 "ratio_table.%s" % card_key, list(row.get("operands") or []))
             continue
         value, reason = _div(num, den, scale)
         put(key, value, reason, "restated_on_filed_basis", [num, den])
+        # The card's own figure was not usable as the company side (it
+        # states no basis, or there is none). The card may still carry the
+        # sector band if what it PRINTS is the same number the filed basis
+        # gives — proved here against the served figure, not trusted from a
+        # provenance string.
+        if row is not None and _is_num(row.get("value")) and value is not None:
+            card_value = float(row["value"]) / 100.0
+            out[key]["card_value"] = card_value
+            out[key]["card_agrees"] = abs(card_value - value) <= CARD_AGREEMENT_TOLERANCE
 
     now = b["net_turnover"]
     if prior_payload is None:
@@ -307,10 +332,13 @@ def _rows(found: Mapping[str, Any], company: Mapping[str, Dict[str, Any]]
                 "card_key": card_key or differs,
                 "differs_from_card": differs is not None or (
                     card_key is not None and comp.get("basis") is not None
-                    and not str(comp["basis"]).startswith("ratio_table.")),
+                    and not str(comp["basis"]).startswith("ratio_table.")
+                    and comp.get("card_agrees") is not True),
             },
             "company": {"value": comp["value"], "basis": comp["basis"],
-                        "operands": comp["operands"]},
+                        "operands": comp["operands"],
+                        "card_value": comp.get("card_value"),
+                        "card_agrees": comp.get("card_agrees")},
             "sector": None, "position": None, "vs_sector": None,
             "percentile": None,
             "percentile_reason": {"code": "quartiles_only",
@@ -390,8 +418,9 @@ def _ratio_cards(found: Optional[Mapping[str, Any]],
             continue
         sourced_key = next((sk for sk, ck in SAME_AS_CARD.items() if ck == key), None)
         row = by_key.get(sourced_key) if sourced_key else None
-        if row is not None and row["status"] == "sourced" and \
-                str(row["company"]["basis"]).startswith("ratio_table."):
+        if row is not None and row["status"] == "sourced" and (
+                str(row["company"]["basis"]).startswith("ratio_table.")
+                or row["company"].get("card_agrees") is True):
             s = row["sector"]
             cards[key] = {
                 "band_source": "sector", "sector_key": sourced_key,
@@ -406,8 +435,8 @@ def _ratio_cards(found: Optional[Mapping[str, Any]],
                           "reason": row["reason"] or {
                               "code": "definition_differs",
                               "inputs": [sourced_key],
-                              "text": "the card's figure is not on the filed "
-                                      "basis for this period"}}
+                              "text": "the card's figure is not the filed "
+                                      "basis figure for this period"}}
         elif key in CARD_DEFINITION_DIFFERS:
             sk, text = CARD_DEFINITION_DIFFERS[key]
             cards[key] = {"band_source": "general",
@@ -452,6 +481,7 @@ def build_sector_benchmark(payload: Mapping[str, Any], *, caen: Optional[str],
         "year": ds["year"], "prior_year": ds.get("prior_year"),
         "min_peers": ds["min_peers"],
         "percentile_min_n": PERCENTILE_MIN_N,
+        "card_agreement_tolerance": CARD_AGREEMENT_TOLERANCE,
         "size_bands": ds["size_bands"],
         "peer_set": (provenance.get("method") or {}).get("peer_set"),
         "sector_disputed": bool(isinstance(signal, Mapping)
