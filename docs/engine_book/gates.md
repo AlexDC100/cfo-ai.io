@@ -5533,3 +5533,64 @@ without its words in en or ro; a same-sign control that stops painting its
 percent; the TS classifier disagreeing with any fixture row.
 **It cannot see:** the live page in a browser (B13's no-intercept walk) or
 the forecast compare_base rows (B8).
+
+
+<!-- ═══ plan/2 B6 (plan_contract_v2 28.3): fp1.2 serving and POST recompute ═══
+     B6 appends below this anchor only (contract 0.6). -->
+
+## plan-gate-census — three loopholes closed (plan/2 B6)
+
+The B0 re-verifier left three ways for `plan_gates.json` to claim a gate the
+battery does not run. `scripts/check_plan_gates.py` now closes each. The three
+plants are copies of `plan_gates.json` in the session scratchpad, read through
+`--plan-gates`; the tree's file was never edited. Each was also run against the
+parent commit's census (`git show d4f2b5c:scripts/check_plan_gates.py`), which
+is the defect itself.
+
+**SCOPE** — every entry of `docs/engine_book/plan_gates.json` (22 at this
+commit), every batch that has landed (B0, B1, B2, B3, B4, B5).
+
+**PLANT 1 — an id borrowed as a second name.** The `forecast-balance` entry's
+`gate` re-pointed to `forecast-model` (canaries dropped so nothing else reds):
+`required_gates[B5]` names `forecast-balance`, and `_met_gate` accepted
+`e["id"] == name`, so a batch could meet its required gate with an entry that
+runs another gate.
+
+```
+RED (plant)
+  · plan_gates.json entry 'forecast-balance': id must be 'forecast-model' (the gate name); an id is never a second name for another gate
+  · required_gates[B5]: gate 'forecast-balance' has no plan_gates.json entry landed in B5 (an earlier batch's entry does not count)
+RED (parent commit) — the defect: the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**PLANT 2 — a runner entry with zero canaries.** `vitest:B1` with
+`"canaries": []`. The shared runner exists for every batch, so the entry met
+`required_gates[B1] = vitest` while naming no file of its own.
+
+```
+RED (plant)
+  · plan_gates.json entry 'vitest:B1': an entry on the shared runner 'vitest' names ZERO canaries; the runner's own existence is not this batch's gate (TC-3)
+RED (parent commit) — the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**PLANT 3 — retired by a batch that has not landed.** `forecast-get-b4-parity`
+given `"retired_in": "B6"` on a registry where B6 has no entry and no
+`required_*` key: the census stopped every battery check for it.
+
+```
+RED (plant)
+  · plan_gates.json entry 'forecast-get-b4-parity': retired_in 'B6' names a batch that has not landed (landed: B0, B1, B2, B3, B4, B5); the gate stays in the battery until the batch that retires it lands
+RED (parent commit) — the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**REVERT** — the copies discarded; `PASS plan-gate-census` on the tree.
+
+**After the repair it reds on:** an entry whose id is not its gate name (or
+`<gate>:<landed_in>` on vitest or playwright); a vitest or playwright entry
+that lists no canary; a `retired_in` whose batch has no entry and no
+`required_gates` / `required_rows` key. **It cannot see:** whether a named
+canary file asserts anything (tests/engine/test_gate_canaries.py), or a
+retirement the contract never named (the RETIREMENTS table, unchanged).

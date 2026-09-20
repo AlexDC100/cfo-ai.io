@@ -301,6 +301,19 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
             failures.append("%s: duplicate entry id" % where)
         seen.add(gid)
 
+        # plan/2 B6 (census loophole 1): an entry's id is its gate name, or
+        # <gate>:<landed_in> on a shared runner. Without this an entry whose
+        # id borrowed a required gate's name met required_gates while
+        # running another gate.
+        want_id = ("%s:%s" % (gate_name, entry.get("landed_in"))
+                   if gate_name in RUNNER_SCRIPTS else gate_name)
+        if gid != want_id:
+            failures.append("%s: id must be %r (the gate name%s); an id is never "
+                            "a second name for another gate"
+                            % (where, want_id,
+                               ", then ':' and landed_in, on a shared runner"
+                               if gate_name in RUNNER_SCRIPTS else ""))
+
         batch = _batch(entry.get("landed_in"))
         if batch is None:
             failures.append("%s: landed_in %r is not a batch of contract 28.3"
@@ -352,6 +365,13 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
             if not gate.canaries:
                 failures.append("%s: battery gate %r names no canary"
                                 % (where, gate_name))
+            # plan/2 B6 (census loophole 2): a shared runner exists for every
+            # batch, so an entry on it proves nothing unless it names the
+            # canaries this batch added.
+            if gate_name in RUNNER_SCRIPTS and not (entry.get("canaries") or []):
+                failures.append("%s: an entry on the shared runner %r names ZERO "
+                                "canaries; the runner's own existence is not this "
+                                "batch's gate (TC-3)" % (where, gate_name))
             for canary in entry.get("canaries") or []:
                 if canary not in gate.canaries:
                     failures.append("%s: canary %r is not among battery gate %r's "
@@ -387,6 +407,7 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
                                 "commit (contract 0.5)" % (where, heading,
                                                            PARENT_RED_MARKER))
         live.append({"id": gid, "gate": gate_name, "batch": batch,
+                     "id_ok": gid == want_id, "retired_in": retired,
                      "rows": list(entry.get("rows") or []),
                      "retired": retired is not None})
         report.append("  entry %-28s gate %-26s rows %-10s %-4s %s"
@@ -409,8 +430,21 @@ def census(battery_path: Path, gates_md: Path, plan_gates: Path) -> Tuple[List[s
             landed_raw.add(key)
             into.setdefault(batch, []).extend(values or [])
 
+    # plan/2 B6 (census loophole 3): a gate is retired BY a batch, so that
+    # batch must have landed (an entry or a required_* key of its own). A
+    # retired_in naming a future batch switched the battery checks off early.
+    for e in live:
+        if e["retired_in"] is not None and _batch(e["retired_in"]) not in landed:
+            failures.append("plan_gates.json entry %r: retired_in %r names a batch "
+                            "that has not landed (landed: %s); the gate stays in "
+                            "the battery until the batch that retires it lands"
+                            % (e["id"], e["retired_in"],
+                               ", ".join(b for b in BATCHES if b in landed)))
+
     def _met_gate(batch: str, name: str) -> bool:
-        return any((e["gate"] == name or e["id"] == name)
+        # by gate name only, and only by an entry whose id is well formed
+        # (loophole 1): an id equal to the name no longer counts on its own.
+        return any(e["gate"] == name and e["id_ok"]
                    and (batch == FINAL_BATCH or e["batch"] == batch)
                    for e in live)
 
