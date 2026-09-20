@@ -14,7 +14,14 @@ import { join, relative, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 const ROOT = resolve(__dirname, "../..");
-const FAMILIES = /fetch\(\s*`[^`]*\/api\/(benchmarks|industry|forecast|radar)\b/;
+// A file is in scope when it NAMES a path in an org-resolving family and does
+// its own fetch — not only when the path sits inside the fetch template. The
+// first version of this gate missed lib/industryApi.ts, whose request() helper
+// builds `${API_URL}${path}`: the picker's detect and save calls 403'd in
+// production on the very workspace the benchmark fix had just repaired.
+const FAMILY_PATH = /\/api\/(benchmarks|industry|forecast|radar)\b/;
+const OWN_FETCH = /\bfetch\(/;
+const FAMILIES = { test: (src: string) => FAMILY_PATH.test(src.replace(/^\s*\/\/.*$/gm, "")) && OWN_FETCH.test(src) };
 
 function sources(): string[] {
   const out: string[] = [];
@@ -36,7 +43,7 @@ describe("org-scoped raw fetches", () => {
     const offenders = hits.filter((f) => !/authOrgHeaders\(/.test(readFileSync(f, "utf8")));
     console.info(`[gate] ${files.length} files scanned, ${hits.length} with a raw fetch to an org-resolving family`);
     expect(files.length).toBeGreaterThan(300);
-    expect(hits.length).toBeGreaterThanOrEqual(3); // non-vacuity: the three known benchmark callers
+    expect(hits.length).toBeGreaterThanOrEqual(4); // non-vacuity: three benchmark callers + the industry client
     expect(offenders.map((f) => relative(ROOT, f))).toEqual([]);
   });
 
