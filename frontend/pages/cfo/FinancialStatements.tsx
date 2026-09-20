@@ -90,6 +90,7 @@ import {
   plBuiltFromLineItems,
   type HeadlineProvenance,
 } from "@/lib/headlineProvenance";
+import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 import { FigureProvenanceProvider, type FigureProvenanceMap } from "@/lib/figureProvenanceContext";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
 import "@/components/cfo/dashInstrumentI18n";
@@ -808,17 +809,13 @@ function FinancialStatementsInner() {
         ? statements.assembled_pl.ebitda_statutory
         : null;
     const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
-    // Net profit: engine canonical `net_income_statutory` (ct.121 anchor),
-    // then FE statutory, then FE operational — same chain as before.
-    const niStatRow = remotePeriod.metrics.find(
-      (mt) => mt.name === "net_income_statutory",
+    // Net profit: resolved by `lib/headlineFigures`, the one seam this
+    // figure is decided at — see that module for the order and why.
+    const tileNetProfitRon = resolveHeadlineNetProfit(
+      statements,
+      remotePeriod.metrics,
+      pl,
     );
-    const tileNetProfitRon =
-      typeof niStatRow?.value === "number"
-        ? niStatRow.value
-        : typeof pl.netProfitStatutory === "number"
-          ? pl.netProfitStatutory
-          : pl.netProfit;
     const sourceTooltip =
       remotePeriod.detectedType === "statutory_f30_f10"
         ? t("dash.sourceStatutoryTooltip")
