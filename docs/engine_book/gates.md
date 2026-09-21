@@ -8964,7 +8964,7 @@ books never provoke, or whether a sentence is a good explanation.
 |---|---|
 | command | `python -m pytest tests/engine/test_forecast_cockpit.py -q -s` |
 | canary | `SCOPE forecast-cockpit (forecast-scenarios-live)`, `C-F1 books: agras, carniprod, retail, realestate` |
-| work count | `GATE-WORK forecast-cockpit units=(\d+)`, floor **11000** (measured 12230) |
+| work count | `GATE-WORK forecast-cockpit units=(\d+)`, floor **11000** (measured 12242) |
 
 **SCOPE** — the Forecast COCKPIT (owner-approved spec: four numbers, one
 chart, sliders; the page does no math): `engine.forecast.cockpit` over
@@ -9005,7 +9005,7 @@ export's assumptions page and sources); p95 slider latency against
 
 Plants, each applied alone to a clean tree by
 `scratchpad/cockpit/plants.py`, the named subset run, then restored byte-exact
-(the script asserts the bytes) — ten of ten RED:
+(the script asserts the bytes) — twelve of twelve RED:
 
 **PLANT bridge-drops-the-credit-line-and-closes-by-construction** —
 `cockpit.bridge`: the debt step loses the funding-line movement and the cash
@@ -9060,6 +9060,18 @@ E   AssertionError: agras: cockpit year 0 is not the served actuals (dashboard, 
 RED (plant unbalanced-year-aggregate, -k f2)
 E   AssertionError: agras/base FY2026: assets 3721770754, equity + liabilities 4637437321
 ```
+**PLANT unpriced-line-refused-whole** — no reference rate: a book that
+measures no borrowing rate has every plan that draws the line refused.
+```
+RED (plant unpriced-line-refused-whole, -k stated_reference)
+E   AssertionError: ('carniprod', {...squeeze...}, 422, '...that draws the line is refused rather than charged 0%; supply revolver_rate to price it', "field": "interest_rate")
+```
+**PLANT reference-priced-silently** — the line is priced at the reference but
+the funding-line block says the book priced it.
+```
+RED (plant reference-priced-silently, -k stated_reference)
+E   AssertionError: assert ('book' == 'reference'
+```
 **PLANT wages-ignore-inflation** — the wage lever's level step is the wage
 growth itself (personnel then grows by inflation AND wages).
 ```
@@ -9067,8 +9079,8 @@ RED (plant wages-ignore-inflation, -k basis_states)
 E   AssertionError: agras wages year 1: moved 190429224, its basis says 134177771.0 (slack 11521.367)
 ```
 
-**REVERT** — every file restored byte-exact; `34 passed`, `GATE-WORK
-forecast-cockpit units=12230`.
+**REVERT** — every file restored byte-exact; `36 passed`, `GATE-WORK
+forecast-cockpit units=12242`.
 
 **After the repair it reds on:** year 0 drifting from the dashboard; a plan
 year of any case or slider extreme that does not balance or whose BS cash is
@@ -9080,7 +9092,8 @@ figure with no value; a year with debt charged no interest, a drawn line
 charged none; a four-numbers figure that is not a reading of the statements;
 a saved case served across companies; a growth default that is not the book's
 history / the sector / the stamped anchor; negative cash, or a funding need
-the numbers or the sentence do not name; a bridge that does not sum to the
+the numbers or the sentence do not name; a line on a book with no measured
+rate refused whole, or priced at the reference without saying so; a bridge that does not sum to the
 cash it explains; a route binding a body as a query, a refusal without its
 code; p95 slider latency over budget. **It cannot see** what the page paints
 (the frontend gates), network latency to Supabase in production, the owner's

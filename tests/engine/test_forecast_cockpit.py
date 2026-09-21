@@ -745,6 +745,34 @@ def test_c_f8_below_the_floor_the_engine_draws_a_priced_credit_line(name):
     WORK["units"] += 6
 
 
+def test_c_f8_a_book_that_cannot_price_a_line_draws_it_at_the_stated_reference():
+    """carniprod carries no interest-bearing debt, so it measures no borrowing
+    rate; the engine never draws an unpriced line (never 0%). A case that
+    needs the line is priced at the dated reference (BNR lending facility),
+    said so on the interest lever and the funding-line block — never refused
+    whole, never free. The reader's own rate, once set, replaces it."""
+    from fractions import Fraction
+    from engine.forecast.levers_pack import macro_pack
+    reference = macro_pack().series["bnr_lending_facility_rate"].points[-1][1]
+    squeeze = {"dso_days": "300", "revenue_growth": "-0.25", "dividend_payout": "1"}
+    with _World("carniprod") as world:
+        body = world.ok({"levers": squeeze})
+        own = world.ok({"levers": dict(squeeze, interest_rate="0.11")})
+    assert body["numbers"]["cash"]["kind"] == "funding_need", body["numbers"]["cash"]
+    line = body["funding_line"]
+    assert line["priced_at"] == "reference" and Fraction(line["reference"]["rate"]) == reference
+    assert line["reference"]["series"]["published"] and line["reference"]["basis"]["ro"]
+    assert body["engine_request"]["overrides"]["revolver_rate"] == [_dec(reference)] * 5
+    assert body["numbers"]["cash"]["funding_interest"]["amount_minor"] > 0
+    interest = _lever(body, "interest_rate")
+    assert interest["value"] is None and "BNR" in interest["basis"]["ro"], interest
+    assert own["funding_line"]["priced_at"] == "user"
+    assert own["engine_request"]["overrides"]["revolver_rate"] == ["0.11"] * 5
+    assert (own["numbers"]["cash"]["funding_interest"]["amount_minor"]
+            > body["numbers"]["cash"]["funding_interest"]["amount_minor"])
+    WORK["units"] += 8
+
+
 # ── F9 ───────────────────────────────────────────────────────────────────
 
 def _f9(label: str, bridge: Dict[str, Any]) -> None:
@@ -860,6 +888,9 @@ def test_c_routes_bind_bodies_refuse_by_name_and_serve_the_export():
             assert "query" not in json.dumps(out["detail"]), out
         status, out = world.cockpit({}, period="no-such-period")
         assert status == 404
+        # a company that never saved a preference: no prefs row at all
+        status, out = world.cockpit({"case_id": "saved:anything"})
+        assert status == 404 and out["detail"]["code"] == "case_not_found", (status, out)
         status, out = world.cockpit({}, org="0c0f0000-0000-4000-8000-0000000000ff")
         assert status == 403, (status, out)
         export = world.ok({"case_id": "pesimist"}, route="cockpit/export")

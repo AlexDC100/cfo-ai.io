@@ -722,7 +722,7 @@ def _engine_gates() -> List[Gate]:
         # and on a drawn line, saved cases per company, growth from the
         # book's own history, a priced credit line below the floor, a bridge
         # from base that sums exactly), the routes and the export, and p95
-        # slider latency inside the pack's budget. Measured 12230 on the four
+        # slider latency inside the pack's budget. Measured 12242 on the four
         # corpus books (FORECAST_LOCAL_SCANDIA adds the owner's pair). Plant
         # log: gates.md "forecast-cockpit".
         Gate("forecast-cockpit",
