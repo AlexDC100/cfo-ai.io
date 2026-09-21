@@ -136,6 +136,9 @@ SWEEP = [
     ("POST", "/api/documents/{DOC_A1}/move-period", {"period_end": "2025-12-31"}, "403"),
     ("POST", "/api/documents/{DOC_A1}/make-active", None, "403"),
     ("POST", "/api/pipeline/run", {"document_id": DOC_A1}, "403"),
+    # Read-only, but it answers about a company's files: resolve_org refuses
+    # a workspace the caller holds no membership in (the viewer names ORG_A1).
+    ("POST", "/api/documents/duplicate-check", {"content_hash": "a" * 64}, "403"),
     ("POST", "/api/pipeline/retry", {"document_id": DOC_A1}, "403"),
     ("POST", "/api/documents/clear-mine", None, "403"),
     ("DELETE", "/api/documents/clear-deleted", None, "200-empty"),

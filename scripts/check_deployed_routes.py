@@ -98,6 +98,7 @@ PROBES = [
     ("POST", "/api/pipeline/run", {"document_id": ZERO}),
     ("POST", "/api/pipeline/retry", {"document_id": ZERO}),
     ("POST", "/api/pipeline/recover-stuck", {}),
+    ("POST", "/api/documents/duplicate-check", {"content_hash": "0" * 64}),
     ("POST", "/api/period/%s/reextract" % ZERO, {}),
     ("POST", "/api/period/%s/review/reanalyze" % ZERO, {}),
     ("POST", "/api/period/%s/briefing/regenerate" % ZERO, {}),
