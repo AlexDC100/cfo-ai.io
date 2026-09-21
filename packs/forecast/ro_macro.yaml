@@ -87,3 +87,83 @@ statutory:
     stated_as_of: "2026-09-15"
     unit: rate
 # ── end plan/2 B3 ───────────────────────────────────────────────────────
+
+# ── forecast cockpit: DATED external series (forecast-scenarios-live) ────
+# Published figures the Forecast cockpit prints beside a lever as its basis
+# and builds the Optimist / Pesimist cases from (packs/forecast/cockpit.yaml).
+# NOT anchors: no base driver defaults from them — the base forecast stays on
+# the anchors above, so the base case IS the forecast (gate F4). Each point is
+# a published number with the institution, the publication and the date it
+# was published; `stated_as_of` is the day a person confirmed the points
+# against the source. Values are decimal strings, read exactly. A point's
+# `at` is the period the number describes (YYYY-MM), never the publication
+# date.
+#
+# OPERATOR NOTE: re-confirm every point before a lending pack goes out; a
+# series that has been superseded (a newer Inflation Report, a new minimum
+# wage) is replaced here, never edited in place without its new date.
+series:
+  bnr_inflation_projection:
+    series_id: "ro.bnr.raport_inflatie.2026_08"
+    kind: "central bank projection"
+    label: "BNR annual CPI inflation projection"
+    source: "Banca Naţională a României — Raport asupra inflaţiei, august 2026"
+    source_url: "https://www.bnr.ro/25729-raport-asupra-inflatiei-august-2026"
+    published: "2026-08-13"
+    stated_as_of: "2026-09-21"
+    unit: rate
+    points:
+      - {at: "2026-12", value: "0.061"}
+      - {at: "2027-12", value: "0.034"}
+      - {at: "2028-06", value: "0.028"}
+  ins_cpi_annual:
+    series_id: "ro.ins.ipc.rata_anuala"
+    kind: "official statistic"
+    label: "INS annual CPI inflation rate"
+    source: "Institutul Naţional de Statistică — Indicii preţurilor de consum, august 2026"
+    source_url: "https://insse.ro/cms/ro/tags/comunicat-indicele-preturilor-de-consum"
+    published: "2026-09-11"
+    stated_as_of: "2026-09-21"
+    unit: rate
+    points:
+      - {at: "2026-07", value: "0.0816"}
+      - {at: "2026-08", value: "0.0617"}
+  ins_ippi_manufacturing:
+    series_id: "ro.ins.ippi.industria_prelucratoare.anual"
+    kind: "official statistic"
+    label: "INS industrial producer prices, manufacturing, year on year"
+    source: "Institutul Naţional de Statistică — Indicii preţurilor producţiei industriale, iulie 2026 (industria prelucrătoare, iulie 2026 faţă de iulie 2025)"
+    source_url: "https://insse.ro/cms/ro/tags/comunicat-ippi"
+    published: "2026-09"
+    stated_as_of: "2026-09-21"
+    unit: rate
+    points:
+      - {at: "2026-07", value: "0.0965"}
+  minimum_wage_gross:
+    series_id: "ro.hg.salariul_minim_brut"
+    kind: "statutory"
+    label: "Gross national minimum wage, RON per month"
+    source: "Hotărârea Guvernului aprobată la 12 martie 2026 — salariul de bază minim brut pe ţară garantat în plată (Ministerul Muncii, Familiei, Tineretului şi Solidarităţii Sociale)"
+    source_url: "https://mmuncii.gov.ro/salariul-de-baza-minim-brut-pe-tara-garantat-in-plata-se-majoreaza/"
+    published: "2026-03-12"
+    stated_as_of: "2026-09-21"
+    unit: ron_per_month
+    points:
+      - {at: "2025-01", value: "4050"}
+      - {at: "2026-07", value: "4325"}
+  bnr_lending_facility_rate:
+    # The rate a credit line is priced at when the book itself cannot price
+    # one (it carries no interest-bearing debt): the central bank's lending
+    # facility, the rate at which it lends to banks overnight — a FLOOR under
+    # what a bank charges a company, stated as such beside the figure.
+    series_id: "ro.bnr.facilitatea_de_creditare"
+    kind: "central bank rate"
+    label: "BNR lending facility rate"
+    source: "Banca Naţională a României — Hotărârea Consiliului de administraţie pe probleme de politică monetară din 8 iulie 2026 (facilitatea de creditare)"
+    source_url: null
+    published: "2026-07-08"
+    stated_as_of: "2026-09-21"
+    unit: rate
+    points:
+      - {at: "2026-07", value: "0.075"}
+# ── end forecast cockpit series ─────────────────────────────────────────

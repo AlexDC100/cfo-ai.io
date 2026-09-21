@@ -34,6 +34,7 @@ import yaml
 
 __all__ = [
     "MACRO_FILE",
+    "MacroDatedSeries",
     "MacroPack",
     "MacroSeries",
     "PACK_FILE",
@@ -753,12 +754,68 @@ class MacroSeries(object):
         }
 
 
+class MacroDatedSeries(object):
+    """One DATED external series (forecast cockpit): published points, each
+    the period it describes (``at``, YYYY-MM) and an exact value, with the
+    institution, the publication, its date and the day a person confirmed
+    it. No base driver defaults from one of these; the cockpit prints them
+    as a lever's basis and builds its Optimist / Pesimist cases from them."""
+
+    __slots__ = ("key", "series_id", "kind", "label", "source", "source_url",
+                 "published", "stated_as_of", "unit", "points", "pack_address",
+                 "_texts")
+
+    def __init__(self, key, raw, where):
+        # type: (str, Any, str) -> None
+        body = _mapping(raw, where)
+        self.key = key
+        self.pack_address = where
+        self.series_id = _text(body, "series_id", where)
+        self.kind = _text(body, "kind", where)
+        self.label = _text(body, "label", where)
+        self.source = _text(body, "source", where)
+        url = body.get("source_url")
+        if url is not None and (not isinstance(url, str) or not url.strip()):
+            raise PackError("%s.source_url: a URL or null" % where)
+        self.source_url = url
+        self.published = _text(body, "published", where)
+        self.stated_as_of = _text(body, "stated_as_of", where)
+        self.unit = _text(body, "unit", where)
+        raw_points = body.get("points")
+        if not isinstance(raw_points, list) or not raw_points:
+            raise PackError("%s.points: a non-empty list" % where)
+        points = []
+        texts = []
+        for index, item in enumerate(raw_points):
+            point = _mapping(item, "%s.points[%d]" % (where, index))
+            at = _text(point, "at", "%s.points[%d]" % (where, index))
+            value = point.get("value")
+            if not isinstance(value, str):
+                raise PackError("%s.points[%d].value: a decimal string" % (where, index))
+            points.append((at, Fraction(value)))
+            texts.append(value)
+        if [p[0] for p in points] != sorted(p[0] for p in points):
+            raise PackError("%s.points: not in date order" % where)
+        self.points = tuple(points)
+        #: each point's value exactly as the pack writes it
+        self._texts = tuple(texts)
+
+    def evidence(self):
+        # type: () -> Dict[str, Any]
+        return {"series_id": self.series_id, "kind": self.kind,
+                "source": self.source, "source_url": self.source_url,
+                "published": self.published, "stated_as_of": self.stated_as_of,
+                "pack_address": self.pack_address,
+                "points": [{"at": at, "value": text}
+                           for (at, _value), text in zip(self.points, self._texts)]}
+
+
 class MacroPack(object):
-    """``packs/forecast/ro_macro.yaml``: its jurisdiction, its anchors and
-    its statutory rates."""
+    """``packs/forecast/ro_macro.yaml``: its jurisdiction, its anchors, its
+    statutory rates and its dated series."""
 
     __slots__ = ("path", "jurisdiction", "pack_id", "pack_version",
-                 "anchors", "statutory")
+                 "anchors", "statutory", "series")
 
     def __init__(self, path, raw):
         # type: (str, Any) -> None
@@ -778,8 +835,13 @@ class MacroPack(object):
             (key, MacroSeries(key, "statutory", statutory[key],
                               "%s#statutory.%s" % (MACRO_FILE, key)))
             for key in sorted(statutory))
+        dated = body.get("series") or {}
+        dated = _mapping(dated, "%s#series" % MACRO_FILE)
+        self.series = dict(
+            (key, MacroDatedSeries(key, dated[key], "%s#series.%s" % (MACRO_FILE, key)))
+            for key in sorted(dated))
         ids = [s.series_id for s in list(self.anchors.values())
-               + list(self.statutory.values())]
+               + list(self.statutory.values()) + list(self.series.values())]
         if len(set(ids)) != len(ids):
             raise PackError("%s: two series share an id: %s"
                             % (MACRO_FILE, ids))
