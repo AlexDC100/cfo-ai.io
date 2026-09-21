@@ -148,6 +148,13 @@ SWEEP = [
      {"selected_industry_key": "manufacturing_generic"}, "403"),
     ("POST", "/api/industry/assignment/{PERIOD_A1}/lock", {"locked": True}, "403"),
     ("POST", "/api/industry/assignment/{PERIOD_A1}/recalc", None, "403"),
+    # The company-workspace upload (2026-09-21) — MULTIPART, so the body is
+    # a `__multipart__` spec (see `_send`). The viewer SEES ORG_A1's books and
+    # names it as the target: refused by `require_org_member`, nothing stored.
+    ("POST", "/api/uploads/commit",
+     {"__multipart__": {"files": {"file": ("a1-2025.xlsx", b"PK\x03\x04 viewer upload",
+                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                        "data": {"target_org_id": T.ORG_A1, "period_end": "2025-12-31"}}}, "403"),
 ]
 
 _IDS = {"PERIOD_A1": T.PERIOD_A1, "DOC_A1": DOC_A1, "DOC_A1_GONE": DOC_A1_GONE,
@@ -196,6 +203,11 @@ DECLARED = {
     ("POST", "/api/newsletter/debug-send-all"): "self-scoped: mails only the verified identity's own e-mail",
     # read-only compute behind a POST body: no table is written
     ("POST", "/api/period/detect"): "read-only compute: period detection on the request body (JWT required)",
+    # Identifies the uploaded file (company, CUI, period, industry) and the
+    # company it would land in. Stores nothing, reserves nothing, writes no
+    # table: the COMMIT is the write, and it is member-walled in SWEEP. The
+    # X-Org-Id it reads is membership-checked (`_org.resolve_org`, 403).
+    ("POST", "/api/uploads/identify"): "read-only compute: identifies the uploaded file, writes nothing (JWT verified, X-Org-Id membership-checked)",
     ("POST", "/api/period/{period_id}/valuation/recompute"): "read-only compute: stateless DCF, does not persist",
     ("POST", "/api/financial-statements/parse"): "read-only compute: stateless parse of the request body",
     # The PDF renderer takes the HTML the CALLER already holds and hands it
@@ -750,13 +762,23 @@ def test_every_mutating_route_of_the_real_app_is_classified(app):
     print("[write-wall] %d mutating routes: %s" % (len(routes), counts))
 
 
+def _send(client: TestClient, method: str, path: str, headers: Dict[str, str], body: Any) -> Any:
+    """A SWEEP request: JSON, or multipart when the body is a
+    ``{"__multipart__": {"files": …, "data": …}}`` spec."""
+    if isinstance(body, dict) and "__multipart__" in body:
+        spec = body["__multipart__"]
+        return client.request(method, path, headers=headers, files=spec.get("files"),
+                              data=spec.get("data"))
+    return client.request(method, path, headers=headers, json=body)
+
+
 def _drive_sweep(client: TestClient, world: Any, actor: str, label: str) -> None:
     before = snapshot(world)
     violations = []
     transcript = []
     for method, template, body, expect in SWEEP:
         path = _fill(template)
-        r = client.request(method, path, headers=hdr(actor, T.ORG_A1), json=body)
+        r = _send(client, method, path, hdr(actor, T.ORG_A1), body)
         moved = diff(before, snapshot(world))
         if expect == "403":
             ok = r.status_code == 403 and not moved

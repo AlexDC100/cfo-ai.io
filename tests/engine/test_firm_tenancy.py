@@ -1951,6 +1951,15 @@ DECLARED_CLIENT_DATA_READERS = (
     # swept prefix. Pinned behaviourally by
     # tests/engine/test_forecast_route.py.
     "engine.api._forecast_routes",
+    # PRODUCT routes, under their own membership gate (2026-09-21): the
+    # company-workspace upload flow. `POST /api/uploads/commit` and `GET
+    # /api/companies/{org_id}/years` take the org through
+    # `_org.require_org_member` (403, never firm visibility), identify
+    # through `_org.resolve_org`; every read goes through the CALLER's own
+    # RLS-scoped client and names the org. Not a firm module and not under
+    # a swept prefix. Pinned by tests/engine/test_workspace_uploads.py and
+    # the member-walled SWEEP in test_identity_wall.py.
+    "engine.api._uploads",
     "engine.api._firm_import", "engine.api._firm_requests", "engine.api._industry_detection",
     "engine.api._industry_intelligence", "engine.api._journal_routes", "engine.api._ops_routes",
     "engine.api._org", "engine.api._period_move", "engine.api._reconcile", "engine.api.cfo_ai",

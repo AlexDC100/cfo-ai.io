@@ -261,6 +261,10 @@ def test_the_document_paths_keep_their_higher_cap():
 
     assert body_limit_for("/api/financial-statements/parse") == DOCUMENT_BODY_LIMIT_BYTES
     assert body_limit_for("/api/firm/requests/abc123/upload") == DOCUMENT_BODY_LIMIT_BYTES
+    # The company-workspace upload flow carries the same 25 MB multipart file.
+    assert body_limit_for("/api/uploads/identify") == DOCUMENT_BODY_LIMIT_BYTES
+    assert body_limit_for("/api/uploads/commit") == DOCUMENT_BODY_LIMIT_BYTES
+    assert body_limit_for("/api/uploads/other") == GENERAL_BODY_LIMIT_BYTES
     assert body_limit_for("/api/skus") == GENERAL_BODY_LIMIT_BYTES
     # 25 MB decoded PDF -> 4/3 base64 = 33,554,432 bytes, plus envelope.
     assert DOCUMENT_BODY_LIMIT_BYTES > (25 * 1024 * 1024) * 4 // 3, (

@@ -5586,6 +5586,59 @@ def _maybe_drop_empty_period(period_id: str, *, org_id: str = "") -> None:
         logger.info("[docs] dropped orphan period %s", period_id)
 
 
+def reserve_upload_or_refuse(user_id: str) -> bool:
+    """THE UPLOAD METER — the reservation every new document takes before
+    it is analysed, mapped to the HTTP shapes the frontend already knows.
+
+    One function, two callers: `POST /api/pipeline/run` (a document the
+    browser already stored) and `POST /api/uploads/commit` (a file the
+    engine stores itself). Pricing V3 (refined spec gaps C + D) — atomic
+    reserve, success-only consume:
+
+      · `_usage_limits.check_quota` stays as the legacy safety rail;
+      · `_usage_gate.reserve_document` is an atomic conditional UPDATE, so
+        two concurrent uploads at the boundary cannot both pass (gap C);
+      · the reservation is PROVISIONAL — the orchestrator commits it on
+        analysis success and releases it on failure (gap D).
+
+    Returns `was_extra` (the caller stamps `documents.metered_extra` so
+    the daemon's commit bills the right slot). Raises 429
+    `doc_quota_blocked` or 402 `extra_doc_confirmation_required`; after a
+    402 the frontend calls POST /api/plan/confirm-extra-doc and repeats
+    the request, which then sees an `allowed` reservation.
+    """
+    _usage_limits.check_quota(user_id, "upload")
+    from . import _usage_gate as _ug
+    decision = _ug.reserve_document(user_id)
+    if decision.kind == "blocked":
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "doc_quota_blocked",
+                "plan_key": decision.plan_key,
+                "docs_used": decision.used,
+                "docs_included": decision.cap,
+                "message": decision.message,
+                "upgrade_url": "/pricing",
+            },
+        )
+    if decision.kind == "extra_required":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "extra_doc_confirmation_required",
+                "plan_key": decision.plan_key,
+                "docs_used": decision.used,
+                "docs_included": decision.cap,
+                "extra_doc_eur": decision.extra_doc_eur,
+                "message": decision.message,
+                "confirm_url": "/api/plan/confirm-extra-doc",
+            },
+        )
+    # `allowed` or `disabled` — the caller proceeds with enqueue.
+    return bool(decision.was_extra)
+
+
 def _enqueue(document_id: str) -> None:
     """Run the pipeline on a daemon thread. Production should swap this for a
     real queue (Inngest, Supabase Edge functions, BullMQ-equivalent), but for
@@ -5767,49 +5820,15 @@ def build_router() -> APIRouter:
         # The `was_extra` flag is stamped onto the documents row so
         # the daemon thread can recover it without an HTTP context.
         user_id = _user_id_from_jwt(jwt)
-        _usage_limits.check_quota(user_id, "upload")
-        from . import _usage_gate as _ug
-        decision = _ug.reserve_document(user_id)
-        if decision.kind == "blocked":
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "doc_quota_blocked",
-                    "plan_key": decision.plan_key,
-                    "docs_used": decision.used,
-                    "docs_included": decision.cap,
-                    "message": decision.message,
-                    "upgrade_url": "/pricing",
-                },
-            )
-        if decision.kind == "extra_required":
-            # FE must surface the confirm dialog and then call
-            # POST /api/plan/confirm-extra-doc which routes through
-            # `confirm_extra_document(user_id)` and reserves the slot
-            # as billable. The repeat /api/pipeline/run call then
-            # sees an `allowed` reservation (or the FE bypasses by
-            # going straight to /api/pipeline/run after the confirm
-            # endpoint succeeds — both flows valid).
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "code": "extra_doc_confirmation_required",
-                    "plan_key": decision.plan_key,
-                    "docs_used": decision.used,
-                    "docs_included": decision.cap,
-                    "extra_doc_eur": decision.extra_doc_eur,
-                    "message": decision.message,
-                    "confirm_url": "/api/plan/confirm-extra-doc",
-                },
-            )
-        # `allowed` or `disabled` — proceed with enqueue.
+        # The ONE upload meter — `/api/uploads/commit` goes through the
+        # same function, so the two entry points cannot drift apart.
+        is_extra_reservation = reserve_upload_or_refuse(user_id)
 
         # Stash the was_extra flag onto the document row so the
         # daemon thread's commit/release call passes the right value.
         # Reusing an existing column would be cleaner; for now we
         # serialize a tiny meta blob into `documents.notes` (an
         # existing free-text column). The orchestrator parses it back.
-        is_extra_reservation = decision.was_extra
         if req.output_language or is_extra_reservation:
             patch: Dict[str, Any] = {}
             if req.output_language:

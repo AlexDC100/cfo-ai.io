@@ -58,6 +58,7 @@ from ._newsletter import build_router as create_newsletter_router
 from ._pricing_routes import build_router as create_pricing_router
 from ._report_pdf import build_router as create_report_pdf_router
 from ._test_mode import build_router as create_test_mode_router
+from ._uploads import build_router as create_uploads_router
 from ._org import create_workspaces_router
 from .cfo_ai import create_cfo_router
 from .financial_statements import build_router as create_financial_statements_router
@@ -205,9 +206,13 @@ class SecurityHeadersMiddleware:
 #     `POST /api/financial-statements/parse` (`pdf_b64`, whose own
 #     ceiling is a 25 MB decoded PDF -> 33.4 MB of base64) and the firm
 #     cockpit's `POST /api/firm/requests/{token}/upload` (a 25 MB
-#     multipart file). DOCUMENT_BODY_LIMIT_BYTES is 36 MiB, which clears
-#     33.4 MB of base64 plus its JSON envelope and 25 MB plus multipart
-#     framing, and nothing more.
+#     multipart file) — and, since 2026-09-21, the company-workspace upload
+#     flow's `POST /api/uploads/identify` and `POST /api/uploads/commit`
+#     (the same 25 MB multipart file, read by the engine because the
+#     company it lands in is decided from its content).
+#     DOCUMENT_BODY_LIMIT_BYTES is 36 MiB, which clears 33.4 MB of base64
+#     plus its JSON envelope and 25 MB plus multipart framing, and
+#     nothing more.
 #
 # WHY TWO ENFORCEMENT POINTS. `nginx.conf` gets a `client_max_body_size`
 # for the hop it actually owns, and this middleware holds the same line
@@ -218,9 +223,13 @@ GENERAL_BODY_LIMIT_BYTES = 8 * 1024 * 1024          # 8 MiB
 DOCUMENT_BODY_LIMIT_BYTES = 36 * 1024 * 1024        # 36 MiB
 
 
+#: The company-workspace upload flow's two multipart routes (_uploads.py).
+UPLOAD_FLOW_DOCUMENT_PATHS = frozenset({"/api/uploads/identify", "/api/uploads/commit"})
+
+
 def _is_document_body_path(path):  # type: (str) -> bool
-    """The two paths that legitimately carry a whole document in the body."""
-    if path == "/api/financial-statements/parse":
+    """The paths that legitimately carry a whole document in the body."""
+    if path == "/api/financial-statements/parse" or path in UPLOAD_FLOW_DOCUMENT_PATHS:
         return True
     return path.startswith("/api/firm/requests/") and path.endswith("/upload")
 
@@ -755,6 +764,10 @@ def create_app(
     app.include_router(create_financial_statements_router())
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
+    # One company per workspace (2026-09-21): identify a dropped file,
+    # commit it into the confirmed company, and the company page's years.
+    # Metered through the same function /api/pipeline/run uses.
+    app.include_router(create_uploads_router())
     # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III) —
     # removed 2026-07-24 (ask.py deleted). It had tool-use + live pipeline
     # re-grounding the Edge Function doesn't replicate, but nothing in the
