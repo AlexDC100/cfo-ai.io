@@ -320,3 +320,54 @@ def test_the_real_jurisdiction_gate_resolves_both_synthetic_books_to_ro(lines):
 
     resolution = ai_lane.resolve_jurisdiction(_doc(), _pdf_bytes(lines()))
     assert str(resolution.get("jurisdiction") or "RO") == "RO"
+
+
+# ── a five-pair book never leaves the reader block, whatever fails ──────
+#
+# Before the repair (round 3) the five-pair guard held only when the reader
+# RETURNED: anything the reader block raised before the layout was known —
+# a reader crash, a workbook that could not be written, pdfplumber failing
+# on the file — left `_five_pair_named` False, and the untampered book fell
+# through to the positional fast-path, which served it as pdf_positional
+# from its undotted rows on the account-121 anchor alone, skipping the v6
+# deploy-order guard too. Now the layout is known before anything can fail
+# and every failure after that is the plain refusal.
+
+
+def _crash(*_a, **_k):
+    raise RuntimeError("synthetic reader crash")
+
+
+@pytest.mark.parametrize("break_it, why", [
+    (lambda m, P: m.setattr(P, "_parse_five_pair", _crash), "the reader failed on it (RuntimeError)"),
+    (lambda m, P: m.setattr(P, "to_saga_xlsx", _crash), "the reader failed on it (RuntimeError)"),
+    (lambda m, P: m.setattr(P, "_extract_lines", lambda _b: None),
+     "another text extraction of its first page names the five-pair layout"),
+    (lambda m, P: m.setattr(pipeline, "_deterministic_tb_parsed", _crash),
+     "its verified read could not be parsed (RuntimeError)"),
+], ids=["reader-crash", "workbook-crash", "text-lines-unavailable", "payload-crash"])
+def test_a_five_pair_book_is_refused_whatever_fails_in_the_reader_block(monkeypatch, break_it, why):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes(_synthetic_five_pair_lines()))
+    break_it(monkeypatch, pdf_balanta_text)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert why in str(refused.value)
+    assert "Nothing was estimated" in str(refused.value)
+
+
+def test_an_eight_figure_book_with_unreadable_text_lines_keeps_its_fall_back(monkeypatch):
+    # the control: the second opinion names the eight-figure layout, which
+    # is not claimed — the book takes the path it took before
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    content = _pdf_bytes(_synthetic_balanta_lines())
+    _arm(monkeypatch, content)
+    monkeypatch.setattr(pdf_balanta_text, "_extract_lines", lambda _b: None)
+    verdict = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert verdict.layout is None and verdict.refusal is None and verdict.workbook is None
+    with pytest.raises(Exception) as fell_through:
+        pipeline.stage_extract(_doc())
+    assert not isinstance(fell_through.value, pipeline.BalantaPdfRefusedError)

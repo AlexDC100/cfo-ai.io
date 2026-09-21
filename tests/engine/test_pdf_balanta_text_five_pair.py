@@ -816,6 +816,24 @@ def test_a_header_matching_neither_layout_refuses():
     assert P.parse_lines(lines) is None
 
 
+def test_a_reader_crash_is_a_refusal_never_an_exception(monkeypatch):
+    # a five-pair document is read or refused — a caller that got an
+    # exception instead could fall through to a reader that approximates
+    def crash(_lines):
+        raise RuntimeError("synthetic reader crash")
+    monkeypatch.setattr(P, "_parse_five_pair", crash)
+    verdict = P.parse_lines_verdict(book())
+    assert verdict.layout == P.LAYOUT_FIVE_PAIR and verdict.parsed is None
+    assert verdict.refusal == "the reader failed on it (RuntimeError)"
+
+
+def test_the_layout_is_named_by_the_header_alone():
+    assert P.detect_layout(book()) == P.LAYOUT_FIVE_PAIR
+    assert P.names_five_pair(P.LAYOUT_FIVE_PAIR) and P.names_five_pair(P.LAYOUT_BOTH)
+    assert not P.names_five_pair(P.LAYOUT_EIGHT_FIGURE) and not P.names_five_pair(None)
+    assert P.detect_layout([l for l in book() if not l.startswith("Cont Denumire")]) is None
+
+
 def test_an_eight_figure_book_keeps_its_own_reader():
     # the eight-figure layout is not claimed by the five-pair reader
     def space(v: int) -> str:

@@ -267,21 +267,80 @@ class _FivePairRefusal(Exception):
     """Raised by `_refuse5`; carries the logged reason."""
 
 
-def parse_lines_verdict(lines: List[str]) -> TextRead:
-    """`parse_lines`, with the recognised layout and the refusal reason."""
-    folded_all = _fold("\n".join(lines[:40]))
-    eight = all(tok in folded_all for tok in _HEADER_TOKENS)
-    five = all(tok in folded_all for tok in _HEADER_TOKENS_5PAIR)
+def names_five_pair(layout: Optional[str]) -> bool:
+    """True when a document's header names the five-pair layout (alone or
+    with the eight-figure one). Such a document is read by the strict
+    five-pair reader or refused — never handed to another reader."""
+    return layout in (LAYOUT_FIVE_PAIR, LAYOUT_BOTH)
+
+
+def _layout_of(folded: str) -> Optional[str]:
+    eight = all(tok in folded for tok in _HEADER_TOKENS)
+    five = all(tok in folded for tok in _HEADER_TOKENS_5PAIR)
     if eight and five:
+        return LAYOUT_BOTH
+    return LAYOUT_FIVE_PAIR if five else LAYOUT_EIGHT_FIGURE if eight else None
+
+
+def detect_layout(lines: List[str]) -> Optional[str]:
+    """The layout a document's header names, from its first 40 text lines
+    (LAYOUT_FIVE_PAIR, LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH), or None. Pure and
+    total: it cannot raise, so the layout is known before any reading can
+    go wrong."""
+    return _layout_of(_fold("\n".join(str(x) for x in lines[:40])))
+
+
+def _first_page_texts(pdf_bytes: bytes) -> List[str]:
+    """The first page as PyMuPDF and pypdf extract it, each folded and
+    whitespace-flattened — a second opinion on the layout when the text
+    lines name none. Both print a five-pair book's column header as a run
+    of words (at the END of the page on the real layout), never as the one
+    line `detect_layout` looks for. An extractor that is missing or fails
+    contributes nothing."""
+    texts: List[str] = []
+    try:
+        import fitz  # type: ignore  # PyMuPDF — the positional ingester's own reader
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            if doc.page_count:
+                texts.append(doc[0].get_text() or "")
+    except Exception:  # noqa: BLE001 — a second opinion that fails is no opinion
+        logger.info("[pdf_balanta_text] PyMuPDF first-page text unavailable", exc_info=True)
+    try:
+        from pypdf import PdfReader  # type: ignore
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        if reader.pages:
+            texts.append(reader.pages[0].extract_text() or "")
+    except Exception:  # noqa: BLE001
+        logger.info("[pdf_balanta_text] pypdf first-page text unavailable", exc_info=True)
+    return [" ".join(_fold(t).split()) for t in texts]
+
+
+def parse_lines_verdict(lines: List[str]) -> TextRead:
+    """`parse_lines`, with the recognised layout and the refusal reason.
+
+    Never raises for a document whose header names the five-pair layout:
+    anything the reader throws is a refusal (the caller must not fall
+    through to a reader that approximates). An eight-figure read that
+    throws is None, and keeps its fall-back.
+    """
+    layout = detect_layout(lines)
+    if layout == LAYOUT_BOTH:
         logger.info("[pdf_balanta_text] refused: header matches both layouts")
         return TextRead(LAYOUT_BOTH, None, "the header matches both balanta layouts")
-    if five:
+    if layout == LAYOUT_FIVE_PAIR:
         try:
             return TextRead(LAYOUT_FIVE_PAIR, _parse_five_pair(lines), None)
         except _FivePairRefusal as refusal:
             return TextRead(LAYOUT_FIVE_PAIR, None, str(refusal))
-    if eight:
-        return TextRead(LAYOUT_EIGHT_FIGURE, _parse_eight_figure(lines), None)
+        except Exception as crash:  # noqa: BLE001 — a crash is a refusal, never a fall-through
+            logger.info("[pdf_balanta_text] five-pair reader failed", exc_info=True)
+            return TextRead(LAYOUT_FIVE_PAIR, None, "the reader failed on it (%s)" % type(crash).__name__)
+    if layout == LAYOUT_EIGHT_FIGURE:
+        try:
+            return TextRead(LAYOUT_EIGHT_FIGURE, _parse_eight_figure(lines), None)
+        except Exception:  # noqa: BLE001 — the eight-figure layout keeps its fall-back
+            logger.info("[pdf_balanta_text] eight-figure reader failed", exc_info=True)
+            return TextRead(LAYOUT_EIGHT_FIGURE, None, None)
     return TextRead(None, None, None)
 
 
@@ -735,9 +794,39 @@ def read_balanta_text_pdf(pdf_bytes: bytes) -> Optional[Tuple[bytes, Dict[str, A
 
 def read_balanta_text_verdict(pdf_bytes: bytes) -> TextReadResult:
     """The PDF's verified read, or the layout its header names and why it
-    was refused (see `TextRead`)."""
-    lines = _extract_lines(pdf_bytes)
-    if not lines:
+    was refused (see `TextRead`).
+
+    NEVER RAISES, and the layout is decided before anything can fail: a
+    caller that sees `names_five_pair(layout)` must treat a missing
+    workbook as a final refusal. When the text lines name no layout —
+    pdfplumber missing or failing on the file, or a header outside the
+    first 40 lines — the first page as PyMuPDF and pypdf read it is a
+    second opinion: if either names the five-pair layout, the document is
+    refused as one (its columns cannot be read line by line), instead of
+    falling to the positional ingester, which keeps only undotted codes
+    and accepts on the account-121 anchor alone.
+    """
+    seen: Dict[str, Optional[str]] = {"layout": None}
+    try:
+        return _read_verdict(pdf_bytes, seen)
+    except Exception as crash:  # noqa: BLE001 — a crash is a refusal for a five-pair document
+        logger.info("[pdf_balanta_text] text-line read failed", exc_info=True)
+        layout = seen["layout"]
+        refusal = ("the reader failed on it (%s)" % type(crash).__name__) if names_five_pair(layout) else None
+        return TextReadResult(layout, None, None, refusal)
+
+
+def _read_verdict(pdf_bytes: bytes, seen: Dict[str, Optional[str]]) -> TextReadResult:
+    lines = _extract_lines(pdf_bytes) or []
+    seen["layout"] = detect_layout(lines)  # known before anything below can fail
+    if seen["layout"] is None:
+        for text in _first_page_texts(pdf_bytes):
+            other = _layout_of(text)
+            if names_five_pair(other):
+                reason = ("another text extraction of its first page names the five-pair layout, "
+                          "but its text lines do not, so its columns cannot be read line by line")
+                logger.info("[pdf_balanta_text] five-pair refused: %s", reason)
+                return TextReadResult(other, None, None, reason)
         return TextReadResult(None, None, None, None)
     verdict = parse_lines_verdict(lines)
     parsed = verdict.parsed

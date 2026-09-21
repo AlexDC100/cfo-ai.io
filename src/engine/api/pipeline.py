@@ -70,6 +70,12 @@ import engine.country_packs.ro_romania  # noqa: F401  — side-effect: registers
 # The day-count rule (`period_days_covered`) is pack data + a pure function;
 # read directly, like the net-income anchor helpers below.
 from engine.country_packs.ro_romania import chart_of_accounts as _ro_chart_of_accounts
+# The text-line balanta PDF reader and the parser version its five-pair
+# layout is gated on. Imported here, not lazily inside stage_extract: a
+# reader that cannot import must fail the engine's boot loudly — never let
+# a five-pair PDF fall through to the positional fast-path or Claude.
+from engine.country_packs.ro_romania import pdf_balanta_text as _pdf_balanta_text
+from engine.country_packs.ro_romania import trial_balance_parser as _ro_tb_parser
 from engine import ai_lane as _ai_lane  # HU/OTHER jurisdiction AI extraction lane
 from engine.ai_lane import routes as _ai_lane_routes
 # Account-121 anchor provenance — the SAME code object the offline seam
@@ -1192,28 +1198,30 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # path it took before.
         #
         # A document whose header names the FIVE-PAIR layout never leaves
-        # this block for the positional fast-path: when the reader refuses
-        # it (or its verified read cannot be served), the refusal is final
-        # — `BalantaPdfRefusedError`, raised below outside the broad except
-        # — because the positional ingester keeps only undotted codes and
-        # would serve a partial balance on the 121 anchor alone. The
-        # eight-figure layout keeps its fall-back unchanged.
+        # this block for the positional fast-path or Claude: it is read by
+        # the strict reader, or the refusal is final —
+        # `BalantaPdfRefusedError`, raised below outside the broad except —
+        # because the positional ingester keeps only undotted codes and
+        # would serve a partial balance on the 121 anchor alone. That holds
+        # whatever goes wrong: `read_balanta_text_verdict` never raises and
+        # names the layout before anything can fail (with a second opinion
+        # from the first page's PyMuPDF / pypdf text when the text lines
+        # name none), and anything this block raises after that is a
+        # refusal for a five-pair document. The eight-figure layout keeps
+        # its fall-back unchanged.
         _balanta_refusal: Optional[str] = None
         try:
             _pdf_for_text: Optional[bytes] = _pdf_bytes
         except NameError:
             _pdf_for_text = None
         if _pdf_for_text is not None:
-            _five_pair_named = False
+            _verdict = _pdf_balanta_text.read_balanta_text_verdict(_pdf_for_text)  # never raises
+            _five_pair_named = _pdf_balanta_text.names_five_pair(_verdict.layout)
+            if _five_pair_named and _verdict.workbook is None:
+                _balanta_refusal = _verdict.refusal or "the reader refused it"
             try:
-                from engine.country_packs.ro_romania import pdf_balanta_text as _pbt
-                _verdict = _pbt.read_balanta_text_verdict(_pdf_for_text)
-                _five_pair_named = _verdict.layout in (_pbt.LAYOUT_FIVE_PAIR, _pbt.LAYOUT_BOTH)
-                if _five_pair_named and _verdict.workbook is None:
-                    _balanta_refusal = _verdict.refusal or "the reader refused it"
-                from engine.country_packs.ro_romania import trial_balance_parser as _tbp
                 if (_verdict.workbook is not None and _five_pair_named
-                        and not _pbt.five_pair_servable_on(_tbp.PARSER_VERSION)):
+                        and not _pdf_balanta_text.five_pair_servable_on(_ro_tb_parser.PARSER_VERSION)):
                     # Deploy-order guard (owner ruling 2026-09-21: this
                     # layout ships after parser v6). Never served on a
                     # parser that adds 709 reductions to revenue.
@@ -1221,7 +1229,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                         "this engine's trial-balance parser (%s) adds a document's 709 "
                         "commercial reductions to revenue instead of deducting them; "
                         "five-pair balanta PDFs are read only on tb_parser_v6 or later"
-                        % _tbp.PARSER_VERSION
+                        % _ro_tb_parser.PARSER_VERSION
                     )
                 elif _verdict.workbook is not None and _verdict.meta is not None:
                     _xlsx_bytes, _meta = _verdict.workbook, _verdict.meta
