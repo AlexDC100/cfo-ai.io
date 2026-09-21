@@ -794,6 +794,31 @@ def test_copies_without_any_analysis_still_dedupe_on_the_first(world):
     assert r["status"] == "duplicate" and r["existing_document_id"] == "first", r
 
 
+def test_a_legacy_original_without_a_content_hash_is_compared(world, monkeypatch):
+    """The module promised "a row stored without one is hashed from its
+    storage object before it is compared" — but the candidates query
+    filtered content_hash=eq.<h>, so a hash-less ORIGINAL was never read."""
+    hashed: List[str] = []
+    world["db"].rows("documents").extend([
+        dict(_doc("legacy-orig", h=None, status="analyzed", period_id=PERIOD,
+                  created="2026-03-01T10:00:00+00:00"), size_bytes=4096),
+        dict(_doc("other-size", h=None, status="analyzed", created="2026-03-02T10:00:00+00:00"),
+             size_bytes=999),
+        dict(_doc("new-copy", created="2026-09-21T13:05:58+00:00"), size_bytes=4096),
+    ])
+
+    def stored_bytes_hash(doc):
+        hashed.append(doc.get("id"))
+        return SCANDIA  # the stored bytes ARE the same file
+
+    monkeypatch.setattr(_doc_dedupe, "hash_stored_object", stored_bytes_hash)
+    r = world["post"]("/api/pipeline/run", {"document_id": "new-copy"}).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "legacy-orig", (r, hashed)
+    assert hashed == ["legacy-orig"], "only same-size hash-less copies are hashed: %s" % hashed
+    assert _row(world, "legacy-orig")["content_hash"] == SCANDIA, "the computed hash is written back"
+    assert world["meter"].calls == []
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 

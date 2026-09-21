@@ -17,8 +17,11 @@ A document DUPLICATES a live one when all four agree:
   * CONTENT  — the same SHA-256 of the file bytes, 64 lowercase hex. The
                browser (`lib/supabase.ts::uploadDocument`) and the firm
                landing (`_firm_requests.land_file`) compute it exactly as
-               `sha256_hex` below; a row stored without one is hashed from
-               its storage object before it is compared.
+               `sha256_hex` below; at an analysis entry, a row stored
+               without one — the new upload or an older copy of the same
+               account and company (`_unhashed_candidates`, same size,
+               bounded) — is hashed from its storage object before it is
+               compared, and the hash is written back.
   * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader,
                and only when that is the verified caller (`dedupe_account`).
                The quota and the bill are per user; a colleague's copy is
@@ -487,6 +490,45 @@ def _period_info(org_id: str, period_ids: Sequence[Any]) -> Optional[Dict[str, D
             for r in rows if r.get("id")}
 
 
+#: At most this many hash-less copies are hashed from storage per entry.
+LEGACY_HASH_LIMIT = 5
+
+
+def _unhashed_candidates(org_id: str, user_id: str, self_row: Dict[str, Any],
+                         hasher: Callable[[Dict[str, Any]], Optional[str]],
+                         content_hash: str) -> List[Dict[str, Any]]:
+    """Copies of the same account and company stored WITHOUT a content hash
+    (an older bundle, a path that never hashed) that turn out to hold the
+    same bytes. Hashed from their storage objects — only analysed or
+    running ones, only of the same size when both sizes are known, at most
+    LEGACY_HASH_LIMIT per entry — and the hash is written back, so each is
+    hashed once, ever."""
+    filters = {
+        "org_id": f"eq.{org_id}",
+        "uploaded_by": f"eq.{user_id}",
+        "content_hash": "is.null",
+        "deleted_at": "is.null",
+        "status": "in.(" + ",".join(["analyzed"] + sorted(RUNNING_STATUSES)) + ")",
+    }
+    size = self_row.get("size_bytes")
+    if isinstance(size, int) and size > 0:
+        filters["size_bytes"] = f"eq.{size}"
+    try:
+        with _supabase.admin() as ac:
+            rows = list(ac.select("documents", filters=filters, order="created_at.asc",
+                                  limit=LEGACY_HASH_LIMIT) or [])
+    except Exception:  # noqa: BLE001 — legacy copies we cannot read prove nothing
+        logger.exception("[dedupe] could not list hash-less copies in org %s", org_id)
+        return []
+    same = []
+    for row in rows:
+        if str(row.get("id")) == str(self_row.get("id")):
+            continue
+        if ensure_content_hash(row, hasher) == content_hash:
+            same.append(row)
+    return same
+
+
 def find_live_original(
     *,
     org_id: str,
@@ -494,12 +536,21 @@ def find_live_original(
     content_hash: str,
     hint: Any = None,
     self_row: Optional[Dict[str, Any]] = None,
+    hasher: Optional[Callable[[Dict[str, Any]], Optional[str]]] = None,
 ) -> Optional[DuplicateHit]:
-    """The live original of (company, account, content, period), or None."""
+    """The live original of (company, account, content, period), or None.
+
+    For an analysis entry (`self_row` given) copies stored without a hash
+    are hashed from storage and compared too (`_unhashed_candidates`); the
+    pre-storage check, which runs while the browser waits, compares hashed
+    copies only — /run repeats the check before anything is reserved."""
     h = normalize_hash(content_hash)
     if not (h and org_id and user_id):
         return None
     rows = _candidates(str(org_id), str(user_id), h)
+    if self_row is not None:
+        rows = rows + _unhashed_candidates(str(org_id), str(user_id), self_row,
+                                           hasher or hash_stored_object, h)
     if not rows:
         return None
     info = _period_info(str(org_id), [r.get("period_id") for r in rows]
@@ -534,14 +585,14 @@ def hash_stored_object(doc: Dict[str, Any]) -> Optional[str]:
 
 
 def ensure_content_hash(doc: Dict[str, Any],
-                        hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object) -> Optional[str]:
+                        hasher: Optional[Callable[[Dict[str, Any]], Optional[str]]] = None) -> Optional[str]:
     """The document's content hash; computed from its stored bytes and
     written back when the row has none (rows landed by an older bundle or a
     path that never hashed). None when neither is available."""
     existing = normalize_hash(doc.get("content_hash"))
     if existing:
         return existing
-    computed = normalize_hash(hasher(doc))
+    computed = normalize_hash((hasher or hash_stored_object)(doc))
     if not computed:
         return None
     try:
@@ -701,7 +752,7 @@ def _hit_for_marker(original_id: str, org_id: str) -> DuplicateHit:
 
 
 def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: str,
-                   hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object,
+                   hasher: Optional[Callable[[Dict[str, Any]], Optional[str]]] = None,
                    ) -> Entry:
     """THE analysis-entry decision, one step under the (company, account,
     content) lock — the document-id lock when its content hash is unknown:
@@ -752,7 +803,8 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
             return Entry(BUSY, row)
         if h:
             hit = find_live_original(org_id=org_id, user_id=account, content_hash=h,
-                                     hint=row.get("period_end_hint"), self_row=row)
+                                     hint=row.get("period_end_hint"), self_row=row,
+                                     hasher=hasher)
             if hit is not None:
                 archive_as_duplicate(row, hit, now_iso=now_iso)
                 return Entry(DUPLICATE, row, hit=hit)
