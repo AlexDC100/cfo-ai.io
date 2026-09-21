@@ -31,8 +31,11 @@ THE RULES THIS MODULE HOLDS
       whose source document is live and analysed.
   DUP The same bytes (content hash) uploaded by the same account into the
       same company for the same period are not stored, not analysed and not
-      counted: identify reports the existing document, commit answers
-      `status: "duplicate"` before the meter is touched.
+      counted — ONE definition, `_doc_dedupe` (the one /api/pipeline/run and
+      /api/documents/duplicate-check use): identify reports the existing
+      document, commit answers `status: "duplicate"` before the meter is
+      touched, and a twin that races past that check is archived at the
+      same analysis-entry CLAIM the run takes.
 
 WALLS
   Every route verifies the bearer (`_org.verified_user_id`). identify
@@ -46,7 +49,8 @@ WALLS
 
 THE METER is `pipeline.reserve_upload_or_refuse` — the function
   `/api/pipeline/run` calls — so a commit is metered, confirmed (402) and
-  refused (429) exactly like every other upload.
+  refused (429) exactly like every other upload, and an `allowed`
+  reservation goes into the same run ledger the terminal settles.
 
 Module-scope Pydantic models only (tests/engine/test_route_bindings.py).
 Python 3.9 — no `match`, no `X | Y` unions.
