@@ -600,6 +600,11 @@ class LandingDeps:
     # (document_id, user_id, was_extra) — tells the pipeline which run holds
     # the reservation so its terminal settles exactly that one.
     register_reservation: Optional[Callable[[str, str, bool], None]] = None
+    # (document_id, user_id, was_extra) — gives back a reservation whose
+    # landing failed before its run was handed off (storage 503, insert
+    # error). None → the production release (`_prod_release_reservation`):
+    # a failed landing never leaves a slot counted against the plan.
+    release_reservation: Optional[Callable[[str, str, bool], None]] = None
 
 
 def _prod_upload_object(bucket: str, path: str, content: bytes,
@@ -657,12 +662,26 @@ def _prod_register_reservation(doc_id: str, user_id: str, was_extra: bool) -> No
     _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
 
 
+def _prod_release_reservation(doc_id: str, user_id: str, was_extra: bool) -> None:
+    """Release a landing's reservation exactly once: through its ledger
+    entry when it was registered (taking it, so no terminal settles it
+    again), else directly."""
+    from . import _usage_gate as _ug
+    from . import pipeline as _pipeline
+    run = _pipeline._take_quota_run(doc_id)
+    if run is not None and run.doc_reserved and run.user_id:
+        _ug.release_document(run.user_id, was_extra=run.was_extra)
+        return
+    _ug.release_document(user_id, was_extra=was_extra)
+
+
 def production_deps() -> LandingDeps:
     return LandingDeps(
         upload_object=_prod_upload_object, insert_document=_prod_insert_document,
         set_status=_prod_set_status, enqueue=_prod_enqueue, reserve=_prod_reserve,
         now=_now, find_duplicate=_prod_find_duplicate,
-        register_reservation=_prod_register_reservation)
+        register_reservation=_prod_register_reservation,
+        release_reservation=_prod_release_reservation)
 
 
 @dataclass(frozen=True)
@@ -750,54 +769,84 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
         })
 
     content_hash = hashlib.sha256(content).hexdigest()
-    if requested_by and deps.find_duplicate is not None:
-        original = deps.find_duplicate(client_org_id, str(requested_by), content_hash, period_end)
-        if original:
-            # Same account, same company, same bytes, same period: the file
-            # is already there. Nothing is stored, reserved or analysed.
-            raise LandingRefused(409, {
-                "code": "already_uploaded",
-                "message": "This exact file was already uploaded for this company and period.",
-                "existing_document_id": original.get("existing_document_id"),
-                "period_id": original.get("period_id"),
-            })
-
-    was_extra, reserved = _quota_or_refuse(str(requested_by), deps) if requested_by else (False, False)
-
+    import contextlib
     import uuid
 
-    doc_id = document_id or str(uuid.uuid4())
-    ext = _ext_of(filename)
-    storage_path = "%s/uploads/%s.%s" % (client_org_id, doc_id, ext)
-    content_type = mime or "application/octet-stream"
-    deps.upload_object(DOC_BUCKET, storage_path, content, content_type,
-                       org_id=client_org_id)
+    from . import _doc_dedupe
 
-    row = {
-        "id": doc_id,
-        "org_id": client_org_id,
-        "uploaded_by": requested_by,
-        "storage_path": storage_path,
-        "original_filename": filename or ("upload.%s" % ext),
-        "mime_type": content_type,
-        "size_bytes": len(content),
-        "detected_type": inspection.detected_type,
-        "status": "queued",
-        "scope": "financial",
-        "content_hash": content_hash,
-        # The CONFIRMATION channel (W-law): the accountant chose this
-        # month when minting the request. A document that disagrees is
-        # recorded as a mismatch by stage_persist, never silently refiled.
-        "period_end_hint": period_end,
-    }
-    if was_extra:
-        row["metered_extra"] = True
-    inserted = deps.insert_document(row)
-    started = _iso(deps.now())
-    if reserved and deps.register_reservation is not None:
-        deps.register_reservation(doc_id, str(requested_by), was_extra)
-    deps.set_status(doc_id, "queued", started)
-    deps.enqueue(doc_id)
+    # ONE STEP UNDER THE (company, account, content) LOCK (2026-09-21,
+    # verifier P-D): look for an original, reserve, store, insert and claim
+    # the new row. The look used to hold no lock and make no claim, and the
+    # request only flipped to RECEIVED after land_file returned — so two
+    # submissions of the single-use link (a double click, a browser retry)
+    # both passed, both reserved, both stored and both were analysed and
+    # counted to the accountant. The second now finds the first's row
+    # running (pipeline_started_at, stamped inside the lock) and is refused
+    # `already_uploaded` before its reservation.
+    lock = (_doc_dedupe.analysis_lock(client_org_id, str(requested_by), content_hash)
+            if requested_by else contextlib.nullcontext())
+    with lock:
+        if requested_by and deps.find_duplicate is not None:
+            original = deps.find_duplicate(client_org_id, str(requested_by), content_hash, period_end)
+            if original:
+                # Same account, same company, same bytes, same period: the file
+                # is already there. Nothing is stored, reserved or analysed.
+                raise LandingRefused(409, {
+                    "code": "already_uploaded",
+                    "message": "This exact file was already uploaded for this company and period.",
+                    "existing_document_id": original.get("existing_document_id"),
+                    "period_id": original.get("period_id"),
+                })
+
+        was_extra, reserved = _quota_or_refuse(str(requested_by), deps) if requested_by else (False, False)
+
+        doc_id = document_id or str(uuid.uuid4())
+        ext = _ext_of(filename)
+        storage_path = "%s/uploads/%s.%s" % (client_org_id, doc_id, ext)
+        content_type = mime or "application/octet-stream"
+        claimed = _doc_dedupe.try_mark_in_flight(doc_id)
+        handed_off = False
+        try:
+            deps.upload_object(DOC_BUCKET, storage_path, content, content_type,
+                               org_id=client_org_id)
+
+            row = {
+                "id": doc_id,
+                "org_id": client_org_id,
+                "uploaded_by": requested_by,
+                "storage_path": storage_path,
+                "original_filename": filename or ("upload.%s" % ext),
+                "mime_type": content_type,
+                "size_bytes": len(content),
+                "detected_type": inspection.detected_type,
+                "status": "queued",
+                "scope": "financial",
+                "content_hash": content_hash,
+                # The CONFIRMATION channel (W-law): the accountant chose this
+                # month when minting the request. A document that disagrees is
+                # recorded as a mismatch by stage_persist, never silently refiled.
+                "period_end_hint": period_end,
+            }
+            if was_extra:
+                row["metered_extra"] = True
+            inserted = deps.insert_document(row)
+            started = _iso(deps.now())
+            if reserved and deps.register_reservation is not None:
+                deps.register_reservation(doc_id, str(requested_by), was_extra)
+            deps.set_status(doc_id, "queued", started)
+            _doc_dedupe.mark_running(doc_id)
+            deps.enqueue(doc_id)
+            handed_off = True
+        finally:
+            if not handed_off:
+                # A landing that failed before its run was handed off gives
+                # its reservation back (verifier P-G: a storage or insert
+                # error left the slot counted against the plan for good).
+                if claimed:
+                    _doc_dedupe.clear_in_flight(doc_id)
+                if reserved:
+                    (deps.release_reservation or _prod_release_reservation)(
+                        doc_id, str(requested_by), was_extra)
     # No enqueue-time counter bump: the pipeline's terminal commit counts
     # the document once, and only if its analysis succeeds.
     return LandingResult(document_id=doc_id, document_row=dict(inserted or row),

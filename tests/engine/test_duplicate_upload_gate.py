@@ -533,6 +533,76 @@ def test_a_deleted_document_is_not_analysed(world, route):
     assert _row(world, "gone")["status"] == "failed"
 
 
+# ── The firm request link lands once (verifier P-D / P-G, 2026-09-21) ────
+
+
+def _landing(world, monkeypatch):
+    import types
+    from engine.api import _firm_requests as FR
+    insp = types.SimpleNamespace(
+        entity=types.SimpleNamespace(verdict="match", reason="", to_payload=lambda: {}),
+        period={}, detected_type="trial_balance", to_payload=lambda: {})
+    monkeypatch.setattr(FR, "inspect_upload", lambda *a, **k: insp)
+    stored: List[str] = []
+    deps = FR.production_deps()
+    deps.upload_object = lambda bucket, path, content, ctype, org_id=None: stored.append(path)
+    deps.insert_document = lambda row: (world["db"].insert("documents", dict(row, created_at=_ago(0))) or [row])[0]
+    request_row = {"client_org_id": ORG, "period_end": "2025-12-31", "requested_by": OWNER,
+                   "expected_identity": {}}
+    return FR, deps, request_row, stored
+
+
+def test_two_simultaneous_landings_of_one_file_count_once(world, monkeypatch):
+    """A double click (or a browser retry) on the single-use request link:
+    both submissions used to pass the unlocked duplicate look — the request
+    flips to RECEIVED only after the landing — and both were reserved,
+    stored, analysed and counted to the accountant."""
+    FR, deps, request_row, stored = _landing(world, monkeypatch)
+    both_looked = threading.Barrier(2, timeout=1.0)
+    real_find = deps.find_duplicate
+
+    def find(*a):
+        out = real_find(*a)
+        try:
+            both_looked.wait()  # inspect_upload of a real file takes seconds
+        except threading.BrokenBarrierError:
+            pass  # the other landing is held behind the lock — the point of it
+        return out
+
+    deps.find_duplicate = find
+
+    def land(_):
+        try:
+            return FR.land_file(request_row, b"balanta scandia 31.12.2025", "b.xls",
+                                "application/vnd.ms-excel", deps).document_id
+        except FR.LandingRefused as exc:
+            return ("refused", exc.status, exc.detail.get("code"))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(land, [0, 1]))
+    refused = [r for r in results if isinstance(r, tuple)]
+    assert refused == [("refused", 409, "already_uploaded")], results
+    assert len(world["enqueued"]) == 1 and len(stored) == 1, (world["enqueued"], stored)
+    assert world["meter"].calls.count("reserve_user_upload") == 1
+    world["finish"](world["enqueued"][0], "analyzed")
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+@pytest.mark.parametrize("fails_at", ["upload_object", "insert_document", "enqueue"])
+def test_a_landing_that_fails_gives_its_reservation_back(world, monkeypatch, fails_at):
+    FR, deps, request_row, _ = _landing(world, monkeypatch)
+
+    def boom(*a, **k):
+        raise RuntimeError("storage 503")
+
+    setattr(deps, fails_at, boom)
+    with pytest.raises(RuntimeError):
+        FR.land_file(request_row, b"x" * 10, "b.xls", "application/vnd.ms-excel", deps,
+                     document_id="landed")
+    assert world["meter"].snapshot()["reserved"] == 0, "a failed landing holds a slot"
+    assert "landed" not in pipeline._QUOTA_RUNS and _doc_dedupe.in_flight("landed") is None
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 
