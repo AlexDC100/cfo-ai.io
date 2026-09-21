@@ -481,6 +481,42 @@ def test_the_workspace_purge_never_selects_a_null_purge_after():
     assert "archived_at" not in select, fname
 
 
+def test_the_user_purge_refuses_a_held_archive():
+    """The migration archives the holding workspace — and the workspaces it
+    splits — with purge_after NULL and an 'owner' membership. The cron
+    never selects them (above); "Delete forever" (purge_workspace) must not
+    either: the LATEST definition refuses an archived workspace with no
+    deletion date BEFORE it reaches _purge_org_data. A purge_workspace
+    without that guard (schema_phase_workspace_purge_now.sql alone) reds."""
+    fname, body = _latest_function("purge_workspace")
+    b = re.sub(r"\s+", " ", body.lower())
+    guard = b.find("archived_at is not null and purge_after is null")
+    purge = b.find("perform _purge_org_data")
+    assert 0 <= guard < purge, fname
+    assert "raise exception" in b[guard:purge], fname
+    _latest_function("workspace_hold_guard_version")   # the marker --execute requires
+
+
+def test_only_known_callers_reach_the_org_purge_body():
+    """A ratchet: every function whose LATEST definition performs
+    _purge_org_data / _purge_org_content. purge_workspace is guarded (held
+    archives refused), the cron keys on purge_after < now(); the two
+    account-level calls erase everything the user owns, archives included,
+    on purpose (deleting your account deletes your archive). A NEW caller
+    reds here until someone decides what it does to a held archive."""
+    names = set()
+    for f in sorted((REPO / "supabase").glob("*.sql")):
+        for m in re.finditer(r"create or replace function (?:public\.)?(\w+)\s*\(", f.read_text(), re.I):
+            names.add(m.group(1).lower())
+    callers = set()
+    for name in sorted(names - {"_purge_org_data", "_purge_org_content"}):   # the bodies themselves
+        _fname, body = _latest_function(name)
+        if re.search(r"perform\s+_purge_org_(?:data|content)\s*\(", body, re.I):
+            callers.add(name)
+    assert callers == {"purge_workspace", "purge_expired_workspaces", "delete_all_my_data",
+                       "delete_my_account"}, callers
+
+
 def test_an_empty_workspace_is_not_archived_just_for_having_no_company():
     """Only a workspace that was SPLIT (a company's period or document
     moved out of it) is archived. A user's second, empty workspace — or one

@@ -196,9 +196,18 @@ export function activeWorkspaces(orgs: Organization[]): Organization[] {
   return orgs.filter((o) => !o.archived_at);
 }
 
-/** Soft-deleted workspaces still inside their 30-day recovery window. */
+/**
+ * Soft-deleted workspaces still inside their 30-day recovery window.
+ *
+ * A HELD archive — archived with no deletion date (`purge_after` NULL: the
+ * 2026-09-21 workspace migration's "Arhivă (migrare …)" holding workspace
+ * and the workspaces it split) — is not in a recovery window and is not
+ * listed: it used to read "Deleting soon" (daysUntilPurge → 0) beside a
+ * "Delete forever" that erased the archive. purge_workspace() refuses it
+ * too (supabase/schema_phase_workspace_purge_now_hold.sql).
+ */
 export function archivedWorkspaces(orgs: Organization[]): Organization[] {
-  return orgs.filter((o) => !!o.archived_at);
+  return orgs.filter((o) => !!o.archived_at && !!o.purge_after);
 }
 
 /** Whole days left before an archived workspace is purged; 0 once due. */

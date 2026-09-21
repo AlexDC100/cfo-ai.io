@@ -67,6 +67,7 @@ from engine.workspaces.migration_plan import (  # noqa: E402
     render_report,
 )
 from engine.workspaces.rowstore import (  # noqa: E402
+    NOW,
     apply_ops,
     canonical_json,
     pk_for,
@@ -76,6 +77,23 @@ from engine.workspaces.rowstore import (  # noqa: E402
 
 DEFAULT_OUT_DIR = "/app/data/ws_migration"
 PROTECTED_TABLES = frozenset({"subscriptions", "user_usage", "billing_events"})
+#: Installed by supabase/schema_phase_workspace_purge_now_hold.sql, next to
+#: the purge_workspace guard that refuses a HELD archive (archived,
+#: purge_after NULL). Read from the OpenAPI document, never called.
+HOLD_GUARD_RPC = "workspace_hold_guard_version"
+
+
+def archives_held_workspaces(ops: Sequence[Mapping[str, Any]]) -> bool:
+    """True when the plan archives a workspace with no deletion date (the
+    holding archive, a split workspace) — one "Delete forever" would erase
+    it unless the purge_workspace hold guard is installed."""
+    for op in ops:
+        if op.get("table") != "organizations":
+            continue
+        vals = op.get("row") or op.get("set") or {}
+        if vals.get("archived_at") == NOW and vals.get("purge_after") is None:
+            return True
+    return False
 
 
 # ── identities ─────────────────────────────────────────────────────────
@@ -259,6 +277,12 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if touched:  # structural guard; the planner never emits these
             out("REFUSED: the plan writes billing tables %s" % sorted(touched))
             return 2
+        hold_unguarded = archives_held_workspaces(plan.ops) and not db.has_rpc(HOLD_GUARD_RPC)
+        if hold_unguarded:
+            out("HOLD GUARD MISSING: the plan archives workspaces with no deletion date, and "
+                "purge_workspace() would let their owner erase them (and the originals the rollback "
+                "needs). Apply supabase/schema_phase_workspace_purge_now_hold.sql, reload the schema "
+                "cache, then execute.")
         if not args.execute:
             out("DRY-RUN: nothing was written to production.")
             return 0
@@ -268,6 +292,9 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
             return 2
         if plan.blocking:
             out("REFUSED: %d blocking item(s) — see BLOCKING above" % len(plan.blocking))
+            return 2
+        if hold_unguarded:
+            out("REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING).")
             return 2
         if not plan.ops:
             out("NOTHING TO DO: the plan is empty (already migrated).")

@@ -195,7 +195,57 @@ def test_a_source_left_in_a_trash_fails_the_recount(env, monkeypatch):
     assert any("CASCADE HAZARD period per-sf21" in l for l in env["lines"]), "\n".join(env["lines"][-15:])
 
 
+def test_execute_refuses_while_the_purge_hold_guard_is_missing(env):
+    """The plan archives workspaces with purge_after NULL (the holding
+    archive, the split Q&A). Without supabase/schema_phase_workspace_purge_
+    now_hold.sql, purge_workspace() lets the owner erase them with one
+    "Delete forever". The dry-run says so; --execute refuses before any
+    write."""
+    env["fake"].rpcs = set()
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert any(l.startswith("HOLD GUARD MISSING") for l in env["lines"])
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 2
+    assert any("hold guard is not installed" in l for l in env["lines"])
+    assert env["fake"].writes == []
+
+
 # ── restore ────────────────────────────────────────────────────────────
+
+
+def test_the_snapshot_records_which_document_objects_existed(env):
+    snap = pgrest_io.load_snapshot(_snapshot(env))
+    objects = snap["objects"]
+    assert objects["q-carnex-src"] == {"path": "org-qa/uploads/q-carnex-src.xlsx", "org_id": "org-qa",
+                                       "exists": True}
+    assert objects["d-beta-fail-2"]["exists"] is False      # never stored
+    assert env["fake"].writes == []
+
+
+def test_a_restore_after_a_purge_erased_the_originals_is_not_a_clean_rollback(env):
+    """The owner "Delete forever"s the archived Q&A workspace after the
+    migration (verifier case 2): _purge_org_data deletes its rows by org_id
+    and every object under 'org-qa/'. db_restore puts every ROW back — and
+    used to print "every snapshot row is back" and exit 0 while 11 restored
+    documents pointed at objects that no longer exist. It must exit 1 and
+    name them."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    fake = env["fake"]
+    for key in [k for k in fake.objects if k.startswith("documents/org-qa/")]:
+        del fake.objects[key]
+    for table in ("documents", "financial_periods", "chat_threads", "org_prefs", "organizations"):
+        col = "id" if table == "organizations" else "org_id"
+        fake.tables[table] = [r for r in fake.tables[table] if r.get(col) != "org-qa"]
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 1
+    assert any(l.startswith("RESTORE CHECK: every snapshot row is back") for l in env["lines"])
+    missing = [l for l in env["lines"] if l.startswith("  STORAGE MISSING: document q-carnex-src ")]
+    assert missing, "\n".join(env["lines"][-20:])
+    assert any(l.startswith("STORAGE CHECK: ") and "missing" in l for l in env["lines"])
+    assert fake.deletes == []
 
 def test_restore_puts_every_snapshot_row_back_without_deleting(env):
     snap = _snapshot(env)

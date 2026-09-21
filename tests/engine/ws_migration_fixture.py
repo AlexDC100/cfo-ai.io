@@ -378,6 +378,9 @@ class FakeSupabase:
         self.writes: List[Tuple[str, str, Any]] = []
         self.deletes: List[str] = []
         self.clock = "2026-09-21T12:00:00+00:00"
+        #: Functions the OpenAPI document lists under /rpc/ (read, never
+        #: called — the double serves no RPC).
+        self.rpcs = {"workspace_hold_guard_version"}
 
     def pk(self, t):
         return PKS.get(t, ["id"])
@@ -418,7 +421,8 @@ class FakeSupabase:
         for t, cols in self.columns.items():
             defs[t] = {"properties": {c: {"description": "Note:\nThis is a Primary Key.<pk/>"
                                           if c in self.pk(t) else "", "type": "string"} for c in cols}}
-        return httpx.Response(200, json={"definitions": defs})
+        paths = {"/rpc/%s" % name: {"post": {}} for name in sorted(self.rpcs)}
+        return httpx.Response(200, json={"definitions": defs, "paths": paths})
 
     def _filters(self, req: httpx.Request, table: str):
         out = []

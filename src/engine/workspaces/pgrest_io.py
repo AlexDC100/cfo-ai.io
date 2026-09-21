@@ -66,14 +66,26 @@ class PgRest:
         self.c = client
         self.base = "%s/rest/v1" % client.url
         self.writes: List[Tuple[str, str, Any]] = []
+        self._openapi: Optional[Dict[str, Any]] = None
 
     # ── discovery ─────────────────────────────────────────────────────
 
+    def openapi(self) -> Dict[str, Any]:
+        """PostgREST's OpenAPI document (a GET), read once."""
+        if self._openapi is None:
+            r = self.c._client.get(self.base + "/", headers=self.c._headers)
+            r.raise_for_status()
+            self._openapi = r.json() or {}
+        return self._openapi
+
+    def has_rpc(self, name: str) -> bool:
+        """True when PostgREST exposes the function ``name`` to this role
+        (``/rpc/<name>`` in the OpenAPI paths) — read, never called."""
+        return ("/rpc/%s" % name) in (self.openapi().get("paths") or {})
+
     def discover(self) -> Dict[str, Dict[str, List[str]]]:
         """{table: {"columns": [...], "pk": [...]}} from the OpenAPI document."""
-        r = self.c._client.get(self.base + "/", headers=self.c._headers)
-        r.raise_for_status()
-        defs = (r.json() or {}).get("definitions") or {}
+        defs = self.openapi().get("definitions") or {}
         out: Dict[str, Dict[str, List[str]]] = {}
         for name, d in defs.items():
             props = d.get("properties") or {}
@@ -242,7 +254,29 @@ def build_snapshot(db: PgRest, *, schema: Optional[Mapping[str, Mapping[str, Seq
         rows = sorted(tables[t], key=lambda r: canonical_json([r.get(c) for c in pks[t]]))
         snap["tables"][t] = {"pk": list(pks[t]), "columns": list(live[t]["columns"]),
                              "count": len(rows), "sha256": table_sha256(rows, pks[t]), "rows": rows}
+    objects = object_inventory(db, tables.get("documents") or [])
+    snap["objects"] = objects
+    snap["objects_sha256"] = hashlib.sha256(canonical_json(objects).encode("utf-8")).hexdigest()
     return snap
+
+
+def object_inventory(db: PgRest, documents: Iterable[Mapping[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """``{document id: {"path", "org_id", "exists"}}`` — whether each
+    document's storage object resolved when the snapshot was taken. The
+    rollback checks the objects that DID exist then still do (a restored
+    ``storage_path`` whose object a purge erased is not a restore).
+    ``exists`` is None when the object could not be asked about."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for d in sorted(documents, key=lambda r: str(r.get("id"))):
+        path = d.get("storage_path")
+        if not path:
+            continue
+        try:
+            exists: Optional[bool] = db.object_exists("documents", str(path), org_id=str(d.get("org_id")))
+        except Exception:  # noqa: BLE001 — a path outside its own org, an outage: unknown
+            exists = None
+        out[str(d["id"])] = {"path": str(path), "org_id": str(d.get("org_id")), "exists": exists}
+    return out
 
 
 def write_snapshot(snap: Mapping[str, Any], path: str) -> str:
@@ -260,6 +294,9 @@ def load_snapshot(path: str) -> Dict[str, Any]:
     for t, meta in snap["tables"].items():
         if table_sha256(meta["rows"], meta["pk"]) != meta["sha256"] or len(meta["rows"]) != meta["count"]:
             raise RuntimeError("snapshot %s: table %s fails its own checksum" % (path, t))
+    if "objects" in snap and hashlib.sha256(canonical_json(snap["objects"]).encode("utf-8")).hexdigest() \
+            != snap.get("objects_sha256"):
+        raise RuntimeError("snapshot %s: the storage object inventory fails its own checksum" % path)
     return snap
 
 

@@ -53,8 +53,10 @@ data would change what the other members see).
 6. ARCHIVING A PERIOD: ``financial_periods`` has no archive column, so the
    period, every row scoped to it, and its source document move into the
    user's holding workspace "Arhivă (migrare <date>)" (``archived_at`` set,
-   ``purge_after`` NULL — ``purge_expired_workspaces`` only purges
-   ``purge_after < now()``, and NULL never compares). The source travels
+   ``purge_after`` NULL — a HELD archive: ``purge_expired_workspaces`` only
+   purges ``purge_after < now()``, NULL never compares, and
+   ``purge_workspace`` refuses it once schema_phase_workspace_purge_now_
+   hold.sql is applied, which --execute requires). The source travels
    with its period WHATEVER its state (analysed, failed, trashed, any
    scope) because ``financial_periods.source_document_id`` is
    ``ON DELETE CASCADE``: a source left in another workspace — or left in
