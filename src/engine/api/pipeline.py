@@ -3970,6 +3970,64 @@ def _enter_run(doc: Dict[str, Any], user_id: str) -> "_doc_dedupe.Entry":
     return entry
 
 
+def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, Any]]:
+    """recover-stuck's and the SKU watchdog's entry for ONE stuck upload —
+    a /run that was refused (402 / 429) or never arrived.
+
+    THE SAME STEP AS /run (2026-09-21, verifier P-C). Both used to look for
+    a duplicate WITHOUT claiming and stamp `pipeline_started_at` only after
+    the reservation, outside the lock: a /run of a twin copy landing in that
+    window found the stuck row unstarted, claimed itself, and both copies
+    were analysed and counted; recover-stuck and the watchdog firing on one
+    Products mount each reserved the same row. Now the look-then-claim is
+    `_doc_dedupe.enter_analysis` (RECOVER) under the lock, on the row as it
+    is NOW, and a refusal by the meter gives the claim back — exactly as
+    /run does. A document holding a confirmed extra is left to its own /run
+    (the only run that may spend the grant).
+
+    Returns (outcome, info): "recovered", "duplicate" (info names the
+    original), "needs_confirmation" (info["reason"]) or "skipped"."""
+    from . import _usage_gate as _ug
+    doc_id = str(row.get("id") or "")
+    if _ug.has_extra_grant(doc_id):
+        return "skipped", {}
+    entry = _doc_dedupe.enter_analysis(row, caller_id, now_iso=_now_iso(), mode=_doc_dedupe.RECOVER)
+    if entry.kind == _doc_dedupe.DUPLICATE:
+        return "duplicate", {
+            "existing_document_id": entry.hit.existing_document_id if entry.hit else None,
+            "period_id": entry.hit.period_id if entry.hit else None,
+        }
+    if entry.kind != _doc_dedupe.CLAIMED:
+        return "skipped", {}
+    enqueued = False
+    try:
+        try:
+            decision = _ug.reserve_document(caller_id)
+        except Exception:  # noqa: BLE001 — an unreachable meter refuses
+            logger.exception("[pipeline] recovery: meter unreachable for doc %s", doc_id)
+            return "needs_confirmation", {"reason": "metering_unavailable"}
+        if decision.kind == "allowed":
+            _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra))
+        if decision.kind not in ("allowed", "disabled"):
+            logger.info("[pipeline] recovery: doc %s not re-enqueued — meter says %s",
+                        doc_id, decision.kind)
+            return "needs_confirmation", {"reason": decision.kind}
+        if decision.was_extra:
+            with _supabase.admin() as ac:
+                ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{doc_id}"})
+        _admin_set_status(doc_id, "queued", pipeline_started_at=_now_iso())
+        _doc_dedupe.mark_running(doc_id)
+        _enqueue(doc_id)
+        enqueued = True
+        return "recovered", {}
+    finally:
+        if not enqueued:
+            _doc_dedupe.release_claim(entry.released_row())
+            orphan = _take_quota_run(doc_id)
+            if orphan is not None and orphan.doc_reserved and orphan.user_id:
+                _ug.release_document(orphan.user_id, was_extra=orphan.was_extra)
+
+
 def _run_pipeline_sync(document_id: str) -> None:
     """Run the stages, then settle THIS run's reservation on the outcome.
 
@@ -7160,25 +7218,17 @@ def build_router() -> APIRouter:
                             return {"document": d}
                         full = client.select("documents", filters={"id": f"eq.{d['id']}"}, single=True)
                         row = full[0] if full else dict(d)
-                        if _doc_dedupe.claim_or_duplicate(row, caller_id, now_iso=_now_iso(), claim=False) is not None:
+                        outcome, info = _recover_one(row, caller_id)
+                        if outcome == "duplicate":
                             return {"document": None}
-                        from . import _usage_gate as _ug
-                        decision = _ug.reserve_document(caller_id)
-                        if decision.kind in ("allowed", "disabled"):
+                        if outcome == "recovered":
                             logger.warning(
-                                "[pipeline] watchdog: doc %s stuck at queued with no pipeline_started_at — auto-enqueuing",
+                                "[pipeline] watchdog: doc %s stuck at queued with no pipeline_started_at — auto-enqueued",
                                 d["id"],
                             )
-                            if decision.was_extra:
-                                with _supabase.admin() as ac:
-                                    ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
-                            if decision.kind == "allowed":
-                                _register_quota_run(d["id"], user_id=caller_id, was_extra=bool(decision.was_extra))
-                            _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
-                            _enqueue(d["id"])
-                        else:
-                            logger.info("[pipeline] watchdog: doc %s not re-enqueued — meter says %s",
-                                        d["id"], decision.kind)
+                        elif outcome == "needs_confirmation":
+                            logger.info("[pipeline] watchdog: doc %s not re-enqueued — %s",
+                                        d["id"], info.get("reason"))
             except Exception:  # noqa: BLE001
                 logger.exception("[pipeline] watchdog auto-enqueue failed (non-fatal)")
             return {"document": d}
@@ -7268,19 +7318,9 @@ def build_router() -> APIRouter:
                     except Exception:  # noqa: BLE001
                         logger.exception("[pipeline] failed to mark stale doc as failed")
                     continue
-                # A duplicate of a live document of the caller's in the same
-                # company is archived, not re-enqueued (2026-09-21).
-                hit = _doc_dedupe.claim_or_duplicate(d, caller_id, now_iso=_now_iso(), claim=False)
-                if hit is not None:
-                    duplicates.append({
-                        "id": d["id"], "filename": d.get("original_filename"),
-                        "scope": d.get("scope"),
-                        "existing_document_id": hit.existing_document_id,
-                        "period_id": hit.period_id,
-                    })
-                    continue
-                # THE SAME METER AS /api/pipeline/run (2026-09-20). A document
-                # whose run was REFUSED — 402 extra-document confirmation, 429
+                # THE SAME METER AS /api/pipeline/run (2026-09-20) and THE
+                # SAME ENTRY (2026-09-21): `_recover_one`. A document whose
+                # run was REFUSED — 402 extra-document confirmation, 429
                 # blocked — is left exactly as the browser inserted it:
                 # status='queued', no pipeline_started_at. That is this
                 # watchdog's definition of "stuck", so it used to enqueue the
@@ -7290,43 +7330,30 @@ def build_router() -> APIRouter:
                 # after their 402). Recovery reserves under the CALLER's
                 # verified identity, as /run does; a refusal leaves the
                 # document queued and says so, and the FE's Retry sends it
-                # back through /run where the confirm dialog lives.
-                from . import _usage_gate as _ug
-                try:
-                    decision = _ug.reserve_document(caller_id)
-                except Exception:  # noqa: BLE001 — an unreachable meter refuses
-                    logger.exception("[pipeline] recover-stuck: meter unreachable for doc %s", d["id"])
+                # back through /run where the confirm dialog lives. A
+                # duplicate of a live document of the caller's in the same
+                # company is archived, not re-enqueued.
+                outcome, info = _recover_one(d, caller_id)
+                if outcome == "duplicate":
+                    duplicates.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"), **info,
+                    })
+                elif outcome == "needs_confirmation":
                     needs_confirmation.append({
                         "id": d["id"], "filename": d.get("original_filename"),
-                        "scope": d.get("scope"), "reason": "metering_unavailable",
+                        "scope": d.get("scope"), "reason": info.get("reason"),
                     })
-                    continue
-                if decision.kind not in ("allowed", "disabled"):
-                    logger.info(
-                        "[pipeline] recover-stuck: doc %s not re-enqueued — meter says %s",
-                        d["id"], decision.kind,
+                elif outcome == "recovered":
+                    logger.warning(
+                        "[pipeline] recover-stuck: doc %s (%s, scope=%s) stuck — re-enqueued",
+                        d["id"], d.get("original_filename"), d.get("scope"),
                     )
-                    needs_confirmation.append({
-                        "id": d["id"], "filename": d.get("original_filename"),
-                        "scope": d.get("scope"), "reason": decision.kind,
+                    recovered.append({
+                        "id": d["id"],
+                        "filename": d.get("original_filename"),
+                        "scope": d.get("scope"),
                     })
-                    continue
-                logger.warning(
-                    "[pipeline] recover-stuck: doc %s (%s, scope=%s) stuck — re-enqueuing",
-                    d["id"], d.get("original_filename"), d.get("scope"),
-                )
-                if decision.was_extra:
-                    with _supabase.admin() as ac:
-                        ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
-                if decision.kind == "allowed":
-                    _register_quota_run(d["id"], user_id=caller_id, was_extra=bool(decision.was_extra))
-                _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
-                _enqueue(d["id"])
-                recovered.append({
-                    "id": d["id"],
-                    "filename": d.get("original_filename"),
-                    "scope": d.get("scope"),
-                })
         return {
             "recovered_count": len(recovered),
             "recovered": recovered,

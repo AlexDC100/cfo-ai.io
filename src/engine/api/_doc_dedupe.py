@@ -48,13 +48,20 @@ A queued row that never started is NOT an original: that is an upload whose
 run was refused (a 402 the user dismissed) or has not been asked for yet.
 
 TWO IDENTICAL UPLOADS AT ONCE. Both rows exist and both /run calls race.
-`claim_or_duplicate` makes "look for an original, else stamp my own
+`enter_analysis` makes "look for an original, else stamp my own
 `pipeline_started_at`" ONE step under a lock keyed by (company, account,
 content): whichever run enters first claims, the second finds the first
 running and is archived, so at most one of them is ever analysed and only
-one reservation is ever made. A run that is then refused by the meter puts
+one reservation is ever made. EVERY analysis entry takes that step — /run,
+retry, recover-stuck and the stuck-SKU watchdog — so a recovery and a twin
+/run cannot both claim either. A run that is then refused by the meter puts
 its `pipeline_started_at` back (`release_claim`), so a dismissed 402 never
-turns into an original. The lock is in-process: the engine serves from ONE
+turns into an original.
+
+ONE RUN PER DOCUMENT. The same step claims the document ITSELF in the
+in-flight registry (a test-and-set): a second entry for a document whose
+run is in flight, or a first analysis of a document already analysed,
+reserves nothing and enqueues nothing. The lock is in-process: the engine serves from ONE
 uvicorn process (Dockerfile CMD). A second process would reopen a window of
 a few milliseconds between two runs' reads and writes — the price of having
 no unique index to lean on (the table already holds duplicates in
@@ -481,36 +488,6 @@ def archive_as_duplicate(doc: Dict[str, Any], hit: DuplicateHit, *, now_iso: str
         })
     logger.info("[dedupe] document %s archived as a duplicate of %s (org=%s)",
                 doc.get("id"), hit.existing_document_id, doc.get("org_id"))
-
-
-def claim_or_duplicate(doc: Dict[str, Any], user_id: str, *, now_iso: str, claim: bool,
-                       hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object,
-                       ) -> Optional[DuplicateHit]:
-    """THE analysis-entry check. Under the (company, account, content) lock:
-    if `doc` duplicates a live original, archive it and return the hit;
-    otherwise, when `claim` is set, stamp `doc`'s own `pipeline_started_at`
-    (the claim a racing twin will find) and return None.
-
-    A document whose hash cannot be established is let through unclaimed:
-    the check can only refuse what it can prove."""
-    if not doc or doc.get("deleted_at"):
-        return None
-    h = ensure_content_hash(doc, hasher)
-    if not h:
-        return None
-    org_id = str(doc.get("org_id") or "")
-    uid = str(user_id or "")
-    with _lock_for(org_id, uid, h):
-        hit = find_live_original(org_id=org_id, user_id=uid, content_hash=h,
-                                 hint=doc.get("period_end_hint"), self_row=doc)
-        if hit is not None:
-            archive_as_duplicate(doc, hit, now_iso=now_iso)
-            return hit
-        if claim:
-            with _supabase.admin() as ac:
-                ac.update("documents", {"pipeline_started_at": now_iso},
-                          filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
-    return None
 
 
 def release_claim(doc: Dict[str, Any]) -> None:

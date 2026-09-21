@@ -248,7 +248,7 @@ def test_g3_two_identical_uploads_at_once_analyse_once_and_reserve_once(world, m
     """The worst interleaving, forced: each run's look for an original waits
     for the other's before it may claim, and no reservation is made until
     both have looked. Only "look, else claim" as ONE step under the lock
-    (`claim_or_duplicate`) makes the second look see the first run."""
+    (`enter_analysis`) makes the second look see the first run."""
     db, meter = world["db"], world["meter"]
     db.rows("documents").extend([
         _doc("twin-a", created="2026-09-21T13:05:58.100000+00:00"),
@@ -415,6 +415,88 @@ def test_a_run_whose_row_patch_fails_releases_its_reservation(world, monkeypatch
     assert r.status_code == 500
     assert meter.snapshot()["reserved"] == 0, "an errored /run left its reservation counted"
     assert _row(world, "book")["pipeline_started_at"] is None and _doc_dedupe.in_flight("book") is None
+
+
+def _ago(seconds):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
+
+
+def test_recover_stuck_and_a_twin_run_analyse_the_same_bytes_once(world, monkeypatch):
+    """recover-stuck used to look for a duplicate WITHOUT claiming and stamp
+    `pipeline_started_at` only after its reservation, outside the lock. A
+    twin's /run landing in that window (forced here: inside recover-stuck's
+    reservation) found the stuck row unstarted, claimed itself — both ran,
+    both counted."""
+    db = world["db"]
+    db.rows("documents").append(_doc("stuck", created=_ago(60)))
+    db.rows("documents").append(_doc("twin", created=_ago(1)))
+    real = _usage_gate.reserve_document
+    state = {"n": 0, "twin": None}
+
+    def reserve(uid):
+        state["n"] += 1
+        if state["n"] == 1:  # recover-stuck's reservation for `stuck`
+            state["twin"] = world["post"]("/api/pipeline/run", {"document_id": "twin"}).json()
+        return real(uid)
+
+    monkeypatch.setattr(_usage_gate, "reserve_document", reserve)
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert state["twin"]["status"] == "duplicate" and state["twin"]["existing_document_id"] == "stuck", state
+    assert body["recovered_count"] == 1
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["stuck"]
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_one_products_mount_reserves_a_stuck_document_once(world, monkeypatch):
+    """Products fires GET /api/sku-analysis/inflight (the watchdog) AND POST
+    /api/pipeline/recover-stuck on the same mount. Both saw the row
+    unstarted and both reserved and enqueued it; one ledger entry settled
+    one of the two reservations."""
+    import time
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").append(dict(_doc("sku-stuck", created=_ago(60)), scope="sku"))
+    real = meter.rpc
+
+    def rpc(name, payload):
+        if name == "reserve_user_upload":
+            time.sleep(0.25)  # the PostgREST round trip
+        return real(name, payload)
+
+    monkeypatch.setattr(_usage_gate, "_rpc", rpc)
+    client = TestClient(world["app"])
+    hdr = {"Authorization": "Bearer jwt:%s" % OWNER}
+    gate = threading.Barrier(2)
+
+    def inflight():
+        gate.wait()
+        return client.get("/api/sku-analysis/inflight", headers=hdr)
+
+    def recover():
+        gate.wait()
+        return client.post("/api/pipeline/recover-stuck", headers=hdr)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a, b = pool.submit(inflight), pool.submit(recover)
+        assert a.result().status_code == 200 and b.result().status_code == 200
+    assert world["enqueued"] == ["sku-stuck"], world["enqueued"]
+    assert meter.calls.count("reserve_user_upload") == 1, meter.calls
+    world["finish"]("sku-stuck", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_recovery_refused_by_the_meter_gives_its_claim_back(world):
+    world["meter"].uploads = 15
+    world["db"].rows("documents").append(_doc("refused", created=_ago(60)))
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert [n["id"] for n in body["needs_confirmation"]] == ["refused"]
+    row = _row(world, "refused")
+    assert row["pipeline_started_at"] is None and _doc_dedupe.in_flight("refused") is None
+    # ... so it is still "stuck" for the next page load, and not an original
+    assert world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json() == \
+        {"duplicate": False}
 
 
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
