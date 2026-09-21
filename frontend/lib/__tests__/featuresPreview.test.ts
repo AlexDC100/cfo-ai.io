@@ -16,7 +16,10 @@
  * resolution not following the prefs bag when it hydrates or changes; a
  * non-array opt-in read as a partial one; any status other than `preview`
  * being touched by the resolution; the sidebar row of an opted-in preview
- * feature still marked pending.
+ * feature still marked pending; an opted-in user's rows grey on a reload
+ * while the bag is still on its way (first paint reads this user's cached
+ * list — the redesign's own cache key); another user on the same browser
+ * inheriting that cached opt-in; a stale cached list outliving the bag.
  * CANNOT SEE: the engine's env promotion (the engine half) or who may write
  * the prefs bag (RLS on user_prefs).
  */
@@ -28,10 +31,17 @@ const prefs = vi.hoisted(() => ({
   bag: null as Record<string, unknown> | null,
   listeners: new Set<(scope: "user" | "org") => void>(),
 }));
+/** Who is signed in (null: nobody). */
+const auth = vi.hoisted(() => ({ uid: null as string | null }));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () =>
+    auth.uid ? { status: "signed_in", user: { id: auth.uid } } : { status: "signed_out", user: null },
+}));
 
 vi.mock("@/lib/prefs", () => ({
   getRemotePref: (scope: string, key: string) =>
     scope === "user" && prefs.bag ? prefs.bag[key] : undefined,
+  prefsHydrated: (scope: string) => scope === "user" && prefs.bag !== null,
   subscribePrefs: (cb: (scope: "user" | "org") => void) => {
     prefs.listeners.add(cb);
     return () => prefs.listeners.delete(cb);
@@ -46,6 +56,8 @@ import {
   __clearFeaturesForTest,
   __setFeaturesForTest,
   getFeatureStatus,
+  PREVIEW_CACHE_KEY,
+  readPreviewCache,
   resolvePreview,
   useFeatures,
   type FeatureRegistry,
@@ -70,6 +82,8 @@ function hydrate(bag: Record<string, unknown> | null) {
 beforeEach(() => {
   prefs.bag = null;
   prefs.listeners.clear();
+  auth.uid = null;
+  localStorage.removeItem(PREVIEW_CACHE_KEY);
   __clearFeaturesForTest();
   __setFeaturesForTest(RAW);
 });
@@ -132,5 +146,38 @@ describe("the sidebar: an opted-in preview row is a normal row (no grey, no dot)
     const byKey = new Map(rows().map((r) => [r.featureKey, r]));
     expect(byKey.get("forecast")?.pending).toBe(true);
     expect(byKey.get("scenarios")?.pending).toBe(true);
+  });
+});
+
+describe("first paint: a reload never greys an opted-in user's rows", () => {
+  it("before the bag lands, this user's cached list opens the rows", () => {
+    auth.uid = "u-owner";
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify({ uid: "u-owner", keys: ["forecast", "scenarios"] }));
+    const { result } = renderHook(() => useFeatures());
+    expect(result.current.features.forecast?.status).toBe("active");
+    expect(result.current.features.scenarios?.status).toBe("active");
+  });
+
+  it("another user on the same browser misses the cache, never inherits it", () => {
+    auth.uid = "u-someone-else";
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify({ uid: "u-owner", keys: ["forecast", "scenarios"] }));
+    const { result } = renderHook(() => useFeatures());
+    expect(result.current.features.forecast?.status).toBe("coming_soon");
+  });
+
+  it("signed out, a cached list opens nothing", () => {
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify({ uid: "u-owner", keys: ["forecast"] }));
+    const { result } = renderHook(() => useFeatures());
+    expect(result.current.features.forecast?.status).toBe("coming_soon");
+  });
+
+  it("the bag, once read, wins and rewrites the cached list", () => {
+    auth.uid = "u-owner";
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify({ uid: "u-owner", keys: ["forecast", "scenarios"] }));
+    const { result } = renderHook(() => useFeatures());
+    hydrate({ preview_features: ["scenarios"] });
+    expect(result.current.features.forecast?.status).toBe("coming_soon");
+    expect(result.current.features.scenarios?.status).toBe("active");
+    expect([...(readPreviewCache("u-owner") ?? [])]).toEqual(["scenarios"]);
   });
 });

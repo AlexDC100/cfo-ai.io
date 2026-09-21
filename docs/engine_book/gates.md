@@ -8874,6 +8874,40 @@ digit the engine did not serve. **It cannot see** whether the Romanian reads
 well, or sentences the corpus books never provoke (those print in English, as
 served, until the inventory grows to include them).
 
+### forecast-f-page — the preview opt-in on first paint
+
+featuresPreview.test.ts (in this gate) gained four cases. Before them, the
+opt-in was read ONLY off the hydrated `user_prefs` bag, a network read: an
+opted-in owner saw Forecast and Scenarios grey in the sidebar, and a direct link
+answer "coming soon", on every reload until the bag landed. `lib/features.ts`
+now keeps the last list read per user id in the workspace redesign's own cache
+(`cfoai.preview_features.v1`, the same `{uid, keys}` shape as its
+`lib/previewFeatures.ts`, so the two branches read one copy): first paint reads
+it for the signed-in user only, and the bag, once read, wins and rewrites it.
+
+**PLANT preview-no-first-paint-cache** — `optInFor` ignores the cached list.
+**PLANT preview-cache-not-uid-scoped** — `readPreviewCache` drops its uid check.
+**PLANT preview-cache-outlives-bag** — the hydrated bag is no longer written
+back to the cache.
+
+```
+RED (plant preview-no-first-paint-cache)
+AssertionError: expected 'coming_soon' to be 'active' // Object.is equality
+RED (plant preview-cache-not-uid-scoped)
+AssertionError: expected 'active' to be 'coming_soon' // Object.is equality
+RED (plant preview-cache-outlives-bag)
+AssertionError: expected [ 'forecast', 'scenarios' ] to deeply equal [ 'scenarios' ]
+```
+
+REVERT — `features.ts` restored byte-exact (sha256 checked by scratchpad
+fcst_i18n/plants_ro.py); `Tests 11 passed (11)` in featuresPreview.test.ts.
+
+**After the repair it also reds on:** an opted-in user's preview rows greyed on
+first paint while the bag is in flight; another user on the same browser (or a
+signed-out one) opened by a cached opt-in; a cached list surviving a bag that
+says otherwise. **It cannot see** the very first visit on a browser (no copy
+exists yet, so the rows wait for the bag once).
+
 ## forecast-served-sentences
 
 | | |

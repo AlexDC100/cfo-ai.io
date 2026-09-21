@@ -691,8 +691,9 @@ def _engine_gates() -> List[Gate]:
               "--reporter=verbose"],
              # + forecastSentencesRo (RO + EN): every sentence of the engine's
              # served inventory comes out in Romanian under the digit law and
-             # in English byte for byte. Measured 64, floor 58.
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=58,
+             # in English byte for byte; + the preview opt-in's first-paint
+             # cache (featuresPreview). Measured 68, floor 60.
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",

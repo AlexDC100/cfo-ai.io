@@ -26,7 +26,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { getRemotePref, subscribePrefs } from "@/lib/prefs";
+import { useAuth } from "@/lib/auth";
+import { getRemotePref, prefsHydrated, subscribePrefs } from "@/lib/prefs";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -49,6 +50,65 @@ export function previewKeysFromPrefs(): ReadonlySet<string> {
   const raw = getRemotePref<unknown>("user", PREVIEW_PREF_KEY);
   if (!Array.isArray(raw)) return new Set();
   return new Set(raw.filter((k): k is string => typeof k === "string"));
+}
+
+/** FIRST PAINT. The prefs bag is a network read, so without a local copy an
+ *  opted-in owner would see Forecast and Scenarios grey (and a direct link
+ *  answer "coming soon") on every reload until it lands. The last list read
+ *  is kept per user id, in the WORKSPACE REDESIGN's own cache — same key,
+ *  same `{uid, keys}` shape as its `lib/previewFeatures.ts` — so the two
+ *  branches read one copy when they meet. uid-scoped: another user on the
+ *  same browser misses it rather than inheriting someone else's opt-in. The
+ *  bag, once hydrated, always wins and rewrites the copy. */
+export const PREVIEW_CACHE_KEY = "cfoai.preview_features.v1";
+
+export function readPreviewCache(uid: string): ReadonlySet<string> | null {
+  try {
+    const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { uid?: unknown; keys?: unknown } | null;
+    if (!parsed || parsed.uid !== uid || !Array.isArray(parsed.keys)) return null;
+    return new Set(parsed.keys.filter((k): k is string => typeof k === "string"));
+  } catch {
+    return null;
+  }
+}
+
+function writePreviewCache(uid: string, keys: ReadonlySet<string>): void {
+  try {
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify({ uid, keys: [...keys] }));
+  } catch {
+    /* private mode — the remote read still works this session */
+  }
+}
+
+/** Whether the personal bag has been read. Defensive: a surface rendered
+ *  with a partial prefs module (a test double) reads it as read. */
+function userPrefsHydrated(): boolean {
+  try {
+    return prefsHydrated("user");
+  } catch {
+    return true;
+  }
+}
+
+/** The signed-in user's id, or null (signed out, loading, or no provider —
+ *  the registry is read by app-wide surfaces that also render alone). */
+function useSignedInUid(): string | null {
+  let state: ReturnType<typeof useAuth> | null = null;
+  try {
+    state = useAuth();
+  } catch {
+    state = null;
+  }
+  return state && state.status === "signed_in" && state.user ? state.user.id : null;
+}
+
+/** The opt-in set a render stands on: the hydrated bag, else this user's
+ *  cached copy, else none. */
+function optInFor(uid: string | null): ReadonlySet<string> {
+  if (userPrefsHydrated()) return previewKeysFromPrefs();
+  return (uid ? readPreviewCache(uid) : null) ?? new Set();
 }
 
 /** THE PREVIEW RESOLUTION, the one place a `preview` status becomes what a
@@ -200,16 +260,23 @@ export function useFeatures(): {
   refresh: () => Promise<void>;
 } {
   const [raw, setFeatures] = useState<FeatureRegistry>(cache ?? {});
-  // The opt-in set follows the personal prefs bag: it is empty until the bag
-  // hydrates, then re-read whenever it lands or changes (sign-in, another
-  // device opting in).
-  const [optedIn, setOptedIn] = useState<ReadonlySet<string>>(() => previewKeysFromPrefs());
+  // The opt-in set follows the personal prefs bag: this user's cached copy
+  // until the bag hydrates (first paint), then the bag, re-read whenever it
+  // lands or changes (sign-in, another device opting in) and written back to
+  // the copy.
+  const uid = useSignedInUid();
+  const [optedIn, setOptedIn] = useState<ReadonlySet<string>>(() => optInFor(uid));
   useEffect(() => {
-    setOptedIn(previewKeysFromPrefs());
+    const sync = () => {
+      const keys = optInFor(uid);
+      if (uid && userPrefsHydrated()) writePreviewCache(uid, keys);
+      setOptedIn(keys);
+    };
+    sync();
     return subscribePrefs((scope) => {
-      if (scope === "user") setOptedIn(previewKeysFromPrefs());
+      if (scope === "user") sync();
     });
-  }, []);
+  }, [uid]);
   const features = useMemo(() => resolvePreview(raw, optedIn), [raw, optedIn]);
   const [loading, setLoading] = useState<boolean>(cache === null);
 
