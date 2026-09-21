@@ -75,7 +75,10 @@ can be checked to the cent — and it refuses unless ALL of these hold:
   * total debit == total credit on each of the five pairs;
   * no account code appears twice, and none is listed beside its parent
     (an undotted code that prefixes another's base: "100" / "1000.01",
-    "121" / "121.07"); at least MIN_ACCOUNTS accounts;
+    "121" / "121.07"; or a non-zero dotted code whose ten figures equal
+    the sum of the dotted codes that extend it — all of them, or all at
+    one suffix length: "401.1" beside "401.101" / "401.102"); at least
+    MIN_ACCOUNTS accounts;
   * no other line carries two or more figures (a figure row this reader
     could not attribute to an account is a refusal, never a skip) — and
     neither does the NAME part of an account line, nor does it hold a
@@ -522,6 +525,27 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
             parent = base[:k]
             if parent != r["cont"] and parent in undotted:
                 return _refuse5("account %s is listed beside its parent %s", r["cont"], parent)
+    # A DOTTED parent ("401.1" beside "401.101" and "401.102") double-counts
+    # the same way. The prefix alone cannot tell it: the layout prints
+    # sibling analytics whose codes prefix one another ("401.20" beside
+    # "401.201", each its own account). The figures can: a dotted code is
+    # refused as a parent when its ten figures equal, to the cent, the sum
+    # of every other dotted code that starts with it — or of all those at
+    # one suffix length (its children, when a sibling-by-prefix at another
+    # length would spoil the full sum). An all-zero row is exempt: listed
+    # twice or not, it adds nothing to any figure.
+    dotted = [r for r in rows if "." in r["cont"]]
+    for r in dotted:
+        if not any(r["figures"]):
+            continue
+        kids = [k for k in dotted if k is not r and k["cont"].startswith(r["cont"])]
+        groups = [kids] + [[k for k in kids if len(k["cont"]) == n]
+                           for n in sorted({len(k["cont"]) for k in kids})]
+        for group in groups:
+            if group and [sum((k["figures"][i] for k in group), Decimal(0))
+                          for i in range(10)] == r["figures"]:
+                return _refuse5("account %s is listed beside its children %s", r["cont"],
+                                ", ".join(k["cont"] for k in group))
     for r in rows:
         v = r["figures"]
         if v[_TR_D] != v[_RA_D] + v[_RL_D] or v[_TR_C] != v[_RA_C] + v[_RL_C]:

@@ -559,6 +559,57 @@ def test_a_dotted_child_beside_its_undotted_parent_refuses(caplog):
     assert refused(caplog, render(rs), "account 121.07 is listed beside its parent 121")
 
 
+def _credit(cont: str, text: str, amount: str) -> Row:
+    return Row(cont, text, ra=(Z, Decimal(amount)))
+
+
+def _bank(amount: str) -> Row:
+    return Row("5199.05", "Banca test", ra=(Decimal(amount), Z))
+
+
+def _sum_of(parent: Row, *kids: Row) -> Row:
+    parent.v = [sum((k.v[i] for k in kids), Z) for i in range(10)]
+    return parent
+
+
+def test_a_dotted_parent_beside_its_children_refuses_even_when_the_totals_count_both(caplog):
+    # "401.1" printed beside its children, the class and grand totals
+    # counting BOTH levels: every sum ties and debit == credit, and there
+    # is no undotted code for the rule above — only the figures show that
+    # the served 401 balance would be doubled
+    k1, k2 = _credit("401.101", "Furnizor A", "300.00"), _credit("401.102", "Furnizor B", "200.00")
+    lines = render(rows() + [_sum_of(Row("401.1", "Furnizori grup 1"), k1, k2), k1, k2, _bank("1000.00")])
+    assert refused(caplog, lines, "account 401.1 is listed beside its children 401.101, 401.102")
+
+
+def test_dotted_siblings_whose_codes_prefix_one_another_are_read():
+    # the control: "401.20" and "401.201" are two accounts (the layout
+    # prints such pairs) — the shorter code's figures are not the longer
+    # one's, so both are read and served
+    lines = render(rows() + [_credit("401.20", "Furnizor C", "300.00"),
+                             _credit("401.201", "Furnizor D", "200.00"), _bank("500.00")])
+    got = P.parse_lines(lines)
+    assert got is not None
+    assert by_cont(got, "401.20")["figures"][9] == Decimal("300.00")
+    assert by_cont(got, "401.201")["figures"][9] == Decimal("200.00")
+
+
+def test_a_dotted_parent_beside_a_sibling_that_shares_its_prefix_still_refuses(caplog):
+    # "401.2" is the sum of its children 401.21 and 401.22; "401.201", a
+    # separate account whose code also starts with "401.2", spoils the sum
+    # over every extension — the children at one suffix length still match
+    k1, k2 = _credit("401.21", "Furnizor A", "300.00"), _credit("401.22", "Furnizor B", "200.00")
+    lines = render(rows() + [_sum_of(Row("401.2", "Furnizori grup 2"), k1, k2), k1, k2,
+                             _credit("401.201", "Furnizor E", "70.00"), _bank("1070.00")])
+    assert refused(caplog, lines, "account 401.2 is listed beside its children 401.21, 401.22")
+
+
+def test_an_all_zero_dotted_row_beside_its_extensions_is_read():
+    # zeros listed twice add nothing to any figure: not a refusal
+    got = P.parse_lines(render(rows() + [Row("401.3", "Furnizori grup 3"), Row("401.301", "Furnizor F")]))
+    assert got is not None and by_cont(got, "401.3")["figures"] == [Z] * 10
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 
