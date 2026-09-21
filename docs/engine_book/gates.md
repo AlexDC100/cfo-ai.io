@@ -5427,7 +5427,9 @@ loop). Neither host resolves: nothing leaves the machine.
 `5a84c9c9`; the engine and browser plants were run AGAIN after the last Lane A
 merge `2fe5aa92` — f8c7276b, `/run`'s `_meter_first_analysis` resolved onto the
 one meter — with identical red and green counts, and the e2e plants again on
-its bundle). Every plant is applied to the PRODUCT, the gate run, the file
+its bundle; the 10 engine plants a third time after the `feat/ws-migration`
+merge `72d1877c` — a2fd8309, which changed `company_identity`, `rowstore` and
+the planner under G2 and G8 — identical again). Every plant is applied to the PRODUCT, the gate run, the file
 restored with `git checkout --`, the gate run again. Runners and the
 full red transcripts: `scratchpad/wsr/plant_runner_final.py`,
 `e2e_plant_runner_final.py`, `plants_final/*.txt`. An earlier pass (20:00–20:07,
