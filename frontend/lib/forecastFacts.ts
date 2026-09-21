@@ -317,6 +317,11 @@ export interface SummaryView {
   readonly fundingInterestTotal: ProjectedResult | null;
   readonly fundingRateSentence: string;
   readonly runwaySentence: string;
+  /** plan/2 B13: the served runway count (6.6) — whole monthly periods before
+   *  cash first reaches the floor — and whether it is `exact` or an
+   *  `at_least` bound. `null` when not served; never defaulted to a number. */
+  readonly runwayMonths: number | null;
+  readonly runwayBound: "exact" | "at_least" | null;
 }
 
 /** fp1.2 `client`: the pack's own latency numbers and the levers it does NOT
@@ -1107,6 +1112,9 @@ export function readProjection(payload: unknown): ProjectionView | null {
       asRecord(summaryRaw.funding_rate_basis)?.sentence,
     ),
     runwaySentence: sentenceText(runway.sentence),
+    runwayMonths: asInt(runway.months),
+    runwayBound:
+      runway.bound === "exact" || runway.bound === "at_least" ? runway.bound : null,
   };
 
   const seriesRaw = asRecord(root.series) ?? {};
@@ -1216,3 +1224,23 @@ export function readProjection(payload: unknown): ProjectionView | null {
     lever: (key: string) => leverByKey.get(key) ?? null,
   };
 }
+
+// ── plan/2 B13 (minimal cut): the Scenarios page's one question of a value ──
+//
+// The Scenarios page paints served figures side by side and computes nothing.
+// It asks exactly one thing of a projected value, and it asks it HERE, at the
+// gateway, so no surface ever holds the bare number: is the served cash below
+// zero? The engine floors cash at `min_cash` and draws the funding line for
+// the shortfall (plan_contract_v2 6.4, S3), so a negative served cash is an
+// engine defect — and the page must then paint the funding line it served,
+// never a negative cash balance (defect 0.3).
+
+/** The sign of a served projected figure: -1, 0 or 1. `null` for a refusal,
+ *  which carries no number and therefore no sign — ABSENT is not zero. */
+export function projectedSign(result: ProjectedResult): -1 | 0 | 1 | null {
+  if (!isProjectedFigure(result)) return null;
+  const minor = result.amountMinor as unknown as number;
+  if (typeof minor !== "number" || !Number.isFinite(minor)) return null;
+  return minor < 0 ? -1 : minor > 0 ? 1 : 0;
+}
+// ── end plan/2 B13 ─────────────────────────────────────────────────────────

@@ -226,3 +226,29 @@ export function assumptionValue(
   }
   return n.toLocaleString(locale, { maximumFractionDigits: 0 });
 }
+
+// ── plan/2 B13 (minimal cut): the lever edit set, shared with Scenarios ────
+
+/** ONE LEVER EDIT APPLIED TO THE SET — the same rule the Forecast page applies
+ *  to its own rail (pages/cfo/Forecast.tsx `withEdit`). A cell the reader
+ *  cleared goes back to `null`, which is the request saying "leave this year
+ *  at the engine's own value" — not zero, which would be the reader asserting
+ *  a rate of nothing. An edit whose every year is `null` is dropped. */
+export function applyLeverEdit(
+  edits: readonly LeverEdit[],
+  key: string,
+  index: number,
+  wire: string | null,
+  length: number,
+): LeverEdit[] {
+  const next = edits.filter((e) => e.key !== key);
+  const current = edits.find((e) => e.key === key);
+  const values: (string | null)[] = Array.from(
+    { length },
+    (_, i) => current?.values[i] ?? null,
+  );
+  values[index] = wire;
+  if (values.every((v) => v === null)) return next;
+  return [...next, { key, values }].sort((a, b) => a.key.localeCompare(b.key));
+}
+// ── end plan/2 B13 ─────────────────────────────────────────────────────────
