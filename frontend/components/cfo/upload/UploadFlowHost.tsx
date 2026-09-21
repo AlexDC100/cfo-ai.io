@@ -81,6 +81,11 @@ function useOpenCompanyPeriod() {
 
 // ── Host ───────────────────────────────────────────────────────────────
 
+/** The extra-document dialog's confirm step for a commit: nothing to call —
+ *  the repeated commit carries `confirm_extra` and the engine reserves the
+ *  extra for the document it then stores. */
+const confirmOnCommit = async (): Promise<void> => {};
+
 export function UploadFlowHost() {
   const { t } = useTranslation();
   const flow = useUploadFlow();
@@ -182,11 +187,11 @@ export function UploadFlowHost() {
     [navigate],
   );
 
-  const onAnalyse = useCallback(async () => {
+  const onAnalyse = useCallback(async (opts: { confirmExtra?: boolean } = {}) => {
     if (busy) return;
     setBusy(true);
     try {
-      const outcome = await analyseUpload();
+      const outcome = await analyseUpload(opts);
       if (outcome.kind === "queued") {
         await startJob(outcome.docId, outcome.orgId, outcome.companyName, outcome.created);
         return;
@@ -204,7 +209,10 @@ export function UploadFlowHost() {
 
   const onExtraConfirmed = useCallback(() => {
     setConfirmExtra(null);
-    void onAnalyse();
+    // The same commit again, carrying the answer: the engine grants the
+    // extra to the document this commit stores (there is no document yet
+    // for /api/plan/confirm-extra-doc to grant it to).
+    void onAnalyse({ confirmExtra: true });
   }, [onAnalyse]);
   const onExtraClosed = useCallback(() => {
     setConfirmExtra(null);
@@ -219,6 +227,9 @@ export function UploadFlowHost() {
       {confirmExtra && (
         <ExtraDocConfirmDialog
           open
+          // No stored document to grant the extra to: the confirmation
+          // rides on the repeated commit (onExtraConfirmed).
+          confirmWith={confirmOnCommit}
           onClose={onExtraClosed}
           onConfirmed={onExtraConfirmed}
           planKey={confirmExtra.planKey}

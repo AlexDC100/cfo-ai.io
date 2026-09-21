@@ -422,9 +422,18 @@ def test_pipeline_nonro_gate_is_noop_when_flag_off(monkeypatch):
                                            "uploaded_by": "u-1"})
 
 
+def _first_metered_run(monkeypatch, doc_id, user_id="u-1"):
+    """The run holds a document-slot reservation (a first analysis through
+    /run): only such a run reserves the non-RO meter (verifier P-E)."""
+    from engine.api import pipeline
+    monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
+    pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=False)
+
+
 def test_pipeline_nonro_gate_raises_typed_refusal(monkeypatch):
     from engine.api import pipeline
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
+    _first_metered_run(monkeypatch, "doc-1")
     refusal = _usage_gate.NonRoReserveDecision(
         kind="refused", plan_key="solo", used=0, cap=0,
         extra_nonro_doc_eur=None, was_extra=False,
@@ -444,6 +453,7 @@ def test_pipeline_nonro_gate_raises_typed_refusal(monkeypatch):
 def test_pipeline_nonro_gate_allowed_stamps_document(monkeypatch):
     from engine.api import pipeline
     monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
+    _first_metered_run(monkeypatch, "doc-9")
     allowed = _usage_gate.NonRoReserveDecision(
         kind="allowed", plan_key="multi", used=8, cap=8,
         extra_nonro_doc_eur=1.49, was_extra=True, refusal=None, message="",
@@ -460,6 +470,34 @@ def test_pipeline_nonro_gate_allowed_stamps_document(monkeypatch):
     assert patch_["nonro_doc"] is True
     assert patch_["nonro_metered_extra"] is True
     assert filters == {"id": "eq.doc-9"}
+
+
+def test_pipeline_nonro_gate_a_rerun_reserves_nothing_but_is_still_gated(monkeypatch):
+    """A run that holds no document slot (/retry, the ai-lane reextract, a
+    period-move re-run) re-analyses a document already counted: the plan
+    still refuses non-RO where it is not included, but nothing is
+    reserved, registered or stamped (verifier P-E)."""
+    from engine.api import pipeline
+    monkeypatch.setenv("USAGE_LIMITS_ENABLED", "1")
+    monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
+    solo = _pricing_config.CONFIG.plans["solo"]
+    multi = _pricing_config.CONFIG.plans["multi"]
+
+    def state(plan):
+        return lambda uid: _plan_state.PlanState(
+            user_id=uid, plan_key=plan.key, plan=plan, window_expires_at=None,
+            docs_used_this_period=0, extra_docs_billed_this_period=0, chat_used_today=0,
+            chat_used_this_period=0, today_iso="2026-09-21", period_month_bucket="2026-09")
+
+    with patch.object(_usage_gate, "reserve_nonro_document",
+                      side_effect=AssertionError("a re-run reserved the non-RO meter")):
+        with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(solo)):
+            with pytest.raises(_usage_gate.NonRoNotIncludedError) as exc:
+                pipeline._enforce_nonro_plan_gate({"id": "doc-r", "uploaded_by": "u-1"})
+            assert "non_ro_not_included" in str(exc.value)
+        with patch.object(_usage_gate._plan_state, "get_plan_state", side_effect=state(multi)):
+            pipeline._enforce_nonro_plan_gate({"id": "doc-r", "uploaded_by": "u-1"})
+    assert pipeline._QUOTA_RUNS == {}
 
 
 def test_pipeline_nonro_gate_no_user_is_noop(monkeypatch):

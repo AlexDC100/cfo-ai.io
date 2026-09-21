@@ -102,6 +102,10 @@ export interface CommitInput {
   industryKey?: string | null;
   /** X-Org-Id — the company on screen when the file was dropped. */
   onScreenOrgId?: string | null;
+  /** The user answered the plan's extra-document question (a 402 from this
+   *  route) with Confirm: the engine grants the extra to the document this
+   *  commit stores — one confirmation, one document. */
+  confirmExtra?: boolean;
 }
 
 /** The plan's extra-document question (402), as /api/pipeline/run asks it. */
@@ -295,6 +299,7 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
   }
   form.append("period_end", input.periodEnd);
   if (input.industryKey) form.append("industry_key", input.industryKey);
+  if (input.confirmExtra) form.append("confirm_extra", "1");
   // The narrate stage writes in the language the user is reading. Same
   // field /api/pipeline/run takes; the engine ignores it if it has no use.
   form.append("output_language", outputLanguage());

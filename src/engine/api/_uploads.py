@@ -35,7 +35,7 @@ THE RULES THIS MODULE HOLDS
       /api/documents/duplicate-check use): identify reports the existing
       document, commit answers `status: "duplicate"` before the meter is
       touched, and a twin that races past that check is archived at the
-      same analysis-entry CLAIM the run takes.
+      same analysis entry the run takes (`_doc_dedupe.enter_analysis`).
 
 WALLS
   Every route verifies the bearer (`_org.verified_user_id`). identify
@@ -667,9 +667,17 @@ def build_router() -> APIRouter:
         create_company: Optional[str] = Form(None),
         industry_key: Optional[str] = Form(None),
         output_language: Optional[str] = Form(None),
+        confirm_extra: Optional[str] = Form(None),
         authorization: Optional[str] = Header(None),
     ) -> Dict[str, Any]:
         """Store the file in the company the user confirmed and analyse it.
+
+        `confirm_extra` ("1"): the user answered the plan's extra-document
+        question (the 402 this route gave a moment ago) with Confirm. The
+        extra is then reserved as a GRANT for the document this commit is
+        about to store and taken by it — one confirmation pays for one
+        document (verifier P-B) — so there is no separate confirm call for a
+        document that does not exist yet.
 
         `target_org_id` (a company the caller is a member of — 403
         otherwise) or `create_company` (JSON `{name, cui, caen_code,
@@ -719,14 +727,24 @@ def build_router() -> APIRouter:
                     return dict(dup, status="duplicate", company_name=company["name"])
 
         # THE METER — the same reservation /api/pipeline/run takes (429 /
-        # 402 unchanged). Nothing has been written yet.
+        # 402 unchanged). Nothing has been written yet. The document's id is
+        # chosen now: a confirmed extra is granted to exactly this document.
         from . import pipeline as _pipeline
-        decision = _pipeline.reserve_upload_or_refuse(user_id)
+        from . import _usage_gate as _ug
+        doc_id = str(uuid.uuid4())  # type: Optional[str]
+        if str(confirm_extra or "").strip().lower() in ("1", "true", "yes"):
+            granted = _ug.confirm_extra_document(user_id, doc_id)
+            if granted.kind == "blocked":
+                raise HTTPException(409, {"code": "extra_doc_not_confirmed",
+                                          "message": granted.message or
+                                          "The extra document could not be confirmed. Nothing was charged."})
+            decision = _pipeline.reserve_upload_or_refuse(user_id, doc_id)
+        else:
+            decision = _pipeline.reserve_upload_or_refuse(user_id)
         was_extra = bool(getattr(decision, "was_extra", False))
         reserved = getattr(decision, "kind", "disabled") == "allowed"
         created = False
         stored = None  # type: Optional[Tuple[str, str]]
-        doc_id = None  # type: Optional[str]
         claimed = None  # type: Optional[Dict[str, Any]]
         queued = False
         try:
@@ -738,7 +756,6 @@ def build_router() -> APIRouter:
                 company["cui"] = spec.get("cui")
                 created = True
             org_id = company["org_id"]
-            doc_id = str(uuid.uuid4())
             storage_path = "%s/uploads/%s.%s" % (org_id, doc_id, _ext_of(filename))
             with _supabase.admin() as admin_client:
                 admin_client.upload_object(DOC_BUCKET, storage_path, content, org_id=org_id,
@@ -770,28 +787,36 @@ def build_router() -> APIRouter:
                 if not created:
                     _after_commit_to_existing(client, company, identity, companies, chosen_industry)
 
-            # THE CLAIM — the analysis-entry check /api/pipeline/run makes,
-            # under the (company, account, content) lock: a racing twin
-            # committed a moment earlier is found RUNNING and this row is
-            # archived as its duplicate (never analysed, never counted);
-            # otherwise this row claims the run.
+            # THE ENTRY — the one analysis-entry step /api/pipeline/run takes
+            # (`_doc_dedupe.enter_analysis`, FIRST), under the (company,
+            # account, content) lock: a racing twin committed a moment
+            # earlier is found RUNNING and this row is archived as its
+            # duplicate (never analysed, never counted); otherwise this row
+            # is CLAIMED — in the in-flight registry, pipeline_started_at
+            # stamped — and only a claimed row runs.
             from . import _doc_dedupe
-            claimed = dict(row, deleted_at=None, pipeline_started_at=None)
-            hit = _doc_dedupe.claim_or_duplicate(claimed, user_id,
-                                                 now_iso=_pipeline._now_iso(), claim=True)
-            if hit is not None:
-                claimed = None  # archived as the duplicate: nothing to release
+            entry = _doc_dedupe.enter_analysis(dict(row, deleted_at=None, pipeline_started_at=None),
+                                               user_id, now_iso=_pipeline._now_iso(),
+                                               mode=_doc_dedupe.FIRST)
+            if entry.kind == _doc_dedupe.DUPLICATE and entry.hit is not None:
+                # archived as the duplicate: no claim to give back
                 if reserved:
                     _release(user_id, was_extra)
-                return {"status": "duplicate", "document_id": hit.existing_document_id,
-                        "period_id": hit.period_id, "org_id": org_id,
+                return {"status": "duplicate", "document_id": entry.hit.existing_document_id,
+                        "period_id": entry.hit.period_id, "org_id": org_id,
                         "company_name": company["name"]}
+            if entry.kind != _doc_dedupe.CLAIMED:
+                # A row this request inserted a moment ago cannot already be
+                # running, analysed or deleted; if it reads so, nothing runs.
+                raise RuntimeError("upload %s could not be claimed for analysis (%s)" % (doc_id, entry.kind))
+            claimed = entry.released_row()
 
             # The run ledger: the terminal settles exactly this reservation
             # (committed on `analyzed`, released on failure).
             if reserved:
                 _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
             _pipeline._admin_set_status(doc_id, "queued", pipeline_started_at=_pipeline._now_iso())
+            _doc_dedupe.mark_running(doc_id)
             _pipeline._enqueue(doc_id)
             queued = True
         except Exception:
@@ -808,11 +833,13 @@ def build_router() -> APIRouter:
                         logger.exception("[uploads] orphaned object %s not removed", stored[0])
                 if claimed is not None:
                     from . import _doc_dedupe
-                    _doc_dedupe.release_claim(claimed)
+                    _doc_dedupe.release_claim(claimed)  # also leaves the in-flight registry
                 if reserved:
                     if doc_id:
                         _pipeline._take_quota_run(doc_id)  # drop a ledger entry, if written
                     _release(user_id, was_extra)
+                if doc_id:
+                    _ug.cancel_extra_grant(doc_id)  # an unclaimed grant goes back unbilled
             raise
         # No `_usage_limits.record_usage` here: the legacy enqueue-time bump
         # double-counted every upload (the owner's "51 documents used"); the

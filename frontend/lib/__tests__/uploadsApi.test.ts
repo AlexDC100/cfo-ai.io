@@ -140,6 +140,16 @@ describe("POST /api/uploads/commit", () => {
     });
   });
 
+  it("a confirmed extra rides on the commit as confirm_extra=1 — and only when confirmed", async () => {
+    fetchMock.mockImplementation(async () =>
+      json(200, { status: "queued", document_id: "d9", org_id: "agras", company_name: "Agras SA" }),
+    );
+    await commitUpload({ file: new File(["x"], "b.xls"), targetOrgId: "agras", periodEnd: "2025-12-31" });
+    expect((fetchMock.mock.calls[0]![1].body as FormData).get("confirm_extra")).toBeNull();
+    await commitUpload({ file: new File(["x"], "b.xls"), targetOrgId: "agras", periodEnd: "2025-12-31", confirmExtra: true });
+    expect((fetchMock.mock.calls[1]![1].body as FormData).get("confirm_extra")).toBe("1");
+  });
+
   it("the engine's word on whether a company was created travels through", async () => {
     fetchMock.mockResolvedValue(
       json(200, { status: "queued", document_id: "d3", org_id: "o", company_name: "C SRL", created_company: false, period_end: "2025-12-31" }),

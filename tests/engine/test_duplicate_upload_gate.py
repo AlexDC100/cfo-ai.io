@@ -146,6 +146,17 @@ def _row(world, doc_id):
     return next(d for d in world["db"].rows("documents") if d["id"] == doc_id)
 
 
+def _confirm(world, doc_id=None, user=OWNER):
+    """The €-dialog's Confirm, through the REAL route: POST
+    /api/plan/confirm-extra-doc naming the document it was shown for."""
+    from engine.api import _pricing_routes
+    app = FastAPI()
+    app.include_router(_pricing_routes.build_router())
+    body = {"document_id": doc_id} if doc_id else None
+    return TestClient(app).post("/api/plan/confirm-extra-doc", json=body,
+                                headers={"Authorization": "Bearer jwt:%s" % user})
+
+
 # ── G3: the pre-storage check ───────────────────────────────────────────
 
 
@@ -237,7 +248,7 @@ def test_g3_two_identical_uploads_at_once_analyse_once_and_reserve_once(world, m
     """The worst interleaving, forced: each run's look for an original waits
     for the other's before it may claim, and no reservation is made until
     both have looked. Only "look, else claim" as ONE step under the lock
-    (`claim_or_duplicate`) makes the second look see the first run."""
+    (`enter_analysis`) makes the second look see the first run."""
     db, meter = world["db"], world["meter"]
     db.rows("documents").extend([
         _doc("twin-a", created="2026-09-21T13:05:58.100000+00:00"),
@@ -343,6 +354,428 @@ def test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it(world):
     assert world["enqueued"] == [] and world["meter"].calls == []
 
 
+# ── One run per document (verifier P-A, 2026-09-21) ──────────────────────
+
+
+def test_run_twice_on_the_same_analysed_document_counts_once(world):
+    """The failed-upload banner's Retry posts /run on the SAME id
+    (FinancialStatements.retryFailedUpload), and a `failed` banner can be a
+    lost response for a run the server did start (CLAUDE.md §24). The second
+    /run answers where the document stands and reserves nothing."""
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    calls_after_first = list(world["meter"].calls)
+    r = world["post"]("/api/pipeline/run", {"document_id": "book"})
+    assert r.status_code == 202, r.text
+    assert r.json()["status"] == "analyzed" and r.json()["period_id"] == PERIOD, r.json()
+    assert world["enqueued"] == ["book"], "an analysed document was analysed again"
+    assert world["meter"].calls == calls_after_first, "a second /run reached the meter"
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_run_twice_while_the_first_is_in_flight_reserves_once(world):
+    """The first response was lost; Retry posts /run again while thread 1
+    runs. One claim, one reservation, one ledger entry, one terminal."""
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    second = world["post"]("/api/pipeline/run", {"document_id": "book"})
+    assert second.status_code == 202 and second.json()["status"] == "queued", second.text
+    assert world["enqueued"] == ["book"], "one document handed to two daemon threads"
+    assert world["meter"].calls == ["reserve_user_upload"], world["meter"].calls
+    world["finish"]("book", "analyzed")
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert _doc_dedupe.in_flight("book") is None, "the terminal left the document claimed"
+
+
+def test_a_retry_of_a_document_in_flight_starts_no_second_thread(world):
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    assert world["enqueued"] == ["book"]
+
+
+def test_a_run_whose_row_patch_fails_releases_its_reservation(world, monkeypatch):
+    """The browser always sends output_language, so /run patches the row
+    after reserving. A transient PostgREST error there is a 500 — and the
+    reservation must already be in the ledger for the finally to release."""
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").append(_doc("book"))
+    real_update = db.update
+
+    def update(table, patch, *, filters):
+        if table == "documents" and "detected_language" in patch:
+            raise RuntimeError("PostgREST 503")
+        return real_update(table, patch, filters=filters)
+
+    monkeypatch.setattr(db, "update", update)
+    client = TestClient(world["app"], raise_server_exceptions=False)
+    r = client.post("/api/pipeline/run", json={"document_id": "book", "output_language": "ro"},
+                    headers={"Authorization": "Bearer jwt:%s" % OWNER})
+    assert r.status_code == 500
+    assert meter.snapshot()["reserved"] == 0, "an errored /run left its reservation counted"
+    assert _row(world, "book")["pipeline_started_at"] is None and _doc_dedupe.in_flight("book") is None
+
+
+def _ago(seconds):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
+
+
+def test_recover_stuck_and_a_twin_run_analyse_the_same_bytes_once(world, monkeypatch):
+    """recover-stuck used to look for a duplicate WITHOUT claiming and stamp
+    `pipeline_started_at` only after its reservation, outside the lock. A
+    twin's /run landing in that window (forced here: inside recover-stuck's
+    reservation) found the stuck row unstarted, claimed itself — both ran,
+    both counted."""
+    db = world["db"]
+    db.rows("documents").append(_doc("stuck", created=_ago(60)))
+    db.rows("documents").append(_doc("twin", created=_ago(1)))
+    real = _usage_gate.reserve_document
+    state = {"n": 0, "twin": None}
+
+    def reserve(uid):
+        state["n"] += 1
+        if state["n"] == 1:  # recover-stuck's reservation for `stuck`
+            state["twin"] = world["post"]("/api/pipeline/run", {"document_id": "twin"}).json()
+        return real(uid)
+
+    monkeypatch.setattr(_usage_gate, "reserve_document", reserve)
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert state["twin"]["status"] == "duplicate" and state["twin"]["existing_document_id"] == "stuck", state
+    assert body["recovered_count"] == 1
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["stuck"]
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_one_products_mount_reserves_a_stuck_document_once(world, monkeypatch):
+    """Products fires GET /api/sku-analysis/inflight (the watchdog) AND POST
+    /api/pipeline/recover-stuck on the same mount. Both saw the row
+    unstarted and both reserved and enqueued it; one ledger entry settled
+    one of the two reservations."""
+    import time
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").append(dict(_doc("sku-stuck", created=_ago(60)), scope="sku"))
+    real = meter.rpc
+
+    def rpc(name, payload):
+        if name == "reserve_user_upload":
+            time.sleep(0.25)  # the PostgREST round trip
+        return real(name, payload)
+
+    monkeypatch.setattr(_usage_gate, "_rpc", rpc)
+    client = TestClient(world["app"])
+    hdr = {"Authorization": "Bearer jwt:%s" % OWNER}
+    gate = threading.Barrier(2)
+
+    def inflight():
+        gate.wait()
+        return client.get("/api/sku-analysis/inflight", headers=hdr)
+
+    def recover():
+        gate.wait()
+        return client.post("/api/pipeline/recover-stuck", headers=hdr)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a, b = pool.submit(inflight), pool.submit(recover)
+        assert a.result().status_code == 200 and b.result().status_code == 200
+    assert world["enqueued"] == ["sku-stuck"], world["enqueued"]
+    assert meter.calls.count("reserve_user_upload") == 1, meter.calls
+    world["finish"]("sku-stuck", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_recovery_refused_by_the_meter_gives_its_claim_back(world):
+    world["meter"].uploads = 15
+    world["db"].rows("documents").append(_doc("refused", created=_ago(60)))
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert [n["id"] for n in body["needs_confirmation"]] == ["refused"]
+    row = _row(world, "refused")
+    assert row["pipeline_started_at"] is None and _doc_dedupe.in_flight("refused") is None
+    # ... so it is still "stuck" for the next page load, and not an original
+    assert world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json() == \
+        {"duplicate": False}
+
+
+# ── An archived duplicate stays archived (verifier P-F, 2026-09-21) ──────
+
+
+@pytest.mark.parametrize("route", ["/api/pipeline/run", "/api/pipeline/retry"])
+def test_an_archived_duplicate_is_never_run_even_after_a_restart(world, monkeypatch, route):
+    """The only guard used to be this process's memory (`_ARCHIVED_HERE`),
+    emptied by every restart or deploy — and the re-run's
+    `_admin_set_status('queued')` erased the `duplicate_of:` marker."""
+    db = world["db"]
+    db.rows("documents").extend([
+        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
+        _doc("copy", created="2026-09-21T13:05:58+00:00"),
+    ])
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    monkeypatch.setattr(_doc_dedupe, "_ARCHIVED_HERE", set())  # the engine restarted
+    world["meter"].calls.clear()
+    r = world["post"](route, {"document_id": "copy"})
+    assert r.status_code == 202, r.text
+    assert r.json() == {"document_id": "copy", "status": "duplicate",
+                        "existing_document_id": "orig", "period_id": PERIOD}
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    row = _row(world, "copy")
+    assert _doc_dedupe.duplicate_of(row["error"]) == "orig" and row["deleted_at"], row
+
+
+@pytest.mark.parametrize("route", ["/api/pipeline/run", "/api/pipeline/retry"])
+def test_a_deleted_document_is_not_analysed(world, route):
+    world["db"].rows("documents").append(_doc("gone", status="failed", deleted="2026-09-21T10:00:00+00:00"))
+    r = world["post"](route, {"document_id": "gone"})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "document_deleted", r.text
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    assert _row(world, "gone")["status"] == "failed"
+
+
+# ── The firm request link lands once (verifier P-D / P-G, 2026-09-21) ────
+
+
+def _landing(world, monkeypatch):
+    import types
+    from engine.api import _firm_requests as FR
+    insp = types.SimpleNamespace(
+        entity=types.SimpleNamespace(verdict="match", reason="", to_payload=lambda: {}),
+        period={}, detected_type="trial_balance", to_payload=lambda: {})
+    monkeypatch.setattr(FR, "inspect_upload", lambda *a, **k: insp)
+    stored: List[str] = []
+    deps = FR.production_deps()
+    deps.upload_object = lambda bucket, path, content, ctype, org_id=None: stored.append(path)
+    deps.insert_document = lambda row: (world["db"].insert("documents", dict(row, created_at=_ago(0))) or [row])[0]
+    request_row = {"client_org_id": ORG, "period_end": "2025-12-31", "requested_by": OWNER,
+                   "expected_identity": {}}
+    return FR, deps, request_row, stored
+
+
+def test_two_simultaneous_landings_of_one_file_count_once(world, monkeypatch):
+    """A double click (or a browser retry) on the single-use request link:
+    both submissions used to pass the unlocked duplicate look — the request
+    flips to RECEIVED only after the landing — and both were reserved,
+    stored, analysed and counted to the accountant."""
+    FR, deps, request_row, stored = _landing(world, monkeypatch)
+    both_looked = threading.Barrier(2, timeout=1.0)
+    real_find = deps.find_duplicate
+
+    def find(*a):
+        out = real_find(*a)
+        try:
+            both_looked.wait()  # inspect_upload of a real file takes seconds
+        except threading.BrokenBarrierError:
+            pass  # the other landing is held behind the lock — the point of it
+        return out
+
+    deps.find_duplicate = find
+
+    def land(_):
+        try:
+            return FR.land_file(request_row, b"balanta scandia 31.12.2025", "b.xls",
+                                "application/vnd.ms-excel", deps).document_id
+        except FR.LandingRefused as exc:
+            return ("refused", exc.status, exc.detail.get("code"))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(land, [0, 1]))
+    refused = [r for r in results if isinstance(r, tuple)]
+    assert refused == [("refused", 409, "already_uploaded")], results
+    assert len(world["enqueued"]) == 1 and len(stored) == 1, (world["enqueued"], stored)
+    assert world["meter"].calls.count("reserve_user_upload") == 1
+    world["finish"](world["enqueued"][0], "analyzed")
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+@pytest.mark.parametrize("fails_at", ["upload_object", "insert_document", "enqueue"])
+def test_a_landing_that_fails_gives_its_reservation_back(world, monkeypatch, fails_at):
+    FR, deps, request_row, _ = _landing(world, monkeypatch)
+
+    def boom(*a, **k):
+        raise RuntimeError("storage 503")
+
+    setattr(deps, fails_at, boom)
+    with pytest.raises(RuntimeError):
+        FR.land_file(request_row, b"x" * 10, "b.xls", "application/vnd.ms-excel", deps,
+                     document_id="landed")
+    assert world["meter"].snapshot()["reserved"] == 0, "a failed landing holds a slot"
+    assert "landed" not in pipeline._QUOTA_RUNS and _doc_dedupe.in_flight("landed") is None
+
+
+# ── A re-run never counts on the non-RO meter (verifier P-E, 2026-09-21) ─
+
+
+@pytest.fixture()
+def multi_nonro(world, monkeypatch):
+    """The Multi-Country plan at its included non-RO cap, with the non-RO
+    meter mirrored from its SQL (reserve / commit / release)."""
+    meter = world["meter"]
+    nonro = {"uploads": 8, "reserved": 0, "billed": 0, "calls": []}
+    real_rpc = meter.rpc
+
+    def rpc(name, payload):
+        if "nonro" in name:
+            nonro["calls"].append(name)
+            if name == "reserve_user_nonro_upload":
+                extra = nonro["uploads"] + nonro["reserved"] >= payload["p_base_cap"]
+                nonro["reserved"] += 1
+                return {"kind": "allowed", "used": nonro["uploads"], "extra": extra}
+            if name == "commit_user_nonro_upload":
+                nonro["uploads"] += 1
+                nonro["reserved"] = max(0, nonro["reserved"] - 1)
+                nonro["billed"] += 1 if payload["p_was_extra"] else 0
+                return {}
+            if name == "release_user_nonro_upload":
+                nonro["reserved"] = max(0, nonro["reserved"] - 1)
+                return {}
+        return real_rpc(name, payload)
+
+    monkeypatch.setattr(_usage_gate, "_rpc", rpc)
+    multi = _pricing_config.CONFIG.plans["multi"]
+    monkeypatch.setattr(_plan_state, "get_plan_state", lambda uid: _plan_state.PlanState(
+        user_id=uid, plan_key="multi", plan=multi, window_expires_at=None,
+        docs_used_this_period=meter.uploads, extra_docs_billed_this_period=meter.extra_billed,
+        chat_used_today=0, chat_used_this_period=0, today_iso="2026-09-21",
+        period_month_bucket="2026-09", extra_docs_pending_this_period=meter.pending,
+        nonro_used_this_period=nonro["uploads"]))
+
+    def stages(document_id):  # the real gate, at the seam _maybe_route_ai_lane calls it
+        pipeline._enforce_nonro_plan_gate(_row(world, document_id))
+        world["db"].update("documents", {"status": "analyzed", "period_id": PERIOD},
+                           filters={"id": "eq.%s" % document_id})
+        return "analyzed"
+
+    monkeypatch.setattr(pipeline, "_run_pipeline_stages", stages)
+    return nonro
+
+
+def test_a_retry_of_a_counted_non_ro_document_settles_nothing(world, multi_nonro):
+    world["db"].rows("documents").append(_doc("hu-book", h=EEI, status="analyzed", period_id=PERIOD,
+                                              started="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/retry", {"document_id": "hu-book"}).json()["status"] == "queued"
+    pipeline._run_pipeline_sync("hu-book")
+    assert multi_nonro["calls"] == [], multi_nonro["calls"]
+    assert multi_nonro["uploads"] == 8 and world["billed"] == []
+
+
+def test_the_first_run_of_a_non_ro_document_counts_it_once(world, multi_nonro):
+    """Positive control: the first metered run reserves the non-RO meter
+    under its verified reserver and commits it once (billed as an extra
+    above the included cap)."""
+    world["db"].rows("documents").append(_doc("hu-new", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "hu-new"}).json()["status"] == "queued"
+    pipeline._run_pipeline_sync("hu-new")
+    assert multi_nonro["calls"] == ["reserve_user_nonro_upload", "commit_user_nonro_upload"]
+    assert multi_nonro["uploads"] == 9 and multi_nonro["billed"] == 1
+    assert [b["kind"] for b in world["billed"]] == ["extra_nonro"]
+
+
+# ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
+
+
+def test_one_confirmation_pays_for_the_one_document_it_was_given_for(world):
+    """Two over-cap uploads, ONE dialog confirmed (for b1). b2's /run gets
+    its own 402 — it used to run as a paid extra with no dialog, and both
+    were billed on one confirmation."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").extend([_doc("b1", h="b" * 64), _doc("b2", h="c" * 64)])
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).json()["status"] == "queued"
+    r2 = world["post"]("/api/pipeline/run", {"document_id": "b2"})
+    assert r2.status_code == 402, ("an over-cap upload ran with no dialog of its own", r2.text)
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["b1"]
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    assert [b["reservation_id"] for b in world["billed"]] == ["b1"]
+
+
+def test_recover_stuck_never_runs_a_document_whose_dialog_was_dismissed(world):
+    """`refused` got a 402 the user dismissed. While the confirmed extra for
+    `wanted` is in flight, a page mount calls recover-stuck: `refused` stays
+    queued and asks for its own confirmation — never a paid extra."""
+    from datetime import datetime, timedelta, timezone
+    ago = lambda s: (datetime.now(timezone.utc) - timedelta(seconds=s)).isoformat()  # noqa: E731
+    meter, db = world["meter"], world["db"]
+    meter.uploads = 15
+    db.rows("documents").append(_doc("refused", h="d" * 64, created=ago(120)))
+    assert world["post"]("/api/pipeline/run", {"document_id": "refused"}).status_code == 402  # dismissed
+    db.rows("documents").append(_doc("wanted", h="e" * 64, created=ago(1)))
+    assert world["post"]("/api/pipeline/run", {"document_id": "wanted"}).status_code == 402
+    assert _confirm(world, "wanted").status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "wanted"}).json()["status"] == "queued"
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert body["recovered_count"] == 0
+    assert [n["id"] for n in body["needs_confirmation"]] == ["refused"]
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["wanted"]
+    assert meter.snapshot()["extra_billed"] == 1 and [b["reservation_id"] for b in world["billed"]] == ["wanted"]
+    assert not _row(world, "refused").get("metered_extra")
+
+
+def test_a_double_click_on_confirm_reserves_one_extra(world):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("b1"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert _confirm(world, "b1").status_code == 200
+    assert meter.calls.count("reserve_user_upload_extra") == 1, meter.calls
+    assert meter.snapshot()["reserved"] == 1 and meter.snapshot()["pending"] == 1
+
+
+def test_a_confirmed_extra_whose_upload_turns_out_a_duplicate_is_given_back(world):
+    meter, db = world["meter"], world["db"]
+    meter.uploads = 15
+    db.rows("documents").append(_doc("copy", created="2026-09-21T13:05:58+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).status_code == 402
+    assert _confirm(world, "copy").status_code == 200
+    # meanwhile another tab's copy of the same bytes started first
+    db.rows("documents").append(_doc("orig", status="analyzed", period_id=PERIOD,
+                                     created="2026-09-21T13:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert world["billed"] == []
+
+
+def test_an_unclaimed_grant_expires_and_gives_its_slot_back(world, monkeypatch):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("b1"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert meter.snapshot()["reserved"] == 1
+    later = _usage_gate._now_mono() + _usage_gate.EXTRA_GRANT_TTL_S + 1
+    monkeypatch.setattr(_usage_gate, "_now_mono", lambda: later)
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_confirm_from_an_older_bundle_is_for_the_document_of_the_last_402(world):
+    """An older browser bundle confirms with no body: the grant goes to the
+    document the caller's last 402 was about — and only to it."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").extend([_doc("b1", h="b" * 64), _doc("b2", h="c" * 64)])
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world).status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "b2"}).status_code == 402
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).json()["status"] == "queued"
+
+
+def test_a_confirm_for_a_document_of_another_workspace_is_refused(world):
+    stranger_doc = _doc("theirs", org="99999999-0000-4000-8000-000000000000", user=OTHER_USER)
+    world["db"].rows("documents").append(stranger_doc)
+    world["meter"].uploads = 15
+    r = _confirm(world, "theirs")
+    assert r.status_code in (403, 404), r.text
+    assert world["meter"].calls == []
+
+
 # ── Failures and duplicates are never counted ────────────────────────────
 
 
@@ -359,9 +792,9 @@ def test_a_failed_analysis_leaves_every_counter_unchanged(world):
 def test_a_failed_paid_extra_is_released_and_never_billed(world):
     meter = world["meter"]
     meter.uploads = 15
-    meter.rpc("reserve_user_upload_extra", {})  # the user confirmed the €-dialog
-    meter.calls.clear()
     world["db"].rows("documents").append(_doc("eei", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "eei"}).status_code == 402
+    assert _confirm(world, "eei").status_code == 200  # the user confirmed the €-dialog
     assert world["post"]("/api/pipeline/run", {"document_id": "eei"}).json()["status"] == "queued"
     world["finish"]("eei", "failed")
     assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
@@ -444,7 +877,8 @@ def test_a_future_subscriber_is_metered_for_a_success_only(world):
     meter.uploads = 15
     db.rows("documents").extend([_doc("fails", h=EEI), _doc("works")])
     for doc_id, outcome in (("fails", "failed"), ("works", "analyzed")):
-        meter.rpc("reserve_user_upload_extra", {})
+        assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).status_code == 402
+        assert _confirm(world, doc_id).status_code == 200
         assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).json()["status"] == "queued"
         world["finish"](doc_id, outcome)
     db.rows("documents").append(_doc("dup-of-works", created="2026-09-21T14:00:00+00:00"))
@@ -458,11 +892,11 @@ def test_a_stray_extra_confirm_under_the_cap_gives_its_probe_reservation_back(wo
     which is not a pure read: under the cap it RESERVES. The 409 that
     follows used to leave that slot in `uploads_reserved` for good — and
     the meter counts reservations against the plan."""
-    from engine.api import _pricing_routes
-    app = FastAPI()
-    app.include_router(_pricing_routes.build_router())
-    r = TestClient(app).post("/api/plan/confirm-extra-doc", headers={"Authorization": "Bearer jwt:%s" % OWNER})
+    world["db"].rows("documents").append(_doc("book"))
+    r = _confirm(world, "book")
     assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "no_extra_needed"
+    assert world["meter"].calls == ["reserve_user_upload", "release_user_upload"], world["meter"].calls
     assert world["meter"].snapshot() == {"uploads": 0, "reserved": 0, "extra_billed": 0, "pending": 0}
 
 

@@ -290,7 +290,7 @@ export type AnalyseOutcome =
 
 /** Send the confirmed choice. The host turns a `queued` outcome into a job
  *  (trackJob) and switches the screen to the target company. */
-export async function analyseUpload(): Promise<AnalyseOutcome> {
+export async function analyseUpload(opts: { confirmExtra?: boolean } = {}): Promise<AnalyseOutcome> {
   const { file, choice, onScreenOrgId, result } = flow;
   if (!file || !choice || flow.phase !== "confirm") return { kind: "blocked" };
   if (analyseBlocker(choice)) return { kind: "blocked" };
@@ -304,6 +304,7 @@ export async function analyseUpload(): Promise<AnalyseOutcome> {
       onScreenOrgId,
       periodEnd: choice.periodEnd as string,
       industryKey: choice.industryKey,
+      ...(opts.confirmExtra ? { confirmExtra: true } : {}),
       targetOrgId: created ? null : choice.orgId,
       createCompany: created
         ? {

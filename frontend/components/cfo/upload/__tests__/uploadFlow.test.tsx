@@ -510,9 +510,13 @@ describe("confirmation card", () => {
     await screen.findByText("Check before we analyse");
     fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
     fireEvent.click(await screen.findByTestId("extra-doc-confirm"));
-    await waitFor(() => expect(confirmExtraDoc).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(api.commitUpload).toHaveBeenCalledTimes(2));
-    expect(api.commitUpload.mock.calls[1]![0]).toEqual(api.commitUpload.mock.calls[0]![0]);
+    // The same commit, now carrying the answer — there is no stored document
+    // yet for /api/plan/confirm-extra-doc to grant the extra to: the engine
+    // grants it to the document this commit stores.
+    expect(api.commitUpload.mock.calls[1]![0]).toEqual({ ...api.commitUpload.mock.calls[0]![0], confirmExtra: true });
+    expect(api.commitUpload.mock.calls[0]![0].confirmExtra).toBeUndefined();
+    expect(confirmExtraDoc).not.toHaveBeenCalled();
     expect(await screen.findByText("Analysing Agras SA")).toBeInTheDocument();
   });
 

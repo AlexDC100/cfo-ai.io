@@ -48,13 +48,20 @@ A queued row that never started is NOT an original: that is an upload whose
 run was refused (a 402 the user dismissed) or has not been asked for yet.
 
 TWO IDENTICAL UPLOADS AT ONCE. Both rows exist and both /run calls race.
-`claim_or_duplicate` makes "look for an original, else stamp my own
+`enter_analysis` makes "look for an original, else stamp my own
 `pipeline_started_at`" ONE step under a lock keyed by (company, account,
 content): whichever run enters first claims, the second finds the first
 running and is archived, so at most one of them is ever analysed and only
-one reservation is ever made. A run that is then refused by the meter puts
+one reservation is ever made. EVERY analysis entry takes that step — /run,
+retry, recover-stuck and the stuck-SKU watchdog — so a recovery and a twin
+/run cannot both claim either. A run that is then refused by the meter puts
 its `pipeline_started_at` back (`release_claim`), so a dismissed 402 never
-turns into an original. The lock is in-process: the engine serves from ONE
+turns into an original.
+
+ONE RUN PER DOCUMENT. The same step claims the document ITSELF in the
+in-flight registry (a test-and-set): a second entry for a document whose
+run is in flight, or a first analysis of a document already analysed,
+reserves nothing and enqueues nothing. The lock is in-process: the engine serves from ONE
 uvicorn process (Dockerfile CMD). A second process would reopen a window of
 a few milliseconds between two runs' reads and writes — the price of having
 no unique index to lean on (the table already holds duplicates in
@@ -251,6 +258,96 @@ def _lock_for(org_id: str, user_id: str, content_hash: str) -> "threading.Lock":
     return _LOCK_STRIPES[key[0] % len(_LOCK_STRIPES)]
 
 
+def _doc_lock(document_id: str) -> "threading.Lock":
+    """The lock of a document whose content hash is not known: its entries
+    still serialise against each other (the per-document claim below), they
+    just cannot be compared with a twin."""
+    key = hashlib.sha256(f"doc|{document_id}".encode("utf-8")).digest()
+    return _LOCK_STRIPES[key[0] % len(_LOCK_STRIPES)]
+
+
+def analysis_lock(org_id: str, user_id: str, content_hash: str) -> "threading.Lock":
+    """The (company, account, content) lock, for an entry that creates its
+    row inside it (the firm landing): look for an original, reserve and
+    insert as one step, exactly as `enter_analysis` does for a row that
+    already exists."""
+    return _lock_for(str(org_id or ""), str(user_id or ""), str(content_hash or ""))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# One run per document — the in-flight registry
+# ──────────────────────────────────────────────────────────────────────
+#
+# MEASURED (verifier, 2026-09-21): `/api/pipeline/run` never asked whether
+# THIS document already had its run. The failed-upload banner's Retry posts
+# /run on the SAME id — and a `failed` banner can be a transport failure for
+# a run the server did start (CLAUDE.md §24) — so one book was reserved and
+# committed twice, or two reservations shared one ledger entry and one of
+# them stayed in `uploads_reserved` for good. The same held for
+# recover-stuck and the SKU watchdog racing each other on one page mount.
+#
+# The registry below is the per-document claim: a document id is in it from
+# the moment an entry claims it until its daemon thread's terminal
+# (`pipeline._run_pipeline_sync`) or the entry giving the claim back
+# (`release_claim`). `try_mark_in_flight` is a test-and-set, so of two
+# entries for one document exactly one claims. In-process on purpose, like
+# the lock stripes above and the reservation ledger in pipeline.py: the
+# engine is ONE uvicorn process, and a run that a restart killed is, after
+# the restart, correctly NOT in flight.
+
+#: "claiming" — an entry holds the claim and is still asking the meter;
+#: "running"  — the run was handed to its daemon thread.
+CLAIMING = "claiming"
+RUNNING = "running"
+
+_IN_FLIGHT: Dict[str, str] = {}
+_IN_FLIGHT_LOCK = threading.Lock()
+
+
+def try_mark_in_flight(document_id: str) -> bool:
+    """Claim `document_id` for one run. False when another entry holds it."""
+    key = str(document_id or "")
+    if not key:
+        return False
+    with _IN_FLIGHT_LOCK:
+        if key in _IN_FLIGHT:
+            return False
+        _IN_FLIGHT[key] = CLAIMING
+        return True
+
+
+def mark_running(document_id: str) -> None:
+    """The claimed run was handed to its daemon thread."""
+    with _IN_FLIGHT_LOCK:
+        if str(document_id) in _IN_FLIGHT:
+            _IN_FLIGHT[str(document_id)] = RUNNING
+
+
+def in_flight(document_id: str) -> Optional[str]:
+    """The phase of `document_id`'s run in this process, or None."""
+    with _IN_FLIGHT_LOCK:
+        return _IN_FLIGHT.get(str(document_id or ""))
+
+
+def clear_in_flight(document_id: str) -> None:
+    with _IN_FLIGHT_LOCK:
+        _IN_FLIGHT.pop(str(document_id or ""), None)
+
+
+def await_decision(document_id: str, *, timeout_s: float = 3.0, poll_s: float = 0.05) -> Optional[str]:
+    """Wait (bounded) while another entry holds `document_id` in the
+    CLAIMING phase — it is asking the meter and will either start the run
+    or give the claim back. Returns the phase it settled in (None = the
+    claim was given back)."""
+    import time
+    deadline = time.monotonic() + max(0.0, timeout_s)
+    phase = in_flight(document_id)
+    while phase == CLAIMING and time.monotonic() < deadline:
+        time.sleep(poll_s)
+        phase = in_flight(document_id)
+    return phase
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Database seams (service role; every caller has already verified the
 # identity and the membership of the org it passes in)
@@ -393,47 +490,165 @@ def archive_as_duplicate(doc: Dict[str, Any], hit: DuplicateHit, *, now_iso: str
                 doc.get("id"), hit.existing_document_id, doc.get("org_id"))
 
 
-def claim_or_duplicate(doc: Dict[str, Any], user_id: str, *, now_iso: str, claim: bool,
-                       hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object,
-                       ) -> Optional[DuplicateHit]:
-    """THE analysis-entry check. Under the (company, account, content) lock:
-    if `doc` duplicates a live original, archive it and return the hit;
-    otherwise, when `claim` is set, stamp `doc`'s own `pipeline_started_at`
-    (the claim a racing twin will find) and return None.
-
-    A document whose hash cannot be established is let through unclaimed:
-    the check can only refuse what it can prove."""
-    if not doc or doc.get("deleted_at"):
-        return None
-    h = ensure_content_hash(doc, hasher)
-    if not h:
-        return None
-    org_id = str(doc.get("org_id") or "")
-    uid = str(user_id or "")
-    with _lock_for(org_id, uid, h):
-        hit = find_live_original(org_id=org_id, user_id=uid, content_hash=h,
-                                 hint=doc.get("period_end_hint"), self_row=doc)
-        if hit is not None:
-            archive_as_duplicate(doc, hit, now_iso=now_iso)
-            return hit
-        if claim:
-            with _supabase.admin() as ac:
-                ac.update("documents", {"pipeline_started_at": now_iso},
-                          filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
-    return None
-
-
 def release_claim(doc: Dict[str, Any]) -> None:
-    """Undo `claim_or_duplicate`'s stamp after the meter refused the run
-    (402 / 429 / an error): the row goes back to exactly what it was, so a
-    dismissed extra-document dialog never leaves a phantom original and the
-    stuck-upload watchdog still recognises the refused row."""
+    """Undo a claim after the meter refused the run (402 / 429 / an error):
+    the row goes back to exactly what it was (`doc` carries the prior
+    `pipeline_started_at`), so a dismissed extra-document dialog never
+    leaves a phantom original and the stuck-upload watchdog still
+    recognises the refused row — and the document leaves the in-flight
+    registry, so the next entry may claim it."""
     try:
         with _supabase.admin() as ac:
             ac.update("documents", {"pipeline_started_at": doc.get("pipeline_started_at")},
                       filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{doc.get('org_id')}"})
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] could not release the run claim on %s", doc.get("id"))
+    finally:
+        clear_in_flight(str(doc.get("id") or ""))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# THE analysis entry — one step for /run, retry, recover-stuck, the watchdog
+# ──────────────────────────────────────────────────────────────────────
+
+#: POST /api/pipeline/run — the metered FIRST analysis of an upload.
+FIRST = "first"
+#: POST /api/pipeline/retry — an unmetered re-run of the stored bytes.
+RERUN = "rerun"
+#: recover-stuck and the SKU watchdog — a /run that was refused or lost.
+RECOVER = "recover"
+
+#: The entry claimed the document: the caller reserves (or not) and either
+#: hands the run to its thread or gives the claim back (`release_claim`).
+CLAIMED = "claimed"
+#: The document duplicates a live original (now archived), or already is
+#: an archived duplicate. Nothing is reserved, analysed or counted.
+DUPLICATE = "duplicate"
+#: Another entry holds this document's run (in flight in this process), or
+#: — for a recovery — it is no longer a stuck, never-started upload.
+BUSY = "busy"
+#: A first analysis asked for a document that is already analysed.
+DONE = "done"
+#: The document is deleted (a user's soft delete): no entry analyses it.
+DELETED = "deleted"
+
+
+@dataclass(frozen=True)
+class Entry:
+    """What `enter_analysis` decided for one document."""
+    kind: str
+    row: Dict[str, Any]
+    hit: Optional[DuplicateHit] = None
+    #: `pipeline_started_at` before the claim — what `release_claim` restores.
+    prior_claim: Any = None
+
+    @property
+    def status(self) -> str:
+        return str(self.row.get("status") or "")
+
+    @property
+    def period_id(self) -> Optional[str]:
+        pid = self.row.get("period_id")
+        return str(pid) if pid else None
+
+    def released_row(self) -> Dict[str, Any]:
+        """The row to hand `release_claim`: its prior claim restored."""
+        return {**self.row, "pipeline_started_at": self.prior_claim}
+
+
+def _fresh_row(document_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    """The document as it is NOW (the route's copy was read before the
+    lock). None when it cannot be read."""
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select("documents", filters={
+                "id": f"eq.{document_id}", "org_id": f"eq.{org_id}",
+            }, single=True) or []
+    except Exception:  # noqa: BLE001 — the caller's copy stands in
+        logger.exception("[dedupe] could not re-read document %s", document_id)
+        return None
+    return dict(rows[0]) if rows else None
+
+
+def _hit_for_marker(original_id: str, org_id: str) -> DuplicateHit:
+    """The hit an archived duplicate's own marker names — read back so the
+    answer links to where the original's analysis lives."""
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select("documents", filters={
+                "id": f"eq.{original_id}", "org_id": f"eq.{org_id}",
+            }, single=True) or []
+    except Exception:  # noqa: BLE001 — the marker alone still refuses
+        rows = []
+    if rows:
+        return _hit(rows[0])
+    return DuplicateHit(existing_document_id=str(original_id), period_id=None,
+                        original_filename=None, status="")
+
+
+def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: str,
+                   hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object,
+                   ) -> Entry:
+    """THE analysis-entry decision, one step under the (company, account,
+    content) lock — the document-id lock when its content hash is unknown:
+
+      * the document already has its run in this process   → BUSY
+      * a FIRST analysis of a document already analysed     → DONE
+      * a RECOVERY of a row that is no longer queued-and-
+        never-started (a /run claimed it meanwhile)          → BUSY
+      * it duplicates a live original of the same account,
+        company and period                                   → archived, DUPLICATE
+      * otherwise the document is CLAIMED: in the in-flight
+        registry (test-and-set) and `pipeline_started_at`
+        stamped — the claim a racing twin finds              → CLAIMED
+
+    Only a CLAIMED entry may reserve and enqueue. Every other outcome
+    reserves nothing — which is what makes /run on the same id twice (the
+    failed-banner Retry of a run the server did start) count once.
+
+    A DELETED row is refused FIRST, before any reservation and before any
+    write (verifier P-F): an archived duplicate answers DUPLICATE with the
+    original its marker names — its marker is never erased and it is never
+    re-run, whatever this process remembers (`_ARCHIVED_HERE` is emptied by
+    every restart) — and a user's soft delete answers DELETED."""
+    doc_id = str(doc.get("id") or "")
+    org_id = str(doc.get("org_id") or "")
+    account = str(caller_id or "")
+    h = ensure_content_hash(doc, hasher) if account else None
+    lock = _lock_for(org_id, account, h) if h else _doc_lock(doc_id)
+    with lock:
+        row = _fresh_row(doc_id, org_id) or dict(doc)
+        if h and not row.get("content_hash"):
+            row["content_hash"] = h
+        if row.get("deleted_at"):
+            original = duplicate_of(row.get("error"))
+            if original:
+                return Entry(DUPLICATE, row, hit=_hit_for_marker(original, org_id))
+            return Entry(DELETED, row)
+        if in_flight(doc_id):
+            return Entry(BUSY, row)
+        status = str(row.get("status") or "").lower()
+        if mode == FIRST and status == "analyzed":
+            return Entry(DONE, row)
+        if mode == RECOVER and (status != "queued" or row.get("pipeline_started_at")):
+            return Entry(BUSY, row)
+        if h:
+            hit = find_live_original(org_id=org_id, user_id=account, content_hash=h,
+                                     hint=row.get("period_end_hint"), self_row=row)
+            if hit is not None:
+                archive_as_duplicate(row, hit, now_iso=now_iso)
+                return Entry(DUPLICATE, row, hit=hit)
+        if not try_mark_in_flight(doc_id):
+            return Entry(BUSY, row)
+        prior = row.get("pipeline_started_at")
+        try:
+            with _supabase.admin() as ac:
+                ac.update("documents", {"pipeline_started_at": now_iso},
+                          filters={"id": f"eq.{doc_id}", "org_id": f"eq.{org_id}"})
+        except Exception:
+            clear_in_flight(doc_id)
+            raise
+        return Entry(CLAIMED, row, prior_claim=prior)
 
 
 # ──────────────────────────────────────────────────────────────────────

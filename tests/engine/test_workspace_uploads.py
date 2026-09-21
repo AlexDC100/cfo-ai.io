@@ -562,7 +562,7 @@ def test_an_allowed_reservation_is_settled_by_the_run_ledger_and_nothing_bumps_a
 def test_a_twin_that_slipped_past_the_first_check_is_archived_at_the_claim(app, world, monkeypatch):
     """Two drops of one file at once: both pass the pre-store check, the
     first claims the run, the second is found at the CLAIM (the same
-    `_doc_dedupe.claim_or_duplicate` /api/pipeline/run uses) — archived, not
+    `_doc_dedupe.enter_analysis` /api/pipeline/run takes) — archived, not
     analysed, its reservation handed back."""
     body = b"PK\x03\x04 the same bytes"
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
@@ -631,6 +631,59 @@ def test_the_meter_answers_like_pipeline_run_and_before_anything_is_created(app,
     with pytest.raises(pipeline.HTTPException) as exc:
         pipeline.reserve_upload_or_refuse(USER)
     assert exc.value.status_code == status and exc.value.detail["code"] == code
+
+
+def _extra_meter(monkeypatch):
+    """The real grant registry (`_usage_gate.confirm_extra_document` /
+    `claim_extra_grant`) over a recorded RPC and a plan that sells extras."""
+    from engine.api import _plan_state
+
+    calls = []  # type: List[str]
+
+    def _rpc(fn, params):
+        calls.append(fn)
+        return {"used": 15, "reserved": 1} if fn == "reserve_user_upload_extra" else {}
+
+    monkeypatch.setattr(_usage_gate, "_rpc", _rpc)
+    monkeypatch.setattr(_usage_gate, "enforced_for", lambda uid: True)
+    monkeypatch.setattr(_plan_state, "get_plan_state", lambda uid: SimpleNamespace(
+        plan=SimpleNamespace(key="professional", extra_doc_eur=3.0, included_docs=15)))
+    return calls
+
+
+def test_a_confirmed_extra_is_granted_to_the_document_this_commit_stores(app, world, monkeypatch):
+    """The card's 402 -> Confirm -> the SAME commit with confirm_extra=1.
+    There is no stored document yet for /api/plan/confirm-extra-doc to grant
+    the extra to, so the commit reserves it as a grant for the document it is
+    about to store and takes it there: one confirmation, one document
+    (verifier P-B). The 402 itself stored and reserved nothing."""
+    calls = _extra_meter(monkeypatch)
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    world.decision = "extra_required"
+    r = commit(app, target_org_id=ORG_SCANDIA, period_end="2025-12-31")
+    assert r.status_code == 402 and r.json()["detail"]["code"] == "extra_doc_confirmation_required", r.text[:300]
+    assert world.docs() == [] and world.db.storage == {} and calls == []
+    r = commit(app, target_org_id=ORG_SCANDIA, period_end="2025-12-31", confirm_extra="1")
+    assert r.status_code == 200 and r.json()["status"] == "queued", r.text[:300]
+    (doc,) = world.docs()
+    assert r.json()["document_id"] == doc["id"] and doc["metered_extra"] is True, doc
+    run = pipeline._take_quota_run(doc["id"])
+    assert run is not None and run.was_extra and run.user_id == USER, run
+    assert calls == ["reserve_user_upload_extra"], calls
+    # The meter was asked once (the 402); the confirmed commit took its grant.
+    assert world.reserved_for == [USER]
+    assert _usage_gate._EXTRA_GRANTS == {}, "the grant was not taken by its document"
+
+
+def test_a_confirmed_extra_for_a_file_already_here_reserves_nothing(app, world, monkeypatch):
+    calls = _extra_meter(monkeypatch)
+    body = b"PK\x03\x04 the same bytes"
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    mine = _seed_doc(world, org=ORG_SCANDIA, body=body)
+    before = world.db.snapshot()
+    r = commit(app, body=body, target_org_id=ORG_SCANDIA, period_end="2025-12-31", confirm_extra="1")
+    assert r.json()["status"] == "duplicate" and r.json()["document_id"] == mine["id"], r.text[:300]
+    assert world.db.snapshot() == before and calls == [] and _usage_gate._EXTRA_GRANTS == {}
 
 
 def test_a_failed_document_insert_removes_the_object_and_hands_the_reservation_back(app, world, monkeypatch):

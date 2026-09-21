@@ -60,6 +60,22 @@ def _bearers_verify_against_the_test_jwks(monkeypatch):
     _jwt.reset_cache()
 
 
+@pytest.fixture(autouse=True)
+def _one_run_per_document_registries_are_per_test(monkeypatch):
+    """The in-flight registry (`_doc_dedupe._IN_FLIGHT`) and the confirmed
+    extra-document grants (`_usage_gate._EXTRA_GRANTS`) are process-wide by
+    design — the engine is one process. A test whose `_enqueue` is a
+    recorder never runs the daemon thread that clears its claim, so each
+    test starts with both empty and leaves nothing behind for the next."""
+    from engine.api import _doc_dedupe, _usage_gate
+
+    monkeypatch.setattr(_doc_dedupe, "_IN_FLIGHT", {})
+    for name, empty in (("_EXTRA_GRANTS", dict), ("_LAST_EXTRA_REQUIRED", dict)):
+        if hasattr(_usage_gate, name):
+            monkeypatch.setattr(_usage_gate, name, empty())
+    yield
+
+
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO

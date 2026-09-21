@@ -34,13 +34,19 @@ def _decision(kind: str, was_extra: bool = False) -> _usage_gate.DocReserveDecis
 @pytest.fixture()
 def harness(monkeypatch):
     state = {"enqueued": [], "status": [], "updates": [], "reserved_for": []}
+    # The row as the browser inserts it and recover-stuck selects it:
+    # queued, never started, uploaded by the caller.
     docs = [{"id": "doc-1", "org_id": "org-1", "original_filename": "tb.xlsx", "scope": "financial",
-             "created_at": OLD, "pipeline_started_at": None}]
+             "created_at": OLD, "pipeline_started_at": None, "status": "queued", "deleted_at": None,
+             "uploaded_by": CALLER}]
 
     class Client:
         def __enter__(self): return self
         def __exit__(self, *exc): return None
-        def select(self, table, **kw): return list(docs) if table == "documents" else []
+        def select(self, table, **kw):
+            if table == "memberships":
+                return [{"user_id": CALLER, "org_id": "org-1"}]
+            return list(docs) if table == "documents" else []
         def update(self, table, patch, **kw): state["updates"].append((table, patch, kw.get("filters")))
 
     monkeypatch.setattr(pipeline, "_require_jwt", lambda authorization=None: "jwt")
@@ -59,6 +65,11 @@ def harness(monkeypatch):
     state["post"] = lambda: TestClient(app).post("/api/pipeline/recover-stuck", headers={"Authorization": "Bearer x"})
     state["meter"] = lambda fn: monkeypatch.setattr(_usage_gate, "reserve_document", fn)
     return state
+
+
+def _stamps(harness):
+    """The writes other than the entry's own claim / its release."""
+    return [u for u in harness["updates"] if set(u[1]) != {"pipeline_started_at"}]
 
 
 @pytest.mark.parametrize("kind", ["extra_required", "blocked"])
@@ -84,11 +95,13 @@ def test_an_allowed_document_still_recovers(harness, kind):
     harness["meter"](lambda uid: _decision(kind))
     body = harness["post"]().json()
     assert harness["enqueued"] == ["doc-1"] and body["recovered_count"] == 1
-    assert body["needs_confirmation_count"] == 0 and harness["updates"] == []
+    # no metered_extra stamp for a reservation that is not an extra (the
+    # run's own claim — pipeline_started_at — is the only other write)
+    assert body["needs_confirmation_count"] == 0 and _stamps(harness) == []
 
 
 def test_an_extra_reservation_is_stamped_so_the_commit_bills_it(harness):
     harness["meter"](lambda uid: _decision("allowed", was_extra=True))
     harness["post"]()
-    assert harness["updates"] == [("documents", {"metered_extra": True}, {"id": "eq.doc-1"})]
+    assert _stamps(harness) == [("documents", {"metered_extra": True}, {"id": "eq.doc-1"})]
     assert harness["enqueued"] == ["doc-1"]
