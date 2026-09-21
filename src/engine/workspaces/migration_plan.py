@@ -55,9 +55,17 @@ data would change what the other members see).
    user's holding workspace "Arhivă (migrare <date>)" (``archived_at`` set,
    ``purge_after`` NULL — ``purge_expired_workspaces`` only purges
    ``purge_after < now()``, and NULL never compares). The source travels
-   with its period because ``financial_periods.source_document_id`` is
-   ``ON DELETE CASCADE``: a source left behind in a live workspace's trash
-   would, when emptied, erase the archived period.
+   with its period WHATEVER its state (analysed, failed, trashed, any
+   scope) because ``financial_periods.source_document_id`` is
+   ``ON DELETE CASCADE``: a source left in another workspace — or left in
+   ANY trash — is one hard delete ("Clear all", a purge, a sweep) away from
+   erasing the archived period and everything scoped to it. So a period's
+   source is NEVER trashed by this migration, and a source that was already
+   in the trash comes out of it as it moves (the holding workspace is
+   archived: nothing in it is shown). ``period_source_hazards`` is the
+   gate: the plan is refused (``blocking``) if its post-state has a period
+   whose source is trashed or in another workspace that the pre-state did
+   not have.
 7. A workspace with no company of its own is archived once split, unless
    something live is still in it that could not be placed (then it stays,
    reported) or it would leave the user with no live workspace.
@@ -81,7 +89,7 @@ from engine.workspaces.company_identity import (
     normalize_company_name,
     normalize_cui,
 )
-from engine.workspaces.rowstore import NOW, canonical_json, pk_for
+from engine.workspaces.rowstore import NOW, apply_ops, canonical_json, pk_for
 
 #: Fixed namespace: new workspace ids are uuid5(NS, "<user>|<company key>").
 MIGRATION_NAMESPACE = uuid.UUID("5e0c7f3a-2b9d-4f61-8a4e-7d1c3b2a9f06")
@@ -304,7 +312,17 @@ class _Planner:
                     "workspace %s (%r) has %d members — not migrated" % (org_id, org.get("name"), n))
         for user in users:
             self.build_user(user)
+        self._refuse_new_cascade_hazards()
         return self.plan
+
+    def _refuse_new_cascade_hazards(self) -> None:
+        """The plan's own post-state may not hold a period that is one hard
+        delete away from ``ON DELETE CASCADE`` (its source trashed, or in
+        another workspace) unless the pre-state already held it. Any such
+        period makes the plan ``blocking`` — --execute refuses it."""
+        after = apply_ops(self.t, self.plan.ops, now="1970-01-01T00:00:00+00:00", pks=self.pks, strict=False)
+        for pid, why in new_cascade_hazards(self.t, after):
+            self.plan.blocking.append("period %s would be one hard delete from erasure: %s" % (pid, why))
 
     def build_user(self, user: str) -> None:
         orgs = [o for o in sorted(self.orgs) if self.sole_owner(o) == user]
@@ -604,35 +622,45 @@ class _Planner:
                             periods: Mapping[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         dec: Dict[str, Dict[str, Any]] = {}
         kept_source = {periods[pid]["source_document_id"]: pid for pid in survivors.values()}
-        archived_source = {pr["source_document_id"]: pid for pid, pr in periods.items()
-                           if pr["action"] == "archive" and pr.get("source_document_id")
-                           and not pr["reason"].startswith("empty")}
-        empty_trashed_source = {pr["source_document_id"]: pid for pid, pr in periods.items()
-                                if pr["action"] == "archive" and pr.get("source_document_id")
-                                and pr["reason"].startswith("empty")}
+        # EVERY archived period's source, whatever the archive reason: the
+        # source travels with its period (rule 6), never into a trash.
+        archived_source = {pr["source_document_id"]: pid for pid, pr in sorted(periods.items())
+                           if pr["action"] == "archive" and pr.get("source_document_id")}
 
         groups: Dict[Tuple[str, Optional[str]], List[str]] = defaultdict(list)
         for did in sorted(self.in_scope_docs):
             d = self.docs[did]
-            if not _financial(d):
-                continue
             org = str(d["org_id"])
             ident = self.ident(did)
             company = self.key(did) or self.own.get(org)
             base = {"id": did, "from_org": org, "filename": d.get("original_filename"),
                     "status": d.get("status"), "company": company,
                     "live": d.get("deleted_at") is None}
+            if did in archived_source:
+                pid = archived_source[did]
+                status = self.status(did)
+                if d.get("deleted_at") is None and status in IN_FLIGHT:
+                    dec[did] = dict(base, action="untouched", reason="in flight (%s)" % status, _place="stay")
+                    self.plan.blocking.append("document %s is being analysed (%s)" % (did, status))
+                    continue
+                # Any scope, any state: it follows its period into the
+                # holding workspace, and comes out of the trash if it was
+                # in one (``_emit_ops``) — never trashed by the migration.
+                dec[did] = dict(base, action="follow_period", reason="source of archived period %s" % pid,
+                                _place="with_period", _period=pid)
+                continue
+            if did in kept_source:
+                # live and analysed by construction (``_period_row``); any
+                # scope — it goes where its period goes.
+                pid = kept_source[did]
+                dec[did] = dict(base, action="keep", reason="source of period %s" % pid,
+                                _place="with_period", _period=pid, period=pid)
+                continue
+            if not _financial(d):
+                continue
             if d.get("deleted_at") is not None:
                 # pre-existing trash
-                if did in archived_source or did in empty_trashed_source:
-                    pid = archived_source.get(did) or empty_trashed_source[did]
-                    dec[did] = dict(base, action="follow_period", reason="source of archived period %s" % pid,
-                                    _place="with_period", _period=pid)
-                elif did in kept_source:
-                    pid = kept_source[did]
-                    dec[did] = dict(base, action="follow_period", reason="source of period %s" % pid,
-                                    _place="with_period", _period=pid)
-                elif company and self.own.get(org) and company != self.own.get(org):
+                if company and self.own.get(org) and company != self.own.get(org):
                     # Another company's file in THIS company's trash: it would
                     # be restorable here. It goes to its own company's
                     # workspace (or the holding one). Trash inside a workspace
@@ -646,16 +674,6 @@ class _Planner:
             if status in IN_FLIGHT:
                 dec[did] = dict(base, action="untouched", reason="in flight (%s)" % status, _place="stay")
                 self.plan.blocking.append("document %s is being analysed (%s)" % (did, status))
-                continue
-            if did in kept_source:
-                pid = kept_source[did]
-                dec[did] = dict(base, action="keep", reason="source of period %s" % pid,
-                                _place="with_period", _period=pid, period=pid)
-                continue
-            if did in archived_source:
-                pid = archived_source[did]
-                dec[did] = dict(base, action="archive", reason="archived: period archived (%s)" % pid,
-                                _place="with_period", _period=pid)
                 continue
             if company is None:
                 dec[did] = dict(base, action="untouched", reason="company unknown", _place="stay")
@@ -859,6 +877,10 @@ class _Planner:
             if dd["action"] == "archive" and d.get("deleted_at") is None:
                 patch["deleted_at"] = NOW
                 patch["error"] = dd["reason"]
+            elif dd["action"] == "follow_period" and d.get("deleted_at") is not None:
+                # A period's source never stays in a trash: emptying it
+                # would cascade the period away (rule 6).
+                patch["deleted_at"] = None
             doc_moves[did] = patch
 
         # 3. period-scoped rows follow their period, document-scoped rows their document
@@ -1069,6 +1091,41 @@ def cross_workspace_links(tables: Mapping[str, List[Mapping[str, Any]]]) -> List
             if pid and col and pid in periods and str(r.get(col)) != periods[pid]:
                 out.append("%s %s -> period %s" % (table, r.get("id"), pid))
     return out
+
+
+def period_source_hazards(tables: Mapping[str, List[Mapping[str, Any]]]) -> List[Tuple[str, str]]:
+    """Periods one hard delete away from erasure. ``financial_periods.
+    source_document_id`` is ``ON DELETE CASCADE`` (schema.sql:571): when the
+    source document row goes, the period and every row scoped to it go with
+    it. A source in the TRASH goes with any "Clear all" / purge of that
+    trash; a source in ANOTHER workspace goes when that workspace's trash is
+    emptied or the workspace is purged. Returns (period id, why)."""
+    docs = {str(d["id"]): d for d in tables.get("documents") or []}
+    out: List[Tuple[str, str]] = []
+    for p in tables.get("financial_periods") or []:
+        sid = str(p.get("source_document_id") or "")
+        d = docs.get(sid) if sid else None
+        if d is None:
+            continue
+        if d.get("deleted_at") is not None:
+            out.append((str(p["id"]), "source document %s is in the trash" % sid))
+        elif str(d.get("org_id")) != str(p.get("org_id")):
+            out.append((str(p["id"]), "source document %s is in workspace %s, the period in %s"
+                        % (sid, d.get("org_id"), p.get("org_id"))))
+    return sorted(out)
+
+
+def new_cascade_hazards(before: Mapping[str, List[Mapping[str, Any]]],
+                        after: Mapping[str, List[Mapping[str, Any]]]) -> List[Tuple[str, str]]:
+    """The ``period_source_hazards`` of ``after`` that a migration from
+    ``before`` answers for: every one ``before`` did not have, and every one
+    of a period whose workspace CHANGED (a period the migration moved must
+    arrive whole — its source with it, out of any trash)."""
+    had = set(period_source_hazards(before))
+    org_before = {str(p["id"]): str(p.get("org_id")) for p in before.get("financial_periods") or []}
+    org_after = {str(p["id"]): str(p.get("org_id")) for p in after.get("financial_periods") or []}
+    return [(pid, why) for pid, why in period_source_hazards(after)
+            if (pid, why) not in had or org_before.get(pid) != org_after.get(pid)]
 
 
 # ── human report ───────────────────────────────────────────────────────

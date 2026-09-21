@@ -172,6 +172,29 @@ def test_an_interrupted_run_resumes_to_the_same_result(env, monkeypatch):
     assert env["fake"].deletes == []
 
 
+def test_a_source_left_in_a_trash_fails_the_recount(env, monkeypatch):
+    """PLANT: the database keeps an archived period's source in the trash
+    (the run's un-trash PATCH is dropped). The recount must name the cascade
+    hazard — a trashed source is one "Clear all" from erasing the period."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    fake = env["fake"]
+    real = fake._rest
+
+    def keep_in_trash(req, table):
+        if req.method == "PATCH" and table == "documents":
+            body = json.loads(req.content or b"{}")
+            if "deleted_at" in body and body["deleted_at"] is None:
+                body.pop("deleted_at")
+                import httpx
+                req = httpx.Request(req.method, req.url, headers=req.headers, content=json.dumps(body).encode())
+        return real(req, table)
+
+    monkeypatch.setattr(fake, "_rest", keep_in_trash)
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    assert any("CASCADE HAZARD period per-sf21" in l for l in env["lines"]), "\n".join(env["lines"][-15:])
+
+
 # ── restore ────────────────────────────────────────────────────────────
 
 def test_restore_puts_every_snapshot_row_back_without_deleting(env):

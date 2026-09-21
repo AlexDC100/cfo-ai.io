@@ -63,6 +63,7 @@ from engine.workspaces.migration_plan import (  # noqa: E402
     cross_workspace_links,
     empty_live_periods,
     facts_from_documents,
+    new_cascade_hazards,
     render_report,
 )
 from engine.workspaces.rowstore import (  # noqa: E402
@@ -287,6 +288,11 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                     check["problems"].append("storage %s: copy missing" % op["to_path"])
         g4 = empty_live_periods(current)
         links = cross_workspace_links(current)
+        # A period whose source is trashed / in another workspace is one
+        # "Clear all" or purge away from ON DELETE CASCADE. The run may not
+        # leave one the snapshot did not already have.
+        for pid, why in new_cascade_hazards(tables, current):
+            check["problems"].append("CASCADE HAZARD period %s: %s" % (pid, why))
         run_log = {"run_at": run_ts, "plan_sha256": plan.ops_sha256(), "done": done,
                    "problems": check["problems"], "drift": check["drift"],
                    "g4_empty_live_periods": g4, "cross_workspace_links": links}

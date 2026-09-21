@@ -30,6 +30,7 @@ from engine.workspaces.migration_plan import (
     empty_live_periods,
     holding_org_id,
     new_org_id,
+    period_source_hazards,
 )
 from engine.workspaces.rowstore import (
     apply_ops,
@@ -87,9 +88,12 @@ def test_same_month_periods_elsewhere_are_archived_not_the_served_ones(world):
     assert q24["action"] == "archive" and q24["reason"] == "month_already_served (per-sf24)"
     holding = holding_org_id(OWNER)
     assert _row(world["post"], "financial_periods", id="per-q25")["org_id"] == holding
-    # its source travels with it (ON DELETE CASCADE hazard otherwise)
+    # its source travels with it, and is NOT put in a trash: the source is
+    # ON DELETE CASCADE for the period, and "Clear all" on any trash the
+    # owner can reach hard-deletes what is in it (2026-09-21 verifier P0 —
+    # this line used to assert deleted_at IS NOT NULL, i.e. the defect).
     src = _row(world["post"], "documents", id="q-sf25-src")
-    assert src["org_id"] == holding and src["deleted_at"] is not None
+    assert src["org_id"] == holding and src["deleted_at"] is None
 
 
 def test_workspaces_created_per_company_with_prefs(world):
@@ -228,6 +232,49 @@ def test_g4_no_empty_period_survives_in_a_live_workspace(world):
         "the gate must see the planted empties in the pre-state"
     owner_live = {m["org_id"] for m in world["post"]["memberships"] if m["user_id"] == OWNER}
     assert empty_live_periods(world["post"], orgs=owner_live) == []
+
+
+def test_no_period_is_one_hard_delete_from_erasure(world):
+    """Every period's source document ends in the period's own workspace and
+    out of every trash — a source in a trash (or elsewhere) is erased by the
+    next "Clear all" / purge, and ON DELETE CASCADE takes the period with it.
+    The pre-state HAS such periods (per-sf21's source is in the user's
+    trash); the post-state has none, and the already-trashed source came
+    out of the trash as it moved with its archived period."""
+    pre_hazards = period_source_hazards(world["tables"])
+    assert ("per-sf21", "source document d-omega-trash is in the trash") in pre_hazards, \
+        "the gate must see the planted trashed source in the pre-state"
+    assert period_source_hazards(world["post"]) == []
+    omega = _row(world["post"], "documents", id="d-omega-trash")
+    assert omega["org_id"] == holding_org_id(OWNER) and omega["deleted_at"] is None
+    assert _row(world["post"], "financial_periods", id="per-sf21")["org_id"] == holding_org_id(OWNER)
+    assert world["plan"].blocking == []
+    # PLANT: the migration trashing one archived period's source — exactly
+    # the 10fd52ab behaviour — is seen by the gate.
+    planted = copy.deepcopy(world["post"])
+    _row(planted, "documents", id="q-sf25-src")["deleted_at"] = RUN
+    assert period_source_hazards(planted) == [("per-q25", "source document q-sf25-src is in the trash")]
+
+
+def test_the_failed_source_of_an_empty_period_follows_it_and_is_not_trashed():
+    """An EMPTY period (its source failed) is archived into the holding
+    workspace; its failed source goes WITH it — never into a live company
+    workspace's trash, where "Clear all" would cascade the period away."""
+    t = _mini([_doc("ok", "org-a", period="p1"),
+               _doc("fail", "org-a", status="failed", period="p2", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "ok"},
+               {"id": "p2", "org_id": "org-a", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "fail"}],
+              metrics=[("p1", "org-a"), ("p2", "org-a")])
+    facts = {"ok": _ident(ALFA, "2025-12-31"), "fail": _ident(GAMMA, "2024-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "p2")["reason"] == "empty: source document failed"
+    post = apply_ops(t, plan.ops, now=RUN)
+    fail = _row(post, "documents", id="fail")
+    assert fail["org_id"] == _row(post, "financial_periods", id="p2")["org_id"] == holding_org_id("u")
+    assert fail["deleted_at"] is None
+    assert period_source_hazards(post) == [] and plan.blocking == []
 
 
 def test_no_document_or_row_points_into_another_workspace(world):
