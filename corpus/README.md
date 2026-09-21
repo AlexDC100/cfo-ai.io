@@ -44,7 +44,7 @@ goldens (`--force-inputs` rebuilds deliberately; refreeze after).
 | `anonymized_upstream` | reviewed escape hatch: a real export this repo's scrambler deliberately did NOT touch. Put the reason in `source_notes`. Every use is printed as a NOTICE on every gate run, so it can never become invisible. |
 | `expect_ai_never_consulted` | `true` ⇒ the replay FAILS if the reconcile AI-proposal path (or any model client) is ever invoked for this case |
 | `source_notes` | provenance + anything a future maintainer must know |
-| `close_status` | optional. Set when a real book is NOT the year the company filed — e.g. `"preliminary close — not the filed year"` for an export taken before the year-end closing entries. Such a case is a parser fixture only: nothing that states the company's figures for that year (forecast acceptance included) may run on it. Say which close was filed in `source_notes`. |
+| `close_status` | optional. Set when a real book is NOT the year the company filed — e.g. `"preliminary close — not the filed year"` for an export taken before the year-end closing entries. Such a case is a fixture for the engine's mechanics (parser, mapping, rebuild, a model's arithmetic — many engine tests replay it) and is never presented as the company's filed figures for that year: forecast acceptance, and anything that states the company's figures for that year, runs on the filed version. Say which close was filed in `source_notes`. `make_corpus_inputs.py --force-meta` never overwrites a meta.yaml that carries this key. |
 
 ## Running
 

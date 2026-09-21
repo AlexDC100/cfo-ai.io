@@ -538,6 +538,13 @@ def _meta_yaml(case_id: str, meta: Dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _carries_close_status(meta_path: Path) -> bool:
+    if not meta_path.is_file():
+        return False
+    return any(line.startswith("close_status:")
+               for line in meta_path.read_text(encoding="utf-8").splitlines())
+
+
 def build(force_meta: bool = False, force_inputs: bool = False) -> None:
     """Create missing case inputs/meta/mocks. Inputs are FROZEN once
     created (XLSX zip containers embed save timestamps, so a rebuild is
@@ -556,7 +563,12 @@ def build(force_meta: bool = False, force_inputs: bool = False) -> None:
         else:
             print("kept   %s" % input_path.relative_to(REPO))
         meta_path = case_dir / "meta.yaml"
-        if force_meta or not meta_path.is_file():
+        if force_meta and _carries_close_status(meta_path):
+            # An owner's label ("preliminary close — not the filed year")
+            # lives only in the committed meta.yaml; regenerating from the
+            # table below would silently drop it.
+            print("KEPT   %s (carries close_status — edit it by hand)" % meta_path.relative_to(REPO))
+        elif force_meta or not meta_path.is_file():
             meta_path.write_text(_meta_yaml(case_id, meta), encoding="utf-8")
             print("meta   %s" % meta_path.relative_to(REPO))
         for mock_name, payload in MOCK_FILES.get(case_id, {}).items():
