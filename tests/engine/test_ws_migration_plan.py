@@ -35,9 +35,11 @@ from engine.workspaces.migration_plan import (
 from engine.workspaces.rowstore import (
     apply_ops,
     pk_for,
+    restore_diff,
     restore_ops,
     row_key,
     rows_equal,
+    stamped_bags,
 )
 
 from ws_migration_fixture import (
@@ -375,6 +377,40 @@ def test_g8_restore_on_the_post_state_reproduces_the_pre_state(world):
     assert holding_org_id(OWNER) in created_orgs and len(created_orgs) == 5
     # created rows without an archive column are reported, never deleted
     assert any("memberships" in n for n in notes) and any("org_prefs" in n for n in notes)
+
+
+def test_a_rollback_leaves_no_identity_stamp_on_a_workspace_that_existed_before(world):
+    """Verifier finding (2026-09-21, dsl/p_prefs_residue.py on the real
+    snapshot): the migration CREATES an org_prefs row on a pre-existing
+    workspace that had none (merge_prefs), and the restore left it in place
+    as "inert". It is not: rule 1 reads org_prefs before anything else, so
+    after a rollback done BECAUSE an identity was wrong, the next plan took
+    that workspace's company from the wrong stamp ('org_prefs') instead of
+    from its books. The restore puts it back to the empty bag — what the
+    app reads for no row — and the next plan decides every pre-existing
+    workspace exactly as it did on the true pre-state."""
+    pre, post = world["tables"], world["post"]
+    assert "org-solo" not in {p["org_id"] for p in pre["org_prefs"]}
+    assert _row(post, "org_prefs", org_id="org-solo")["prefs"]["cui"] == SOLO    # the stamp exists
+    ops, _notes = restore_ops(pre, post)
+    restored = apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+    assert _row(restored, "org_prefs", org_id="org-solo")["prefs"] == {}
+    assert stamped_bags(pre, restored) == []
+    assert stamped_bags(pre, post) == [("org_prefs", {"org_id": "org-solo"},
+                                        ["company_name", "cui", "identity_sources"])]
+    # an empty bag IS no row: nothing differs, nothing is "created" for it
+    diff = restore_diff(pre, restored)["org_prefs"]
+    pre_orgs = {o["id"] for o in pre["organizations"]}
+    assert diff["changed"] == [] and diff["missing"] == []
+    assert diff["created"] and all(k["org_id"] not in pre_orgs for k in diff["created"])
+
+    def decided(tables):
+        plan = build_plan(tables, world["facts"], migration_date=DATE)
+        return {w["org_id"]: (w["company"], w["company_source"]) for w in plan.workspaces
+                if w["org_id"] in pre_orgs}
+
+    assert decided(restored) == decided(pre)
+    assert decided(pre)["org-solo"] == ("cui:" + SOLO, "period sources 1/1")
 
 
 def test_nothing_is_hard_deleted_and_billing_is_never_written(world):

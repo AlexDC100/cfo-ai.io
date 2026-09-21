@@ -14,10 +14,15 @@ gone, and rows created since.
 --apply --tables T,...: every changed or vanished row is upserted back to
 its snapshot value; rows created since the snapshot are ARCHIVED, never
 deleted (organizations: archived_at = now, purge_after NULL; documents:
-deleted_at = now). A created row in a table with no archive column is
-reported and left in place. ``--tables migration`` = every snapshot table
-except the billing ones (user_usage, subscriptions, billing_events), which
-are only restored when named.
+deleted_at = now). An org_prefs row created since the snapshot for a
+workspace the snapshot already had is put back to its EMPTY bag (the app
+reads an empty bag and no row identically — frontend/lib/prefs.ts) — the
+migration's identity stamp on a pre-existing workspace, which the next plan
+would otherwise read before anything else (rule 1). Any other created row
+in a table with no archive column is reported and left in place.
+``--tables migration`` = every snapshot table except the billing ones
+(user_usage, subscriptions, billing_events), which are only restored when
+named.
 
 Storage objects: the migration copies objects and never deletes one, so a
 restored storage_path should find its original object — unless something
@@ -29,14 +34,18 @@ object inventory) must still resolve. A snapshot without an inventory
 objects are listed as STORAGE MISSING; with --apply they make the exit 1.
 
 After --apply the tables are re-read and every snapshot row is compared;
-exit 1 if any differs, or if any object above is missing.
+exit 1 if any differs, if a pre-existing workspace still carries an
+org_prefs row created since the snapshot (STAMPED), or if any object above
+is missing.
 
 RESIDUE. A restore never deletes, so rows created since the snapshot stay:
 organizations / documents archived (held: purge_after NULL — listed
-nowhere, never purgeable from the hub), and memberships / org_prefs rows,
-which have no archive column (they belong to those archived workspaces and
-are inert). They are counted on a RESIDUE line — the rollback is "every
-snapshot row is back", never "production is the snapshot".
+nowhere, never purgeable from the hub), and the memberships / org_prefs
+rows OF THE WORKSPACES THE MIGRATION CREATED (no archive column; they
+belong to those archived workspaces). They are counted on a RESIDUE line —
+the rollback is "every snapshot row is back, and nothing created since
+speaks for a workspace that existed before", never "production is the
+snapshot".
 """
 from __future__ import annotations
 
@@ -58,7 +67,7 @@ def _add_src_to_path() -> None:
 _add_src_to_path()
 
 from engine.workspaces import pgrest_io  # noqa: E402
-from engine.workspaces.rowstore import canonical_json, restore_diff, restore_ops  # noqa: E402
+from engine.workspaces.rowstore import canonical_json, restore_diff, restore_ops, stamped_bags  # noqa: E402
 
 
 def _tables(spec: Optional[str], snap_tables: List[str]) -> List[str]:
@@ -158,6 +167,9 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if args.json:
             Path(args.json).write_text(json.dumps(diff, indent=1, default=str, ensure_ascii=False))
         if not args.apply:
+            for t, key, bag in stamped_bags(rows, current, pks=pks, tables=tables):
+                out("  STAMPED: %s %s carries %s on a pre-existing workspace — --apply empties it"
+                    % (t, canonical_json(key), ", ".join(bag)))
             for m in storage_missing(db, snap, rows, tables, []):
                 out("  STORAGE MISSING: %s" % m)
             out("DRY-RUN: %d row(s) differ; nothing written." % n)
@@ -168,10 +180,19 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         run_ts = now or pgrest_io.utc_now_iso()
         done = pgrest_io.apply_live(db, ops, now=run_ts, pks=pks, log=out)
         out("applied=%d skipped=%d" % (done["applied"], done["skipped"]))
-        after = restore_diff(rows, pgrest_io.read_tables(db, tables, pks), pks=pks, tables=tables)
+        current_after = pgrest_io.read_tables(db, tables, pks)
+        after = restore_diff(rows, current_after, pks=pks, tables=tables)
         bad = sum(len(after[t]["changed"]) + len(after[t]["missing"]) for t in tables)
-        out("RESTORE CHECK: %s" % ("every snapshot row is back" if not bad else
-                                   "%d snapshot row(s) still differ" % bad))
+        stamped = stamped_bags(rows, current_after, pks=pks, tables=tables)
+        for t, key, bag in stamped:
+            out("  STAMPED: %s %s still carries %s on a pre-existing workspace" % (t, canonical_json(key),
+                                                                                 ", ".join(bag)))
+        out("RESTORE CHECK: %s" % (
+            "every snapshot row is back" if not bad and not stamped else
+            "; ".join(x for x in (
+                "%d snapshot row(s) still differ" % bad if bad else "",
+                "%d pre-existing workspace(s) still carry a row created since the snapshot" % len(stamped)
+                if stamped else "") if x)))
         residue = {t: len(after[t]["created"]) for t in tables if after[t]["created"]}
         if residue:
             out("RESIDUE: %d row(s) created since the snapshot remain (a restore never deletes): %s"
@@ -182,7 +203,7 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         out("STORAGE CHECK: %s" % ("every document object resolves" if not missing else
                                    "%d document object(s) missing — the rows are back, the files are not"
                                    % len(missing)))
-        return 0 if not bad and not missing else 1
+        return 0 if not bad and not stamped and not missing else 1
     finally:
         close = getattr(client, "close", None)
         if close:

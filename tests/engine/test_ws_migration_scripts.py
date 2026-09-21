@@ -377,6 +377,9 @@ def test_restore_puts_every_snapshot_row_back_without_deleting(env):
     snap = _snapshot(env)
     assert _migrate(env, snap=snap) == 0
     assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    # the migration stamped a workspace that had no org_prefs row before it
+    solo = [p for p in env["fake"].tables["org_prefs"] if p["org_id"] == "org-solo"]
+    assert solo and solo[0]["prefs"]["company_name"] == "Solo Services SRL", solo
     env["lines"].clear()
     assert restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"]) == 0
     assert any("DRY-RUN" in l for l in env["lines"])
@@ -399,9 +402,55 @@ def test_restore_puts_every_snapshot_row_back_without_deleting(env):
     for o in fake.tables["organizations"]:
         if o["id"] not in pre_orgs:
             assert o["archived_at"] and o["purge_after"] is None
-    # never "production is the snapshot": what stays is counted
+    # Verifier finding (2026-09-21, dsl/p_prefs_residue.py): the identity
+    # stamp the migration CREATED on a pre-existing workspace used to stay,
+    # and the next plan read it first (rule 1). Nothing created since the
+    # snapshot may speak for a workspace that existed before it.
+    had_prefs = {p["org_id"] for p in env["pre"]["org_prefs"]}
+    for p in fake.tables["org_prefs"]:
+        if p["org_id"] in pre_orgs and p["org_id"] not in had_prefs:
+            assert p["prefs"] == {}, p
+    assert any(l.startswith("  note: org_prefs") and "org-solo" in l and "emptied" in l for l in env["lines"])
+    # never "production is the snapshot": what stays is counted — the rows
+    # of the workspaces the migration created
     residue = [l for l in env["lines"] if l.startswith("RESIDUE: ")]
     assert residue and "memberships" in residue[0] and "org_prefs" in residue[0], env["lines"][-6:]
+    created = {o["id"] for o in fake.tables["organizations"]} - pre_orgs
+    left = [p for p in fake.tables["org_prefs"] if p["org_id"] not in had_prefs and p["prefs"]]
+    assert left and all(p["org_id"] in created for p in left), left
+    # a second restore finds nothing to do
+    env["lines"].clear()
+    assert restore_cli.main([snap], client_factory=fake.client, out=env["out"]) == 0
+    assert not any(l.startswith("  STAMPED") for l in env["lines"])
+    assert any(l.startswith("org_prefs") and "created_since=%d" % len(left) in l for l in env["lines"]), \
+        [l for l in env["lines"] if l.startswith("org_prefs")]
+
+
+def test_a_restore_that_leaves_a_stamp_on_a_pre_existing_workspace_fails(env, monkeypatch):
+    """PLANT: the restore's emptying of a created org_prefs row does not
+    happen (an op dropped, a write swallowed). The dry-run names the stamp,
+    and --apply must end in exit 1 — never "every snapshot row is back"."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    env["lines"].clear()
+    assert restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"]) == 0
+    stamped = [l for l in env["lines"] if l.startswith("  STAMPED: org_prefs")]
+    assert stamped and "org-solo" in stamped[0] and "company_name" in stamped[0], env["lines"][-8:]
+    real = restore_cli.restore_ops
+
+    def dropping(*a, **kw):
+        ops, notes = real(*a, **kw)
+        return [op for op in ops if not (op.get("table") == "org_prefs" and op["op"] == "upsert"
+                                         and op["row"].get("prefs") == {})], notes
+
+    monkeypatch.setattr(restore_cli, "restore_ops", dropping)
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=env["fake"].client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 1
+    check = [l for l in env["lines"] if l.startswith("RESTORE CHECK: ")]
+    assert check and "still carry a row created since the snapshot" in check[0], check
+    assert any(l.startswith("  STAMPED: org_prefs") and "org-solo" in l for l in env["lines"])
 
 
 def test_a_write_the_database_silently_drops_fails_the_recount(env, monkeypatch):
