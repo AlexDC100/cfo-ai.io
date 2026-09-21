@@ -163,8 +163,11 @@ def test_agras_names_the_accounts_the_owner_read_off_the_book() -> None:
             codes.update(a["code"] for a in m["accounts"])
     # The accounts the owner cited as proof the header was wrong.
     assert {"301", "341", "345"} <= codes
-    assert by_key["own_production_revenue"]["share"] == pytest.approx(0.6689, abs=5e-4)
-    assert by_key["material_cost"]["share"] == pytest.approx(0.3797, abs=5e-4)
+    # plan/2 B4a: the share's basis is revenue, which fell to 110,798,309.14
+    # once agras's mirrored 709 reductions were read as reductions
+    # (0.6689 on the overstated 118,576,819.64).
+    assert by_key["own_production_revenue"]["share"] == pytest.approx(0.7158, abs=5e-4)
+    assert by_key["material_cost"]["share"] == pytest.approx(0.4064, abs=5e-4)  # 0.3797 on the overstated revenue
 
 
 # ── "Cannot tell" is an answer this module is able to give ────────────

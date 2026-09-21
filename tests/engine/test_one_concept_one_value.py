@@ -115,19 +115,32 @@ def test_every_book_carries_both_net_income_views_and_an_anchor(served):
     """A gate over four books proves nothing if the books agree by
     accident. Each one must carry a reconstruction that DIFFERS from the
     filed 121 figure, so 'read the anchor' is a real constraint."""
+    # plan/2 B4a: retail now reproduces account 121 to the cent (its
+    # 609/709 double count is repaired), so its two views agree by
+    # construction, not by accident. A tying book is named and set aside;
+    # the gate stays non-vacuous as long as at least one book differs (TC-3).
+    differing = []
+    tying = []
     for name in BOOKS:
         apl = served[name]["assembled_pl"]
         statutory = apl["net_income_statutory"]
         operational = apl["net_income_operational"]
         assert isinstance(statutory, float) and isinstance(operational, float)
-        assert abs(statutory - operational) > 1.0, (
-            f"{name}: the two net-income views agree, so this book cannot "
-            f"distinguish an anchored figure from a reconstruction"
-        )
+        if abs(statutory - operational) > 1.0:
+            differing.append(name)
+        else:
+            assert abs(float(apl.get("net_income_unexplained_vs_121") or 0.0)) < 0.005, (
+                f"{name}: the two views agree but an unexplained step is recorded")
+            tying.append(name)
         assert abs(served[name]["p121"].get("p121") - statutory) < 0.005, (
             f"{name}: assembled_pl.net_income_statutory is not the account-121 "
             f"closing balance the envelope witnesses"
         )
+    print("books whose reconstruction misses account 121: %s; books that tie: %s"
+          % (", ".join(differing), ", ".join(tying) or "none"))
+    assert differing, (
+        "every book's two net-income views agree, so no book can distinguish "
+        "an anchored figure from a reconstruction")
 
 
 # ── G1e: the two halves never disagree under one name ─────────────────

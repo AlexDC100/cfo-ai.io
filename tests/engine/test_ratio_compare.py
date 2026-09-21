@@ -572,21 +572,26 @@ def _real_pair_ratios(cur_body=None, pri_body=None):
                               prior_row={"id": pri["period"]["id"], "period_end": "2024-12-31"})["ratios"]
 
 
-#: Hand-checked on the served agras (current) / carniprod (prior) pair.
+#: Hand-checked on the served agras (current) / carniprod (prior) pair,
+#: re-checked by hand on the tb_parser_v6 capture (the 609/709
+#: contra-convention repair moved agras revenue 118,576,819.64 ->
+#: 110,798,309.14 and carniprod's EBITDA margin into critical).
 #:   current_ratio  2.1033878684 - 2 = 0.1033878684; x 13,012,976.77 current
 #:                  liabilities / 1 = 1,345,383.93; / 39,319,114.09 total
 #:                  assets = 0.0342
-#:   ebitda_margin  15.53 - 15 = 0.53 pp; x 118,576,819.64 revenue / 100 =
-#:                  628,457.14; / revenue = 0.0053
-#:   dso            30 - 26.2056742611 = 3.7943257389 days; x 118,576,819.64
-#:                  revenue / 365 = 1,232,655.01; / total assets = 0.0314
+#:   ebitda_margin  critical -> watch past rung 8: 9.73 - 8 = 1.73 pp;
+#:                  x 110,798,309.14 revenue / 100 = 1,916,810.75;
+#:                  / revenue = 0.0173
+#:   dso            8,513,384.96 / 110,798,309.14 x 365 = 28.0454235676;
+#:                  30 - 28.0454235676 = 1.9545764324 days; x 110,798,309.14
+#:                  revenue / 365 = 593,325.38; / total assets = 0.0151
 HAND_MATERIALITY = {
     "current_ratio": ("0.10", {"basis_key": "total_assets", "basis_value": "39319114.09",
                                "headroom_money": "1345383.93", "share": "0.0342"}),
-    "ebitda_margin": ("0.5", {"basis_key": "revenue", "basis_value": "118576819.64",
-                              "headroom_money": "628457.14", "share": "0.0053"}),
-    "dso": ("4", {"basis_key": "total_assets", "basis_value": "39319114.09",
-                  "headroom_money": "1232655.01", "share": "0.0314"}),
+    "ebitda_margin": ("1.7", {"basis_key": "revenue", "basis_value": "110798309.14",
+                              "headroom_money": "1916810.75", "share": "0.0173"}),
+    "dso": ("2", {"basis_key": "total_assets", "basis_value": "39319114.09",
+                  "headroom_money": "593325.38", "share": "0.0151"}),
 }
 
 
@@ -602,17 +607,18 @@ def test_materiality_is_the_hand_checked_figure_for_each_unit_on_the_real_pair()
 
 
 def test_the_dpo_crossing_on_its_floored_ladder_is_the_hand_checked_one():
-    """dpo 51 -> 27 days: healthy -> watch past rung 45. Its watch band is the
+    """dpo 52 -> 27 days: healthy -> watch past rung 45. Its watch band is the
     FLOOR (below watch 30 stays watch), so watch 30 bounds nothing: the
     watch band has no closed width and the fraction divides by the adjacent
-    healthy band, 60 - 45 = 15. 45 - 26.6422 = 18.3578; / 15 = 1.224."""
+    healthy band, 60 - 45 = 15. 45 - 26.6769 = 18.3231; / 15 = 1.222
+    (tb_parser_v6 capture; 26.6422 and 1.224 before the 609/709 repair)."""
     row = {r["key"]: r for r in _real_pair_ratios()["rows"]}["dpo"]
     assert row["current"]["ladder_floor"] == "watch" and row["prior"]["ladder_floor"] == "watch"
     mv = row["movement"]
     assert (mv["from"], mv["to"], mv["status"], mv["rungs_crossed"]) == ("healthy", "watch", "crossed_down", -1), mv
     assert mv["rung_crossed"] == {"name": "healthy", "value": "45"}
     assert (mv["distance_past_rung"], mv["band_width"], mv["band_width_basis"], mv["distance_fraction"]) == (
-        "18", "15", "adjacent", "1.224"), mv
+        "18", "15", "adjacent", "1.222"), mv
 
 
 def test_each_sides_stamps_are_its_own_get_period_ratio_table_stamps():
