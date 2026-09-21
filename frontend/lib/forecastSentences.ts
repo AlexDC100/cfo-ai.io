@@ -24,6 +24,12 @@ const FIXED_CODES = new Set([
   "not_served_in_this_build",
   "runway_none",
   "facility_limit_not_loaded",
+  // the lever rail's "not served by this engine" list (client.unserved)
+  "fx_rate_move",
+  "headcount",
+  "avg_personnel_cost",
+  "segment_growth",
+  "policy_rate_shift",
 ]);
 
 /** Strip formulas the wire serves as bare strings, by their served text. */

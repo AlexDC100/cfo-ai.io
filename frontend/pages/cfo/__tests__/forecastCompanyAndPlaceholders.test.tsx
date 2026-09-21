@@ -211,6 +211,14 @@ describe("the engine's FIXED sentences read in the page's language", () => {
     const fcf = screen.getByTestId("forecast-strip-cumulative-fcf").textContent ?? "";
     expect(fcf).toContain(i18n.t("forecast.formula.cumulativeFcf"));
     expect(fcf).not.toContain(formulaServed);
+    // the lever rail's "not served by this engine" list, row by row
+    const unserved = SERVED.client.unserved as Json[];
+    expect(unserved.length).toBeGreaterThan(0);
+    for (const row of unserved) {
+      const li = await screen.findByTestId(`forecast-lever-unserved-${row.key}`);
+      expect(li.textContent).toBe(i18n.t(`forecast.served.${row.key}`));
+      expect(li.textContent).not.toBe(row.sentence.text);
+    }
   });
 
   it("en: an engine that rewords a fixed sentence is printed as served, never overruled by a copy", async () => {

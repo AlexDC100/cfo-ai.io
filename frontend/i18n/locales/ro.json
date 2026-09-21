@@ -3428,7 +3428,12 @@
     "served": {
       "not_served_in_this_build": "motorul nu servește încă această cifră",
       "runway_none": "nicio lipsă de numerar în orizontul planului",
-      "facility_limit_not_loaded": "limita liniei de credit nu este încărcată"
+      "facility_limit_not_loaded": "limita liniei de credit nu este încărcată",
+      "fx_rate_move": "o mișcare a cursului de schimb nu este servită: veniturile și costurile din balanță nu sunt împărțite pe valute",
+      "headcount": "numărul de angajați nu este servit: balanța are costul cu personalul, nu numărul de oameni",
+      "avg_personnel_cost": "costul mediu pe angajat nu este servit: are nevoie de un număr de angajați pe care balanța nu îl are",
+      "segment_growth": "creșterea pe segmente nu este servită: veniturile nu sunt împărțite pe segmente în balanță",
+      "policy_rate_shift": "o schimbare a dobânzii de politică monetară nu este servită: balanța nu spune care datorii se reevaluează cu ea"
     },
     "formula": {
       "cumulativeFcf": "suma numerarului din exploatare și din investiții pe perioadele servite",

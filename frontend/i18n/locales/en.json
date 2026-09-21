@@ -3404,7 +3404,12 @@
     "served": {
       "not_served_in_this_build": "this is not served in this build",
       "runway_none": "no shortfall within the horizon",
-      "facility_limit_not_loaded": "facility limit not loaded"
+      "facility_limit_not_loaded": "facility limit not loaded",
+      "fx_rate_move": "an exchange-rate move is not served: the book's revenue and costs are not split by currency",
+      "headcount": "headcount is not served: a trial balance carries the personnel cost and not the number of people",
+      "avg_personnel_cost": "average personnel cost is not served: it needs a headcount the book does not carry",
+      "segment_growth": "growth by segment is not served: revenue is not split by segment in the book",
+      "policy_rate_shift": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
     },
     "formula": {
       "cumulativeFcf": "sum of operating and investing cash over the served periods",

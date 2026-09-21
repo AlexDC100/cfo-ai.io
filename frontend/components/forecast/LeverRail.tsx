@@ -32,6 +32,7 @@ import {
   type LeverEdit,
 } from "@/lib/forecastLevers";
 import type { LeverRef, ProjectionView } from "@/lib/forecastFacts";
+import { servedSentence } from "@/lib/forecastSentences";
 
 export interface LeverRailProps {
   readonly view: ProjectionView;
@@ -308,7 +309,7 @@ export function LeverRail({
   onReset,
   onAdopt,
 }: LeverRailProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const years = planYearLabels(view.horizon, view.horizonAnnual);
   const offered = OFFERED_LEVERS.map((key) => view.lever(key)).filter(
     (l): l is LeverRef => l !== null,
@@ -391,7 +392,7 @@ export function LeverRail({
               model, each with the sentence it states. */}
           {view.client.unserved.map((row) => (
             <li key={row.key} data-testid={`forecast-lever-unserved-${row.key}`}>
-              {row.sentence}
+              {servedSentence(t, i18n.language, row.key, row.sentence)}
             </li>
           ))}
         </ul>
