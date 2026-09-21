@@ -19,8 +19,10 @@ A document DUPLICATES a live one when all four agree:
                landing (`_firm_requests.land_file`) compute it exactly as
                `sha256_hex` below; a row stored without one is hashed from
                its storage object before it is compared.
-  * ACCOUNT  — `documents.uploaded_by` is the verified caller. The quota
-               and the bill are per user; a colleague's copy is theirs.
+  * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader,
+               and only when that is the verified caller (`dedupe_account`).
+               The quota and the bill are per user; a colleague's copy is
+               theirs, and a colleague's entry never archives an upload.
   * COMPANY  — `documents.org_id` is the same workspace. The same file in
                a DIFFERENT company is not a duplicate.
   * PERIOD   — when the new upload carries a user-confirmed closing date
@@ -531,6 +533,37 @@ BUSY = "busy"
 DONE = "done"
 #: The document is deleted (a user's soft delete): no entry analyses it.
 DELETED = "deleted"
+#: A recovery of an upload that is not the caller's own: a colleague's
+#: upload is theirs to recover (and to be charged for), never the caller's.
+NOT_MINE = "not_mine"
+
+
+def dedupe_account(row: Dict[str, Any], caller_id: str) -> Optional[str]:
+    """The ACCOUNT an analysis entry checks for duplicates under: the
+    document's OWN uploader — and only when that uploader is the verified
+    caller making this entry and a member of the document's company.
+
+    It used to be whoever called the route (verifier, 2026-09-21): OWNER's
+    dashboard mount (FinancialStatements calls recover-stuck on every
+    mount) archived a colleague's upload as a duplicate of OWNER's own copy
+    — breaking the ACCOUNT clause ("another account in the same company:
+    not a duplicate") — and dropped it from the Recently-deleted shelf where
+    the colleague could have restored it. Companies with several members
+    exist today (the firm client import makes the importer and the
+    responsible accountant both members). None → the entry never archives."""
+    uploader = str(row.get("uploaded_by") or "").strip()
+    caller = str(caller_id or "").strip()
+    org = str(row.get("org_id") or "").strip()
+    if not uploader or uploader != caller or not org:
+        return None
+    try:
+        from . import _org
+        if not _org.user_is_member(uploader, org):
+            return None
+    except Exception:  # noqa: BLE001 — an unverifiable account proves no duplicate
+        logger.exception("[dedupe] membership of %s in %s could not be read", uploader, org)
+        return None
+    return uploader
 
 
 @dataclass(frozen=True)
@@ -596,8 +629,10 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
       * a FIRST analysis of a document already analysed     → DONE
       * a RECOVERY of a row that is no longer queued-and-
         never-started (a /run claimed it meanwhile)          → BUSY
-      * it duplicates a live original of the same account,
-        company and period                                   → archived, DUPLICATE
+      * a RECOVERY of an upload that is not the caller's own  → NOT_MINE
+      * it duplicates a live original of the same account
+        (`dedupe_account`: the document's own uploader, when
+        that is the caller), company and period              → archived, DUPLICATE
       * otherwise the document is CLAIMED: in the in-flight
         registry (test-and-set) and `pipeline_started_at`
         stamped — the claim a racing twin finds              → CLAIMED
@@ -613,7 +648,9 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
     every restart) — and a user's soft delete answers DELETED."""
     doc_id = str(doc.get("id") or "")
     org_id = str(doc.get("org_id") or "")
-    account = str(caller_id or "")
+    account = dedupe_account(doc, caller_id)
+    if mode == RECOVER and account is None:
+        return Entry(NOT_MINE, dict(doc))
     h = ensure_content_hash(doc, hasher) if account else None
     lock = _lock_for(org_id, account, h) if h else _doc_lock(doc_id)
     with lock:

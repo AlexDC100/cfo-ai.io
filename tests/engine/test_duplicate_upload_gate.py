@@ -671,6 +671,54 @@ def test_the_first_run_of_a_non_ro_document_counts_it_once(world, multi_nonro):
     assert [b["kind"] for b in world["billed"]] == ["extra_nonro"]
 
 
+# ── A colleague's upload is theirs (verifier, ACCOUNT clause, 2026-09-21) ─
+
+
+def test_a_colleagues_page_load_never_archives_or_runs_my_upload(world):
+    """OTHER_USER's upload was refused by the 402 (queued, never started).
+    OWNER — a member of the same company holding an analysed copy of the
+    same bytes — merely opens the dashboard, which calls recover-stuck on
+    mount. It used to archive OTHER_USER's upload as a duplicate of OWNER's
+    copy (and hide it from the Recently-deleted shelf) — or run it on
+    OWNER's quota."""
+    db = world["db"]
+    db.rows("documents").extend([
+        _doc("owner-copy", user=OWNER, status="analyzed", period_id=PERIOD, created=_ago(172800)),
+        _doc("colleague-upload", user=OTHER_USER, created=_ago(120)),
+    ])
+    body = world["post"]("/api/pipeline/recover-stuck", None, user=OWNER).json()
+    row = _row(world, "colleague-upload")
+    assert row["deleted_at"] is None and row["error"] is None, row
+    assert not _doc_dedupe.is_archived_duplicate(row)
+    assert body["duplicates"] == [] and body["recovered"] == [] and body["needs_confirmation"] == []
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    # ... and the colleague's own page load recovers it, under THEIR meter
+    body = world["post"]("/api/pipeline/recover-stuck", None, user=OTHER_USER).json()
+    assert [r["id"] for r in body["recovered"]] == ["colleague-upload"]
+
+
+def test_a_colleagues_retry_never_archives_my_document(world):
+    world["db"].rows("documents").extend([
+        _doc("owner-copy", user=OWNER, status="analyzed", period_id=PERIOD, created="2026-09-19T10:00:00+00:00"),
+        _doc("colleague-doc", user=OTHER_USER, status="failed", created="2026-09-20T10:00:00+00:00",
+             started="2026-09-20T10:00:01+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/retry", {"document_id": "colleague-doc"}, user=OWNER).json()
+    assert r["status"] == "queued", r
+    assert _row(world, "colleague-doc")["deleted_at"] is None
+
+
+def test_my_own_second_copy_is_still_a_duplicate(world):
+    """Positive control for the ACCOUNT clause: the uploader's own entry
+    still archives their own copy."""
+    world["db"].rows("documents").extend([
+        _doc("orig", user=OTHER_USER, status="analyzed", period_id=PERIOD, created="2026-09-19T10:00:00+00:00"),
+        _doc("copy", user=OTHER_USER, created="2026-09-21T10:00:00+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/run", {"document_id": "copy"}, user=OTHER_USER).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "orig"
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 
