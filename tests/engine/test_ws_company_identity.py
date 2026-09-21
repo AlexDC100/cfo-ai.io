@@ -9,6 +9,8 @@ WHAT THESE RED ON, with the module correct (TC-11):
   * the filename overriding a period the document states;
   * a registry name match on an ambiguous or unsure lookup, or on a
     registered company with no filing;
+  * a labelled company name ("Societate: ...") that does not resolve
+    lending the book the CUI of another string in the header;
   * an operator rule overriding a CUI the document prints.
 """
 from __future__ import annotations
@@ -342,6 +344,59 @@ def test_the_same_namesake_with_filings_is_matched(tmp_path):
         assert ident.cui == bare and ident.company_name == "CARNEX SRL"
     finally:
         st.close()
+
+
+def test_an_ambiguous_labelled_name_never_falls_through_to_another_name(registry):
+    """Verifier finding (2026-09-21): when the LABELLED company ("Societate:
+    ...") did not resolve, the lookup went on to the next string in the
+    header — a title line, the sheet, the filename — and handed the book
+    THAT company's CUI. The label is the document naming itself: when it is
+    unresolved, the document's company is unresolved (no CUI, the labelled
+    name), never another string's CUI."""
+    content = balance_xlsx(["Societate: TWIN CO SRL", "Prepared by ALFA FOOD SRL",
+                            "Balanta de verificare la 31.12.2025"], sheet="Gamma Agro")
+    ident = identify_document(content, "Balanta Alfa Food_FY2025.xlsx", registry=registry)
+    assert ident.cui is None and "cui" not in ident.sources
+    assert ident.company_name == "TWIN CO SRL"
+    assert ident.sources["company_name"]["signal"] == "document_header_label"
+    assert ident.company_key == "name:TWIN CO"
+
+
+def test_an_unregistered_labelled_name_never_falls_through_to_another_name(registry):
+    content = balance_xlsx(["Societate: ZETA NOVA SRL", "Distribuitor ALFA FOOD SRL",
+                            "Balanta de verificare la 31.12.2025"])
+    ident = identify_document(content, "x.xlsx", registry=registry)
+    assert ident.cui is None and ident.company_name == "ZETA NOVA SRL"
+    assert ident.company_key == "name:ZETA NOVA"
+
+
+def test_a_labelled_name_with_no_filing_never_falls_through_to_another_name(tmp_path):
+    st, bare = _namesakes(tmp_path)
+    try:
+        # the bare-name company files nothing; MIXT REAL CARNEX files and is
+        # unique — a title line naming it must not lend the book its CUI
+        content = balance_xlsx(["Societate: Carnex SRL", "Distribuitor MIXT REAL CARNEX SRL",
+                                "Balanta de verificare la 31.12.2025"], sheet="Mixt Real Carnex")
+        ident = identify_document(content, "c.xlsx", registry=st)
+        assert ident.cui is None and ident.company_name == "Carnex SRL"
+        assert ident.company_key == "name:CARNEX"
+        assert ident.sources["cui_hint"]["cui"] == bare and "no filing" in ident.sources["cui_hint"]["evidence"]
+    finally:
+        st.close()
+
+
+def test_a_labelled_name_that_resolves_gives_its_cui(registry):
+    content = balance_xlsx(["Societate: GAMMA AGRO SRL", "Distribuitor ALFA FOOD SRL"])
+    ident = identify_document(content, "x.xlsx", registry=registry)
+    assert ident.cui == valid_cui("4000003") and ident.sources["cui"]["signal"] == "registry_name_match"
+    assert "Societate: GAMMA AGRO SRL" in ident.sources["cui"]["evidence"]
+
+
+def test_without_a_label_a_title_still_resolves(registry):
+    """The label rule is about the label: an unlabelled title keeps its match."""
+    ident = identify_document(balance_xlsx(["ALFA FOOD SRL", "Balanta de verificare la 31.12.2025"]),
+                              "x.xlsx", registry=registry)
+    assert ident.cui == CUI_A
 
 
 class _SearchOnlyRegistry:

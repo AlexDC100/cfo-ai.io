@@ -22,6 +22,11 @@ cui
      4705349 for the brand word on a sheet named "Carniprod", which six
      registered companies carry) is recorded as ``sources["cui_hint"]``
      and mints nothing — unless the document prints that CUI's digits.
+     When the document LABELS its company ("Societate: ...", "Firma: ..."),
+     that labelled name is the only one looked up: unresolved (no match,
+     several, a namesake that files nothing) leaves the company unresolved
+     (no CUI; the labelled name) — never the CUI of another string in the
+     header, the sheet or the filename.
   3. ``filename_registry_match`` — the same, from a name read out of the
      filename. The weakest signal: only names of at least six letters, only
      an unambiguous exact match, and only when the DOCUMENT corroborates it
@@ -826,10 +831,19 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
         reg_row = _registry_company(registry, cui)
 
     if cui is None:
-        candidates = [(n, "registry_name_match", ev) for n, _s, ev in header_names]
-        candidates += [(n, "registry_name_match", "sheet: " + n) for n in sheet_names]
-        if file_name and len(normalize_company_name(file_name)) >= FILENAME_NAME_MIN_CHARS:
-            candidates.append((file_name, "filename_registry_match", "filename: %s" % filename))
+        labelled = [(n, ev) for n, s, ev in header_names if s == "document_header_label"]
+        if labelled:
+            # The document names ITSELF ("Societate: ..."): that name is the
+            # only one looked up. Unresolved (no match, several, a namesake
+            # that files nothing) means the company is unresolved — never
+            # the CUI of another string in the header (a title line, the
+            # sheet, the filename). Verifier finding, 2026-09-21.
+            candidates = [(labelled[0][0], "registry_name_match", labelled[0][1])]
+        else:
+            candidates = [(n, "registry_name_match", ev) for n, _s, ev in header_names]
+            candidates += [(n, "registry_name_match", "sheet: " + n) for n in sheet_names]
+            if file_name and len(normalize_company_name(file_name)) >= FILENAME_NAME_MIN_CHARS:
+                candidates.append((file_name, "filename_registry_match", "filename: %s" % filename))
         for name, signal, evidence in candidates:
             hit = _unique_registered_name(registry, name)
             if not hit:
