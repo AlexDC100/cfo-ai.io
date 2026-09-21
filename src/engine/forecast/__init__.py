@@ -23,12 +23,14 @@ from __future__ import annotations
 from .assumptions import (Assumption, AssumptionSet, DebtMove, DebtSchedule,
                           derive_assumptions)
 from .errors import (AssumptionError, BalanceViolation, ForecastError,
-                     OpeningPositionError)
+                     OpeningPositionError, PlanRequestError)
 from .history import PlHistory, pl_history_from_payload
 from .money import fmt, to_float
 from .opening import ASSET_LINES, EL_LINES, LINES, OpeningPosition
-from .project import (CF_LINES, PL_LINES, ProjectedPeriod, Projection, project,
-                      project_payload)
+from .project import (CF_LINES, PL_LINES, CompiledPlan, ProjectedPeriod,
+                      Projection, ShortfallRefusal, project, project_payload)
+from .levers import (BehaviourOverride, DebtRow, Plan, PlanContext, PlanRequest,
+                     Shock, plan_request_from_body, project_plan)
 from .render import render_text
 from .timeline import Period, build_timeline
 
@@ -38,7 +40,10 @@ __all__ = [
     "AssumptionError",
     "AssumptionSet",
     "BalanceViolation",
+    "BehaviourOverride",
     "CF_LINES",
+    "CompiledPlan",
+    "DebtRow",
     "DebtMove",
     "DebtSchedule",
     "EL_LINES",
@@ -49,14 +54,22 @@ __all__ = [
     "PL_LINES",
     "Period",
     "PlHistory",
+    "Plan",
+    "PlanContext",
+    "PlanRequest",
+    "PlanRequestError",
     "ProjectedPeriod",
     "Projection",
+    "Shock",
+    "ShortfallRefusal",
     "build_timeline",
     "derive_assumptions",
     "fmt",
     "pl_history_from_payload",
+    "plan_request_from_body",
     "project",
     "project_payload",
+    "project_plan",
     "render_text",
     "to_float",
 ]

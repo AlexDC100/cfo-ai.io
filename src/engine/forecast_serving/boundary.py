@@ -94,6 +94,10 @@ def _paths_with(node: Any, predicate, path: str = "$") -> List[Tuple[str, Any]]:
     return out
 
 
+#: fp1.2 figure kinds (plan_contract_v2 3.6).
+FP12_FIGURE_KINDS = ("projected", "projected_aggregate")
+
+
 def _is_projection_node(node: Any) -> bool:
     """Is this dict a projection, in ANY of the shapes one exists in?
 
@@ -141,6 +145,13 @@ def _is_projection_node(node: Any) -> bool:
     if "amount_minor_projected" in node:
         return True
     if "assumption_ids" in node and "amount_minor" in node:
+        return True
+    # 4. fp1.2 (plan/2 B6): a figure is {line, period, kind: "projected" |
+    # "projected_aggregate", amount_minor, driver_ids, lever_ids}. Its kind,
+    # or the pair (driver_ids, amount_minor) when the kind was stripped.
+    if node.get("kind") in FP12_FIGURE_KINDS:
+        return True
+    if "driver_ids" in node and ("amount_minor" in node or "value_micros" in node):
         return True
     return False
 

@@ -170,6 +170,8 @@ MEMBER_WALLED = set(_route_key(m, p) for m, p, _b, _e in SWEEP)
 #: is NOT a member-walled write of a client's books. A route missing from
 #: BOTH tables reds the census by name.
 DECLARED = {
+    # plan/2 B6 (plan_contract_v2 1.6)
+    ("POST", "/api/forecast/{period_id}/recompute"): "read-only compute: projects a period the caller's membership reads; writes no table",
     # operator-gated: an engine bearer / admin allowlist on a VERIFIED id
     ("POST", "/api/admin/calibration/rules/{rule_id}/approve"): "operator: _require_engine_admin (engine bearer)",
     ("POST", "/api/admin/calibration/rules/{rule_id}/reject"): "operator: _require_engine_admin (engine bearer)",

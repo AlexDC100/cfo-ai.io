@@ -47,7 +47,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
-from .authority import (CONCEPTS, RULED_MODEL_KEYS, AuthorityError, Concept,
+from .authority import (CONCEPTS, RULED_MODEL_KEYS, AbsentHandover,
+                        AuthorityError, Concept,
                         SuppliedValue, blocked_model_keys,
                         concept_for_model_key, handover_basis,
                         model_overrides, model_owned_keys, unrepresentable)
@@ -68,7 +69,7 @@ __all__ = [
     "STATUSES", "CASE_KINDS", "DISPERSION_OBSERVED", "DISPERSION_BAND",
     "CONCEPTS", "RULED_MODEL_KEYS", "Concept", "AuthorityError",
     "concept_for_model_key", "model_overrides", "unrepresentable",
-    "handover_basis", "SuppliedValue",
+    "handover_basis", "SuppliedValue", "AbsentHandover",
     "blocked_model_keys", "model_owned_keys",
 ]
 

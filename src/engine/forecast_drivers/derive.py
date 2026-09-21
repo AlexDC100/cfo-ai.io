@@ -30,9 +30,23 @@ guessed average wage would manufacture both.
 `capex_rate` and `debt_repayment_years` — a number exists, but from an
 assumption the engine already declares as one. Emitted `fallback` with
 that declaration carried through verbatim.
-`dividend_payout` — only a declared distribution counts. The cash-flow
-statement's `dividends_paid` is a market-average inference and is not
-read; see `reader` for the measured proof.
+`dividend_payout` — absent on every book: distributions are not
+measurable from closing balances (plan/2 contract 3.4), and the cash-flow
+statement's `dividends_paid` is a market-average inference.
+
+ONE DERIVATION, SHARED WITH THE MODEL (plan/2 B3, contract 4)
+=============================================================
+Every concept this package shares with `engine.forecast` — the cost-of-
+sales share (read back as a gross margin), the operating-cost share, the
+three working-capital day counts, the maintenance-capital rate, the
+closing-NBV depreciation rate, the borrowing rate, the dividend payout and
+the one-period revenue growth — is READ from the model's own resolution of
+the same payload (`engine.forecast.project.assumptions_for_payload`), with
+its exact integer and its tier. It is never measured a second time here,
+so the two packages cannot hold two values for one concept; the
+`forecast-authority` gate compares the integers on every committed book.
+Multi-period revenue CAGR stays this package's derivation (the authority
+over the eligible history).
 
 Python 3.9 — no `match`, no `X | Y`.
 """
@@ -138,8 +152,9 @@ def _absent_with_inputs(spec, method, method_label, note, period_end, inputs):
 
 
 def _make(spec, pack, value, method, method_label, periods, inputs,
-          source="book", note="", status="derived"):
-    # type: (DriverSpec, ForecastPack, Optional[float], str, str, Sequence[str], Sequence[DerivationInput], str, str, str) -> Driver
+          source="book", note="", status="derived", exact=None, tier=None,
+          rule_id=None, evidence=None, fallback_steps=()):
+    # type: (DriverSpec, ForecastPack, Optional[float], str, str, Sequence[str], Sequence[DerivationInput], str, str, str, Optional[int], Optional[str], Optional[str], Any, Sequence[Dict[str, str]]) -> Driver
     if value is None:
         return _absent(spec, note or "No value could be computed.",
                        periods[-1] if periods else "")
@@ -152,15 +167,127 @@ def _make(spec, pack, value, method, method_label, periods, inputs,
         derivation=Derivation(method=method, method_label=method_label,
                               periods_used=periods, inputs=inputs,
                               source=source, note=note),
-        case_rule=spec.case_rule, why=spec.why)
+        case_rule=spec.case_rule, why=spec.why, exact=exact, tier=tier,
+        rule_id=rule_id, evidence=evidence, fallback_steps=fallback_steps)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# the SHARED concepts — read from engine.forecast (contract 4)
+# ──────────────────────────────────────────────────────────────────────
+
+#: Divisor from an exact integer to the display value, by driver unit.
+_EXACT_SCALE = {"rate": 1000000, "days": 1000000}
+
+
+class EngineResolution(object):
+    """engine.forecast's resolved drivers for ONE period, or its refusal.
+
+    Built once per period by :func:`build_base_set`. A payload the engine
+    cannot open (an opening partition that does not reproduce the served
+    balance sheet, no served balance sheet at all) yields no assumption
+    set and the engine's own sentence: every shared concept is then ABSENT
+    for that stated reason, never re-measured here."""
+
+    __slots__ = ("assumptions", "refusal")
+
+    def __init__(self, period):
+        # type: (ActualsPeriod) -> None
+        from engine.forecast.errors import ForecastError
+        from engine.forecast.project import assumptions_for_payload
+
+        self.assumptions = None
+        self.refusal = ""
+        try:
+            self.assumptions = assumptions_for_payload(period._payload)
+        except ForecastError as exc:
+            self.refusal = str(exc)
+
+    def get(self, model_key):
+        # type: (str) -> Any
+        if self.assumptions is None:
+            return None
+        return self.assumptions[model_key]
+
+
+def _from_engine(spec, pack, period, engine, model_key, method_label,
+                 complement=False):
+    # type: (DriverSpec, ForecastPack, ActualsPeriod, EngineResolution, str, str, bool) -> Driver
+    """One shared concept, read from the engine's resolution of this book.
+
+    ``complement`` publishes one minus the engine's share (the gross margin
+    over the engine's cost-of-sales share). The exact integer and the tier
+    travel with the value; the display value is its round_dp rounding."""
+    item = engine.get(model_key)
+    if item is None:
+        return _absent(
+            spec, "engine.forecast could not open this book, so %s has no "
+                  "value: %s" % (model_key, engine.refusal),
+            period.period_end)
+    if item.exact is None:
+        return _absent(spec, item.basis, period.period_end)
+    exact = int(item.exact)
+    if complement:
+        exact = _EXACT_SCALE[spec.unit] - exact
+    value = float(exact) / _EXACT_SCALE[spec.unit]
+    first = DerivationInput(
+        "engine.forecast.%s" % model_key, period.period_end, value,
+        "%s (engine.forecast %s)" % (
+            spec.authority.split(" (")[0],
+            item.rule_id or model_key))
+    return _make(spec, pack, value, "engine_forecast", method_label,
+                 (period.period_end,), (first,),
+                 note=item.basis, exact=exact, tier=item.tier,
+                 rule_id=item.rule_id, evidence=item.evidence,
+                 fallback_steps=item.fallback_steps,
+                 status=("derived" if item.tier == "book" else "fallback"))
 
 
 # ──────────────────────────────────────────────────────────────────────
 # RATE drivers — a change per year
 # ──────────────────────────────────────────────────────────────────────
 
-def _rate_driver(spec, pack, history, series, series_name, authority):
-    # type: (DriverSpec, ForecastPack, Sequence[ActualsPeriod], Callable[[ActualsPeriod], Optional[float]], str, str) -> Driver
+def _growth_from_engine(spec, pack, history, newest, engine):
+    # type: (DriverSpec, ForecastPack, Sequence[ActualsPeriod], ActualsPeriod, EngineResolution) -> Driver
+    """One-period revenue growth: the engine's ladder (contract 3.4) — the
+    macro anchor for a book whose jurisdiction the anchor serves, else the
+    convention terminal rung — with its exact integer, tier and steps."""
+    item = engine.get("revenue_growth")
+    if item is None or item.exact is None:
+        return _absent(spec, "engine.forecast could not resolve revenue "
+                             "growth for this book: %s" % (engine.refusal,),
+                       newest.period_end)
+    exact = int(item.exact)
+    value = float(exact) / _EXACT_SCALE[spec.unit]
+    common = dict(exact=exact, tier=item.tier, rule_id=item.rule_id,
+                  evidence=item.evidence, fallback_steps=item.fallback_steps)
+    if item.tier == "macro":
+        anchor = pack.anchor(spec.macro_anchor)
+        note = (
+            "This workspace holds %d actuals period%s, so %s's own rate of "
+            "change cannot be measured. Held at the %s (%s), a nominal "
+            "continuation at constant real volume. Replace this the moment a "
+            "second period is loaded."
+            % (len(history), "" if len(history) == 1 else "s",
+               "the company", anchor.label.lower(), anchor.source))
+        return _make(
+            spec, pack, value, "pack_macro",
+            "no company history — %s" % (anchor.label.lower(),),
+            (newest.period_end,),
+            (DerivationInput(anchor.key, anchor.stated_as_of, value, "pack"),),
+            source="pack:%s@%s" % (pack.macro_pack_id, pack.macro_pack_version),
+            note=note, status="fallback", **common)
+    return _make(
+        spec, pack, value, "pack_convention",
+        "no company history and no macro anchor — the convention rung",
+        (newest.period_end,),
+        (DerivationInput(str(item.rule_id), newest.period_end, value, "pack"),),
+        source="pack:%s" % (item.rule_id,), note=item.basis,
+        status="fallback", **common)
+
+
+def _rate_driver(spec, pack, history, series, series_name, authority,
+                 engine=None):
+    # type: (DriverSpec, ForecastPack, Sequence[ActualsPeriod], Callable[[ActualsPeriod], Optional[float]], str, str, Optional[EngineResolution]) -> Driver
     """Compound growth from the company's own history, or the macro
     anchor when there is no history to measure."""
     observed = []  # type: List[Tuple[str, float]]
@@ -199,8 +326,10 @@ def _rate_driver(spec, pack, history, series, series_name, authority):
                          [pe for pe, _ in observed], inputs, note=note)
 
     # No measurable history. NOT zero.
-    anchor = pack.anchor(spec.macro_anchor)
     newest = history[-1]
+    if engine is not None:
+        return _growth_from_engine(spec, pack, history, newest, engine)
+    anchor = pack.anchor(spec.macro_anchor)
     note = (
         "This workspace holds %d actuals period%s, so %s's own rate of "
         "change cannot be measured. Held at the %s (%s), a nominal "
@@ -230,27 +359,6 @@ def _fmt_years(years):
 # ──────────────────────────────────────────────────────────────────────
 # LEVEL drivers — a state, measurable from one period
 # ──────────────────────────────────────────────────────────────────────
-
-def _from_ratio(spec, pack, period, ratio_key):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod, str) -> Driver
-    """Read the ratio the engine already publishes. Never recompute it."""
-    value = period.ratio(ratio_key)
-    if value is None:
-        return _absent(
-            spec,
-            "The engine publishes no %s for this book, so there is nothing "
-            "to default from. A book with no inventory has no inventory "
-            "days, and 0 would be a different claim." % (ratio_key,),
-            period.period_end)
-    note = period.ratio_note(ratio_key)
-    return _make(
-        spec, pack, value, "published_ratio",
-        "the engine's own %s" % (spec.label.lower(),),
-        (period.period_end,),
-        (DerivationInput(ratio_key, period.period_end, value,
-                         "methodology.ratios.%s" % ratio_key),),
-        note=note)
-
 
 def _ratio_of(spec, pack, period, num_value, num_name, num_authority,
               den_value, den_name, den_authority, method_label,
@@ -337,37 +445,11 @@ def _plain(value):
 # the per-driver rules
 # ──────────────────────────────────────────────────────────────────────
 
-def _opex_fixed_share(spec, pack, period):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod) -> Driver
-    fixed, fixed_found = period.leaves_sum(pack.opex_fixed)
-    variable, variable_found = period.leaves_sum(pack.opex_variable)
-    if fixed is None and variable is None:
-        return _absent(
-            spec, "This book carries none of the operating-cost leaves the "
-                  "nature split is defined over.", period.period_end)
-    fixed_value = 0.0 if fixed is None else fixed
-    variable_value = 0.0 if variable is None else variable
-    base = fixed_value + variable_value
-    if base <= 0.0:
-        return _absent(
-            spec, "The classified operating-cost base is not positive.",
-            period.period_end)
-    inputs = [
-        DerivationInput("fixed_by_nature", period.period_end, fixed_value,
-                        "envelope.leaves (%s)" % ", ".join(fixed_found)),
-        DerivationInput("variable_by_nature", period.period_end,
-                        variable_value,
-                        "envelope.leaves (%s)" % ", ".join(variable_found)),
-    ]
-    note = (
-        "Split by expense NATURE from this book's own leaves, not by "
-        "regression: a regression split needs three or more periods. The "
-        "classification is data in packs/forecast/drivers.yaml, so it can "
-        "be argued with."
-    )
-    return _make(spec, pack, fixed_value / base, "nature_split",
-                 "expense-nature split of this book's operating costs",
-                 (period.period_end,), inputs, note=note)
+# plan/2 B4b: the leaf-based `_opex_fixed_share` (packs/forecast/drivers.yaml
+# opex_nature_split over envelope.leaves) is retired — the engine's pool
+# split (packs/forecast/cost_behaviour.yaml#nature over the anchor's line
+# items) is the one authority (contract 4), read above through
+# `pools.opex_fixed_share`.
 
 
 def _depreciation_rate(spec, pack, period):
@@ -385,279 +467,25 @@ def _depreciation_rate(spec, pack, period):
               "is not yet in service."))
 
 
-def _interest_rate(spec, pack, period):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod) -> Driver
-    expense = period.pl("interest_expense")
-    debt = period.rows_sum(pack.debt_rows)
-    if debt is not None and debt <= 0.0:
-        return _absent(
-            spec, "This book carries no interest-bearing debt, so it has no "
-                  "effective rate. A company with no debt is not a company "
-                  "borrowing at 0%.", period.period_end)
-    return _ratio_of(
-        spec, pack, period,
-        expense, "interest_expense", "assembled_pl.interest_expense",
-        debt, "interest_bearing_debt",
-        "canonical_bs.rows (%s)" % ", ".join(pack.debt_rows),
-        "interest charged over interest-bearing debt",
-        note=("Computed on the CLOSING debt balance because no prior period "
-              "is available to average against; where debt grew during the "
-              "year this understates the rate, and where it was repaid it "
-              "overstates it."))
-
-
-#: The Romanian chart of accounts carries the profit-tax charge in class
-#: 69 (691 impozit pe profit, 698 impozitul pe venit). `assembled_pl`
-#: reports `income_tax` as the SUM of those accounts, so a book that
-#: carries none of them reports 0.00 — the sum of an empty set, written
-#: as a number. Measured on the four committed books:
-#:
-#:     agras       691 = 1,471,550.00  -> income_tax 1,471,550.00
-#:     carniprod   691 =   287,686.00  -> income_tax   287,686.00
-#:     realestate  no class-69 account -> income_tax         0.00
-#:     retail      no class-69 account -> income_tax         0.00
-#:
-#: The zero on the last two is the absence of a charge account, not the
-#: presence of a nil charge.
-_INCOME_TAX_PREFIXES = ("69",)
-
-
-def _tax_rate(spec, pack, period):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod) -> Driver
-    """The effective rate, measured only when BOTH conditions hold.
-
-    TWO independent things have to be true before `income_tax / pretax`
-    is a statement about the company, and each was found by a different
-    lane looking at the same books:
-
-    1. **The charge is attributed.** A class-69 account has to stand
-       behind it. Otherwise `assembled_pl.income_tax` is 0.00 because
-       nothing was mapped, and the rate describes the mapping.
-    2. **The build-up it sits in reproduces the profit the company
-       FILED.** The book states its profit twice — as this build-up
-       (`pretax` less `income_tax`) and as the closing balance of account
-       121 — and the rate is a claim about the second. `pretax − tax`
-       has to BE the filed figure, to the cent.
-
-    Condition 2 is `engine.forecast.assumptions`' ruling, arrived at
-    independently in the same session, and it is the stronger of the two;
-    condition 1 is what stops a nil charge NOTHING stands behind from
-    reading as "a company charged no profit tax" on a book that happens
-    to tie. Both live here because this package OWNS the concept (see
-    `authority.CONCEPTS`), and the model states the statutory rate under
-    its own name whenever this refuses.
-
-    WHY THE FILED FIGURE IS READ FROM THE 121 CROSS-CHECK AND NOT FROM
-    `net_income_unexplained_vs_121`
-    -----------------------------------------------------------------
-    That field looks like the measurement this condition wants and is
-    not one. The Romanian assembly
-    (`country_packs/ro_romania/chart_of_accounts.py`) replaces the
-    reconstruction with the filed figure only when the two differ by more
-    than `max(|account 121|, 100_000) * 0.05`, and sets the
-    "unexplained" field to a literal `0.0` in every other case —
-    including the case where nothing was compared at all. Measured
-    through the real assembly:
-
-        filed 121   reconstruction   miss                 field says
-        20,000.00       24,500.00     4,500.00  (22.5%)   0.00
-        (no 121 row)    24,500.00     not measurable      0.00
-
-    Both of those read as "the build-up ties" and both took a `derived
-    18.3333%` rate into a five-year plan. The floor is what makes it
-    unbounded as a share of the profit: it tolerates 5,000.00 RON of
-    unattributed result on ANY book smaller than 100,000.00, and this
-    platform serves small books.
-
-    `canonical_bs.invariants.p121_cross_check.p121` is the account's own
-    closing balance, captured before that comparison and published
-    whether or not it fired — and `None`, not zero, when no account-121
-    row survived extraction.
-
-    WHAT IS ALLOWED TO BRIDGE, AND WHY THE CUTOFF IS ZERO
-    -----------------------------------------------------
-    Exactly what the assembly's OWN bridge allows, so that this and
-    `engine.forecast.history.unexplained_vs_filed` stay one concept
-    rather than two conditions with one name. That bridge is
-    `net_income_statutory = (pretax − tax) + capitalized_own_work`, so
-    capitalised own work (722) closes the distance and nothing else does.
-    The remainder is what neither statement can attribute, and it is the
-    quantity `net_income_unexplained_vs_121` reports — when it reports
-    anything at all.
-
-    The inventory variation (711) is NOT allowed to bridge, and the
-    committed realestate book is why: the whole 29,589,814.24 of its
-    distance is inventory variation, and admitting it would tie the
-    build-up while leaving this rate divided by −30,391,418.38 when the
-    charge was assessed on −801,604.14. It is named in the refusal where
-    it is present, because a reader is owed the size of the thing that is
-    NOT closing the gap, but it does not close it.
-
-    The cutoff is zero, and that is an identity rather than a materiality
-    judgement: both sides are the engine's own cent-rounded figures for
-    the same legal quantity, so a residue is a real unattributed
-    difference and not measurement noise.
-
-    Measured on the four committed books, all four refuse:
-
-        agras       filed 7,533,676.02 vs build-up 14,106,102.03
-        carniprod   filed 1,435,533.59 vs build-up  5,843,449.04
-        retail      filed 3,205,212.62 vs build-up  1,161,957.98
-        realestate  pre-tax result < 0 + no class-69 (the deeper refusal)
-    """
-    tax = period.pl("income_tax")
-    pretax = period.pl("pretax")
-    filed = period.filed_net_income_121()
-    capitalized = period.pl("capitalized_own_work_memo")
-    inventory_variation = period.pl("inventory_variation_memo")
-
-    def _inputs():
-        rows = [DerivationInput("income_tax", period.period_end, tax,
-                                "assembled_pl.income_tax"),
-                DerivationInput("pretax_profit", period.period_end, pretax,
-                                "assembled_pl.pretax")]
-        if filed is not None:
-            rows.append(DerivationInput(
-                "account_121_closing", period.period_end, filed,
-                "canonical_bs.invariants.p121_cross_check.p121"))
-        # The two components the assembly NAMES between its own
-        # reconstruction and account 121. Carried only when they are
-        # actually there, so the refusal can say how much of the distance
-        # has a name — and, because each is a credit the denominator does
-        # not carry, why naming it does not rescue the rate.
-        if capitalized:
-            rows.append(DerivationInput(
-                "capitalized_own_work", period.period_end, capitalized,
-                "assembled_pl.capitalized_own_work_memo"))
-        if inventory_variation:
-            rows.append(DerivationInput(
-                "inventory_variation", period.period_end, inventory_variation,
-                "assembled_pl.inventory_variation_memo"))
-        return tuple(rows)
-
-    # The base check runs FIRST and unchanged: a book with no usable
-    # pre-tax result cannot form the ratio at all, which is a deeper
-    # refusal than either condition below and keeps its own sentence.
-    if tax is None or pretax is None:
-        return _ratio_of(
-            spec, pack, period,
-            tax, "income_tax", "assembled_pl.income_tax",
-            pretax, "pretax_profit", "assembled_pl.pretax",
-            "the EFFECTIVE rate this book paid")
-    if pretax <= 0.0:
-        return _ratio_of(
-            spec, pack, period,
-            tax, "income_tax", "assembled_pl.income_tax",
-            pretax, "pretax_profit", "assembled_pl.pretax",
-            "the EFFECTIVE rate this book paid")
-
-    reasons = []
-    #: EXISTENCE only, never the amount. `accounts_with_prefix` warns in
-    #: its own docstring that a prefix-derived FIGURE disagrees with the
-    #: canonical rows (7,536,754.90 against 7,692,202.74 on its worked
-    #: example); the charge itself keeps coming from
-    #: `assembled_pl.income_tax`. All this asks is whether an account
-    #: that could hold one is in the book at all.
-    if abs(tax) < 1e-9 and not period.accounts_with_prefix(
-            _INCOME_TAX_PREFIXES):
-        reasons.append(
-            "This book carries no class-69 account (691 impozit pe profit "
-            "/ 698), so the %s income_tax its assembled P&L reports is the "
-            "sum of an empty set, not a charge measured at nil."
-            % (_plain(tax),))
-    if filed is None:
-        reasons.append(
-            "No account-121 closing balance survived extraction of this "
-            "book, so the reconstructed result (pre-tax %s less tax %s) "
-            "cannot be checked against the profit the company filed. An "
-            "unchecked build-up is not a build-up that ties."
-            % (_plain(pretax), _plain(tax)))
-    else:
-        # The assembly's own bridge, in its own terms: statutory net
-        # income is the build-up plus capitalised own work, and what is
-        # left over is what nothing on the statement accounts for.
-        reconstructed = round(pretax - tax + (capitalized or 0.0), 2)
-        distance = round(filed - reconstructed, 2)
-        if distance != 0.0:
-            reasons.append(
-                "This book's reconstructed result of %s (pre-tax %s less "
-                "tax %s%s) is %s short of the %s it filed in account 121, "
-                "and nothing on the statement accounts for the difference, "
-                "so a rate divided out of two figures inside that build-up "
-                "would be measured across the distance rather than from "
-                "the company."
-                % (_plain(reconstructed), _plain(pretax), _plain(tax),
-                   ("" if not capitalized
-                    else ", plus capitalised own work of %s"
-                    % (_plain(capitalized),)),
-                   _plain(distance), _plain(filed)))
-            if inventory_variation:
-                # NAMED, and deliberately NOT admitted as a bridge: it is
-                # outside the assembly's own reconciliation to statutory
-                # net income, and admitting it would tie the build-up
-                # while leaving the denominator the wrong base — measured
-                # on the realestate book, −30,391,418.38 against a charge
-                # assessed on −801,604.14.
-                reasons.append(
-                    "The statement separately records an inventory "
-                    "variation of %s, which is not part of its "
-                    "reconciliation to the filed figure and is not in the "
-                    "%s this rate would divide by, so it does not close "
-                    "the distance."
-                    % (_plain(inventory_variation), _plain(pretax)))
-    if reasons:
-        reasons.append(
-            "A consumer that must hold a rate states the statutory one "
-            "under its own name; this package does not restate it as a "
-            "measurement.")
-        return _absent_with_inputs(
-            spec, "unattributed_or_unreconciled_charge",
-            "refused: the charge is not attributable, or the build-up it "
-            "sits in does not reproduce the profit filed in account 121",
-            " ".join(reasons), period.period_end, _inputs())
-
-    return _ratio_of(
-        spec, pack, period,
-        tax, "income_tax", "assembled_pl.income_tax",
-        pretax, "pretax_profit", "assembled_pl.pretax",
-        "the EFFECTIVE rate this book paid",
-        note=("The effective rate, not the statutory headline. The two "
-              "differ for any company with non-deductibles, a sponsorship "
-              "credit or a micro-enterprise history, and the effective rate "
-              "is the one that projects. Measured here because a class-69 "
-              "account stands behind the charge AND this book's pre-tax "
-              "result less that charge IS the profit it filed in account "
-              "121, to the cent."))
-
-
-#: A declared distribution leaves a balance on dividends payable (457) or
-#: profit distribution (129). Nothing else counts as evidence.
-_DIVIDEND_PREFIXES = ("457", "129")
-
-
-def _dividend_payout(spec, pack, period):
-    # type: (DriverSpec, ForecastPack, ActualsPeriod) -> Driver
-    evidence = period.accounts_with_prefix(_DIVIDEND_PREFIXES)
-    net_income = period.pl("net_income_statutory")
-    if not evidence:
-        return _absent(
-            spec,
-            "No declared distribution: this book carries no balance on "
-            "dividends payable (457) or profit distribution (129). The cash "
-            "flow statement's dividends line is NOT used as a substitute — "
-            "its own note says it is inferred from typical Romanian payout "
-            "ratios, which is a market average wearing this company's name.",
-            period.period_end)
-    declared = 0.0
-    for _code, amount in evidence:
-        declared += abs(amount)
-    return _ratio_of(
-        spec, pack, period,
-        declared, "declared_distribution",
-        "line_items (%s)" % ", ".join(code for code, _ in evidence),
-        net_income, "net_income_statutory",
-        "assembled_pl.net_income_statutory",
-        "declared distribution over statutory net income")
+def _dividend_payout(spec, pack, period, engine):
+    # type: (DriverSpec, ForecastPack, ActualsPeriod, EngineResolution) -> Driver
+    """plan/2 B3 (contract 3.4, 4): the book rung is ABSENT on every book,
+    with engine.forecast's own sentence — distributions are not measurable
+    from closing balances. A 457 dividends-payable or 129 balance is what
+    was not yet paid, or was allocated, at the close; it is not the year's
+    payout, and the cash-flow statement's `dividends_paid` is an inference
+    from typical Romanian payout ratios."""
+    item = engine.get("dividend_payout_pct")
+    reason = None
+    if item is not None:
+        for step in item.fallback_steps:
+            if step["tier"] == "book":
+                reason = step["reason"]
+    if reason is None:
+        from engine.forecast.levers_pack import dividend_book_rung_absent
+        reason = dividend_book_rung_absent()
+    return _absent(spec, reason[:1].upper() + reason[1:] + ".",
+                   period.period_end)
 
 
 def _fx_rate_move(spec, pack, period, history):
@@ -791,21 +619,22 @@ def build_base_set(history, pack):
     if not history:
         raise DriverError("a forecast needs at least one actuals period")
     newest = history[-1]
+    engine = EngineResolution(newest)
 
     drivers = []  # type: List[Driver]
     for spec in pack.drivers:
-        drivers.append(_build_one(spec, pack, history, newest))
+        drivers.append(_build_one(spec, pack, history, newest, engine))
     return AssumptionSet("base", "Base", BASE_CASE_BASIS, drivers)
 
 
-def _build_one(spec, pack, history, newest):
-    # type: (DriverSpec, ForecastPack, Sequence[ActualsPeriod], ActualsPeriod) -> Driver
+def _build_one(spec, pack, history, newest, engine):
+    # type: (DriverSpec, ForecastPack, Sequence[ActualsPeriod], ActualsPeriod, EngineResolution) -> Driver
     key = spec.key
 
     if key == "revenue_growth":
         return _rate_driver(spec, pack, history,
                             lambda p: p.pl("revenue"), "revenue",
-                            "assembled_pl.revenue")
+                            "assembled_pl.revenue", engine=engine)
     if key == "opex_growth":
         return _rate_driver(
             spec, pack, history,
@@ -813,26 +642,34 @@ def _build_one(spec, pack, history, newest):
             "operating cost excluding COGS and D&A",
             "assembled_pl.opex_excluding_cogs_and_da")
     if key == "opex_rate":
-        return _ratio_of(
-            spec, pack, newest,
-            newest.pl("opex_excluding_cogs_and_da"),
-            "opex_excluding_cogs_and_da",
-            "assembled_pl.opex_excluding_cogs_and_da",
-            newest.pl("revenue"), "revenue", "assembled_pl.revenue",
-            "this book's own operating cost excluding cost of sales and "
-            "depreciation, over its own revenue")
+        return _from_engine(
+            spec, pack, newest, engine, "pools.operating_cost_share",
+            "the engine's own operating-cost pools, summed, over revenue")
     if key == "gross_margin":
-        return _from_ratio(spec, pack, newest, "gross_margin")
+        return _from_engine(
+            spec, pack, newest, engine, "pools.cost_of_sales_share",
+            "one minus the engine's own cost_of_sales pool base over revenue",
+            complement=True)
     if key == "dso":
-        return _from_ratio(spec, pack, newest, "days_sales_outstanding")
+        return _from_engine(spec, pack, newest, engine, "dso_days",
+                            "the engine's own days sales outstanding")
     if key == "dio":
-        return _from_ratio(spec, pack, newest, "days_inventory_outstanding")
+        return _from_engine(spec, pack, newest, engine, "dio_cogs_days",
+                            "the engine's own days inventory outstanding, "
+                            "in days of cost of sales")
     if key == "dpo":
-        return _from_ratio(spec, pack, newest, "days_payable_outstanding")
+        return _from_engine(spec, pack, newest, engine, "dpo_cogs_days",
+                            "the engine's own days payables outstanding, "
+                            "in days of cost of sales")
     if key == "capex_rate":
-        return _from_ratio(spec, pack, newest, "capex_intensity")
+        return _from_engine(spec, pack, newest, engine,
+                            "capex_pct_of_revenue",
+                            "the engine's own maintenance-capital rate")
     if key == "opex_fixed_share":
-        return _opex_fixed_share(spec, pack, newest)
+        return _from_engine(
+            spec, pack, newest, engine, "pools.opex_fixed_share",
+            "the engine's own amount-weighted fixed share of its "
+            "operating-cost pools")
     if key == "personnel_rate":
         return _ratio_of(
             spec, pack, newest,
@@ -853,8 +690,12 @@ def _build_one(spec, pack, history, newest):
             "Headcount is absent, so this cannot be formed. It is one "
             "division away the moment a person supplies the count.",
             newest.period_end)
-    if key == "depreciation_rate":
+    if key == "depreciation_share_of_gross_depreciable_base":
         return _depreciation_rate(spec, pack, newest)
+    if key == "depreciation_rate":
+        return _from_engine(spec, pack, newest, engine, "depreciation_rate",
+                            "the engine's own depreciation rate on closing "
+                            "net book value")
     if key == "new_debt":
         return _absent(
             spec,
@@ -865,11 +706,20 @@ def _build_one(spec, pack, history, newest):
     if key == "debt_repayment_years":
         return _debt_repayment_years(spec, pack, newest)
     if key == "interest_rate":
-        return _interest_rate(spec, pack, newest)
+        return _from_engine(spec, pack, newest, engine, "interest_rate_debt",
+                            "the engine's own borrowing rate")
     if key == "tax_rate":
-        return _tax_rate(spec, pack, newest)
+        # plan/2 contract 4, 3.4, R16: ONE derivation. The book rung is the
+        # engine's existing effective-rate rule (positive pre-tax result and
+        # a reconstruction that reaches account 121 with nothing
+        # unexplained), else the jurisdiction's packed statutory rate, else
+        # absent; this package reads that resolution rather than holding a
+        # second rule of its own.
+        return _from_engine(spec, pack, newest, engine, "tax_rate",
+                            "the engine's own effective-rate rule, else the "
+                            "jurisdiction's statutory rate")
     if key == "dividend_payout":
-        return _dividend_payout(spec, pack, newest)
+        return _dividend_payout(spec, pack, newest, engine)
     if key == "fx_rate_move":
         return _fx_rate_move(spec, pack, newest, history)
 

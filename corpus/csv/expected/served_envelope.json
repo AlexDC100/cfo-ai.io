@@ -7,7 +7,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "ro",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": null,
     "source_format": "saga_10_col"
   },

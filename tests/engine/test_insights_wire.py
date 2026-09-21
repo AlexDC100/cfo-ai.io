@@ -636,12 +636,22 @@ def test_agras_serves_the_current_ratio_collapse(monkeypatch):
 
 
 def test_agras_serves_the_reconstruction_gap(monkeypatch):
-    """The 46.6% step between the rebuilt P&L and account 121."""
+    """The step between the rebuilt P&L and account 121.
+
+    RESTATED (plan/2 B4a): the 46.6% step this test used to pin (rebuilt
+    14,106,102.03 against 7,533,676.02 filed) was mostly the 609/709
+    double count — agras's mirrored 709 customer reductions (3,889,255.25)
+    entered revenue with the exporter's positive sign, so revenue and the
+    rebuild were overstated by twice that. Read as reductions, the rebuild
+    is 6,461,988.99 and the remaining step (+1,071,687.03, 16.6%) is what
+    the mirrored 711 production variation hides (its year net is not
+    printed). The finding still fires on the served book, now with the
+    honest distance."""
     ins = _insight(_agras_block(monkeypatch), "reconstruction_gap")
-    assert _measure(ins, "graded_share") == pytest.approx(0.465928, abs=5e-6)
+    assert _measure(ins, "graded_share") == pytest.approx(0.165845, abs=5e-6)
     assert _measure(ins, "statutory") == pytest.approx(7533676.02, abs=0.005)
-    assert _measure(ins, "reconstructed") == pytest.approx(14106102.03, abs=0.005)
-    assert _measure(ins, "step") == pytest.approx(-6572426.01, abs=0.005)
+    assert _measure(ins, "reconstructed") == pytest.approx(6461988.99, abs=0.005)
+    assert _measure(ins, "step") == pytest.approx(1071687.03, abs=0.005)
     assert [a["code"] for a in ins["accounts"]] == ["121"], ins["accounts"]
 
 
@@ -659,14 +669,18 @@ def test_agras_carries_all_eight_findings_into_the_summary_ordering(monkeypatch)
     """The whole reading, ranked, with the top five flagged for the
     executive summary."""
     block = _agras_block(monkeypatch)
+    # RESTATED (plan/2 B4a): with the 609/709 double count repaired the
+    # reconstruction gap shrinks from 46.6% to 16.6% and ranks fifth, not
+    # third; the same eight findings fire, in the order the smaller gap
+    # gives them.
     assert [i["id"] for i in block["insights"]] == [
-        "asset_age", "liquidity_quality", "reconstruction_gap",
-        "related_party_exposure", "unclassified_balances",
+        "asset_age", "liquidity_quality", "related_party_exposure",
+        "unclassified_balances", "reconstruction_gap",
         "earnings_quality", "trade_float", "financial_position",
     ], [i["id"] for i in block["insights"]]
     assert block["summary_ids"] == [
-        "asset_age", "liquidity_quality", "reconstruction_gap",
-        "related_party_exposure", "unclassified_balances",
+        "asset_age", "liquidity_quality", "related_party_exposure",
+        "unclassified_balances", "reconstruction_gap",
     ], block["summary_ids"]
     assert block["not_fired"] == []
 

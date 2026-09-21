@@ -51,7 +51,7 @@ import {
 
 const FP1 = resolve(
   __dirname,
-  "../../../../tests/engine/fixtures/forecast/fp1_agras.json",
+  "../../../../tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 
 const view = () => {
@@ -75,7 +75,7 @@ describe("<ProjectedAmount>", () => {
       />,
     );
     // 118,576,819.64 grown 8% — the same figure the engine gate measures.
-    expect(screen.getByText("128062965.21")).toBeTruthy();
+    expect(screen.getByText("119662173.87")).toBeTruthy();
 
     const root = container.querySelector('[data-projected="true"]');
     expect(root).toBeTruthy();
@@ -199,7 +199,7 @@ describe("<ProjectedAmount>", () => {
 
 const FP1_SERVED = resolve(
   __dirname,
-  "../../../../tests/engine/fixtures/forecast/fp1_agras_served.json",
+  "../../../../tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 
 describe("<ProjectedAmount> over the bytes the engine actually serves", () => {
@@ -225,7 +225,7 @@ describe("<ProjectedAmount> over the bytes the engine actually serves", () => {
       />,
     );
     const value = container.querySelector("[data-projected-value]");
-    expect(value?.textContent).toBe("128062965.21");
+    expect(value?.textContent).toBe("119662173.87");
     expect(container.textContent).not.toContain("—");
     expect(
       container.querySelector('[data-projected="refused"]'),

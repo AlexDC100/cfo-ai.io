@@ -349,14 +349,285 @@ def _engine_gates() -> List[Gate]:
         # Plant log: docs/engine_book/gates.md
         Gate("forecast-route",
              [PY, "-m", "pytest", "tests/engine/test_forecast_route.py", "-q"],
-             work_junit=True, floor=22, units="tests",
+             # plan/2 B6: floor 30 -> 45 (measured 49) with the fp1.2 canaries
+             work_junit=True, floor=45, units="tests",
              canaries=("test_the_route_is_mounted_on_the_real_app",
+                       "test_get_equals_post_with_the_default_body",
+                       "test_the_post_body_binds_at_module_scope",
+                       "test_an_invalid_request_is_422_with_code_text_and_field",
+                       "test_a_base_plan_that_draws_an_unpriceable_line_is_served_partially_and_says_so",
+                       # plan/2 B4b (28.3 B4): GET through create_app on the
+                       # four books at horizons 3 and 5 answers 200 with no
+                       # clause violation, the pool drivers expanded
+                       "test_get_through_the_real_app_answers_200_with_no_clause_violation",
                        "test_the_route_resolves_the_workspace_and_scopes_the_read_to_it",
                        "test_the_period_read_filters_on_the_resolved_workspace",
                        "test_an_anonymous_call_is_refused",
                        "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
                        "test_no_projected_figure_carries_actual_provenance",
                        "test_every_projected_line_names_a_driver_or_a_stated_convention")),
+        # ── plan/2 B0 (plan_contract_v2 28.3): forecast gate wiring ──────
+        # Existing, already-passing forecast suites that no named gate ran:
+        # they rode the whole-suite `pytest` gate, where a collapse of one
+        # file hides inside 1,500 tests. Registered by name so the plan/2
+        # batches extend gates that exist. Each is registration_only in
+        # docs/engine_book/plan_gates.json (contract 0.5). Floors are the
+        # counts measured at registration, rounded down. Later batches
+        # extend these entries under their own anchors.
+        Gate("forecast-model",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_model.py",
+              # plan/2 B2: the calendar and year-to-date tax (contract 6.1,
+              # 6.3) join this gate; floor re-measured over both files (the
+              # F1 matrix axis became monthly_months {12, 24}, so the model
+              # file itself holds 20 fewer parametrised cases than at B0).
+              "tests/engine/test_forecast_timeline_tax.py",
+              # plan/2 B5: the working-capital unwind of contract 6.2 joins
+              # this gate (28.3 B5 "command extended"); floor re-measured.
+              "tests/engine/test_forecast_wc_unwind.py", "-q"],
+             work_junit=True, floor=244, units="tests",
+             canaries=("test_f1_every_projected_period_closes_to_zero",
+                       "test_f1_one_cent_is_enough_to_red_it",
+                       "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
+                       "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book",
+                       # plan/2 B2
+                       "test_a_loss_month_then_profit_months_is_taxed_on_the_years_result",
+                       "test_every_period_is_charged_the_tax_on_its_year_to_date_result",
+                       # plan/2 B5
+                       "test_agras_receivables_follow_the_unwind_formula_every_month",
+                       "test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change",
+                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year")),
+        Gate("forecast-serving-boundary",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
+             work_junit=True, floor=60, units="tests",
+             canaries=("test_the_guard_is_silent_on_all_four_committed_books",
+                       # plan/2 B6 (3.13): the real POST bytes, per want key
+                       "test_no_actual_provenance_on_real_post_bytes",
+                       "test_the_committed_fp12_served_fixture_is_what_the_real_route_serves",
+                       "test_every_real_book_serves_a_whole_projection_at_every_horizon",
+                       "test_the_projected_balance_sheet_closes_to_the_cent_on_the_real_book")),
+        Gate("forecast-drivers",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_drivers.py", "-q"],
+             work_junit=True, floor=140, units="tests",
+             canaries=("test_b2_absent_is_none_and_never_zero",
+                       "test_f1_the_package_contains_no_model_call_and_no_place_for_one",
+                       "test_j8_an_absent_driver_never_becomes_a_number_in_the_handover")),
+        Gate("forecast-ai-write-path",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_no_ai_write_path.py", "-q"],
+             work_junit=True, floor=15, units="tests",
+             canaries=("test_the_scan_is_not_vacuous_and_names_what_it_covers",
+                       "test_importing_the_forecast_packages_loads_no_model_surface",
+                       "test_plant_a_forecast_module_that_imports_a_model_surface_and_it_reds")),
+        Gate("plan-gate-census", [PY, "scripts/check_plan_gates.py"],
+             work_rx=r"GATE-WORK plan-gate-census units=(\d+)", floor=6,
+             units="plan gate entries",
+             canaries=("PLAN-GATE CENSUS (plan_contract_v2 F10)",
+                       "coverage of the 18 contract rows")),
+        # ── end plan/2 B0 ────────────────────────────────────────────────
+        # ── plan/2 B2 (plan_contract_v2 28.3): forecast-base-parity ──────
+        # Delta mode (B2, B3): today's engine against the B0 reference. Re-
+        # pointed by plan/2 B4b to PARITY MODE (contract 5.3): the engine at
+        # revenue_growth 0 and inflation 0 against base_b3_growth0.json (the
+        # B3 engine over the repaired books at growth 0) on the four books,
+        # total_years 5, windows 12 and 24; revenue exact, every other cell
+        # within a bound rendered from the run and printed beside it.
+        Gate("forecast-base-parity",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_base_parity.py", "-q"],
+             work_rx=r"GATE-WORK forecast-base-parity units=(\d+)", floor=12000,
+             units="(line, period) and plan-year cells compared",
+             canaries=("SCOPE forecast-base-parity (parity mode, plan/2 B4b)",
+                       "366-day plan year per book",
+                       "bound inputs")),
+        # ── end plan/2 B2 ────────────────────────────────────────────────
+        # ── plan/2 B3 (plan_contract_v2 28.3): one driver authority and tier
+        # pedigree. forecast-authority (section 4): the integers the two
+        # driver packages hold for every shared concept on the four books.
+        # forecast-defaults, engine half (F3, 3.3/3.4/R16): every driver's
+        # tier from its ladder with its evidence, absent drivers project,
+        # the no_statutory_tax_rate refusal (engine and GET 422), and the
+        # jurisdiction source per corpus book. B6 extends forecast-defaults
+        # over served bytes (test_forecast_defaults_f3.py).
+        Gate("forecast-authority",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_driver_authority.py", "-q"],
+             work_rx=r"GATE-WORK forecast-authority units=(\d+)", floor=140,
+             units="shared-concept comparisons",
+             canaries=("SCOPE forecast-authority (plan/2 B3, contract 4)",
+                       "covered concepts",
+                       # B3 repair: the hand-over and the SYNTHETIC tying
+                       # books (one tax derivation, contract 4)
+                       "each concept compared alone and after the hand-over")),
+        Gate("forecast-defaults",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_tier_ladders.py", "-q"],
+             work_rx=r"GATE-WORK forecast-defaults units=(\d+)", floor=150,
+             units="drivers checked",
+             canaries=("SCOPE forecast-defaults (engine half, plan/2 B3)",
+                       "jurisdiction source per corpus book",
+                       "responses with an absent driver that projected",
+                       # B3 repair: rungs passed over on built shapes, and
+                       # the ratio table's own days value (R8)
+                       "built step shapes",
+                       "ratio-table quotes checked")),
+        # ── end plan/2 B3 ────────────────────────────────────────────────
+        # ── plan/2 B4a (plan_contract_v2 5.1 / 28.3 B4; owner ruling
+        # 2026-09-18, the 609/709 double count): statements-anchor-gap.
+        # On every corpus book, the Scandia regression baseline and any
+        # PLAN_LOCAL_XLSX book, |account 121 - reconstruction| is printed
+        # and must be within the floor rendered from
+        # packs/ro/statements_anchor.yaml#anchor_gap and the book (the
+        # cent tolerance plus the 711/712 turnover a mirrored exporter
+        # hides); every mirrored 609/709 row enters its bucket as the
+        # reduction it is under the convention its document decided.
+        Gate("statements-anchor-gap",
+             [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=58,  # 45 -> 58: + the four decision-rule documents (B4 repair)
+             units="books judged, contra rows checked and metamorphic comparisons",
+             canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
+                       "floor from packs/ro/statements_anchor.yaml#anchor_gap",
+                       "convention per document",
+                       "mirrored contra rows checked")),
+        # ── end plan/2 B4a ───────────────────────────────────────────────
+        # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
+        # The cost pools of section 5 on the four books, no shocks: pools
+        # plus unallocated equal the assembled operating cost to the cent;
+        # the aggregate fixed share is the one forecast_drivers publishes
+        # (contract 4); the cap checked directly (realestate must cap);
+        # revenue -20% at inflation 0 moves cost of sales in full and each
+        # pool by its variable part (5.3); nil pools by count and on a
+        # test-built agras. B5 adds the shock half (scenario-cost-behaviour).
+        Gate("forecast-pools",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_pools.py", "-q"],
+             # floor 50 -> 85 (plan/2 B4 repair): + inflation on the fixed
+             # part, held other operating income with the EBITDA identity,
+             # the net-credit pool and the max-unallocated refusal (87 measured)
+             work_rx=r"GATE-WORK forecast-pools units=(\d+)", floor=85,
+             units="pool checks (sums, shares, caps, growth, inflation, held income, nil, negative, refusal)",
+             canaries=("SCOPE forecast-pools (plan/2 B4b, contract 5.6)",
+                       "capped pools per book",
+                       "nil pools per book")),
+        # ── end plan/2 B4b ───────────────────────────────────────────────
+        # ── plan/2 B5 (plan_contract_v2 28.3 B5): project_plan, the partial
+        # refusal, the unwind, debt timing, the one period reader ─────────
+        # Seven first registrations. Each test prints its own SCOPE line and a
+        # GATE-WORK line; floors are the counts measured at registration,
+        # rounded down. forecast-get-b4-parity is retired by B6 (fp1.2).
+        Gate("forecast-balance",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_levers_f1.py",
+              # the request refusals of 2.3-2.6: a malformed lever must
+              # refuse, never project (33 cases; counted by the canary below)
+              "tests/engine/test_plan_request_validation.py", "-q", "-s", "-rA"],
+             work_rx=r"GATE-WORK forecast-balance units=(\d+)", floor=7000,
+             units="projected periods re-added by the test (base and plan runs)",
+             canaries=("SCOPE forecast-balance (plan/2 B5, gate row F1)",
+                       "run kinds covered: base, plan",
+                       "test_the_wire_body_and_the_dataclass_give_the_same_plan")),
+        Gate("scenario-funding-line",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_funding_line.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-funding-line units=(\d+)", floor=1500,
+             units="period identities (floor, draw, revolver, interest) plus runway cases",
+             canaries=("SCOPE scenario-funding-line (plan/2 B5, contract 6.4-6.6, S3 engine half)",
+                       "ShortfallRefusal cells (6.5)",
+                       "runway annual tail: bracket")),
+        Gate("scenario-cost-behaviour",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_cost_behaviour.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-cost-behaviour units=(\d+)", floor=110,
+             units="cost-of-sales checks under shocks, pool levels, the EBITDA law, refused-split refusals",
+             canaries=("SCOPE scenario-cost-behaviour (plan/2 B5, contract 5.6)",
+                       "law precondition met on")),
+        Gate("forecast-magnitude",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_magnitude_f6.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-magnitude units=(\d+)", floor=20,
+             units="year-one revenue checks with the band rendered from the run",
+             canaries=("SCOPE forecast-magnitude (plan/2 B5, gate row F6 engine half)",
+                       "bands rendered from the run")),
+        Gate("period-loader-parity",
+             [PY, "-m", "pytest", "tests/engine/test_load_period_rows.py", "-q", "-s"],
+             work_rx=r"GATE-WORK period-loader-parity units=(\d+)", floor=20,
+             units="statement keys compared byte for byte, plus the refusal paths",
+             canaries=("SCOPE period-loader-parity (plan/2 B5, contract 1.4)",)),
+        # forecast-get-b4-parity was registered here by B5 and is RETIRED by
+        # plan/2 B6 (contract 28.3): fp1.2 replaced the fp1 bytes it pinned.
+        # GET equals POST (scenario-one-engine) and the served-bytes gates
+        # take over; its plant log stays in gates.md, its plan_gates.json
+        # entry carries retired_in B6.
+        Gate("forecast-debt-timing",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_debt_timing.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-debt-timing units=(\d+)", floor=30,
+             units="debt movements checked for their period, plus the horizon refusal",
+             canaries=("SCOPE forecast-debt-timing (plan/2 B5, contract 6.7)",)),
+        # ── end plan/2 B5 ────────────────────────────────────────────────
+        # ── plan/2 B1 (plan_contract_v2 28.3, section 7, S7): sign-flip ──
+        # One sign-flip classifier per runtime (engine.serving.change_kind,
+        # frontend/lib/changeKind.ts) held to one truth table; comparatives
+        # columns carry change_kind and no cross-sign percentage. Work is
+        # the SUM of the GATE-WORK lines the tests print (truth-table rows,
+        # converted consumers, comparative columns swept). Floor 300 = the
+        # measured 339 (70 + 14 + 255), rounded down. The rendered half is
+        # the vitest canaries changeKind.test.ts and signFlip.test.tsx.
+        Gate("sign-flip",
+             [PY, "-m", "pytest", "tests/engine/test_change_kind.py",
+              "tests/engine/test_comparatives.py", "-v", "-s"],
+             work_rx=r"GATE-WORK sign-flip units=(\d+)", work_sum=True,
+             floor=300, units="truth-table rows + consumers + columns",
+             canaries=("test_the_python_classifier_matches_every_truth_table_row",
+                       "test_a_cross_sign_column_carries_its_kind_and_no_percentage",
+                       "SIGN-FLIP truth table (python)")),
+        # ── end plan/2 B1 ────────────────────────────────────────────────
+        # ── plan/2 B6 (plan_contract_v2 28.3 B6): fp1.2 serving and POST
+        # /api/forecast/{period_id}/recompute ────────────────────────────
+        # Eight first registrations, each through the REAL create_app. Every
+        # test prints its own SCOPE and GATE-WORK line; floors are the counts
+        # measured at registration, rounded down. forecast-cache runs on the
+        # tenancy double (membership walls); the others on the committed-book
+        # row server (as-built B0-6). forecast-route, forecast-serving-
+        # boundary and the cross-org sweep were extended in place.
+        Gate("forecast-server-side",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_recompute_f2.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-server-side units=(\d+)", floor=4000,
+             units="served numbers re-walked from the served figures",
+             canaries=("SCOPE forecast-server-side (plan/2 B6, gate row F2)",)),
+        Gate("forecast-provenance",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_provenance_f4.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-provenance units=(\d+)", floor=8000,
+             units="drivers, figures and series points resolved",
+             canaries=("SCOPE forecast-provenance (plan/2 B6, gate row F4)",)),
+        Gate("forecast-byte-stability",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_byte_stability_f8.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-byte-stability units=(\d+)", floor=16,
+             units="body hashes compared in process and against a second process",
+             canaries=("SCOPE forecast-byte-stability (plan/2 B6, gate row F8)",
+                       "PYTHONHASHSEED=12345")),
+        Gate("forecast-latency",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_recompute_f9.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-latency units=(\d+)", floor=80,
+             units="timed chart-profile POSTs (N=20 per book)",
+             canaries=("SCOPE forecast-latency (plan/2 B6, gate row F9, in process)",
+                       "bytes (cap")),
+        Gate("forecast-lever-reach",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_lever_reach.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-lever-reach units=(\d+)", floor=350,
+             units="nudges sent through POST recompute (driver x allowed op x book)",
+             canaries=("SCOPE forecast-lever-reach (plan/2 B6, contract 12)",
+                       "levers declared 38",
+                       # B6 repair: the cross-book liveness check ran
+                       "cross-book: ")),
+        Gate("scenario-one-engine",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_one_engine.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-one-engine units=(\d+)", floor=10,
+             units="GET-equals-POST cells plus the handler walk",
+             canaries=("SCOPE scenario-one-engine (plan/2 B6, gate row S4",)),
+        Gate("scenario-provenance",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_provenance.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-provenance units=(\d+)", floor=8000,
+             units="figures and series points whose lever ids were re-derived by "
+                   "removal POSTs, LEVERED and WINDOWED (measured 8408)",
+             canaries=("SCOPE scenario-provenance (plan/2 B6, gate row S6)",
+                       # B6 repair: the windowed request ran on every book
+                       "realestate/windowed: figures and series points checked")),
+        Gate("forecast-cache",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_cache.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-cache units=(\d+)", floor=8,
+             units="POSTs (owner base/shocked/base, strangers) plus cache entries read",
+             canaries=("SCOPE forecast-cache (plan/2 B6, contract 1.5)",)),
+        # ── end plan/2 B6 ────────────────────────────────────────────────
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
@@ -782,6 +1053,17 @@ def _frontend_gates() -> List[Gate]:
         # frontend/lib/__tests__/narrativeUnitGates.test.tsx (in vitest).
         # Known violations are quarantined by name — a ratchet, not an
         # exemption. Contract + plant log: design_review/narrative/GATES.md
+        # ── plan/2 B0 (plan_contract_v2 28.3): forecast-boundary ─────────
+        # F2's static half, already written and never in the battery. Reds
+        # on a zero-file scan and prints, by name, the Scenarios files it
+        # does not yet hold (they join at B13). Floor 1000 = the measured
+        # 1,167 files (761 ts + 406 py), rounded down.
+        Gate("forecast-boundary", ["node", "scripts/check_forecast_boundary.mjs"],
+             work_rx=r"GATE-WORK forecast-boundary units=(\d+)", floor=1000,
+             units="ts+py files scanned",
+             canaries=("FORECAST BOUNDARY GATE (F2, static half)",
+                       "forecast-namespace consumers found")),
+        # ── end plan/2 B0 ────────────────────────────────────────────────
         Gate("narrative-units", ["node", "scripts/check_narrative_units.mjs"],
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,
              units="narrative producers",
@@ -847,7 +1129,17 @@ def _frontend_gates() -> List[Gate]:
              units="frontend unit tests",
              canaries=("capsuleFactIndex.test.ts",
                        "forecastPage.test.tsx",
-                       "socialLinksFromConfig.test.ts")),
+                       "socialLinksFromConfig.test.ts",
+                       # plan/2 B1 (S7, section 7): the TS classifier
+                       # against the shared truth table, and the rendered
+                       # sign flips on every converted consumer.
+                       "frontend/lib/__tests__/changeKind.test.ts",
+                       "frontend/components/scenarios/__tests__/signFlip.test.tsx",
+                       # plan/2 B6 (F2, F4, F6): the fp1.2 reader over the
+                       # real served bytes, and the magnitude band whose
+                       # early returns became reds.
+                       "frontend/lib/__tests__/forecastFactsReader.test.ts",
+                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one
