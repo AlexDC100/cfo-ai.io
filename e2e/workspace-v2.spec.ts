@@ -115,11 +115,12 @@ for (const lang of ["ro", "en"] as const) {
 
       // ── One tap ────────────────────────────────────────────────────
       await page.getByTestId("upload-card-analyse").click();
-      await expect(card).toHaveAttribute("data-phase", "progress", { timeout: 15_000 });
-      expect(double.commits).toHaveLength(1);
+      // G1 at the wire: the ONE commit names Agras and the document's period.
+      await expect.poll(() => double.commits.length, { timeout: 15_000 }).toBe(1);
       expect(double.commits[0].target_org_id).toBe(ORG_AGRAS);
       expect(double.commits[0].period_end).toBe("2025-12-31");
       expect(double.commits[0].create_company).toBeUndefined();
+      await expect(card).toHaveAttribute("data-phase", "progress", { timeout: 15_000 });
       // The screen and the header follow the file to Agras.
       await expect(page).toHaveURL(new RegExp(`/workspace/${ORG_AGRAS}`));
       await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL");
