@@ -881,7 +881,12 @@ def unique_successful(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
     """Unique successful documents `user_id` uploaded in `month` (YYYY-MM,
     UTC). None when the documents cannot be read — the caller falls back to
-    the counter rather than showing a made-up zero."""
+    the counter rather than showing a made-up zero.
+
+    Uniqueness is decided over the history up to the month's end, then the
+    documents FIRST analysed in the month are counted: a copy of an earlier
+    month's book is not a new document this month (the live gate has no
+    month limit either)."""
     try:
         start = datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
@@ -902,12 +907,11 @@ def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
                     "org_id": "in.(" + ",".join(orgs) + ")",
                     "uploaded_by": f"eq.{user_id}",
                     "status": "eq.analyzed",
-                    "and": "(created_at.gte.%s,created_at.lt.%s)" % (
-                        start.strftime("%Y-%m-%dT%H:%M:%SZ"), nxt.strftime("%Y-%m-%dT%H:%M:%SZ")),
+                    "created_at": "lt.%s" % nxt.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 },
                 order="created_at.asc",
             ) or []
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] unique-document count failed for user=%s", user_id)
         return None
-    return len(unique_successful(rows))
+    return sum(1 for r in unique_successful(rows) if month_of(r.get("created_at")) == month)

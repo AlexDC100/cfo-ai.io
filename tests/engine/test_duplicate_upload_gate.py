@@ -1094,6 +1094,15 @@ def test_the_banner_counts_unique_successful_documents(world):
     assert body["docs_used"] == 2 and body["docs_used_counter"] == 51
 
 
+def test_the_banner_never_counts_a_copy_of_an_earlier_months_book(world):
+    rows = world["db"].rows("documents")
+    rows.append(_doc("aug-book", status="analyzed", created="2026-08-20T10:00:00+00:00"))
+    rows.append(_doc("sep-copy", status="analyzed", created="2026-09-02T10:00:00+00:00"))
+    rows.append(_doc("sep-book", h=EEI, status="analyzed", created="2026-09-03T10:00:00+00:00"))
+    assert _doc_dedupe.unique_successful_docs_in_month(OWNER, "2026-08") == 1
+    assert _doc_dedupe.unique_successful_docs_in_month(OWNER, "2026-09") == 1
+
+
 def test_archived_duplicates_are_not_on_the_recently_deleted_shelf_or_emptied(world):
     db = world["db"]
     db.rows("documents").extend([
