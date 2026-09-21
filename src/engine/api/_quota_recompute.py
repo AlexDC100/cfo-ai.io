@@ -40,7 +40,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
-from ._doc_dedupe import _ts, is_archived_duplicate, month_of, normalize_hash, unique_successful
+from ._doc_dedupe import (_date10, _ts, is_archived_duplicate, month_of, normalize_hash,
+                          normalize_scope, unique_successful)
 
 
 @dataclass(frozen=True)
@@ -202,20 +203,40 @@ class MeteredFinding:
     stripe: str               # what the account's subscription says about billing
 
 
-def _earlier_live_copy(doc: Dict[str, Any], by_key: Dict[tuple, List[Dict[str, Any]]]) -> Optional[str]:
+def _book_key(doc: Dict[str, Any], h: str) -> tuple:
+    """(company, account, SCOPE, content): a dashboard analysis and a
+    Products analysis of the same workbook are two analyses (verifier lens
+    R, R7)."""
+    return (str(doc.get("org_id") or ""), str(doc.get("uploaded_by") or ""),
+            normalize_scope(doc.get("scope")), h)
+
+
+def _earlier_live_copy(doc: Dict[str, Any], by_key: Dict[tuple, List[Dict[str, Any]]],
+                       period_end_of: Optional[Dict[str, str]] = None) -> Optional[str]:
     """An earlier copy that was a LIVE original when `doc` was uploaded:
     analysed (a queued copy whose run was refused — a dismissed 402 — never
     ran and is not one; nor is a failure), not itself an archived duplicate,
     and not deleted before `doc` was uploaded (a re-upload after the user
     deleted the original is the live gate's "not a duplicate" too). Same
     rule as `_doc_dedupe.pick_original`, read retrospectively (2026-09-21,
-    verifier lens Q: a legitimate paid extra was listed as a duplicate)."""
+    verifier lens Q: a legitimate paid extra was listed as a duplicate) —
+    and the same SCOPE and PERIOD as the restore's `unique_successful`
+    (lens R, R7 / R8): each copy's date is its confirmed hint, else the
+    period it was analysed into, and two known dates that differ are two
+    books."""
     h = normalize_hash(doc.get("content_hash"))
     if not h:
         return None
-    key = (str(doc.get("org_id") or ""), str(doc.get("uploaded_by") or ""), h)
+    period_end_of = period_end_of or {}
+
+    def date_of(r: Dict[str, Any]) -> Optional[str]:
+        pid = r.get("period_id")
+        return _date10(r.get("period_end_hint")) or (_date10(period_end_of.get(str(pid))) if pid else None)
+
+    key = _book_key(doc, h)
     me = (str(doc.get("created_at") or ""), str(doc.get("id") or ""))
     my_created = _ts(doc.get("created_at"))
+    my_date = date_of(doc)
     for other in by_key.get(key, []):
         them = (str(other.get("created_at") or ""), str(other.get("id") or ""))
         if them >= me:
@@ -225,6 +246,9 @@ def _earlier_live_copy(doc: Dict[str, Any], by_key: Dict[tuple, List[Dict[str, A
         deleted = _ts(other.get("deleted_at"))
         if deleted is not None and my_created is not None and deleted <= my_created:
             continue
+        theirs = date_of(other)
+        if my_date is not None and theirs is not None and my_date != theirs:
+            continue  # another confirmed / analysed period: another book
         return str(other.get("id"))
     return None
 
@@ -232,6 +256,7 @@ def _earlier_live_copy(doc: Dict[str, Any], by_key: Dict[tuple, List[Dict[str, A
 def classify_metered_documents(
     documents: Sequence[Dict[str, Any]],
     subscriptions: Sequence[Dict[str, Any]],
+    period_end_of: Optional[Dict[str, str]] = None,
 ) -> List[MeteredFinding]:
     """Every `metered_extra` document that was a FAILURE or a DUPLICATE (an
     earlier non-failed copy of the same account, company and content, or an
@@ -242,14 +267,14 @@ def classify_metered_documents(
     for d in sorted(documents, key=lambda r: (str(r.get("created_at") or ""), str(r.get("id") or ""))):
         h = normalize_hash(d.get("content_hash"))
         if h:
-            by_key.setdefault((str(d.get("org_id") or ""), str(d.get("uploaded_by") or ""), h), []).append(d)
+            by_key.setdefault(_book_key(d, h), []).append(d)
     subs = {str(s.get("user_id")): s for s in subscriptions}
     out: List[MeteredFinding] = []
     for d in sorted(documents, key=lambda r: (str(r.get("uploaded_by") or ""), str(r.get("created_at") or ""))):
         if not d.get("metered_extra"):
             continue
         failed = str(d.get("status") or "") == "failed"
-        dup = _earlier_live_copy(d, by_key)
+        dup = _earlier_live_copy(d, by_key, period_end_of)
         if is_archived_duplicate(d) and not dup:
             from ._doc_dedupe import duplicate_of
             dup = duplicate_of(d.get("error"))

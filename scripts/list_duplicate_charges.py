@@ -2,8 +2,9 @@
 
 For each account: every `documents.metered_extra = true` row that either
 failed or re-uploaded a file the same account already held in the same
-company (an earlier non-failed copy with the same content hash, or the
-archived-duplicate marker), with its date, filename and what billing could
+company, for the same scope and period (an earlier analysed copy with the
+same content hash, or the archived-duplicate marker), with its date,
+filename and what billing could
 have done with it. The account's `subscriptions` row decides the last
 column: without a `stripe_subscription_id`, `_billing.record_metered_extra_doc`
 answers `no_stripe_subscription` before it touches Stripe, so the document
@@ -67,10 +68,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             docs = _select_all(ac, "documents", doc_filter, "created_at.asc,id.asc")
             subs = _select_all(ac, "subscriptions",
                                {"user_id": f"eq.{args.user}"} if args.user else {}, "user_id.asc")
+            # An undated copy's period is the one it was analysed into — the
+            # PERIOD clause the gate and the restore apply (verifier lens R, R8).
+            periods = _select_all(ac, "financial_periods", {}, "id.asc")
     except Exception as exc:  # noqa: BLE001
         print("[duplicate-charges] could not load: %s: %s" % (type(exc).__name__, exc))
         return 2
-    findings = classify_metered_documents(docs, subs)
+    period_end_of = {str(p.get("id")): str(p.get("period_end") or "") for p in periods if p.get("id")}
+    findings = classify_metered_documents(docs, subs, period_end_of)
     metered = sum(1 for d in docs if d.get("metered_extra"))
     print("[duplicate-charges] %d documents read, %d flagged metered_extra, %d of them a duplicate or a failure"
           % (len(docs), metered, len(findings)))

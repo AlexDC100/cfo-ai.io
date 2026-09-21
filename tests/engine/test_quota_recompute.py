@@ -175,6 +175,39 @@ def test_a_counted_book_whose_correction_failed_is_never_handed_back():
     assert unique_successful_by_user_month(docs) == {(U1, "2026-09"): 1}
 
 
+def test_the_audit_never_lists_a_products_extra_of_a_dashboard_workbook():
+    """Verifier lens R, R7: the SCOPE clause. The same workbook analysed on
+    the dashboard and then on Products is two analyses — the Products one
+    is a legitimate paid extra, not a duplicate charge."""
+    docs = [d("fin", created="2026-09-10T10:00:00+00:00"),
+            dict(d("sku", created="2026-09-11T10:00:00+00:00", metered=True), scope="sku")]
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}]) == []
+
+
+def test_the_audit_never_lists_a_paid_extra_of_another_confirmed_period():
+    """Verifier lens R, R8: the PERIOD clause. The same bytes confirmed for
+    another closing date are another book — to the gate, to the restore and
+    to the audit."""
+    docs = [d("fy2024", created="2026-09-10T10:00:00+00:00", hint="2024-12-31"),
+            d("fy2025", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True)]
+    assert unique_successful_by_user_month(docs)[(U1, "2026-09")] == 2
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}]) == []
+    # an undated original analysed into 31.12.2024 vs a copy confirmed for 2025
+    docs = [dict(d("undated", created="2026-09-10T10:00:00+00:00"), period_id="p24"),
+            d("fy2025", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True)]
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}],
+                                      period_end_of={"p24": "2024-12-31"}) == []
+
+
+def test_the_audit_still_lists_a_paid_copy_of_the_same_book_and_period():
+    """Positive control for R7 / R8."""
+    docs = [d("orig", created="2026-09-10T10:00:00+00:00", hint="2025-12-31"),
+            d("copy", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True),
+            d("undated-copy", created="2026-09-12T10:00:00+00:00", metered=True)]
+    found = classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}])
+    assert [(f.document_id, f.duplicate_of) for f in found] == [("copy", "orig"), ("undated-copy", "orig")]
+
+
 # ── The scripts, end to end over the double ─────────────────────────────
 
 
