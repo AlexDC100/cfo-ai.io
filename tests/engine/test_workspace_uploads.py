@@ -406,6 +406,26 @@ def test_identify_without_a_readable_cui_lands_on_the_company_on_screen(app, wor
                               "reason": "on_screen_company"}, body["target"]
 
 
+def test_identify_with_no_company_on_screen_uses_the_callers_oldest_live_company(app, world):
+    """No X-Org-Id (a cached bundle, a server-to-server call): the same
+    fallback every route takes — the oldest LIVE membership — never an
+    archived one."""
+    world.identities["balanta.xlsx"] = _identity(cui=None, name=None)
+    body = identify(app, org=None).json()
+    assert body["target"]["org_id"] == ORG_SCANDIA and body["target"]["reason"] == "on_screen_company", body
+
+
+def test_a_name_read_only_off_the_file_name_never_keys_a_company(app, world):
+    """The on-screen pre-CUI workspace is adopted by NAME only when the
+    DOCUMENT states the name — a name typed into the file name is shown,
+    never matched."""
+    world.db.rows("org_prefs")[:] = [p for p in world.db.rows("org_prefs") if p["org_id"] != ORG_SCANDIA]
+    world.identities["Scandia Food.xlsx"] = _identity(cui="12345678", name="Scandia Food",
+                                                      name_signal="filename")
+    target = identify(app, name="Scandia Food.xlsx").json()["target"]
+    assert target["is_new"] is True and target["reason"] == "new_cui", target
+
+
 def test_identify_never_offers_a_period_read_off_the_file_name_g2(app, world):
     """G2: 'balanta_2019_12.xlsx' whose only date is its NAME gets no period
     — the card asks; a period the DOCUMENT states is offered."""
