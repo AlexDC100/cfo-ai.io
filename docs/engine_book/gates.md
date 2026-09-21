@@ -5384,3 +5384,154 @@ cards and none at all when no document was served. What these gates cannot
 see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
 the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
 layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).
+
+## workspace-v2
+
+**One company per workspace: G1–G8 (2026-09-21).**
+
+The redesign (preview-gated `workspace_v2`): a workspace is ONE company keyed
+by CUI (`org_prefs.prefs.cui` — production has no `organizations.cui`), three
+screens, one upload component, a file lands in the company its own header
+names. Integrated on `feat/workspace-redesign` from `feat/ws-redesign-be`,
+`feat/ws-redesign-fe`, `feat/ws-migration` and `fix/dedupe-quota`. Every gate
+below was plant-proven on the integrated tree: the plant applied to the
+PRODUCT, the gate run red, the file restored from git, the gate run green.
+
+**Where the gates live**
+
+| gate | engine (real `create_app()`) | browser half | e2e (real bundle, hermetic double) |
+|---|---|---|---|
+| G1 an Agras file (CUI 46355095) dropped with Scandia (16070576) open lands in Agras | `test_workspace_v2_gates.py::test_g1_*` | `uploadFlow.test.tsx` "G1 — …" | `e2e/workspace-v2.spec.ts` (card, the commit's `target_org_id`, URL + header follow) |
+| G2 the period is the document's, never the file name's | `::test_g2_*` (balanta_2017.xlsx whose line says 31.12.2025 → 2025-12-31 at identify, as the stored hint, and persisted in G7) | `uploadFlow.test.tsx` "G2 — …" | the card's period (2025, not 2017) |
+| G3 the same file twice: not stored, analysed or counted | `::test_g3_*` (after the first copy was REALLY analysed) | `uploadFlow.test.tsx` duplicate cases | the second drop reads "Deja încărcat" / "Already uploaded", no second commit |
+| G4 no empty period exists or is created | `::test_g4_*`, `test_no_empty_period_creators.py`, and `scripts/check_no_empty_periods.py` for production data | — | Agras has no period until its analysis finishes |
+| G5 exactly one upload component | — | `oneUploadComponent.test.ts` (static), `workspaceRedesignScreens.test.tsx` (every file input on a screen belongs to it) | every `input[type=file]` on each screen carries `data-upload-component` |
+| G6 header/page desync fails | — | `companyHeaderSync.test.tsx` | `installHeaderWatch` — every DOM mutation, across navigations, reported to the test process |
+| G7 drop → one tap → analysed dashboard | `::test_g7_*` (identify → commit → `_run_pipeline_sync` with the REAL deterministic extract over the stored bytes, map, persist, compute, validate, council, narrate → years + `GET /api/period`) | `uploadFlow.test.tsx` progress → dashboard | the whole flow, both languages |
+| G8 archive, never delete; db_restore reverts the migration | `::test_g8_*` (snapshot → `--execute` → `db_restore --apply`, over a double that refuses DELETE; static census of the migration path) | `workspaceRedesignScreens.test.tsx` "G8 — …" (danger zone archives, Home restores, no purge/delete in any redesign module) | — |
+
+Run: engine — `pytest tests/engine/test_workspace_v2_gates.py` (15 tests,
+~15 s; the e2e fixtures under `e2e/fixtures/workspace_v2/` are what these
+routes serve for the two corpus books — regenerate with
+`WS_V2_WRITE_FIXTURE=1`, pinned field by field). Browser —
+`npx vitest run frontend/components/cfo/upload frontend/pages/cfo/__tests__`.
+E2E — build with `VITE_OUT_DIR=<dist> VITE_SUPABASE_URL=http://harness.invalid
+VITE_SUPABASE_ANON_KEY=harness-anon VITE_API_URL=http://engine.invalid npx vite
+build --outDir <dist>`, `npx vite preview --outDir <dist> --port 4417`, then
+`E2E_BASE_URL=http://127.0.0.1:4417 npx playwright test e2e/workspace-v2.spec.ts
+--project=chromium` (3 gates; `WS_SHOTS_DIR=…` adds the 8-run screenshot
+loop). Neither host resolves: nothing leaves the machine.
+
+**PLANT → RED → REVERT → GREEN, re-run on the final integrated tree**
+(2026-09-21 ~21:00–21:40, after the last `fix/dedupe-quota` merge `77af2dd2`
+and `5a84c9c9`). Every plant is applied to the PRODUCT, the gate run, the
+file restored with `git checkout --`, the gate run again. Runners and the
+full red transcripts: `scratchpad/wsr/plant_runner_final.py`,
+`e2e_plant_runner_final.py`, `plants_final/*.txt`. An earlier pass (20:00–20:07,
+before the last merges) is superseded by this one.
+
+**Plants — engine** (`tests/engine/test_workspace_v2_gates.py`, `-k` per gate)
+
+| # | PLANT (product) | RED | GREEN after REVERT |
+|---|---|---|---|
+| G1 | `_uploads.resolve_target`: the company on screen wins over a CUI match (`if cui and on_screen is None:`) | `2 failed` — `test_g1_*:389 AssertionError: {'is_new': False, 'name': 'Scandia Food SRL', …, 'reason': 'on_screen_company'}` and `:406` (Agras on screen, a Scandia file) | 2 passed |
+| G2 | `company_identity._period`: a year in the file name wins, dressed as `closing_balance` | `5 failed, 1 passed` — `test_g2_*` ×3 (`:420`, `:434`, `:441`, the identity carries `period_end` from the name), `test_g7_*` ×2 (`:576 AssertionError: 2017-12-31`, the persisted period) | 6 passed |
+| G3a | `_uploads.find_duplicate` returns None (identify and commit stop checking before storage) | `1 failed, 1 passed` — `test_g3_the_same_file_twice…:465 AssertionError: None` (identify no longer names the analysed copy) | 2 passed |
+| G3b | the commit alone skips the pre-storage check (`dup = None`); the analysis entry still archives the copy | `1 failed, 1 passed` — `:472 AssertionError: G3: the second copy was stored` (a documents row and an object for the second copy, although nothing ran) | 2 passed |
+| G4a | commit inserts a `financial_periods` container beside the document | `2 failed, 4 passed` — `:647 G4: the upload created a period before the analysis`, `:660 G4: a failed run left its period` | 6 passed |
+| G4b | `pipeline._rollback_period_of_failed_run` returns at once | `1 failed, 2 passed` — `:660 G4: a failed run left its period` | 3 passed |
+| G4c | `check_no_empty_periods.read_live` reads every document as `analyzed` | `1 failed` — `:718` the live listing lacks `('g4-per-failed', 'source failed')`. History: the first draft of this gate held only file-less and deleted-source periods and passed this plant (exit 0); it was extended to all five reasons before the earlier pass | 1 passed |
+| G7 | commit never enqueues | `2 failed, 1 passed` — `:371 IndexError: list index out of range` at `gw.enqueued[-1]` (both books) | 3 passed |
+| G8a | `rowstore.restore_ops` leaves `documents` out of the restore | `1 failed, 1 passed` — `:787`: `db_restore --apply` exits non-zero, its own after-restore diff finds `documents` not back | 2 passed |
+| G8b | `pgrest_io.PgRest.drop_row` — an HTTP DELETE on the migration wire | `1 failed, 1 passed` — `:820 AssertionError: G8: a delete on the migration path: src/engine/workspaces/pgrest_io.py:…` | 2 passed |
+
+**Plants — browser half** (vitest, one file per plant)
+
+| # | PLANT (product) | RED | GREEN after REVERT |
+|---|---|---|---|
+| G1 | `UploadFlowHost.startJob` keeps the screen on the company that was open | `2 failed \| 18 passed` — "G1 — Analyse commits to Agras and the screen and header follow it there": `expected "spy" to be called with arguments: [ 'agras', { name: 'Agras SA', … } ]`; the new-company case likewise (`[ 'org-new', … ]`) | 20 passed |
+| G2 | the card takes a year out of the file name when the document has no period line (`Balanta_decembrie_2025.xls` → 2025-12-31) | `1 failed \| 19 passed` — "G2 — no period in the document: Analyse waits for the user": `expect(element).toHaveTextContent()` — the period row no longer reads "Not in the document" | 20 passed |
+| G3 | `startUploadFlow` ignores `result.duplicate` | `2 failed \| 18 passed` — `Unable to find an element with the text: Already uploaded`; `Unable to find … [data-testid="upload-card-duplicate-open"]` (EN and RO "Deja încărcat — deschide") | 20 passed |
+| G5 | a raw `<input type="file">` on the company page | `5 failed \| 20 passed` — `oneUploadComponent.test.ts` 4 (`upload affordances outside components/cfo/upload/UploadDrop.tsx`), `workspaceRedesignScreens` 1 (`expected 2 to be 1`) | 25 passed |
+| G6 | `companyOnScreen.headerAgrees` always true | `3 failed \| 6 passed` — `expected "spy" to not be called at all, but actually been called 1 times`, `toHaveAttribute("data-holding", "true")`, `Unable to find … company-page-hold` | 9 passed |
+| G8 | the danger zone calls `purgeWorkspace` instead of `archiveWorkspace` | `2 failed \| 16 passed` — "no redesign module names a purge or a delete call" (`expected [ Array(1) ] to deeply equal []`), `expected "spy" to be called with arguments: [ 'scandia' ]` | 18 passed |
+| hdr | the header capsule falls back to today's month again (`capsuleLabelMonth.test.tsx`, added on the final tree — see below) | `2 failed \| 1 passed` — `expected 'Agras SRL · Sept 2026' to be 'Agras SRL'`, `expected 'Sept 2026' to be ''` | 3 passed |
+
+**Plants — e2e** (bundle rebuilt with the PLANT, served on :4418, RO run; the
+REVERT is the file restored before the unplanted bundle is rebuilt)
+
+| # | PLANT (product) | Result |
+|---|---|---|
+| G1 | `analyseUpload` sends the company on screen as `targetOrgId` | RED — `spec:120 expect(double.commits[0].target_org_id).toBe(ORG_AGRAS)`: `Expected: "…0000a9" Received: "…000051"` (the commit on the wire names Scandia) |
+| G6 v1 | the card navigates BEFORE switching the workspace (1.5 s gap) AND the page does not wait for the header | GREEN, correctly — `G6 header checks (ro): 7, violations: 0`. The company page's own corrective switch (`useCompanyOnScreen`'s effect) rewrites the header in the same task, so the desynced DOM never reaches a microtask checkpoint and so never a paint; the watch sees every state that can be painted. Not a user-visible defect on this tree (the earlier pass, on an older tree, saw it red) |
+| G6 v2 | v1 + that corrective switch lagging 1.5 s — a real, visible desync | RED — `spec:157 watch.violations`: 4 × `/workspace/0a9a…a9: header "Scandia Food SRL · dec.…Ctrl+K" over "Agras SRL"` |
+| G7 | a finished analysis the card follows does not open the dashboard | RED — `toHaveURL /dashboard?period=5ea5…a925&org=0a9a…a9` for 60 s, received `/workspace/0a9a…a9` |
+
+Unplanted, the three e2e gates pass: G7 RO 26.0 s and EN 26.0 s (`G6 header
+checks: 6, violations: 0` each), G5-at-runtime 8.3 s.
+
+**G5, the grep proof** (frontend, tests excluded, final tree):
+`type="file"` → only `components/cfo/upload/UploadDrop.tsx:88` (plus a CSS
+selector in `index.css:542` that EXCLUDES file inputs, and a comment in
+`UploadDrop.tsx:15`); `onDrop= / onDragOver= / onDragEnter=` → none;
+`addEventListener("drop"|"dragover"|"dragenter")` → only `UploadDrop.tsx:299-302`
+(the window-wide drop target); `dataTransfer.files` → only `UploadDrop.tsx:136`
+and `:296`; `startUploadFlow(` called → only `UploadDrop.tsx:169` and `:297`,
+plus `lib/uploadFlow.ts:261` (`retryIdentify`, the card's own retry of the
+file already in it). Every other surface that still takes a file — the
+flag-off legacy pages, Products, budgets, chat attachments — builds it from
+the component's primitives (`FilePickerInput`, `fileDropProps`) and is
+declared in `UPLOAD_PRIMITIVE_CONSUMERS`: `AppShell` (overlay),
+`CFOComposer`, `SourceFilesRow`, `PeriodsSection`, `BudgetUploadCard`,
+`Workspace`, `Products`, `FinancialStatements`, `WorkspaceHomeV2`,
+`CompanyPage`.
+
+TC-11, what each reds on after the repair: G1 — any byte of a file whose
+header CUI is another of my companies landing outside that company, at
+identify, commit, storage, the card, the wire or the screen. G2 — any period
+taken from a file name, at identify, the stored hint, the card or the
+persisted row. G3 — a second copy stored, enqueued, reserved or committed, or
+identify not naming the analysed copy. G4 — any period row from
+identify/commit, a failed run's period left behind, the production check
+missing ANY of its five reasons or passing with nothing to check (exit 2).
+G5 — a file input, drop handler or flow entry outside the one component, on
+the tree or on a rendered screen. G6 — one painted state in which the page
+shows a company the header does not name. G7 — a stage out of order, not
+exactly one analysed period, the tile's revenue differing from the
+dashboard's, the e2e fixture drifting from the route, the browser not reaching
+the analysed dashboard. G8 — a delete op, a DELETE on the wire, a restore that
+does not put every pre-state row back, a created workspace left un-archived,
+the danger zone calling anything but the archive.
+
+What they cannot see: the ONRC/MF registry and the industry catalog (the
+double serves neither — production has both; the card's industry reads "not
+in the document" in the harness), PostgREST's own RLS (the double models the
+walls the routes assert, not policies), realtime (the browser's 4 s poll
+backstop drives progress), and the time a real analysis takes. The e2e double
+invents no engine answer: every engine body it serves is a capture the G7
+engine test holds to the live route. Since the final pass the double also
+ABORTS (and records as `EXTERNAL …`) any request to a host other than the
+local bundle and its two doubled hosts, so "nothing leaves the machine" is
+enforced rather than left to DNS; the final runs recorded none.
+
+**The header month (final tree).** The capsule used to fall back to TODAY'S
+month whenever no month resolved — safe while every workspace carried a
+permanent empty current-month period. G4 deleted that period's creator, so a
+freshly loaded company page printed "Agras SRL · Sept 2026" for the ~2.5 s
+its period list took (measured in the harness: the list request leaves ~2.5 s
+after the page), and would print it for good over a company with no analysed
+year. `useCapsuleLabel` now leaves an unresolved month out ("Agras SRL", then
+"Agras SRL · Dec 2025"); `capsuleLabelMonth.test.tsx` holds it (plant above).
+`PeriodBreadcrumb` keeps the old fallback but is mounted nowhere.
+
+**Integration notes** (the merges): `fix/dedupe-quota`'s `/run` meter and the
+engine lane's shared `reserve_upload_or_refuse` became one function again
+(grant first, 402 noted against the document); the commit route now enters
+through `_doc_dedupe.enter_analysis` like `/run`; a 402 from the commit
+(BEFORE anything is stored) is confirmed by repeating the commit with
+`confirm_extra=1`, which grants the extra to the document it stores.
+`feat/ws-migration`'s kept current-month placeholder is now an explicit
+`--keep-current-month-placeholder` mode: by default it is archived, because
+G4 deleted the hook that re-created it. The battery runs the engine half as
+gate `workspace-v2` (`scripts/run_battery.py`, junit work count, floor 20 =
+15 + 5 measured, one canary per gate).
