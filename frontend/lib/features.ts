@@ -24,7 +24,9 @@
 //   render rows as `coming_soon` by default in that branch — never
 //   crash, never block the UI.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { getRemotePref, subscribePrefs } from "@/lib/prefs";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -33,7 +35,50 @@ const API_URL =
 // Types
 // ──────────────────────────────────────────────────────────────────────
 
-export type FeatureStatus = "active" | "coming_soon" | "hidden";
+export type FeatureStatus = "active" | "coming_soon" | "hidden" | "preview";
+
+/** The personal preference that opts a signed-in user into `preview`
+ *  features: `user_prefs.prefs.preview_features`, an array of registry keys
+ *  (the workspace redesign's `workspace_v2` flag reads the same array). */
+export const PREVIEW_PREF_KEY = "preview_features";
+
+/** The keys the signed-in user opted into, read from the hydrated personal
+ *  prefs bag. Anything that is not an array of strings is no opt-in at all —
+ *  never a partial one. */
+export function previewKeysFromPrefs(): ReadonlySet<string> {
+  const raw = getRemotePref<unknown>("user", PREVIEW_PREF_KEY);
+  if (!Array.isArray(raw)) return new Set();
+  return new Set(raw.filter((k): k is string => typeof k === "string"));
+}
+
+/** THE PREVIEW RESOLUTION, the one place a `preview` status becomes what a
+ *  surface acts on: `active` for a user who opted into that key, and
+ *  `coming_soon` for everyone else — their UI is exactly what it was before
+ *  the key went to preview. Every other status passes through untouched.
+ *  The engine's CFO_FEATURES_ACTIVE promotes a key to `active` for everyone
+ *  server-side, so it never arrives here as `preview`.
+ *
+ *  COMPATIBLE WITH THE WORKSPACE REDESIGN's `lib/previewFeatures.ts`
+ *  (`useFeatureEnabled` / `isFeatureOnFor`, same pref key, same env): that
+ *  module maps `active` to on and an opted-in `preview` to on. Fed from this
+ *  resolved registry it answers exactly the same — an opted-in key arrives as
+ *  `active`, anyone else's as `coming_soon` (off) — so the two compose when
+ *  the branches meet; the Sidebar, FeatureRoute and every `useFeatureStatus`
+ *  caller here need no per-call opt-in read. */
+export function resolvePreview(
+  raw: FeatureRegistry,
+  optedIn: ReadonlySet<string>,
+): FeatureRegistry {
+  const out: FeatureRegistry = {};
+  for (const [key, def] of Object.entries(raw) as [FeatureKey, FeatureDefinition][]) {
+    if (!def) continue;
+    out[key] =
+      def.status === "preview"
+        ? { ...def, status: optedIn.has(key) ? "active" : "coming_soon" }
+        : def;
+  }
+  return out;
+}
 
 /** Stable string keys — mirror `FEATURES` in `_features.py`. Adding a
  *  feature here without adding it backend (or vice versa) is a build-time
@@ -145,7 +190,8 @@ async function loadOnce(force = false): Promise<FeatureRegistry> {
 // Public API
 // ──────────────────────────────────────────────────────────────────────
 
-/** Read the entire registry. Triggers a fetch on first call. */
+/** Read the entire registry, `preview` already resolved for this user
+ *  (see `resolvePreview`). Triggers a fetch on first call. */
 export function useFeatures(): {
   features: FeatureRegistry;
   /** True before the first fetch resolves. */
@@ -153,7 +199,18 @@ export function useFeatures(): {
   /** Force a refresh from the server. */
   refresh: () => Promise<void>;
 } {
-  const [features, setFeatures] = useState<FeatureRegistry>(cache ?? {});
+  const [raw, setFeatures] = useState<FeatureRegistry>(cache ?? {});
+  // The opt-in set follows the personal prefs bag: it is empty until the bag
+  // hydrates, then re-read whenever it lands or changes (sign-in, another
+  // device opting in).
+  const [optedIn, setOptedIn] = useState<ReadonlySet<string>>(() => previewKeysFromPrefs());
+  useEffect(() => {
+    setOptedIn(previewKeysFromPrefs());
+    return subscribePrefs((scope) => {
+      if (scope === "user") setOptedIn(previewKeysFromPrefs());
+    });
+  }, []);
+  const features = useMemo(() => resolvePreview(raw, optedIn), [raw, optedIn]);
   const [loading, setLoading] = useState<boolean>(cache === null);
 
   useEffect(() => {
@@ -215,7 +272,8 @@ export function useFeature(key: FeatureKey): FeatureDefinition | undefined {
  *  (event handlers, route guards). Returns the last-loaded value or
  *  `undefined` if the cache is cold. */
 export function getFeatureStatus(key: FeatureKey): FeatureStatus | undefined {
-  return cache?.[key]?.status;
+  if (!cache) return undefined;
+  return resolvePreview(cache, previewKeysFromPrefs())[key]?.status;
 }
 
 /** Convenience: "should this row render at all?" — `hidden` and any

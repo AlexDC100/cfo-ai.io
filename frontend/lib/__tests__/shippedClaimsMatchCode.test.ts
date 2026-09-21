@@ -545,12 +545,12 @@ const DEAD_COPY_QUARANTINE: string[] = [
 
 // ── 3. The registry, the pricing config, the fixture table ────────────
 
-type FeatureStatus = "active" | "coming_soon" | "hidden";
+type FeatureStatus = "active" | "coming_soon" | "hidden" | "preview";
 
 function parseRegistry(): Record<string, FeatureStatus> {
   const src = readFileSync(join(REPO, "src/engine/api/_features.py"), "utf8");
   const out: Record<string, FeatureStatus> = {};
-  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden)"/g;
+  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden|preview)"/g;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(src)) !== null) out[m[1]] = m[2] as FeatureStatus;
   return out;
