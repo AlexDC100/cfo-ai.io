@@ -728,7 +728,8 @@ def register_routes(
     verify_owns: Any,
     set_status: Any,
     enqueue: Any,
-    admin_client: Any
+    admin_client: Any,
+    rerun: Any = None
 ) -> None:
     """Mount the correction path onto `router`.
 
@@ -737,6 +738,13 @@ def register_routes(
     set_status(document_id, status, **kw) -> None
     enqueue(document_id) -> None
     admin_client() -> context-managed service-role client
+    rerun(jwt, document_id, started_at) -> None — optional: the host's
+        re-run entry. The engine passes `pipeline._correction_rerun`, which
+        re-runs an analysed document exactly as below (unmetered) and meters
+        a document that holds no analysis yet like its first analysis — a
+        move is how a failed, undated upload gets its month. May raise the
+        meter's 402 / 429 (the move itself has already been written).
+        Absent → set_status + enqueue.
     """
     from fastapi import Header, HTTPException  # local: keeps this module
     # importable (and unit-testable) without FastAPI installed.
@@ -744,13 +752,33 @@ def register_routes(
     def _refuse(exc: MoveRefused) -> "HTTPException":
         return HTTPException(400, {"code": exc.code, "message": exc.message})
 
-    def _requeue(document_id: str, started_at: str) -> None:
+    def _requeue(jwt: str, document_id: str, started_at: str) -> None:
         # Deliberately NOT routed through /api/pipeline/run: a correction
-        # is not a new document and must not consume the user's upload
-        # quota or be billed as an extra. Same reasoning as
-        # /api/pipeline/retry, which also re-runs without reserving.
+        # of an analysed document is not a new document and must not
+        # consume the user's upload quota or be billed as an extra. Same
+        # reasoning as /api/pipeline/retry. A document that holds NO
+        # analysis yet (a failed, undated upload given its month here) is
+        # its first analysis: the host's `rerun` meters it (2026-09-21).
+        if rerun is not None:
+            rerun(jwt, document_id, started_at)
+            return
         set_status(document_id, "queued", pipeline_started_at=started_at)
         enqueue(document_id)
+
+    def _requeue_all(jwt: str, document_ids: Sequence[Any], started_at: str) -> None:
+        """Re-run every document the correction touched — the rebuild of
+        the period left behind included — even when the meter refuses one
+        of them; the first refusal is raised after all were asked."""
+        refused: Optional[Exception] = None
+        for doc_id in document_ids:
+            if not doc_id:
+                continue
+            try:
+                _requeue(jwt, str(doc_id), started_at)
+            except HTTPException as exc:
+                refused = refused or exc
+        if refused is not None:
+            raise refused
 
     @router.post("/api/documents/{document_id}/move-period")
     def move_document_period(
@@ -779,10 +807,10 @@ def register_routes(
             raise _refuse(exc)
 
         if record["moved"]:
-            _requeue(document_id, now)
-            if record["rebuild_document_id"]:
-                _requeue(str(record["rebuild_document_id"]), now)
-            _record_move_in_journal(document, record)
+            try:
+                _requeue_all(jwt, [document_id, record["rebuild_document_id"]], now)
+            finally:
+                _record_move_in_journal(document, record)
         return record
 
     @router.post("/api/documents/{document_id}/make-active")
@@ -802,7 +830,7 @@ def register_routes(
             raise _refuse(exc)
 
         if record["changed"] and record["requeue_document_id"]:
-            _requeue(str(record["requeue_document_id"]), now)
+            _requeue_all(jwt, [record["requeue_document_id"]], now)
         return record
 
 

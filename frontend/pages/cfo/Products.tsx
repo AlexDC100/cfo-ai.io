@@ -69,7 +69,6 @@ import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import {
   getSupabase,
   recoverStuckPipelines,
-  retryPipeline,
   subscribeToDocumentStatus,
   uploadDocument,
   type DocumentStatus,
@@ -2731,6 +2730,10 @@ function InflightCard({
   const [retrying, setRetrying] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
+  // A stuck or failed upload was never analysed: its re-run is its first
+  // analysis, metered like an upload (2026-09-21). Through the upload hook
+  // an over-cap book meets the €-dialog, not "retry failed".
+  const retryEnqueue = useUploadEnqueue();
   useEffect(() => {
     setHangSuspected(false);
     if (inflight.status !== "queued") return;
@@ -2745,7 +2748,17 @@ function InflightCard({
     // resets the doc and re-enqueues fresh.
     const recovered = await recoverStuckPipelines();
     let ok = (recovered?.recovered_count ?? 0) > 0;
-    if (!ok) ok = await retryPipeline(inflight.id);
+    if (!ok) {
+      const outcome = await retryEnqueue.enqueue(inflight.id, { surface: "sku" });
+      if (outcome.kind !== "queued") {
+        // The hook has already said why (the €-dialog was dismissed, the
+        // quota prompt, "Already uploaded", or its own transport toast).
+        setRetrying(false);
+        void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+        return;
+      }
+      ok = true;
+    }
     setRetrying(false);
     if (ok) {
       toast({ title: t("productsX.toast.retrying"), description: inflight.filename });
@@ -2923,6 +2936,7 @@ function InflightCard({
           </div>
         )}
       </div>
+      {retryEnqueue.dialog}
     </section>
   );
 }

@@ -519,7 +519,6 @@ def _unhashed_candidates(org_id: str, user_id: str, self_row: Dict[str, Any],
     LEGACY_HASH_LIMIT per entry — and the hash is written back, so each is
     hashed once, ever."""
     filters = {
-        "org_id": f"eq.{org_id}",
         "uploaded_by": f"eq.{user_id}",
         "content_hash": "is.null",
         "scope": f"eq.{normalize_scope(self_row.get('scope'))}",
@@ -531,8 +530,11 @@ def _unhashed_candidates(org_id: str, user_id: str, self_row: Dict[str, Any],
         filters["size_bytes"] = f"eq.{size}"
     try:
         with _supabase.admin() as ac:
-            rows = list(ac.select("documents", filters=filters, order="created_at.asc",
-                                  limit=LEGACY_HASH_LIMIT) or [])
+            # org_id in the call's own filter literal: under the service role
+            # the filter IS the access control, and the tenant-filter gate
+            # reads it here (test_service_role_tenant_filter).
+            rows = list(ac.select("documents", filters={"org_id": f"eq.{org_id}", **filters},
+                                  order="created_at.asc", limit=LEGACY_HASH_LIMIT) or [])
     except Exception:  # noqa: BLE001 — legacy copies we cannot read prove nothing
         logger.exception("[dedupe] could not list hash-less copies in org %s", org_id)
         return []
@@ -670,7 +672,9 @@ def release_claim(doc: Dict[str, Any]) -> None:
 
 #: POST /api/pipeline/run — the metered FIRST analysis of an upload.
 FIRST = "first"
-#: POST /api/pipeline/retry — an unmetered re-run of the stored bytes.
+#: POST /api/pipeline/retry and the move-period / make-active corrections —
+#: a re-run of the stored bytes: unmetered for an analysed document, metered
+#: like FIRST for one that holds no analysis yet (`pipeline._start_rerun`).
 RERUN = "rerun"
 #: recover-stuck and the SKU watchdog — a /run that was refused or lost.
 RECOVER = "recover"

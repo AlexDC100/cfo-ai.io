@@ -59,6 +59,7 @@ import {
 } from "@/lib/supabase";
 import { alreadyUploadedHref } from "@/lib/alreadyUploaded";
 import { useToast } from "@/hooks/use-toast";
+import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { formatDateOnly, formatDateTime } from "@/lib/locale";
 
 interface DocRow {
@@ -783,6 +784,10 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // A document that holds no analysis yet re-runs as its FIRST analysis,
+  // metered like an upload: the hook shows the extra-document dialog
+  // (402), the quota prompt (429) and "Already uploaded" itself.
+  const upload = useUploadEnqueue();
 
   useEffect(() => {
     if (renaming) inputRef.current?.select();
@@ -827,6 +832,18 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   }
 
   async function handleRerun() {
+    if (doc.status !== "analyzed") {
+      // Never analysed (its first run failed, or its 402 was dismissed):
+      // the server meters this run like an upload (2026-09-21) — through
+      // /run, so an over-cap book meets the €-dialog instead of a
+      // "can't start" toast.
+      const outcome = await upload.enqueue(doc.id);
+      if (outcome.kind === "queued") {
+        toast({ title: t("panels.rerunningAnalysis"), description: doc.display_name });
+      }
+      invalidate();
+      return;
+    }
     const { ok, duplicate } = await retryPipelineDetailed(doc.id);
     if (ok && duplicate) {
       // This copy duplicates a live analysis of the same file: the server
@@ -979,6 +996,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {upload.dialog}
     </li>
   );
 }
