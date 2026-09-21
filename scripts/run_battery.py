@@ -611,9 +611,12 @@ def _engine_gates() -> List[Gate]:
                        "cross-book: ")),
         Gate("scenario-one-engine",
              [PY, "-m", "pytest", "tests/engine/test_scenario_one_engine.py", "-q", "-s"],
-             work_rx=r"GATE-WORK scenario-one-engine units=(\d+)", floor=10,
-             units="GET-equals-POST cells plus the handler walk",
-             canaries=("SCOPE scenario-one-engine (plan/2 B6, gate row S4",)),
+             # forecast-scenarios-live (R6): + GET == scenario(base) block by
+             # block, and the /scenario + template routes in the handler walk
+             work_rx=r"GATE-WORK scenario-one-engine units=(\d+)", floor=18,
+             units="GET-equals-POST and GET-equals-scenario(base) cells plus the handler walk",
+             canaries=("SCOPE scenario-one-engine (plan/2 B6 + R6, gate row S4",
+                       "GET == scenario(base) (every block)")),
         Gate("scenario-provenance",
              [PY, "-m", "pytest", "tests/engine/test_scenario_provenance.py", "-q", "-s"],
              work_rx=r"GATE-WORK scenario-provenance units=(\d+)", floor=8000,
@@ -638,11 +641,36 @@ def _engine_gates() -> List[Gate]:
         # measured 515 units, rounded down.
         Gate("scenario-page-templates",
              [PY, "-m", "pytest", "tests/engine/test_scenario_page_templates.py", "-q", "-s"],
-             work_rx=r"GATE-WORK scenario-page-templates units=(\d+)", floor=450,
-             units="page templates projected or refused by name, plus per-period cash and balance checks",
-             canaries=("SCOPE scenario-page-templates (plan/2 B13, minimal cut)",
+             # forecast-scenarios-live: the templates are pack data the ENGINE
+             # compiles (packs/scenarios/templates.yaml, FMCG Romania); measured 729
+             work_rx=r"GATE-WORK scenario-page-templates units=(\d+)", floor=700,
+             units="templates projected or refused by name, plus per-period cash and balance checks",
+             canaries=("SCOPE scenario-page-templates (packs/scenarios/templates.yaml",
                        "refused by name: ")),
         # ── end plan/2 B13 ───────────────────────────────────────────────
+        # ── forecast-scenarios-live: the owner's gates F1-F5 (engine half),
+        # the sector rung of revenue_growth, and the preview flag. F6 is the
+        # vitest canary scenariosSaved.test.tsx. Plant logs: gates.md
+        # "forecast-f-gates", "forecast-sector-rung", "scenarios-preview".
+        Gate("forecast-f-gates",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_f_gates.py", "-q", "-s"],
+             # measured on the four committed corpus books without the opt-in
+             # local Scandia pair (FORECAST_LOCAL_SCANDIA adds it)
+             work_rx=r"GATE-WORK forecast-f-gates units=(\d+)", floor=20000,
+             units="year-zero figures, balance/cash ties, byte comparisons, moved-line checks and debt periods",
+             canaries=("SCOPE forecast-f1..f5 (forecast-scenarios-live)",
+                       "F1 books: agras, carniprod, retail, realestate")),
+        Gate("forecast-sector-rung",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_sector_rung.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-sector-rung units=(\d+)", floor=30,
+             units="sector evidence fields, ladder steps and pins checked",
+             canaries=("SCOPE forecast-sector-rung",
+                       "sector rung: agras CAEN 1011")),
+        Gate("scenarios-preview",
+             [PY, "-m", "pytest", "tests/engine/test_scenarios_preview_acceptance.py", "-q"],
+             work_junit=True, floor=4, units="tests",
+             canaries=("test_forecast_and_scenarios_are_preview_in_the_source",
+                       "test_the_active_env_promotes_exactly_the_listed_keys_per_request")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

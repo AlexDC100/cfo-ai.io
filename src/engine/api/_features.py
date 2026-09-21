@@ -18,6 +18,15 @@ exactly one row here with a status. The frontend reads the registry via
                     onClick. The user knows it's on the roadmap.
   · `hidden`      — registry entry exists for backend introspection but
                     the row never renders.
+  · `preview`     — built and walked, open to the users who opted in: the
+                    frontend treats it as `active` for a signed-in user whose
+                    `user_prefs.prefs.preview_features` array names the key,
+                    and as `coming_soon` for everyone else (so their UI is
+                    unchanged). The environment variable CFO_FEATURES_ACTIVE
+                    (a comma list of keys, read on EVERY request) promotes a
+                    key to `active` for everyone without a rebuild — the
+                    owner's switch, and the same mechanism the workspace
+                    redesign's `workspace_v2` flag uses.
 
 Adding a feature: add ONE entry below. Promote `coming_soon → active`
 the moment the underlying endpoint lands. Never delete an entry —
@@ -49,7 +58,11 @@ logger = logging.getLogger(__name__)
 # Types — kept inline so this file is grep-able as a single contract
 # ──────────────────────────────────────────────────────────────────────
 
-FeatureStatus = Literal["active", "coming_soon", "hidden"]
+FeatureStatus = Literal["active", "coming_soon", "hidden", "preview"]
+
+#: The environment variable that promotes registry keys to `active` for
+#: everyone, read per request so the owner flips a feature without a rebuild.
+ACTIVE_ENV = "CFO_FEATURES_ACTIVE"
 
 
 def _feature(
@@ -351,14 +364,25 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # model draws a funding line or names the shortfall; it does not print
     # negative cash as a result.
     #
-    # Re-enable ONLY on the acceptance the owner set: Recession on Scandia from
-    # the measured split, cash never negative, no property copy (the live
-    # driver still reads "For a property company this is the rent roll" on an
-    # FMCG book), FMCG templates. One word here is the whole re-enable — and
-    # tests/engine/test_scenarios_off_path.py reds if that word changes while
-    # the acceptance is still open.
+    # THE ACCEPTANCE, AND WHERE IT IS HELD (forecast-scenarios-live): the page
+    # computes nothing — every figure comes from POST
+    # /api/forecast/{period_id}/scenario through engine.forecast.levers.
+    # project_levers, the same function the forecast GET runs. Cost of sales
+    # follows the book's measured fixed/variable split (packs/forecast/
+    # cost_behaviour.yaml), cash is never negative (the engine floors it and
+    # draws a priced funding line, its interest served as its own P&L line),
+    # no property copy (the page's strings are sector-neutral), and the
+    # templates are FMCG Romania pack data (packs/scenarios/templates.yaml).
+    # Gates: scenario-page-templates, scenario-one-engine, forecast-f1..f6,
+    # scenarios-closure (docs/engine_book/gates.md). tests/engine/
+    # test_scenarios_preview_acceptance.py replaces the off-path tripwire and
+    # reds if the flag moves past `preview` in this file while the acceptance
+    # it names is not measured.
+    #
+    # PREVIEW, not active: the owner opts in per user (user_prefs.prefs.
+    # preview_features) or promotes it for everyone with CFO_FEATURES_ACTIVE.
     "scenarios": _feature(
-        "coming_soon",
+        "preview",
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
     ),
@@ -408,14 +432,12 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
     ),
     "forecast": _feature(
-        # STAGED, not hidden. `coming_soon` renders the row with its badge
-        # and no onClick — the reader learns the capability exists and is
-        # not handed a surface nobody has walked. The ROUTE stays mounted
-        # (`/api/forecast/*` answers 401, not 404): the engine is finished
-        # and the owner needs to walk it on their own book before an
-        # accounting firm does. Flip to `active` after that walk; nothing
-        # else changes.
-        "coming_soon",
+        # PREVIEW (forecast-scenarios-live). The ROUTE stays mounted
+        # (`/api/forecast/*` answers 401, not 404) and the page opens for a
+        # user whose user_prefs.prefs.preview_features names "forecast", or
+        # for everyone once CFO_FEATURES_ACTIVE lists it. Everyone else sees
+        # the coming-soon row they saw before.
+        "preview",
         label="Forecast",
         description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
     ),
@@ -454,6 +476,25 @@ def build_router() -> APIRouter:
         app boot is cheaper than the per-row queries the alternative
         designs would imply.
         """
-        return {"features": FEATURES}
+        return {"features": served_registry()}
 
     return router
+
+
+def promoted_keys() -> frozenset:
+    """The keys CFO_FEATURES_ACTIVE promotes, read NOW (per request): a comma
+    list, whitespace ignored, unknown keys ignored."""
+    import os
+    raw = os.environ.get(ACTIVE_ENV) or ""
+    return frozenset(k.strip() for k in raw.split(",") if k.strip() in FEATURES)
+
+
+def served_registry() -> Dict[str, Dict[str, Any]]:
+    """The registry as served: FEATURES with every key CFO_FEATURES_ACTIVE
+    names promoted to `active`. A copy — the module registry is never
+    mutated, so unsetting the variable demotes the key on the next request."""
+    promoted = promoted_keys()
+    out = {}  # type: Dict[str, Dict[str, Any]]
+    for key, row in FEATURES.items():
+        out[key] = dict(row, status="active") if key in promoted else dict(row)
+    return out

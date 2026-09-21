@@ -8558,3 +8558,193 @@ served sentence, the served runway count or a served period label.
 **CANNOT SEE:** a computed number painted INSIDE the template picker or the lever rail.
 The static rule above covers the picker's file. Also out of reach: pixels, and a number
 drawn as SVG geometry rather than text.
+
+<!-- ═══ forecast-scenarios-live (2026-09-21): the owner's Forecast and
+     Scenarios gates F1-F6, the sector rung, the preview flag. Plants were
+     applied by scratchpad/fcst_tools/plants.py: each edit written into the
+     worktree, the named tests run, the file restored byte-exact and its
+     sha256 re-checked before the next plant. ═══════════════════════════════ -->
+
+## forecast-f-gates
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_f_gates.py -q -s` |
+| canary | `SCOPE forecast-f1..f5 (forecast-scenarios-live)`, `F1 books: agras, carniprod, retail, realestate` |
+| work count | `GATE-WORK forecast-f-gates units=(\d+)`, floor **20000** (measured 32,512 with the opt-in Scandia pair) |
+
+**SCOPE** — the four committed corpus books (agras is files/agras_tb_2025.xlsx,
+the preliminary close, not the filed year) through the REAL `create_app()`
+over the tenancy double; opt-in, never committed, the owner's Scandia FY2025
+(`Balanta Scandia Food_31.12.2025 LV.xls`) with FY2024 as the comparable prior
+(`FORECAST_LOCAL_SCANDIA=<fy2025>,<fy2024>`). Every scenario template of
+packs/scenarios/templates.yaml.
+
+- **F1** year 0 of the forecast IS the dashboard's actuals: the engine's anchor
+  (revenue, EBITDA, net income, cash, total assets, equity) equals GET
+  /api/period to the cent (assembled_pl.revenue, the methodology's reported
+  EBITDA, net_income_statutory, assembled_bs.cash, canonical_bs totals), and
+  the first period's served cf.opening_cash is that cash. Scandia FY2025:
+  revenue 413,727,560.16, EBITDA 54,443,833.33, net income 36,787,352.75, cash
+  6,104,815.29, total assets 292,906,384.88, equity 150,151,550.76 on both sides.
+- **F2** every period and FY aggregate balances, balance-sheet cash equals
+  cash-flow closing cash, each period opens on the previous close — on the
+  forecast (h3, h5) and on every template.
+- **F3** GET twice with a fresh loader cache, the scenario twice, and a second
+  PROCESS under PYTHONHASHSEED=12345: byte-identical (recompute_ms excluded).
+- **F4** scenario(base) == forecast block by block; revenue −10%, price
+  pressure, input inflation, a DSO override and a payout override each move
+  only lines in their driver's served consumed_by, every moved figure names the
+  lever, held lines (other operating income, held balances, debt, debt
+  interest) never move; a lever the plan cannot feel must carry the engine's
+  inert sentence; after all of them, the forecast is byte-identical to before.
+- **F5** every served figure is an integer or a refusal with a sentence, every
+  strip slot a figure or a refusal; every period with a debt balance is charged
+  interest.
+
+**PLANT f1-revenue-reader** — `history.py`: the P&L reader takes
+`total_operating_revenue` for `revenue` (a second reader of year 0).
+**PLANT f2-cash-tie** — `blocks/figures.py`: `cf.closing_cash` served one
+minor unit above the engine's figure.
+**PLANT f3-clock** — `plan_response.py`: `served_at_ns = time.time_ns()` inside
+the hashed body.
+**PLANT f4-base-moves** — `levers.project_levers`: the base template compiles to
+a +0.01% volume shock.
+**PLANT f4-ooi-follows-volume** — `project.py`: other operating income scaled
+by the volume index (the R3 defect).
+**PLANT f5-no-interest** — `project.py`: the debt interest charge multiplied by
+zero.
+
+```
+RED (plant f1-revenue-reader)
+E   AssertionError: retail: year 0 of the forecast is not the served actuals (dashboard, engine): {'revenue': (7901830677, 7902023055)}
+RED (plant f2-cash-tie)
+E   AssertionError: agras/forecast h3 2026-01: balance-sheet cash 148978821, cash-flow closing cash 148978822
+RED (plant f3-clock)
+E   AssertionError: agras: GET differs between two identical runs
+E     At index 1042 diff: b'8' != b'5'
+RED (plant f4-base-moves)
+E   AssertionError: agras: the base scenario is not the forecast
+RED (plant f4-ooi-follows-volume)
+E   AssertionError: agras/revenue_down_10 moved pl.other_operating_income 2026-01 (3313098 -> 2981788), a line volume_index does not drive
+RED (plant f5-no-interest)
+E   AssertionError: agras/forecast 2026-01: debt of 364020233 charged 0 interest
+```
+
+**REVERT** — each file restored byte-exact (sha256 checked by the runner);
+`22 passed` with the Scandia pair, `18 passed` without it.
+
+**After the repair it reds on:** a year-0 figure of the engine differing from
+the dashboard's served one; any unbalanced period, any BS/CF cash split, any
+cash discontinuity, on the forecast or a template; any byte difference between
+identical runs or processes; the base scenario differing from the forecast; a
+single lever moving a line outside its driver's consumed_by, a moved figure not
+naming its lever, a held line moving, or the forecast changing after levers
+ran; a null amount or a sentence-less refusal; a period with debt charged no
+interest. **It cannot see** what the page paints (vitest: forecastYearZero,
+scenariosEngine, scenariosSaved) or whether a forecast is a good one. The
+Scandia rows run only where the owner's files are named; on a clean checkout
+the four corpus books carry every assertion.
+
+## forecast-sector-rung
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_sector_rung.py -q -s` |
+| canary | `SCOPE forecast-sector-rung`, `sector rung: agras CAEN 1011` |
+| work count | `GATE-WORK forecast-sector-rung units=(\d+)`, floor **30** (measured 35) |
+
+**SCOPE** — the agras corpus book as a ONE-YEAR company with workspace CAEN
+1011, 4711 (not in the dataset) and none; agras with carniprod dated one year
+back in the same workspace (a SYNTHETIC pairing, labelled) for the book rung;
+src/engine/data/ro_sector_benchmarks.json read through its own lookup.
+
+**PLANT sector-skip** — `assumptions.py`: the ladder's sector branch disabled
+(`if False and ...`).
+**PLANT sector-p25** — `sector.py`: the reading serves the cell's p25 in place
+of its median.
+
+```
+RED (plant sector-skip)
+FAILED tests/engine/test_forecast_sector_rung.py::test_a_one_year_book_with_a_known_sector_grows_at_the_sector_median
+RED (plant sector-p25)
+E   AssertionError: {"detail":{"code":"AssumptionError","text":"assumption 'revenue_growth': tier sector serves -13927, its evidence median is 54094","field":"revenue_growth"}}
+```
+
+**REVERT** — both files restored byte-exact; `7 passed`.
+
+**After the repair it reds on:** a one-year book with a sector the dataset
+carries not standing on tier `sector`; its value not the dataset's own median
+for the company's class and size band (agras: CAEN 1011, 50m_250m, 5.4094%,
+n=35); a contract 3.3 sector field missing, n below
+levers.yaml#sector.min_n, or pins.sector_snapshot_id not the dataset digest; no
+CAEN or an unknown CAEN not falling to macro with the rung's reason; a median
+below the floor being used; a comparable prior leaving the book rung or not
+offering alternatives.sector. **It cannot see** sectors outside the dataset
+(CAEN 10, 1011, 1013 today) or whether a sector median is a good forecast.
+
+## scenarios-preview
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scenarios_preview_acceptance.py -q` |
+| canary | `test_forecast_and_scenarios_are_preview_in_the_source`, `test_the_active_env_promotes_exactly_the_listed_keys_per_request` |
+| work count | junit tests, floor **4** (measured 4) |
+
+**SCOPE** — `src/engine/api/_features.py` and GET /api/features/status through
+the real `create_app()`. Replaces tests/engine/test_scenarios_off_path.py, whose
+own docstring asked to be deleted when the acceptance it named was held; it is
+now held by scenario-page-templates, scenario-one-engine, forecast-f-gates and
+scenarios-closure.
+
+**PLANT preview-active** — `_features.py`: the forecast row's status evaluates
+to `active`.
+**PLANT preview-sticks** — `served_registry()` writes the promotion INTO the
+module registry instead of a copy.
+
+```
+RED (plant preview-active)
+E   AssertionError: forecast is 'active' in the source registry. Everyone-on is the owner's switch (CFO_FEATURES_ACTIVE), never an edit here.
+RED (plant preview-sticks)
+E   AssertionError: the promotion stuck
+```
+
+**REVERT** — restored byte-exact; `4 passed`.
+
+**After the repair it reds on:** either row leaving `preview` in the source;
+CFO_FEATURES_ACTIVE not promoting a listed key, promoting an unknown one, or
+sticking after it is unset; the evidence or a named gate file vanishing.
+**It cannot see** the frontend's per-user half (user_prefs.prefs.
+preview_features): vitest `featuresPreview.test.ts`.
+
+### scenario-one-engine — R6 extension (forecast-scenarios-live)
+
+The route set is now GET /{period_id}, POST /{period_id}/recompute, POST
+/{period_id}/scenario and GET /templates/scenarios; the three projecting
+routes go through `recompute`, which calls `project_levers` (never
+`project_plan` around it), and `project_levers` calls `project_plan`. New
+cells: scenario(base) == GET block by block on the four books at h3 and h5.
+The old "a mounted path ending in /scenario" red is retired by name: R6
+(scenarios_rulings) puts the scenario on that path.
+
+**PLANT one-engine-bypass** — the handler calls `project_plan` directly and
+serves no scenario block.
+
+```
+RED (plant one-engine-bypass)
+E   KeyError: 'scenario'
+FAILED tests/engine/test_scenario_one_engine.py::test_the_base_scenario_is_the_forecast[agras-3]
+```
+
+**REVERT** — restored byte-exact; `18 passed`.
+
+### scenario-page-templates — the templates are engine pack data (forecast-scenarios-live)
+
+frontend/lib/scenarioTemplates.json is gone; packs/scenarios/templates.yaml
+(FMCG Romania: base, recession [volume −20%, every operating-cost pool −5%,
+DSO +30 days], revenue_down_10, input_cost_inflation, price_pressure,
+energy_shock, working_capital_squeeze) is compiled by
+`engine.forecast.scenario_templates.compile_template` and run through
+`project_levers`. New reds: revenue −10% moving other operating income or the
+debt interest; the energy shock moving revenue or cost of sales; the base
+template differing from the plan with no template.
