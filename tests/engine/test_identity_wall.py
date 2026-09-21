@@ -824,6 +824,41 @@ def test_the_owner_still_writes_through_every_wall_it_holds_a_membership_for(app
     print("[write-wall] owner: PATCH 200, DELETE doc 200, restore 200, DELETE period 200 (row gone)")
 
 
+def test_clear_all_empties_one_live_workspaces_trash_and_never_an_archived_one(app, world):
+    """DELETE /api/documents/clear-deleted hard-deletes, and a period's
+    source document is ON DELETE CASCADE for the period (schema.sql:571).
+    It empties the trash of ONE workspace — the X-Org-Id one — and never an
+    ARCHIVED workspace's (whose trash no screen shows). Until 2026-09-21 it
+    emptied every trash the caller could see: one "Clear all" in A1 erased
+    A2's trashed source and, through the cascade, A2's period.
+
+    Reds on: a clear in A1 touching A2's trash; a clear aimed at an archived
+    workspace deleting anything; the owner's own A1 trash NOT emptied."""
+    client = TestClient(app)
+    a2_src = T.U(404)
+    world.add("documents", {"id": a2_src, "org_id": T.ORG_A2, "original_filename": "a2-src.xlsx",
+                            "status": "analyzed", "deleted_at": "2026-09-02T00:00:00+00:00"})
+    for col in world.columns["documents"]:
+        next(d for d in world.rows("documents") if d["id"] == a2_src).setdefault(col, None)
+    period_a2 = next(p for p in world.rows("financial_periods") if p["id"] == T.PERIOD_A2)
+    period_a2["source_document_id"] = a2_src
+
+    r = client.delete("/api/documents/clear-deleted", headers=hdr(T.A_OWNER, T.ORG_A1))
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    assert r.json()["deleted_ids"] == [DOC_A1_GONE], r.json()
+    assert not any(d["id"] == DOC_A1_GONE for d in world.rows("documents")), "A1's own trash was not emptied"
+    assert any(d["id"] == a2_src for d in world.rows("documents")), \
+        "CLEAR-ALL CROSSED WORKSPACES — a clear in A1 hard-deleted A2's trashed period source"
+
+    org_a2 = next(o for o in world.rows("organizations") if o["id"] == T.ORG_A2)
+    org_a2["archived_at"] = "2026-09-21T00:00:00+00:00"
+    r = client.delete("/api/documents/clear-deleted", headers=hdr(T.A_OWNER, T.ORG_A2))
+    assert r.status_code == 200 and r.json()["deleted_count"] == 0, (r.status_code, r.text[:200])
+    assert any(d["id"] == a2_src for d in world.rows("documents")), \
+        "CLEAR-ALL EMPTIED AN ARCHIVED WORKSPACE'S TRASH"
+    assert period_a2 in world.rows("financial_periods")
+
+
 def test_require_org_member_never_falls_back_to_another_org_the_caller_belongs_to(world):
     """SOLO is a member of ORG_S only; naming ORG_A1 is 403 — the write is
     never re-targeted to a workspace the caller does belong to."""

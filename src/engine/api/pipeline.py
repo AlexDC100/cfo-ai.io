@@ -6287,12 +6287,25 @@ def build_router() -> APIRouter:
     def clear_recently_deleted(
         period_id: Optional[str] = None,
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
-        """Hard-delete every soft-deleted document visible to the caller.
+        """Hard-delete every soft-deleted document in the caller's ACTIVE,
+        LIVE workspace.
 
-        When `period_id` is supplied, scope is limited to that period.
-        Otherwise, all soft-deleted documents in the caller's org are
-        wiped. Uses per_user select to enforce RLS scoping, then admin
+        ONE workspace: the `X-Org-Id` one when the caller is a member of
+        it, else the caller's oldest live workspace (`_org.
+        default_org_for_user` — the same fallback the Docs panel's
+        `recently_deleted` shelf is listed from, so "Clear all" empties
+        exactly the shelf the user was shown). Never an ARCHIVED workspace:
+        its trash is not shown anywhere. Until 2026-09-21 the scope was
+        "every soft-deleted document visible to me" across every workspace
+        the caller is a member of — archived ones included — and
+        `financial_periods.source_document_id` is ON DELETE CASCADE, so one
+        "Clear all" in one workspace erased periods in others (the
+        workspace migration's holding archive among them).
+
+        When `period_id` is supplied, scope is limited further to that
+        period. Uses per_user select to enforce RLS scoping, then admin
         cleanup for storage + cascade — same pattern as the per-doc
         endpoint below.
         """
@@ -6300,9 +6313,22 @@ def build_router() -> APIRouter:
         # VERIFY BEFORE READING (FC1x, critic finding I1) — an expired
         # bearer must be a 401 from the verifier, not a PostgREST 401
         # escaping through raise_for_status as an opaque 500.
-        _user_id_from_jwt(jwt)
+        user_id = _user_id_from_jwt(jwt)
+        requested = (x_org_id or "").strip()
+        if requested:
+            # A workspace the caller is not a member of: nothing of theirs
+            # to empty (a 200 with nothing, like the firm-viewer contract).
+            org_id = requested if _org.user_is_member(user_id, requested) else None
+        else:
+            org_id = _org.default_org_for_user(user_id)
+        if not org_id:
+            return {"deleted_count": 0, "deleted_ids": [], "org_id": None}
         with _supabase.per_user(jwt) as client:
-            filters: Dict[str, str] = {"deleted_at": "not.is.null"}
+            org_rows = client.select("organizations", filters={"id": f"eq.{org_id}"},
+                                     columns="id,archived_at")
+            if not org_rows or org_rows[0].get("archived_at") is not None:
+                return {"deleted_count": 0, "deleted_ids": [], "org_id": org_id}
+            filters: Dict[str, str] = {"org_id": f"eq.{org_id}", "deleted_at": "not.is.null"}
             if period_id:
                 filters["period_id"] = f"eq.{period_id}"
             visible = client.select("documents", filters=filters)
@@ -6333,7 +6359,7 @@ def build_router() -> APIRouter:
                 admin.delete("documents", filters={"id": f"eq.{doc_id}"})
                 deleted_ids.append(doc_id)
 
-        return {"deleted_count": len(deleted_ids), "deleted_ids": deleted_ids}
+        return {"deleted_count": len(deleted_ids), "deleted_ids": deleted_ids, "org_id": org_id}
 
     @router.delete("/api/documents/{document_id}")
     def soft_delete_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
