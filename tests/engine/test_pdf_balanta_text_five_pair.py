@@ -365,6 +365,46 @@ def test_an_account_printed_before_the_column_header_refuses(caplog):
     assert refused(caplog, lines, "account 1000.01 is printed before the column header")
 
 
+CREDIT_FIRST = [1, 0, 3, 2, 5, 4, 7, 6, 9, 8]
+
+
+def test_a_book_printed_credit_first_refuses(caplog):
+    # Every pair reprinted credit-first under a sub-header that says so.
+    # Total rulaj, sold final, class sums and debit == credit are all
+    # symmetric in the sides, so only the sub-header can tell — read as
+    # debit-first, the 121 profit would serve as a loss.
+    lines = [" ".join(["Credit Debit"] * 5) if l.startswith("Debit Credit")
+             else _swap_columns(l, CREDIT_FIRST) for l in book()]
+    assert refused(caplog, lines, "the column header is not followed by the Debit/Credit sub-header")
+
+
+def test_the_credit_first_book_is_otherwise_consistent():
+    # the control: under the canonical sub-header the flipped figures pass
+    # every arithmetic check, so the sub-header is the only thing that
+    # refuses them
+    got = P.parse_lines([_swap_columns(l, CREDIT_FIRST) for l in book()])
+    assert got is not None
+    assert by_cont(got, "121")["figures"][8:] == [Decimal("5345.67"), Z]  # a profit read as a loss
+
+
+def test_a_book_without_the_debit_credit_sub_header_refuses(caplog):
+    lines = [l for l in book() if not l.startswith("Debit Credit")]
+    assert refused(caplog, lines, "the column header is not followed by the Debit/Credit sub-header")
+
+
+def test_a_mixed_sub_header_refuses(caplog):
+    mixed = "Debit Credit Debit Credit Credit Debit Debit Credit Debit Credit"
+    lines = [mixed if l.startswith("Debit Credit") else l for l in book()]
+    assert refused(caplog, lines, "the column header is not followed by the Debit/Credit sub-header")
+
+
+def test_a_sub_header_away_from_the_column_header_refuses(caplog):
+    lines = book()
+    i = next(k for k, l in enumerate(lines) if l.startswith("Clasa 5"))
+    lines.insert(i, HEADER[5])
+    assert refused(caplog, lines, "does not directly follow the column header")
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 

@@ -61,6 +61,10 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     Rulaj anterior Rulaj curent Total rulaj Sold final", and no account
     line precedes the first one (no arithmetic check can see Rulaj
     anterior and Rulaj curent swapped — their sum is the same);
+  * the side order is read too: each column header is directly followed
+    by exactly "Debit Credit" five times, and no other line reads like a
+    sub-header (a credit-first book passes every other check with every
+    side flipped);
   * every account line carries exactly ten figures;
   * Total rulaj == Rulaj anterior + Rulaj curent, per side, per row;
   * Sold final net == Sold initial net + Total rulaj net, per row;
@@ -113,7 +117,7 @@ _TOTAL_GENERAL_5PAIR = re.compile(r"^total\s+general\s*:\s*(.*)$")
 _CLASS_HEADING_5PAIR = re.compile(r"^clasa\s+(\d)$")
 _SKIP_PREFIXES_5PAIR = (
     "balanta analitica", "balanta sintetica", "balanta de verificare", "societate:",
-    "adresa:", "c.u.i", "debit credit", "data si ora", "cod raport",
+    "adresa:", "c.u.i", "data si ora", "cod raport",
     "pagina", "\u00ae",
 )
 # The column ORDER is read from the document, never assumed. Every line
@@ -127,6 +131,14 @@ _COLUMN_HEADER_5PAIR = ("cont denumire sold initial rulaj anterior rulaj curent 
                         "total rulaj sold final")
 _COLUMN_PHRASES_5PAIR = ("cont denumire", "sold initial", "rulaj anterior", "rulaj curent",
                          "total rulaj", "sold final")
+# The SIDE order inside each pair is read the same way: the column header
+# must be directly followed by exactly "Debit Credit" five times, and no
+# other line may read like a sub-header. A book printed credit-first passes
+# every arithmetic check with every side flipped (total rulaj, sold final,
+# class sums and debit == credit are all symmetric), so a profit would read
+# as a loss and the bank as a negative asset.
+_SUB_HEADER_5PAIR = " ".join(["debit credit"] * 5)
+_SIDE_WORDS_5PAIR = frozenset({"debit", "credit"})
 # Document column order, five (debit, credit) pairs.
 _SI_D, _SI_C, _RA_D, _RA_C, _RL_D, _RL_C, _TR_D, _TR_C, _SF_D, _SF_C = range(10)
 
@@ -261,6 +273,7 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     grand_printed: Optional[List[Decimal]] = None
     last: Optional[Dict[str, Any]] = None
     column_headers = 0
+    expect_sub_header = False
 
     for raw in lines:
         line = raw.strip()
@@ -268,14 +281,27 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
             continue
         f = _fold(line)
         tokens = line.split()
+        norm = " ".join(f.split())
 
+        if expect_sub_header:
+            if norm != _SUB_HEADER_5PAIR:
+                return _refuse5("the column header is not followed by the Debit/Credit sub-header: %r",
+                                line[:120])
+            expect_sub_header = False
+            continue  # page header — a name may continue after it
         if not _CODE_5PAIR.match(tokens[0]):
-            norm = " ".join(f.split())
             if any(p in norm for p in _COLUMN_PHRASES_5PAIR):
                 if norm != _COLUMN_HEADER_5PAIR:
                     return _refuse5("column header reads %r, not the five-pair column order", line[:120])
                 column_headers += 1
+                expect_sub_header = True
                 continue  # page header — a name may continue after it
+            words = f.split()
+            if words and (all(w in _SIDE_WORDS_5PAIR for w in words)
+                          or (len(words) >= 2 and words[0] in _SIDE_WORDS_5PAIR
+                              and words[1] in _SIDE_WORDS_5PAIR)):
+                return _refuse5("a Debit/Credit sub-header %r does not directly follow the column header",
+                                line[:120])
 
         t = _TOTAL_CLASS_5PAIR.match(f)
         if t:
@@ -335,6 +361,8 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         if last is not None and kept:
             last["name"] = (last["name"] + " " + " ".join(kept)).strip().rstrip(" -")
 
+    if expect_sub_header:
+        return _refuse5("the column header is not followed by the Debit/Credit sub-header: end of document")
     if len(rows) < MIN_ACCOUNTS:
         return _refuse5("%d account lines (< %d)", len(rows), MIN_ACCOUNTS)
     if len({r["cont"] for r in rows}) != len(rows):
