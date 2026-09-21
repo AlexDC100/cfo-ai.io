@@ -33,8 +33,16 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { OrgPeriod } from "@/lib/orgPeriods";
-import type { ExportComparisonState, Statements } from "@/lib/financialReport";
+import type {
+  ExportComparisonState,
+  PriorServedFigures,
+  Statements,
+} from "@/lib/financialReport";
 import type { RatioComparisonV1 } from "@/lib/ratioTable";
+// Runtime import, measured cycle-free: nothing servedFacts reaches at
+// runtime imports this module (servedFacts ⇄ financialReport is the one
+// pre-existing, call-time-only cycle, and this edge does not join it).
+import { factsFrom } from "@/lib/servedFacts";
 import { currentOrgId, getSupabase } from "@/lib/supabase";
 
 // ── Engine document (mirrors src/engine/api/_comparatives.py) ─────────
@@ -264,9 +272,49 @@ export function statementsForExportOf(
       periodLabel: doc.prior.label,
       balanceSheet: ps.balanceSheet,
       incomeStatement: ps.incomeStatement,
+      // The served prior P&L rides along so the workbook's "account 121,
+      // as filed" prior cell can read the FILED prior profit. The prior's
+      // `assembled_bs` / `canonical_bs` deliberately do NOT: the prior's
+      // balance-sheet figures travel only as the resolved `served` totals
+      // below, so no consumer grows a second prior-BS read path.
+      ...(isPlainRecord(ps.assembled_pl) ? { assembled_pl: ps.assembled_pl } : {}),
+      served: priorServedFiguresOf(ps),
     },
     comparatives: doc,
     comparison: { kind: "served" },
+  };
+}
+
+function isPlainRecord(v: unknown): v is Record<string, number> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+const finiteOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+/**
+ * THE PRIOR'S HEADLINE FIGURES, THROUGH THE CURRENT PERIOD'S AUTHORITIES.
+ *
+ * Live, on Scandia Dec 2025 vs Dec 2024, the CFO Report's "vs prior
+ * period" strip printed net income +7,511,697 (+25.7%) and total assets
+ * +7,031,375 (+2.5%) — the prior side read `deriveTotals` over the prior's
+ * legacy buckets: the class-6/7 RECONSTRUCTION of profit (29,275,655.32)
+ * under a line whose current side is account 121 as filed, and a bucket
+ * sum (285,875,010) that drops the prior's 216,194.00 "Unclassified —
+ * debit side" row. The dashboard's own bridges already quoted the filed
+ * 32,108,059.51 and the served 286,091,204.09. The current side of that
+ * strip is `assembled_pl.net_income_statutory` and `factsFrom(s)`; this
+ * resolves the prior through exactly those, so the subtraction is
+ * like-for-like.
+ */
+export function priorServedFiguresOf(ps: Statements): PriorServedFigures {
+  const sf = factsFrom(ps);
+  return {
+    net_income: finiteOrNull(
+      (ps.assembled_pl as Record<string, unknown> | undefined)?.net_income_statutory,
+    ),
+    total_assets: finiteOrNull(sf.totalAssets()),
+    total_equity: finiteOrNull(sf.totalEquity()),
   };
 }
 

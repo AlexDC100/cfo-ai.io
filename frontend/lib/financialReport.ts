@@ -235,6 +235,33 @@ export interface PriorPeriod {
   periodLabel: string;
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
+  /** The prior period's SERVED `assembled_pl`, verbatim — present when the
+   *  prior arrived as a served statements block (the comparatives
+   *  document's `prior_statements`). Typed as loosely as the current
+   *  period's. Its `net_income_statutory` is account 121 as filed; the
+   *  workbook's "Net income (account 121, as filed)" prior cell and the
+   *  Piotroski prior-year checks read it. Absent on priors built from bare
+   *  statements (public-company history, demo series). */
+  assembled_pl?: Record<string, number>;
+  /** The prior period's headline figures resolved through the SAME
+   *  authorities the current period's are: net income is account 121
+   *  (`assembled_pl.net_income_statutory`), total assets and total equity
+   *  come through the servedFacts gateway (`factsFrom(prior).totalAssets()`
+   *  / `.totalEquity()` — the served canonical totals on a bs_v2 period).
+   *  `buildComparatives` prefers these over `deriveTotals` on the legacy
+   *  buckets, which on a trial-balance prior is the class-6/7
+   *  RECONSTRUCTION of profit and a bucket sum that drops any row the
+   *  buckets do not map (an "Unclassified" row). Null/absent when the
+   *  prior's statements do not carry the figure — the comparison then
+   *  falls back exactly as it did before this field existed. */
+  served?: PriorServedFigures;
+}
+
+/** See `PriorPeriod.served`. Keys are `COMPARATIVE_LINES` keys. */
+export interface PriorServedFigures {
+  net_income?: number | null;
+  total_assets?: number | null;
+  total_equity?: number | null;
 }
 
 /** The served comparatives document, as far as the EXPORTERS read it.
