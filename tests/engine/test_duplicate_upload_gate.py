@@ -719,6 +719,31 @@ def test_my_own_second_copy_is_still_a_duplicate(world):
     assert r["status"] == "duplicate" and r["existing_document_id"] == "orig"
 
 
+# ── Only a LIVE original blocks a re-upload (verifier, 2026-09-21) ───────
+
+
+def test_a_run_killed_by_a_restart_is_not_an_original_forever(world):
+    """Every deploy recreates the container and kills the daemon thread: the
+    row stays 'extracting' with pipeline_started_at set and nothing ever
+    marks it failed. Twenty days later the user re-uploads the file."""
+    world["db"].rows("documents").append(
+        _doc("zombie", status="extracting", started="2026-09-01T09:00:05+00:00",
+             created="2026-09-01T09:00:00+00:00"))
+    r = world["post"]("/api/documents/duplicate-check",
+                      {"content_hash": SCANDIA, "period_end_hint": "2025-12-31"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    world["db"].rows("documents").append(_doc("again"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "again"}).json()["status"] == "queued"
+    assert _row(world, "zombie")["deleted_at"] is None
+
+
+def test_a_run_in_flight_is_still_the_original(world):
+    world["db"].rows("documents").append(_doc("first", created="2026-09-21T13:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "first"}).json()["status"] == "queued"
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "first", r
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 

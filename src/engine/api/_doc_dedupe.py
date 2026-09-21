@@ -44,7 +44,8 @@ Not deleted, not failed, and either
   * analysed — when the document being checked is itself analysed (a
     re-run of an old copy), only an EARLIER analysed copy (created_at, id)
     counts, so the first copy is always the one kept; or
-  * running with `pipeline_started_at` set — it holds the reservation.
+  * running with `pipeline_started_at` set AND its run in flight in this
+    process — it holds the reservation. A run a restart killed is not.
 
 A queued row that never started is NOT an original: that is an upload whose
 run was refused (a 402 the user dismissed) or has not been asked for yet.
@@ -206,6 +207,7 @@ def pick_original(
     hint: Any = None,
     self_row: Optional[Dict[str, Any]] = None,
     period_end_of: Optional[Dict[str, str]] = None,
+    run_is_live: Optional[Callable[[str], bool]] = None,
 ) -> Optional[Dict[str, Any]]:
     """The live original among `candidates` (rows already narrowed to the
     same org + uploaded_by + content hash), or None.
@@ -213,8 +215,17 @@ def pick_original(
     `self_row` is the document being checked when it already exists (the
     analysis entries); None for the pre-storage check. An analysed row wins
     over a running one; the earliest (created_at, id) within a class.
+
+    A RUNNING row is an original only while its run is alive —
+    `run_is_live(id)`, by default: in flight in THIS process (the engine is
+    one process). A run a restart killed leaves its row 'extracting' with
+    `pipeline_started_at` set and nothing ever marks it failed; it used to
+    block every re-upload of that file for good ("Already uploaded — open
+    it", pointing at a run that will never finish).
     """
     period_end_of = period_end_of or {}
+    if run_is_live is None:
+        run_is_live = lambda rid: in_flight(rid) is not None  # noqa: E731
     self_id = str((self_row or {}).get("id") or "")
     self_analyzed = str((self_row or {}).get("status") or "").lower() == "analyzed"
     self_key = (_ts((self_row or {}).get("created_at")), self_id)
@@ -237,7 +248,7 @@ def pick_original(
                     and (created, rid) > self_key:
                 continue  # a LATER analysed copy never displaces the first one
             rank = 0
-        elif status in RUNNING_STATUSES and row.get("pipeline_started_at"):
+        elif status in RUNNING_STATUSES and row.get("pipeline_started_at") and run_is_live(rid):
             rank = 1
         else:
             continue
