@@ -587,8 +587,19 @@ class LandingDeps:
     set_status: Callable[[str, str, Optional[str]], None]
     enqueue: Callable[[str], None]
     reserve: Callable[[str], Any]
-    record_usage: Callable[[str, str], None]
+    # RETIRED (2026-09-21): the landing no longer bumps the legacy upload
+    # counter at enqueue time — the pipeline's terminal commit is the one
+    # counter (see pipeline._commit_pipeline_quota). Kept so existing
+    # wiring constructs unchanged; never called.
+    record_usage: Optional[Callable[[str, str], None]] = None
     now: Callable[[], datetime] = _now
+    # (org_id, user_id, content_hash, period_end) → the live original's
+    # payload, or None. Checked BEFORE the reservation and the blob write:
+    # a duplicate is not stored, not analysed and not counted.
+    find_duplicate: Optional[Callable[[str, str, str, str], Optional[Dict[str, Any]]]] = None
+    # (document_id, user_id, was_extra) — tells the pipeline which run holds
+    # the reservation so its terminal settles exactly that one.
+    register_reservation: Optional[Callable[[str, str, bool], None]] = None
 
 
 def _prod_upload_object(bucket: str, path: str, content: bytes,
@@ -633,16 +644,25 @@ def _prod_reserve(user_id: str) -> Any:
     return _ug.reserve_document(user_id)
 
 
-def _prod_record_usage(user_id: str, kind: str) -> None:
-    from . import _usage_limits
-    _usage_limits.record_usage(user_id, kind)
+def _prod_find_duplicate(org_id: str, user_id: str, content_hash: str,
+                         period_end: str) -> Optional[Dict[str, Any]]:
+    from . import _doc_dedupe
+    hit = _doc_dedupe.find_live_original(org_id=org_id, user_id=user_id,
+                                         content_hash=content_hash, hint=period_end)
+    return hit.to_payload() if hit else None
+
+
+def _prod_register_reservation(doc_id: str, user_id: str, was_extra: bool) -> None:
+    from . import pipeline as _pipeline
+    _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
 
 
 def production_deps() -> LandingDeps:
     return LandingDeps(
         upload_object=_prod_upload_object, insert_document=_prod_insert_document,
         set_status=_prod_set_status, enqueue=_prod_enqueue, reserve=_prod_reserve,
-        record_usage=_prod_record_usage, now=_now)
+        now=_now, find_duplicate=_prod_find_duplicate,
+        register_reservation=_prod_register_reservation)
 
 
 @dataclass(frozen=True)
@@ -673,9 +693,10 @@ def _ext_of(filename: str) -> str:
     return "bin"
 
 
-def _quota_or_refuse(user_id: str, deps: LandingDeps) -> bool:
+def _quota_or_refuse(user_id: str, deps: LandingDeps) -> Tuple[bool, bool]:
     """The SAME reservation `/api/pipeline/run` makes, mapped to the same
-    HTTP shapes, charged to the accountant who minted the request."""
+    HTTP shapes, charged to the accountant who minted the request.
+    Returns (was_extra, reserved)."""
     decision = deps.reserve(user_id)
     kind = getattr(decision, "kind", "disabled")
     if kind == "blocked":
@@ -694,7 +715,7 @@ def _quota_or_refuse(user_id: str, deps: LandingDeps) -> bool:
             "extra_doc_eur": getattr(decision, "extra_doc_eur", None),
             "message": getattr(decision, "message", "an extra document must be confirmed"),
             "confirm_url": "/api/plan/confirm-extra-doc"})
-    return bool(getattr(decision, "was_extra", False))
+    return bool(getattr(decision, "was_extra", False)), kind == "allowed"
 
 
 def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: str,
@@ -728,7 +749,20 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
             "period_guard": inspection.period,
         })
 
-    was_extra = _quota_or_refuse(str(requested_by), deps) if requested_by else False
+    content_hash = hashlib.sha256(content).hexdigest()
+    if requested_by and deps.find_duplicate is not None:
+        original = deps.find_duplicate(client_org_id, str(requested_by), content_hash, period_end)
+        if original:
+            # Same account, same company, same bytes, same period: the file
+            # is already there. Nothing is stored, reserved or analysed.
+            raise LandingRefused(409, {
+                "code": "already_uploaded",
+                "message": "This exact file was already uploaded for this company and period.",
+                "existing_document_id": original.get("existing_document_id"),
+                "period_id": original.get("period_id"),
+            })
+
+    was_extra, reserved = _quota_or_refuse(str(requested_by), deps) if requested_by else (False, False)
 
     import uuid
 
@@ -750,7 +784,7 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
         "detected_type": inspection.detected_type,
         "status": "queued",
         "scope": "financial",
-        "content_hash": hashlib.sha256(content).hexdigest(),
+        "content_hash": content_hash,
         # The CONFIRMATION channel (W-law): the accountant chose this
         # month when minting the request. A document that disagrees is
         # recorded as a mismatch by stage_persist, never silently refiled.
@@ -760,13 +794,12 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
         row["metered_extra"] = True
     inserted = deps.insert_document(row)
     started = _iso(deps.now())
+    if reserved and deps.register_reservation is not None:
+        deps.register_reservation(doc_id, str(requested_by), was_extra)
     deps.set_status(doc_id, "queued", started)
     deps.enqueue(doc_id)
-    if requested_by:
-        try:
-            deps.record_usage(str(requested_by), "upload")
-        except Exception:  # noqa: BLE001 — the legacy counter is soft
-            logger.exception("[firm] record_usage failed (soft counter)")
+    # No enqueue-time counter bump: the pipeline's terminal commit counts
+    # the document once, and only if its analysis succeeds.
     return LandingResult(document_id=doc_id, document_row=dict(inserted or row),
                          storage_path=storage_path, inspection=inspection,
                          was_extra=was_extra)

@@ -47,6 +47,9 @@
     "signIn": "Sign in"
   },
   "upload": {
+    "alreadyUploaded": "Already uploaded — open it",
+    "alreadyUploadedBody": "This exact file is already in this company for this period, so nothing was uploaded again and nothing was counted.",
+    "openExisting": "Open",
     "hero_title": "Upload your trial balance to begin",
     "hero_subtitle": "We'll extract financials, compute 22 ratios, flag risks, and produce a board-ready analysis. Language and accounting format are auto-detected.",
     "choose_file": "Choose a file",

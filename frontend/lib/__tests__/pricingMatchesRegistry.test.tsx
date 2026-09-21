@@ -108,11 +108,13 @@ const REGISTRY_PATH = resolve(__dirname, "../../../src/engine/api/_features.py")
  *  registry entry" only by the first assertion; every status assertion
  *  below skipped it. Measured on this tree: comment-blind 44, comment-aware
  *  46, missing [inventory, invoices]. Same expression as the one in
- *  `shippedClaimsMatchCode.test.ts`, which had already been repaired. */
+ *  `shippedClaimsMatchCode.test.ts`, which had already been repaired.
+ *  `preview` joined the status set 2026-09-21 (workspace_v2); a parser
+ *  without it dropped that row — the second assertion below caught it. */
 function parseRegistry(): Record<string, FeatureStatus> {
   const src = readFileSync(REGISTRY_PATH, "utf8");
   const out: Record<string, FeatureStatus> = {};
-  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden)"/g;
+  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden|preview)"/g;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(src)) !== null) out[m[1]] = m[2] as FeatureStatus;
   return out;

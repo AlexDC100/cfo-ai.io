@@ -60,7 +60,6 @@ import { OrgIndustryPills, orgIndustryDisplayLabel, orgIndustryLabel } from "@/c
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
 import {
-  createEmptyPeriod,
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
   formatPeriodMonth,
@@ -533,14 +532,19 @@ function Onboarding({
       import("@/lib/uploadStore"),
     ]);
     startUpload({ docId: "", filename: file.name, status: "queued" });
-    const { row, error } = await uploadDocument(file, { scope: "financial" });
+    const { row, error, duplicate } = await uploadDocument(file, { scope: "financial" });
+    if (duplicate) {
+      clearUpload();
+      uploadEnqueue.notifyAlreadyUploaded(duplicate);
+      return false;
+    }
     if (!row) {
       clearUpload();
       throw new Error(error ?? t("dash.unknownError"));
     }
     startUpload({ docId: row.id, filename: file.name, status: "queued" });
     const enq = await uploadEnqueue.enqueue(row.id);
-    if (enq.kind === "extra_doc_cancelled") {
+    if (enq.kind === "extra_doc_cancelled" || enq.kind === "duplicate") {
       clearUpload();
       return false;
     }

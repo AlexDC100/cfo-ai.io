@@ -1438,7 +1438,15 @@ function FinancialStatementsInner() {
         setUploadName(file.name);
         startUpload({ docId: "", filename: file.name, status: "queued" });
         const { uploadDocument } = await import("@/lib/supabase");
-        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
+        const { row, error, duplicate } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
+        if (duplicate) {
+          // Same file, same company, same period: nothing was stored. Not a
+          // failure — "Already uploaded — open it" links to the analysis.
+          clearUpload();
+          uploadEnqueue.notifyAlreadyUploaded(duplicate);
+          resolve();
+          return;
+        }
         if (!row) {
           clearUpload();
           toast({ title: t("dash.uploadFailedTitle"), description: error ?? t("dash.unknownError"), variant: "destructive" });
@@ -1447,9 +1455,11 @@ function FinancialStatementsInner() {
         }
         startUpload({ docId: row.id, filename: file.name, status: "queued" });
         const enq = await uploadEnqueue.enqueue(row.id);
-        if (enq.kind === "extra_doc_cancelled") {
-          // The user closed the extra-document dialog. Nothing ran and
-          // nothing failed — clear the card; "Analysis failed" is a lie here.
+        if (enq.kind === "extra_doc_cancelled" || enq.kind === "duplicate") {
+          // The user closed the extra-document dialog, or the server found
+          // the file already analysed here (the hook showed "Already
+          // uploaded — open it"). Nothing ran and nothing failed — clear the
+          // card; "Analysis failed" is a lie here.
           clearUpload();
           resolve();
           return;
@@ -1485,6 +1495,11 @@ function FinancialStatementsInner() {
     try {
       startUpload({ docId: failed.docId, filename: failed.filename, status: "queued" });
       const enq = await uploadEnqueue.enqueue(failed.docId);
+      if (enq.kind === "duplicate") {
+        // The failed copy duplicates a live analysis: archived, not re-run.
+        clearUpload();
+        return;
+      }
       if (enq.kind === "extra_doc_cancelled") {
         // Dialog dismissed — nothing ran. Put the failed banner back so the
         // user keeps every action; clearing here would lose the document.
@@ -3941,9 +3956,9 @@ async function previewExampleInNewTab(file: string): Promise<void> {
 // an irreversible bulk action behind a confirm dialog; if it ever needs
 // restricting, gate it on workspace role rather than build mode.
 //
-// The workspace is left with no periods, so `useEnsureCurrentPeriod` creates
-// a fresh container for the current month on the next render — the user lands
-// on the dropzone rather than a broken empty screen.
+// The workspace is left with no periods; the dashboard's no-data state (the
+// dropzone) is what the user lands on. No empty container is re-created
+// (G4, 2026-09-21: no period without an analysed file).
 function DashboardDevTools() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);

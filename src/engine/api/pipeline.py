@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from . import _detect
+from . import _doc_dedupe
 from . import _journal_routes
 from . import _ops_routes
 from . import _org
@@ -834,6 +835,10 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
     decision = _ug.reserve_nonro_document(str(user_id))
     if decision.kind in ("allowed", "disabled"):
         if decision.kind == "allowed":
+            # Settled with THIS run by `_commit_pipeline_quota` (the ledger),
+            # never from the row stamp a later re-run would still carry.
+            _register_nonro_reservation(str(doc.get("id")), user_id=str(user_id),
+                                        was_extra=bool(decision.was_extra))
             try:
                 with _supabase.admin() as ac:
                     ac.update(
@@ -1824,6 +1829,79 @@ def resolve_period_end_for_persist(
     return period_end, record
 
 
+# ── G4: no period without an analysed source document ─────────────────
+#
+# `stage_persist` runs BEFORE compute / validate / narrate, so a period row
+# is inserted while its document is still mid-analysis. When a later stage
+# raised, the document was marked `failed` and the freshly inserted period
+# stayed behind — a month in the workspace whose only document failed, with
+# half an analysis under it. The orchestrator now removes a period THIS run
+# inserted when the run fails. Only the INSERT branch records: a re-run of a
+# document that already had its period, and a same-month takeover of an
+# existing period, leave the row where it was (the row predates the run).
+_PERIODS_MINTED_BY_RUN: Dict[str, str] = {}
+_PERIODS_MINTED_LOCK = threading.Lock()
+
+
+def _record_period_minted(document_id: Any, period_id: Any) -> None:
+    if not document_id or not period_id:
+        return
+    with _PERIODS_MINTED_LOCK:
+        _PERIODS_MINTED_BY_RUN[str(document_id)] = str(period_id)
+
+
+def _pop_period_minted(document_id: Any) -> Optional[str]:
+    with _PERIODS_MINTED_LOCK:
+        return _PERIODS_MINTED_BY_RUN.pop(str(document_id or ""), None)
+
+
+def _rollback_period_of_failed_run(document_id: str, org_id: Optional[str]) -> Optional[str]:
+    """Remove the period THIS failed run inserted, when nothing else holds
+    it. Returns the removed period id, or None.
+
+    Every filter names the tenant and the document — under the service role
+    the filter IS the access control — and a period another document now
+    points at is left alone. Derivatives go with the row (their foreign keys
+    cascade); the document's own `period_id` is cleared first so a failed
+    document is never pinned to a month that no longer exists. Never raises:
+    the failure being handled is the one the user sees."""
+    period_id = _pop_period_minted(document_id)
+    if not period_id or not org_id:
+        return None
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                         "source_document_id": f"eq.{document_id}"},
+                columns="id",
+                limit=1,
+            )
+            if not rows:
+                return None
+            others = ac.select(
+                "documents",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                         "id": f"neq.{document_id}"},
+                columns="id",
+                limit=1,
+            )
+            if others:
+                return None
+            ac.update("documents", {"period_id": None},
+                      filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"})
+            ac.delete("financial_periods",
+                      filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                               "source_document_id": f"eq.{document_id}"})
+        logger.info("[pipeline] %s failed — removed the period %s it had created",
+                    document_id, period_id)
+        return period_id
+    except Exception:  # noqa: BLE001 — never mask the failure being handled
+        logger.exception("[pipeline] could not remove the period %s of failed document %s",
+                         period_id, document_id)
+        return None
+
+
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
@@ -1940,6 +2018,11 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                         returning=True,
                     )
                     period_id = inserted[0]["id"]
+                    # G4 — this run MINTED the row. Recorded so that, if a
+                    # later stage fails, the orchestrator removes it again:
+                    # a period exists only once an analysed source document
+                    # backs it (see `_rollback_period_of_failed_run`).
+                    _record_period_minted(doc.get("id"), period_id)
                 except Exception:
                     # Race-loser: another upload for this month won. Re-select
                     # by (org_id, period_end) and reuse it — same replace
@@ -3752,162 +3835,199 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
                 client.insert("sku_aggregates", rows[i:i+500], returning=False)
 
 
+# ── The reservation ledger — every reservation settles exactly once ──────
+#
+# WHERE THE OWNER'S 51 CAME FROM (2026-09-21). `user_usage.uploads` — the
+# number behind "documents used" and behind the meter's `uploads + reserved
+# < cap` guard — was bumped TWICE per successful upload and ONCE per failed
+# one, and once more for every re-run of an already-counted document:
+#
+#   1. `POST /api/pipeline/run` called the legacy soft counter
+#      `_usage_limits.record_usage(user_id, "upload")` → `increment_user_usage`
+#      → uploads + 1, at ENQUEUE time: before the analysis, for failures and
+#      for re-uploads of the same file alike (the firm landing did the same);
+#   2. the terminal `commit_user_upload` RPC → uploads + 1 again on success;
+#   3. `/api/pipeline/retry`, the period-move correction re-run and the
+#      stuck-SKU watchdog reserve NOTHING by design ("a correction must not
+#      consume quota"), yet their terminal still ran `commit_user_upload`
+#      (uploads + 1) and — when the row still carried `metered_extra` from
+#      its first run — bumped `extra_docs_billed_period` and asked Stripe to
+#      meter it again; a failed re-run RELEASED a reservation it never took,
+#      stealing another upload's.
+#
+# So the count moved ~2 per book, the 402 extra-document dialog opened long
+# before the plan's included documents were used, and every confirmed
+# "extra" was a document the user already had. The legacy bump is gone (the
+# V3 commit is the one counter), and a terminal now settles only what ITS
+# run reserved: the entry below is written where the reservation is made
+# (/run, recover-stuck, the watchdog, the firm landing, the non-RO gate) and
+# taken exactly once here. No entry → nothing to settle.
+#
+# In-process on purpose: the reservation and the daemon thread that settles
+# it live in the one engine process. A restart mid-run loses the entry and
+# leaves that one reservation outstanding — exactly what a killed daemon
+# thread did before — and `scripts/recompute_document_quota.py` reconciles.
+
+
+class _QuotaRun:
+    __slots__ = ("user_id", "was_extra", "doc_reserved", "nonro_user", "nonro_reserved", "nonro_extra")
+
+    def __init__(self) -> None:
+        self.user_id: Optional[str] = None
+        self.was_extra = False
+        self.doc_reserved = False
+        self.nonro_user: Optional[str] = None
+        self.nonro_reserved = False
+        self.nonro_extra = False
+
+
+_QUOTA_RUNS: Dict[str, _QuotaRun] = {}
+_QUOTA_RUNS_LOCK = threading.Lock()
+
+
+def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool) -> None:
+    """Record that THIS run of `document_id` holds a document-slot
+    reservation made under the verified `user_id`."""
+    with _QUOTA_RUNS_LOCK:
+        run = _QUOTA_RUNS.setdefault(str(document_id), _QuotaRun())
+        run.user_id = str(user_id)
+        run.was_extra = bool(was_extra)
+        run.doc_reserved = True
+
+
+def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool) -> None:
+    """The non-RO gate reserved its meter mid-run; settle it with the run."""
+    with _QUOTA_RUNS_LOCK:
+        run = _QUOTA_RUNS.setdefault(str(document_id), _QuotaRun())
+        run.nonro_user = str(user_id)
+        run.nonro_reserved = True
+        run.nonro_extra = bool(was_extra)
+
+
+def _take_quota_run(document_id: str) -> Optional[_QuotaRun]:
+    with _QUOTA_RUNS_LOCK:
+        return _QUOTA_RUNS.pop(str(document_id), None)
+
+
 def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
-    """Pricing V3 (refined-spec gap D) — convert the upload-time
-    reservation into either a consumed slot (success) or a release
-    (failure).
+    """Pricing V3 (refined-spec gap D) — settle THIS run's reservations:
+    a consumed slot on success, a release on failure. Exactly once: the
+    ledger entry is taken here, so a second call is a no-op, and a run that
+    reserved nothing (retry, correction re-run) settles nothing.
 
-    Runs on the orchestrator daemon thread with no HTTP context, so
-    we recover the user_id + `metered_extra` flag from the documents
-    row directly. The reservation was made at /api/pipeline/run via
-    `_usage_gate.reserve_document` (or `confirm_extra_document` for
-    extras); committing/releasing here is the terminal half of that
-    transaction.
+    Success is the RUN's outcome (`_run_pipeline_stages` returned
+    "analyzed"), never a column the browser can write. It is refused —
+    released, never committed or billed — when this process archived the
+    document as a duplicate while it ran (`_doc_dedupe.archived_here`): a
+    duplicate or a failure is never counted and `record_metered_extra_doc`
+    is never called for one.
 
-    Best-effort: any failure here is LOGGED but never re-raised.
-    Quota correctness is downstream of user-visible analysis state,
-    not the other way around.
+    WHO is charged is the verified caller the reservation was made for (the
+    ledger), not `documents.uploaded_by`, which the browser writes.
+
+    Best-effort: any failure here is LOGGED but never re-raised. Quota
+    correctness is downstream of user-visible analysis state, not the other
+    way around.
     """
     from . import _usage_gate as _ug
+    run = _take_quota_run(document_id)
+    if run is None:
+        logger.info(
+            "[pipeline] quota: no reservation recorded for this run of %s — "
+            "nothing to settle (retry / correction re-run / unmetered)", document_id,
+        )
+        return
     if not _ug.enforcement_enabled():
         return
     try:
-        with _supabase.admin() as ac:
-            rows = ac.select(
-                "documents",
-                filters={"id": f"eq.{document_id}"},
-                columns="id,org_id,uploaded_by,metered_extra",
-                single=True,
-            )
-        if not rows:
-            return
-        row = rows[0]
-        user_id = row.get("uploaded_by")
-        if not user_id:
-            return
-        # `uploaded_by` IS BROWSER-WRITTEN (P0 family, 2026-09-09).
-        # `documents` RLS is is_member_of(org_id) with no column
-        # restriction, so the row's uploaded_by is whatever the client put
-        # there. This runs on the orchestrator thread with no JWT, so the
-        # column is the only identity available — and it decides whose
-        # daily/monthly quota is consumed and whose Stripe subscription is
-        # metered for an extra document. Filing a row that names someone
-        # else charged them.
-        #
-        # The tenant is the part this can prove: the charged user must be
-        # a member of the document's own organization. A stranger in
-        # another workspace can no longer be billed. Charging a COLLEAGUE
-        # inside one workspace remains possible and is the org's own
-        # business, but the durable fix is a DB constraint the client
-        # cannot forge — `with check (uploaded_by = auth.uid())` on the
-        # documents INSERT policy — which is a migration, not a code
-        # change. See docs/ for the pending migration note.
-        doc_org = str(row.get("org_id") or "").strip()
-        if not doc_org or not _org.user_is_member(str(user_id), doc_org):
+        # A success is refused — released, never committed or billed — when
+        # THIS process archived the document as a duplicate (a retry or the
+        # watchdog archiving a run in flight). The run's own outcome decides
+        # success; nothing browser-writable on the row can turn a success
+        # into a free release (`_doc_dedupe.archived_here`).
+        settle_as_success = bool(success)
+        if settle_as_success and _doc_dedupe.archived_here(document_id):
             logger.error(
-                "[security] REFUSED quota/billing commit: document=%s names "
-                "uploaded_by=%r who is not a member of its org=%r",
-                document_id, user_id, doc_org,
+                "[pipeline][billing] REFUSED commit for document=%s — archived "
+                "as a duplicate while it ran; released instead, never counted "
+                "or billed", document_id,
             )
-            return
-        was_extra = bool(row.get("metered_extra"))
-        # 2026-08 tiers — non-RO meter flags. Columns come from
-        # schema_phase_plan_caps.sql; a second best-effort read keeps the
-        # primary select working on DBs without the migration.
-        nonro_doc = False
-        nonro_extra = False
-        try:
-            with _supabase.admin() as ac:
-                nr = ac.select(
-                    "documents",
-                    filters={"id": f"eq.{document_id}"},
-                    columns="nonro_doc,nonro_metered_extra",
-                    single=True,
-                )
-            if nr:
-                nonro_doc = bool(nr[0].get("nonro_doc"))
-                nonro_extra = bool(nr[0].get("nonro_metered_extra"))
-        except Exception as _nonro_err:  # noqa: BLE001
-            # LOUD, not silent. This cannot refuse — the analysis is already
-            # done by the time the terminal commit runs — but a meter that
-            # cannot read its own flags must SAY SO. Until 2026-09-10 this
-            # was a bare `pass`, and with schema_phase_plan_caps.sql absent
-            # from production any non-RO document would have settled as if
-            # it were an ordinary RO one. (None is known to have: the
-            # "27 unmetered" count first reported here was the coa_registries
-            # `detected_country` stamp on Romanian books — see the
-            # CORRECTION in _usage_gate.reserve_nonro_document.) The reserve
-            # side now fails closed, so a document should never REACH here
-            # unmetered; if one does, this line is how anyone finds out.
-            logger.error(
-                "[pipeline][billing] cannot read non-RO meter flags for "
-                "document=%s (%s: %s). Apply "
-                "supabase/schema_phase_plan_caps.sql and reload the "
-                "PostgREST schema cache. This document settles as RO.",
-                document_id, type(_nonro_err).__name__, str(_nonro_err)[:160],
-            )
-        if success:
-            _ug.commit_document(user_id, was_extra=was_extra)
-            # WS2 — when the doc succeeded AND was flagged as a paid extra,
-            # record one usage unit against the user's Stripe metered item.
-            # Idempotency key = document_id so any retry of this commit
-            # path (e.g. orchestrator restart between commit + return) is
-            # a no-op on the Stripe side. Best-effort: errors are logged
-            # but don't propagate — the local quota was already committed
-            # and the operator can reconcile from billing logs.
-            if was_extra:
-                try:
-                    from . import _billing
-                    result = _billing.record_metered_extra_doc(
-                        user_id=user_id,
-                        reservation_id=document_id,
-                    )
-                    if not result.get("ok"):
-                        logger.error(
-                            "[pipeline] record_metered_extra_doc returned non-ok for "
-                            "doc=%s user=%s — manual reconciliation may be needed. "
-                            "Result: %s",
-                            document_id, user_id, result,
-                        )
-                    elif not result.get("billed"):
-                        logger.info(
-                            "[pipeline] metered extra-doc not billed (doc=%s reason=%s)",
-                            document_id, result.get("reason"),
-                        )
-                except Exception:  # noqa: BLE001
-                    logger.exception(
-                        "[pipeline] record_metered_extra_doc raised — local "
-                        "extras_billed_period already bumped, Stripe side missed "
-                        "this charge. doc=%s user=%s",
-                        document_id, user_id,
-                    )
-            # Non-RO meter — same success-only commit discipline.
-            if nonro_doc:
-                _ug.commit_nonro_document(user_id, was_extra=nonro_extra)
-                if nonro_extra:
+            settle_as_success = False
+
+        if run.doc_reserved and run.user_id:
+            if settle_as_success:
+                _ug.commit_document(run.user_id, was_extra=run.was_extra)
+                # WS2 — a successful PAID EXTRA records one usage unit on the
+                # user's Stripe metered item. Idempotency key = document_id.
+                if run.was_extra:
                     try:
                         from . import _billing
                         result = _billing.record_metered_extra_doc(
-                            user_id=user_id,
+                            user_id=run.user_id,
+                            reservation_id=document_id,
+                        )
+                        if not result.get("ok"):
+                            logger.error(
+                                "[pipeline] record_metered_extra_doc returned non-ok for "
+                                "doc=%s user=%s — manual reconciliation may be needed. "
+                                "Result: %s", document_id, run.user_id, result,
+                            )
+                        elif not result.get("billed"):
+                            logger.info(
+                                "[pipeline] metered extra-doc not billed (doc=%s reason=%s)",
+                                document_id, result.get("reason"),
+                            )
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "[pipeline] record_metered_extra_doc raised — local "
+                            "extras_billed_period already bumped, Stripe side missed "
+                            "this charge. doc=%s user=%s", document_id, run.user_id,
+                        )
+            else:
+                _ug.release_document(run.user_id, was_extra=run.was_extra)
+
+        # Non-RO meter — reserved mid-run by `_enforce_nonro_plan_gate`,
+        # settled with the run under the same success-only discipline.
+        if run.nonro_reserved and run.nonro_user:
+            # The non-RO reservation was made under `documents.uploaded_by`,
+            # which the BROWSER writes: it settles only against a member of
+            # the document's own organization (P0 family, 2026-09-09).
+            nonro_success = settle_as_success
+            if nonro_success:
+                with _supabase.admin() as ac:
+                    found = ac.select("documents", filters={"id": f"eq.{document_id}"},
+                                      columns="id,org_id", single=True)
+                doc_org = str((found[0] if found else {}).get("org_id") or "").strip()
+                if not doc_org or not _org.user_is_member(run.nonro_user, doc_org):
+                    logger.error(
+                        "[security] REFUSED non-RO commit: document=%s names "
+                        "uploaded_by=%r who is not a member of its org=%r",
+                        document_id, run.nonro_user, doc_org,
+                    )
+                    nonro_success = False
+            if nonro_success:
+                _ug.commit_nonro_document(run.nonro_user, was_extra=run.nonro_extra)
+                if run.nonro_extra:
+                    try:
+                        from . import _billing
+                        result = _billing.record_metered_extra_doc(
+                            user_id=run.nonro_user,
                             reservation_id=document_id,
                             kind="extra_nonro",
                         )
                         if not result.get("ok"):
                             logger.error(
                                 "[pipeline] non-RO metered usage non-ok for "
-                                "doc=%s user=%s: %s",
-                                document_id, user_id, result,
+                                "doc=%s user=%s: %s", document_id, run.nonro_user, result,
                             )
                     except Exception:  # noqa: BLE001
                         logger.exception(
                             "[pipeline] non-RO metered usage raised — local "
                             "tally bumped, Stripe missed this charge. "
-                            "doc=%s user=%s", document_id, user_id,
+                            "doc=%s user=%s", document_id, run.nonro_user,
                         )
-        else:
-            _ug.release_document(user_id, was_extra=was_extra)
-            if nonro_doc:
-                _ug.release_nonro_document(user_id, was_extra=nonro_extra)
+            else:
+                _ug.release_nonro_document(run.nonro_user, was_extra=run.nonro_extra)
     except Exception:
         logger.exception(
             "[pipeline] _commit_pipeline_quota(%s, success=%s) failed",
@@ -3916,13 +4036,36 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
 
 
 def _run_pipeline_sync(document_id: str) -> None:
+    """Run the stages, then settle THIS run's reservation on the outcome.
+
+    Every terminal path goes through the one settlement below — the early
+    successes (public-records summary, AI-lane cache hit, AI lane, SKU scope)
+    used to `return` past the commit and leave their reservation outstanding
+    forever, and a document that vanished mid-run released nothing."""
+    outcome = "failed"
+    try:
+        outcome = _run_pipeline_stages(document_id)
+    finally:
+        try:
+            _commit_pipeline_quota(document_id, success=(outcome == "analyzed"))
+        except Exception:  # noqa: BLE001
+            logger.exception("[pipeline] quota settlement failed (non-fatal)")
+
+
+def _run_pipeline_stages(document_id: str) -> str:
+    """Every pipeline stage for one document. Returns the outcome —
+    "analyzed", "failed" (the failure is persisted on the row) or
+    "vanished" — and never settles quota itself (`_run_pipeline_sync`)."""
     t0 = time.time()
+    # Bound before the try so the failure handler can name the tenant of the
+    # period this run may have to roll back (G4).
+    doc: Optional[Dict[str, Any]] = None
     try:
         with _supabase.admin() as admin_client:
             doc_rows = admin_client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
             if not doc_rows:
                 logger.warning("[pipeline] document %s vanished mid-run", document_id)
-                return
+                return "vanished"
             doc = doc_rows[0]
 
             org_rows = admin_client.select("organizations", filters={"id": f"eq.{doc['org_id']}"}, single=True)
@@ -4008,7 +4151,7 @@ def _run_pipeline_sync(document_id: str) -> None:
                         )
                 except Exception:  # noqa: BLE001
                     pass  # CHECK constraint rejection is non-fatal
-                return  # Short-circuit — no TB stages for this doc.
+                return "analyzed"  # Short-circuit — no TB stages for this doc.
 
         # ── AI-lane (HU/OTHER jurisdictions) short-circuit ──────────────
         # `stage_extract` returns `detected_type='ai_lane_statement'` when
@@ -4036,7 +4179,7 @@ def _run_pipeline_sync(document_id: str) -> None:
                     "envelope (period %s)",
                     document_id, _ai_info.get("period_id"),
                 )
-                return
+                return "analyzed"
             _admin_set_status(document_id, "mapping")
             assembled = _ai_info.get("assembled") or {}
             # RUN JOURNAL — PASS_DONE (ai-lane assembled envelope).
@@ -4047,13 +4190,14 @@ def _run_pipeline_sync(document_id: str) -> None:
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=period_id,
             )
+            _pop_period_minted(document_id)
             logger.info(
                 "[pipeline] %s ai_lane complete in %dms (jurisdiction=%s, "
                 "period %s)",
                 document_id, int((time.time() - t0) * 1000),
                 _ai_info.get("jurisdiction"), period_id,
             )
-            return
+            return "analyzed"
 
         # Persist the deterministic detected_type back to the documents
         # row. Upload-time detection uses filename heuristics only — once
@@ -4148,7 +4292,7 @@ def _run_pipeline_sync(document_id: str) -> None:
                 "[pipeline] %s (sku scope) complete in %dms, dataset_id=%s",
                 document_id, int((time.time() - t0) * 1000), dataset_id,
             )
-            return
+            return "analyzed"
 
         # Financial branch — existing path.
         #
@@ -4376,16 +4520,13 @@ def _run_pipeline_sync(document_id: str) -> None:
             duration_ms=int((time.time() - t0) * 1000),
             period_id=period_id,
         )
-        # Pricing V3 (gap D) — analysis SUCCEEDED. Convert the
-        # reservation made at /api/pipeline/run into a consumed slot.
-        # If the doc was flagged `metered_extra`, ALSO bump the
-        # extra-docs-billed tally — that's the only path that triggers
-        # an actual charge. No-op when USAGE_LIMITS_ENABLED is off.
-        try:
-            _commit_pipeline_quota(document_id, success=True)
-        except Exception:
-            logger.exception("[pipeline] commit_document_usage failed (non-fatal)")
+        # The period is now backed by an analysed document — nothing to
+        # roll back from here on.
+        _pop_period_minted(document_id)
+        # Pricing V3 (gap D) — analysis SUCCEEDED. `_run_pipeline_sync`
+        # settles this run's reservation on the returned outcome.
         logger.info("[pipeline] %s complete in %dms", document_id, int((time.time() - t0) * 1000))
+        return "analyzed"
     except Exception as exc:  # noqa: BLE001
         logger.exception("[pipeline] %s failed", document_id)
         # RUN JOURNAL — RUN_FAILED + dead-letter entry (no-op when off).
@@ -4395,13 +4536,13 @@ def _run_pipeline_sync(document_id: str) -> None:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:
             logger.exception("[pipeline] also failed to mark failed")
-        # Pricing V3 (gap D) — analysis FAILED. Release the
-        # reservation so the doc doesn't count against quota and the
-        # user is not billed for an extra. No-op when disabled.
-        try:
-            _commit_pipeline_quota(document_id, success=False)
-        except Exception:
-            logger.exception("[pipeline] release_document_reservation failed (non-fatal)")
+        # G4 — a period exists only once an analysed source document backs
+        # it. The period this run inserted (if any) goes with the failure.
+        _rollback_period_of_failed_run(
+            document_id, doc.get("org_id") if isinstance(doc, dict) else None)
+        # Pricing V3 (gap D) — analysis FAILED. `_run_pipeline_sync`
+        # releases this run's reservation: nothing counted, nothing billed.
+        return "failed"
 
 
 # ── Statutory net-income anchor (account 121) — ONE resolver ──────────
@@ -5497,6 +5638,62 @@ def _maybe_drop_empty_period(period_id: str, *, org_id: str = "") -> None:
         logger.info("[docs] dropped orphan period %s", period_id)
 
 
+def reserve_upload_or_refuse(user_id: str) -> Any:
+    """THE UPLOAD METER — the reservation every new document takes before
+    it is analysed, mapped to the HTTP shapes the frontend already knows.
+
+    One function, two callers: `POST /api/pipeline/run` (a document the
+    browser already stored) and `POST /api/uploads/commit` (a file the
+    engine stores itself). Pricing V3 (refined spec gaps C + D) — atomic
+    reserve, success-only consume:
+
+      · `_usage_limits.check_quota` stays as the legacy safety rail;
+      · `_usage_gate.reserve_document` is an atomic conditional UPDATE, so
+        two concurrent uploads at the boundary cannot both pass (gap C);
+      · the reservation is PROVISIONAL — the orchestrator commits it on
+        analysis success and releases it on failure (gap D).
+
+    Returns the `_usage_gate.DocReserveDecision` (`allowed` or `disabled`):
+    the caller registers an `allowed` reservation in the run ledger
+    (`_register_quota_run`) so the terminal settles exactly this one, and
+    stamps `was_extra` on the row for visibility. Raises 429
+    `doc_quota_blocked` or 402 `extra_doc_confirmation_required` — nothing
+    was reserved then; after a 402 the frontend calls
+    POST /api/plan/confirm-extra-doc and repeats the request, which then
+    sees an `allowed` reservation.
+    """
+    _usage_limits.check_quota(user_id, "upload")
+    from . import _usage_gate as _ug
+    decision = _ug.reserve_document(user_id)
+    if decision.kind == "blocked":
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "doc_quota_blocked",
+                "plan_key": decision.plan_key,
+                "docs_used": decision.used,
+                "docs_included": decision.cap,
+                "message": decision.message,
+                "upgrade_url": "/pricing",
+            },
+        )
+    if decision.kind == "extra_required":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "extra_doc_confirmation_required",
+                "plan_key": decision.plan_key,
+                "docs_used": decision.used,
+                "docs_included": decision.cap,
+                "extra_doc_eur": decision.extra_doc_eur,
+                "message": decision.message,
+                "confirm_url": "/api/plan/confirm-extra-doc",
+            },
+        )
+    # `allowed` or `disabled` — the caller proceeds with enqueue.
+    return decision
+
+
 def _enqueue(document_id: str) -> None:
     """Run the pipeline on a daemon thread. Production should swap this for a
     real queue (Inngest, Supabase Edge functions, BullMQ-equivalent), but for
@@ -5541,6 +5738,25 @@ class RunRequest(BaseModel):
 class RunResponse(BaseModel):
     document_id: str
     status: str
+    # status == "duplicate" (2026-09-21): the document duplicates a live one
+    # of the same account, company and period — it was archived, nothing was
+    # reserved, analysed or counted. The FE renders "Already uploaded — open
+    # it" linking to `period_id` (None while the original is still running).
+    existing_document_id: Optional[str] = None
+    period_id: Optional[str] = None
+
+
+class DuplicateCheckRequest(BaseModel):
+    """POST body for `/api/documents/duplicate-check` — asked by the browser
+    BEFORE it writes a byte to storage. Module scope on purpose (a model
+    nested in `build_router` degrades to a query parameter — CLAUDE.md §22).
+
+    `content_hash` is the SHA-256 of the file bytes, 64 lowercase hex, as
+    `lib/supabase.ts::uploadDocument` computes it. `period_end_hint` is the
+    closing date the user confirmed, when they confirmed one."""
+
+    content_hash: str
+    period_end_hint: Optional[str] = None
 
 
 class ReviewReanalyzeRequest(BaseModel):
@@ -5657,88 +5873,93 @@ def build_router() -> APIRouter:
     # The country-pack methods themselves (parse_pasted_trial_balance,
     # accounts_to_canonical_tsv) remain available in the Romania pack.
 
+    @router.post("/api/documents/duplicate-check")
+    def duplicate_check(
+        req: DuplicateCheckRequest,
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """Asked by the browser BEFORE it stores a byte: does this ACCOUNT
+        already hold a live copy of these bytes in this COMPANY for this
+        PERIOD? (`_doc_dedupe` holds the definition.) Read-only — no row,
+        no storage object, no reservation. The company is the caller's
+        `X-Org-Id`, validated against membership (403 otherwise)."""
+        jwt = _require_jwt(authorization)
+        user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        content_hash = _doc_dedupe.normalize_hash(req.content_hash)
+        if not content_hash:
+            raise HTTPException(422, "content_hash must be the 64-hex SHA-256 of the file bytes.")
+        hit = _doc_dedupe.find_live_original(
+            org_id=org_id, user_id=user_id, content_hash=content_hash,
+            hint=req.period_end_hint,
+        )
+        if hit is None:
+            return {"duplicate": False}
+        return hit.to_payload()
+
     @router.post("/api/pipeline/run", response_model=RunResponse, status_code=202)
     def run_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
         doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
-        # Pricing V3 (refined spec gaps C + D) — atomic reserve, success-only consume.
-        #
-        # Legacy `_usage_limits.check_quota` remains as a safety rail.
-        # The V3 path uses `_usage_gate.reserve_document` which performs
-        # an atomic Postgres conditional UPDATE: two concurrent uploads
-        # at the boundary cannot both pass (gap C).
-        #
-        # The reservation is PROVISIONAL — `commit_document` runs only
-        # when the orchestrator's daemon thread reports analysis
-        # success (`_admin_set_status("analyzed", ...)`); on failure
-        # (`_admin_set_status("failed", ...)`) the orchestrator calls
-        # `release_document` and no quota is consumed / billed
-        # (gap D — "consumed" = success only).
-        #
-        # The `was_extra` flag is stamped onto the documents row so
-        # the daemon thread can recover it without an HTTP context.
         user_id = _user_id_from_jwt(jwt)
-        _usage_limits.check_quota(user_id, "upload")
-        from . import _usage_gate as _ug
-        decision = _ug.reserve_document(user_id)
-        if decision.kind == "blocked":
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "code": "doc_quota_blocked",
-                    "plan_key": decision.plan_key,
-                    "docs_used": decision.used,
-                    "docs_included": decision.cap,
-                    "message": decision.message,
-                    "upgrade_url": "/pricing",
-                },
-            )
-        if decision.kind == "extra_required":
-            # FE must surface the confirm dialog and then call
-            # POST /api/plan/confirm-extra-doc which routes through
-            # `confirm_extra_document(user_id)` and reserves the slot
-            # as billable. The repeat /api/pipeline/run call then
-            # sees an `allowed` reservation (or the FE bypasses by
-            # going straight to /api/pipeline/run after the confirm
-            # endpoint succeeds — both flows valid).
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "code": "extra_doc_confirmation_required",
-                    "plan_key": decision.plan_key,
-                    "docs_used": decision.used,
-                    "docs_included": decision.cap,
-                    "extra_doc_eur": decision.extra_doc_eur,
-                    "message": decision.message,
-                    "confirm_url": "/api/plan/confirm-extra-doc",
-                },
-            )
-        # `allowed` or `disabled` — proceed with enqueue.
+        # DUPLICATE FIRST (2026-09-21) — before any reservation. A document
+        # that duplicates a live one of the same account, company and
+        # period is archived and answered as `duplicate`: nothing reserved,
+        # analysed, counted or billed. Otherwise the run CLAIMS the document
+        # (its pipeline_started_at) under the same lock, so a racing twin
+        # finds it running and is the one archived.
+        prior_claim = doc.get("pipeline_started_at")
+        hit = _doc_dedupe.claim_or_duplicate(doc, user_id, now_iso=_now_iso(), claim=True)
+        if hit is not None:
+            return RunResponse(document_id=req.document_id, status="duplicate",
+                               existing_document_id=hit.existing_document_id,
+                               period_id=hit.period_id)
+        enqueued = False
+        try:
+            # THE ONE UPLOAD METER — `reserve_upload_or_refuse`, which
+            # `/api/uploads/commit` calls too, so the two entry points cannot
+            # drift apart (429 / 402 raised from there). The reservation is
+            # PROVISIONAL — `_run_pipeline_sync` settles it once the run
+            # ends: committed on `analyzed`, released on any failure (gap D
+            # — "consumed" = success only). The ledger entry below is what
+            # lets the terminal settle exactly this one.
+            decision = reserve_upload_or_refuse(user_id)
 
-        # Stash the was_extra flag onto the document row so the
-        # daemon thread's commit/release call passes the right value.
-        # Reusing an existing column would be cleaner; for now we
-        # serialize a tiny meta blob into `documents.notes` (an
-        # existing free-text column). The orchestrator parses it back.
-        is_extra_reservation = decision.was_extra
-        if req.output_language or is_extra_reservation:
-            patch: Dict[str, Any] = {}
-            if req.output_language:
-                patch["detected_language"] = req.output_language
-            if is_extra_reservation:
-                # Use a column dedicated to this — `metered_extra` is
-                # added by the V3 migration to documents below.
-                patch["metered_extra"] = True
-            with _supabase.admin() as ac:
-                ac.update("documents", patch, filters={"id": f"eq.{req.document_id}"})
+            # Stamp the was_extra flag on the row for visibility (support,
+            # the audit scripts). The settlement reads the LEDGER, never
+            # this stamp — a later re-run of the row would still carry it.
+            is_extra_reservation = decision.was_extra
+            if req.output_language or is_extra_reservation:
+                patch: Dict[str, Any] = {}
+                if req.output_language:
+                    patch["detected_language"] = req.output_language
+                if is_extra_reservation:
+                    patch["metered_extra"] = True
+                with _supabase.admin() as ac:
+                    ac.update("documents", patch, filters={"id": f"eq.{req.document_id}"})
 
-        _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
-        _enqueue(req.document_id)
-        # Legacy monthly counter — preserve existing behavior.
-        # Gap-D commit / release lives in the orchestrator (success +
-        # failure terminal states). This `record_usage` is a soft
-        # historical counter for the legacy /api/billing/usage view.
-        _usage_limits.record_usage(user_id, "upload")
+            if decision.kind == "allowed":
+                _register_quota_run(req.document_id, user_id=user_id,
+                                    was_extra=bool(decision.was_extra))
+            _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
+            _enqueue(req.document_id)
+            enqueued = True
+        finally:
+            if not enqueued:
+                # Refused (402 / 429) or errored: nothing runs, so the claim
+                # goes back — a dismissed dialog must not leave a phantom
+                # "running" original behind for the next upload to hit —
+                # and a reservation already taken is released, not leaked.
+                _doc_dedupe.release_claim({**doc, "pipeline_started_at": prior_claim})
+                orphan = _take_quota_run(req.document_id)
+                if orphan is not None and orphan.doc_reserved and orphan.user_id:
+                    from . import _usage_gate as _ug_release
+                    _ug_release.release_document(orphan.user_id, was_extra=orphan.was_extra)
+        # NOTE: no `_usage_limits.record_usage(user_id, "upload")` here any
+        # more. It bumped `user_usage.uploads` at ENQUEUE time — failures and
+        # duplicates included — on top of the terminal commit's own bump:
+        # the owner's "51 documents used" (see the ledger note above
+        # `_commit_pipeline_quota`).
         return RunResponse(document_id=req.document_id, status="queued")
 
     @router.get("/api/sku-analysis/latest")
@@ -6103,9 +6324,13 @@ def build_router() -> APIRouter:
         cutoff = datetime.now(timezone.utc) - timedelta(days=30)
         deleted_rows = []
         for d in deleted:
-            try:
-                deleted_at = datetime.fromisoformat(d["deleted_at"].replace("Z", "+00:00"))
-            except (KeyError, ValueError, AttributeError):
+            # An upload archived as a DUPLICATE was never stored as far as
+            # the user is concerned ("Already uploaded — open it"): it is
+            # not a delete of theirs to restore or empty.
+            if _doc_dedupe.is_archived_duplicate(d):
+                continue
+            deleted_at = _doc_dedupe._ts(d.get("deleted_at"))
+            if deleted_at is None:
                 continue
             if deleted_at < cutoff:
                 continue
@@ -6310,6 +6535,9 @@ def build_router() -> APIRouter:
         # soft-deleted documents under can_read_client_org; only the
         # caller's OWN workspaces' rows may be hard-deleted here.
         visible = _only_member_orgs(jwt, visible)
+        # Archived duplicates are not on the shelf, so "empty recently
+        # deleted" never reaches them: their storage object is kept.
+        visible = [d for d in visible if not _doc_dedupe.is_archived_duplicate(d)]
 
         deleted_ids: List[str] = []
         with _supabase.admin() as admin:
@@ -6968,7 +7196,7 @@ def build_router() -> APIRouter:
             rows = client.select(
                 "documents",
                 filters={"scope": "eq.sku"},
-                columns="id,original_filename,status,error,created_at,pipeline_started_at",
+                columns="id,org_id,original_filename,status,error,created_at,pipeline_started_at,deleted_at",
                 order="created_at.desc",
                 limit=1,
             )
@@ -6985,17 +7213,39 @@ def build_router() -> APIRouter:
             # gap), kick it now.
             try:
                 from datetime import datetime, timezone, timedelta
-                if d.get("status") == "queued" and not d.get("pipeline_started_at"):
-                    created = d.get("created_at")
-                    if created:
-                        created_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-                        if datetime.now(timezone.utc) - created_dt > timedelta(seconds=5):
+                if d.get("status") == "queued" and not d.get("pipeline_started_at") and not d.get("deleted_at"):
+                    created_dt = _doc_dedupe._ts(d.get("created_at"))
+                    if created_dt and datetime.now(timezone.utc) - created_dt > timedelta(seconds=5):
+                        # THE SAME METER AS /run and recover-stuck (2026-09-21).
+                        # This watchdog used to enqueue with no reservation —
+                        # a SKU upload refused by the 402 ran anyway — and its
+                        # terminal then counted a slot nobody had reserved.
+                        caller_id = str(_org.verified_user_id(jwt))
+                        if not _org.user_is_member(caller_id, str(d.get("org_id") or "")):
+                            # Firm visibility is a READ grant: a viewer's poll
+                            # never enqueues (and never bills) a client's file.
+                            return {"document": d}
+                        full = client.select("documents", filters={"id": f"eq.{d['id']}"}, single=True)
+                        row = full[0] if full else dict(d)
+                        if _doc_dedupe.claim_or_duplicate(row, caller_id, now_iso=_now_iso(), claim=False) is not None:
+                            return {"document": None}
+                        from . import _usage_gate as _ug
+                        decision = _ug.reserve_document(caller_id)
+                        if decision.kind in ("allowed", "disabled"):
                             logger.warning(
                                 "[pipeline] watchdog: doc %s stuck at queued with no pipeline_started_at — auto-enqueuing",
                                 d["id"],
                             )
+                            if decision.was_extra:
+                                with _supabase.admin() as ac:
+                                    ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
+                            if decision.kind == "allowed":
+                                _register_quota_run(d["id"], user_id=caller_id, was_extra=bool(decision.was_extra))
                             _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
                             _enqueue(d["id"])
+                        else:
+                            logger.info("[pipeline] watchdog: doc %s not re-enqueued — meter says %s",
+                                        d["id"], decision.kind)
             except Exception:  # noqa: BLE001
                 logger.exception("[pipeline] watchdog auto-enqueue failed (non-fatal)")
             return {"document": d}
@@ -7023,6 +7273,7 @@ def build_router() -> APIRouter:
 
         recovered: List[Dict[str, Any]] = []
         needs_confirmation: List[Dict[str, Any]] = []
+        duplicates: List[Dict[str, Any]] = []
         # VERIFY BEFORE READING (FC1x, critic finding I1) — see the note
         # on the sales-dataset handlers: an expired bearer must be a 401
         # from the verifier, not a PostgREST 401 escaping as a 500.
@@ -7030,8 +7281,11 @@ def build_router() -> APIRouter:
         with _supabase.per_user(jwt) as client:
             rows = client.select(
                 "documents",
-                filters={"status": "eq.queued"},
-                columns="id,org_id,original_filename,scope,created_at,pipeline_started_at",
+                # `*`, not a column list: the duplicate check needs the
+                # optional `period_end_hint`, which naming would 400 on a
+                # database without it. Archived / deleted rows are never
+                # "stuck".
+                filters={"status": "eq.queued", "deleted_at": "is.null"},
                 order="created_at.desc",
                 limit=20,
             )
@@ -7081,6 +7335,17 @@ def build_router() -> APIRouter:
                     except Exception:  # noqa: BLE001
                         logger.exception("[pipeline] failed to mark stale doc as failed")
                     continue
+                # A duplicate of a live document of the caller's in the same
+                # company is archived, not re-enqueued (2026-09-21).
+                hit = _doc_dedupe.claim_or_duplicate(d, caller_id, now_iso=_now_iso(), claim=False)
+                if hit is not None:
+                    duplicates.append({
+                        "id": d["id"], "filename": d.get("original_filename"),
+                        "scope": d.get("scope"),
+                        "existing_document_id": hit.existing_document_id,
+                        "period_id": hit.period_id,
+                    })
+                    continue
                 # THE SAME METER AS /api/pipeline/run (2026-09-20). A document
                 # whose run was REFUSED — 402 extra-document confirmation, 429
                 # blocked — is left exactly as the browser inserted it:
@@ -7120,6 +7385,8 @@ def build_router() -> APIRouter:
                 if decision.was_extra:
                     with _supabase.admin() as ac:
                         ac.update("documents", {"metered_extra": True}, filters={"id": f"eq.{d['id']}"})
+                if decision.kind == "allowed":
+                    _register_quota_run(d["id"], user_id=caller_id, was_extra=bool(decision.was_extra))
                 _admin_set_status(d["id"], "queued", pipeline_started_at=_now_iso())
                 _enqueue(d["id"])
                 recovered.append({
@@ -7134,12 +7401,24 @@ def build_router() -> APIRouter:
             "stale_failed": stale_failed,
             "needs_confirmation_count": len(needs_confirmation),
             "needs_confirmation": needs_confirmation,
+            "duplicates_count": len(duplicates),
+            "duplicates": duplicates,
         }
 
     @router.post("/api/pipeline/retry", response_model=RunResponse, status_code=202)
     def retry_pipeline(req: RunRequest, authorization: Optional[str] = Header(None)) -> RunResponse:
         jwt = _require_jwt(authorization)
         doc = _verify_user_may_write_document(jwt, req.document_id)  # the WRITE wall (FC1x, D4)
+        # A re-run of a document that duplicates a live one (an older copy
+        # uploaded before dedupe existed, retried from the Docs panel) is
+        # archived instead of re-analysed. The retry reserves nothing and —
+        # with no ledger entry — its terminal settles nothing either.
+        hit = _doc_dedupe.claim_or_duplicate(doc, _user_id_from_jwt(jwt),
+                                             now_iso=_now_iso(), claim=False)
+        if hit is not None:
+            return RunResponse(document_id=req.document_id, status="duplicate",
+                               existing_document_id=hit.existing_document_id,
+                               period_id=hit.period_id)
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly

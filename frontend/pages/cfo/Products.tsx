@@ -403,14 +403,19 @@ export default function Products() {
     startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
     // Pin the file to the month that's active right now, so it nests under
     // that month in "Source files" (see uploadDocument's `periodId`).
-    const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+    const { row, error, duplicate } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+    if (duplicate) {
+      clearUpload();
+      uploadEnqueue.notifyAlreadyUploaded(duplicate, "sku");
+      return;
+    }
     if (!row) {
       clearUpload();
       toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
       return;
     }
     startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
-    const enq = await uploadEnqueue.enqueue(row.id);
+    const enq = await uploadEnqueue.enqueue(row.id, { surface: "sku" });
     if (enq.kind !== "queued") {
       // Modal/toast already surfaced by the hook.
       clearUpload();
@@ -3004,7 +3009,13 @@ function EmptyState({
         // Flip into the scan view immediately (docId lands after upload).
         startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
         // Pin to the active month so the file nests under it in "Source files".
-        const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+        const { row, error, duplicate } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+        if (duplicate) {
+          clearUpload();
+          uploadEnqueue.notifyAlreadyUploaded(duplicate, "sku");
+          resolve();
+          return;
+        }
         if (!row) {
           clearUpload();
           toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
@@ -3015,7 +3026,7 @@ function EmptyState({
         // Products rail spinner (not the Dashboard's) + the shared council
         // sphere render this scan's progress.
         startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
-        const enq = await uploadEnqueue.enqueue(row.id);
+        const enq = await uploadEnqueue.enqueue(row.id, { surface: "sku" });
         if (enq.kind !== "queued") {
           // Modal/toast already surfaced by the hook; nothing to do here.
           clearUpload();
