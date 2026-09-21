@@ -225,19 +225,32 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
 
     Only a reservation made for the same verified `user_id`; a confirmed
     extra (`was_extra`) only when `take_extra` (the document's own run).
-    Returns the row adopted, else None (the caller reserves as usual)."""
+    Compare-and-set against the sweep: the row is taken by swapping its
+    `reservation_id` while it still carries the one read, and the swap is
+    read back — a sweeper that read the row before the adoption then
+    matches nothing and releases nothing. Returns the row adopted, else
+    None (the caller reserves as usual)."""
     row = outstanding(document_id)
     if row is None or str(row.get("user_id") or "") != str(user_id):
         return None
     if row.get("was_extra") and not take_extra:
         return None
+    old_rid = row.get("reservation_id")
+    if not old_rid:
+        return None
+    new_rid = uuid.uuid4().hex
     try:
         with _supabase.admin() as ac:
-            ac.update(TABLE, {"owner": PROCESS_ID, "heartbeat_at": _now_iso(), "updated_at": _now_iso()},
-                      filters={"document_id": f"eq.{document_id}",
-                               "reservation_id": f"eq.{row.get('reservation_id')}"})
-    except Exception:  # noqa: BLE001 — adopting is still right; the heartbeat catches up
-        logger.exception("[quota-ledger] could not take ownership of %s's reservation", document_id)
+            ac.update(TABLE, {"reservation_id": new_rid, "owner": PROCESS_ID,
+                              "heartbeat_at": _now_iso(), "updated_at": _now_iso()},
+                      filters={"document_id": f"eq.{document_id}", "reservation_id": f"eq.{old_rid}",
+                               "reserved_at": "not.is.null"})
+        back = (rows_for([document_id]) or {}).get(str(document_id)) or {}
+    except Exception:  # noqa: BLE001 — not adopted; the caller reserves, the sweep frees the orphan
+        logger.exception("[quota-ledger] could not take over %s's reservation", document_id)
+        return None
+    if back.get("reservation_id") != new_rid:
+        return None  # a sweeper released it first
     logger.warning("[quota-ledger] document %s: adopted the reservation a restart orphaned "
                    "(user=%s month=%s extra=%s)", document_id, user_id, row.get("month"),
                    bool(row.get("was_extra")))

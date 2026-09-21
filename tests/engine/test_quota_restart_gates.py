@@ -95,6 +95,49 @@ def test_the_sweep_gives_back_a_reservation_whose_run_died(world):
     assert meter.calls == ["reserve_user_upload", "release_user_upload"]
 
 
+def test_a_sweeper_that_read_the_row_before_the_adoption_releases_nothing(world, monkeypatch):
+    """Two processes during a deploy: the old container's sweep reads the
+    orphaned row, then the document's re-run in the new container adopts
+    it, then the sweep's release lands. Adoption swaps the reservation id
+    (compare-and-set), so the stale sweep matches nothing — the slot the
+    adopted run holds is never given back under it."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    _restart()
+    read_before = _quota_ledger.stale_outstanding(now=_later(11))
+    assert [r["document_id"] for r in read_before] == ["book"]
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    monkeypatch.setattr(_quota_ledger, "stale_outstanding", lambda **kw: read_before)
+    assert _quota_ledger.sweep_stale(is_live=lambda _d: False) == []
+    assert meter.snapshot()["reserved"] == 1
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_reservation_the_sweep_released_first_is_never_adopted(world, monkeypatch):
+    """The other order: the re-run reads the orphaned row, a sweeper
+    releases it, then the re-run takes it over. Adopting a reservation the
+    meter no longer holds would let the run's commit consume ANOTHER run's
+    slot. Adoption is a compare-and-set on the row still being reserved;
+    it loses, and the re-run reserves its own slot."""
+    meter = world["meter"]
+    world["db"].rows("documents").extend([_doc("book", h=EEI), _doc("other", h="%064x" % 3)])
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    world["post"]("/api/pipeline/run", {"document_id": "other"})   # stays in flight
+    pipeline._QUOTA_RUNS.pop("book")
+    _doc_dedupe._IN_FLIGHT.pop("book")
+    read_before = _quota_ledger.outstanding("book")
+    assert [r["document_id"] for r in _quota_ledger.sweep_stale(
+        is_live=pipeline._reservation_is_live, now=_later(11))] == ["book"]
+    assert meter.reserved == 1                                   # only `other` holds a slot
+    monkeypatch.setattr(_quota_ledger, "outstanding", lambda _d: dict(read_before))
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot()["uploads"] == 1
+    assert meter.snapshot()["reserved"] == 1, ("the adopted run consumed `other`'s slot", meter.snapshot())
+
+
 def test_the_sweep_never_releases_a_run_live_in_this_process(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("book", h=EEI))
