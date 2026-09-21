@@ -47,7 +47,15 @@ export interface OutcomeColumn {
 /** The rows, in the order a reader asks the question. Line ids are the
  *  engine's own (`engine.forecast.project`); each is served per period and as
  *  an FY aggregate of the monthly plan year (3.6), so a plan-year column is a
- *  SELECTION of served figures, never a sum. */
+ *  SELECTION of served figures, never a sum.
+ *
+ *  `bs.revolver` is a BALANCE. Its FY aggregate is served with the formula
+ *  "closing month": the funding line OUTSTANDING at the end of the plan year,
+ *  not what was drawn during it. A line drawn in January and repaid by July
+ *  closes the year at nil, and the row says "at year end" so that nil is not
+ *  read as "never drawn" beside a peak the summary table serves. The engine
+ *  serves no annual gross draw (`cf.funding_line_movement` is the net
+ *  movement), and summing the months here would be a second model. */
 const ROWS: ReadonlyArray<{ id: string; line: string; strong?: boolean; cash?: boolean }> = [
   { id: "revenue", line: "pl.revenue", strong: true },
   { id: "ebitda", line: "pl.ebitda", strong: true },
@@ -123,7 +131,7 @@ export function CashFigure({
       >
         {t(
           "scenarios.outcome.cashFloored",
-          "The engine served cash below zero here, which it must not; cash is never shown below zero. The funding line it served for this period:",
+          "The engine served cash below zero here, which it must not; cash is never shown below zero. The funding line balance it served at the close of this period:",
         )}{" "}
         <Figure
           view={view}

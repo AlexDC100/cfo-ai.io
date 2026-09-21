@@ -18,7 +18,11 @@
  *     a blank page, a generic line, or a projected number;
  *   · an industry word (en or ro) anywhere in the rendered page (S2, 8.6);
  *   · a served negative cash balance painted as the page's cash, or drawn on
- *     its cash chart, instead of the funding line the engine served (S3).
+ *     its cash chart, instead of the funding line the engine served (S3);
+ *   · the funding-line row labelled as an amount DRAWN when what it paints is
+ *     the served year-end balance (`bs.revolver`, FY formula "closing month"):
+ *     a line drawn and repaid inside plan year one reads nil there, beside
+ *     the served peak, and the label has to say which of the two it is.
  *
  * WHAT IT CANNOT SEE
  *   · whether the engine's projection is right — the engine's own gates own
@@ -485,4 +489,83 @@ describe("a served negative cash is never the page's cash", () => {
     expect(screen.queryByTestId("scenarios-cash-chart")).toBeNull();
     expect(screen.getByTestId("scenarios-cash-chart-withheld")).toBeTruthy();
   });
+});
+
+// ── 6. the funding-line row is a year-end BALANCE, and says so ─────────
+//
+// `bs.revolver` is a balance; its FY aggregate is served as the CLOSING month.
+// A line the engine draws in the first months of plan year one and repays
+// before the year ends closes that year at nil, while the summary table serves
+// the peak it reached. A row labelled "drawn" then read nil in the year the
+// line WAS drawn, beside a non-nil peak — the page contradicting itself. The
+// amounts planted below are synthetic (never a client book's); only their
+// shape — drawn early, repaid inside the year — matters.
+
+describe("the funding-line row is the balance at year end", () => {
+  const fy = SERVED.horizon.labels_annual[0] as string;
+  const monthly = (SERVED.horizon.labels as string[]).filter((l) => SERVED.horizon.year_of[l] === 1 && l !== fy);
+  const PEAK_MONTH = monthly[1];
+  // Drawn in months 1-3, repaid by month 6: nil from month 6 to the year end.
+  const PATH = [30_000_000, 76_543_200, 40_000_000, 10_000_000, 5_000_000];
+  const PEAK_MINOR = 76_543_200;
+  const INTEREST_MINOR = -1_234_500;
+
+  function drawnAndRepaidInYearOne(): Json {
+    const body = served();
+    const at = (i: number) => PATH[i] ?? 0;
+    for (const f of body.figures as Array<Json>) {
+      const i = monthly.indexOf(f.period);
+      if (f.line === "bs.revolver" && i >= 0) f.amount_minor = at(i);
+      if (f.line === "pl.interest_expense_funding_line" && f.period === fy) {
+        f.amount_minor = INTEREST_MINOR;
+      }
+    }
+    for (const p of body.series.revolver as Array<Json>) {
+      const i = monthly.indexOf(p.period);
+      if (i >= 0) p.amount_minor = at(i);
+    }
+    body.strip.peak_funding_gap.amount.amount_minor = PEAK_MINOR;
+    body.strip.peak_funding_gap.period = PEAK_MONTH;
+    body.summary.peak_funding_gap.amount_minor = PEAK_MINOR;
+    body.summary.peak_funding_period = PEAK_MONTH;
+    body.summary.funding_interest_total.amount_minor = INTEREST_MINOR;
+    return body;
+  }
+
+  it("control: the served FY figure really is the closing month, and it is nil", () => {
+    const body = drawnAndRepaidInYearOne();
+    const fyRevolver = (body.figures as Array<Json>).find(
+      (f) => f.line === "bs.revolver" && f.period === fy,
+    ) as Json;
+    expect(fyRevolver.kind).toBe("projected_aggregate");
+    expect(fyRevolver.formula).toBe("closing month");
+    expect(fyRevolver.amount_minor).toBe(0);
+  });
+
+  for (const [lang, label, forbidden] of [
+    ["en", "Funding line at year end", /\bdrawn\b/i],
+    ["ro", "Linie de finanțare la final de an", /\btras[ăa]\b/i],
+  ] as const) {
+    it(`${lang}: the row names the year-end balance, beside the served peak`, async () => {
+      await i18n.changeLanguage(lang);
+      forecastRecompute.mockImplementation(async () => drawnAndRepaidInYearOne());
+      renderPage();
+      const row = await screen.findByTestId("scenarios-row-funding_line");
+      const rowLabel = row.querySelector("td")?.textContent ?? "";
+      expect(rowLabel).toBe(label);
+      expect(rowLabel).not.toMatch(forbidden);
+      // The FY cell is the served closing balance, painted as served.
+      const cell = screen.getByTestId(`scenarios-cell-base-funding_line-${fy}`);
+      expect(cell.getAttribute("data-line")).toBe("bs.revolver");
+      const painted = cell.querySelector('[data-projected="true"]');
+      expect(painted?.getAttribute("data-projected-period")).toBe(fy);
+      expect(painted?.querySelector("[data-projected-value]")?.textContent).toMatch(/^\D*0\D*$/);
+      // The peak and the interest are the engine's, not a sum of the months.
+      const peak = screen.getByTestId("scenarios-summary-peak-funding-base");
+      expect(peak.textContent).toContain(PEAK_MONTH);
+      expect(peak.querySelector("[data-projected-value]")?.textContent).toMatch(/765[.,\s  ]?432/);
+      const interest = screen.getByTestId(`scenarios-cell-base-funding_interest-${fy}`);
+      expect(interest.querySelector("[data-projected-value]")?.textContent).toMatch(/12[.,\s  ]?345/);
+    });
+  }
 });

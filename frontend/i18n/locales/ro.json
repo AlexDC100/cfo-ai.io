@@ -3524,7 +3524,7 @@
       "cellLoading": "…",
       "recomputing": "Se recalculează…",
       "refusedColumn": "{{name}}: nicio proiecție",
-      "cashFloored": "Motorul a servit aici numerar sub zero, ceea ce nu are voie; numerarul nu e afișat niciodată sub zero. Linia de finanțare servită pentru această perioadă:",
+      "cashFloored": "Motorul a servit aici numerar sub zero, ceea ce nu are voie; numerarul nu e afișat niciodată sub zero. Soldul liniei de finanțare servit la închiderea acestei perioade:",
       "chartWithheld": "Graficul numerarului nu e afișat: motorul a servit un punct de numerar sub zero, iar pe această pagină numerarul nu e desenat niciodată sub zero.",
       "chartFor": "Numerarul și linia de finanțare: {{name}}",
       "row": {
@@ -3532,7 +3532,7 @@
         "ebitda": "EBITDA",
         "net_income": "Rezultat net",
         "closing_cash": "Numerar la închidere",
-        "funding_line": "Linie de finanțare trasă",
+        "funding_line": "Linie de finanțare la final de an",
         "funding_interest": "Dobândă pe linia de finanțare"
       }
     },

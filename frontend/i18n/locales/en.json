@@ -3499,7 +3499,7 @@
       "cellLoading": "…",
       "recomputing": "Recomputing…",
       "refusedColumn": "{{name}}: no projection",
-      "cashFloored": "The engine served cash below zero here, which it must not; cash is never shown below zero. The funding line it served for this period:",
+      "cashFloored": "The engine served cash below zero here, which it must not; cash is never shown below zero. The funding line balance it served at the close of this period:",
       "chartWithheld": "The cash chart is withheld: the engine served a cash point below zero, and cash is never drawn below zero on this page.",
       "chartFor": "Cash and the funding line: {{name}}",
       "row": {
@@ -3507,7 +3507,7 @@
         "ebitda": "EBITDA",
         "net_income": "Net income",
         "closing_cash": "Closing cash",
-        "funding_line": "Funding line drawn",
+        "funding_line": "Funding line at year end",
         "funding_interest": "Interest on the funding line"
       }
     },
