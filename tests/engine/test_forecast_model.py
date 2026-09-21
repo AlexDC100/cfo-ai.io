@@ -1169,7 +1169,13 @@ def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
     else:
         assert driver.source == "engine_default"
         assert driver.exact == micros_from(0.16)
-        assert pretax <= 0 or gap != 0, (
+        # A tying book is still defaulted when its nil charge is ABSENT:
+        # no profit-tax row (class 69) stands behind the 0.00, or the
+        # payload carried no rows to show one (B4RV-3). The same rule
+        # forecast_drivers holds. Anything else defaulted on a tying book
+        # reds.
+        charge_absent = charged == 0 and not history.tax_charge_rows
+        assert pretax <= 0 or gap != 0 or charge_absent, (
             "%s: the rate was defaulted on a book that reproduces its own "
             "filed profit — nothing here justifies displacing a "
             "measurement" % (name,))
@@ -1214,6 +1220,11 @@ def test_the_unreconciled_rate_would_have_charged_strictly_less_tax(name):
 def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
     """CONSTRUCTED, and labelled as such: no committed book reconciles to
     account 121, so this is the only way to exercise the `derived` branch.
+    The construction therefore also files its nil charge: one profit-tax
+    row (class 69, `tax_charge_rows = 1`) closing at 0.00, which is what
+    makes the 0.00 a MEASUREMENT. The two controls below take that row
+    away — none filed, and no rows supplied at all (B4RV-3) — and the
+    0.00 becomes an absent charge the statutory rate stands in for.
 
     The history is the real retail book's, with the ONE field the rule
     turns on moved — net income set to what the reconstruction produces —
@@ -1244,12 +1255,54 @@ def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
     # A book that ties is one whose FILED balance equals its build-up.
     reconciling.filed_net_income_121 = real.pretax - real.income_tax
     assert reconciling.unexplained_vs_filed() == 0
+    # A profit-tax row that closes at 0.00 stands behind the charge.
+    reconciling.tax_charge_rows = 1
     driver = derive_assumptions(opening, reconciling)["tax_rate"]
     assert driver.source == "derived"
     assert driver.exact == 0
+    # CONTROLS, the same construction without that row. Each reds if the
+    # row count stops mattering, i.e. if an empty bucket's 0.00 is spent
+    # as a measured nil and a profitable plan is taxed at nothing.
+    for rows, says in ((0, "carries no profit-tax row"),
+                       (None, "statement rows were not supplied")):
+        reconciling.tax_charge_rows = rows
+        absent = derive_assumptions(opening, reconciling)["tax_rate"]
+        assert absent.source == "engine_default", (rows, absent.source)
+        assert absent.exact == micros_from(0.16), (rows, absent.exact)
+        assert says in absent.basis, (rows, absent.basis)
+        assert fmt(reconciling.pretax) in absent.basis
+        assert fmt(reconciling.net_income) in absent.basis
+        assert not absent.derived_from
+    reconciling.tax_charge_rows = 1
     assert "carry-forward" in driver.basis, (
         "a measured 0% rate must say that no loss carry-forward is "
         "modelled either way, or the reader cannot see what it costs")
+
+
+def test_the_history_counts_the_profit_tax_rows_the_statement_files():
+    """The input the absent-charge rule turns on, read off the committed
+    books' own line items rather than asserted: agras and carniprod file a
+    class-69 profit-tax row, retail and realestate file none. With the
+    rows taken out of the payload the count is None — nothing to count is
+    not zero rows — and the rule reads that as absent too (B4RV-3).
+    Printed per book."""
+    counts = {}
+    for name in BOOKS:
+        payload = load(name)
+        items = payload["line_items"]
+        expected = sum(1 for r in items if str(r.get("bucket") or "") == "taxExpense"
+                       or str(r.get("ro_account_code") or "").startswith("69"))
+        counts[name] = pl_history_from_payload(payload).tax_charge_rows
+        assert counts[name] == expected, (name, counts[name], expected)
+        bare = dict(payload)
+        bare.pop("line_items")
+        assert pl_history_from_payload(bare).tax_charge_rows is None, name
+    print("profit-tax rows filed: %s" % counts)
+    assert any(counts.values()) and not all(counts.values()), (
+        "the committed books must include both a book that files a "
+        "profit-tax row and one that files none, or this is vacuous", counts)
+    assert "tax_charge_rows" not in pl_history_from_payload(load("agras")).as_dict(), (
+        "a row count is not a money figure")
 
 
 def test_a_profitable_plan_is_actually_taxed():

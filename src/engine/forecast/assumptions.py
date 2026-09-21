@@ -874,7 +874,23 @@ def derive_assumptions(opening: Any, history: Any,
     #: figure once 722 is added HAS reproduced it, and its rate stays
     #: `derived`; only an unattributable difference demotes it.
     gap = history.unexplained_vs_filed()
-    if pretax is not None and pretax > 0 and gap is not None and gap == 0:
+    #: ABSENT != ZERO, the other way round (owner rule "absent inputs
+    #: refuse"; the same condition `forecast_drivers.derive._tax_rate`
+    #: holds, so the two producers cannot disagree — test_forecast_drivers
+    #: hx3/hx4/j6). A nil charge is a MEASURED nil only when the book files
+    #: a profit-tax row that closes at 0.00. With no such row the 0.00 is
+    #: the sum of an empty bucket, and a plan taxed at nothing in every
+    #: year would be an absent input spent as the most favourable rate
+    #: there is. The rule wave/forecast-v15 landed on its own engine
+    #: (plan/2 B4V-6), including its B4RV-3 repair: a payload that carries
+    #: NO statement rows (tax_charge_rows None) cannot show that row
+    #: either, so its 0.00 is absent for the same reason — the drivers
+    #: package reads no class-69 account there too. Keeping the tie as a
+    #: measurement in that case was the defect B4RV-3 repaired.
+    tax_rows = getattr(history, "tax_charge_rows", None)
+    charge_absent = (tax is not None and tax == 0 and not tax_rows)
+    if (pretax is not None and pretax > 0 and gap is not None and gap == 0
+            and not charge_absent):
         put("tax_rate", _RATIO, mul_div(tax, MICRO, pretax), "derived",
             "effective rate implied by this book = tax %s / pre-tax result "
             "%s. The rate is measured rather than defaulted because "
@@ -887,6 +903,18 @@ def derive_assumptions(opening: Any, history: Any,
                "is not modelled either way"),
             ("assembled_pl.income_tax", "assembled_pl.pretax",
              "assembled_pl.net_income_statutory"))
+    elif pretax is not None and pretax > 0 and gap == 0 and charge_absent:
+        put("tax_rate", _RATIO, micros_from(0.16), "engine_default",
+            "this book reproduces the %s it filed in account 121 from a "
+            "pre-tax result of %s, but it books no profit-tax charge: %s, "
+            "so the 0.00 on its tax line is an absent charge, not a rate "
+            "measured at nil; the Romanian statutory profit-tax rate is "
+            "used instead"
+            % (fmt(filed), fmt(pretax),
+               "its statement carries no profit-tax row (class 69)"
+               if tax_rows is not None else
+               "its statement rows were not supplied, so no profit-tax "
+               "row (class 69) can be shown"))
     elif pretax is not None and pretax > 0 and gap is not None:
         put("tax_rate", _RATIO, micros_from(0.16), "engine_default",
             "this book's reconstructed result of %s (pre-tax %s less tax "
