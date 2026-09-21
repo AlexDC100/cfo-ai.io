@@ -353,6 +353,8 @@ class _Planner:
         after = apply_ops(self.t, self.plan.ops, now="1970-01-01T00:00:00+00:00", pks=self.pks, strict=False)
         for pid, why in new_cascade_hazards(self.t, after):
             self.plan.blocking.append("period %s would be one hard delete from erasure: %s" % (pid, why))
+        for line in new_unique_violations(self.t, after):
+            self.plan.blocking.append("the post-state breaks a unique key production enforces: %s" % line)
 
     def build_user(self, user: str) -> None:
         orgs = [o for o in sorted(self.orgs) if self.sole_owner(o) == user]
@@ -1245,6 +1247,35 @@ def period_source_hazards(tables: Mapping[str, List[Mapping[str, Any]]]) -> List
             out.append((str(p["id"]), "source document %s is in workspace %s, the period in %s"
                         % (sid, d.get("org_id"), p.get("org_id"))))
     return sorted(out)
+
+
+#: Unique constraints production enforces that include the workspace
+#: column — the only ones moving rows between workspaces can break
+#: (schema.sql: alerts :412, invoices :502, financial_periods :579,
+#: coa_mappings :629). Keys over period_id / document_id alone do not
+#: change when a row changes workspace.
+UNIQUE_KEYS: Dict[str, Tuple[Tuple[str, ...], ...]] = {
+    "alerts": (("org_id", "alert_key"),),
+    "invoices": (("org_id", "invoice_no", "direction", "invoice_date"),),
+    "financial_periods": (("org_id", "period_end", "source_document_id"),),
+    "coa_mappings": (("org_id", "ro_account_prefix"),),
+}
+
+
+def new_unique_violations(before: Mapping[str, List[Mapping[str, Any]]],
+                          after: Mapping[str, List[Mapping[str, Any]]]) -> List[str]:
+    """Duplicate values of a ``UNIQUE_KEYS`` key in ``after`` that ``before``
+    did not have: the PATCH that makes one would fail in production with
+    23505 halfway through the run. (NULL never collides, as in Postgres.)"""
+    def dups(tables: Mapping[str, List[Mapping[str, Any]]]) -> Set[Tuple[str, Tuple[str, ...], str]]:
+        out = set()
+        for table, keysets in UNIQUE_KEYS.items():
+            for cols in keysets:
+                seen = Counter(canonical_json([r.get(c) for c in cols]) for r in tables.get(table) or []
+                               if all(r.get(c) is not None for c in cols))
+                out |= {(table, cols, k) for k, n in seen.items() if n > 1}
+        return out
+    return ["%s (%s) = %s" % (t, ", ".join(cols), k) for t, cols, k in sorted(dups(after) - dups(before))]
 
 
 def new_cascade_hazards(before: Mapping[str, List[Mapping[str, Any]]],

@@ -298,6 +298,27 @@ def test_no_period_is_one_hard_delete_from_erasure(world):
     assert period_source_hazards(planted) == [("per-q25", "source document q-sf25-src is in the trash")]
 
 
+def test_a_move_that_would_break_a_unique_key_blocks_the_plan():
+    """alerts carries UNIQUE (org_id, alert_key) (schema.sql:412). A period
+    moving into its company's workspace brings its alerts; one whose key
+    the target workspace already uses would fail the PATCH with 23505
+    halfway through the run. The planner refuses such a plan up front."""
+    t = _mini([_doc("a1", "org-a", period="pa"), _doc("q1", "org-q", period="pq")],
+              [{"id": "pa", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "a1"},
+               {"id": "pq", "org_id": "org-q", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "q1"}],
+              metrics=[("pa", "org-a"), ("pq", "org-q")], orgs=("org-a", "org-q"), prefs={"org-a": {"cui": ALFA}})
+    t["alerts"] = [{"id": "al-a", "org_id": "org-a", "period_id": "pa", "alert_key": "negative_equity"},
+                   {"id": "al-q", "org_id": "org-q", "period_id": "pq", "alert_key": "negative_equity"}]
+    facts = {"a1": _ident(ALFA, "2025-12-31"), "q1": _ident(ALFA, "2024-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "pq")["to_org"] == "org-a"
+    assert any("alerts (org_id, alert_key)" in b and "negative_equity" in b for b in plan.blocking), plan.blocking
+    t["alerts"][1]["alert_key"] = "negative_equity:pq"          # the engine's {rule}:{period} shape
+    assert build_plan(t, facts, migration_date=DATE).blocking == []
+
+
 def test_the_failed_source_of_an_empty_period_follows_it_and_is_not_trashed():
     """An EMPTY period (its source failed) is archived into the holding
     workspace; its failed source goes WITH it — never into a live company
