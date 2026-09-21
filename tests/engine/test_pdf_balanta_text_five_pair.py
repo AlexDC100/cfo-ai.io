@@ -786,6 +786,26 @@ def test_a_subtotal_is_refused_when_a_longer_code_under_its_base_spoils_the_base
     assert refused(caplog, lines, "account 401.99 equals the sum of 401.04, 401.02")
 
 
+def test_a_parent_is_refused_when_a_same_length_prefix_sibling_sits_among_its_children(caplog):
+    # "401.1" is the sum of 401.11 and 401.12; "401.10", a separate account,
+    # also starts with "401.1" at the children's length, so it spoils the
+    # full sum AND the per-length sum — the children are the contiguous run
+    # the ERP prints them in
+    k1, k2 = _credit("401.11", "Furnizor A", "300.00"), _credit("401.12", "Furnizor B", "200.00")
+    lines = _payables(_sum_of(Row("401.1", "Furnizori grup 1"), k1, k2),
+                      _credit("401.10", "Furnizor separat", "70.00"), k1, k2, bank="1070.00")
+    assert refused(caplog, lines, "account 401.1 is listed beside its children 401.11, 401.12")
+
+
+def test_a_parent_prefix_beside_accounts_that_do_not_sum_to_it_is_read():
+    # the control: the same codes, the short one an account of its own
+    got = P.parse_lines(_payables(_credit("401.1", "Furnizor grup", "450.00"),
+                                  _credit("401.10", "Furnizor separat", "70.00"),
+                                  _credit("401.11", "Furnizor A", "300.00"),
+                                  _credit("401.12", "Furnizor B", "200.00"), bank="1020.00"))
+    assert got is not None and by_cont(got, "401.1")["figures"][9] == Decimal("450.00")
+
+
 def test_a_zero_suffix_account_that_is_not_a_subtotal_is_read():
     # the control: "401.000" is an account of its own when its figures are not
     # the others' sum

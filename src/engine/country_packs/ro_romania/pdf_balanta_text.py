@@ -496,6 +496,21 @@ def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
     return shown + (" and %d more" % (len(group) - limit) if len(group) > limit else "")
 
 
+def _run_summing_to(seq: List[Dict[str, Any]], v: List[Decimal]) -> Optional[List[Dict[str, Any]]]:
+    """A contiguous run of `seq` (in document order, one row or more) whose
+    ten figures sum to `v`, or None — found from running totals in one pass:
+    a run [i, j) sums to v exactly when running[j] - v == running[i]."""
+    running = [Decimal(0)] * 10
+    starts: Dict[Tuple[Decimal, ...], int] = {tuple(running): 0}
+    for j, row in enumerate(seq, start=1):
+        running = [a + b for a, b in zip(running, row["figures"])]
+        i = starts.get(tuple(a - b for a, b in zip(running, v)))
+        if i is not None:
+            return seq[i:j]
+        starts.setdefault(tuple(running), j)
+    return None
+
+
 def _parent_prefix(code: str) -> str:
     """The prefix a code's children carry: the code itself ("401.1" ->
     "401.101"), or — for an all-zero suffix, a subtotal by its very code —
@@ -518,9 +533,12 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
     to the cent:
 
       * the sum of its CHILDREN — the other rows whose code starts with
-        `_parent_prefix` of its own — all of them, or all at one code
-        length (a sibling-by-prefix at another length would otherwise
-        spoil the full sum); one child is enough, a parent may have one;
+        `_parent_prefix` of its own — all of them, all at one code length
+        (a sibling-by-prefix at another length would otherwise spoil the
+        full sum), or any contiguous run of them in document order (a
+        sibling-by-prefix at the SAME length — "401.10" beside "401.11",
+        "401.12" under "401.1" — sits in the list but outside the run);
+        one child is enough, a parent may have one;
       * the sum of TWO OR MORE other rows under the same three-digit root
         (the RAS synthetic account): all of them, all sharing its base
         (the code before the dot), or all of either at one code length.
@@ -558,10 +576,13 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
                                for n in sorted({len(k["cont"]) for k in kids})]:
             if group and _vsum(group) == v:
                 return "account %s is listed beside its children %s" % (code, _codes(group))
+        run = _run_summing_to(kids, v)
+        if run:
+            return "account %s is listed beside its children %s" % (code, _codes(run))
         for scope, name in (("root", root), ("base", base)):
             keys = [(scope, name)] + [(scope, name, n) for n in sorted(lengths[(scope, name)])]
             for key in keys:
-                inside = r in members[key]
+                inside = len(key) == 2 or key[2] == len(code)  # r is counted in its own groups
                 if len(members[key]) - inside < 2:
                     continue
                 total = sums[key]
