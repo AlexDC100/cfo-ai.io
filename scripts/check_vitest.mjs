@@ -66,6 +66,10 @@ const CANARIES = [
   // math in its closure, templates POST their declared sets, refusals are the
   // engine's sentence, no industry word, no negative cash painted
   "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
+  // forecast-scenarios-live: gate F1 (year 0 is the dashboard's actuals) and
+  // gate F6 (a saved scenario survives reload and belongs to its company)
+  "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
+  "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx",
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "battery-vitest-"));

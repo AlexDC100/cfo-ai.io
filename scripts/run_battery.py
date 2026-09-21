@@ -649,9 +649,10 @@ def _engine_gates() -> List[Gate]:
                        "refused by name: ")),
         # ── end plan/2 B13 ───────────────────────────────────────────────
         # ── forecast-scenarios-live: the owner's gates F1-F5 (engine half),
-        # the sector rung of revenue_growth, and the preview flag. F6 is the
-        # vitest canary scenariosSaved.test.tsx. Plant logs: gates.md
-        # "forecast-f-gates", "forecast-sector-rung", "scenarios-preview".
+        # the sector rung of revenue_growth, and the preview flag. F6 (and
+        # the page half of F1 / F5) is the forecast-f-page gate below. Plant
+        # logs: gates.md "forecast-f-gates", "forecast-sector-rung",
+        # "scenarios-preview", "forecast-f-page".
         Gate("forecast-f-gates",
              [PY, "-m", "pytest", "tests/engine/test_forecast_f_gates.py", "-q", "-s"],
              # measured on the four committed corpus books without the opt-in
@@ -671,6 +672,27 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=4, units="tests",
              canaries=("test_forecast_and_scenarios_are_preview_in_the_source",
                        "test_the_active_env_promotes_exactly_the_listed_keys_per_request")),
+        # The PAGE half of F1 / F5 / F6 and the preview opt-in: what the
+        # Forecast and Scenarios pages paint and save, rendered over the real
+        # served bytes (vitest). Named on its own, like ratio-byte-match,
+        # because each defect it covers paints a believable page: a year 0
+        # that is a second opinion about the actuals, "RON 0" where the
+        # engine served cents, another company's saved scenario. Measured 55
+        # tests, floor 50. Plant log: gates.md "forecast-f-page".
+        Gate("forecast-f-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
+              "frontend/pages/cfo/__tests__/forecastCompanyAndPlaceholders.test.tsx",
+              "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx",
+              "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
+              "frontend/lib/__tests__/featuresPreview.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+             units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in)",
+             canaries=("gate F1: year 0 is the dashboard's headline",
+                       "gate F5 on the Forecast statements",
+                       "gate F5: no dash and no zero where the engine served a figure",
+                       "gate F6: a saved scenario survives reload and belongs to its company")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
@@ -1220,7 +1242,10 @@ def _frontend_gates() -> List[Gate]:
                        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
                        # plan/2 B13 (minimal cut): the Scenarios page on the
                        # engine, rendered over the real served bytes.
-                       "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx")),
+                       "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
+                       # forecast-scenarios-live: F1 / F5 / F6 on the pages.
+                       "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
+                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one

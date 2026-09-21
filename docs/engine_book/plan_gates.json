@@ -553,7 +553,7 @@
         "tests/engine/test_scenario_one_engine.py"
       ],
       "canaries": [
-        "SCOPE scenario-one-engine (plan/2 B6, gate row S4"
+        "SCOPE scenario-one-engine (plan/2 B6 + R6, gate row S4"
       ],
       "plant_log": "scenario-one-engine"
     },

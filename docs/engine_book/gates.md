@@ -6557,63 +6557,8 @@ entry_magnitude (7 ..., net 1513585.20)` and `mirrored contra rows checked
 realestate 29,589,814.24 (29,589,814.25), saga_10_col 231,203.19
 (82,948,008.60), regression baseline 519,389.11 (630,091,698.20).
 
-**RED (parent commit, the v5 parser)** — the gate file committed first,
+**RED (parent commit)** (the v5 parser) — the gate file committed first,
 run on f7fec0f9's parser, `9 failed`:
-
-the same reading as its law (revenue = the PRINTED class-70 sum), so the
-correct statement would have been refused by the live pipeline.
-
-THE REPAIR. The document decides its contra convention ONCE from its own
-mirrored 609/709 rows (`trial_balance_parser.contra_reading`: the net of
-the mirrored contra rows is positive only when reductions print positive;
-a document with no mirrored contra row decides nothing and nothing flips)
-— never a per-row guess. Under `entry_magnitude` a mirrored contra row
-enters its bucket negated; under `natural_signed` it enters as printed.
-The contra nature is the canonical schema's declared sign meaning of the
-leaf the account maps to, never a hand-kept list. `pl_sanity.class_movement`
-reads the same row through the same `contra_reading`, so the witness and
-the statement agree.
-
-WHAT THE GATE CHECKS. On every corpus book, the Scandia regression baseline
-(`regression_baselines/scandia_fy2025.json`, aggregates only) and any book
-in `PLAN_LOCAL_XLSX`, `|account 121 - reconstruction|` is printed and must
-be within a floor rendered from `packs/ro/statements_anchor.yaml#anchor_gap`
-and the book (TC-10): the cent tolerance plus the turnover of the book's
-711/712 rows, whose year net a mirrored exporter hides behind gross
-turnover on both sides. On retail, which has no 711, the floor is one
-cent. Then: retail reproduces 121 to the cent; every mirrored contra row
-of every corpus xlsx enters as a reduction under its document's
-convention; the metamorphic pair (the same ledger rewritten into the
-other convention) is byte-identical on revenue, cost of sales, operating
-cost and the reconstruction; 781 (expense_negative, credit-natural
-bucket) is never contra to its bucket.
-
-| | |
-|---|---|
-| work count | `GATE-WORK statements-anchor-gap units=(\d+)` (books judged + mirrored contra rows checked + metamorphic comparisons; measured 51), floor 45 |
-| canaries | `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)`, `floor from packs/ro/statements_anchor.yaml#anchor_gap`, `convention per document`, `mirrored contra rows checked` |
-
-**SCOPE** — printed: `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1):
-books examined 14 (6 carry account 121), floor from
-packs/ro/statements_anchor.yaml#anchor_gap`, then one line per book with
-its gap, floor, hidden turnover and decided convention (TC-12/TC-13), and
-`convention per document: ... saga_10_col natural_signed (3 mirrored contra
-rows, net -226845.35); saga_10_col_agras entry_magnitude (4 ...);
-saga_10_col_carniprod entry_magnitude (7 ...); saga_10_col_realestate
-not_decided (0 ...); saga_10_col_retail entry_magnitude (7 ...)`. With
-`PLAN_LOCAL_XLSX` naming the two local Scandia books: 16 examined, 8 with
-121, both `natural_signed` (33 and 6 mirrored contra rows), gaps
-519,389.11 and 2,832,404.19 inside floors of 762,030,968.14 and
-760,431,164.95 — unchanged by the repair.
-
-**GREEN** — `5 passed`; measured after the repair: retail 0.00 (floor
-0.01), agras 1,071,687.03 (floor 192,091,846.34), carniprod 186,849.53
-(88,453,995.51), realestate 29,589,814.24 (29,589,814.25), saga_10_col
-231,203.19 (82,948,008.60), regression baseline 519,389.11
-(630,091,698.20).
-
-**RED (parent commit)** — the gate file committed first (ca2e40c, the RED
-half) run on 832c566's parser, `4 failed, 1 passed`:
 
 ```
 E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01: the reconstruction misses account 121 by more than the production-variation turnover of this book can hide, so a class-6/7 row entered a statement bucket with the wrong sign
@@ -6627,7 +6572,7 @@ the gate run, the file restored from its byte copy; sha1 checked before
 and after; `48 passed, 6 skipped` over this gate plus `test_pl_sanity.py`
 after the reverts):
 
-| # | Plant | Result | Excerpt |
+| # | Plant | RED (plant) — result | Excerpt |
 |---|---|---|---|
 | P1 | `ContraReading.reads_as_reduction` returns False (the exporter's sign taken as printed) | `6 failed, 3 passed` | `corpus saga_10_col_retail: \|121 - reconstruction\| = 2043254.64 exceeds the floor 0.01` |
 | P2 | `_pl_contra_to_bucket` returns `code.startswith(("609", "709", "781"))` (a hand-kept list) | `4 failed, 5 passed` | `assert not True` (781); `saga_10_col net_income_reconstructed: natural_signed 171665.97, the same ledger in the other exporter convention (entry_magnitude) -437661.51` |
@@ -8748,3 +8693,83 @@ energy_shock, working_capital_squeeze) is compiled by
 `project_levers`. New reds: revenue −10% moving other operating income or the
 debt interest; the energy shock moving revenue or cost of sales; the base
 template differing from the plan with no template.
+
+## forecast-f-page
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/forecast/__tests__/forecastYearZero.test.tsx frontend/pages/cfo/__tests__/forecastCompanyAndPlaceholders.test.tsx frontend/pages/cfo/__tests__/scenariosSaved.test.tsx frontend/pages/cfo/__tests__/scenariosEngine.test.tsx frontend/lib/__tests__/featuresPreview.test.ts --reporter=verbose` |
+| canary | `gate F1: year 0 is the dashboard's headline`, `gate F5 on the Forecast statements`, `gate F5: no dash and no zero where the engine served a figure`, `gate F6: a saved scenario survives reload and belongs to its company` |
+| work count | `Tests N passed`, floor **50** (measured 55) |
+
+**SCOPE** — the PAGE half of the owner's gates, rendered over the real served
+bytes (fp1_2_agras_served.json, the engine's own scenario_catalogue.json, the
+four corpus envelopes and their line items). cfoApi and the company on screen
+are the only stubs; F6 runs the real lib/savedScenarios over a Supabase double
+that behaves like schema_phase_prefs.sql (org_prefs rows keyed by org_id, the
+set_org_pref RPC's one-key `||` merge).
+
+- **F1 (page)** the Forecast page's YEAR 0 strip paints the dashboard's four
+  headline figures through the one function the dashboard computes them with
+  (lib/dashboardHeadline.computeDashboardHeadline), and each equals the served
+  field the engine's anchor reads (assembled_pl.revenue / ebitda /
+  net_income_statutory, assembled_bs.cash); the dashboard itself computes its
+  headline through the same function.
+- **F5 (page)** every Forecast statement cell and every Scenarios outcome cell
+  whose served figure is non-zero paints that figure (never blank, "—" or a
+  zero); a sub-unit figure keeps its cents; every period with debt paints its
+  interest; the Scenarios summary never shows a bare placeholder.
+- **F6** a save lands in the company on screen (the RPC's p_org_id); it survives
+  a reload (fresh query cache, fresh page, the double's rows only); a Scandia
+  scenario never shows on Agras (fresh load, an in-session company switch, a
+  foreign entry inside the bag); opening one re-sends exactly its saved template
+  and levers.
+
+**PLANT f6-foreign-entry** — `savedScenarios.ts`: the `r.orgId !== orgId` filter
+removed. **PLANT f6-wrong-org** — `saveScenario` writes the list into another
+org. **PLANT f6-no-persist** — `writeList` returns before the RPC.
+**PLANT f6-open-drops-levers** — `Scenarios.tsx` opens a saved scenario with no
+levers. **PLANT f1-page-builder-ebitda** — the strip paints the builder's
+operating EBITDA (a second derivation). **PLANT f1-page-reconstructed-np** — the
+strip paints assembled_pl.net_income instead of the account-121 seam.
+**PLANT f5-page-sub-unit-zero** — the Forecast formatter back to whole units.
+**PLANT f5-scenarios-dash** — the "none within the plan" summary back to "—".
+
+```
+RED (plant f6-foreign-entry)
+AssertionError: expected 'Agras leakBase planScandia ownBase pl…' not to contain 'Agras leak'
+RED (plant f6-wrong-org)
+AssertionError: expected 'org-agras' to be 'org-scandia' // Object.is equality
+AssertionError: expected { scenarios: [ { …(8) } ] } to be undefined
+RED (plant f6-no-persist)
+AssertionError: expected undefined to be 'org-scandia' // Object.is equality
+RED (plant f6-open-drops-levers)
+AssertionError: expected {} to deeply equal { Object (dso_days) }
+RED (plant f1-page-builder-ebitda)
+× agras: every year-0 figure is the dashboard's, and the engine's anchor field
+→ expected 10776378.239999998 to be 10776378.24 // Object.is equality
+RED (plant f1-page-reconstructed-np)
+→ expected NaN to be 7533676.02 // Object.is equality
+RED (plant f5-page-sub-unit-zero)
+AssertionError: cf.change_in_receivables 2026-02 painted as zero or a dash: expected 'RON 0' to match /[1-9]/
+RED (plant f5-scenarios-dash)
+AssertionError: summary first-shortfall is a bare placeholder: expected '—' not to match /^[—-]?$/
+```
+
+**REVERT** — each file restored byte-exact (sha256 checked by the runner,
+scratchpad fcst_tools/plants_fe.py); `Tests 55 passed (55)`.
+
+A first f6-wrong-org plant (`p_org_id` taken from the list's last entry) stayed
+GREEN — every entry already names the company on screen, so it moved nothing;
+it was replaced by a plant that really sends the write elsewhere rather than
+recorded as coverage.
+
+**After the repair it reds on:** a year-0 figure on the Forecast page that is
+not the dashboard function's, or not the served field the engine's anchor reads;
+the dashboard's headline no longer computed by that function; a non-zero served
+figure painted as a blank, a dash or a zero on either page; a period with debt
+painting no interest; a saved scenario written to any org but the company on
+screen, lost on reload, listed on another company, or re-opened with anything
+but its saved template and levers. **It cannot see** RLS on org_prefs (the
+migration's own tests), a two-tab race on the whole saved list (documented in
+lib/savedScenarios.ts), or pixels.
