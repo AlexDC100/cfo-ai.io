@@ -388,6 +388,33 @@ def test_a_filename_only_disagreement_within_the_year_is_not_re_dated():
     assert redate and redate[0]["set"] == {"period_end": "2025-12-31", "period_start": "2025-12-31"}
 
 
+def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():
+    """P0 (verifier, 2026-09-21): a document whose bytes name no company
+    used to take the company of the workspace it sits in. In production a
+    Scandia Frozen book in a workspace resolving to Carniprod was archived as
+    'other_file_same_period (<Carniprod's source>)'. An unknown company is
+    UNKNOWN: the book stays live where it is, with a warning."""
+    t = _mini([_doc("s", "org-a", period="p1", created="2026-09-01T00:00:00+00:00"),
+               _doc("stranger", "org-a", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"}], metrics=[("p1", "org-a")], orgs=("org-a", "org-b"))
+    unknown = DocFacts(identity=CompanyIdentity(
+        company_name="Trial Balance Frozen", period_end="2025-12-31",
+        sources={"company_name": {"signal": "filename", "evidence": "x.xlsx"},
+                 "period_end": {"signal": "closing_balance", "evidence": "31.12.2025"}},
+        document_kind="trial_balance"))
+    facts = {"s": _ident(ALFA, "2025-12-31"), "stranger": unknown}
+    plan = build_plan(t, facts, migration_date=DATE)
+    dec = _decision(plan, "documents", "stranger")
+    assert dec["action"] == "untouched" and dec["reason"] == "company unknown", dec
+    assert dec["to_org"] == "org-a"
+    assert not [op for op in plan.ops if op.get("key") == {"id": "stranger"}]
+    assert any("stranger" in w and "company unknown" in w for w in plan.warnings)
+    post = apply_ops(t, plan.ops, now=RUN)
+    d = _row(post, "documents", id="stranger")
+    assert d["deleted_at"] is None and d["org_id"] == "org-a" and d["error"] is None
+
+
 def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
     t = _mini([_doc("s", "org-a", period="p1"),
                _doc("f1", "org-a", status="failed", sha="h", created="2026-09-01T00:00:00+00:00"),

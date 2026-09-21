@@ -634,7 +634,12 @@ class _Planner:
             d = self.docs[did]
             org = str(d["org_id"])
             ident = self.ident(did)
-            company = self.key(did) or self.own.get(org)
+            # A document's company is what ITS bytes (or an operator) say —
+            # never the workspace it sits in. Inheriting the workspace's
+            # company filed another company's book as a duplicate of this
+            # one and archived it ("other_file_same_period"): the Frozen
+            # book in a Carniprod workspace. Unknown -> left in place.
+            company = self.key(did)
             base = {"id": did, "from_org": org, "filename": d.get("original_filename"),
                     "status": d.get("status"), "company": company,
                     "live": d.get("deleted_at") is None}
