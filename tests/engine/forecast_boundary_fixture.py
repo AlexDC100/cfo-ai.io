@@ -7,15 +7,16 @@ AT TEST TIME out of ``tests/engine/fixtures/firm/saga_10_col_agras.json``
 totals from ``envelope.canonical_bs.totals`` (the canonical authority,
 not the legacy ``assembled_bs``).
 
-Measured on that book, 2026-09-08::
+Measured on that book (re-read 2026-09-21 under tb_parser_v6, the 609/709
+contra convention: revenue and EBITDA moved, the balance sheet did not)::
 
     total_assets              39,319,114.09 RON
     total_equity              23,924,083.72 RON
     total_liabilities         15,395,030.37 RON
     total_current_assets      27,371,337.47 RON
     total_current_liabilities 13,012,976.77 RON
-    revenue                  118,576,819.64 RON
-    ebitda                    18,420,491.28 RON
+    revenue                  110,798,309.14 RON
+    ebitda                    10,776,378.24 RON
 
 THIS FILE HOLDS THE STAND-IN ONLY. THE REAL PATH IS NOT A FIXTURE.
 ------------------------------------------------------------------
