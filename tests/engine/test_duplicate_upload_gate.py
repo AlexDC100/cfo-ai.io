@@ -1103,6 +1103,46 @@ def test_the_banner_never_counts_a_copy_of_an_earlier_months_book(world):
     assert _doc_dedupe.unique_successful_docs_in_month(OWNER, "2026-09") == 1
 
 
+def _banner(world):
+    from engine.api import _pricing_routes
+    app = FastAPI()
+    app.include_router(_pricing_routes.build_router())
+    return TestClient(app).get("/api/plan/state", headers={"Authorization": "Bearer jwt:%s" % OWNER}).json()
+
+
+def test_the_banner_agrees_with_the_meter_after_a_delete_and_re_upload(world):
+    """The live gate analyses a re-upload after the user DELETED the
+    original (a deleted copy is not an original) and the meter counts it.
+    The banner collapsed the two into one — the banner and the 402 must
+    agree (verifier lens Q)."""
+    db = world["db"]
+    db.rows("documents").append(_doc("first", created="2026-09-20T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "first"}).json()["status"] == "queued"
+    world["finish"]("first", "analyzed")
+    db.update("documents", {"deleted_at": "2026-09-21T09:00:00+00:00"}, filters={"id": "eq.first"})
+    db.rows("documents").append(_doc("again", created="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "again"}).json()["status"] == "queued"
+    world["finish"]("again", "analyzed")
+    assert _banner(world)["docs_used"] == world["meter"].snapshot()["uploads"] == 2
+
+
+def test_the_banner_agrees_with_the_meter_on_a_detected_versus_a_confirmed_period(world):
+    """An undated original analysed into December 2024; the same bytes
+    re-uploaded with the user-confirmed date 31.12.2025. The live gate: a
+    different period, analysed and counted. The banner compared hints only
+    and collapsed them."""
+    db = world["db"]
+    db.rows("financial_periods").append({"id": "p2024", "org_id": ORG, "period_end": "2024-12-31"})
+    db.rows("documents").append(_doc("undated", created="2026-09-20T10:00:00+00:00"))
+    world["post"]("/api/pipeline/run", {"document_id": "undated"})
+    world["finish"]("undated", "analyzed")
+    db.update("documents", {"period_id": "p2024"}, filters={"id": "eq.undated"})
+    db.rows("documents").append(_doc("dated", hint="2025-12-31", created="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "dated"}).json()["status"] == "queued"
+    world["finish"]("dated", "analyzed")
+    assert _banner(world)["docs_used"] == world["meter"].snapshot()["uploads"] == 2
+
+
 def test_archived_duplicates_are_not_on_the_recently_deleted_shelf_or_emptied(world):
     db = world["db"]
     db.rows("documents").extend([

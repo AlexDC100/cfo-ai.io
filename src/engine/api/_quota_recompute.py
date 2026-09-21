@@ -89,7 +89,8 @@ def _int(v: Any) -> int:
         return 0
 
 
-def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]]) -> Dict[tuple, int]:
+def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]],
+                                    period_end_of: Optional[Dict[str, str]] = None) -> Dict[tuple, int]:
     """{(user_id, 'YYYY-MM'): unique successful documents}. `uploaded_by` is
     the account; a unique document counts in the month its FIRST analysed
     copy was created (UTC).
@@ -107,7 +108,7 @@ def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]]) -> Dict
         by_user.setdefault(uid, []).append(d)
     counts: Dict[tuple, int] = {}
     for uid, rows in by_user.items():
-        for kept in unique_successful(rows):
+        for kept in unique_successful(rows, period_end_of):
             key = (uid, month_of(kept.get("created_at")))
             counts[key] = counts.get(key, 0) + 1
     return counts
@@ -120,10 +121,13 @@ def recompute(
     *,
     current_month: str,
     included_docs_for: Callable[[Dict[str, Any]], "tuple[str, int]"],
+    period_end_of: Optional[Dict[str, str]] = None,
 ) -> RecomputePlan:
     """The whole restore, decided. `included_docs_for(subscription_row)` →
-    (plan_key, included documents per month)."""
-    counts = unique_successful_by_user_month(documents)
+    (plan_key, included documents per month); `period_end_of` (period id →
+    period_end) lets an undated copy take the period it was analysed into,
+    as the live gate does."""
+    counts = unique_successful_by_user_month(documents, period_end_of)
     plan = RecomputePlan(current_month=current_month)
     for u in sorted(usage_rows, key=lambda r: (str(r.get("user_id")), str(r.get("month")))):
         uid, month = str(u.get("user_id") or ""), str(u.get("month") or "")

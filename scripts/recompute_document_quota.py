@@ -97,6 +97,7 @@ def _read(user: Optional[str], hash_missing: bool) -> Dict[str, List[Dict[str, A
         subs = _select_all(ac, "subscriptions", user_filter)
         docs = _select_all(ac, "documents", {"uploaded_by": f"eq.{user}"} if user else {},
                            order="created_at.asc,id.asc")
+        periods = _select_all(ac, "financial_periods", {}, order="id.asc")
     hashed = 0
     if hash_missing:
         for d in docs:
@@ -107,7 +108,9 @@ def _read(user: Optional[str], hash_missing: bool) -> Dict[str, List[Dict[str, A
                     hashed += 1
     print("[recompute] loaded %d user_usage rows, %d subscriptions, %d documents (%d hashed from storage)"
           % (len(usage), len(subs), len(docs), hashed))
-    return {"usage": usage, "subs": subs, "docs": docs}
+    return {"usage": usage, "subs": subs, "docs": docs,
+            "period_end_of": {str(p.get("id")): str(p.get("period_end") or "")
+                              for p in periods if p.get("id")}}
 
 
 def print_plan(plan: RecomputePlan) -> None:
@@ -198,7 +201,8 @@ def apply(plan: RecomputePlan, *, user: Optional[str] = None, hash_missing: bool
             fresh = _read(user, hash_missing)
             plan = recompute(fresh["docs"], [u for u in fresh["usage"] if str(u.get("user_id")) in moved],
                              [s for s in fresh["subs"] if str(s.get("user_id")) in moved],
-                             current_month=plan.current_month, included_docs_for=included_docs_for)
+                             current_month=plan.current_month, included_docs_for=included_docs_for,
+                             period_end_of=fresh.get("period_end_of"))
         bad, _moved = _recount(ac, plan, final=True)
     return bad
 
@@ -219,7 +223,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
     plan = recompute(data["docs"], data["usage"], data["subs"],
                      current_month=_pricing_tiers.current_month_bucket(),
-                     included_docs_for=included_docs_for)
+                     included_docs_for=included_docs_for,
+                     period_end_of=data.get("period_end_of"))
     print_plan(plan)
     if not args.apply:
         print("\n[recompute] DRY RUN — nothing written. Re-run with --apply to write.")

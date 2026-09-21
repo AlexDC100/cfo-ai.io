@@ -853,14 +853,25 @@ def month_of(ts: Any) -> Optional[str]:
     return dt.astimezone(timezone.utc).strftime("%Y-%m") if dt else None
 
 
-def unique_successful(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def unique_successful(rows: Iterable[Dict[str, Any]],
+                      period_end_of: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
     """The documents that count: analysed, not an archived duplicate, one per
     (org, scope, content, period). Rows without a hash are unique by id — nothing
-    proves them equal. A later copy with a DIFFERENT confirmed date is a
-    different period; one without a date collapses into the first copy.
-    Returned in created order (the first of each group represents it)."""
+    proves them equal. Returned in created order (the first of each group
+    represents it).
+
+    THE LIVE GATE'S RULE, so the banner and the restore count what the meter
+    charges (verifier lens Q, 2026-09-21):
+      * a copy's period is its confirmed date (`period_end_hint`), else the
+        end of the period it was analysed into (`period_end_of`); a later
+        copy with a DIFFERENT date is a different period, one without a date
+        collapses into the first copy (`same_period`);
+      * an earlier copy the user DELETED before the later one was uploaded
+        is not its original — the live gate analyses (and the meter counts)
+        a re-upload after a delete."""
+    period_end_of = period_end_of or {}
     kept: List[Dict[str, Any]] = []
-    groups: Dict[Tuple[str, str, str], List[Optional[str]]] = {}
+    groups: Dict[Tuple[str, str, str], List[Tuple[Optional[str], Optional[datetime]]]] = {}
     for row in sorted(rows, key=lambda r: (str(r.get("created_at") or ""), str(r.get("id") or ""))):
         if str(row.get("status") or "").lower() != "analyzed" or is_archived_duplicate(row):
             continue
@@ -869,11 +880,15 @@ def unique_successful(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
             kept.append(row)
             continue
         key = (str(row.get("org_id") or ""), normalize_scope(row.get("scope")), h)
-        date = _date10(row.get("period_end_hint"))
+        pid = row.get("period_id")
+        date = _date10(row.get("period_end_hint")) or (_date10(period_end_of.get(str(pid))) if pid else None)
+        created = _ts(row.get("created_at"))
         seen = groups.setdefault(key, [])
-        if any(date is None or s is None or s == date for s in seen):
+        live = [s for s, deleted in seen
+                if deleted is None or created is None or deleted > created]
+        if any(date is None or s is None or s == date for s in live):
             continue
-        seen.append(date)
+        seen.append((date, _ts(row.get("deleted_at"))))
         kept.append(row)
     return kept
 
@@ -911,7 +926,16 @@ def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
                 },
                 order="created_at.asc",
             ) or []
+        period_end_of: Dict[str, str] = {}
+        pids = sorted({str(r["period_id"]) for r in rows if r.get("period_id")})
+        if pids:
+            with _supabase.admin() as ac:
+                for p in (ac.select("financial_periods", filters={
+                        "id": "in.(" + ",".join(pids) + ")",
+                        "org_id": "in.(" + ",".join(orgs) + ")"}, columns="id,period_end") or []):
+                    period_end_of[str(p.get("id"))] = str(p.get("period_end") or "")
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] unique-document count failed for user=%s", user_id)
         return None
-    return sum(1 for r in unique_successful(rows) if month_of(r.get("created_at")) == month)
+    return sum(1 for r in unique_successful(rows, period_end_of)
+               if month_of(r.get("created_at")) == month)
