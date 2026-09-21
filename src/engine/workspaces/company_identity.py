@@ -18,8 +18,11 @@ cui
      over EVERY registered name (``registry_match_name``), never over one
      capped page of prefix hits.
   3. ``filename_registry_match`` — the same, from a name read out of the
-     filename. The weakest signal: only names of at least six letters, and
-     only an unambiguous exact match.
+     filename. The weakest signal: only names of at least six letters, only
+     an unambiguous exact match, and only when the DOCUMENT corroborates it
+     (the CUI's digits appear in its header block). Otherwise the match is
+     recorded as ``sources["cui_hint"]`` for the operator and mints nothing:
+     a filename alone never makes a company key.
   An operator-verified identity (``apply_known_identity``) is applied on top
   by the caller; it never overrides a CUI the document itself prints.
 
@@ -435,6 +438,13 @@ def _header_cui(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
     return None
 
 
+def _digits_in(lines: Sequence[str], cui: str) -> bool:
+    """The CUI printed as a standalone number (RO prefix allowed) anywhere
+    in the header block."""
+    pat = re.compile(r"(?<!\d)(?:RO\s*)?0*%s(?!\d)" % re.escape(str(cui)), re.IGNORECASE)
+    return any(pat.search(line) for line in lines)
+
+
 def _header_caen(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
     for line in lines:
         m = _CAEN_RE.search(line)
@@ -717,11 +727,19 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
             candidates.append((file_name, "filename_registry_match", "filename: %s" % filename))
         for name, signal, evidence in candidates:
             hit = registry_match_name(registry, name)
-            if hit:
-                cui, reg_row = hit
-                sources["cui"] = {"signal": signal,
-                                  "evidence": "%s == registry %r" % (evidence, reg_row.get("name"))}
+            if not hit:
+                continue
+            if signal == "filename_registry_match" and not _digits_in(lines, hit[0]):
+                # A filename is typed by a person: without the document
+                # printing that CUI somewhere in its header, it is a hint.
+                sources["cui_hint"] = {"signal": signal, "cui": hit[0],
+                                       "evidence": "%s == registry %r; the document does not print %s"
+                                                   % (evidence, hit[1].get("name"), hit[0])}
                 break
+            cui, reg_row = hit
+            sources["cui"] = {"signal": signal,
+                              "evidence": "%s == registry %r" % (evidence, reg_row.get("name"))}
+            break
 
     company_name: Optional[str] = None
     if reg_row and reg_row.get("name"):

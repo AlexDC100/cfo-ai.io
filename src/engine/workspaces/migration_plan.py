@@ -726,8 +726,12 @@ class _Planner:
                 continue
             if company is None:
                 dec[did] = dict(base, action="untouched", reason="company unknown", _place="stay")
-                self.plan.warnings.append("document %s (%r): company unknown — left in place"
-                                          % (did, d.get("original_filename")))
+                hint = (ident.sources.get("cui_hint") or {}) if ident else {}
+                self.plan.warnings.append("document %s (%r): company unknown — left in place%s"
+                                          % (did, d.get("original_filename"),
+                                             " (its filename matches registry CUI %s, which the document "
+                                             "does not print — an operator rule can confirm it)"
+                                             % hint["cui"] if hint.get("cui") else ""))
                 continue
             if ident is not None and ident.document_kind == "not_a_balance":
                 if status == ANALYZED:

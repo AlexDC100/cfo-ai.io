@@ -211,8 +211,18 @@ def test_a_short_filename_word_is_never_looked_up(registry):
     assert ident.cui is None
 
 
-def test_a_longer_filename_name_may_resolve_but_only_uniquely(registry):
+def test_a_filename_registry_match_is_only_a_hint_unless_the_document_prints_the_cui(registry):
+    """P2 (verifier): a filename matched to the registry used to mint a CUI —
+    and so a company key — on its own ('trial Balance Scandia Sibiu
+    12.2019.PDF' -> 13068741, a live workspace created from the filename
+    alone). It is a hint unless the document prints that CUI."""
     ident = identify_document(balance_xlsx([]), "Balanta Alfa Food_FY2025.xlsx", registry=registry)
+    assert ident.cui is None and ident.company_key is None
+    assert ident.sources["cui_hint"]["cui"] == CUI_A
+    assert ident.sources["cui_hint"]["signal"] == "filename_registry_match"
+    # corroborated: the header prints the CUI (unlabelled)
+    ident = identify_document(balance_xlsx(["Balanta de verificare", "RO%s" % CUI_A]),
+                              "Balanta Alfa Food_FY2025.xlsx", registry=registry)
     assert ident.cui == CUI_A and ident.sources["cui"]["signal"] == "filename_registry_match"
 
 
