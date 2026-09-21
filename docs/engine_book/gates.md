@@ -5435,7 +5435,12 @@ and once more on `45724a5f`, after `ea4aac52` merged Lane A 365d585a (the
 correction re-run's claim, in pipeline.py): every one RED, then GREEN; and
 all 12, G3d included, on `26aac7e8`, after merging Lane A 2efc121a — the
 reservation ledger that survives a restart — identical again, and once more
-on `75967c21`, after Lane A ce2f0032, the restart hardening). The runners restore a planted file with `git checkout --`: run them
+on `75967c21`, after Lane A ce2f0032, the restart hardening; after
+`baaceb29` merged feat/ws-migration 0af3fda5 — `company_identity._period`
+rewritten to resolve a period RANGE to its end — the G2 plant was re-anchored
+on the new function (a year in the file name returned first, dressed as
+`closing_balance`) and is RED again: `5 failed, 1 passed`, `:422/:436/:443`
+and `:638 AssertionError: 2017-12-31`; G1 and G7 re-run RED/GREEN too). The runners restore a planted file with `git checkout --`: run them
 on a COMMITTED tree only — once, on this branch, the revert of a G3 plant
 also took an uncommitted fix with it (caught because the GREEN leg went red). Every plant is applied to the PRODUCT, the gate run, the file
 restored with `git checkout --`, the gate run again. Runners and the
