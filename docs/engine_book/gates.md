@@ -5502,3 +5502,90 @@ non-mirrored rows (the one-side SAGA path is covered by the corpus
 replay); the served statements of periods persisted before v6 (a stored
 period keeps its v5 line items until its document is re-parsed —
 `extraction.parser_version` tells them apart).
+
+## interest-coverage-one-operand
+
+The 0.32 / 0.3257 seam (owner, 2026-09-21: "confirm the served metric
+equals its own recomputation; fix the 0.32 vs 0.3257 seam").
+`tests/engine/test_interest_coverage_one_operand.py`, registered in
+`scripts/run_battery.py` beside `statements-anchor-gap`; the frontend
+halves are vitest (`interestCoverageBasis.test.ts`,
+`exportRatioFormulas.test.ts` G4).
+
+THE DEFECT. `assembled_pl` carries two EBITs: `ebit` (revenue − COGS −
+opex + other operating income − D&A) and `operating_ebit` (the operating
+view: `ebit` plus 722 capitalized own work and 767 discounts received).
+On the retail corpus book under tb_parser_v6 they are 1,923.78 apart
+(786,579.83 / 788,503.61, interest 2,421,110.34). The engine's
+`interest_coverage` row divided `ebit` (0.3249 → "0.32"); the frontend's
+no-envelope credit model (`financialValuation.ts computeCreditScore`,
+`c.ebitStatutory` = `operating_ebit`) and G4's recomputation divided
+`operating_ebit` (0.3257 → "0.33"). One book, three printed coverages,
+two numbers.
+
+THE DECISION. The engine is internally consistent — its row
+(`credit_model.operating_profit`), its coverage sub-score, its
+declared-rung predicate and the ratio table's own fallback (`table.ebit`)
+all divide `ebit`, and `ebit` is the EBIT the P&L PRINTS (the
+ComprehensiveReport and export "EBIT" rows read `assembled_pl.ebit`, and
+`ebit + net_financial_result` foots to `pretax`). So no engine number
+moves: the frontend moved to the engine's operand. The credit model now
+divides `ebitCoverage` (= `assembled_pl.ebit`, else the feed's reported
+EBIT, else `deriveTotals`' reconstruction — the engine table's own
+fallback arithmetic) for the coverage row and its debt-free declared
+rung; G4 recomputes coverage and ROIC from `e.pl.ebit`. Measured on the
+four firm books: only retail's no-envelope coverage VALUE moves
+(0.325679 → 0.324884, printed 0.33 → 0.32); its sub-score (15), the
+composite and the grade do not move on any book.
+
+WHAT THE GATE CHECKS. On the four corpus books and the Scandia baseline
+through the real GET /api/period (`_served_books`): `ebit` foots to
+`pretax` with the net financial result; the served row and the
+serve-time table print quantize(ebit / interest); the table's own
+fallback (a payload with no metric rows) prints the same digits from the
+operands it lists, and those operands build `ebit` to the cent; the
+metric row carries the quotient to 4 dp. TC-3: at least two books with
+positive interest and at least one (retail) on which `operating_ebit`
+would print a different coverage.
+
+| | |
+|---|---|
+| work count | `GATE-WORK interest-coverage-one-operand units=(\d+)` (books served + coverages recomputed; measured 9), floor 8 |
+| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83` |
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand: books 5
+(agras, carniprod, realestate, retail, scandia_baseline); interest
+measured on 4; books where operating_ebit would print a different
+coverage: 1`, then per book `retail EBIT 786579.83 / interest 2421110.34
+= 0.32 printed; served 0.32; operating_ebit 788503.61 would print 0.33`
+(carniprod: interest 0.0, refused `zero_denominator`).
+
+**GREEN** — `1 passed`; agras 28.14, realestate −25.13, retail 0.32,
+Scandia baseline 13.27, each equal to its recomputation.
+
+**PLANTS, each observed RED** (`scratchpad/v6_verify/plants_seam.py`, each
+applied by string replacement, the gate run, the file restored byte-exact):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| E1 | the engine metric row divides `operating_ebit` (`credit_model.py`) | `1 failed` | `retail: served interest_coverage prints 0.33, EBIT / interest recomputes 0.32` |
+| E2 | the ratio table's fallback divides EBITDA (`table.py`) | `1 failed` | `agras: the table's own EBIT / interest prints 38.77, recomputes 28.14` |
+| F1 | the no-envelope credit model divides `c.ebitStatutory` again (`interestCoverageBasis.test.ts`) | `1 failed` | `expected '0.33' to be '0.32'` |
+| F2 | G4 recomputes from `operating_ebit` again (`exportRatioFormulas.test.ts`) | `1 failed` | `retail: a rendered ratio does not equal its stated formula` |
+
+**REVERT** — every planted file restored from its byte copy (sha1
+checked); the gate `1 passed`, `interestCoverageBasis` and
+`exportRatioFormulas` `26 passed` after.
+
+**After the repair it reds on (TC-11):** any served, serve-time or
+fallback interest coverage whose printed digits are not quantize(ebit /
+interest); a served `ebit` that stops footing to pretax; a scope with no
+book that tells the two operands apart; (vitest) the no-envelope model or
+G4 dividing any EBIT but `assembled_pl.ebit`.
+
+**It cannot see:** books with zero interest (carniprod is refused and
+printed as such); other ratios that read `operating_ebit` — the
+no-envelope Altman X3 and the Piotroski operating-margin check
+(`financialValuation.ts`, and the engine's own Piotroski check in
+`chart_of_accounts.py`) still read the operating view; those are not
+interest coverage and are reported, not changed, here.

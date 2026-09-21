@@ -406,6 +406,13 @@ function declaredAbsent(s: Statements, key: string): boolean {
 function canonical(s: Statements): {
   netIncomeStatutory: number;
   ebitStatutory: number;
+  /** THE COVERAGE OPERAND — the EBIT the P&L prints (`assembled_pl.ebit`,
+   *  the line `ebit + net financial result` foots to pretax from) and the
+   *  one the engine's `interest_coverage` row and coverage sub-score divide
+   *  (`credit_model.operating_profit`). NOT `ebitStatutory`: that is
+   *  `operating_ebit`, the operating VIEW, which also carries 722
+   *  capitalized own work and 767 discounts received. See `intCov`. */
+  ebitCoverage: number;
   ebitdaStatutory: number;
   cfo: number;
   // ── THE SIX GATEWAY TOTALS ARE ABSENT-CAPABLE ──────────────────────
@@ -558,6 +565,11 @@ function canonical(s: Statements): {
     typeof pl.ebitda_statutory === "number"
       ? pl.ebitda_statutory
       : reportedLevel("ebitda") ?? t.ebitda;
+  // The engine's own EBIT, else the feed's reported level, else the
+  // reconstruction `deriveTotals` builds exactly as the engine's ratio
+  // table does (revenue − COGS − opex + other income − D&A).
+  const ebitCoverage =
+    typeof pl.ebit === "number" ? pl.ebit : reportedLevel("ebit") ?? t.ebit;
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
@@ -565,6 +577,7 @@ function canonical(s: Statements): {
   return {
     netIncomeStatutory,
     ebitStatutory,
+    ebitCoverage,
     ebitdaStatutory,
     cfo,
     totalAssets: sf.totalAssets(),
@@ -2203,7 +2216,15 @@ export function computeCreditScore(
   // Interest coverage = EBIT / interest (the methodology, CLAUDE.md
   // Appendix A section 5) — the basis the engine's coverage sub-score bands
   // on and, since 2026-09-19, the engine's `interest_coverage` row too.
-  const intCov = safeDiv(c.ebitStatutory, c.interestExpense);
+  //
+  // THE SAME EBIT THE ENGINE DIVIDES (the 0.32 / 0.3257 seam, repaired
+  // 2026-09-21). This row divided `ebitStatutory` (`operating_ebit`, the
+  // operating view with 722 + 767 folded in) while the engine's row and the
+  // P&L's printed EBIT line are `assembled_pl.ebit`. On the retail book
+  // under tb_parser_v6 the two EBITs are 1,923.78 apart (786,579.83 against
+  // 788,503.61, over interest 2,421,110.34), so this card printed 0.33×
+  // beside the engine's 0.32× and G4's own recomputation. One operand now.
+  const intCov = safeDiv(c.ebitCoverage, c.interestExpense);
   // DSCR — EBITDA / (interest + principal). Principal proxy: 10% of LT debt
   // (typical 10-year amortizing CRE term).
   const principalProxy = c.totalDebt * 0.10;
@@ -2251,7 +2272,7 @@ export function computeCreditScore(
   const declaredDebtFree =
     interestReported && debtReported && c.totalDebt === 0
     && (typeof reportedTotalDebt !== "number" || reportedTotalDebt === 0)
-    && c.interestExpense === 0 && c.ebitStatutory > 0;
+    && c.interestExpense === 0 && c.ebitCoverage > 0;
   const coverageRefusal: CreditSubscoreRefusal | null = coverageMeasured || declaredDebtFree
     ? null
     : {

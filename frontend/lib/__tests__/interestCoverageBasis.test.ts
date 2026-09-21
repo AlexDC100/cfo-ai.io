@@ -8,6 +8,15 @@
 //      printed row value does (agras 55.64 -> 66.28, retail -0.52 -> +0.09).
 //  (c) the ROMANIAN half of the one label authority: '(EBITDA / dobânzi)'
 //      planted on the interest_coverage label, all of vitest green.
+//  (d) WHICH EBIT (the 0.32 / 0.3257 seam, repaired 2026-09-21). The model
+//      divided `operating_ebit` — the operating view, 722 + 767 folded in —
+//      while the engine's row divides `assembled_pl.ebit`, the EBIT the P&L
+//      prints. Under tb_parser_v6 retail's two EBITs are 1,923.78 apart
+//      (786,579.83 / 788,503.61 over interest 2,421,110.34): the card
+//      printed 0.33 beside the engine's 0.32. The model now divides
+//      `ebitCoverage` (= `assembled_pl.ebit`), so the retail row below is
+//      strict at the served 0.32 — no `.fails`. Planting the old operand back
+//      reds it: expected '0.33' to be '0.32'.
 //
 // REDS ON, AFTER THE REPAIR (TC-11): the no-envelope coverage row's value
 // leaving the pinned EBIT figure on a book with interest; either coverage
