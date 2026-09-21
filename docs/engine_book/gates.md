@@ -5430,8 +5430,9 @@ one meter — with identical red and green counts, and the e2e plants again on
 its bundle; the 10 engine plants a third time after the `feat/ws-migration`
 merge `72d1877c` — a2fd8309, which changed `company_identity`, `rowstore` and
 the planner under G2 and G8 — identical again; and all 11, G3c included, on
-`f1f10591` after the last Lane A merge `c4d2b45a` — a8c1c8cf, the quota
-ledger). The runners restore a planted file with `git checkout --`: run them
+`f1f10591` after the Lane A merge `c4d2b45a` — a8c1c8cf, the quota ledger —
+and once more on `45724a5f`, after `ea4aac52` merged Lane A 365d585a (the
+correction re-run's claim, in pipeline.py): every one RED, then GREEN). The runners restore a planted file with `git checkout --`: run them
 on a COMMITTED tree only — once, on this branch, the revert of a G3 plant
 also took an uncommitted fix with it (caught because the GREEN leg went red). Every plant is applied to the PRODUCT, the gate run, the file
 restored with `git checkout --`, the gate run again. Runners and the
