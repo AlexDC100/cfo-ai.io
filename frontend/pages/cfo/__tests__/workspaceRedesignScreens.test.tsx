@@ -249,6 +249,9 @@ describe("Company page — /workspace/<orgId>", () => {
     expect(within(sheet).getByTestId("company-settings-financing")).toBeInTheDocument();
     expect(within(sheet).getByTestId("company-settings-danger")).toBeInTheDocument();
     expect(within(sheet).queryByTestId("wsset-nav")).toBeNull();
+    // One company per workspace — the settings say "company".
+    expect(within(sheet).getByText("Company name")).toBeInTheDocument();
+    expect(within(sheet).getByTestId("workspace-settings-delete")).toHaveTextContent("Delete company");
     // Settings carry no upload control.
     expect(sheet.querySelector('input[type="file"]')).toBeNull();
   });

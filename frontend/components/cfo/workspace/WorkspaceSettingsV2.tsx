@@ -275,10 +275,13 @@ export function GeneralSection({
   workspace,
   onRename,
   onChangeIndustry,
+  nameLabel,
 }: {
   workspace: Workspace;
   onRename: (name: string) => void;
   onChangeIndustry: (key: string) => void;
+  /** The name field's label — "Company name" in the workspace redesign. */
+  nameLabel?: string;
 }) {
   const { t } = useTranslation();
 
@@ -337,7 +340,7 @@ export function GeneralSection({
       {/* Name */}
       <div>
         <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
-          {t("settings.workspace_name")}
+          {nameLabel ?? t("settings.workspace_name")}
         </span>
         {editing ? (
           <div className="flex items-center gap-2">
@@ -622,14 +625,25 @@ export function FinancingSection() {
 
 // Exported for the workspace redesign's company settings (the gear on the
 // company page) — same controls, same mutation paths, no left sub-nav.
+/** Copy overrides for the delete row — the workspace redesign says "company". */
+export interface DangerZoneCopy {
+  title: string;
+  note: string;
+  button: string;
+  dialogTitle: string;
+  dialogBody: string;
+}
+
 export function DangerZone({
   workspace,
   canDelete,
   onDelete,
+  copy,
 }: {
   workspace: Workspace;
   canDelete: boolean;
   onDelete: () => void;
+  copy?: DangerZoneCopy;
 }) {
   const { t } = useTranslation();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -671,9 +685,9 @@ export function DangerZone({
       {/* Delete workspace */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-ink">{t("wsSet.danger.deleteTitle")}</p>
+          <p className="text-[13px] font-medium text-ink">{copy?.title ?? t("wsSet.danger.deleteTitle")}</p>
           <p className="text-[11.5px] text-ink-soft leading-snug mt-0.5">
-            {canDelete ? t("wsSet.danger.deleteNote") : t("wsSet.danger.cannotDelete")}
+            {canDelete ? copy?.note ?? t("wsSet.danger.deleteNote") : t("wsSet.danger.cannotDelete")}
           </p>
         </div>
         <button
@@ -684,7 +698,7 @@ export function DangerZone({
           className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
         >
           <Trash2 size={14} strokeWidth={1.75} />
-          {t("ws.deleteWorkspace")}
+          {copy?.button ?? t("ws.deleteWorkspace")}
         </button>
       </div>
 
@@ -695,10 +709,10 @@ export function DangerZone({
         <DialogContent className="sm:max-w-[440px]" data-testid="workspace-settings-delete-dialog">
           <DialogHeader>
             <DialogTitle>
-              {t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}
+              {copy?.dialogTitle ?? t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}
             </DialogTitle>
             <DialogDescription>
-              {t("ws.deleteWorkspaceBody")}
+              {copy?.dialogBody ?? t("ws.deleteWorkspaceBody")}
             </DialogDescription>
           </DialogHeader>
 
@@ -745,7 +759,7 @@ export function DangerZone({
               className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
             >
               <Trash2 size={14} strokeWidth={1.75} />
-              {t("ws.deleteWorkspace")}
+              {copy?.button ?? t("ws.deleteWorkspace")}
             </button>
           </DialogFooter>
         </DialogContent>

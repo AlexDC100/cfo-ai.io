@@ -3504,7 +3504,13 @@
       "financing": "Finanțare",
       "danger": "Zonă periculoasă",
       "deleted": "{{company}} e ștearsă. O poți restaura timp de 30 de zile.",
-      "cantDelete": "N-am putut șterge compania."
+      "cantDelete": "N-am putut șterge compania.",
+      "companyName": "Numele companiei",
+      "deleteTitle": "Șterge compania",
+      "deleteNote": "Dispare acum din companiile tale; o poți restaura timp de 30 de zile.",
+      "deleteButton": "Șterge compania",
+      "deleteDialogTitle": "Ștergi {{company}}?",
+      "deleteDialogBody": "Dispare acum din companiile tale și se șterge definitiv după 30 de zile. Până atunci o poți restaura din Companiile tale."
     }
   }
 }

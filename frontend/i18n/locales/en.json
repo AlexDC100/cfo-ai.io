@@ -3478,7 +3478,13 @@
       "financing": "Financing",
       "danger": "Danger zone",
       "deleted": "{{company}} is deleted. You can restore it for 30 days.",
-      "cantDelete": "We couldn't delete the company."
+      "cantDelete": "We couldn't delete the company.",
+      "companyName": "Company name",
+      "deleteTitle": "Delete this company",
+      "deleteNote": "It disappears from your companies now; you can restore it for 30 days.",
+      "deleteButton": "Delete company",
+      "deleteDialogTitle": "Delete {{company}}?",
+      "deleteDialogBody": "It disappears from your companies now and is deleted for good after 30 days. Until then you can restore it from Your companies."
     }
   }
 }

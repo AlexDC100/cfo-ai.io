@@ -373,7 +373,8 @@ describe("confirmation card", () => {
     fireEvent.change(within(panel).getByTestId("upload-change-month"), { target: { value: "6" } });
     fireEvent.change(within(panel).getByTestId("upload-change-year"), { target: { value: "2024" } });
     fireEvent.change(within(panel).getByTestId("upload-change-industry"), { target: { value: "food_manufacturing" } });
-    fireEvent.click(within(panel).getByTestId("upload-change-done"));
+    // Done = the same footer button that opened Change.
+    fireEvent.click(within(card()).getByTestId("upload-card-change"));
 
     expect(row("upload-card-company-value")).toHaveTextContent("Scandia Food SRL");
     expect(row("upload-card-company-from")).toHaveTextContent("chosen by you");
@@ -447,6 +448,17 @@ describe("confirmation card", () => {
     const panel = screen.getByTestId("upload-card-change-panel");
     fireEvent.change(within(panel).getByTestId("upload-change-month"), { target: { value: "12" } });
     expect(within(card()).getByTestId("upload-card-analyse")).not.toBeDisabled();
+  });
+
+  it("a value the engine gave no origin for shows none — the card never guesses one", async () => {
+    api.identifyUpload.mockResolvedValue(identity({}, { sources: {} }));
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    expect(row("upload-card-period-value")).toHaveTextContent("ending 31 December 2025");
+    expect(within(card()).queryByTestId("upload-card-period-from")).toBeNull();
+    expect(within(card()).queryByTestId("upload-card-industry-from")).toBeNull();
+    expect(within(card()).queryByTestId("upload-card-cui-from")).toBeNull();
   });
 
   it("a file the pipeline cannot read never reaches the engine", async () => {

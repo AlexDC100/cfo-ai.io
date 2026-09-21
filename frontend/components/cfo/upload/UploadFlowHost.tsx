@@ -52,7 +52,7 @@ import {
 } from "@/lib/uploadFlow";
 import type { ExtraDocConfirmation, IdentifyResult } from "@/lib/uploadsApi";
 import { listProfiles } from "@/lib/industryApi";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { sourceKey } from "./identitySources";
 
@@ -87,6 +87,7 @@ export function UploadFlowHost() {
   const jobs = useAnalysisJobs();
   const navigate = useNavigate();
   const openPeriod = useOpenCompanyPeriod();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   // The plan's extra-document question (402), asked with the existing dialog.
   const [confirmExtra, setConfirmExtra] = useState<ExtraDocConfirmation | null>(null);
@@ -131,6 +132,11 @@ export function UploadFlowHost() {
       if (!isJobDone(job) || job.announced) continue;
       patchJob(job.docId, { announced: true });
       const done = job.status === "analyzed";
+      // A new year exists now: the company's tiles and cards re-read it.
+      if (done) {
+        void queryClient.invalidateQueries({ queryKey: ["company-years", job.orgId] });
+        void queryClient.invalidateQueries({ queryKey: ["company-directory"] });
+      }
       pushUploadNotice({
         id: job.docId,
         kind: done ? "done" : "failed",
@@ -161,7 +167,7 @@ export function UploadFlowHost() {
         });
       }
     }
-  }, [jobs, openPeriod, t]);
+  }, [jobs, openPeriod, queryClient, t]);
 
   // ── Analyse ──────────────────────────────────────────────────────────
   const startJob = useCallback(
@@ -232,6 +238,9 @@ export function UploadFlowHost() {
           className="w-[calc(100vw-24px)] max-w-[520px] gap-0 rounded-md border-rule bg-surface p-0 sm:rounded-md"
           data-testid="upload-card"
           data-phase={flow.phase}
+          // Radix would focus the first tabbable — the close cross — and ring
+          // it. The card's one primary action should draw the eye instead.
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             // A drag-and-drop landing outside the card must not close it.
             if (flow.phase === "committing") e.preventDefault();
@@ -410,7 +419,10 @@ function ConfirmView({
   const chosen = result.companies.find((c) => c.org_id === choice.orgId) ?? null;
   const cui = choice.mode === "new" ? choice.newCui : chosen?.cui ?? identity.cui;
 
-  const fromPhrase = (signal: string | null | undefined) => t(sourceKey(signal));
+  // Where each value came from — only what the engine SAID. A field it gave
+  // no origin for shows none; the card never guesses one.
+  const fromPhrase = (signal: string | null | undefined) =>
+    signal && signal !== "none" ? t(sourceKey(signal)) : null;
   const companyFrom = choice.edited.company
     ? t("wsV2.from.user")
     : target.reason === "on_screen_company"
@@ -423,10 +435,10 @@ function ConfirmView({
     : identity.cui
       ? fromPhrase(src.cui?.signal)
       : t("wsV2.from.company_settings");
-  const periodFrom = choice.edited.period ? t("wsV2.from.user") : fromPhrase(src.period_end?.signal ?? "period_line");
+  const periodFrom = choice.edited.period ? t("wsV2.from.user") : fromPhrase(src.period_end?.signal);
   const industryFrom = choice.edited.industry
     ? t("wsV2.from.user")
-    : fromPhrase(src.industry_key?.signal ?? src.industry_label?.signal ?? src.caen_code?.signal ?? "caen");
+    : fromPhrase(src.industry_key?.signal ?? src.industry_label?.signal ?? src.caen_code?.signal);
 
   const periodValue = choice.periodEnd
     ? t("wsV2.card.periodValue", {
@@ -496,7 +508,6 @@ function ConfirmView({
             result={result}
             choice={choice}
             industries={industries}
-            onDone={() => setChanging(false)}
           />
         )}
 
@@ -569,12 +580,10 @@ function ChangePanel({
   result,
   choice,
   industries,
-  onDone,
 }: {
   result: IdentifyResult;
   choice: FlowChoice;
   industries: IndustryOption[];
-  onDone: () => void;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -762,17 +771,6 @@ function ChangePanel({
           ))}
         </select>
       </label>
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onDone}
-          data-testid="upload-change-done"
-          className="inline-flex h-8 items-center rounded-sm px-3 text-[12.5px] font-medium text-ink-soft hover:bg-bg-2 hover:text-ink"
-        >
-          {t("wsV2.card.done")}
-        </button>
-      </div>
     </div>
   );
 }

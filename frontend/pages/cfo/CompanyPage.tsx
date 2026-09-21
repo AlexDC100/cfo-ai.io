@@ -308,6 +308,7 @@ function CompanySettingsSheet({
             <div className="rounded-md border border-rule bg-surface p-4">
               <GeneralSection
                 workspace={workspace}
+                nameLabel={t("wsV2.settings.companyName")}
                 onRename={(next) => void ws.renameWorkspace(orgId, next)}
                 onChangeIndustry={(key) => void ws.setWorkspaceIndustry(orgId, key, orgIndustryLabel(key))}
               />
@@ -333,6 +334,13 @@ function CompanySettingsSheet({
               <DangerZone
                 workspace={workspace}
                 canDelete={canDelete}
+                copy={{
+                  title: t("wsV2.settings.deleteTitle"),
+                  note: t("wsV2.settings.deleteNote"),
+                  button: t("wsV2.settings.deleteButton"),
+                  dialogTitle: t("wsV2.settings.deleteDialogTitle", { company: name }),
+                  dialogBody: t("wsV2.settings.deleteDialogBody"),
+                }}
                 onDelete={() => {
                   onOpenChange(false);
                   void ws.archiveWorkspace(orgId).then((ok) => {
