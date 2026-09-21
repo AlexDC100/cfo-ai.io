@@ -30,6 +30,13 @@ objects are listed as STORAGE MISSING; with --apply they make the exit 1.
 
 After --apply the tables are re-read and every snapshot row is compared;
 exit 1 if any differs, or if any object above is missing.
+
+RESIDUE. A restore never deletes, so rows created since the snapshot stay:
+organizations / documents archived (held: purge_after NULL — listed
+nowhere, never purgeable from the hub), and memberships / org_prefs rows,
+which have no archive column (they belong to those archived workspaces and
+are inert). They are counted on a RESIDUE line — the rollback is "every
+snapshot row is back", never "production is the snapshot".
 """
 from __future__ import annotations
 
@@ -165,6 +172,10 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         bad = sum(len(after[t]["changed"]) + len(after[t]["missing"]) for t in tables)
         out("RESTORE CHECK: %s" % ("every snapshot row is back" if not bad else
                                    "%d snapshot row(s) still differ" % bad))
+        residue = {t: len(after[t]["created"]) for t in tables if after[t]["created"]}
+        if residue:
+            out("RESIDUE: %d row(s) created since the snapshot remain (a restore never deletes): %s"
+                % (sum(residue.values()), ", ".join("%s %d" % kv for kv in sorted(residue.items()))))
         missing = storage_missing(db, snap, rows, tables, ops)
         for m in missing:
             out("  STORAGE MISSING: %s" % m)

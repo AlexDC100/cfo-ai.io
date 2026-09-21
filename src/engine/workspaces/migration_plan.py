@@ -32,7 +32,13 @@ data would change what the other members see).
    source inherits the workspace's company). It is EMPTY — and archived —
    when it has no source document, the source is missing / deleted / not
    analysed, or nothing was persisted for it (no calculated_metrics, no
-   statement_line_items, no canonical envelope).
+   statement_line_items, no canonical envelope). EXCEPT the workspace's
+   CURRENT-MONTH placeholder (no source, dated in the migration's month):
+   "every workspace always has a period for the current month and it can't
+   be deleted" (operator, 2026-07-26 — frontend/lib/orgPeriods.ts
+   useEnsureCurrentPeriod re-creates it on the next visit). One per
+   workspace stays where it is; extra copies are archived. Archiving it
+   made every re-run archive the re-created one, and a rollback leave two.
 3. Per company per month exactly one period survives. One already in the
    company's own workspace always wins (a currently served period is never
    replaced); otherwise the one with the latest source document. The
@@ -370,11 +376,22 @@ class _Planner:
         decisions: Dict[str, Dict[str, Any]] = {}
         by_group: Dict[Tuple[str, str], List[str]] = defaultdict(list)
         for o in live:
+            placeholders: List[str] = []
             for pid in self.periods_by_org.get(o, []):
                 pr = self._period_row(pid, o)
                 decisions[pid] = pr
                 if pr["action"] == "candidate":
                     by_group[(pr["company"], pr["month"])].append(pid)
+                elif pr["action"] == "placeholder":
+                    placeholders.append(pid)
+            placeholders.sort(key=lambda p: (str(self.periods[p].get("created_at") or ""), p))
+            for i, pid in enumerate(placeholders):
+                if i == 0:
+                    decisions[pid].update(action="untouched",
+                                          reason="current-month placeholder (kept: the current month is permanent)")
+                else:
+                    decisions[pid].update(action="archive",
+                                          reason="empty: extra current-month placeholder (%s kept)" % placeholders[0])
         survivors: Dict[Tuple[str, str], str] = {}
         for group, pids in sorted(by_group.items()):
             ordered = sorted(pids)
@@ -443,7 +460,8 @@ class _Planner:
         for o in live:
             if self.own.get(o):
                 continue
-            left = [p for p in self.periods_by_org.get(o, []) if self.period_final_org.get(p, o) == o]
+            left = [p for p in self.periods_by_org.get(o, []) if self.period_final_org.get(p, o) == o
+                    and not str(decisions[p].get("reason") or "").startswith("current-month placeholder")]
             for d in self.docs_by_org.get(o, []):
                 if self.docs[d].get("deleted_at") is not None:
                     continue
@@ -601,6 +619,9 @@ class _Planner:
         if company is None:
             company = self.own.get(org)
         reason = None
+        if not sid and _month(p.get("period_end")) == _month(self.date):
+            row.update(action="placeholder", reason="", company=company, month=_month(p.get("period_end")))
+            return row
         if not sid:
             reason = "empty: no source document"
         elif src is None:
@@ -1142,21 +1163,32 @@ def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
 # ── gates ──────────────────────────────────────────────────────────────
 
 def empty_live_periods(tables: Mapping[str, List[Mapping[str, Any]]], *,
-                       orgs: Optional[Iterable[str]] = None) -> List[Tuple[str, str]]:
+                       orgs: Optional[Iterable[str]] = None,
+                       current_month: Optional[str] = None) -> List[Tuple[str, str]]:
     """G4 — every period in a live workspace has a live, analysed source
     document IN THE SAME workspace and something persisted. Returns the
-    offenders as (period id, why)."""
+    offenders as (period id, why). ``current_month`` (YYYY-MM): ONE
+    source-less period of that month per workspace is its permanent
+    current-month placeholder, not an offender (rule 2)."""
     org_rows = {str(o["id"]): o for o in tables.get("organizations") or []}
     scope = set(orgs) if orgs is not None else None
     docs = {str(d["id"]): d for d in tables.get("documents") or []}
     metric = {str(r["period_id"]) for t in ("calculated_metrics", "statement_line_items")
               for r in tables.get(t) or [] if r.get("period_id")}
+    exempt: Dict[str, str] = {}
+    if current_month:
+        for p in sorted(tables.get("financial_periods") or [],
+                        key=lambda r: (str(r.get("created_at") or ""), str(r["id"]))):
+            if not p.get("source_document_id") and _month(p.get("period_end")) == current_month:
+                exempt.setdefault(str(p["org_id"]), str(p["id"]))
     out = []
     for p in tables.get("financial_periods") or []:
         oid = str(p["org_id"])
         if not _is_live_org(org_rows.get(oid)) or (scope is not None and oid not in scope):
             continue
         pid = str(p["id"])
+        if exempt.get(oid) == pid:
+            continue
         src = docs.get(str(p.get("source_document_id") or ""))
         if src is None:
             out.append((pid, "no source document"))

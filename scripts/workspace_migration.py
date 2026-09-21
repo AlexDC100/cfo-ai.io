@@ -417,7 +417,7 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                 check["problems"].append("storage %s: copy holds sha256 %s, the plan read %s (document %s)"
                                          % (op["to_path"], hashlib.sha256(got).hexdigest()[:16], want[:16],
                                             op.get("document_id")))
-        g4 = empty_live_periods(current)
+        g4 = empty_live_periods(current, current_month=date[:7])
         links = cross_workspace_links(current)
         # A period whose source is trashed / in another workspace is one
         # "Clear all" or purge away from ON DELETE CASCADE. The run may not

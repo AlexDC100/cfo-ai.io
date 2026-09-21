@@ -125,7 +125,7 @@ def test_execute_applies_the_reviewed_plan_and_the_recount_agrees(env):
     assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
     live = fake.tables
     owner_orgs = {m["org_id"] for m in live["memberships"] if m["user_id"] == OWNER}
-    assert empty_live_periods(live, orgs=owner_orgs) == []
+    assert empty_live_periods(live, orgs=owner_orgs, current_month="2026-09") == []
     assert cross_workspace_links(live) == []
     # every moved document's object exists under its new workspace; old ones kept
     for d in live["documents"]:
@@ -399,6 +399,9 @@ def test_restore_puts_every_snapshot_row_back_without_deleting(env):
     for o in fake.tables["organizations"]:
         if o["id"] not in pre_orgs:
             assert o["archived_at"] and o["purge_after"] is None
+    # never "production is the snapshot": what stays is counted
+    residue = [l for l in env["lines"] if l.startswith("RESIDUE: ")]
+    assert residue and "memberships" in residue[0] and "org_prefs" in residue[0], env["lines"][-6:]
 
 
 def test_a_write_the_database_silently_drops_fails_the_recount(env, monkeypatch):

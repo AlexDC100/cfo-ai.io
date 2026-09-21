@@ -249,11 +249,31 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
 
 
 def test_g4_no_empty_period_survives_in_a_live_workspace(world):
-    before = empty_live_periods(world["tables"], orgs={"org-sf", "org-qa"})
-    assert {p for p, _ in before} >= {"per-sf21", "per-sf-empty", "per-qa-empty-a", "per-qa-empty-b"}, \
-        "the gate must see the planted empties in the pre-state"
+    month = DATE[:7]
+    before = empty_live_periods(world["tables"], orgs={"org-sf", "org-qa"}, current_month=month)
+    assert {p for p, _ in before} >= {"per-sf21", "per-qa-empty-b"}, \
+        "the gate must see the planted empties (and the EXTRA placeholder) in the pre-state"
+    # without the current-month exemption the placeholders are empties too
+    assert {"per-sf-empty", "per-qa-empty-a"} <= {p for p, _ in empty_live_periods(world["tables"],
+                                                                                 orgs={"org-sf", "org-qa"})}
     owner_live = {m["org_id"] for m in world["post"]["memberships"] if m["user_id"] == OWNER}
-    assert empty_live_periods(world["post"], orgs=owner_live) == []
+    assert empty_live_periods(world["post"], orgs=owner_live, current_month=month) == []
+
+
+def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived(world):
+    """P2 (verifier, 2026-09-21): the planner archived every workspace's
+    current-month placeholder as "empty: no source document". The operator
+    rule (2026-07-26, frontend/lib/orgPeriods.ts): every workspace always
+    has a period for the current month, and it can't be deleted —
+    useEnsureCurrentPeriod re-creates it, so every re-run archived the new
+    one and a rollback left two. One per workspace stays; extras go."""
+    post, plan = world["post"], world["plan"]
+    assert _row(post, "financial_periods", id="per-sf-empty")["org_id"] == "org-sf"
+    assert _decision(plan, "periods", "per-sf-empty")["action"] == "untouched"
+    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # archived with Q&A
+    assert _decision(plan, "periods", "per-qa-empty-b")["reason"] == \
+        "empty: extra current-month placeholder (per-qa-empty-a kept)"
+    assert _row(post, "financial_periods", id="per-qa-empty-b")["org_id"] == holding_org_id(OWNER)
 
 
 def test_no_period_is_one_hard_delete_from_erasure(world):
@@ -683,5 +703,7 @@ def test_an_empty_workspace_is_not_archived_just_for_having_no_company():
     plan = build_plan(t, {"x": _ident(ALFA, "2025-12-31")}, migration_date=DATE)
     post = apply_ops(t, plan.ops, now=RUN)
     assert _row(post, "organizations", id="org-b")["archived_at"] is None
-    assert _row(post, "financial_periods", id="p-empty")["org_id"] == holding_org_id("u")   # G4 still holds
+    # p-empty is org-b's current-month placeholder: it stays (G4 exempts it)
+    assert _row(post, "financial_periods", id="p-empty")["org_id"] == "org-b"
+    assert empty_live_periods(post, current_month=DATE[:7]) == []
     assert any("nothing to split" in w for w in plan.warnings)
