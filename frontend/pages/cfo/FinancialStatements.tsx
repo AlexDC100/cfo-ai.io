@@ -66,6 +66,7 @@ import { SectorBenchmarkCtx, useSectorBenchmark } from "@/components/cfo/benchma
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
 import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
+import { notesJumpTarget } from "@/lib/notesJumpTarget";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { MONEY_MISSING } from "@/lib/money";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
@@ -4109,9 +4110,11 @@ function DashboardDevTools() {
   );
 }
 
-/** The "N notes" pill that scrolls to the Notes & recommendations section.
- *  Renders nothing when the period has no alerts and no recommendations. */
-function NotesJumpPill({
+/** The "N notes" pill that scrolls to the Notes & recommendations section
+ *  (or, on the Overview, the recommendations section — `notesJumpTarget`).
+ *  Renders nothing when the period has no alerts and no recommendations.
+ *  Exported for its gate. */
+export function NotesJumpPill({
   alerts,
   recommendationCount,
 }: {
@@ -4134,9 +4137,7 @@ function NotesJumpPill({
       <button
         type="button"
         onClick={() =>
-          document
-            .querySelector('[data-testid^="statement-notes-"]')
-            ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          notesJumpTarget()?.scrollIntoView({ behavior: "smooth", block: "start" })
         }
         data-testid="notes-jump-pill"
         title={t("dash.jumpToNotes")}
