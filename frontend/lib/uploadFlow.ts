@@ -31,6 +31,7 @@ import {
   identifyUpload,
   UploadApiError,
   type CommitResult,
+  type ExtraDocConfirmation,
   type IdentifyResult,
 } from "@/lib/uploadsApi";
 
@@ -280,7 +281,8 @@ export function showJobInFlow(docId: string): void {
 
 export type AnalyseOutcome =
   | { kind: "queued"; docId: string; orgId: string; companyName: string; created: boolean }
-  | { kind: "needs_confirmation"; docId: string; orgId: string | null; companyName: string; created: boolean }
+  /** The plan asks first (402); nothing was stored. Confirm, then Analyse again. */
+  | { kind: "needs_confirmation"; confirmation: ExtraDocConfirmation }
   | { kind: "duplicate" }
   | { kind: "refused" }
   | { kind: "failed" }
@@ -329,7 +331,9 @@ export async function analyseUpload(): Promise<AnalyseOutcome> {
 
   if (res.status === "duplicate") {
     const name =
-      result?.companies.find((c) => c.org_id === res.org_id)?.name ?? choiceCompanyName(choice);
+      res.company_name ??
+      result?.companies.find((c) => c.org_id === res.org_id)?.name ??
+      choiceCompanyName(choice);
     setFlow({
       ...flow,
       phase: "duplicate",
@@ -342,20 +346,19 @@ export async function analyseUpload(): Promise<AnalyseOutcome> {
     return { kind: "refused" };
   }
   if (res.status === "needs_confirmation") {
-    return {
-      kind: "needs_confirmation",
-      docId: res.document_id,
-      orgId: res.org_id ?? (created ? null : choice.orgId),
-      companyName: res.company_name ?? choiceCompanyName(choice),
-      created,
-    };
+    // Back to the card, choice intact: the dialog asks, and a confirmed
+    // answer sends the same commit again.
+    setFlow({ ...flow, phase: "confirm", error: null });
+    return { kind: "needs_confirmation", confirmation: res.confirmation };
   }
   return {
     kind: "queued",
     docId: res.document_id,
     orgId: res.org_id,
     companyName: res.company_name || choiceCompanyName(choice),
-    created,
+    // The engine says whether it made a company (a "new" CUI it already
+    // holds is reused, not duplicated); the choice is the fallback.
+    created: res.created_company ?? created,
   };
 }
 

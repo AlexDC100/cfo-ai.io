@@ -27,7 +27,7 @@ import { ArrowLeft, Settings2 } from "lucide-react";
 import { Money } from "@/components/ui/Money";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "@/components/ui/sonner";
-import { orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
+import { ORG_INDUSTRIES, orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { DangerZone, FinancingSection, GeneralSection } from "@/components/cfo/workspace/WorkspaceSettingsV2";
 import { UploadDrop } from "@/components/cfo/upload/UploadDrop";
@@ -70,7 +70,14 @@ export default function CompanyPage() {
       </section>
     );
   }
-  return <CompanyReady orgId={screen.org.id} name={screen.org.name} industryKey={screen.org.industry_key} />;
+  return (
+    <CompanyReady
+      orgId={screen.org.id}
+      name={screen.org.name}
+      industryKey={screen.org.industry_key}
+      industryName={screen.org.industry_display_name ?? null}
+    />
+  );
 }
 
 function BackLink() {
@@ -91,10 +98,14 @@ function CompanyReady({
   orgId,
   name,
   industryKey,
+  industryName,
 }: {
   orgId: string;
   name: string;
   industryKey: string | null;
+  /** organizations.industry_display_name — set by the commit route from the
+   *  industry catalog when the key is not a workspace-settings industry. */
+  industryName: string | null;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -134,7 +145,13 @@ function CompanyReady({
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-soft">
             {cui && <span className="font-mono tabular-nums" data-testid="company-cui">{t("wsV2.home.cui", { cui })}</span>}
             {cui && industryKey && <span aria-hidden>·</span>}
-            {industryKey && <span>{orgIndustryDisplayLabel(industryKey)}</span>}
+            {industryKey && (
+              <span data-testid="company-industry">
+                {ORG_INDUSTRIES.some((i) => i.key === industryKey)
+                  ? orgIndustryDisplayLabel(industryKey)
+                  : industryName ?? industryKey}
+              </span>
+            )}
           </p>
         </div>
         <button

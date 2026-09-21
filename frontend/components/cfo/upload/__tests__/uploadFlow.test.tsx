@@ -92,9 +92,20 @@ vi.mock("@/lib/org", () => {
   };
 });
 
-const enqueue = vi.hoisted(() => vi.fn());
-vi.mock("@/hooks/useUploadEnqueue", () => ({
-  useUploadEnqueue: () => ({ enqueue, dialog: null, goToPricing: () => {} }),
+// The plan's extra-document confirmation (the existing dialog's own call).
+const confirmExtraDoc = vi.hoisted(() => vi.fn(async () => ({ ok: true, extra_doc_eur_marked: 3, plan_key: "starter" })));
+vi.mock("@/lib/planState", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/planState")>()),
+  confirmExtraDoc,
+}));
+
+// The industry catalog the engine labels a new company's industry from.
+vi.mock("@/lib/industryApi", () => ({
+  listProfiles: vi.fn(async () => [
+    { key: "agriculture", display_name: "Agriculture", display_name_ro: "Agricultură", sector: "primary" },
+    { key: "food_manufacturing", display_name: "Food manufacturing", display_name_ro: "Producție alimentară", sector: "manufacturing" },
+    { key: "manufacturing", display_name: "Manufacturing", display_name_ro: "Producție", sector: "manufacturing" },
+  ]),
 }));
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), message: vi.fn() }));
@@ -180,7 +191,7 @@ beforeEach(async () => {
   api.identifyUpload.mockReset();
   api.commitUpload.mockReset();
   activateWorkspace.mockClear();
-  enqueue.mockReset();
+  confirmExtraDoc.mockClear();
   Object.values(toast).forEach((f) => f.mockClear());
 });
 
@@ -361,7 +372,7 @@ describe("confirmation card", () => {
     fireEvent.click(within(panel).getByTestId("upload-change-company-scandia"));
     fireEvent.change(within(panel).getByTestId("upload-change-month"), { target: { value: "6" } });
     fireEvent.change(within(panel).getByTestId("upload-change-year"), { target: { value: "2024" } });
-    fireEvent.change(within(panel).getByTestId("upload-change-industry"), { target: { value: "fmcg" } });
+    fireEvent.change(within(panel).getByTestId("upload-change-industry"), { target: { value: "food_manufacturing" } });
     fireEvent.click(within(panel).getByTestId("upload-change-done"));
 
     expect(row("upload-card-company-value")).toHaveTextContent("Scandia Food SRL");
@@ -369,6 +380,7 @@ describe("confirmation card", () => {
     expect(row("upload-card-cui-value")).toHaveTextContent("RO1234567");
     expect(row("upload-card-period-value")).toHaveTextContent("ending 30 June 2024");
     expect(row("upload-card-period-from")).toHaveTextContent("chosen by you");
+    expect(row("upload-card-industry-value")).toHaveTextContent("Food manufacturing");
     expect(row("upload-card-industry-from")).toHaveTextContent("chosen by you");
 
     fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
@@ -377,7 +389,7 @@ describe("confirmation card", () => {
         file,
         onScreenOrgId: "scandia",
         periodEnd: "2024-06-30",
-        industryKey: "fmcg",
+        industryKey: "food_manufacturing",
         targetOrgId: "scandia",
         createCompany: null,
       }),
@@ -446,16 +458,39 @@ describe("confirmation card", () => {
     expect(api.identifyUpload).not.toHaveBeenCalled();
   });
 
-  it("the plan's extra-document confirmation (402) goes through the existing dialog, then runs", async () => {
+  it("the plan's extra-document question (402) goes through the existing dialog, then the same commit runs", async () => {
     api.identifyUpload.mockResolvedValue(identity());
-    api.commitUpload.mockResolvedValue({ status: "needs_confirmation", document_id: "doc-6", org_id: "agras", company_name: "Agras SA" });
-    enqueue.mockResolvedValue({ kind: "queued" });
+    api.commitUpload
+      .mockResolvedValueOnce({
+        status: "needs_confirmation",
+        confirmation: { planKey: "starter", docsUsed: 5, docsIncluded: 5, extraDocEur: 3, message: "" },
+      })
+      .mockResolvedValueOnce({ status: "queued", document_id: "doc-6", org_id: "agras", company_name: "Agras SA" });
     renderHome();
     await dropOnHome();
     await screen.findByText("Check before we analyse");
     fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
-    await waitFor(() => expect(enqueue).toHaveBeenCalledWith("doc-6"));
+    fireEvent.click(await screen.findByTestId("extra-doc-confirm"));
+    await waitFor(() => expect(confirmExtraDoc).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.commitUpload).toHaveBeenCalledTimes(2));
+    expect(api.commitUpload.mock.calls[1]![0]).toEqual(api.commitUpload.mock.calls[0]![0]);
     expect(await screen.findByText("Analysing Agras SA")).toBeInTheDocument();
+  });
+
+  it("dismissing the extra-document question leaves the card as it was, saying nothing ran", async () => {
+    api.identifyUpload.mockResolvedValue(identity());
+    api.commitUpload.mockResolvedValueOnce({
+      status: "needs_confirmation",
+      confirmation: { planKey: "starter", docsUsed: 5, docsIncluded: 5, extraDocEur: 3, message: "" },
+    });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    fireEvent.click(await screen.findByTestId("extra-doc-cancel"));
+    expect(await screen.findByTestId("upload-card-error")).toHaveTextContent("The analysis didn't start.");
+    expect(row("upload-card-company-value")).toHaveTextContent("Agras SA");
+    expect(api.commitUpload).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -473,6 +508,7 @@ describe("plain language, both languages", () => {
     expect(within(card()).getByTestId("upload-card-new-badge")).toHaveTextContent("Companie nouă");
     expect(row("upload-card-cui-from")).toHaveTextContent("din antetul documentului");
     expect(row("upload-card-industry-from")).toHaveTextContent("din registrul ONRC/MF");
+    await waitFor(() => expect(row("upload-card-industry-value")).toHaveTextContent("Agricultură"));
   });
 
   it("Romanian: the duplicate reads 'Deja încărcat — deschide'", async () => {

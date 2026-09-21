@@ -24,10 +24,10 @@ import { AlertCircle, Check, FileText, Loader2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/sonner";
 import { ORG_INDUSTRIES, orgIndustryDisplayLabel } from "@/components/cfo/OrgIndustryPills";
-import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
 import { activateWorkspace, useActiveOrg } from "@/lib/org";
 import { formatDateOnly, useActiveLocale } from "@/lib/locale";
-import { fetchDocumentStatus, subscribeToDocumentStatus } from "@/lib/supabase";
+import { subscribeToDocumentStatus } from "@/lib/supabase";
 import { pushUploadNotice } from "@/lib/uploadNotices";
 import {
   ANALYSIS_STEP_COUNT,
@@ -50,7 +50,9 @@ import {
   type FlowChoice,
   type FlowState,
 } from "@/lib/uploadFlow";
-import type { IdentifyResult } from "@/lib/uploadsApi";
+import type { ExtraDocConfirmation, IdentifyResult } from "@/lib/uploadsApi";
+import { listProfiles } from "@/lib/industryApi";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { sourceKey } from "./identitySources";
 
@@ -85,8 +87,9 @@ export function UploadFlowHost() {
   const jobs = useAnalysisJobs();
   const navigate = useNavigate();
   const openPeriod = useOpenCompanyPeriod();
-  const uploadEnqueue = useUploadEnqueue();
   const [busy, setBusy] = useState(false);
+  // The plan's extra-document question (402), asked with the existing dialog.
+  const [confirmExtra, setConfirmExtra] = useState<ExtraDocConfirmation | null>(null);
 
   // Latest flow for callbacks fired from subscriptions.
   const flowRef = useRef<FlowState>(flow);
@@ -183,38 +186,42 @@ export function UploadFlowHost() {
         return;
       }
       if (outcome.kind === "needs_confirmation") {
-        // Stored, waiting on the plan's extra-document confirmation — the
-        // existing dialog (useUploadEnqueue) asks and re-queues. Unchanged.
-        const enq = await uploadEnqueue.enqueue(outcome.docId);
-        if (enq.kind === "queued") {
-          let orgId = outcome.orgId;
-          if (!orgId) orgId = (await fetchDocumentStatus(outcome.docId))?.org_id ?? null;
-          if (orgId) {
-            await startJob(outcome.docId, orgId, outcome.companyName, outcome.created);
-            return;
-          }
-        }
-        if (enq.kind === "extra_doc_cancelled") {
-          closeUploadFlow();
-          toast.info(t("wsV2.errors.cancelled"));
-          return;
-        }
-        returnToConfirm({
-          code: "refused",
-          message: "message" in enq ? enq.message : null,
-        });
+        // Nothing was stored: the meter asked first. The same dialog as every
+        // other upload asks the user; a confirmed answer sends the commit
+        // again (see onExtraConfirmed).
+        setConfirmExtra(outcome.confirmation);
       }
     } finally {
       setBusy(false);
     }
-  }, [busy, startJob, t, uploadEnqueue]);
+  }, [busy, startJob]);
+
+  const onExtraConfirmed = useCallback(() => {
+    setConfirmExtra(null);
+    void onAnalyse();
+  }, [onAnalyse]);
+  const onExtraClosed = useCallback(() => {
+    setConfirmExtra(null);
+    returnToConfirm({ code: "cancelled", message: null });
+  }, []);
 
   const open = flow.phase !== "idle";
   const followedJob = flow.phase === "progress" ? jobs.find((j) => j.docId === flow.jobDocId) ?? null : null;
 
   return (
     <>
-      {uploadEnqueue.dialog}
+      {confirmExtra && (
+        <ExtraDocConfirmDialog
+          open
+          onClose={onExtraClosed}
+          onConfirmed={onExtraConfirmed}
+          planKey={confirmExtra.planKey}
+          docsUsed={confirmExtra.docsUsed}
+          docsIncluded={confirmExtra.docsIncluded}
+          extraDocEur={confirmExtra.extraDocEur}
+          serverMessage={confirmExtra.message || undefined}
+        />
+      )}
       <Dialog
         open={open}
         onOpenChange={(next) => {
@@ -266,6 +273,41 @@ export function UploadFlowHost() {
       <JobChips jobs={jobs} hidden={flow.phase === "progress"} />
     </>
   );
+}
+
+// ── Industries ─────────────────────────────────────────────────────────
+
+interface IndustryOption {
+  key: string;
+  label: string;
+}
+
+/**
+ * The industries the card offers, from the SAME catalog the engine labels a
+ * new company's industry from (`industry_profiles`, GET /api/industry/
+ * profiles), in the reader's language. When the catalog cannot be read the
+ * workspace industries stand in, so Change never offers an empty list.
+ */
+function useIndustryOptions(docKey: string | null, docLabel: string | null): IndustryOption[] {
+  const { i18n } = useTranslation();
+  const ro = (i18n.language ?? "").startsWith("ro");
+  const profilesQ = useQuery({
+    queryKey: ["industry-profiles", "upload-card"],
+    queryFn: () => listProfiles(),
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  return useMemo(() => {
+    const profiles = profilesQ.data ?? [];
+    const list: IndustryOption[] =
+      profiles.length > 0
+        ? profiles
+            .map((p) => ({ key: p.key, label: (ro ? p.display_name_ro : null) || p.display_name || p.key }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+        : ORG_INDUSTRIES.map((i) => ({ key: i.key, label: orgIndustryDisplayLabel(i.key) }));
+    if (docKey && !list.some((i) => i.key === docKey)) list.unshift({ key: docKey, label: docLabel ?? docKey });
+    return list;
+  }, [profilesQ.data, ro, docKey, docLabel]);
 }
 
 // ── Views ──────────────────────────────────────────────────────────────
@@ -392,10 +434,9 @@ function ConfirmView({
       })
     : null;
   void locale; // re-render on language change (formatDateOnly reads the active locale)
+  const industries = useIndustryOptions(identity.industry_key, identity.industry_label);
   const industryValue = choice.industryKey
-    ? ORG_INDUSTRIES.some((i) => i.key === choice.industryKey)
-      ? orgIndustryDisplayLabel(choice.industryKey)
-      : choice.industryLabel ?? choice.industryKey
+    ? industries.find((i) => i.key === choice.industryKey)?.label ?? choice.industryLabel ?? choice.industryKey
     : choice.industryLabel;
 
   const otherThanOnScreen =
@@ -454,6 +495,7 @@ function ConfirmView({
           <ChangePanel
             result={result}
             choice={choice}
+            industries={industries}
             onDone={() => setChanging(false)}
           />
         )}
@@ -526,10 +568,12 @@ const lastDayOfMonth = (year: number, month1: number): string => {
 function ChangePanel({
   result,
   choice,
+  industries,
   onDone,
 }: {
   result: IdentifyResult;
   choice: FlowChoice;
+  industries: IndustryOption[];
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -562,15 +606,6 @@ function ChangePanel({
       ),
     [locale],
   );
-
-  const industries = useMemo(() => {
-    const list = ORG_INDUSTRIES.map((i) => ({ key: i.key, label: orgIndustryDisplayLabel(i.key) }));
-    const docKey = result.identity.industry_key;
-    if (docKey && !list.some((i) => i.key === docKey)) {
-      list.unshift({ key: docKey, label: result.identity.industry_label ?? docKey });
-    }
-    return list;
-  }, [result.identity.industry_key, result.identity.industry_label]);
 
   const setPeriod = (y: number, m: number) =>
     updateChoice({ periodEnd: lastDayOfMonth(y, m), edited: { ...choice.edited, period: true } });

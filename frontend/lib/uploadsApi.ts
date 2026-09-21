@@ -104,13 +104,35 @@ export interface CommitInput {
   onScreenOrgId?: string | null;
 }
 
+/** The plan's extra-document question (402), as /api/pipeline/run asks it. */
+export interface ExtraDocConfirmation {
+  planKey: string;
+  docsUsed: number;
+  docsIncluded: number;
+  extraDocEur: number | null;
+  message: string;
+}
+
 export type CommitResult =
-  | { status: "queued"; document_id: string; org_id: string; company_name: string }
-  | { status: "duplicate"; document_id: string; period_id: string | null; org_id: string }
-  /** The engine stored the document but the plan needs the user's say-so
-   *  before it runs (402). The existing extra-document dialog takes it from
-   *  here — the upload flow hands `document_id` to useUploadEnqueue. */
-  | { status: "needs_confirmation"; document_id: string; org_id: string | null; company_name: string | null }
+  | {
+      status: "queued";
+      document_id: string;
+      org_id: string;
+      company_name: string;
+      /** True when this commit created the company (a new CUI). */
+      created_company?: boolean;
+    }
+  | {
+      status: "duplicate";
+      document_id: string;
+      period_id: string | null;
+      org_id: string;
+      company_name?: string | null;
+    }
+  /** 402 — the plan wants the user's say-so first. The meter answers BEFORE
+   *  anything is stored, so the flow shows the unchanged extra-document
+   *  dialog and, once confirmed, sends the same commit again. */
+  | { status: "needs_confirmation"; confirmation: ExtraDocConfirmation }
   | { status: "refused"; message: string; httpStatus: number };
 
 export interface CompanyYear {
@@ -292,6 +314,7 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
         document_id: rec.document_id,
         period_id: typeof rec.period_id === "string" ? rec.period_id : null,
         org_id: rec.org_id,
+        company_name: typeof rec.company_name === "string" ? rec.company_name : null,
       };
     }
     if (rec.status === "queued" && typeof rec.document_id === "string" && typeof rec.org_id === "string") {
@@ -300,6 +323,7 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
         document_id: rec.document_id,
         org_id: rec.org_id,
         company_name: typeof rec.company_name === "string" ? rec.company_name : "",
+        ...(typeof rec.created_company === "boolean" ? { created_company: rec.created_company } : {}),
       };
     }
     throw new UploadApiError("malformed_commit", 502);
@@ -311,13 +335,16 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
 
   if (res.status === 402) {
     const d = asRecord(rec?.detail) ?? rec ?? {};
-    const docId = typeof d.document_id === "string" ? d.document_id : null;
-    if (docId) {
+    if (d.code === "extra_doc_confirmation_required") {
       return {
         status: "needs_confirmation",
-        document_id: docId,
-        org_id: typeof d.org_id === "string" ? d.org_id : null,
-        company_name: typeof d.company_name === "string" ? d.company_name : null,
+        confirmation: {
+          planKey: typeof d.plan_key === "string" ? d.plan_key : "starter",
+          docsUsed: typeof d.docs_used === "number" ? d.docs_used : 0,
+          docsIncluded: typeof d.docs_included === "number" ? d.docs_included : 0,
+          extraDocEur: typeof d.extra_doc_eur === "number" ? d.extra_doc_eur : null,
+          message: typeof d.message === "string" ? d.message : "",
+        },
       };
     }
   }

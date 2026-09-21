@@ -113,17 +113,43 @@ describe("POST /api/uploads/commit", () => {
   });
 
   it("duplicate → {status:'duplicate', …} straight through", async () => {
-    fetchMock.mockResolvedValue(json(200, { status: "duplicate", document_id: "d0", period_id: "p0", org_id: "agras" }));
-    const res = await commitUpload({ file: new File(["x"], "b.xls"), targetOrgId: "agras", periodEnd: "2025-12-31" });
-    expect(res).toEqual({ status: "duplicate", document_id: "d0", period_id: "p0", org_id: "agras" });
-  });
-
-  it("402 with the stored document → the existing extra-document flow takes it", async () => {
     fetchMock.mockResolvedValue(
-      json(402, { detail: { code: "extra_doc_confirmation_required", document_id: "d9", org_id: "agras", message: "Extra" } }),
+      json(200, { status: "duplicate", document_id: "d0", period_id: "p0", org_id: "agras", company_name: "Agras SA" }),
     );
     const res = await commitUpload({ file: new File(["x"], "b.xls"), targetOrgId: "agras", periodEnd: "2025-12-31" });
-    expect(res).toEqual({ status: "needs_confirmation", document_id: "d9", org_id: "agras", company_name: null });
+    expect(res).toEqual({ status: "duplicate", document_id: "d0", period_id: "p0", org_id: "agras", company_name: "Agras SA" });
+  });
+
+  it("402 → the plan's extra-document question, exactly as /api/pipeline/run asks it", async () => {
+    fetchMock.mockResolvedValue(
+      json(402, {
+        detail: {
+          code: "extra_doc_confirmation_required",
+          plan_key: "starter",
+          docs_used: 5,
+          docs_included: 5,
+          extra_doc_eur: 3,
+          message: "This will be an extra document.",
+        },
+      }),
+    );
+    const res = await commitUpload({ file: new File(["x"], "b.xls"), targetOrgId: "agras", periodEnd: "2025-12-31" });
+    expect(res).toEqual({
+      status: "needs_confirmation",
+      confirmation: { planKey: "starter", docsUsed: 5, docsIncluded: 5, extraDocEur: 3, message: "This will be an extra document." },
+    });
+  });
+
+  it("the engine's word on whether a company was created travels through", async () => {
+    fetchMock.mockResolvedValue(
+      json(200, { status: "queued", document_id: "d3", org_id: "o", company_name: "C SRL", created_company: false, period_end: "2025-12-31" }),
+    );
+    const res = await commitUpload({
+      file: new File(["x"], "b.xls"),
+      createCompany: { name: "C SRL", cui: "RO1", caen_code: null, industry_key: null },
+      periodEnd: "2025-12-31",
+    });
+    expect(res).toEqual({ status: "queued", document_id: "d3", org_id: "o", company_name: "C SRL", created_company: false });
   });
 
   it("403 (not my company) is a refusal with the engine's words", async () => {
