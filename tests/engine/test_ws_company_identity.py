@@ -152,6 +152,22 @@ def test_a_labelled_company_and_ro_prefixed_cui():
     assert ident.cui == valid_cui("4000003") and ident.company_name == "GAMMA AGRO SRL"
 
 
+@pytest.mark.parametrize("line,name", [
+    ("Welcome dinner hosted by Scandia Food S.R.L", "Scandia Food S.R.L"),
+    ("Firma ALFA FOOD SRL", "ALFA FOOD SRL"),
+    ("Casa de Ajutor Reciproc Scandia SA", "Casa de Ajutor Reciproc Scandia SA"),
+    ("BETA IMOBILIARE SRL c.f. 30000024", "BETA IMOBILIARE SRL"),
+])
+def test_a_title_line_yields_the_company_name_not_the_sentence(line, name):
+    """P2 (verifier): the title pattern matched lazily from the leftmost
+    capital, so 'Welcome dinner hosted by Scandia Food S.R.L' keyed the
+    company 'WELCOME DINNER HOSTED BY SCANDIA FOOD' and an itinerary was
+    archived away from the company it names."""
+    ident = identify_document(balance_xlsx([line, "Balanta de verificare la 31.12.2025"]), "x.xlsx")
+    assert ident.company_name == name
+    assert ident.sources["company_name"]["signal"] == "document_header_title"
+
+
 def test_an_itinerary_is_not_a_balance_but_names_its_host():
     ident = identify_document(itinerary_pdf(), "Delegation_Itinerary.pdf")
     assert ident.document_kind == "not_a_balance"

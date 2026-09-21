@@ -453,6 +453,61 @@ def _header_caen(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
     return None
 
 
+_TITLE_FORM_RE = re.compile(r"^(.*?)\s+((?:S\.?\s?R\.?\s?L\.?|S\.?\s?A\.?))$")
+#: Lowercase words a company name carries between capitalised ones
+#: ("Casa de Ajutor Reciproc").
+_TITLE_CONNECTORS = frozenset({"de", "si", "și", "şi", "and", "of", "la", "din", "pentru", "&", "-"})
+#: Words that introduce a name rather than belong to it ("Firma ALFA FOOD SRL").
+_TITLE_LABELS = frozenset({"firma", "societatea", "societate", "unitatea", "company", "entity", "client",
+                           "furnizor", "beneficiar", "emitent"})
+TITLE_MAX_TOKENS = 6
+
+
+def _trim_title(capture: str) -> Optional[str]:
+    """The company name inside a "<words> SRL" capture: the run of
+    capitalised words (ALL-CAPS words when the name is written in capitals)
+    directly before the legal form, through lowercase connectors, without a
+    leading label word, at most TITLE_MAX_TOKENS words. "Welcome dinner
+    hosted by Scandia Food S.R.L" -> "Scandia Food S.R.L"; "Firma ALFA FOOD
+    SRL" -> "ALFA FOOD SRL". None when no such run exists."""
+    m = _TITLE_FORM_RE.match(capture.strip())
+    if not m:
+        return None
+    tokens, form = m.group(1).split(), m.group(2)
+    if not tokens:
+        return None
+
+    def caps(tok: str) -> bool:
+        letters = [c for c in tok if c.isalpha()]
+        return bool(letters) and all(c.isupper() for c in letters)
+
+    all_caps = caps(tokens[-1])
+
+    def ok(tok: str) -> bool:
+        if tok == "&" or tok.isdigit():
+            return True
+        return caps(tok) if all_caps else (tok[:1].isupper() or tok[:1].isdigit())
+
+    run: List[str] = []
+    i = len(tokens) - 1
+    while i >= 0:
+        tok = tokens[i]
+        if ok(tok):
+            run.insert(0, tok)
+        elif run and tok.lower() in _TITLE_CONNECTORS and i > 0 and ok(tokens[i - 1]):
+            run.insert(0, tok)
+        else:
+            break
+        i -= 1
+    while run and run[0].lower().strip(".:,") in _TITLE_LABELS:
+        run.pop(0)
+    while run and run[0].lower() in _TITLE_CONNECTORS:
+        run.pop(0)
+    if not run:
+        return None
+    return " ".join(run[-TITLE_MAX_TOKENS:] + [form])
+
+
 def _header_names(lines: Sequence[str]) -> List[Tuple[str, str, str]]:
     """[(name, signal, evidence)] in reading order: labelled names first."""
     out: List[Tuple[str, str, str]] = []
@@ -464,7 +519,10 @@ def _header_names(lines: Sequence[str]) -> List[Tuple[str, str, str]]:
                 out.append((name, "document_header_label", line.strip()[:160]))
     for line in lines:
         for m in _TITLE_RE.finditer(line):
-            name = _clean_name(m.group(1))
+            trimmed = _trim_title(m.group(1))
+            if not trimmed:
+                continue
+            name = _clean_name(trimmed)
             if len(normalize_company_name(name)) >= 2:
                 out.append((name, "document_header_title", line.strip()[:160]))
     return out
