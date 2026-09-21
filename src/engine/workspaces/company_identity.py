@@ -667,6 +667,16 @@ def _period(header_text: str, filename: Optional[str]) -> Tuple[Optional[str], O
     return end, {"signal": str(got.get("signal_used")), "evidence": str(got.get("evidence_snippet") or "")}
 
 
+def filename_period_end(filename: Optional[str]) -> Optional[str]:
+    """The period a FILENAME alone names ("…_31.12.2025.xlsx", "…FY2025…"),
+    through the engine's own detector — or None. A corroborating signal,
+    never an identity."""
+    if not filename:
+        return None
+    end, src = _period("", filename)
+    return end if src and src.get("signal") == "filename" else None
+
+
 def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any = None) -> CompanyIdentity:
     """The identity from already-extracted text. Pure given ``registry``."""
     sources: Dict[str, Dict[str, str]] = {}

@@ -398,16 +398,63 @@ def _ident(cui, end, signal="closing_balance"):
                                              document_kind="trial_balance"))
 
 
+def _moving_period(filename="d1.xlsx", hint=None):
+    """p1 (dated 2025-06-30) sits in org-q, a workspace with no company of
+    its own; its company (ALFA) lives in org-a, so p1 MOVES."""
+    doc = dict(_doc("d1", "org-q", period="p1"), original_filename=filename, period_end_hint=hint)
+    return _mini([doc, _doc("keep-a", "org-a")],
+                 [{"id": "p1", "org_id": "org-q", "period_start": "2025-06-30", "period_end": "2025-06-30",
+                   "source_document_id": "d1"}],
+                 metrics=[("p1", "org-q")], orgs=("org-a", "org-q"), prefs={"org-a": {"cui": ALFA}})
+
+
+def _redates(plan):
+    return [op["set"] for op in plan.ops if op.get("table") == "financial_periods" and "period_end" in op["set"]]
+
+
 def test_a_filename_only_disagreement_within_the_year_is_not_re_dated():
-    t = _mini([_doc("d1", "org-a")],
-              [{"id": "p1", "org_id": "org-a", "period_start": "2025-06-30", "period_end": "2025-06-30",
+    plan = build_plan(_moving_period("Balanta_31.12.2025.xlsx"),
+                      {"d1": _ident(ALFA, "2025-12-31", signal="filename")}, migration_date=DATE)
+    assert _decision(plan, "periods", "p1")["to_org"] == "org-a"
+    assert _redates(plan) == []
+    assert any("not re-dated (same year)" in w for w in plan.warnings)
+
+
+def test_a_closing_balance_date_re_dates_a_moving_period_only_when_a_second_signal_agrees():
+    """P1 (verifier p8_printdate.py): a print date beside the title
+    ('tiparit 15.01.2026') reads as a closing-balance date. Alone it is not
+    a period: the filename or the user-confirmed hint must name the same
+    month."""
+    ident = {"d1": _ident(ALFA, "2025-12-31", signal="closing_balance")}
+    plan = build_plan(_moving_period("d1.xlsx"), ident, migration_date=DATE)
+    assert _redates(plan) == []
+    assert any("no second signal agrees" in w for w in plan.warnings)
+    plan = build_plan(_moving_period("Balanta_31.12.2025.xlsx"), ident, migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+    plan = build_plan(_moving_period("d1.xlsx", hint="2025-12-31"), ident, migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+    # the document's own period line needs no second signal
+    plan = build_plan(_moving_period("d1.xlsx"), {"d1": _ident(ALFA, "2025-12-31", signal="in_document")},
+                      migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+
+
+def test_a_served_period_is_never_re_dated():
+    """P1 (verifier p8_printdate.py) / P2 (data safety probe_cascade case B):
+    a period already in its company's own workspace is the one being
+    served. The 10fd52ab planner re-dated it on any closing-balance hit —
+    'Balanta de verificare decembrie 2025  tiparit 15.01.2026' moved the
+    served December to January. Served months are never re-dated, whatever
+    the signal; the disagreement is a warning for an operator."""
+    t = _mini([dict(_doc("d1", "org-a", period="p1"), original_filename="Balanta Alfa Food 31.12.2025.xlsx",
+                    period_end_hint="2025-12-31")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
                 "source_document_id": "d1"}], metrics=[("p1", "org-a")])
-    plan = build_plan(t, {"d1": _ident(ALFA, "2025-12-31", signal="filename")}, migration_date=DATE)
-    assert not [op for op in plan.ops if op.get("table") == "financial_periods"]
-    assert any("not re-dated" in w for w in plan.warnings)
-    plan = build_plan(t, {"d1": _ident(ALFA, "2025-12-31", signal="closing_balance")}, migration_date=DATE)
-    redate = [op for op in plan.ops if op.get("table") == "financial_periods"]
-    assert redate and redate[0]["set"] == {"period_end": "2025-12-31", "period_start": "2025-12-31"}
+    for signal, says in (("closing_balance", "2026-01-31"), ("in_document", "2025-11-30")):
+        plan = build_plan(t, {"d1": _ident(ALFA, says, signal=signal)}, migration_date=DATE)
+        assert _decision(plan, "periods", "p1")["action"] == "keep"
+        assert _redates(plan) == [] and not [op for op in plan.ops if op.get("key") == {"id": "d1"}], signal
+        assert any("is served in its company's workspace" in w and says in w for w in plan.warnings)
 
 
 def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():

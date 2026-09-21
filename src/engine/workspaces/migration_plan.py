@@ -39,9 +39,13 @@ data would change what the other members see).
    others are archived.
 4. A surviving period moves to its company's workspace (an existing one of
    the SAME user, else a new one named from the registry / document, with
-   ``org_prefs.prefs = {cui, company_name, identity_sources}``). It is
-   re-dated when its document disagrees with its date: always on the
-   document's own period line; on a filename-only signal only when the YEAR
+   ``org_prefs.prefs = {cui, company_name, identity_sources}``). A period
+   ALREADY in its company's own workspace is served: it is never re-dated
+   (a disagreement is a warning for an operator). A period that moves is
+   re-dated when its document disagrees with its date: on the document's
+   own period line; on a closing-balance date only when a second signal
+   agrees (the filename, or the user-confirmed hint — a print date beside
+   the title is not a period); on a filename-only signal only when the YEAR
    differs (the "2025 book filed under 2017" shape).
 5. Per company per month exactly one live document: the surviving period's
    source. Copies (same content hash), other files for the same company and
@@ -88,6 +92,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 
 from engine.workspaces.company_identity import (
     CompanyIdentity,
+    filename_period_end,
     normalize_company_name,
     normalize_cui,
 )
@@ -623,17 +628,37 @@ class _Planner:
         ident = self.ident(sid)
         if ident and ident.period_end and ident.period_end != end:
             signal = (ident.sources.get("period_end") or {}).get("signal")
-            if signal in ("in_document", "closing_balance") or (
-                    signal == "filename" and ident.period_end[:4] != end[:4]):
-                redate = ident.period_end
-            else:
+            new = ident.period_end
+            if self.own.get(org) is not None and self.own.get(org) == company:
+                # Served: in its company's own workspace. The migration
+                # never moves a served month (rule 3) — nor re-dates it.
                 self.plan.warnings.append(
-                    "period %s dated %s, its document's %s signal says %s — not re-dated (same year)"
-                    % (pid, end, signal, ident.period_end))
+                    "period %s is served in its company's workspace dated %s; its document's %s signal "
+                    "says %s — not re-dated (an operator decides)" % (pid, end, signal, new))
+            elif signal == "in_document" or (signal == "filename" and new[:4] != end[:4]):
+                redate = new
+            elif signal == "closing_balance" and self._corroborated(sid, new):
+                redate = new
+            else:
+                why = ("same year" if signal == "filename" else
+                       "no second signal agrees" if signal == "closing_balance" else "signal not trusted")
+                self.plan.warnings.append(
+                    "period %s dated %s, its document's %s signal says %s — not re-dated (%s)"
+                    % (pid, end, signal, new, why))
         row.update(action="candidate", reason="", company=company,
                    month=_month(redate or end), redate_to=redate,
                    redate_signal=(ident.sources.get("period_end") or {}) if redate and ident else None)
         return row
+
+    def _corroborated(self, doc_id: str, new_end: str) -> bool:
+        """A second, independent signal names the same month as the
+        document's closing-balance date: the filename, or the period end a
+        user confirmed for the document."""
+        d = self.docs.get(doc_id) or {}
+        month = _month(new_end)
+        if d.get("period_end_hint") and _month(str(d["period_end_hint"])) == month:
+            return True
+        return _month(filename_period_end(d.get("original_filename"))) == month
 
     def _document_decisions(self, survivors: Mapping[Tuple[str, str], str],
                             periods: Mapping[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
