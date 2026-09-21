@@ -312,6 +312,59 @@ def test_a_second_number_format_refuses(caplog):
     assert refused(caplog, lines, "account 1007.01 carries 6 figures, not 10")
 
 
+def _swap_columns(line: str, order: List[int]) -> str:
+    """Reprint a row's (or total's) ten figures in another column order."""
+    parts = line.split(" ")
+    tail = parts[-10:]
+    if len(parts) < 11 or not all(P._FIG_5PAIR.match(t) for t in tail):
+        return line
+    return " ".join(parts[:-10] + [tail[i] for i in order])
+
+
+RULAJ_CURENT_FIRST = [0, 1, 4, 5, 2, 3, 6, 7, 8, 9]
+
+
+def test_rulaj_curent_printed_before_rulaj_anterior_refuses(caplog):
+    # Every row and total reprinted curent-first under a header that says
+    # so: Total rulaj = anterior + curent still holds, so only the header
+    # can tell — and the prior period's turnover would go out as RL.
+    swapped = "Cont Denumire Sold initial Rulaj curent Rulaj anterior Total rulaj Sold final"
+    lines = [swapped if l.startswith("Cont Denumire") else _swap_columns(l, RULAJ_CURENT_FIRST)
+             for l in book()]
+    assert refused(caplog, lines, "column header reads")
+
+
+def test_the_curent_first_book_is_otherwise_consistent():
+    # the control for the test above: with the canonical header restored,
+    # the swapped figures pass every arithmetic check — proof that the
+    # header is the only thing that refuses them
+    lines = [_swap_columns(l, RULAJ_CURENT_FIRST) for l in book()]
+    got = P.parse_lines(lines)
+    assert got is not None
+    assert by_cont(got, "1000.01")["figures"][2:6] == [Z, Decimal("20000.10"), Z, Decimal(1_234_567)]
+
+
+def test_a_reworded_column_header_refuses(caplog):
+    lines = _replace_line("Cont Denumire", lambda l: l + " Observatii")
+    assert refused(caplog, lines, "column header reads")
+
+
+def test_a_column_header_split_over_two_lines_refuses(caplog):
+    lines = book()
+    i = lines.index(HEADER[4])
+    lines[i:i + 1] = ["Cont Denumire Sold initial Rulaj anterior",
+                      "Rulaj curent Total rulaj Sold final"]
+    assert refused(caplog, lines, "column header reads")
+
+
+def test_an_account_printed_before_the_column_header_refuses(caplog):
+    lines = book()
+    first = next(k for k, l in enumerate(lines) if l.startswith("1000.01 "))
+    row = lines.pop(first)
+    lines.insert(1, row)  # still inside the first 40 lines; totals unchanged
+    assert refused(caplog, lines, "account 1000.01 is printed before the column header")
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 

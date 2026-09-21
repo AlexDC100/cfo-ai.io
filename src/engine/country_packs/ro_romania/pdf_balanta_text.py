@@ -56,6 +56,11 @@ layouts, or neither, is refused. The five-pair reader is stricter than the
 eight-figure one because the document states two identities per row that
 can be checked to the cent — and it refuses unless ALL of these hold:
 
+  * the column order is READ, never assumed: every line naming a column
+    (not led by an account code) is exactly "Cont Denumire Sold initial
+    Rulaj anterior Rulaj curent Total rulaj Sold final", and no account
+    line precedes the first one (no arithmetic check can see Rulaj
+    anterior and Rulaj curent swapped — their sum is the same);
   * every account line carries exactly ten figures;
   * Total rulaj == Rulaj anterior + Rulaj curent, per side, per row;
   * Sold final net == Sold initial net + Total rulaj net, per row;
@@ -108,9 +113,20 @@ _TOTAL_GENERAL_5PAIR = re.compile(r"^total\s+general\s*:\s*(.*)$")
 _CLASS_HEADING_5PAIR = re.compile(r"^clasa\s+(\d)$")
 _SKIP_PREFIXES_5PAIR = (
     "balanta analitica", "balanta sintetica", "balanta de verificare", "societate:",
-    "adresa:", "c.u.i", "cont denumire", "debit credit", "data si ora", "cod raport",
+    "adresa:", "c.u.i", "debit credit", "data si ora", "cod raport",
     "pagina", "\u00ae",
 )
+# The column ORDER is read from the document, never assumed. Every line
+# that names a column (any of these phrases, on a line that is not led by
+# an account code) must be exactly the five-pair column header, in this
+# order — otherwise the figures could be copied into the wrong columns:
+# a book printing "Rulaj curent" before "Rulaj anterior" passes every
+# arithmetic check (Total rulaj = anterior + curent reads the same either
+# way round) while the prior-period turnover goes out as the period's.
+_COLUMN_HEADER_5PAIR = ("cont denumire sold initial rulaj anterior rulaj curent "
+                        "total rulaj sold final")
+_COLUMN_PHRASES_5PAIR = ("cont denumire", "sold initial", "rulaj anterior", "rulaj curent",
+                         "total rulaj", "sold final")
 # Document column order, five (debit, credit) pairs.
 _SI_D, _SI_C, _RA_D, _RA_C, _RL_D, _RL_C, _TR_D, _TR_C, _SF_D, _SF_C = range(10)
 
@@ -244,12 +260,22 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     class_totals: Dict[str, List[Decimal]] = {}
     grand_printed: Optional[List[Decimal]] = None
     last: Optional[Dict[str, Any]] = None
+    column_headers = 0
 
     for raw in lines:
         line = raw.strip()
         if not line:
             continue
         f = _fold(line)
+        tokens = line.split()
+
+        if not _CODE_5PAIR.match(tokens[0]):
+            norm = " ".join(f.split())
+            if any(p in norm for p in _COLUMN_PHRASES_5PAIR):
+                if norm != _COLUMN_HEADER_5PAIR:
+                    return _refuse5("column header reads %r, not the five-pair column order", line[:120])
+                column_headers += 1
+                continue  # page header — a name may continue after it
 
         t = _TOTAL_CLASS_5PAIR.match(f)
         if t:
@@ -272,7 +298,6 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         if _CLASS_HEADING_5PAIR.match(f):
             last = None
             continue
-        tokens = line.split()
         if f.startswith(_SKIP_PREFIXES_5PAIR) or "utilizator:" in f:
             if sum(1 for x in tokens if _FIG_5PAIR.match(x)) >= 2:
                 return _refuse5("a page header/footer line carries figures: %r", line[:60])
@@ -284,6 +309,8 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
             while run < len(rest) and _FIG_5PAIR.match(rest[-1 - run]):
                 run += 1
             if run >= 10:
+                if not column_headers:
+                    return _refuse5("account %s is printed before the column header", code)
                 extra = rest[len(rest) - run:len(rest) - 10]
                 if any(x != code for x in extra):
                     return _refuse5("account %s carries %d figures, not 10", code, run)
