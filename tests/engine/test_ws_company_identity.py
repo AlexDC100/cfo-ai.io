@@ -18,6 +18,7 @@ import pytest
 
 from engine.public_ro.store import PublicRoStore
 from engine.workspaces.company_identity import (
+    REGISTRY_SEARCH_LIMIT,
     CompanyIdentity,
     apply_known_identity,
     cui_control_digit,
@@ -27,6 +28,7 @@ from engine.workspaces.company_identity import (
     match_known_identity,
     normalize_company_name,
     normalize_cui,
+    registry_match_name,
 )
 
 from ws_migration_fixture import balance_pdf, balance_xlsx, itinerary_pdf, text_pdf, valid_cui
@@ -212,6 +214,65 @@ def test_a_short_filename_word_is_never_looked_up(registry):
 def test_a_longer_filename_name_may_resolve_but_only_uniquely(registry):
     ident = identify_document(balance_xlsx([]), "Balanta Alfa Food_FY2025.xlsx", registry=registry)
     assert ident.cui == CUI_A and ident.sources["cui"]["signal"] == "filename_registry_match"
+
+
+def test_a_second_company_with_the_name_is_found_past_a_full_search_page(tmp_path):
+    """P1 (verifier p6_ambig.py, 2026-09-21): ALFA FOOD SRL and ALFA-FOOD
+    S.R.L. normalize to the same name; 130 other "ALFA …" companies fill the
+    first-token search page before the second one. The prefix search saw
+    one hit on a full page and handed the book that CUI. Uniqueness is now
+    decided over every registered name: ambiguous -> no CUI."""
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    try:
+        _company(st, valid_cui("3100001"), "ALFA FOOD SRL")
+        _company(st, valid_cui("3100002"), "ALFA-FOOD S.R.L.")
+        for i in range(130):
+            _company(st, valid_cui(str(3200000 + i)), "ALFA CONSTRUCT%03d SRL" % i)
+        assert registry_match_name(st, "ALFA FOOD SRL") is None
+        ident = identify_document(balance_xlsx(["Societate: ALFA FOOD SRL",
+                                                "Balanta de verificare la 31.12.2025"]), "b.xlsx", registry=st)
+        assert ident.cui is None and ident.company_key == "name:ALFA FOOD"
+    finally:
+        st.close()
+
+
+def test_a_punctuation_variant_of_the_registered_name_is_found(tmp_path):
+    """The prefix LIKE never reached "AGRA`S FOOD FACTORY S.R.L." from a
+    printed "Agras Food Factory"; the normalized index does — and only
+    because it is the ONE company with that name."""
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    try:
+        cui = valid_cui("4635509")
+        _company(st, cui, "AGRA`S FOOD FACTORY S.R.L.", "1011")
+        _company(st, valid_cui("3881501"), "ROM AGRA FOODS S.R.L.", "4623")
+        hit = registry_match_name(st, "Agras Food Factory SRL")
+        assert hit is not None and hit[0] == cui and hit[1]["name"] == "AGRA`S FOOD FACTORY S.R.L."
+    finally:
+        st.close()
+
+
+class _SearchOnlyRegistry:
+    """A registry that can only answer capped prefix searches."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def get_company(self, cui):
+        return next((dict(r) for r in self.rows if r["cui"] == int(cui)), None)
+
+    def search_companies(self, q, limit=20):
+        hits = [r for r in sorted(self.rows, key=lambda r: r["name"]) if r["name"].lower().startswith(q.lower())]
+        return [dict(r) for r in hits[:limit]]
+
+
+def test_a_search_only_registry_refuses_on_any_full_page():
+    """Without a name listing, a FULL page is unsure even when it holds one
+    exact hit — the next page may hold a second company with the name."""
+    rows = [{"cui": int(valid_cui("3100001")), "name": "ALFA FOOD SRL", "caen": "1013"}]
+    rows += [{"cui": int(valid_cui(str(3300000 + i))), "name": "ALFA FOOD %03d SRL" % i, "caen": None}
+             for i in range(REGISTRY_SEARCH_LIMIT)]
+    assert registry_match_name(_SearchOnlyRegistry(rows), "ALFA FOOD SRL") is None
+    assert registry_match_name(_SearchOnlyRegistry(rows[:3]), "ALFA FOOD SRL")[0] == valid_cui("3100001")
 
 
 # ── operator-verified identities ───────────────────────────────────────
