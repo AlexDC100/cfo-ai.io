@@ -18,7 +18,7 @@
 // The header must name this company before anything of it renders: see
 // lib/companyOnScreen.ts (gate G6).
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -124,6 +124,13 @@ function CompanyReady({
   const cui = dirQ.data?.[orgId]?.cui ?? null;
 
   const years = yearsQ.data ?? [];
+  // On a narrow screen the one-line row overflows: open it at its END, where
+  // the latest year and the next-year tile are — not at the oldest year.
+  const lineRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = lineRef.current;
+    if (el && el.scrollWidth > el.clientWidth) el.scrollLeft = el.scrollWidth;
+  }, [years.length]);
   const nextYear = useMemo(() => {
     if (years.length > 0) return Math.max(...years.map((y) => y.year)) + 1;
     return new Date().getUTCFullYear() - 1;
@@ -142,9 +149,9 @@ function CompanyReady({
           >
             {name}
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-soft">
+          <p className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-soft sm:flex-row sm:items-center sm:gap-x-2">
             {cui && <span className="font-mono tabular-nums" data-testid="company-cui">{t("wsV2.home.cui", { cui })}</span>}
-            {cui && industryKey && <span aria-hidden>·</span>}
+            {cui && industryKey && <span aria-hidden className="hidden sm:inline">·</span>}
             {industryKey && (
               <span data-testid="company-industry">
                 {ORG_INDUSTRIES.some((i) => i.key === industryKey)
@@ -173,6 +180,7 @@ function CompanyReady({
         {/* ONE line at every width: tiles never wrap; a phone scrolls them
             sideways. The dashed tile always closes the row. */}
         <div
+          ref={lineRef}
           className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2 chat-scroll"
           data-testid="company-years"
         >
