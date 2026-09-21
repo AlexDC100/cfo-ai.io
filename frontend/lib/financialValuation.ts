@@ -409,9 +409,10 @@ function canonical(s: Statements): {
   /** THE COVERAGE OPERAND — the EBIT the P&L prints (`assembled_pl.ebit`,
    *  the line `ebit + net financial result` foots to pretax from) and the
    *  one the engine's `interest_coverage` row and coverage sub-score divide
-   *  (`credit_model.operating_profit`). NOT `ebitStatutory`: that is
-   *  `operating_ebit`, the operating VIEW, which also carries 722
-   *  capitalized own work and 767 discounts received. See `intCov`. */
+   *  (`credit_model.operating_profit`). NOT `ebitStatutory` wherever the
+   *  engine served its EBIT: that is `operating_ebit`, the operating VIEW,
+   *  which also carries 722 capitalized own work and 767 discounts
+   *  received. See `intCov`. */
   ebitCoverage: number;
   ebitdaStatutory: number;
   cfo: number;
@@ -565,11 +566,21 @@ function canonical(s: Statements): {
     typeof pl.ebitda_statutory === "number"
       ? pl.ebitda_statutory
       : reportedLevel("ebitda") ?? t.ebitda;
-  // The engine's own EBIT, else the feed's reported level, else the
-  // reconstruction `deriveTotals` builds exactly as the engine's ratio
-  // table does (revenue − COGS − opex + other income − D&A).
+  // The engine's own EBIT; else the engine's own arithmetic for it
+  // (`ebit = ebitda − depreciation`, chart_of_accounts) when both served
+  // operands are on the wire; else — a P&L block that carries neither, so
+  // the engine's operand is simply not on this payload — the same ladder
+  // `ebitStatutory` walks. That last rung never reaches a real engine
+  // envelope (every assembled_pl carries `ebit`); it exists so a payload
+  // without the field keeps the verdict it had instead of being rebuilt
+  // from statement leaves an absent input would silently move (the
+  // completeness law, financialCompletenessLaw.test.tsx, served_balanced).
   const ebitCoverage =
-    typeof pl.ebit === "number" ? pl.ebit : reportedLevel("ebit") ?? t.ebit;
+    typeof pl.ebit === "number"
+      ? pl.ebit
+      : typeof pl.ebitda === "number" && typeof pl.depreciation === "number"
+        ? pl.ebitda - pl.depreciation
+        : ebitStatutory;
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
