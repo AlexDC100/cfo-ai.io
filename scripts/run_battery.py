@@ -308,12 +308,12 @@ def _engine_gates() -> List[Gate]:
         # (plus the creator census), G7 identify -> commit -> the five stages
         # -> the served dashboard, G8 archive-never-delete and an exact
         # db_restore. The browser half (G1 G2 G3 G5 G6 G8) rides `vitest`;
-        # the e2e half needs a hermetic build (gates.md). Floor 21 = the
-        # measured 16 + 5, exact. Plant log: docs/engine_book/gates.md.
+        # the e2e half needs a hermetic build (gates.md). Floor 22 = the
+        # measured 17 + 5, exact. Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=21, units="tests",
+             work_junit=True, floor=22, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
                        "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
                        "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
