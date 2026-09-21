@@ -426,6 +426,36 @@ def test_restore_puts_every_snapshot_row_back_without_deleting(env):
         [l for l in env["lines"] if l.startswith("org_prefs")]
 
 
+def test_a_run_after_a_rollback_ends_where_the_first_run_ended(env):
+    """Found while repairing: migrate -> db_restore --apply -> a fresh
+    snapshot -> migrate --execute (the documented recovery). The restore
+    archives the workspaces the first run created; the second run used to
+    'insert' them (a no-op on the archived rows) and move every surviving
+    period into a workspace nobody can see — with RECOUNT agreeing. It now
+    brings them back, and production ends where the first run ended."""
+    fake = env["fake"]
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    first = copy.deepcopy(fake.tables)
+    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0
+    snap2 = _snapshot(env, "snap2.json.gz")
+    assert _migrate(env, snap=snap2) == 0
+    plan = json.loads((env["tmp"] / "out" / "plan_2026-09-21.json").read_text())
+    assert sorted(w["action"] for w in plan["workspaces"] if w["action"] in ("create", "unarchive")) == \
+        ["unarchive"] * 4 and plan["blocking"] == []
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap2) == 0, env["lines"][-10:]
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
+    for table in ("financial_periods", "documents"):
+        assert {r["id"]: r["org_id"] for r in fake.tables[table]} == \
+            {r["id"]: r["org_id"] for r in first[table]}, table
+    live = lambda t: sorted(o["id"] for o in t["organizations"] if not o["archived_at"])  # noqa: E731
+    assert live(fake.tables) == live(first)
+    assert fake.deletes == []
+
+
 def test_a_restore_that_leaves_a_stamp_on_a_pre_existing_workspace_fails(env, monkeypatch):
     """PLANT: the restore's emptying of a created org_prefs row does not
     happen (an op dropped, a write swallowed). The dry-run names the stamp,

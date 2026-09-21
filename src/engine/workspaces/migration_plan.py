@@ -45,7 +45,14 @@ data would change what the other members see).
    others are archived.
 4. A surviving period moves to its company's workspace (an existing one of
    the SAME user, else a new one named from the registry / document, with
-   ``org_prefs.prefs = {cui, company_name, identity_sources}``). A period
+   ``org_prefs.prefs = {cui, company_name, identity_sources}``). A new
+   workspace's id is ``uuid5(user, company)``: after a rollback
+   (``db_restore`` archives the workspaces a run created, held) the next
+   run derives the same id, so that archived workspace is BROUGHT BACK
+   (un-archived) rather than "created" by an insert that is a no-op on the
+   archived row — which moved every surviving period into a workspace
+   nobody can see. One its owner deleted (``purge_after`` set) is never
+   resurrected: the plan is blocking. A period
    ALREADY in its company's own workspace is served: it is never re-dated
    (a disagreement is a warning for an operator). A period that moves is
    re-dated when its document disagrees with its date: on the document's
@@ -376,6 +383,13 @@ class _Planner:
                 self.plan.blocking.append("the post-state points into another workspace (rule 8): %s" % line)
         for line in hidden_conversations(self.t, after):
             self.plan.blocking.append("a conversation would end up in an archived workspace (rule 7): %s" % line)
+        # What the plan KEEPS must end where somebody can see it.
+        archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
+        for kind, rows in (("period", self.plan.periods), ("document", self.plan.documents)):
+            for row in rows:
+                if row.get("action") == "keep" and str(row.get("to_org")) in archived_after:
+                    self.plan.blocking.append("%s %s is kept but would end in archived workspace %s"
+                                              % (kind, row["id"], row.get("to_org")))
 
     def build_user(self, user: str) -> None:
         orgs = [o for o in sorted(self.orgs) if self.sole_owner(o) == user]
@@ -434,10 +448,25 @@ class _Planner:
         needed = sorted({c for (c, _m) in survivors} |
                         {dd["company"] for dd in doc_dec.values() if dd["action"] == "keep" and dd.get("company")})
         created: List[str] = []
+        reused: List[str] = []
         for company in needed:
             if company not in company_ws:
-                company_ws[company] = new_org_id(user, company)
-                created.append(company)
+                oid = new_org_id(user, company)
+                company_ws[company] = oid
+                prior = self.orgs.get(oid)
+                if prior is None:
+                    created.append(company)
+                elif prior.get("archived_at") and prior.get("purge_after") is None \
+                        and self.sole_owner(oid) == user:
+                    # archived (held) by a rollback of an earlier run
+                    reused.append(company)
+                else:
+                    created.append(company)
+                    self.plan.blocking.append(
+                        "workspace %s for %s already exists and is not one this run may bring back (%s) — "
+                        "an operator decides" % (oid, company, (
+                            "deleted by its owner, purge_after %s" % prior.get("purge_after"))
+                            if prior.get("archived_at") else "live, but its company is not %s" % company))
         self.company_ws = company_ws
         holding = holding_org_id(user)
         used_holding = [False]
@@ -540,6 +569,11 @@ class _Planner:
             self.plan.workspaces.append({
                 "user_id": user, "org_id": company_ws[company], "name": self._company_name(company),
                 "company": company, "company_source": "created", "action": "create"})
+        for company in reused:
+            self.plan.workspaces.append({
+                "user_id": user, "org_id": company_ws[company], "name": self.orgs[company_ws[company]].get("name"),
+                "company": company, "company_source": "an earlier run's workspace, archived by a rollback",
+                "action": "unarchive"})
         if used_holding[0]:
             self.plan.workspaces.append({
                 "user_id": user, "org_id": holding, "name": HOLDING_NAME.format(date=self.date),
@@ -551,11 +585,12 @@ class _Planner:
             self.plan.documents.append(dd)
 
         self._plan_chats(user, live_after)
-        self._emit_ops(user, created, holding, used_holding[0], archive_orgs, doc_dec)
+        self._emit_ops(user, created, holding, used_holding[0], archive_orgs, doc_dec, reused)
         self.plan.users.append({
             "user_id": user, "workspaces_in_scope": len(live),
             "companies": {c: company_ws[c] for c in sorted(company_ws)},
             "created": [company_ws[c] for c in created], "archived": archive_orgs,
+            "unarchived": [company_ws[c] for c in reused],
             "holding": holding if used_holding[0] else None})
 
     # ── pieces ────────────────────────────────────────────────────────
@@ -973,7 +1008,8 @@ class _Planner:
     # ── operations ────────────────────────────────────────────────────
 
     def _emit_ops(self, user: str, created: Sequence[str], holding: str, uses_holding: bool,
-                  archive_orgs: Sequence[str], doc_dec: Mapping[str, Dict[str, Any]]) -> None:
+                  archive_orgs: Sequence[str], doc_dec: Mapping[str, Dict[str, Any]],
+                  reused: Sequence[str] = ()) -> None:
         ops = self.plan.ops
         currency = "RON"
         for o in self.live:
@@ -1001,7 +1037,12 @@ class _Planner:
                 "id": holding, "name": HOLDING_NAME.format(date=self.date), "industry_key": None,
                 "industry_display_name": None, "default_currency": currency, "caen_code": None,
                 "caen_code_source": None, "archived_at": NOW, "purge_after": None}})
-        new_orgs = [self.company_ws[c] for c in created] + ([holding] if uses_holding else [])
+        for company in reused:
+            oid = self.company_ws[company]
+            ops.append({"op": "update", "table": "organizations", "key": {"id": oid},
+                        "set": {"archived_at": None, "purge_after": None},
+                        "expect": {"archived_at": self.orgs[oid].get("archived_at"), "purge_after": None}})
+        new_orgs = [self.company_ws[c] for c in list(created) + list(reused)] + ([holding] if uses_holding else [])
         have = {(str(m["org_id"]), str(m["user_id"])) for ms in self.members.values() for m in ms}
         for oid in new_orgs:
             if (oid, user) not in have:

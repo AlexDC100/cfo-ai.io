@@ -42,7 +42,9 @@ RESIDUE. A restore never deletes, so rows created since the snapshot stay:
 organizations / documents archived (held: purge_after NULL — listed
 nowhere, never purgeable from the hub), and the memberships / org_prefs
 rows OF THE WORKSPACES THE MIGRATION CREATED (no archive column; they
-belong to those archived workspaces). They are counted on a RESIDUE line —
+belong to those archived workspaces; a later run of the migration derives
+the same workspace ids and brings them back rather than creating new ones).
+They are counted on a RESIDUE line —
 the rollback is "every snapshot row is back, and nothing created since
 speaks for a workspace that existed before", never "production is the
 snapshot".

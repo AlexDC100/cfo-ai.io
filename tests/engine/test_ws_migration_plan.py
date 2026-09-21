@@ -471,6 +471,60 @@ def test_a_rollback_leaves_no_identity_stamp_on_a_workspace_that_existed_before(
     assert decided(pre)["org-solo"] == ("cui:" + SOLO, "period sources 1/1")
 
 
+def _rolled_back(world):
+    pre, post = world["tables"], world["post"]
+    ops, _notes = restore_ops(pre, post)
+    return apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+
+
+def test_a_run_after_a_rollback_brings_back_the_workspaces_the_first_run_created(world):
+    """Found while repairing (wsmig_repair3/r4_rerun_after_rollback.py): the
+    recovery path is migrate -> db_restore -> migrate again. The restore
+    archives (held) every workspace the first run created; the second run
+    derives the SAME ids (uuid5(user, company)), and its 'insert
+    organizations' was a no-op on the archived row — so every surviving
+    period moved into a workspace nobody can see, and neither the plan nor
+    the recount noticed (real snapshot: EEI 57c577ac and Carniprod
+    1dd6da8d). The second plan un-archives them, and ends where the first
+    run ended."""
+    restored = _rolled_back(world)
+    again = build_plan(restored, world["facts"], migration_date=DATE)
+    assert again.blocking == []
+    unarchived = {w["org_id"] for w in again.workspaces if w["action"] == "unarchive"}
+    assert unarchived == {new_org_id(OWNER, k) for k in ("cui:" + BETA, "cui:" + GAMMA, "cui:" + DELTA,
+                                                         "name:CARNEX")}
+    assert not [op for op in again.ops if op["op"] == "insert" and op["table"] == "organizations"
+                and op["row"]["id"] in unarchived]
+    post2 = apply_ops(restored, again.ops, now="2026-09-22T09:00:00+00:00")
+    orgs2 = {o["id"]: o for o in post2["organizations"]}
+    for pr in world["plan"].periods:
+        if pr["action"] == "keep":
+            org = orgs2[_row(post2, "financial_periods", id=pr["id"])["org_id"]]
+            assert org["archived_at"] is None, (pr["id"], org["id"])
+    # the same placement as the first run, and nothing left to do
+    for table in ("financial_periods", "documents"):
+        first = {r["id"]: r["org_id"] for r in world["post"][table]}
+        assert {r["id"]: r["org_id"] for r in post2[table]} == first, table
+    assert {o["id"] for o in world["post"]["organizations"] if not o["archived_at"]} == \
+        {o["id"] for o in post2["organizations"] if not o["archived_at"]}
+    assert build_plan(post2, world["facts"], migration_date=DATE).ops == []
+
+
+def test_a_workspace_its_owner_deleted_is_never_resurrected(world):
+    """A created workspace the OWNER deleted after the first run (archived
+    with a purge date — the hub's "Recently deleted" shelf) is not brought
+    back by a later run: the plan is blocking, and its own post-state gate
+    names every kept period that would land in an archived workspace."""
+    restored = copy.deepcopy(_rolled_back(world))
+    beta = new_org_id(OWNER, "cui:" + BETA)
+    _row(restored, "organizations", id=beta)["purge_after"] = "2026-10-22T00:00:00+00:00"
+    again = build_plan(restored, world["facts"], migration_date=DATE)
+    assert any(b.startswith("workspace %s for cui:%s already exists" % (beta, BETA)) and "deleted by its owner" in b
+               for b in again.blocking), again.blocking
+    assert any(b == "period per-beta is kept but would end in archived workspace %s" % beta
+               for b in again.blocking), again.blocking
+
+
 def test_nothing_is_hard_deleted_and_billing_is_never_written(world):
     pre, post, plan = world["tables"], world["post"], world["plan"]
     for table, rows in pre.items():
