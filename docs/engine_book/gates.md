@@ -5410,7 +5410,7 @@ PRODUCT, the gate run red, the file restored from git, the gate run green.
 | G7 drop → one tap → analysed dashboard | `::test_g7_*` (identify → commit → `_run_pipeline_sync` with the REAL deterministic extract over the stored bytes, map, persist, compute, validate, council, narrate → years + `GET /api/period`) | `uploadFlow.test.tsx` progress → dashboard | the whole flow, both languages |
 | G8 archive, never delete; db_restore reverts the migration | `::test_g8_*` (snapshot → `--execute` → `db_restore --apply`, over a double that refuses DELETE; static census of the migration path) | `workspaceRedesignScreens.test.tsx` "G8 — …" (danger zone archives, Home restores, no purge/delete in any redesign module) | — |
 
-Run: engine — `pytest tests/engine/test_workspace_v2_gates.py` (15 tests,
+Run: engine — `pytest tests/engine/test_workspace_v2_gates.py` (16 tests,
 ~15 s; the e2e fixtures under `e2e/fixtures/workspace_v2/` are what these
 routes serve for the two corpus books — regenerate with
 `WS_V2_WRITE_FIXTURE=1`, pinned field by field). Browser —
@@ -5429,7 +5429,11 @@ merge `2fe5aa92` — f8c7276b, `/run`'s `_meter_first_analysis` resolved onto th
 one meter — with identical red and green counts, and the e2e plants again on
 its bundle; the 10 engine plants a third time after the `feat/ws-migration`
 merge `72d1877c` — a2fd8309, which changed `company_identity`, `rowstore` and
-the planner under G2 and G8 — identical again). Every plant is applied to the PRODUCT, the gate run, the file
+the planner under G2 and G8 — identical again; and all 11, G3c included, on
+`f1f10591` after the last Lane A merge `c4d2b45a` — a8c1c8cf, the quota
+ledger). The runners restore a planted file with `git checkout --`: run them
+on a COMMITTED tree only — once, on this branch, the revert of a G3 plant
+also took an uncommitted fix with it (caught because the GREEN leg went red). Every plant is applied to the PRODUCT, the gate run, the file
 restored with `git checkout --`, the gate run again. Runners and the
 full red transcripts: `scratchpad/wsr/plant_runner_final.py`,
 `e2e_plant_runner_final.py`, `plants_final/*.txt`. An earlier pass (20:00–20:07,
@@ -5441,8 +5445,9 @@ before the last merges) is superseded by this one.
 |---|---|---|---|
 | G1 | `_uploads.resolve_target`: the company on screen wins over a CUI match (`if cui and on_screen is None:`) | `2 failed` — `test_g1_*:389 AssertionError: {'is_new': False, 'name': 'Scandia Food SRL', …, 'reason': 'on_screen_company'}` and `:406` (Agras on screen, a Scandia file) | 2 passed |
 | G2 | `company_identity._period`: a year in the file name wins, dressed as `closing_balance` | `5 failed, 1 passed` — `test_g2_*` ×3 (`:420`, `:434`, `:441`, the identity carries `period_end` from the name), `test_g7_*` ×2 (`:576 AssertionError: 2017-12-31`, the persisted period) | 6 passed |
-| G3a | `_uploads.find_duplicate` returns None (identify and commit stop checking before storage) | `1 failed, 1 passed` — `test_g3_the_same_file_twice…:465 AssertionError: None` (identify no longer names the analysed copy) | 2 passed |
-| G3b | the commit alone skips the pre-storage check (`dup = None`); the analysis entry still archives the copy | `1 failed, 1 passed` — `:472 AssertionError: G3: the second copy was stored` (a documents row and an object for the second copy, although nothing ran) | 2 passed |
+| G3a | `_uploads.find_duplicate` returns None (identify and commit stop checking before storage) | `1 failed, 2 passed` — `test_g3_the_same_file_twice…:465 AssertionError: None` (identify no longer names the analysed copy) | 3 passed |
+| G3b | the commit alone skips the pre-storage check (`dup = None`); the analysis entry still archives the copy | `1 failed, 2 passed` — `:472 AssertionError: G3: the second copy was stored` (a documents row and an object for the second copy, although nothing ran) | 3 passed |
+| G3c | the commit meters a book the plan already counted (`if already_counted and False:`) — the defect this gate found on the final tree, see below | `1 failed, 2 passed` — `test_g3_a_counted_book_re_uploaded_on_the_card…:505 AssertionError: G3: the card reserved a book the plan already counted` | 3 passed |
 | G4a | commit inserts a `financial_periods` container beside the document | `2 failed, 4 passed` — `:647 G4: the upload created a period before the analysis`, `:660 G4: a failed run left its period` | 6 passed |
 | G4b | `pipeline._rollback_period_of_failed_run` returns at once | `1 failed, 2 passed` — `:660 G4: a failed run left its period` | 3 passed |
 | G4c | `check_no_empty_periods.read_live` reads every document as `analyzed` | `1 failed` — `:718` the live listing lacks `('g4-per-failed', 'source failed')`. History: the first draft of this gate held only file-less and deleted-source periods and passed this plant (exit 0); it was extended to all five reasons before the earlier pass | 1 passed |
@@ -5495,8 +5500,9 @@ TC-11, what each reds on after the repair: G1 — any byte of a file whose
 header CUI is another of my companies landing outside that company, at
 identify, commit, storage, the card, the wire or the screen. G2 — any period
 taken from a file name, at identify, the stored hint, the card or the
-persisted row. G3 — a second copy stored, enqueued, reserved or committed, or
-identify not naming the analysed copy. G4 — any period row from
+persisted row. G3 — a second copy stored, enqueued, reserved or committed,
+identify not naming the analysed copy, or the card reserving or counting a
+book the plan already counted. G4 — any period row from
 identify/commit, a failed run's period left behind, the production check
 missing ANY of its five reasons or passing with nothing to check (exit 2).
 G5 — a file input, drop handler or flow entry outside the one component, on
@@ -5538,5 +5544,17 @@ through `_doc_dedupe.enter_analysis` like `/run`; a 402 from the commit
 `feat/ws-migration`'s kept current-month placeholder is now an explicit
 `--keep-current-month-placeholder` mode: by default it is archived, because
 G4 deleted the hook that re-created it. The battery runs the engine half as
-gate `workspace-v2` (`scripts/run_battery.py`, junit work count, floor 20 =
-15 + 5 measured, one canary per gate).
+gate `workspace-v2` (`scripts/run_battery.py`, junit work count, floor 21 =
+16 + 5 measured, one canary per gate).
+
+**The counted book on the card (found on the final tree, fixed in
+`f1f10591`).** Lane A a8c1c8cf (lens S) made /run, /retry and the failed
+banner ask the quota ledger whether a book was already counted — a counted
+book whose free correction re-run failed is `failed`, its period gone, and
+every entry used to take it for the book's first analysis (counted twice; at
+the cap billed as a paid extra). The redesign's `/api/uploads/commit` meters
+before it stores, through `reserve_upload_or_refuse` directly, and never
+asked: the new G3 test was RED (`:505 the card reserved a book the plan
+already counted`). The commit now asks `pipeline._book_already_counted` (the
+function `_needs_metering` asks, same book key) and analyses such a book
+unmetered; the ledger unreadable, it meters, as /run does.
