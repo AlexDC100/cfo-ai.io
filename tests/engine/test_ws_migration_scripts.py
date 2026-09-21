@@ -305,7 +305,7 @@ def test_a_copy_with_the_wrong_bytes_fails_the_recount(env, monkeypatch):
 
 
 def test_resume_refuses_drift_that_this_plan_did_not_write(env, monkeypatch):
-    """P2 (verifier, 2026-09-21): --resume switched the drift gate off
+    """Verifier finding (2026-09-21): --resume switched the drift gate off
     entirely — ANY difference from the snapshot was accepted. Now a resume
     accepts only rows the plan's own operations explain (a prefix of them,
     per row); a row the plan never touches that changed, is refused."""

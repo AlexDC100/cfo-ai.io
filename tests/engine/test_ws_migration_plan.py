@@ -90,7 +90,7 @@ def test_same_month_periods_elsewhere_are_archived_not_the_served_ones(world):
     assert _row(world["post"], "financial_periods", id="per-q25")["org_id"] == holding
     # its source travels with it, and is NOT put in a trash: the source is
     # ON DELETE CASCADE for the period, and "Clear all" on any trash the
-    # owner can reach hard-deletes what is in it (2026-09-21 verifier P0 —
+    # owner can reach hard-deletes what is in it (2026-09-21 verifier finding —
     # this line used to assert deleted_at IS NOT NULL, i.e. the defect).
     src = _row(world["post"], "documents", id="q-sf25-src")
     assert src["org_id"] == holding and src["deleted_at"] is None
@@ -132,7 +132,7 @@ def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world
 
 
 def test_the_re_date_rewrites_the_engines_period_detection_record(world):
-    """P1 (verifier, 2026-09-21): the Carniprod row was re-dated but its
+    """Verifier finding (2026-09-21): the Carniprod row was re-dated but its
     stored period_detection still said resolved 2017-12-31, mismatch true —
     served verbatim by /api/org/periods-with-documents (the mismatch chip)
     and read by firm/attention.detect_period_mismatch ('period the file is
@@ -261,7 +261,7 @@ def test_g4_no_empty_period_survives_in_a_live_workspace(world):
 
 
 def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived(world):
-    """P2 (verifier, 2026-09-21): the planner archived every workspace's
+    """Verifier finding (2026-09-21): the planner archived every workspace's
     current-month placeholder as "empty: no source document". The operator
     rule (2026-07-26, frontend/lib/orgPeriods.ts): every workspace always
     has a period for the current month, and it can't be deleted —
@@ -462,7 +462,7 @@ def test_a_filename_only_disagreement_within_the_year_is_not_re_dated():
 
 
 def test_a_closing_balance_date_re_dates_a_moving_period_only_when_a_second_signal_agrees():
-    """P1 (verifier p8_printdate.py): a print date beside the title
+    """Verifier finding (p8_printdate.py): a print date beside the title
     ('tiparit 15.01.2026') reads as a closing-balance date. Alone it is not
     a period: the filename or the user-confirmed hint must name the same
     month."""
@@ -481,7 +481,7 @@ def test_a_closing_balance_date_re_dates_a_moving_period_only_when_a_second_sign
 
 
 def test_a_served_period_is_never_re_dated():
-    """P1 (verifier p8_printdate.py) / P2 (data safety probe_cascade case B):
+    """Verifier findings (p8_printdate.py; data safety probe_cascade case B):
     a period already in its company's own workspace is the one being
     served. The 10fd52ab planner re-dated it on any closing-balance hit —
     'Balanta de verificare decembrie 2025  tiparit 15.01.2026' moved the
@@ -499,7 +499,7 @@ def test_a_served_period_is_never_re_dated():
 
 
 def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():
-    """P0 (verifier, 2026-09-21): a document whose bytes name no company
+    """Verifier finding (2026-09-21): a document whose bytes name no company
     used to take the company of the workspace it sits in. In production a
     Scandia Frozen book in a workspace resolving to Carniprod was archived as
     'other_file_same_period (<Carniprod's source>)'. An unknown company is
@@ -526,7 +526,7 @@ def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():
 
 
 def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
-    """P1 (verifier, 2026-09-21): the content-hash sibling map spanned every
+    """Verifier finding (2026-09-21): the content-hash sibling map spanned every
     user. User v's unreadable copy of the same file took user u's
     operator-verified identity, and the plan wrote merge_prefs on v's
     workspace with u's operator evidence (production: 9cb39c90 stamped
@@ -561,7 +561,7 @@ def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
 
 
 def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
-    """P2 (verifier): every created organization was inserted with
+    """Verifier finding (2026-09-21): every created organization was inserted with
     industry_key None even when the identity's CAEN mapped to one."""
     t = _mini([_doc("s", "org-a", period="p1"), _doc("g", "org-a", period="p2")],
               [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",

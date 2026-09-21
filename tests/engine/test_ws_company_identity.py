@@ -159,7 +159,7 @@ def test_a_labelled_company_and_ro_prefixed_cui():
     ("BETA IMOBILIARE SRL c.f. 30000024", "BETA IMOBILIARE SRL"),
 ])
 def test_a_title_line_yields_the_company_name_not_the_sentence(line, name):
-    """P2 (verifier): the title pattern matched lazily from the leftmost
+    """Verifier finding (2026-09-21): the title pattern matched lazily from the leftmost
     capital, so 'Welcome dinner hosted by Scandia Food S.R.L' keyed the
     company 'WELCOME DINNER HOSTED BY SCANDIA FOOD' and an itinerary was
     archived away from the company it names."""
@@ -228,7 +228,7 @@ def test_a_short_filename_word_is_never_looked_up(registry):
 
 
 def test_a_filename_registry_match_is_only_a_hint_unless_the_document_prints_the_cui(registry):
-    """P2 (verifier): a filename matched to the registry used to mint a CUI —
+    """Verifier finding (2026-09-21): a filename matched to the registry used to mint a CUI —
     and so a company key — on its own ('trial Balance Scandia Sibiu
     12.2019.PDF' -> 13068741, a live workspace created from the filename
     alone). It is a hint unless the document prints that CUI."""
@@ -243,7 +243,7 @@ def test_a_filename_registry_match_is_only_a_hint_unless_the_document_prints_the
 
 
 def test_a_second_company_with_the_name_is_found_past_a_full_search_page(tmp_path):
-    """P1 (verifier p6_ambig.py, 2026-09-21): ALFA FOOD SRL and ALFA-FOOD
+    """Verifier finding (p6_ambig.py, 2026-09-21): ALFA FOOD SRL and ALFA-FOOD
     S.R.L. normalize to the same name; 130 other "ALFA …" companies fill the
     first-token search page before the second one. The prefix search saw
     one hit on a full page and handed the book that CUI. Uniqueness is now
@@ -336,7 +336,7 @@ def test_a_name_only_rule_pins_a_company_without_cui(registry):
 
 
 def test_a_rules_caen_layers_on_even_when_the_document_prints_the_same_cui():
-    """P2 (verifier): apply_known_identity returned the document identity
+    """Verifier finding (2026-09-21): apply_known_identity returned the document identity
     unchanged when the CUIs agreed, so the operator's CAEN (EEI's 6820) was
     never used. The document keeps its CUI; the verified CAEN layers on."""
     ident = identify_document(balance_xlsx(["Alfa Food SRL", "Cod fiscal: %s" % CUI_A]), "x.xlsx")
