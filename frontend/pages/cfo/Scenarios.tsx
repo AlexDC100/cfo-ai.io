@@ -30,7 +30,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Lock, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
@@ -142,18 +142,30 @@ function ScenariosEngine({
     // While a lever recompute is in flight the last BASE answer stays up with
     // "Recomputing…" beside it. On a refusal TanStack drops it: the column
     // then carries the engine's sentence and no number.
-    placeholderData: keepPreviousData,
+    //
+    // SCOPED TO THIS PERIOD. TanStack hands `placeholderData` the observer's
+    // last query WITH data — including a query of another period, and one
+    // `queryClient.clear()` (the workspace switch) has already removed. An
+    // unscoped `keepPreviousData` therefore painted the previous period's (or
+    // the previous company's) projection under the new one while it loaded.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && previousQuery.queryKey[1] === periodId ? previous : undefined,
     refetchOnWindowFocus: false,
     retry: false,
   });
   const baseRead = useMemo(() => read(baseQuery.data), [baseQuery.data]);
   const baseView = baseRead && "view" in baseRead ? baseRead.view : null;
+  const baseIsPlaceholder = baseQuery.isPlaceholderData;
 
   useEffect(() => {
-    if (!baseView) return;
+    // Only a view THIS request served becomes `lastGood`. A placeholder is an
+    // earlier answer; stamping the current periodId onto it is how a previous
+    // period's lever rail and label survived a switch (and how a refusal of
+    // the new period failed to reach the page-level refusal state).
+    if (!baseView || baseIsPlaceholder) return;
     leversRef.current = baseView.levers;
     setLastGood({ periodId, view: baseView });
-  }, [baseView, periodId]);
+  }, [baseView, baseIsPlaceholder, periodId]);
 
   const template =
     SCENARIO_TEMPLATES.find((tpl) => tpl.id === templateId) ?? SCENARIO_TEMPLATES[0];
@@ -173,10 +185,16 @@ function ScenariosEngine({
         scenarioRequestBody(overrides, compiled && compiled.ok ? compiled.shocks : []),
       ),
     enabled: !isBase && !!compiled && compiled.ok,
-    // Held over ONLY while the same template recomputes. Switching template
-    // never shows the previous template's figures under the new one's name.
+    // Held over ONLY while the same template recomputes FOR THE SAME PERIOD.
+    // Switching template never shows the previous template's figures under
+    // the new one's name, and switching period never shows the previous
+    // period's.
     placeholderData: (previous, previousQuery) =>
-      previousQuery && previousQuery.queryKey[2] === template.id ? previous : undefined,
+      previousQuery &&
+      previousQuery.queryKey[1] === periodId &&
+      previousQuery.queryKey[2] === template.id
+        ? previous
+        : undefined,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -191,10 +209,10 @@ function ScenariosEngine({
     return () => clearTimeout(id);
   }, [editsKey, committedKey, debounceMs]);
 
-  useEffect(() => {
-    setEdits([]);
-    setCommitted([]);
-  }, [periodId]);
+  // A period switch resets the edits, the held base plan and both query
+  // observers by REMOUNTING this component (`key={period.id}` below), not by
+  // an effect: an effect runs after the first render of the new period, which
+  // has already painted with the old state.
 
   const refusedFallback = t("scenarios.refusal.fallback", "The engine did not return a projection.");
   const baseState = columnState(baseQuery, baseRead, refusedFallback);
@@ -382,5 +400,13 @@ export default function Scenarios() {
     );
   }
 
-  return <ScenariosEngine periodId={period.id} periodLabel={period.label ?? null} />;
+  // KEYED BY PERIOD. Everything this component holds — the last base plan the
+  // server produced (which feeds the lever rail and the page-level refusal),
+  // the reader's edits, the selected template and both query observers — is
+  // an answer about ONE period. A new period (the ?period= stepper, or the
+  // workspace switch, which also clears the query cache) mounts a fresh one,
+  // so nothing from a different request is ever painted under the new label.
+  return (
+    <ScenariosEngine key={period.id} periodId={period.id} periodLabel={period.label ?? null} />
+  );
 }

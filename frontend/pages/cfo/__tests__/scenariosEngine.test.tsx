@@ -22,7 +22,12 @@
  *   · the funding-line row labelled as an amount DRAWN when what it paints is
  *     the served year-end balance (`bs.revolver`, FY formula "closing month"):
  *     a line drawn and repaid inside plan year one reads nil there, beside
- *     the served peak, and the label has to say which of the two it is.
+ *     the served peak, and the label has to say which of the two it is;
+ *   · a new active period (the ?period= stepper, or a workspace switch after
+ *     queryClient.clear()) painting ANYTHING of the previous one while the new
+ *     one loads or after it refuses: a figure, the template column, the
+ *     period label, the lever rail — or a refusal of the new period failing
+ *     to reach the page-level refusal with the engine's sentence.
  *
  * WHAT IT CANNOT SEE
  *   · whether the engine's projection is right — the engine's own gates own
@@ -46,12 +51,15 @@ import { CfoApiError } from "@/lib/cfoApi";
 import { SCENARIO_TEMPLATES } from "@/lib/scenarioTemplates";
 
 const PERIOD = { id: "p-1", label: "Dec 2025" };
+/** The active period the page reads. A holder, so a test can switch period
+ *  (the ?period= stepper, or a workspace switch) and rerender. */
+const ACTIVE: { period: { id: string; label: string } } = { period: PERIOD };
 
 vi.mock("@/lib/activePeriod", () => ({
-  useActivePeriod: () => PERIOD,
+  useActivePeriod: () => ACTIVE.period,
 }));
 vi.mock("@/hooks/useActivePeriodFallback", () => ({
-  useActivePeriodFallback: () => ({ periodId: PERIOD.id, status: "resolved" }),
+  useActivePeriodFallback: () => ({ periodId: ACTIVE.period.id, status: "resolved" }),
 }));
 
 const forecastRecompute = vi.fn();
@@ -96,16 +104,19 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return render(
+  const tree = () => (
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <Scenarios />
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const result = render(tree());
+  return { ...result, client, rerenderPage: () => result.rerender(tree()) };
 }
 
 beforeEach(() => {
+  ACTIVE.period = PERIOD;
   forecastRecompute.mockReset();
   forecast.mockReset();
   forecastRecompute.mockImplementation(async () => served());
@@ -568,4 +579,109 @@ describe("the funding-line row is the balance at year end", () => {
       expect(interest.querySelector("[data-projected-value]")?.textContent).toMatch(/12[.,\s  ]?345/);
     });
   }
+});
+
+// ── 7. a new period (or workspace) never paints the previous one ───────
+//
+// The page's promise: never numbers held over from a different request. The
+// ?period= stepper and the workspace switch (which runs queryClient.clear()
+// and moves the active period) both hand the page a NEW period id. What was
+// served for the old one — its figures, its label, its lever rail and the
+// template column — must be gone the moment the new one is asked for, and a
+// refusal of the new period must reach the page-level refusal state.
+
+describe("switching period or workspace never paints the previous request", () => {
+  const fy = SERVED.horizon.labels_annual[0] as string;
+  const P2 = { id: "p-2", label: "Nov 2025" };
+  // Synthetic markers: a label and figures no real payload carries.
+  const P1_LABEL = "LABEL-P1";
+  const P1_REVENUE = "1,111,111";
+  const P1_TEMPLATE_REVENUE = "2,222,222";
+  const P2_SENTENCE = "the statements of this period could not be rebuilt from its line items";
+
+  function p1Payload(revenueMinor: number): Json {
+    const body = served();
+    body.base_period.label = P1_LABEL;
+    for (const f of body.figures as Array<Json>) {
+      if (f.line === "pl.revenue" && f.period === fy) f.amount_minor = revenueMinor;
+    }
+    return body;
+  }
+
+  /** p-1 serves its marked payload (the template column its own marked
+   *  revenue); p-2 answers as `p2` says. */
+  function serve(p2: "pending" | "refused") {
+    forecastRecompute.mockImplementation(async (id: string, body: Body) => {
+      if (id === PERIOD.id) {
+        return p1Payload(body.shocks.length > 0 ? 222_222_200 : 111_111_100);
+      }
+      if (p2 === "pending") return new Promise(() => undefined);
+      throw new CfoApiError("409", 409, { code: "statements_rebuild_failed", text: P2_SENTENCE });
+    });
+  }
+
+  async function onP1(withTemplate: boolean) {
+    const page = renderPage();
+    await waitFor(() => expect(document.body.textContent).toContain(P1_REVENUE));
+    expect(document.body.textContent).toContain(P1_LABEL);
+    expect(screen.getByTestId("forecast-levers")).toBeTruthy();
+    if (withTemplate) {
+      fireEvent.click(screen.getByTestId("scenarios-template-recession"));
+      await waitFor(() => expect(document.body.textContent).toContain(P1_TEMPLATE_REVENUE));
+    }
+    return page;
+  }
+
+  function expectNothingOfP1() {
+    const text = document.body.textContent ?? "";
+    expect(text, "a p-1 figure is painted under p-2").not.toContain(P1_REVENUE);
+    expect(text, "p-1's template figure is painted under p-2").not.toContain(P1_TEMPLATE_REVENUE);
+    expect(text, "p-1's label is painted under p-2").not.toContain(P1_LABEL);
+    expect(screen.queryByTestId("forecast-levers"), "p-1's lever rail survived").toBeNull();
+    expect(document.querySelector('[data-projected="true"]')).toBeNull();
+  }
+
+  it("(a) p-2 still in flight: loading, and nothing of p-1", async () => {
+    serve("pending");
+    const page = await onP1(false);
+    ACTIVE.period = P2;
+    page.rerenderPage();
+    await waitFor(() => expect(forecastRecompute.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
+    expectNothingOfP1();
+    expect(screen.getByTestId("scenarios-loading")).toBeTruthy();
+    expect(document.body.textContent).toContain(P2.label);
+  });
+
+  it("(a') with a template selected: p-1's template column is not painted under p-2", async () => {
+    serve("pending");
+    const page = await onP1(true);
+    ACTIVE.period = P2;
+    page.rerenderPage();
+    await waitFor(() => expect(forecastRecompute.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
+    expectNothingOfP1();
+  });
+
+  it("(b) p-2 refused (409): the page-level refusal is the engine's sentence", async () => {
+    serve("refused");
+    const page = await onP1(false);
+    ACTIVE.period = P2;
+    page.rerenderPage();
+    const detail = await screen.findByTestId("scenarios-refusal-detail");
+    expect(detail.textContent).toBe(P2_SENTENCE);
+    expectNothingOfP1();
+    expect(screen.queryByTestId("scenarios-outcome-table")).toBeNull();
+  });
+
+  it("(c) workspace switch — cache cleared, then a refused period of the new company", async () => {
+    serve("refused");
+    const page = await onP1(true);
+    // What switchOrg does: clear the whole query cache, then the active
+    // period moves to the new workspace's.
+    page.client.clear();
+    ACTIVE.period = P2;
+    page.rerenderPage();
+    const detail = await screen.findByTestId("scenarios-refusal-detail");
+    expect(detail.textContent).toBe(P2_SENTENCE);
+    expectNothingOfP1();
+  });
 });
