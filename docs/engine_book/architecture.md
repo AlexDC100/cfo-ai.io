@@ -72,6 +72,7 @@ graph LR
     pkg_security["security (2 modules)"]
     pkg_serving["serving (7 modules)"]
     pkg_storage["storage (3 modules)"]
+    pkg_workspaces["workspaces (5 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
     pkg__root_ -->|1| pkg_ratios
@@ -84,7 +85,7 @@ graph LR
     pkg_ai_lane -->|2| pkg_canonical
     pkg_ai_lane -->|2| pkg_country_packs
     pkg_ai_lane -->|3| pkg_packs
-    pkg_api -->|7| pkg__root_
+    pkg_api -->|6| pkg__root_
     pkg_api -->|5| pkg_ai
     pkg_api -->|2| pkg_ai_lane
     pkg_api -->|1| pkg_benchmarks_ro
@@ -110,6 +111,7 @@ graph LR
     pkg_api -->|1| pkg_routing
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
+    pkg_api -->|1| pkg_workspaces
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving
@@ -178,6 +180,7 @@ graph LR
     pkg_serving -->|1| pkg_api
     pkg_serving -->|1| pkg_consensus
     pkg_storage -->|1| pkg__root_
+    pkg_workspaces -->|1| pkg_api
 ```
 
 ## Level 3 — components: the value path, module level
@@ -377,3 +380,4 @@ declaration is the supply-chain lock's job to reject).
 | `radar` | yaml (pyyaml) |
 | `ratios` | yaml (pyyaml) |
 | `storage` | pandas (pandas), sqlalchemy (sqlalchemy) |
+| `workspaces` | openpyxl (openpyxl), pdfplumber (pdfplumber), xlrd (xlrd) |
