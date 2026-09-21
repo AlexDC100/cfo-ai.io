@@ -603,6 +603,74 @@ def test_a_landing_that_fails_gives_its_reservation_back(world, monkeypatch, fai
     assert "landed" not in pipeline._QUOTA_RUNS and _doc_dedupe.in_flight("landed") is None
 
 
+# ── A re-run never counts on the non-RO meter (verifier P-E, 2026-09-21) ─
+
+
+@pytest.fixture()
+def multi_nonro(world, monkeypatch):
+    """The Multi-Country plan at its included non-RO cap, with the non-RO
+    meter mirrored from its SQL (reserve / commit / release)."""
+    meter = world["meter"]
+    nonro = {"uploads": 8, "reserved": 0, "billed": 0, "calls": []}
+    real_rpc = meter.rpc
+
+    def rpc(name, payload):
+        if "nonro" in name:
+            nonro["calls"].append(name)
+            if name == "reserve_user_nonro_upload":
+                extra = nonro["uploads"] + nonro["reserved"] >= payload["p_base_cap"]
+                nonro["reserved"] += 1
+                return {"kind": "allowed", "used": nonro["uploads"], "extra": extra}
+            if name == "commit_user_nonro_upload":
+                nonro["uploads"] += 1
+                nonro["reserved"] = max(0, nonro["reserved"] - 1)
+                nonro["billed"] += 1 if payload["p_was_extra"] else 0
+                return {}
+            if name == "release_user_nonro_upload":
+                nonro["reserved"] = max(0, nonro["reserved"] - 1)
+                return {}
+        return real_rpc(name, payload)
+
+    monkeypatch.setattr(_usage_gate, "_rpc", rpc)
+    multi = _pricing_config.CONFIG.plans["multi"]
+    monkeypatch.setattr(_plan_state, "get_plan_state", lambda uid: _plan_state.PlanState(
+        user_id=uid, plan_key="multi", plan=multi, window_expires_at=None,
+        docs_used_this_period=meter.uploads, extra_docs_billed_this_period=meter.extra_billed,
+        chat_used_today=0, chat_used_this_period=0, today_iso="2026-09-21",
+        period_month_bucket="2026-09", extra_docs_pending_this_period=meter.pending,
+        nonro_used_this_period=nonro["uploads"]))
+
+    def stages(document_id):  # the real gate, at the seam _maybe_route_ai_lane calls it
+        pipeline._enforce_nonro_plan_gate(_row(world, document_id))
+        world["db"].update("documents", {"status": "analyzed", "period_id": PERIOD},
+                           filters={"id": "eq.%s" % document_id})
+        return "analyzed"
+
+    monkeypatch.setattr(pipeline, "_run_pipeline_stages", stages)
+    return nonro
+
+
+def test_a_retry_of_a_counted_non_ro_document_settles_nothing(world, multi_nonro):
+    world["db"].rows("documents").append(_doc("hu-book", h=EEI, status="analyzed", period_id=PERIOD,
+                                              started="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/retry", {"document_id": "hu-book"}).json()["status"] == "queued"
+    pipeline._run_pipeline_sync("hu-book")
+    assert multi_nonro["calls"] == [], multi_nonro["calls"]
+    assert multi_nonro["uploads"] == 8 and world["billed"] == []
+
+
+def test_the_first_run_of_a_non_ro_document_counts_it_once(world, multi_nonro):
+    """Positive control: the first metered run reserves the non-RO meter
+    under its verified reserver and commits it once (billed as an extra
+    above the included cap)."""
+    world["db"].rows("documents").append(_doc("hu-new", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "hu-new"}).json()["status"] == "queued"
+    pipeline._run_pipeline_sync("hu-new")
+    assert multi_nonro["calls"] == ["reserve_user_nonro_upload", "commit_user_nonro_upload"]
+    assert multi_nonro["uploads"] == 9 and multi_nonro["billed"] == 1
+    assert [b["kind"] for b in world["billed"]] == ["extra_nonro"]
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 

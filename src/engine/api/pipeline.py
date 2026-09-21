@@ -825,13 +825,34 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
     · multi → reserves the non-RO meter and stamps the documents row
       (`nonro_doc`, `nonro_metered_extra`) so `_commit_pipeline_quota`
       can commit/release the meter from the daemon thread.
+
+    ONLY THE FIRST, METERED RUN RESERVES (2026-09-21, verifier P-E). The
+    non-RO meter is reserved — and so committed and billed — only when THIS
+    run holds a document-slot reservation in the ledger (a first analysis
+    through /run, a recovery, the firm landing), and under that verified
+    reserver. A run that holds none — /retry, the ai-lane force-reextract,
+    a period-move re-run — re-analyses a document already counted: the plan
+    still gates it (the typed refusal), but nothing is reserved or counted.
+    It used to reserve and register on every run: a retry of an analysed
+    non-RO document on Multi at the included cap moved nonro uploads 8→9 and
+    metered `extra_nonro` again.
     """
     from . import _usage_gate as _ug
     if not _ug.enforcement_enabled():
         return
-    user_id = doc.get("uploaded_by")
-    if not user_id:
-        return
+    holder = _doc_slot_holder(str(doc.get("id") or ""))
+    if holder is None:
+        user_id = doc.get("uploaded_by")
+        if not user_id:
+            return
+        refusal = _ug.nonro_entitlement_refusal(str(user_id))
+        if refusal is None:
+            return
+        payload = dict(refusal.refusal or {"error": "non_ro_not_included"})
+        payload["plan_key"] = refusal.plan_key
+        payload["message"] = refusal.message
+        raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
+    user_id = holder
     decision = _ug.reserve_nonro_document(str(user_id))
     if decision.kind in ("allowed", "disabled"):
         if decision.kind == "allowed":
@@ -3824,6 +3845,16 @@ def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bo
         run.nonro_user = str(user_id)
         run.nonro_reserved = True
         run.nonro_extra = bool(was_extra)
+
+
+def _doc_slot_holder(document_id: str) -> Optional[str]:
+    """The verified user THIS run's document-slot reservation was made
+    for, or None when the run holds none (a re-run / an unmetered run)."""
+    with _QUOTA_RUNS_LOCK:
+        run = _QUOTA_RUNS.get(str(document_id))
+        if run is not None and run.doc_reserved and run.user_id:
+            return run.user_id
+    return None
 
 
 def _take_quota_run(document_id: str) -> Optional[_QuotaRun]:

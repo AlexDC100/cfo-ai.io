@@ -528,6 +528,39 @@ def release_document(user_id: str, *, was_extra: bool) -> None:
 # Non-RO documents — reserve / commit / release (2026-08 tiers)
 # ──────────────────────────────────────────────────────────────────────
 
+def _nonro_not_included(state: Any) -> NonRoReserveDecision:
+    plan = state.plan
+    return NonRoReserveDecision(
+        kind="refused",
+        plan_key=plan.key,
+        used=state.nonro_used_this_period,
+        cap=0,
+        extra_nonro_doc_eur=None,
+        was_extra=False,
+        refusal=dict(NON_RO_REFUSAL),
+        message=(
+            "Non-Romanian documents aren't included in the "
+            f"{plan.display_name} plan. Upgrade to Multi-Country to "
+            "analyze documents from other jurisdictions."
+        ),
+    )
+
+
+def nonro_entitlement_refusal(user_id: str) -> Optional[NonRoReserveDecision]:
+    """The non-RO ENTITLEMENT alone — no RPC, no reservation, no count: the
+    typed refusal when the plan does not include non-Romanian documents,
+    else None. For a run that holds no document slot (a retry, the
+    ai-lane force-reextract, a period-move re-run): the plan still gates
+    it, but it re-analyses a document already counted, so it reserves and
+    counts nothing (verifier P-E, 2026-09-21)."""
+    if not enforced_for(user_id):
+        return None
+    state = _plan_state.get_plan_state(user_id)
+    if state.plan.allows_non_ro:
+        return None
+    return _nonro_not_included(state)
+
+
 def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     """Gate + atomic reserve for ONE non-Romanian document.
 
@@ -558,20 +591,7 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     plan = state.plan
 
     if not plan.allows_non_ro:
-        return NonRoReserveDecision(
-            kind="refused",
-            plan_key=plan.key,
-            used=state.nonro_used_this_period,
-            cap=0,
-            extra_nonro_doc_eur=None,
-            was_extra=False,
-            refusal=dict(NON_RO_REFUSAL),
-            message=(
-                "Non-Romanian documents aren't included in the "
-                f"{plan.display_name} plan. Upgrade to Multi-Country to "
-                "analyze documents from other jurisdictions."
-            ),
-        )
+        return _nonro_not_included(state)
 
     body = _rpc("reserve_user_nonro_upload", {
         "p_user_id":     user_id,
