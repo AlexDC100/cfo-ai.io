@@ -304,6 +304,38 @@ def test_a_copy_with_the_wrong_bytes_fails_the_recount(env, monkeypatch):
     assert any("MISMATCH: storage" in l and "q-carnex-src" in l and "the plan read" in l for l in env["lines"])
 
 
+def test_resume_refuses_drift_that_this_plan_did_not_write(env, monkeypatch):
+    """P2 (verifier, 2026-09-21): --resume switched the drift gate off
+    entirely — ANY difference from the snapshot was accepted. Now a resume
+    accepts only rows the plan's own operations explain (a prefix of them,
+    per row); a row the plan never touches that changed, is refused."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    real = _interrupt_on(monkeypatch, 21)
+    with pytest.raises(RuntimeError):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    monkeypatch.setattr(pgrest_io.PgRest, "update", real)
+    # someone renames the second user's document meanwhile (the plan never touches it)
+    next(d for d in env["fake"].tables["documents"] if d["id"] == "s-src")["display_name"] = "renamed"
+    writes = len(env["fake"].writes)
+    assert _migrate(env, "--execute", "--resume", "--expect-plan-sha", sha, snap=snap) == 2
+    assert any("foreign drift: documents ['s-src']" in l for l in env["lines"])
+    assert len(env["fake"].writes) == writes
+
+
+def test_execute_refuses_a_snapshot_of_another_database(env):
+    snap_path = _snapshot(env)
+    import gzip
+    raw = json.loads(gzip.open(snap_path).read().decode("utf-8"))
+    raw["source"] = "https://another-project.supabase.co"
+    with gzip.open(snap_path, "wb") as fh:
+        fh.write(json.dumps(raw).encode("utf-8"))
+    assert _migrate(env, "--execute", "--resume", snap=snap_path) == 2
+    assert any(l.startswith("SOURCE MISMATCH") for l in env["lines"])
+    assert env["fake"].writes == []
+
+
 # ── restore ────────────────────────────────────────────────────────────
 
 

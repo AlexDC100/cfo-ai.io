@@ -205,6 +205,67 @@ def post_check(snapshot: Mapping[str, List[Dict[str, Any]]], current: Mapping[st
     return {"problems": problems, "drift": drift}
 
 
+def _same(a: Mapping[str, Any], b: Mapping[str, Any], cols: Optional[Sequence[str]] = None) -> bool:
+    """Row equality ignoring updated_at; a column the plan stamps "$now"
+    accepts any timestamp (an interrupted run wrote its own)."""
+    names = cols if cols is not None else sorted((set(a) | set(b)) - {"updated_at"})
+    for c in names:
+        want, got = b.get(c), a.get(c)
+        if want == _NOW_MARK:
+            if got is None:
+                return False
+        elif not same_value(got, want):
+            return False
+    return True
+
+
+def resume_drift(snapshot: Mapping[str, List[Dict[str, Any]]], current: Mapping[str, List[Dict[str, Any]]],
+                 ops: Sequence[Mapping[str, Any]], pks: Mapping[str, Sequence[str]]) -> List[str]:
+    """What --resume may NOT accept: every row that is neither its snapshot
+    row nor a state the plan's own operations produce on the way to the
+    post-state (an interrupted run stops anywhere in that sequence — a
+    period moved but not yet re-dated is fine). A row the plan does not
+    touch must be its snapshot row; a row gone is never acceptable (the
+    migration deletes nothing)."""
+    by_key: Dict[tuple, List[Mapping[str, Any]]] = {}
+    for op in ops:
+        if op["op"] == "copy_object":
+            continue
+        t = op["table"]
+        by_key.setdefault((t, row_key(op.get("row") or op.get("key"), pk_for(t, pks))), []).append(op)
+    bad: List[str] = []
+    for t in sorted(set(snapshot) | set(current)):
+        pk = pk_for(t, pks)
+        snap = {row_key(r, pk): r for r in snapshot.get(t) or []}
+        cur = {row_key(r, pk): r for r in current.get(t) or []}
+        for key in sorted(set(snap) | set(cur)):
+            got, before = cur.get(key), snap.get(key)
+            plan_ops = by_key.get((t, key), [])
+            if got is None:
+                if before is not None:
+                    bad.append("%s %s: gone since the snapshot" % (t, list(key)))
+                continue   # a row the plan inserts, not inserted yet
+            if before is not None and _same(got, before):
+                continue
+            states = []
+            rows = [dict(before)] if before is not None else []
+            inserted: Optional[List[str]] = None
+            for op in plan_ops:
+                if op["op"] == "insert":
+                    inserted = sorted(op["row"])
+                rows = apply_ops({t: rows}, [op], now=_NOW_MARK, pks=pks, strict=False)[t]
+                if rows:
+                    states.append(rows[0])
+            # compared on the columns the plan's state names (as the
+            # recount does): the database fills defaults (created_at …)
+            # into rows the plan creates.
+            if not any(_same(got, st, inserted if inserted else sorted(set(st) - {"updated_at"}))
+                       for st in states):
+                bad.append("%s %s: %s" % (t, list(key), "changed since the snapshot, not by this plan"
+                                          if plan_ops else "changed since the snapshot (the plan does not touch it)"))
+    return bad
+
+
 # ── main ───────────────────────────────────────────────────────────────
 
 def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=print,
@@ -244,6 +305,12 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         date = args.migration_date or created.date().isoformat()
         stale_before = (created - timedelta(hours=1)).isoformat()
 
+        if snap.get("source") and str(snap["source"]).rstrip("/") != str(client.url).rstrip("/"):
+            out("SOURCE MISMATCH: the snapshot was taken from %s, this client writes to %s"
+                % (snap["source"], client.url))
+            if args.execute:
+                out("REFUSED: a plan made from another database's snapshot never writes here.")
+                return 2
         drifted = False
         if args.execute:
             result = pgrest_io.verify_snapshot(db, snap)
@@ -300,6 +367,17 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if not plan.ops:
             out("NOTHING TO DO: the plan is empty (already migrated).")
             return 0
+        if drifted:
+            # --resume: production may differ from the snapshot ONLY by what
+            # this plan's own operations wrote before the interruption.
+            foreign = resume_drift(tables, pgrest_io.read_tables(db, list(tables), pks), plan.ops, pks)
+            for line in foreign[:50]:
+                out("  foreign drift: %s" % line)
+            if foreign:
+                out("REFUSED: %d row(s) changed since the snapshot by something other than this plan — "
+                    "--resume only finishes an interrupted run. Take a new snapshot and dry-run again."
+                    % len(foreign))
+                return 2
 
         # ONE run timestamp per plan: an interrupted run's "$now" values are
         # already in production, so --resume reuses the timestamp recorded
