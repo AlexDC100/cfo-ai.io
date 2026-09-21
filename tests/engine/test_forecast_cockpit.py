@@ -128,6 +128,8 @@ def _book_pair(name: str) -> Tuple[Any, Optional[Any]]:
                             RA.book_from_workbook(fy24, period_end="2024-12-31", key="ck24"))
         elif name == "agras_history":
             _BOOKS[name] = (SB.book("agras"), _scaled(SB.book("agras"), 0.8))
+        elif name == "agras_doubled":
+            _BOOKS[name] = (SB.book("agras"), _scaled(SB.book("agras"), 0.5))
         else:
             _BOOKS[name] = (SB.book(name), None)
     return _BOOKS[name]
@@ -670,6 +672,16 @@ def test_c_f7_growth_default_is_the_books_own_history_then_the_sector_never_a_si
     assert growth["measured"] is True
     assert "2024→2025" in growth["basis"]["ro"] and "istoric" in growth["basis"]["ro"], growth["basis"]
     assert "history" in growth["basis"]["en"]
+    # a history outside the pack's slider range (the book doubled in a year):
+    # the served range holds it, and sending it back is the base itself
+    with _World("agras_doubled") as world:
+        body = world.ok()
+        growth = _lever(body, "revenue_growth")
+        assert Fraction(growth["default"]) > Fraction(_pack().by_id["revenue_growth"].high)
+        assert Fraction(growth["range"]["max"]) == Fraction(growth["default"])
+        back = world.ok({"levers": {"revenue_growth": growth["default"]}})
+        assert back["engine_request"] == {"overrides": {}, "shocks": []}
+        assert _rows(back) == _rows(body)
     # one year, a CAEN: the sector median, stamped with its sector and count
     with _World("agras", caen="1011") as world:
         body = world.ok()

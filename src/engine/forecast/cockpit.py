@@ -691,15 +691,27 @@ def _with_reference(request: PlanRequest, rate: Fraction, pack: CockpitPack) -> 
 
 # ── the lever set in force ────────────────────────────────────────────────
 
-def _parse_value(spec: Any, raw: Any, years: int, pack: CockpitPack) -> Tuple[Fraction, ...]:
+def effective_range(spec: Any, default: Optional[Tuple[Fraction, ...]]) -> Tuple[Fraction, Fraction]:
+    """The pack's range for a lever, widened to hold this book's own default:
+    a measured value outside the pack's range (a book that grew 41% in a
+    year) is still what the slider shows and what the reader can send back."""
+    low, high = spec.low, spec.high
+    for value in default or ():
+        low, high = min(low, value), max(high, value)
+    return low, high
+
+
+def _parse_value(spec: Any, raw: Any, years: int, pack: CockpitPack,
+                 default: Optional[Tuple[Fraction, ...]] = None) -> Tuple[Fraction, ...]:
+    low, high = effective_range(spec, default)
+
     def one(item: Any) -> Fraction:
         if not isinstance(item, str) or not _DECIMAL.match(item.strip()):
             raise pack.refusal("not_decimal", spec.id, lever=spec.id, value=repr(item))
         value = Fraction(item.strip())
-        if value < spec.low or value > spec.high:
+        if value < low or value > high:
             raise pack.refusal("out_of_range", spec.id, lever=spec.id, value=item.strip(),
-                               low=str(spec.low if spec.low.denominator != 1 else int(spec.low)),
-                               high=str(spec.high if spec.high.denominator != 1 else int(spec.high)))
+                               low=_exact_decimal(low), high=_exact_decimal(high))
         return value
     if isinstance(raw, list):
         if spec.shape == "scalar":
@@ -820,7 +832,7 @@ def resolve_levers(defaults: Mapping[str, LeverDefault], case_id: str,
         if spec is None:
             raise pack.refusal("unknown_lever", key, lever=key,
                                levers=", ".join(s.id for s in pack.levers))
-        in_force[key] = _parse_value(spec, raw, years, pack)
+        in_force[key] = _parse_value(spec, raw, years, pack, defaults[key].values)
         origin[key] = "case"
     for key, raw in (request_levers or {}).items():
         spec = pack.by_id.get(key)
@@ -829,7 +841,7 @@ def resolve_levers(defaults: Mapping[str, LeverDefault], case_id: str,
                                levers=", ".join(s.id for s in pack.levers))
         if raw is None:
             continue
-        in_force[key] = _parse_value(spec, raw, years, pack)
+        in_force[key] = _parse_value(spec, raw, years, pack, defaults[key].values)
         origin[key] = "user"
     # wages follow inflation until set
     if origin.get("wage_growth") == "default" and "inflation" in in_force:
@@ -1064,7 +1076,8 @@ def _lever_payload(spec: Any, d: LeverDefault, value: Optional[Tuple[Fraction, .
         "is_default": origin == "default" or value == d.values, "origin": origin,
         "display": (None if value is None else
                     dict((l, unit_display(value[0], l)) for l in _LANGS)),
-        "range": {"min": text(spec.low), "max": text(spec.high), "step": text(spec.step)},
+        "range": dict(zip(("min", "max"), (text(v) for v in effective_range(spec, d.values))),
+                      step=text(spec.step)),
         "basis": basis, "source": d.source, "measured": d.measured,
         "follows": d.follows if origin == "default" else None,
         "inert": inert, "locked": d.locked,
