@@ -27,7 +27,9 @@ Z = Decimal(0)
 HEADER = [
     "Balanta analitica",
     "Societate: EXEMPLU TEST SRL",
-    "Adresa: Str. Exemplu 1 Decembrie 2025",
+    # the period prints at the end of the address line, as the text
+    # extraction merges the title block's "Decembrie 2025" onto it
+    "Adresa: Str. Exemplu 12 Oras Decembrie 2025",
     "C.U.I: RO1234567",
     "Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final",
     "Debit Credit Debit Credit Debit Credit Debit Credit Debit Credit",
@@ -809,6 +811,46 @@ def test_a_header_matching_both_layouts_refuses(caplog):
     lines = book()
     lines.insert(1, "Balanta de verificare Solduri initiale Rulaje perioada Sume totale Solduri finale")
     assert refused(caplog, lines, "header matches both layouts")
+
+
+# ── the period comes from the document ──────────────────────────────────
+
+
+def _with_title(*title: str) -> List[str]:
+    lines = book()
+    i = lines.index(HEADER[2])
+    return lines[:i] + list(title) + lines[i + 1:]
+
+
+def test_the_printed_period_is_read_from_the_title_block():
+    got = P.parse_lines(book())
+    assert got["period"] == {"text": "Decembrie 2025", "year": 2025, "month": 12, "end": "2025-12-31"}
+
+
+def test_a_period_on_a_line_of_its_own_is_read():
+    got = P.parse_lines(_with_title("Adresa: Str. Exemplu 12 Oras", "Februarie 2024"))
+    assert got["period"]["end"] == "2024-02-29"
+
+
+def test_a_street_named_for_a_date_is_not_a_period():
+    got = P.parse_lines(_with_title("Adresa: Bd. 1 Decembrie 1918"))
+    assert got is not None and got["period"] is None
+
+
+def test_two_different_printed_periods_are_no_period():
+    got = P.parse_lines(_with_title("Adresa: Str. Exemplu 12 Oras Decembrie 2025", "Noiembrie 2025"))
+    assert got is not None and got["period"] is None
+
+
+def test_a_month_and_year_in_an_account_name_is_not_the_period():
+    # only the title block prints the period: a name continued on its own
+    # line ("... Martie 2024") is not one
+    rs = rows()
+    rs[0].cont_lines = ("contract Martie 2024",)
+    lines = render(rs)
+    lines[lines.index(HEADER[2])] = "Adresa: Str. Exemplu 12 Oras"
+    got = P.parse_lines(lines)
+    assert got is not None and got["period"] is None
 
 
 def test_a_header_matching_neither_layout_refuses():

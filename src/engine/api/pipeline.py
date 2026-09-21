@@ -1276,9 +1276,22 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                             _meta.get("accounts"), _meta.get("layout"), _meta.get("number_format"),
                             len(shaped), f"{statutory_anchor:,.2f}",
                         )
-                        return _deterministic_tb_parsed(
+                        _parsed_tb = _deterministic_tb_parsed(
                             doc, tb_rows, shaped, statutory_anchor, source_quality,
                         )
+                        # The period the document PRINTS ("Decembrie 2025")
+                        # is the period — not the filename's guess, which
+                        # `_deterministic_tb_parsed` seeds. Clamped like
+                        # every other source; absent, the filename's stays.
+                        _printed_end = _sane_period_end(_meta.get("period_end"))
+                        if _printed_end:
+                            logger.info(
+                                "[stage_extract] text-line balanta PDF prints its period %r → "
+                                "period_end %s (filename said %s)",
+                                _meta.get("period_text"), _printed_end, _parsed_tb.get("period_end"),
+                            )
+                            _parsed_tb["period_end"] = _printed_end
+                        return _parsed_tb
                     if _five_pair_named:
                         _balanta_refusal = (
                             "its verified read carries no account-121 closing balance "

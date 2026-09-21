@@ -99,6 +99,16 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     account X's figure line — not another account, not a class heading or
     total (a wrapped row split by a heading), not the end of the document.
 
+The PERIOD comes from the document when it prints one: the title block
+(the lines before the first column header) carries it as "<Luna> <an>"
+("Decembrie 2025") at the end of a line — on the real layout merged by the
+text extraction onto the "Adresa:" line. It is read only there, only as a
+Romanian month name followed by a year, never when a day number precedes
+the month ("1 Decembrie 1918" is a street), and only when exactly one
+period is printed; the month's last day is the period end
+(`_printed_period`). Otherwise there is none, and the caller keeps the
+filename's.
+
 Negative figures are carried verbatim: a storno is a negative movement on
 its own side, never a flipped side. The workbook maps SI = Sold initial,
 RL = Rulaj curent, RC = Total rulaj (cumulated turnover WITHOUT the opening
@@ -436,6 +446,39 @@ def _five_figures(body: str) -> Optional[List[Decimal]]:
     return [_fig5(t) for t in tokens]
 
 
+_MONTHS_RO = ("ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august",
+              "septembrie", "octombrie", "noiembrie", "decembrie")
+_YEAR = re.compile(r"^(?:19|20)\d{2}$")
+_DAY = re.compile(r"^\d{1,2}\.?$")
+
+
+def _printed_period(title_block: List[str]) -> Optional[Dict[str, Any]]:
+    """The period the document prints in its title block, or None.
+
+    A line whose last two tokens are a Romanian month name and a year
+    ("... Decembrie 2025") names a period — unless a day number precedes
+    the month ("Str. 1 Decembrie 1918": a street, or a date, not a month).
+    Exactly one distinct period must be printed; two different ones are
+    ambiguous and read as none. The period end is the month's last day.
+    """
+    import calendar
+
+    found: Dict[Tuple[int, int], str] = {}
+    for raw in title_block:
+        tokens = raw.split()
+        if len(tokens) < 2 or not _YEAR.match(tokens[-1]):
+            continue
+        month = _fold(tokens[-2])
+        if month not in _MONTHS_RO or (len(tokens) >= 3 and _DAY.match(tokens[-3])):
+            continue
+        found.setdefault((int(tokens[-1]), _MONTHS_RO.index(month) + 1), " ".join(tokens[-2:]))
+    if len(found) != 1:
+        return None
+    (year, month), text = next(iter(found.items()))
+    last = calendar.monthrange(year, month)[1]
+    return {"text": text, "year": year, "month": month, "end": "%04d-%02d-%02d" % (year, month, last)}
+
+
 def _repeats_in_a_slot(code: str, printed: List[str]) -> bool:
     """True when an account line repeats its code where the layout prints
     it: right after the code ("121 121 Profit ...") or right before the
@@ -537,6 +580,7 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     last: Optional[Dict[str, Any]] = None
     column_headers = 0
     expect_sub_header = False
+    title_block: List[str] = []  # the lines before the first column header — the printed period
     # _WRAP_RULE state. `pending`: a HELD line — a figure-less line led by
     # a code-shaped token X that is neither the current account's code nor
     # ends with it; nothing but account X's figure line may follow it.
@@ -557,6 +601,8 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         tokens = line.split()
         norm = " ".join(f.split())
 
+        if not column_headers:
+            title_block.append(line)
         if expect_sub_header:
             if norm != _SUB_HEADER_5PAIR:
                 return _refuse5("the column header is not followed by the Debit/Credit sub-header: %r",
@@ -750,7 +796,7 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         v = r["figures"]
         r["v"] = [v[_SI_D], v[_SI_C], v[_RL_D], v[_RL_C], v[_TR_D], v[_TR_C], v[_SF_D], v[_SF_C]]
     return {"rows": rows, "grand": grand, "number_format": "comma", "classes": classes,
-            "layout": "five_pair"}
+            "layout": "five_pair", "period": _printed_period(title_block)}
 
 
 def to_saga_xlsx(rows: List[Dict[str, Any]]) -> bytes:
@@ -839,4 +885,7 @@ def _read_verdict(pdf_bytes: bytes, seen: Dict[str, Optional[str]]) -> TextReadR
         "classes": parsed["classes"],
         "grand_totals": [str(x) for x in parsed["grand"]],
     }
+    period = parsed.get("period")
+    if period:  # carried to the parse: the period comes from the document
+        meta["period_text"], meta["period_end"] = period["text"], period["end"]
     return TextReadResult(verdict.layout, to_saga_xlsx(parsed["rows"]), meta, None)

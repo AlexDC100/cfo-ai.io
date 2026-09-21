@@ -128,7 +128,7 @@ def _synthetic_five_pair_lines(n: int = 12):
     lines = [
         "Balanta analitica",
         "Societate: EXEMPLU TEST SRL",
-        "Adresa: Str. Exemplu 1 Decembrie 2025",
+        "Adresa: Str. Exemplu 12 Oras Decembrie 2025",
         "C.U.I: RO1234567",
         "Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final",
         "Debit Credit Debit Credit Debit Credit Debit Credit Debit Credit",
@@ -456,3 +456,51 @@ def test_a_five_pair_refusal_keeps_its_own_message():
     message = pipeline.balanta_refusal_message("five_pair", "no printed total for class 5")
     assert message.startswith("This PDF is a balanta de verificare printed with five column pairs")
     assert "but it was not read: no printed total for class 5. Nothing was estimated" in message
+
+
+# ── the period comes from the document ──────────────────────────────────
+#
+# Before the repair the period the five-pair document prints ("Decembrie
+# 2025", in its title block) was dropped in the conversion to a workbook:
+# the period came from the filename alone, and a filename without a date
+# filed the book under today.
+
+
+def _printing_period(title: str):
+    return [("Adresa: Str. Exemplu 12 Oras " + title) if l.startswith("Adresa:") else l
+            for l in _synthetic_five_pair_lines()]
+
+
+def _named(filename: str):
+    d = _doc()
+    d["original_filename"] = filename
+    return d
+
+
+def test_the_period_the_document_prints_wins_over_the_filename(five_pair_pdf, monkeypatch):
+    _arm(monkeypatch, _pdf_bytes(_printing_period("Noiembrie 2025")))
+    parsed = pipeline.stage_extract(_doc())  # the filename says dec 2025
+    assert parsed["period_end"] == "2025-11-30"
+    period_end, record = pipeline.resolve_period_end_for_persist(_doc(), parsed)
+    assert (period_end, record["signal_used"]) == ("2025-11-30", "in_document")
+
+
+def test_a_filename_without_a_date_takes_the_documents_period(five_pair_pdf, monkeypatch):
+    _arm(monkeypatch, _pdf_bytes(_printing_period("Decembrie 2025")))
+    parsed = pipeline.stage_extract(_named("balanta.pdf"))
+    assert parsed["period_end"] == "2025-12-31"
+    period_end, record = pipeline.resolve_period_end_for_persist(_named("balanta.pdf"), parsed)
+    assert (period_end, record["signal_used"]) == ("2025-12-31", "in_document")
+
+
+def test_a_document_that_prints_no_period_keeps_the_filenames(five_pair_pdf, monkeypatch):
+    # the control: nothing printed, nothing invented — the filename decides
+    _arm(monkeypatch, _pdf_bytes(_printing_period("")))
+    parsed = pipeline.stage_extract(_doc())
+    assert parsed["period_end"] == "2025-12-31"
+
+
+def test_a_printed_period_outside_the_sane_range_is_ignored(five_pair_pdf, monkeypatch):
+    _arm(monkeypatch, _pdf_bytes(_printing_period("Decembrie 1999")))
+    parsed = pipeline.stage_extract(_doc())
+    assert parsed["period_end"] == "2025-12-31"
