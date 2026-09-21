@@ -61,6 +61,11 @@ import { useEnsureCurrentPeriod } from "@/hooks/useEnsureCurrentPeriod";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { ContentLoader } from "./AppLoader";
 import { UsageWarningBanner } from "./UsageWarningBanner";
+import { UploadFlowHost } from "./upload/UploadFlowHost";
+import { UploadDropOverlay } from "./upload/UploadDrop";
+import { useWorkspaceV2State } from "@/lib/previewFeatures";
+import { useActiveOrg } from "@/lib/org";
+import { useOrgParamHold } from "@/lib/companyOnScreen";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
 
 interface Props {
@@ -70,13 +75,24 @@ interface Props {
 
 export function AppShell({ children }: Props) {
   const { t } = useTranslation();
+  // Workspace redesign (`workspace_v2`, preview-gated): one upload component,
+  // drag-and-drop anywhere, the header bound to the company on screen.
+  const workspaceV2State = useWorkspaceV2State();
+  const workspaceV2 = workspaceV2State.enabled;
   // A workspace always has at least one period — if the active one has none,
   // this creates an empty container for the current month. Lives here (one
   // mount, app-wide) so two surfaces can't race to create the same month.
-  useEnsureCurrentPeriod();
+  // NOT in the redesign (G4): there a period exists only once an analysed
+  // document backs it, so no empty container is ever created — and nothing
+  // is created until the registry has said which world this is.
+  useEnsureCurrentPeriod(!workspaceV2State.loading && !workspaceV2);
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
+  const { org: activeOrg } = useActiveOrg();
+  // `?org=` on a redesign link: switch to that company and hold the page
+  // until the header names it (lib/companyOnScreen).
+  const holdForOrg = useOrgParamHold(workspaceV2, params.get("org"));
   // Content-region loader (2026-07-26 per operator). Pages render straight
   // from the period payload, which is EMPTY while its fetch is in flight — so
   // a tab painted its no-data layout for a frame and then swapped in the real
@@ -431,7 +447,11 @@ export function AppShell({ children }: Props) {
             aria-hidden
             className="pointer-events-none absolute -top-12 -left-12 h-72 w-72 rounded-full bg-brand/10 blur-3xl z-[-10]"
           />
-          {children}
+          {holdForOrg ? (
+            <div aria-busy data-testid="org-param-hold" className="min-h-[30vh]" />
+          ) : (
+            children
+          )}
         </div>
 
         {/* Held until the period payload lands — see `contentLoading` above.
@@ -474,10 +494,19 @@ export function AppShell({ children }: Props) {
         // operator hit exactly this). The dashboard dropzone runs the real
         // financial pipeline; SKU files have their own uploader on /products.
         onOpenUpload={() => {
+          // Redesign: the one upload component lives on the workspace home.
+          if (workspaceV2) {
+            navigate("/workspace");
+            return;
+          }
           const period = params.get("period");
           navigate(period ? `/dashboard?period=${encodeURIComponent(period)}` : "/dashboard");
         }}
       />
+      {/* Redesign: the confirmation card, live progress and result
+          announcements, plus drag-and-drop on every page. */}
+      {workspaceV2 && <UploadFlowHost />}
+      {workspaceV2 && <UploadDropOverlay onScreenOrgId={activeOrg?.id ?? null} />}
       <CommandPalette
         open={searchOpen}
         onOpenChange={setSearchOpen}

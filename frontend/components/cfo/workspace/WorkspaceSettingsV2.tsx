@@ -269,7 +269,9 @@ export function WorkspaceSettingsV2({
 
 // ─── General ─────────────────────────────────────────────────────────────────
 
-function GeneralSection({
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+export function GeneralSection({
   workspace,
   onRename,
   onChangeIndustry,
@@ -499,7 +501,9 @@ function GeneralSection({
 // Same store the decision rules read (setFinancing) — the panel's own
 // financing block is hidden on this surface so the assumptions live here once.
 
-function FinancingSection() {
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+export function FinancingSection() {
   const { t } = useTranslation();
   const state = useDecisionRules();
   const financing = state.financing ?? DEFAULT_FINANCING;
@@ -616,7 +620,9 @@ function FinancingSection() {
 
 // ─── Danger zone ─────────────────────────────────────────────────────────────
 
-function DangerZone({
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+export function DangerZone({
   workspace,
   canDelete,
   onDelete,

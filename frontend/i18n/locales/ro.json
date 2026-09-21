@@ -3361,5 +3361,150 @@
       "heldTitle": "Plafonul afișează constatările cu cel mai mare scor; restul sunt pe pagina Radar.",
       "open": "Deschide Radar"
     }
+  },
+  "wsV2": {
+    "home": {
+      "title": "Companiile tale",
+      "subtitle": "Trage aici o balanță de verificare sau situațiile financiare. Citim din document compania, perioada și industria.",
+      "empty": "Încă nu ai nicio companie. Trage primul document mai sus.",
+      "cui": "CUI {{cui}}",
+      "noCui": "Fără CUI încă",
+      "latestRevenue": "Cifra de afaceri {{year}}",
+      "noYears": "Niciun an analizat încă",
+      "loadError": "N-am putut încărca companiile tale.",
+      "retry": "Încearcă din nou",
+      "recentlyDeleted": "Șterse recent",
+      "restore": "Restaurează",
+      "cantRestore": "N-am putut restaura compania.",
+      "purgeIn_one": "Se șterge definitiv peste {{count}} zi",
+      "purgeIn_few": "Se șterge definitiv peste {{count}} zile",
+      "purgeIn_other": "Se șterge definitiv peste {{count}} de zile"
+    },
+    "drop": {
+      "zoneTitle": "Trage un fișier aici",
+      "zoneHint": "sau alege unul din calculator · PDF, Excel, CSV sau o poză",
+      "choose": "Alege un fișier",
+      "overlayTitle": "Lasă-l aici ca să-l analizăm",
+      "overlayHint": "Verificăm cărei companii îi aparține înainte să salvăm ceva.",
+      "nextYear": "Adaugă {{year}}",
+      "nextYearHint": "Trage aici fișierul pentru {{year}}",
+      "busy": "Citesc documentul…"
+    },
+    "card": {
+      "readingTitle": "Citesc documentul…",
+      "readingHint": "Caut compania, CUI-ul și perioada.",
+      "title": "Verifică înainte să analizăm",
+      "company": "Companie",
+      "cui": "CUI",
+      "period": "Perioadă",
+      "industry": "Industrie",
+      "notFound": "Nu apare în document",
+      "periodValue": "încheiată la {{date}}",
+      "newCompany": "Companie nouă",
+      "newCompanyNote": "Niciuna dintre companiile tale nu are CUI-ul ăsta. Analizează creează compania.",
+      "noCuiNote": "N-am găsit CUI-ul în document, așa că îl punem la {{company}}. Schimbă dacă nu e bine.",
+      "otherCompanyNote": "Documentul ăsta e al companiei {{company}}, nu al celei deschise acum.",
+      "pickPeriod": "Documentul nu spune ce perioadă acoperă. Alege-o la Modifică.",
+      "pickCompany": "Alege la Modifică cărei companii îi aparține fișierul.",
+      "extraFiles_one": "Ai tras {{count}} fișiere; l-am luat pe primul.",
+      "extraFiles_few": "Ai tras {{count}} fișiere; l-am luat pe primul.",
+      "extraFiles_other": "Ai tras {{count}} de fișiere; l-am luat pe primul.",
+      "analyse": "Analizează",
+      "change": "Modifică",
+      "done": "Gata",
+      "close": "Închide",
+      "tryAgain": "Încearcă din nou",
+      "saving": "Salvez…"
+    },
+    "from": {
+      "document_header": "din antetul documentului",
+      "period_line": "din rândul cu perioada din document",
+      "registry": "din registrul ONRC/MF",
+      "caen": "din codul CAEN",
+      "on_screen_company": "compania deschisă acum",
+      "company_settings": "din setările companiei tale",
+      "user": "ales de tine",
+      "document": "din document"
+    },
+    "change": {
+      "company": "Care companie",
+      "newCompany": "Companie nouă",
+      "newName": "Numele companiei",
+      "newCui": "CUI",
+      "period": "Perioadă",
+      "month": "Luna",
+      "year": "Anul",
+      "industry": "Industrie",
+      "industryNone": "Nesetată"
+    },
+    "duplicate": {
+      "title": "Deja încărcat",
+      "body": "Exact fișierul ăsta e deja analizat pentru {{company}}. Nu l-am salvat din nou și nu se numără.",
+      "open": "Deja încărcat — deschide"
+    },
+    "errors": {
+      "unsupported": "Nu putem citi tipul ăsta de fișier. Folosește PDF, Excel (.xlsx, .xls), CSV sau o poză.",
+      "identify": "N-am putut citi fișierul.",
+      "commit": "N-am putut salva fișierul. Nu s-a analizat nimic.",
+      "cancelled": "Analiza n-a pornit.",
+      "offline": "Serviciul de analiză nu răspunde. Încearcă din nou peste un minut."
+    },
+    "progress": {
+      "title": "Analizez {{company}}",
+      "step": "Pasul {{n}} din {{total}}",
+      "steps": {
+        "0": "Recunosc documentul",
+        "1": "Citesc soldurile conturilor",
+        "2": "Refac situațiile financiare",
+        "3": "Calculez indicatorii",
+        "4": "Scriu concluziile"
+      },
+      "background": "Lucrează mai departe",
+      "doneTitle": "{{company}} e gata",
+      "failedTitle": "Analiza pentru {{company}} a eșuat",
+      "open": "Deschide",
+      "chip": "{{company}} · pasul {{n}} din {{total}}",
+      "chipDone": "{{company}} · gata",
+      "chipFailed": "{{company}} · a eșuat"
+    },
+    "toast": {
+      "done": "{{company}} e analizată",
+      "doneBody": "{{file}} e gata.",
+      "failed": "Analiza pentru {{company}} a eșuat",
+      "open": "Deschide"
+    },
+    "bell": {
+      "heading": "Analize",
+      "done": "{{company}} e analizată",
+      "failed": "Analiza pentru {{company}} a eșuat"
+    },
+    "company": {
+      "years": "Ani",
+      "noYears": "Niciun an analizat încă. Trage primul fișier pe cardul punctat.",
+      "firstYear": "primul an",
+      "vsPrior": "față de {{year}}",
+      "revenue": "Cifra de afaceri",
+      "settings": "Setările companiei",
+      "notFound": "Compania asta nu e în lista ta.",
+      "back": "Toate companiile",
+      "opening": "Deschid {{company}}…",
+      "yearsError": "N-am putut încărca anii.",
+      "retry": "Încearcă din nou"
+    },
+    "dashboard": {
+      "emptyTitle": "Nimic analizat aici încă",
+      "emptyBody": "Trage documentul oriunde pe ecran. Îl citim și îți arătăm unde îl punem înainte să salvăm ceva.",
+      "openCompany": "Deschide {{company}}",
+      "openCompanies": "Deschide companiile tale"
+    },
+    "settings": {
+      "title": "Setări · {{company}}",
+      "general": "General",
+      "rules": "Reguli de decizie",
+      "financing": "Finanțare",
+      "danger": "Zonă periculoasă",
+      "deleted": "{{company}} e ștearsă. O poți restaura timp de 30 de zile.",
+      "cantDelete": "N-am putut șterge compania."
+    }
   }
 }

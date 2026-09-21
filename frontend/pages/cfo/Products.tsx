@@ -112,6 +112,7 @@ import { PRODUCTS_GUIDE } from "@/components/learning/pageGuides";
 // the concept that explains its decision-rule logic. The SKU count
 // stays a raw label since it doesn't need explanation.
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -905,9 +906,8 @@ export default function Products() {
           button dispatches `cfo:request-sku-upload`; the useEffect above
           forwards to this hidden input's .click() → native OS file picker.
           Lives at the page root so it survives every render branch below. */}
-      <input
+      <FilePickerInput
         ref={pageUploadRef}
-        type="file"
         accept={PRODUCTS_UPLOAD_ACCEPT}
         className="hidden"
         data-testid="products-page-upload-input"
@@ -3214,17 +3214,12 @@ function EmptyState({
         <div className="mt-6 relative">
           <div
             data-testid="products-upload-dropzone"
-            onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
             // First file only — a drop can carry several regardless of the
             // input's `multiple` attribute, which only governs the picker.
-            onDrop={(e) => {
-              e.preventDefault();
-              setDrag(false);
-              const f = e.dataTransfer.files?.[0];
-              if (f) stageFile(f);
-            }}
+            // Handlers from the one upload component's primitives; this zone
+            // takes SALES files, so it claims its own drops (the app-wide
+            // overlay stands down over it).
+            {...fileDropProps({ onFiles: (files) => stageFile(files[0]!), onActiveChange: setDrag })}
             data-drag-active={drag ? "true" : "false"}
             className={`
               relative overflow-hidden
@@ -3289,9 +3284,8 @@ function EmptyState({
                 {t("files.import")}
               </button>
               {/* Single-file only (2026-07-26 per operator). */}
-              <input
+              <FilePickerInput
                 ref={fileRef}
-                type="file"
                 accept={PRODUCTS_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={(e) => {

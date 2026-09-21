@@ -63,6 +63,7 @@ import { ModeSwitch } from "@/components/instrument/shell/ModeSwitch";
 // its home — the panel gets the row, the trigger gets the count.
 import { NotificationsMenu } from "./NotificationsMenu";
 import { fetchAlerts, type AlertSeverity } from "@/lib/supabase";
+import { unreadUploadNotices, useUploadNotices } from "@/lib/uploadNotices";
 import "./headerI18n";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -121,7 +122,10 @@ function useAlertBadgeCount(enabled: boolean): number {
       live = false;
     };
   }, [enabled]);
-  return count;
+  // Finished analyses (workspace redesign) count as news too — the bell
+  // lists them above the alerts, so the folded badge carries them as well.
+  const notices = useUploadNotices();
+  return enabled ? count + unreadUploadNotices(notices) : count;
 }
 
 /** The count bubble painted on the avatar. `lg:hidden` — at desktop the

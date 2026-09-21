@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Upload, Download, FileSpreadsheet, X, Loader2, Cloud, ArrowUp, Info, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
 import { parseBudgetFile } from "@/lib/comparison/parseBudget";
 import { previewBackButtonHtml } from "@/lib/previewChrome";
 import { VARIANCE_LINES, type ComparisonDataset } from "@/lib/comparison/types";
@@ -131,15 +132,7 @@ export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {
   return (
     <div
       data-testid="budget-upload-card"
-      onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-      onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-      onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragActive(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f) void onFile(f);
-      }}
+      {...fileDropProps({ onFiles: (files) => void onFile(files[0]!), onActiveChange: setDragActive })}
       data-drag-active={dragActive ? "true" : "false"}
       className={`
         relative overflow-hidden
@@ -154,9 +147,8 @@ export function BudgetUploadCard({ uploaded, onSave, onClear }: Props) {
           : "border-rule/80 bg-gradient-to-br from-bg-2/30 via-surface/60 to-surface/40 hover:border-rule-strong hover:from-bg-2/50"}
       `}
     >
-      <input
+      <FilePickerInput
         ref={inputRef}
-        type="file"
         accept={BUDGET_ACCEPT}
         className="hidden"
         data-testid="budget-file-input"

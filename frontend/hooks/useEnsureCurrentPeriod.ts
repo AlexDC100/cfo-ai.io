@@ -36,9 +36,12 @@ import {
 // over in a long-lived session.
 const attempted = new Set<string>();
 
-export function useEnsureCurrentPeriod(): void {
+/** `enabled` false turns the whole hook off — the workspace redesign creates
+ *  no empty period (G4: a period exists only once an analysed document backs
+ *  it). The query below is also skipped, so a disabled hook costs nothing. */
+export function useEnsureCurrentPeriod(enabled = true): void {
   const { org } = useActiveOrg();
-  const orgId = org?.id ?? null;
+  const orgId = enabled ? org?.id ?? null : null;
   const qc = useQueryClient();
 
   // Same key the Workspace months list and the sidebar stepper read, so the

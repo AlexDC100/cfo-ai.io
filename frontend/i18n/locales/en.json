@@ -3337,5 +3337,148 @@
       "heldTitle": "The cap surfaces the highest-ranked findings; the rest are on the Radar page.",
       "open": "Open Radar"
     }
+  },
+  "wsV2": {
+    "home": {
+      "title": "Your companies",
+      "subtitle": "Drop a trial balance or a set of financial statements. We read the company, the period and the industry from the document itself.",
+      "empty": "No companies yet. Drop your first document above.",
+      "cui": "CUI {{cui}}",
+      "noCui": "No CUI yet",
+      "latestRevenue": "Revenue {{year}}",
+      "noYears": "No year analysed yet",
+      "loadError": "We couldn't load your companies.",
+      "retry": "Try again",
+      "recentlyDeleted": "Recently deleted",
+      "restore": "Restore",
+      "cantRestore": "We couldn't restore the company.",
+      "purgeIn_one": "Deleted for good in {{count}} day",
+      "purgeIn_other": "Deleted for good in {{count}} days"
+    },
+    "drop": {
+      "zoneTitle": "Drop a file here",
+      "zoneHint": "or choose one from your computer · PDF, Excel, CSV or a photo",
+      "choose": "Choose a file",
+      "overlayTitle": "Let go to analyse it",
+      "overlayHint": "We check which company it belongs to before anything is saved.",
+      "nextYear": "Add {{year}}",
+      "nextYearHint": "Drop the {{year}} file here",
+      "busy": "Reading the document…"
+    },
+    "card": {
+      "readingTitle": "Reading the document…",
+      "readingHint": "Looking for the company, the CUI and the period.",
+      "title": "Check before we analyse",
+      "company": "Company",
+      "cui": "CUI",
+      "period": "Period",
+      "industry": "Industry",
+      "notFound": "Not in the document",
+      "periodValue": "ending {{date}}",
+      "newCompany": "New company",
+      "newCompanyNote": "None of your companies has this CUI. Analyse creates the company.",
+      "noCuiNote": "We couldn't read a CUI in the document, so it goes to {{company}}. Change it if that's wrong.",
+      "otherCompanyNote": "This document belongs to {{company}}, not to the company open now.",
+      "pickPeriod": "The document doesn't say which period it covers. Choose it under Change.",
+      "pickCompany": "Choose which company this file belongs to under Change.",
+      "extraFiles_one": "You dropped {{count}} files; we took the first one.",
+      "extraFiles_other": "You dropped {{count}} files; we took the first one.",
+      "analyse": "Analyse",
+      "change": "Change",
+      "done": "Done",
+      "close": "Close",
+      "tryAgain": "Try again",
+      "saving": "Saving…"
+    },
+    "from": {
+      "document_header": "from the document header",
+      "period_line": "from the document's period line",
+      "registry": "from the ONRC/MF registry",
+      "caen": "from the CAEN code",
+      "on_screen_company": "the company open now",
+      "company_settings": "from your company's settings",
+      "user": "chosen by you",
+      "document": "from the document"
+    },
+    "change": {
+      "company": "Which company",
+      "newCompany": "New company",
+      "newName": "Company name",
+      "newCui": "CUI",
+      "period": "Period",
+      "month": "Month",
+      "year": "Year",
+      "industry": "Industry",
+      "industryNone": "Not set"
+    },
+    "duplicate": {
+      "title": "Already uploaded",
+      "body": "This exact file is already analysed for {{company}}. It wasn't saved again and it doesn't count.",
+      "open": "Already uploaded — open it"
+    },
+    "errors": {
+      "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "identify": "We couldn't read the file.",
+      "commit": "We couldn't save the file. Nothing was analysed.",
+      "cancelled": "The analysis didn't start.",
+      "offline": "The analysis service isn't answering. Try again in a minute."
+    },
+    "progress": {
+      "title": "Analysing {{company}}",
+      "step": "Step {{n}} of {{total}}",
+      "steps": {
+        "0": "Recognising the document",
+        "1": "Reading the account balances",
+        "2": "Rebuilding the financial statements",
+        "3": "Calculating the ratios",
+        "4": "Writing the conclusions"
+      },
+      "background": "Keep working",
+      "doneTitle": "{{company}} is ready",
+      "failedTitle": "The analysis of {{company}} failed",
+      "open": "Open",
+      "chip": "{{company}} · step {{n}} of {{total}}",
+      "chipDone": "{{company}} · ready",
+      "chipFailed": "{{company}} · failed"
+    },
+    "toast": {
+      "done": "{{company}} is analysed",
+      "doneBody": "{{file}} is ready.",
+      "failed": "The analysis of {{company}} failed",
+      "open": "Open"
+    },
+    "bell": {
+      "heading": "Analyses",
+      "done": "{{company}} is analysed",
+      "failed": "The analysis of {{company}} failed"
+    },
+    "company": {
+      "years": "Years",
+      "noYears": "No year analysed yet. Drop the first file on the dashed tile.",
+      "firstYear": "first year",
+      "vsPrior": "vs {{year}}",
+      "revenue": "Revenue",
+      "settings": "Company settings",
+      "notFound": "This company isn't in your list.",
+      "back": "All companies",
+      "opening": "Opening {{company}}…",
+      "yearsError": "We couldn't load the years.",
+      "retry": "Try again"
+    },
+    "dashboard": {
+      "emptyTitle": "Nothing analysed here yet",
+      "emptyBody": "Drop the document anywhere on the screen. We read it and show you where it goes before anything is saved.",
+      "openCompany": "Open {{company}}",
+      "openCompanies": "Open your companies"
+    },
+    "settings": {
+      "title": "Settings · {{company}}",
+      "general": "General",
+      "rules": "Decision rules",
+      "financing": "Financing",
+      "danger": "Danger zone",
+      "deleted": "{{company}} is deleted. You can restore it for 30 days.",
+      "cantDelete": "We couldn't delete the company."
+    }
   }
 }
