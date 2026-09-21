@@ -6,10 +6,13 @@ included), its routing and every wall on the path. Nothing on the request
 path is intercepted. What is doubled: PostgREST and Storage
 (``WorkspaceDouble``: the tenancy suite's projection-faithful double, which
 refuses a column no migration declares, plus the two RPCs and the storage
-write the flow uses) and the three things a unit of this size must not do
-for real — run an analysis thread, meter a real account, and (until the
-identifier is merged) read a real workbook. Bearers are real ES256 tokens,
-verified against the session's test JWKS.
+write the flow uses) and the two things a unit of this size must not do
+for real — run an analysis thread and meter a real account. Most cases feed
+the route a chosen identity through the `_identify_document` seam, so each
+rule is driven by exactly the identity it is about; the "REAL identifier"
+section runs `engine.workspaces.company_identity` over real workbook bytes
+end to end. Bearers are real ES256 tokens, verified against the session's
+test JWKS.
 
 THE DOUBLE IS PRODUCTION-SHAPED WHERE IT MATTERS: ``organizations`` carries
 NO ``cui`` (and no ``firm_id``) — schema_phase_firm.sql, which adds them, is
@@ -62,6 +65,9 @@ import firm_postgrest_double as D
 from engine.api import _features, _supabase, _uploads, _usage_gate, pipeline
 
 REPO = Path(__file__).resolve().parents[2]
+
+#: The production seam, captured before any fixture replaces it.
+_REAL_IDENTIFY = _uploads._identify_document
 
 USER = "5c0a0000-0000-4000-8000-0000000000a1"
 TEAMMATE = "5c0a0000-0000-4000-8000-0000000000a2"
@@ -652,6 +658,64 @@ def test_a_workspace_from_before_cuis_adopts_the_documents_cui_only_when_its_nam
     r = commit(app, name="other.xlsx", body=b"other", target_org_id=ORG_AGRAS, period_end="2025-12-31")
     assert r.status_code == 200
     assert [p for p in world.db.rows("org_prefs") if p["org_id"] == ORG_AGRAS] == []
+
+
+# ══════════════════════════════════════════════════════════════════════
+# The REAL identifier (engine.workspaces.company_identity), end to end
+# ══════════════════════════════════════════════════════════════════════
+
+
+def test_the_real_identifier_routes_by_the_documents_cui_and_reads_its_period(app, world, monkeypatch):
+    """G1 + G2 over real workbook bytes: an Agras balance dropped while
+    Scandia is on screen, in a file NAMED for 2019, is Agras's December
+    2025 — the CUI and the period line the document prints — and commit
+    files it there with that period as its hint. Registry absent (tolerated)."""
+    from ws_migration_fixture import balance_xlsx, valid_cui
+
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    agras_cui = valid_cui("4278990")
+    (prefs,) = [p for p in world.db.rows("org_prefs") if p["org_id"] == ORG_AGRAS]
+    prefs["prefs"]["cui"] = agras_cui
+    content = balance_xlsx(["AGRAS SA", "Balanta de Verificare - Decembrie 2025",
+                            "Cod fiscal: RO%s" % agras_cui])
+    r = identify(app, org=ORG_SCANDIA, name="balanta_2019_12.xlsx", body=content)
+    assert r.status_code == 200, r.text[:400]
+    body = r.json()
+    assert body["target"] == {"org_id": ORG_AGRAS, "name": "Agras SA", "is_new": False,
+                              "reason": "cui_match"}, body
+    assert body["identity"]["cui"] == agras_cui
+    assert body["identity"]["period_end"] == "2025-12-31", body["identity"]
+    assert body["identity"]["sources"]["period_end"]["signal"] != "filename"
+    assert body["identity"]["document_kind"] == "trial_balance"
+    r = commit(app, name="balanta_2019_12.xlsx", body=content, target_org_id=body["target"]["org_id"],
+               period_end=body["identity"]["period_end"])
+    assert r.status_code == 200 and r.json()["org_id"] == ORG_AGRAS, r.text[:300]
+    (doc,) = world.docs(org_id=ORG_AGRAS)
+    assert doc["period_end_hint"] == "2025-12-31" and doc["storage_path"].startswith(ORG_AGRAS + "/")
+    # The same company without a period line: the file name's 2019 is NOT offered.
+    bare = balance_xlsx(["AGRAS SA", "Cod fiscal: RO%s" % agras_cui], seed=7)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta_2019_12.xlsx", body=bare).json()["identity"]
+    assert ident["period_end"] is None and ident["cui"] == agras_cui, ident
+
+
+def test_the_registry_is_opened_only_where_it_already_exists(tmp_path, monkeypatch):
+    """Tolerate its absence — and never CREATE an empty registry by
+    opening one (the store's constructor would)."""
+    missing = tmp_path / "nope" / "public_ro.db"
+    monkeypatch.setenv("PUBLIC_RO_DB_PATH", str(missing))
+    assert _uploads._open_registry() is None
+    assert not missing.exists() and not missing.parent.exists()
+    from engine.public_ro.store import PublicRoStore
+
+    present = tmp_path / "public_ro.db"
+    PublicRoStore(present).close()
+    monkeypatch.setenv("PUBLIC_RO_DB_PATH", str(present))
+    store = _uploads._open_registry()
+    try:
+        assert isinstance(store, PublicRoStore)
+    finally:
+        store.close()
 
 
 # ══════════════════════════════════════════════════════════════════════
