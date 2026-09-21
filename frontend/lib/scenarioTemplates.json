@@ -1,0 +1,36 @@
+{
+  "_README": "plan/2 B13 (minimal cut). The Scenarios page's templates, as DATA: each is a named set of shocks in the vocabulary of packs/forecast/levers.yaml#registry (driver_key, op, value), POSTed to /api/forecast/{period_id}/recompute exactly as declared. Values are exact decimal strings in the driver's own unit (a level_pct is a decimal fraction, a days change is days). A driver_key ending in '.*' expands over the served driver keys with that prefix (pool_level.* = every operating-cost pool the book serves, read from the served response). No template text lives here (the names and questions are page chrome in frontend/i18n/locales, namespace scenarios). Read by frontend/lib/scenarioTemplates.ts and by tests/engine/test_scenario_page_templates.py, which runs every set through the engine on the four corpus books. Moves to packs/scenarios/templates.yaml when B10 serves templates.",
+  "version": 1,
+  "templates": [
+    {
+      "id": "base",
+      "shocks": []
+    },
+    {
+      "id": "recession",
+      "shocks": [
+        { "driver_key": "volume_index", "op": "level_pct", "value": "-0.20" },
+        { "driver_key": "pool_level.*", "op": "level_pct", "value": "-0.05" }
+      ]
+    },
+    {
+      "id": "input_cost_inflation",
+      "shocks": [
+        { "driver_key": "input_price_index", "op": "level_pct", "value": "0.10" }
+      ]
+    },
+    {
+      "id": "price_pressure",
+      "shocks": [
+        { "driver_key": "price_index", "op": "level_pct", "value": "-0.05" }
+      ]
+    },
+    {
+      "id": "working_capital_squeeze",
+      "shocks": [
+        { "driver_key": "dso_days", "op": "add_days", "value": "15" },
+        { "driver_key": "dio_cogs_days", "op": "add_days", "value": "10" }
+      ]
+    }
+  ]
+}
