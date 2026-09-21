@@ -671,6 +671,172 @@ def test_the_first_run_of_a_non_ro_document_counts_it_once(world, multi_nonro):
     assert [b["kind"] for b in world["billed"]] == ["extra_nonro"]
 
 
+# ── A colleague's upload is theirs (verifier, ACCOUNT clause, 2026-09-21) ─
+
+
+def test_a_colleagues_page_load_never_archives_or_runs_my_upload(world):
+    """OTHER_USER's upload was refused by the 402 (queued, never started).
+    OWNER — a member of the same company holding an analysed copy of the
+    same bytes — merely opens the dashboard, which calls recover-stuck on
+    mount. It used to archive OTHER_USER's upload as a duplicate of OWNER's
+    copy (and hide it from the Recently-deleted shelf) — or run it on
+    OWNER's quota."""
+    db = world["db"]
+    db.rows("documents").extend([
+        _doc("owner-copy", user=OWNER, status="analyzed", period_id=PERIOD, created=_ago(172800)),
+        _doc("colleague-upload", user=OTHER_USER, created=_ago(120)),
+    ])
+    body = world["post"]("/api/pipeline/recover-stuck", None, user=OWNER).json()
+    row = _row(world, "colleague-upload")
+    assert row["deleted_at"] is None and row["error"] is None, row
+    assert not _doc_dedupe.is_archived_duplicate(row)
+    assert body["duplicates"] == [] and body["recovered"] == [] and body["needs_confirmation"] == []
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    # ... and the colleague's own page load recovers it, under THEIR meter
+    body = world["post"]("/api/pipeline/recover-stuck", None, user=OTHER_USER).json()
+    assert [r["id"] for r in body["recovered"]] == ["colleague-upload"]
+
+
+def test_a_colleagues_retry_never_archives_my_document(world):
+    world["db"].rows("documents").extend([
+        _doc("owner-copy", user=OWNER, status="analyzed", period_id=PERIOD, created="2026-09-19T10:00:00+00:00"),
+        _doc("colleague-doc", user=OTHER_USER, status="failed", created="2026-09-20T10:00:00+00:00",
+             started="2026-09-20T10:00:01+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/retry", {"document_id": "colleague-doc"}, user=OWNER).json()
+    assert r["status"] == "queued", r
+    assert _row(world, "colleague-doc")["deleted_at"] is None
+
+
+def test_my_own_second_copy_is_still_a_duplicate(world):
+    """Positive control for the ACCOUNT clause: the uploader's own entry
+    still archives their own copy."""
+    world["db"].rows("documents").extend([
+        _doc("orig", user=OTHER_USER, status="analyzed", period_id=PERIOD, created="2026-09-19T10:00:00+00:00"),
+        _doc("copy", user=OTHER_USER, created="2026-09-21T10:00:00+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/run", {"document_id": "copy"}, user=OTHER_USER).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "orig"
+
+
+# ── Only a LIVE original blocks a re-upload (verifier, 2026-09-21) ───────
+
+
+def test_a_run_killed_by_a_restart_is_not_an_original_forever(world):
+    """Every deploy recreates the container and kills the daemon thread: the
+    row stays 'extracting' with pipeline_started_at set and nothing ever
+    marks it failed. Twenty days later the user re-uploads the file."""
+    world["db"].rows("documents").append(
+        _doc("zombie", status="extracting", started="2026-09-01T09:00:05+00:00",
+             created="2026-09-01T09:00:00+00:00"))
+    r = world["post"]("/api/documents/duplicate-check",
+                      {"content_hash": SCANDIA, "period_end_hint": "2025-12-31"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    world["db"].rows("documents").append(_doc("again"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "again"}).json()["status"] == "queued"
+    assert _row(world, "zombie")["deleted_at"] is None
+
+
+def test_a_run_in_flight_is_still_the_original(world):
+    world["db"].rows("documents").append(_doc("first", created="2026-09-21T13:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "first"}).json()["status"] == "queued"
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "first", r
+
+
+def test_a_superseded_original_does_not_block_restoring_the_month(world):
+    """Demo day: another file analysed into Dec 2025 took over the month
+    (duplicate-month REPLACE re-points the period at the newer document).
+    The user re-uploads the Scandia file to put it back — it used to be
+    refused "Already uploaded — open it", and the link opened a month that
+    showed the OTHER document."""
+    db = world["db"]
+    db.rows("financial_periods")[0]["source_document_id"] = "realestate-xlsx"
+    db.rows("documents").extend([
+        _doc("scandia-orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:00+00:00"),
+        _doc("realestate-xlsx", h=EEI, status="analyzed", period_id=PERIOD, created="2026-09-21T09:00:00+00:00"),
+    ])
+    r = world["post"]("/api/documents/duplicate-check",
+                      {"content_hash": SCANDIA, "period_end_hint": "2025-12-31"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    db.rows("documents").append(_doc("put-back", hint="2025-12-31"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "put-back"}).json()["status"] == "queued"
+
+
+@pytest.mark.parametrize("source", [None, "live-later"])
+def test_the_named_original_is_the_copy_that_holds_the_analysis(world, source):
+    """A /retry of one copy deletes the shared period, and documents.period_id
+    is ON DELETE SET NULL: the other copies stay 'analyzed' with no period.
+    "Open it" must lead to the copy that owns the live period, and re-running
+    that copy must not archive it against the orphan."""
+    world["db"].rows("financial_periods")[0]["source_document_id"] = source
+    world["db"].rows("documents").extend([
+        _doc("orphan-first", status="analyzed", period_id=None, created="2026-09-18T10:00:00+00:00"),
+        _doc("live-later", status="analyzed", period_id=PERIOD, created="2026-09-21T11:00:00+00:00"),
+    ])
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "live-later" and r["period_id"] == PERIOD, r
+    rr = world["post"]("/api/pipeline/retry", {"document_id": "live-later"}).json()
+    assert rr["status"] == "queued", rr
+    # and a re-run of the orphan IS a duplicate of the copy that holds the analysis
+    rr = world["post"]("/api/pipeline/retry", {"document_id": "orphan-first"}).json()
+    assert rr["status"] == "duplicate" and rr["existing_document_id"] == "live-later", rr
+
+
+def test_copies_without_any_analysis_still_dedupe_on_the_first(world):
+    """When NO copy holds a period (e.g. rows whose analysis carries none),
+    the first analysed copy is still the original."""
+    world["db"].rows("documents").extend([
+        _doc("first", status="analyzed", period_id=None, created="2026-09-18T10:00:00+00:00"),
+        _doc("again", created="2026-09-21T11:00:00+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/run", {"document_id": "again"}).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "first", r
+
+
+def test_a_legacy_original_without_a_content_hash_is_compared(world, monkeypatch):
+    """The module promised "a row stored without one is hashed from its
+    storage object before it is compared" — but the candidates query
+    filtered content_hash=eq.<h>, so a hash-less ORIGINAL was never read."""
+    hashed: List[str] = []
+    world["db"].rows("documents").extend([
+        dict(_doc("legacy-orig", h=None, status="analyzed", period_id=PERIOD,
+                  created="2026-03-01T10:00:00+00:00"), size_bytes=4096),
+        dict(_doc("other-size", h=None, status="analyzed", created="2026-03-02T10:00:00+00:00"),
+             size_bytes=999),
+        dict(_doc("new-copy", created="2026-09-21T13:05:58+00:00"), size_bytes=4096),
+    ])
+
+    def stored_bytes_hash(doc):
+        hashed.append(doc.get("id"))
+        return SCANDIA  # the stored bytes ARE the same file
+
+    monkeypatch.setattr(_doc_dedupe, "hash_stored_object", stored_bytes_hash)
+    r = world["post"]("/api/pipeline/run", {"document_id": "new-copy"}).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "legacy-orig", (r, hashed)
+    assert hashed == ["legacy-orig"], "only same-size hash-less copies are hashed: %s" % hashed
+    assert _row(world, "legacy-orig")["content_hash"] == SCANDIA, "the computed hash is written back"
+    assert world["meter"].calls == []
+
+
+def test_the_same_workbook_on_products_is_not_a_duplicate_of_its_financial_analysis(world):
+    """The duplicate key ignored `scope`: a workbook analysed on the
+    dashboard (financial) made the same bytes un-uploadable on Products
+    (SKU) — and "open it" sent the user to /products, where the original is
+    not."""
+    world["db"].rows("documents").append(_doc("fin-1", status="analyzed", period_id=PERIOD))
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA, "scope": "sku"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    world["db"].rows("documents").append(dict(_doc("sku-1"), scope="sku"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "sku-1"}).json()["status"] == "queued"
+    # ... while the same scope still dedupes, and an older bundle (no scope) means financial
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "fin-1"
+    # and the banner counts the two analyses as two, as the meter does
+    world["finish"]("sku-1", "analyzed")
+    assert len(_doc_dedupe.unique_successful(world["db"].rows("documents"))) == 2
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 
@@ -926,6 +1092,55 @@ def test_the_banner_counts_unique_successful_documents(world):
     app.include_router(_pricing_routes.build_router())
     body = TestClient(app).get("/api/plan/state", headers={"Authorization": "Bearer jwt:%s" % OWNER}).json()
     assert body["docs_used"] == 2 and body["docs_used_counter"] == 51
+
+
+def test_the_banner_never_counts_a_copy_of_an_earlier_months_book(world):
+    rows = world["db"].rows("documents")
+    rows.append(_doc("aug-book", status="analyzed", created="2026-08-20T10:00:00+00:00"))
+    rows.append(_doc("sep-copy", status="analyzed", created="2026-09-02T10:00:00+00:00"))
+    rows.append(_doc("sep-book", h=EEI, status="analyzed", created="2026-09-03T10:00:00+00:00"))
+    assert _doc_dedupe.unique_successful_docs_in_month(OWNER, "2026-08") == 1
+    assert _doc_dedupe.unique_successful_docs_in_month(OWNER, "2026-09") == 1
+
+
+def _banner(world):
+    from engine.api import _pricing_routes
+    app = FastAPI()
+    app.include_router(_pricing_routes.build_router())
+    return TestClient(app).get("/api/plan/state", headers={"Authorization": "Bearer jwt:%s" % OWNER}).json()
+
+
+def test_the_banner_agrees_with_the_meter_after_a_delete_and_re_upload(world):
+    """The live gate analyses a re-upload after the user DELETED the
+    original (a deleted copy is not an original) and the meter counts it.
+    The banner collapsed the two into one — the banner and the 402 must
+    agree (verifier lens Q)."""
+    db = world["db"]
+    db.rows("documents").append(_doc("first", created="2026-09-20T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "first"}).json()["status"] == "queued"
+    world["finish"]("first", "analyzed")
+    db.update("documents", {"deleted_at": "2026-09-21T09:00:00+00:00"}, filters={"id": "eq.first"})
+    db.rows("documents").append(_doc("again", created="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "again"}).json()["status"] == "queued"
+    world["finish"]("again", "analyzed")
+    assert _banner(world)["docs_used"] == world["meter"].snapshot()["uploads"] == 2
+
+
+def test_the_banner_agrees_with_the_meter_on_a_detected_versus_a_confirmed_period(world):
+    """An undated original analysed into December 2024; the same bytes
+    re-uploaded with the user-confirmed date 31.12.2025. The live gate: a
+    different period, analysed and counted. The banner compared hints only
+    and collapsed them."""
+    db = world["db"]
+    db.rows("financial_periods").append({"id": "p2024", "org_id": ORG, "period_end": "2024-12-31"})
+    db.rows("documents").append(_doc("undated", created="2026-09-20T10:00:00+00:00"))
+    world["post"]("/api/pipeline/run", {"document_id": "undated"})
+    world["finish"]("undated", "analyzed")
+    db.update("documents", {"period_id": "p2024"}, filters={"id": "eq.undated"})
+    db.rows("documents").append(_doc("dated", hint="2025-12-31", created="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "dated"}).json()["status"] == "queued"
+    world["finish"]("dated", "analyzed")
+    assert _banner(world)["docs_used"] == world["meter"].snapshot()["uploads"] == 2
 
 
 def test_archived_duplicates_are_not_on_the_recently_deleted_shelf_or_emptied(world):

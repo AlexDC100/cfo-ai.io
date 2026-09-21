@@ -32,7 +32,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
-from ._doc_dedupe import is_archived_duplicate, month_of, normalize_hash, unique_successful
+from ._doc_dedupe import _ts, is_archived_duplicate, month_of, normalize_hash, unique_successful
 
 
 @dataclass(frozen=True)
@@ -89,17 +89,29 @@ def _int(v: Any) -> int:
         return 0
 
 
-def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]]) -> Dict[tuple, int]:
-    """{(user_id, 'YYYY-MM'): unique successful documents}. The month is the
-    document's created month (UTC); `uploaded_by` is the account."""
-    buckets: Dict[tuple, List[Dict[str, Any]]] = {}
+def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]],
+                                    period_end_of: Optional[Dict[str, str]] = None) -> Dict[tuple, int]:
+    """{(user_id, 'YYYY-MM'): unique successful documents}. `uploaded_by` is
+    the account; a unique document counts in the month its FIRST analysed
+    copy was created (UTC).
+
+    Uniqueness is decided over the account's WHOLE history, not per month
+    (2026-09-21, verifier lens Q): the live gate refuses a re-upload of any
+    earlier analysed copy with no month limit, so a September copy of an
+    August book is the same (company, content, period) and never a new
+    September document — per-month buckets counted it again."""
+    by_user: Dict[str, List[Dict[str, Any]]] = {}
     for d in documents:
         uid = str(d.get("uploaded_by") or "")
-        month = month_of(d.get("created_at"))
-        if not uid or not month:
+        if not uid or not month_of(d.get("created_at")):
             continue
-        buckets.setdefault((uid, month), []).append(d)
-    return {k: len(unique_successful(v)) for k, v in buckets.items()}
+        by_user.setdefault(uid, []).append(d)
+    counts: Dict[tuple, int] = {}
+    for uid, rows in by_user.items():
+        for kept in unique_successful(rows, period_end_of):
+            key = (uid, month_of(kept.get("created_at")))
+            counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def recompute(
@@ -109,10 +121,13 @@ def recompute(
     *,
     current_month: str,
     included_docs_for: Callable[[Dict[str, Any]], "tuple[str, int]"],
+    period_end_of: Optional[Dict[str, str]] = None,
 ) -> RecomputePlan:
     """The whole restore, decided. `included_docs_for(subscription_row)` →
-    (plan_key, included documents per month)."""
-    counts = unique_successful_by_user_month(documents)
+    (plan_key, included documents per month); `period_end_of` (period id →
+    period_end) lets an undated copy take the period it was analysed into,
+    as the live gate does."""
+    counts = unique_successful_by_user_month(documents, period_end_of)
     plan = RecomputePlan(current_month=current_month)
     for u in sorted(usage_rows, key=lambda r: (str(r.get("user_id")), str(r.get("month")))):
         uid, month = str(u.get("user_id") or ""), str(u.get("month") or "")
@@ -164,17 +179,29 @@ class MeteredFinding:
 
 
 def _earlier_live_copy(doc: Dict[str, Any], by_key: Dict[tuple, List[Dict[str, Any]]]) -> Optional[str]:
+    """An earlier copy that was a LIVE original when `doc` was uploaded:
+    analysed (a queued copy whose run was refused — a dismissed 402 — never
+    ran and is not one; nor is a failure), not itself an archived duplicate,
+    and not deleted before `doc` was uploaded (a re-upload after the user
+    deleted the original is the live gate's "not a duplicate" too). Same
+    rule as `_doc_dedupe.pick_original`, read retrospectively (2026-09-21,
+    verifier lens Q: a legitimate paid extra was listed as a duplicate)."""
     h = normalize_hash(doc.get("content_hash"))
     if not h:
         return None
     key = (str(doc.get("org_id") or ""), str(doc.get("uploaded_by") or ""), h)
     me = (str(doc.get("created_at") or ""), str(doc.get("id") or ""))
+    my_created = _ts(doc.get("created_at"))
     for other in by_key.get(key, []):
         them = (str(other.get("created_at") or ""), str(other.get("id") or ""))
         if them >= me:
             break
-        if str(other.get("status") or "") != "failed":
-            return str(other.get("id"))
+        if str(other.get("status") or "") != "analyzed" or is_archived_duplicate(other):
+            continue
+        deleted = _ts(other.get("deleted_at"))
+        if deleted is not None and my_created is not None and deleted <= my_created:
+            continue
+        return str(other.get("id"))
     return None
 
 

@@ -55,12 +55,26 @@ def test_unique_successful_collapses_copies_and_drops_failures():
         d("c3", h=H2),                                                          # no date → collapses
         d("n1", h=None), d("n2", h=None),                                       # unhashed: nothing proves equal
         d("x1", user=U2),                                                       # another account
-        d("old", created="2026-08-31T23:59:59+00:00"),                          # another month
+        d("old", h=H3, created="2026-08-31T23:59:59+00:00"),                    # another book, another month
     ]
     counts = unique_successful_by_user_month(docs)
     assert counts[(U1, "2026-09")] == 1 + 1 + 2 + 2
     assert counts[(U2, "2026-09")] == 1
     assert counts[(U1, "2026-08")] == 1
+
+
+def test_a_copy_of_an_earlier_months_book_is_not_a_new_document():
+    """The live gate refuses a re-upload of ANY earlier analysed copy — no
+    month limit — so a September copy of an August book is the same
+    (company, content, period): it counts once, in August. Per-month
+    buckets counted it again in September (verifier lens Q)."""
+    docs = [d("aug", created="2026-08-15T10:00:00+00:00"), d("sep-copy", created="2026-09-15T10:00:00+00:00"),
+            d("sep-new", h=H2, created="2026-09-16T10:00:00+00:00")]
+    counts = unique_successful_by_user_month(docs)
+    assert counts == {(U1, "2026-08"): 1, (U1, "2026-09"): 1}
+    usage = [{"id": "u", "user_id": U1, "month": "2026-09", "uploads": 2, "uploads_reserved": 0}]
+    plan = recompute(docs, usage, [], current_month="2026-09", included_docs_for=_included)
+    assert plan.usage[0].uploads_after == 1
 
 
 def test_uploads_restore_to_unique_successes_and_never_rise():
@@ -120,6 +134,29 @@ def test_the_audit_lists_failed_and_duplicate_paid_extras_only():
     assert all("sub_1" in f.stripe and "extra_doc:%s" % f.document_id in f.stripe for f in subscribed)
 
 
+@pytest.mark.parametrize("earlier", [
+    pytest.param(d("refused", status="queued", created="2026-09-20T10:00:00+00:00"),
+                 id="the earlier copy was the 402 the user dismissed (never ran)"),
+    pytest.param(d("gone", created="2026-09-10T10:00:00+00:00", deleted="2026-09-11T00:00:00+00:00"),
+                 id="the user deleted the original before re-uploading"),
+    pytest.param(d("arch", created="2026-09-10T10:00:00+00:00", deleted="2026-09-10T10:00:01+00:00",
+                   error=_doc_dedupe.duplicate_marker("x")), id="the earlier copy is itself an archived duplicate"),
+])
+def test_the_audit_never_lists_a_legitimate_paid_extra(earlier):
+    """A copy is a duplicate only of one that was a LIVE original when it
+    was uploaded — the live gate's own rule (verifier lens Q: a legitimate
+    paid extra was listed for a credit)."""
+    docs = [earlier, d("paid", created="2026-09-20T10:05:00+00:00", metered=True)]
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}]) == []
+
+
+def test_the_audit_still_lists_a_copy_of_an_original_deleted_after_it():
+    docs = [d("orig", created="2026-09-10T10:00:00+00:00", deleted="2026-09-12T00:00:00+00:00"),
+            d("copy", created="2026-09-11T10:00:00+00:00", metered=True)]
+    found = classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}])
+    assert [(f.document_id, f.duplicate_of) for f in found] == [("copy", "orig")]
+
+
 # ── The scripts, end to end over the double ─────────────────────────────
 
 
@@ -176,3 +213,33 @@ def test_duplicate_charges_script_is_read_only(prod_like, capsys):
     assert prod_like.updates == []
     assert "no Stripe subscription — never billed" in out
     assert "a2" in out and "f1" in out and " a1 " not in out
+
+
+def test_apply_never_overwrites_a_run_that_committed_after_the_read(prod_like, monkeypatch):
+    """load() → a run commits (uploads+1, reserved-1) and its document lands
+    → apply(). The stale snapshot used to be written back: the committed
+    document lost and a phantom reservation re-written (verifier lens Q)."""
+    prod_like.rows("user_usage")[0]["uploads_reserved"] = 1          # one run in flight at load time
+    mod = _load("recompute_document_quota.py")
+    real_load = mod.load
+
+    def load_then_commit(user, hash_missing):
+        data = real_load(user, hash_missing)
+        row = prod_like.rows("user_usage")[0]
+        row["uploads"] += 1
+        row["uploads_reserved"] = max(row["uploads_reserved"] - 1, 0)
+        prod_like.rows("documents").append(d("new", h="4" * 64, created="2026-09-21T12:00:00+00:00"))
+        return data
+
+    monkeypatch.setattr(mod, "load", load_then_commit)
+    assert mod.main(["--apply", "--no-hash-missing"]) == 0
+    row = prod_like.rows("user_usage")[0]
+    assert (row["uploads"], row["uploads_reserved"]) == (3, 0), row   # a1/a2 + b1 + the new one
+
+
+def test_apply_never_writes_the_current_months_reservations(prod_like):
+    prod_like.rows("user_usage")[0]["uploads_reserved"] = 1
+    mod = _load("recompute_document_quota.py")
+    assert mod.main(["--apply", "--no-hash-missing"]) == 0
+    writes = [p for t, p, _f in prod_like.updates if t == "user_usage"]
+    assert writes and all("uploads_reserved" not in p for p in writes), writes
