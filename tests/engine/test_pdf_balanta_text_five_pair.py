@@ -449,6 +449,96 @@ def test_a_single_figure_shaped_word_in_a_name_is_still_read():
     assert got is not None and by_cont(got, "1004.01")["name"] == "CAPITAL 4.50 PROCENT"
 
 
+def _book_with_a_client(client_text: str = "Client 404 Media SRL") -> List[str]:
+    rs = rows()
+    rs.append(Row("4111.05", client_text, si=(Decimal("7000.00"), Z), rl=(Decimal("500.00"), Z)))
+    rs.append(Row("4011.09", "Furnizor Y", si=(Z, Decimal("7000.00")), rl=(Z, Decimal("500.00"))))
+    return render(rs)
+
+
+def _wrap(lines: List[str], cont: str, first_line: str) -> List[str]:
+    """Wrap `cont`'s row: `first_line` on its own text line, the rest of
+    the row (after "<cont> Client") on the next — which starts with
+    whatever the name continues with."""
+    out = list(lines)
+    i = next(k for k, l in enumerate(out) if l.startswith(cont + " "))
+    toks = out[i].split(" ")
+    out[i:i + 1] = [first_line, " ".join(toks[2:])]
+    return out
+
+
+def test_the_client_book_is_read():  # the control for the wrap tests below
+    got = P.parse_lines(_book_with_a_client())
+    assert by_cont(got, "4111.05")["figures"][8] == Decimal("7500.00")
+
+
+def test_a_wrapped_row_whose_second_line_starts_with_a_number_refuses(caplog):
+    # "4111.05 Client" / "404 Media SRL <ten figures>": read naively, the
+    # receivable is served as account 404 (fixed-asset suppliers, a
+    # liability) and 4111.05 vanishes — both class 4, every total ties.
+    lines = _wrap(_book_with_a_client(), "4111.05", "4111.05 Client")
+    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+
+
+def test_a_wrapped_row_with_the_code_alone_on_its_first_line_refuses(caplog):
+    lines = _wrap(_book_with_a_client(), "4111.05", "4111.05")
+    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+
+
+def test_a_wrapped_row_that_prints_its_code_again_is_read_whole():
+    # the figure line repeats the held line's code: the held line was the
+    # row's first line, and its text is the start of that account's name
+    lines = _book_with_a_client()
+    i = next(k for k, l in enumerate(lines) if l.startswith("4111.05 "))
+    toks = lines[i].split(" ")
+    lines[i:i + 1] = ["4111.05 Client 404", "4111.05 " + " ".join(toks[3:])]
+    got = P.parse_lines(lines)
+    assert got is not None
+    client = by_cont(got, "4111.05")
+    assert client["name"] == "Client 404 Media SRL" and client["figures"][8] == Decimal("7500.00")
+    assert not any(r["cont"] == "404" for r in got["rows"])
+
+
+def test_a_code_plus_name_line_then_a_code_plus_figures_line_names_the_right_account():
+    lines = book()
+    i = next(k for k, l in enumerate(lines) if l.startswith("1007.01 "))
+    toks = lines[i].split(" ")
+    lines[i:i + 1] = [" ".join(toks[:3]), "1007.01 " + " ".join(toks[3:])]
+    got = P.parse_lines(lines)
+    assert by_cont(got, "1007.01")["name"] == "CAPITAL 7"
+    assert by_cont(got, "1006.01")["name"] == "CAPITAL 6"
+
+
+def _held_line_then(next_text: str, cont_lines: tuple = ()) -> List[str]:
+    """A continuation of 1006.01 led by a code-shaped word (a year), then
+    account 1007.01 printed as `next_text` — the real layout's one such
+    line per book, where the next account repeats its code."""
+    rs = rows()
+    for r in rs:
+        if r.cont == "1006.01":
+            r.cont_lines = ("2019 1006.01",)
+        if r.cont == "1007.01":
+            r.text, r.cont_lines = next_text, cont_lines
+    return render(rs)
+
+
+def test_a_held_line_before_an_account_that_repeats_its_code_is_a_continuation():
+    got = P.parse_lines(_held_line_then("CAPITAL 7 1007.01"))
+    assert got is not None
+    assert by_cont(got, "1006.01")["name"] == "CAPITAL 6 2019"
+    assert by_cont(got, "1007.01")["name"] == "CAPITAL 7"
+
+
+def test_the_repeat_may_come_on_the_accounts_continuation_line():
+    got = P.parse_lines(_held_line_then("CAPITAL 7", cont_lines=("REZERVA 1007.01",)))
+    assert got is not None and by_cont(got, "1007.01")["name"] == "CAPITAL 7 REZERVA"
+
+
+def test_a_held_line_before_an_account_that_never_repeats_its_code_refuses(caplog):
+    lines = _held_line_then("CAPITAL 7")
+    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 
