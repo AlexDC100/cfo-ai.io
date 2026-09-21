@@ -744,6 +744,56 @@ def test_a_run_in_flight_is_still_the_original(world):
     assert r["duplicate"] is True and r["existing_document_id"] == "first", r
 
 
+def test_a_superseded_original_does_not_block_restoring_the_month(world):
+    """Demo day: another file analysed into Dec 2025 took over the month
+    (duplicate-month REPLACE re-points the period at the newer document).
+    The user re-uploads the Scandia file to put it back — it used to be
+    refused "Already uploaded — open it", and the link opened a month that
+    showed the OTHER document."""
+    db = world["db"]
+    db.rows("financial_periods")[0]["source_document_id"] = "realestate-xlsx"
+    db.rows("documents").extend([
+        _doc("scandia-orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:00+00:00"),
+        _doc("realestate-xlsx", h=EEI, status="analyzed", period_id=PERIOD, created="2026-09-21T09:00:00+00:00"),
+    ])
+    r = world["post"]("/api/documents/duplicate-check",
+                      {"content_hash": SCANDIA, "period_end_hint": "2025-12-31"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    db.rows("documents").append(_doc("put-back", hint="2025-12-31"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "put-back"}).json()["status"] == "queued"
+
+
+@pytest.mark.parametrize("source", [None, "live-later"])
+def test_the_named_original_is_the_copy_that_holds_the_analysis(world, source):
+    """A /retry of one copy deletes the shared period, and documents.period_id
+    is ON DELETE SET NULL: the other copies stay 'analyzed' with no period.
+    "Open it" must lead to the copy that owns the live period, and re-running
+    that copy must not archive it against the orphan."""
+    world["db"].rows("financial_periods")[0]["source_document_id"] = source
+    world["db"].rows("documents").extend([
+        _doc("orphan-first", status="analyzed", period_id=None, created="2026-09-18T10:00:00+00:00"),
+        _doc("live-later", status="analyzed", period_id=PERIOD, created="2026-09-21T11:00:00+00:00"),
+    ])
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "live-later" and r["period_id"] == PERIOD, r
+    rr = world["post"]("/api/pipeline/retry", {"document_id": "live-later"}).json()
+    assert rr["status"] == "queued", rr
+    # and a re-run of the orphan IS a duplicate of the copy that holds the analysis
+    rr = world["post"]("/api/pipeline/retry", {"document_id": "orphan-first"}).json()
+    assert rr["status"] == "duplicate" and rr["existing_document_id"] == "live-later", rr
+
+
+def test_copies_without_any_analysis_still_dedupe_on_the_first(world):
+    """When NO copy holds a period (e.g. rows whose analysis carries none),
+    the first analysed copy is still the original."""
+    world["db"].rows("documents").extend([
+        _doc("first", status="analyzed", period_id=None, created="2026-09-18T10:00:00+00:00"),
+        _doc("again", created="2026-09-21T11:00:00+00:00"),
+    ])
+    r = world["post"]("/api/pipeline/run", {"document_id": "again"}).json()
+    assert r["status"] == "duplicate" and r["existing_document_id"] == "first", r
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 

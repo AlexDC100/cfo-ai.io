@@ -201,6 +201,36 @@ def _ts(value: Any) -> Optional[datetime]:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+#: What an analysed copy holds (`_analysis_state`).
+_HOLDS, _ORPHAN, _SUPERSEDED = "holds", "orphan", "superseded"
+
+
+def _analysis_state(row: Dict[str, Any], period_source_of: Optional[Dict[str, Optional[str]]]) -> str:
+    """Does this analysed copy still HOLD its analysis?
+
+      * holds      — a financial copy whose period exists in this company and
+                     names it as its source (or names none); any SKU copy
+                     (SKU analyses carry no period);
+      * orphan     — a financial copy with no period (a /retry of a twin
+                     deleted the shared period: `documents.period_id` is
+                     ON DELETE SET NULL), or whose period is gone;
+      * superseded — its period now shows ANOTHER document (the pipeline's
+                     duplicate-month REPLACE re-pointed the month).
+    `period_source_of` None = the periods could not be read: every copy is
+    taken to hold (the check can only refuse what it can prove)."""
+    if str(row.get("scope") or "financial").lower() != "financial":
+        return _HOLDS
+    pid = row.get("period_id")
+    if not pid:
+        return _ORPHAN
+    if period_source_of is None:
+        return _HOLDS
+    if str(pid) not in period_source_of:
+        return _ORPHAN
+    src = period_source_of.get(str(pid))
+    return _HOLDS if (not src or str(src) == str(row.get("id"))) else _SUPERSEDED
+
+
 def pick_original(
     candidates: Iterable[Dict[str, Any]],
     *,
@@ -208,6 +238,7 @@ def pick_original(
     self_row: Optional[Dict[str, Any]] = None,
     period_end_of: Optional[Dict[str, str]] = None,
     run_is_live: Optional[Callable[[str], bool]] = None,
+    period_source_of: Optional[Dict[str, Optional[str]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """The live original among `candidates` (rows already narrowed to the
     same org + uploaded_by + content hash), or None.
@@ -222,29 +253,55 @@ def pick_original(
     `pipeline_started_at` set and nothing ever marks it failed; it used to
     block every re-upload of that file for good ("Already uploaded — open
     it", pointing at a run that will never finish).
+
+    An ANALYSED row is an original only while it holds its analysis
+    (`_analysis_state`, over `period_source_of` = period id → its
+    source_document_id). A SUPERSEDED copy — its month now shows another
+    document — never is: re-uploading the file to put the month back was
+    refused, and "open it" opened someone else's analysis. An ORPHAN copy
+    (no period) is one only when no copy — the one being checked included —
+    holds an analysis: "open it" must lead to the copy that has one, and
+    re-running the copy that owns the live period must not archive it
+    against an orphan. The first-copy-wins rule (a LATER analysed copy never
+    displaces the one being checked) applies when the one being checked
+    holds its analysis.
     """
     period_end_of = period_end_of or {}
     if run_is_live is None:
         run_is_live = lambda rid: in_flight(rid) is not None  # noqa: E731
+    rows = list(candidates)
     self_id = str((self_row or {}).get("id") or "")
     self_analyzed = str((self_row or {}).get("status") or "").lower() == "analyzed"
+    self_state = _analysis_state(self_row, period_source_of) if (self_row and self_analyzed) else None
     self_key = (_ts((self_row or {}).get("created_at")), self_id)
-    ranked: List[Tuple[int, str, str, Dict[str, Any]]] = []
-    for row in candidates:
+
+    def eligible(row: Dict[str, Any]) -> bool:
         rid = str(row.get("id") or "")
-        if not rid or rid == self_id:
-            continue
-        if row.get("deleted_at"):
-            continue
-        status = str(row.get("status") or "").lower()
-        if status == "failed":
-            continue
+        if not rid or rid == self_id or row.get("deleted_at"):
+            return False
+        if str(row.get("status") or "").lower() == "failed":
+            return False
         pid = row.get("period_id")
-        if not same_period(hint, row.get("period_end_hint"), period_end_of.get(str(pid)) if pid else None):
-            continue
+        return same_period(hint, row.get("period_end_hint"),
+                           period_end_of.get(str(pid)) if pid else None)
+
+    pool = [r for r in rows if eligible(r)]
+    someone_holds = self_state == _HOLDS or any(
+        str(r.get("status") or "").lower() == "analyzed"
+        and _analysis_state(r, period_source_of) == _HOLDS for r in pool)
+    first_copy_wins = self_analyzed and (
+        self_state == _HOLDS or (self_state == _ORPHAN and not someone_holds))
+
+    ranked: List[Tuple[int, str, str, Dict[str, Any]]] = []
+    for row in pool:
+        rid = str(row.get("id") or "")
+        status = str(row.get("status") or "").lower()
         created = _ts(row.get("created_at"))
         if status == "analyzed":
-            if self_analyzed and self_key[0] is not None and created is not None \
+            state = _analysis_state(row, period_source_of)
+            if state == _SUPERSEDED or (state == _ORPHAN and someone_holds):
+                continue
+            if first_copy_wins and self_key[0] is not None and created is not None \
                     and (created, rid) > self_key:
                 continue  # a LATER analysed copy never displaces the first one
             rank = 0
@@ -409,17 +466,25 @@ def _candidates(org_id: str, user_id: str, content_hash: str) -> List[Dict[str, 
         ) or [])
 
 
-def _period_ends(org_id: str, period_ids: Sequence[str]) -> Dict[str, str]:
+def _period_info(org_id: str, period_ids: Sequence[Any]) -> Optional[Dict[str, Dict[str, Any]]]:
+    """period id → {period_end, source_document_id} for the periods of THIS
+    company among `period_ids`. None when they cannot be read."""
     ids = sorted({str(p) for p in period_ids if p})
     if not ids:
         return {}
-    with _supabase.admin() as ac:
-        rows = ac.select(
-            "financial_periods",
-            filters={"id": "in.(" + ",".join(ids) + ")", "org_id": f"eq.{org_id}"},
-            columns="id,period_end",
-        ) or []
-    return {str(r["id"]): str(r.get("period_end") or "") for r in rows if r.get("id")}
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select(
+                "financial_periods",
+                filters={"id": "in.(" + ",".join(ids) + ")", "org_id": f"eq.{org_id}"},
+                columns="id,period_end,source_document_id",
+            ) or []
+    except Exception:  # noqa: BLE001 — unknown periods prove nothing
+        logger.exception("[dedupe] could not read the periods of org %s", org_id)
+        return None
+    return {str(r["id"]): {"period_end": str(r.get("period_end") or ""),
+                           "source_document_id": r.get("source_document_id")}
+            for r in rows if r.get("id")}
 
 
 def find_live_original(
@@ -437,8 +502,13 @@ def find_live_original(
     rows = _candidates(str(org_id), str(user_id), h)
     if not rows:
         return None
-    period_end_of = _period_ends(str(org_id), [r.get("period_id") for r in rows]) if _date10(hint) else {}
-    row = pick_original(rows, hint=hint, self_row=self_row, period_end_of=period_end_of)
+    info = _period_info(str(org_id), [r.get("period_id") for r in rows]
+                        + [(self_row or {}).get("period_id")])
+    period_end_of = {pid: v["period_end"] for pid, v in (info or {}).items()}
+    period_source_of = ({pid: v.get("source_document_id") for pid, v in info.items()}
+                        if info is not None else None)
+    row = pick_original(rows, hint=hint, self_row=self_row, period_end_of=period_end_of,
+                        period_source_of=period_source_of)
     return _hit(row) if row else None
 
 
