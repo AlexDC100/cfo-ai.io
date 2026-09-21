@@ -230,6 +230,7 @@ export function useUploadEnqueue() {
   const dialog = pending ? (
     <ExtraDocConfirmDialog
       open
+      documentId={pending.documentId}
       onClose={handleClose}
       onConfirmed={handleConfirmed}
       planKey={pending.planKey}

@@ -191,7 +191,8 @@ DECLARED = {
     ("POST", "/api/checkout/start"): "self-scoped: Stripe session for the verified user",
     ("PUT", "/api/dashboard/config"): "self-scoped: dashboard_configs keyed on the verified user_id",
     ("POST", "/api/plan/commit-document-usage"): "self-scoped: usage counters per verified user_id",
-    ("POST", "/api/plan/confirm-extra-doc"): "self-scoped: usage counters per verified user_id",
+    ("POST", "/api/plan/confirm-extra-doc"): "self-scoped: usage counters per verified user_id; the document "
+                                              "it grants the extra to is walled by _verify_user_may_write_document",
     ("POST", "/api/plan/release-document-reservation"): "self-scoped: usage counters per verified user_id",
     ("POST", "/api/newsletter/subscribe-me"): "self-scoped: the verified identity's own e-mail",
     ("POST", "/api/newsletter/unsubscribe-me"): "self-scoped: the verified identity's own e-mail",

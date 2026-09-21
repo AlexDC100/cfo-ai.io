@@ -103,6 +103,9 @@ describe("useUploadEnqueue — confirm must win over the dialog's trailing close
     await waitFor(() => expect(outcome).toHaveBeenCalledTimes(1), { timeout: 2000 });
     expect(outcome.mock.calls[0][0]).toEqual({ kind: "queued" });
     expect(sb.enqueuePipeline).toHaveBeenCalledTimes(2);
+    // The confirmation names the document the 402 was about (2026-09-21):
+    // the server grants the paid extra to that document only.
+    expect(planState.confirmExtraDoc).toHaveBeenCalledWith("doc-1");
     // The dialog is gone once the owner cleared its pending state.
     expect(screen.queryByTestId("extra-doc-confirm")).toBeNull();
   });

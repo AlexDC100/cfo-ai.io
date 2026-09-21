@@ -146,6 +146,17 @@ def _row(world, doc_id):
     return next(d for d in world["db"].rows("documents") if d["id"] == doc_id)
 
 
+def _confirm(world, doc_id=None, user=OWNER):
+    """The €-dialog's Confirm, through the REAL route: POST
+    /api/plan/confirm-extra-doc naming the document it was shown for."""
+    from engine.api import _pricing_routes
+    app = FastAPI()
+    app.include_router(_pricing_routes.build_router())
+    body = {"document_id": doc_id} if doc_id else None
+    return TestClient(app).post("/api/plan/confirm-extra-doc", json=body,
+                                headers={"Authorization": "Bearer jwt:%s" % user})
+
+
 # ── G3: the pre-storage check ───────────────────────────────────────────
 
 
@@ -406,6 +417,111 @@ def test_a_run_whose_row_patch_fails_releases_its_reservation(world, monkeypatch
     assert _row(world, "book")["pipeline_started_at"] is None and _doc_dedupe.in_flight("book") is None
 
 
+# ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
+
+
+def test_one_confirmation_pays_for_the_one_document_it_was_given_for(world):
+    """Two over-cap uploads, ONE dialog confirmed (for b1). b2's /run gets
+    its own 402 — it used to run as a paid extra with no dialog, and both
+    were billed on one confirmation."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").extend([_doc("b1", h="b" * 64), _doc("b2", h="c" * 64)])
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).json()["status"] == "queued"
+    r2 = world["post"]("/api/pipeline/run", {"document_id": "b2"})
+    assert r2.status_code == 402, ("an over-cap upload ran with no dialog of its own", r2.text)
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["b1"]
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    assert [b["reservation_id"] for b in world["billed"]] == ["b1"]
+
+
+def test_recover_stuck_never_runs_a_document_whose_dialog_was_dismissed(world):
+    """`refused` got a 402 the user dismissed. While the confirmed extra for
+    `wanted` is in flight, a page mount calls recover-stuck: `refused` stays
+    queued and asks for its own confirmation — never a paid extra."""
+    from datetime import datetime, timedelta, timezone
+    ago = lambda s: (datetime.now(timezone.utc) - timedelta(seconds=s)).isoformat()  # noqa: E731
+    meter, db = world["meter"], world["db"]
+    meter.uploads = 15
+    db.rows("documents").append(_doc("refused", h="d" * 64, created=ago(120)))
+    assert world["post"]("/api/pipeline/run", {"document_id": "refused"}).status_code == 402  # dismissed
+    db.rows("documents").append(_doc("wanted", h="e" * 64, created=ago(1)))
+    assert world["post"]("/api/pipeline/run", {"document_id": "wanted"}).status_code == 402
+    assert _confirm(world, "wanted").status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "wanted"}).json()["status"] == "queued"
+    body = world["post"]("/api/pipeline/recover-stuck", None).json()
+    assert body["recovered_count"] == 0
+    assert [n["id"] for n in body["needs_confirmation"]] == ["refused"]
+    for d in list(world["enqueued"]):
+        world["finish"](d, "analyzed")
+    assert world["enqueued"] == ["wanted"]
+    assert meter.snapshot()["extra_billed"] == 1 and [b["reservation_id"] for b in world["billed"]] == ["wanted"]
+    assert not _row(world, "refused").get("metered_extra")
+
+
+def test_a_double_click_on_confirm_reserves_one_extra(world):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("b1"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert _confirm(world, "b1").status_code == 200
+    assert meter.calls.count("reserve_user_upload_extra") == 1, meter.calls
+    assert meter.snapshot()["reserved"] == 1 and meter.snapshot()["pending"] == 1
+
+
+def test_a_confirmed_extra_whose_upload_turns_out_a_duplicate_is_given_back(world):
+    meter, db = world["meter"], world["db"]
+    meter.uploads = 15
+    db.rows("documents").append(_doc("copy", created="2026-09-21T13:05:58+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).status_code == 402
+    assert _confirm(world, "copy").status_code == 200
+    # meanwhile another tab's copy of the same bytes started first
+    db.rows("documents").append(_doc("orig", status="analyzed", period_id=PERIOD,
+                                     created="2026-09-21T13:00:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert world["billed"] == []
+
+
+def test_an_unclaimed_grant_expires_and_gives_its_slot_back(world, monkeypatch):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("b1"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world, "b1").status_code == 200
+    assert meter.snapshot()["reserved"] == 1
+    later = _usage_gate._now_mono() + _usage_gate.EXTRA_GRANT_TTL_S + 1
+    monkeypatch.setattr(_usage_gate, "_now_mono", lambda: later)
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_confirm_from_an_older_bundle_is_for_the_document_of_the_last_402(world):
+    """An older browser bundle confirms with no body: the grant goes to the
+    document the caller's last 402 was about — and only to it."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").extend([_doc("b1", h="b" * 64), _doc("b2", h="c" * 64)])
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).status_code == 402
+    assert _confirm(world).status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "b2"}).status_code == 402
+    assert world["post"]("/api/pipeline/run", {"document_id": "b1"}).json()["status"] == "queued"
+
+
+def test_a_confirm_for_a_document_of_another_workspace_is_refused(world):
+    stranger_doc = _doc("theirs", org="99999999-0000-4000-8000-000000000000", user=OTHER_USER)
+    world["db"].rows("documents").append(stranger_doc)
+    world["meter"].uploads = 15
+    r = _confirm(world, "theirs")
+    assert r.status_code in (403, 404), r.text
+    assert world["meter"].calls == []
+
+
 # ── Failures and duplicates are never counted ────────────────────────────
 
 
@@ -422,9 +538,9 @@ def test_a_failed_analysis_leaves_every_counter_unchanged(world):
 def test_a_failed_paid_extra_is_released_and_never_billed(world):
     meter = world["meter"]
     meter.uploads = 15
-    meter.rpc("reserve_user_upload_extra", {})  # the user confirmed the €-dialog
-    meter.calls.clear()
     world["db"].rows("documents").append(_doc("eei", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "eei"}).status_code == 402
+    assert _confirm(world, "eei").status_code == 200  # the user confirmed the €-dialog
     assert world["post"]("/api/pipeline/run", {"document_id": "eei"}).json()["status"] == "queued"
     world["finish"]("eei", "failed")
     assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
@@ -507,7 +623,8 @@ def test_a_future_subscriber_is_metered_for_a_success_only(world):
     meter.uploads = 15
     db.rows("documents").extend([_doc("fails", h=EEI), _doc("works")])
     for doc_id, outcome in (("fails", "failed"), ("works", "analyzed")):
-        meter.rpc("reserve_user_upload_extra", {})
+        assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).status_code == 402
+        assert _confirm(world, doc_id).status_code == 200
         assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).json()["status"] == "queued"
         world["finish"](doc_id, outcome)
     db.rows("documents").append(_doc("dup-of-works", created="2026-09-21T14:00:00+00:00"))
@@ -521,11 +638,11 @@ def test_a_stray_extra_confirm_under_the_cap_gives_its_probe_reservation_back(wo
     which is not a pure read: under the cap it RESERVES. The 409 that
     follows used to leave that slot in `uploads_reserved` for good — and
     the meter counts reservations against the plan."""
-    from engine.api import _pricing_routes
-    app = FastAPI()
-    app.include_router(_pricing_routes.build_router())
-    r = TestClient(app).post("/api/plan/confirm-extra-doc", headers={"Authorization": "Bearer jwt:%s" % OWNER})
+    world["db"].rows("documents").append(_doc("book"))
+    r = _confirm(world, "book")
     assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "no_extra_needed"
+    assert world["meter"].calls == ["reserve_user_upload", "release_user_upload"], world["meter"].calls
     assert world["meter"].snapshot() == {"uploads": 0, "reserved": 0, "extra_billed": 0, "pending": 0}
 
 

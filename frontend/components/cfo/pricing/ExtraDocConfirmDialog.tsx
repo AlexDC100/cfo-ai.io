@@ -7,7 +7,7 @@
 // 2. If the backend returns HTTP 402 with code `extra_doc_confirmation_required`,
 //    the caller renders THIS dialog with the price + current usage.
 // 3. User clicks "Confirm and analyse" → FE calls
-//    `POST /api/plan/confirm-extra-doc` → on 200, FE retries
+//    `POST /api/plan/confirm-extra-doc {document_id}` → on 200, FE retries
 //    `enqueuePipeline(docId)` → should now return `kind: "queued"`.
 // 4. Pipeline runs. If it SUCCEEDS, the orchestrator's
 //    `commit_user_upload(was_extra=True)` charges the extra and
@@ -46,6 +46,9 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   open: boolean;
+  /** The document this dialog is about. The confirmation is a grant for
+   *  THIS document only (the server refuses to spend it on any other). */
+  documentId: string;
   onClose: () => void;
   /** Called after a successful confirm + reservation. Caller must then
    *  retry the original upload action (e.g., `enqueuePipeline(docId)`). */
@@ -64,6 +67,7 @@ interface Props {
 
 export function ExtraDocConfirmDialog({
   open,
+  documentId,
   onClose,
   onConfirmed,
   planKey,
@@ -86,7 +90,7 @@ export function ExtraDocConfirmDialog({
     setBusy(true);
     setError(null);
     try {
-      await confirmExtraDoc();
+      await confirmExtraDoc(documentId);
       toast({
         title: "Extra document confirmed",
         description: `${eurLabel} will be charged only after the analysis completes successfully.`,

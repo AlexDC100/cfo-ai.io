@@ -5781,6 +5781,11 @@ def build_router() -> APIRouter:
         # (its pipeline_started_at) under the same lock, so a racing twin
         # finds it running and is the one archived.
         entry = _enter_run(doc, user_id)
+        if entry.kind in (_doc_dedupe.DUPLICATE, _doc_dedupe.DONE):
+            # A confirmed extra for a document that will not run as a first
+            # analysis goes back now, unbilled (verifier P-B).
+            from . import _usage_gate as _ug_grant
+            _ug_grant.cancel_extra_grant(req.document_id)
         if entry.kind == _doc_dedupe.DUPLICATE:
             return RunResponse(document_id=req.document_id, status="duplicate",
                                existing_document_id=entry.hit.existing_document_id if entry.hit else None,
@@ -5812,7 +5817,10 @@ def build_router() -> APIRouter:
             # below is what lets the terminal settle exactly this one.
             _usage_limits.check_quota(user_id, "upload")
             from . import _usage_gate as _ug
-            decision = _ug.reserve_document(user_id)
+            # A confirmed extra is a GRANT for THIS document (verifier P-B):
+            # only its own /run takes it; every other run asks the meter.
+            decision = (_ug.claim_extra_grant(user_id, req.document_id)
+                        or _ug.reserve_document(user_id))
             if decision.kind == "allowed":
                 # Into the ledger BEFORE any other write: a row patch that
                 # fails below must find the reservation here to release it.
@@ -5832,10 +5840,12 @@ def build_router() -> APIRouter:
                 )
             if decision.kind == "extra_required":
                 # FE must surface the confirm dialog and then call
-                # POST /api/plan/confirm-extra-doc which routes through
-                # `confirm_extra_document(user_id)` and reserves the slot
-                # as billable. The repeat /api/pipeline/run call then
-                # sees an `allowed` reservation.
+                # POST /api/plan/confirm-extra-doc {document_id} which routes
+                # through `confirm_extra_document(user_id, document_id)`,
+                # reserves the slot as billable and GRANTS it to this
+                # document. This document's repeat /api/pipeline/run then
+                # takes the grant — and nothing else can.
+                _ug.note_extra_required(user_id, req.document_id)
                 raise HTTPException(
                     status_code=402,
                     detail={
