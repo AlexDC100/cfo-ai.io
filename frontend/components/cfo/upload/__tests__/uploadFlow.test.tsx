@@ -131,11 +131,13 @@ function identity(over: Partial<IdentifyResult> = {}, idOver: Partial<IdentifyRe
       caen_code: "0111",
       industry_key: "agriculture",
       industry_label: "Agriculture",
+      // The engine's own tokens (company_identity.py / _period_detect.SIGNALS).
       sources: {
-        cui: { signal: "document_header", evidence: "C.U.I. 7654321" },
-        company_name: { signal: "document_header", evidence: "AGRAS SA" },
-        period_end: { signal: "period_line", evidence: "Perioada: 01.01.2025 - 31.12.2025" },
-        industry_key: { signal: "registry_caen", evidence: "CAEN 0111" },
+        cui: { signal: "document_header_cui", evidence: "C.U.I. 7654321" },
+        company_name: { signal: "registry", evidence: "registry CUI 7654321" },
+        caen_code: { signal: "registry", evidence: "registry CUI 7654321" },
+        period_end: { signal: "in_document", evidence: "Perioada: 01.01.2025 - 31.12.2025" },
+        industry_key: { signal: "caen_catalogue", evidence: "CAEN 0111" },
       },
       ...idOver,
     },
@@ -208,13 +210,13 @@ describe("confirmation card", () => {
     expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia");
     await screen.findByText("Check before we analyse");
     expect(row("upload-card-company-value")).toHaveTextContent("Agras SA");
-    expect(row("upload-card-company-from")).toHaveTextContent("from the document header");
+    expect(row("upload-card-company-from")).toHaveTextContent("from the ONRC/MF registry");
     expect(row("upload-card-cui-value")).toHaveTextContent("RO7654321");
     expect(row("upload-card-cui-from")).toHaveTextContent("from the document header");
     expect(row("upload-card-period-value")).toHaveTextContent("ending 31 December 2025");
     expect(row("upload-card-period-from")).toHaveTextContent("from the document's period line");
     expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture");
-    expect(row("upload-card-industry-from")).toHaveTextContent("from the ONRC/MF registry");
+    expect(row("upload-card-industry-from")).toHaveTextContent("from the CAEN code");
     expect(within(card()).getByTestId("upload-card-other-note")).toHaveTextContent(
       "This document belongs to Agras SA, not to the company open now.",
     );
@@ -519,7 +521,8 @@ describe("plain language, both languages", () => {
     expect(within(card()).getByTestId("upload-card-change")).toHaveTextContent("Modifică");
     expect(within(card()).getByTestId("upload-card-new-badge")).toHaveTextContent("Companie nouă");
     expect(row("upload-card-cui-from")).toHaveTextContent("din antetul documentului");
-    expect(row("upload-card-industry-from")).toHaveTextContent("din registrul ONRC/MF");
+    expect(row("upload-card-company-from")).toHaveTextContent("din registrul ONRC/MF");
+    expect(row("upload-card-industry-from")).toHaveTextContent("din codul CAEN");
     await waitFor(() => expect(row("upload-card-industry-value")).toHaveTextContent("Agricultură"));
   });
 

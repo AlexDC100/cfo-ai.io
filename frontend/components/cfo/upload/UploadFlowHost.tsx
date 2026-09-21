@@ -421,8 +421,8 @@ function ConfirmView({
 
   // Where each value came from — only what the engine SAID. A field it gave
   // no origin for shows none; the card never guesses one.
-  const fromPhrase = (signal: string | null | undefined) =>
-    signal && signal !== "none" ? t(sourceKey(signal)) : null;
+  const fromPhrase = (signal: string | null | undefined, field?: string) =>
+    signal && signal !== "none" ? t(sourceKey(signal, field)) : null;
   const companyFrom = choice.edited.company
     ? t("wsV2.from.user")
     : target.reason === "on_screen_company"
@@ -435,7 +435,7 @@ function ConfirmView({
     : identity.cui
       ? fromPhrase(src.cui?.signal)
       : t("wsV2.from.company_settings");
-  const periodFrom = choice.edited.period ? t("wsV2.from.user") : fromPhrase(src.period_end?.signal);
+  const periodFrom = choice.edited.period ? t("wsV2.from.user") : fromPhrase(src.period_end?.signal, "period_end");
   const industryFrom = choice.edited.industry
     ? t("wsV2.from.user")
     : fromPhrase(src.industry_key?.signal ?? src.industry_label?.signal ?? src.caen_code?.signal);

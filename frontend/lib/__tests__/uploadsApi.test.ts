@@ -178,24 +178,44 @@ describe("GET /api/companies/{org_id}/years", () => {
 });
 
 describe("where a value came from — the card's phrase per signal", () => {
+  // The engine's own tokens (company_identity.py, _period_detect.SIGNALS).
   it.each([
-    ["document_header", "document_header"],
-    ["pdf_header_cui", "document_header"],
-    ["period_line", "period_line"],
-    ["document_period", "period_line"],
-    ["registry", "registry"],
-    ["onrc", "registry"],
-    ["anaf_registry", "registry"],
-    ["registry_caen", "registry"],
-    ["caen_code", "caen"],
-    ["on_screen_company", "on_screen_company"],
-    ["user", "user"],
-    ["filename", "document"],
-    ["", "document"],
-    [undefined, "document"],
-  ])("%s → %s", (signal, phrase) => {
-    expect(sourcePhrase(signal as string | undefined)).toBe(phrase);
-    expect(sourceKey(signal as string | undefined)).toBe(`wsV2.from.${phrase}`);
+    ["document_header_cui", "cui", "document_header"],
+    ["registry_name_match", "cui", "registry"],
+    ["filename_registry_match", "cui", "filename"],
+    ["operator_verified", "cui", "verified"],
+    ["registry", "company_name", "registry"],
+    ["document_header_label", "company_name", "document_header"],
+    ["document_header_title", "company_name", "document_header"],
+    ["sheet_name", "company_name", "sheet"],
+    ["filename", "company_name", "filename"],
+    ["document_header", "caen_code", "document_header"],
+    ["caen_catalogue", "industry_key", "caen"],
+    ["in_document", "period_end", "period_line"],
+    ["closing_balance", "period_end", "closing_balance"],
+    ["user_confirmed", "period_end", "user"],
+    // Families, and the honest minimum for anything unknown.
+    ["on_screen_company", undefined, "on_screen_company"],
+    ["anaf_registry", undefined, "registry"],
+    ["something_new", undefined, "document"],
+    ["none", "period_end", "document"],
+    ["", undefined, "document"],
+    [undefined, undefined, "document"],
+  ])("%s (%s) → %s", (signal, field, phrase) => {
+    expect(sourcePhrase(signal as string | undefined, field as string | undefined)).toBe(phrase);
+    expect(sourceKey(signal as string | undefined, field as string | undefined)).toBe(`wsV2.from.${phrase}`);
+  });
+
+  it("every phrase the mapping can produce exists in both languages", () => {
+    const phrases = [
+      "document_header", "period_line", "closing_balance", "registry", "caen", "sheet",
+      "filename", "verified", "on_screen_company", "company_settings", "user", "document",
+    ];
+    const from = (lang: unknown) => ((lang as { wsV2: { from: Record<string, string> } }).wsV2.from);
+    for (const p of phrases) {
+      expect(from(en)[p], `en ${p}`).toBeTruthy();
+      expect(from(ro)[p], `ro ${p}`).toBeTruthy();
+    }
   });
 });
 

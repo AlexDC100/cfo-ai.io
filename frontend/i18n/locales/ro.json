@@ -3419,8 +3419,12 @@
     "from": {
       "document_header": "din antetul documentului",
       "period_line": "din rândul cu perioada din document",
+      "closing_balance": "din data soldurilor finale din document",
       "registry": "din registrul ONRC/MF",
       "caen": "din codul CAEN",
+      "sheet": "din numele foii de calcul",
+      "filename": "din numele fișierului",
+      "verified": "verificat de echipa noastră",
       "on_screen_company": "compania deschisă acum",
       "company_settings": "din setările companiei tale",
       "user": "ales de tine",

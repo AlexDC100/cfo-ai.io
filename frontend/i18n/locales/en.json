@@ -3393,8 +3393,12 @@
     "from": {
       "document_header": "from the document header",
       "period_line": "from the document's period line",
+      "closing_balance": "from the closing-balance date in the document",
       "registry": "from the ONRC/MF registry",
       "caen": "from the CAEN code",
+      "sheet": "from the spreadsheet's sheet name",
+      "filename": "from the file name",
+      "verified": "verified by our team",
       "on_screen_company": "the company open now",
       "company_settings": "from your company's settings",
       "user": "chosen by you",
