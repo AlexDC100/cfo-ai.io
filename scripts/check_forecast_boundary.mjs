@@ -447,28 +447,147 @@ if (tsChecked + pyChecked === 0) {
   );
 }
 
-// SCOPE (TC-13), printed so the reader sees what this gate does NOT hold.
-// The Scenarios page computes its own cascade today (defect 0.5) and does
-// not import the forecast namespace, so none of the consumer rules above
-// apply to it. It joins this gate's scope at the Scenarios cut-over (plan/2
-// B13), which deletes the cascade. Listed by name so the exclusion can never
-// be mistaken for coverage.
-const SCENARIOS_SCOPE = [
-  /^frontend\/pages\/cfo\/Scenarios\.tsx$/,
-  /^frontend\/stores\/scenario\.tsx$/,
-  /^frontend\/components\/scenarios\//,
+// ── plan/2 B13 (minimal cut): THE SCENARIOS PAGE COMPUTES NOTHING ──────
+//
+// Until B13 the Scenarios page ran its own cascade in the browser
+// (`lib/scenarios/cascade.ts` over `baseline.ts`, defect 0.5) and never read
+// the forecast namespace, so every rule above was green over it by vacuity and
+// this gate printed it as EXCLUDED. At the cut-over it joins the scope, and it
+// joins with a rule of its own: the page's whole import CLOSURE — the page,
+// every module it imports, and theirs, resolved inside frontend/ — may not
+// reach a client scenario-math module. A direct-import check alone would pass
+// a page that reaches the cascade through a component (the old page imported
+// it through ScenarioComparison and CovenantPanel as well as directly).
+//
+// RED ON (TC-11): the page, or anything it imports, importing a module under
+// frontend/lib/scenarios/ (cascade, baseline, covenants, levers, templates,
+// types, dashboardCanon) or the old input store frontend/stores/scenario.tsx;
+// the closure not reaching frontend/lib/forecastFacts.ts (the one reader of
+// a served projection); the page no longer POSTing the engine
+// (`forecastRecompute`); the page file missing (a closure over nothing).
+//
+// CANNOT SEE: a dynamic import built from a string; a surface that copies the
+// fp1 JSON into its own local interface (the header above says the same).
+//
+// The old cascade renderers under frontend/components/scenarios/ stay on disk
+// (a sign-flip canary still renders ScenarioComparison) and are printed below
+// as unreachable from the page, so their presence is never read as coverage.
+
+const SCENARIOS_PAGE = "frontend/pages/cfo/Scenarios.tsx";
+const SCENARIOS_CLIENT_MATH = [
   /^frontend\/lib\/scenarios\//,
+  /^frontend\/stores\/scenario\.tsx$/,
 ];
-const excludedScenarios = files
+
+/** Every module a file reaches through static imports, re-exports and
+ *  literal dynamic imports, resolved inside frontend/ (`@/` and relative
+ *  specifiers; packages are outside the question). */
+export function importClosure(root, startRel) {
+  const exts = ["", ".ts", ".tsx", ".json", "/index.ts", "/index.tsx"];
+  const resolveSpec = (fromAbs, spec) => {
+    let base;
+    if (spec.startsWith("@/")) base = join(root, "frontend", spec.slice(2));
+    else if (spec.startsWith(".")) base = join(fromAbs, "..", spec);
+    else return null;
+    for (const ext of exts) {
+      const candidate = base + ext;
+      try {
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        /* not this extension */
+      }
+    }
+    return null;
+  };
+  const importRx =
+    /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\sfrom\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+  const seen = new Set();
+  const stack = [join(root, startRel)];
+  while (stack.length > 0) {
+    const abs = stack.pop();
+    if (seen.has(abs)) continue;
+    let src;
+    try {
+      src = readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    seen.add(abs);
+    if (abs.endsWith(".json")) continue;
+    for (const m of src.matchAll(importRx)) {
+      const target = resolveSpec(abs, m[1] ?? m[2]);
+      if (target && !seen.has(target)) stack.push(target);
+    }
+  }
+  return [...seen].map((abs) => relative(root, abs).split("\\").join("/")).sort();
+}
+
+let scenariosClosure = [];
+if (!PROBE_VACUITY) {
+  const pageSource = read(join(ROOT, SCENARIOS_PAGE));
+  if (!pageSource) {
+    fail(`ROSTER STALE: ${SCENARIOS_PAGE} does not exist — a closure over nothing checks nothing`);
+  } else {
+    scenariosClosure = importClosure(ROOT, SCENARIOS_PAGE);
+    for (const mod of scenariosClosure) {
+      if (SCENARIOS_CLIENT_MATH.some((rx) => rx.test(mod))) {
+        fail(
+          `${SCENARIOS_PAGE} reaches ${mod} through its imports. The Scenarios ` +
+            `page computes nothing: every figure it shows is served by ` +
+            `/api/forecast/{id}/recompute and read through ${FORECAST_LIB} ` +
+            `(plan/2 B13, one engine). A client scenario-math module in its ` +
+            `closure is a second calculator wearing the engine's labels.`,
+        );
+      }
+    }
+    if (!scenariosClosure.includes(FORECAST_LIB)) {
+      fail(
+        `${SCENARIOS_PAGE} no longer reaches ${FORECAST_LIB}. A Scenarios page ` +
+          `that does not read the served projection is painting figures from ` +
+          `somewhere else.`,
+      );
+    }
+    // Line comments first, then blocks: a `//` line naming a path that ends
+    // in `/*` would otherwise open a block that swallows the code after it.
+    const pageCode = pageSource
+      .split("\n")
+      .filter((line) => !/^\s*\/\//.test(line))
+      .join("\n")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    if (!/\bforecastRecompute\s*\(/.test(pageCode)) {
+      fail(
+        `${SCENARIOS_PAGE} no longer POSTs /api/forecast/{id}/recompute ` +
+          `(cfoApi.forecastRecompute). Its templates are lever sets the ENGINE ` +
+          `runs; a page that stops asking the engine is computing its own.`,
+      );
+    }
+  }
+}
+const scenariosSurface = scenariosClosure.filter((p) =>
+  /^frontend\/(pages\/cfo\/Scenarios\.tsx|components\/scenarios\/|lib\/scenarioTemplates)/.test(p),
+);
+const unreachableScenarios = files
   .map(rel)
-  .filter((p) => SCENARIOS_SCOPE.some((rx) => rx.test(p)))
+  .filter(
+    (p) =>
+      /^frontend\/(components\/scenarios\/|lib\/scenarios\/|stores\/scenario\.tsx)/.test(p) &&
+      !/__tests__/.test(p) &&
+      !scenariosClosure.includes(p),
+  )
   .sort();
 console.log(
   `  scope: forecast-namespace consumers in frontend/ and the two serving ` +
-    `namespaces in src/engine/; excluded until plan/2 B13, ` +
-    `${excludedScenarios.length} Scenarios file(s):`,
+    `namespaces in src/engine/; the Scenarios page's import closure ` +
+    `(${scenariosClosure.length} module(s)) against client scenario math:`,
 );
-for (const p of excludedScenarios) console.log(`    excluded (Scenarios, B13): ${p}`);
+for (const p of scenariosSurface) console.log(`    in the Scenarios closure: ${p}`);
+for (const p of unreachableScenarios) {
+  console.log(`    unreachable from the Scenarios page (not coverage): ${p}`);
+}
+console.log(
+  `GATE-WORK forecast-boundary-scenarios units=${scenariosClosure.length} ` +
+    `label=modules-in-scenarios-closure`,
+);
 // The floors run in BOTH modes on purpose: emptying discovery has to break
 // something, and these are what it breaks. Floors derived from the measured
 // tree on 2026-09-08 (739 ts / 380 py) with generous headroom, so ordinary

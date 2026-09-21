@@ -8071,3 +8071,141 @@ value; a convention painted as a quantity; an FY aggregate missing or not read
 as a served figure; a refused aggregate painted as a number; the TypeScript
 snapshot-id rule disagreeing with the engine's; a magnitude band with no source
 revenue behind it.
+
+<!-- ═══ plan/2 B13, minimal cut (2026-09-21): the Scenarios page on the engine ═══
+The page stops computing: every figure comes from POST /api/forecast/{id}/recompute
+through lib/forecastFacts. Two battery gates and one vitest canary. Not entered in
+plan_gates.json: the full B13 (scenario-closure, playwright) has not landed. -->
+
+## scenario-page-templates
+
+`tests/engine/test_scenario_page_templates.py`, registered in `scripts/run_battery.py`
+under the plan/2 B13 anchor.
+
+**SCOPE** — the four corpus books, each from its own anchor; the Scenarios horizon
+(monthly_months 12, total_years omitted and filled from the pack, contract 2.2); every
+template of `frontend/lib/scenarioTemplates.json` (base, recession, input_cost_inflation,
+price_pressure, working_capital_squeeze) compiled as the page compiles it and put through
+the route's wire path (PlanRequestBody -> _wire -> plan_request_from_body -> project_plan).
+Printed on every run with its GATE-WORK line. Measured: 19 projected, 1 refused by name
+(realestate/working_capital_squeeze, days_not_measured), 515 units.
+
+**PLANT 1** — the recession template's volume shock set to `"0"` in the data file
+(cost of sales held flat under a downturn: the cascade's shape, defect 0.1). Applied,
+observed, reverted byte-exact.
+
+```
+RED (plant)
+E   AssertionError: agras/recession: year-one cost of sales -7232104255 against base -7232104255 — a volume fall must reach cost of sales (defect 0.1)
+E   AssertionError: carniprod/recession: year-one cost of sales -5886554114 against base -5886554114 — a volume fall must reach cost of sales (defect 0.1)
+E   AssertionError: retail/recession: year-one cost of sales -6496103699 against base -6496103699 — a volume fall must reach cost of sales (defect 0.1)
+========================= 3 failed, 3 passed in 0.47s ==========================
+```
+
+**PLANT 2** — price_pressure pointed at `input_price_index` (cost of sales following the
+selling price, R2).
+
+```
+RED (plant)
+E   AssertionError: agras/price_pressure: cost of sales moved with the SELLING price (R2)
+E   AssertionError: carniprod/price_pressure: cost of sales moved with the SELLING price (R2)
+E   AssertionError: retail/price_pressure: cost of sales moved with the SELLING price (R2)
+========================= 3 failed, 3 passed in 0.49s ==========================
+```
+
+**RED (parent commit)** — no repair on the engine side in this commit: the engine already
+carried cost of sales with volume, held other operating income and floored cash (B4, B5).
+The repair is the page's; its parent-commit red is recorded under `scenarios-closure`.
+
+**REVERT** — the data file restored byte-exact; `6 passed`.
+
+**After the repair it reds on:** a page template the engine refuses for any reason other
+than a named book refusal (days_not_measured, rate_not_measured, cost_split_refused); a
+projected period with negative cash or an open balance sheet; recession leaving cost of
+sales flat or moving other operating income; price pressure moving cost of sales; input
+cost inflation leaving cost of sales flat or moving revenue; the working-capital squeeze
+moving revenue or EBITDA; a pool pattern expanding over nothing; zero projected templates.
+
+## scenarios-closure
+
+`scripts/check_forecast_boundary.mjs` (the forecast-boundary script, its B13 section),
+registered in `scripts/run_battery.py` under the plan/2 B13 anchor with its own work count
+(`GATE-WORK forecast-boundary-scenarios`) and canaries.
+
+**SCOPE** — the import closure of `frontend/pages/cfo/Scenarios.tsx` (static imports,
+re-exports and literal dynamic imports resolved inside frontend/; measured 78 modules),
+checked against `frontend/lib/scenarios/**` and `frontend/stores/scenario.tsx`. The old
+cascade renderers under `frontend/components/scenarios/` stay on disk (the sign-flip
+canary renders ScenarioComparison) and are printed by name as unreachable from the page,
+never counted as coverage.
+
+**PLANT** — `import { applyCascade } from "@/lib/scenarios/cascade";` added to the page.
+
+```
+RED (plant)
+FAIL — a projected figure can be painted as a fact:
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/cascade.ts through its imports. The Scenarios page computes nothing: ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/types.ts through its imports. ...
+```
+
+**RED (parent commit)** — the gate run over the parent commit's page
+(`git show HEAD:frontend/pages/cfo/Scenarios.tsx`):
+
+```
+FAIL — a projected figure can be painted as a fact:
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/baseline.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/cascade.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/covenants.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/dashboardCanon.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/levers.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/templates.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/types.ts through its imports. ...
+```
+
+**REVERT** — the page restored; `PASS — 14 forecast-namespace consumer(s)`.
+
+**After the repair it reds on:** the page or anything it imports reaching a module under
+`frontend/lib/scenarios/` or `frontend/stores/scenario.tsx`; the closure not reaching
+`frontend/lib/forecastFacts.ts`; the page no longer calling `forecastRecompute`; the page
+file missing.
+
+## vitest — Scenarios engine canary (plan/2 B13, minimal cut)
+
+| | |
+|---|---|
+| canary | `frontend/pages/cfo/__tests__/scenariosEngine.test.tsx` |
+
+**SCOPE** — the page rendered over `fp1_2_agras_served.json` with
+`cfoApi.forecastRecompute` the only seam; en and ro.
+
+**PLANT A** — the cascade imported by the page: `reaches no client scenario-math module`
+and `names no cascade` red (2 failed). **PLANT B** — the negative-cash guard in
+`ScenarioOutcome.CashFigure` disabled: `paints the served funding line instead` red.
+**PLANT C** — recession `-0.20` -> `-0.25` in the data file: the literal shock-set pin and
+the card text red (2 failed). **PLANT D** — `rent` added to the en chrome, then `chiria`
+to the ro chrome: the en and the ro industry-word tests red in turn. **PLANT E** — the
+body stating `total_years`: the base and all four template POST pins red (5 failed).
+
+```
+RED (plant A)
+   × the page computes nothing (one engine) > reaches no client scenario-math module, through any import
+     → the Scenarios page reaches client scenario math: frontend/lib/scenarios/cascade.ts, frontend/lib/scenarios/types.ts: expected [ …(2) ] to deeply equal []
+RED (plant B)
+   × a served negative cash is never the page's cash > paints the served funding line instead, and withholds the chart
+RED (plant D, ro)
+   × no industry word on the page > ro: base plus every template, every rendered word
+     → ro: /\bchiri(e|i|ile|a)\b/i appears on the Scenarios page
+```
+
+**RED (parent commit)** — the parent commit's page against this suite: the boundary
+tests red, and every template/render test reds with `Unable to find an element by:
+[data-testid="scenarios-outcome-table"]` (the page never asked the engine).
+
+**REVERT** — every plant restored byte-exact; `Tests 17 passed (17)`.
+
+**After the repair it reds on:** client scenario math in the page's closure; a template
+POSTing anything but its pinned set (or a body stating total_years); a template the data
+file declares that the suite does not pin; a 409/422 painting anything but the engine's
+sentence, or painting the previous template's figures while a new one loads; an industry
+word in the rendered page (en, ro); a served negative cash painted as cash or drawn on the
+chart.

@@ -8,9 +8,10 @@ engine.forecast.levers.project_plan; either mounted forecast handler calling
 anything else that projects (project_payload, project, the fp1 adapter or
 gateway); a mounted path ending in /scenario; the GET and the POST not being
 handled by one function.
-CANNOT SEE (lands with B13, 26.2): the Scenarios page's cascade, the Capsule
-run_scenario_preview tool and forecast_drivers cases, which still compute on
-their own until the cut-over.
+CANNOT SEE (lands with B13, 26.2): the Scenarios page (it POSTs recompute
+since the B13 minimal cut; its import closure is held by scenarios-closure,
+not here), the Capsule run_scenario_preview tool and forecast_drivers cases,
+which still compute on their own until the cut-over.
 
 Python 3.9 - no ``match``, no ``X | Y`` unions.
 """
@@ -77,6 +78,7 @@ def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE scenario-one-engine (plan/2 B6, gate row S4, recompute-handler "
               "subset 26.2): books %s x horizons 3, 5; mounted /api/forecast routes; the "
-              "Scenarios cascade, Capsule preview and forecast_drivers cases are NOT yet "
-              "on this engine (B13)" % ", ".join(BOOKS))
+              "Scenarios page POSTs recompute since the B13 minimal cut (its closure is "
+              "held by scenarios-closure, not here); the Capsule preview and "
+              "forecast_drivers cases are NOT yet on this engine (B13)" % ", ".join(BOOKS))
         print("GATE-WORK scenario-one-engine units=%d" % (len(_WORK) + 2))

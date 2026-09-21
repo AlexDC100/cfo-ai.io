@@ -628,6 +628,21 @@ def _engine_gates() -> List[Gate]:
              units="POSTs (owner base/shocked/base, strangers) plus cache entries read",
              canaries=("SCOPE forecast-cache (plan/2 B6, contract 1.5)",)),
         # ── end plan/2 B6 ────────────────────────────────────────────────
+        # ── plan/2 B13 (minimal cut, 2026-09-21): the Scenarios page on the
+        # engine. What the ENGINE does with the page's own template file
+        # (frontend/lib/scenarioTemplates.json) on the four corpus books; the
+        # vitest canary scenariosEngine.test.tsx pins what the page SENDS.
+        # Deliberately NOT a plan_gates.json entry: the full B13 (the
+        # scenario-closure gate, the playwright run) has not landed, and an
+        # entry landed_in B13 would mark the batch landed. Floor = the
+        # measured 515 units, rounded down.
+        Gate("scenario-page-templates",
+             [PY, "-m", "pytest", "tests/engine/test_scenario_page_templates.py", "-q", "-s"],
+             work_rx=r"GATE-WORK scenario-page-templates units=(\d+)", floor=450,
+             units="page templates projected or refused by name, plus per-period cash and balance checks",
+             canaries=("SCOPE scenario-page-templates (plan/2 B13, minimal cut)",
+                       "refused by name: ")),
+        # ── end plan/2 B13 ───────────────────────────────────────────────
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
@@ -1064,6 +1079,17 @@ def _frontend_gates() -> List[Gate]:
              canaries=("FORECAST BOUNDARY GATE (F2, static half)",
                        "forecast-namespace consumers found")),
         # ── end plan/2 B0 ────────────────────────────────────────────────
+        # ── plan/2 B13 (minimal cut, 2026-09-21): the Scenarios page's import
+        # closure. Same script as forecast-boundary; its own work count and
+        # canaries, so a closure that stops being walked is loud here even
+        # while the file scan above still clears its floor. Measured closure:
+        # 78 modules.
+        Gate("scenarios-closure", ["node", "scripts/check_forecast_boundary.mjs"],
+             work_rx=r"GATE-WORK forecast-boundary-scenarios units=(\d+)", floor=40,
+             units="modules in the Scenarios page's import closure",
+             canaries=("in the Scenarios closure: frontend/pages/cfo/Scenarios.tsx",
+                       "in the Scenarios closure: frontend/components/scenarios/ScenarioOutcome.tsx")),
+        # ── end plan/2 B13 ───────────────────────────────────────────────
         Gate("narrative-units", ["node", "scripts/check_narrative_units.mjs"],
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,
              units="narrative producers",
@@ -1139,7 +1165,10 @@ def _frontend_gates() -> List[Gate]:
                        # real served bytes, and the magnitude band whose
                        # early returns became reds.
                        "frontend/lib/__tests__/forecastFactsReader.test.ts",
-                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx")),
+                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
+                       # plan/2 B13 (minimal cut): the Scenarios page on the
+                       # engine, rendered over the real served bytes.
+                       "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one
