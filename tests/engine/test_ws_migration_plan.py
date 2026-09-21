@@ -260,20 +260,43 @@ def test_g4_no_empty_period_survives_in_a_live_workspace(world):
     assert empty_live_periods(world["post"], orgs=owner_live, current_month=month) == []
 
 
-def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived(world):
+def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived_when_the_run_keeps_it(world):
     """Verifier finding (2026-09-21): the planner archived every workspace's
     current-month placeholder as "empty: no source document". The operator
     rule (2026-07-26, frontend/lib/orgPeriods.ts): every workspace always
     has a period for the current month, and it can't be deleted —
     useEnsureCurrentPeriod re-creates it, so every re-run archived the new
-    one and a rollback left two. One per workspace stays; extras go."""
-    post, plan = world["post"], world["plan"]
+    one and a rollback left two. One per workspace stays; extras go.
+
+    That holds for a run told to keep it (`--keep-current-month-placeholder`:
+    a production whose frontend still re-creates it). The workspace redesign
+    deleted the re-creator (G4) — see the next test for the default."""
+    plan = build_plan(world["tables"], world["facts"], migration_date=DATE,
+                      keep_current_month_placeholder=True)
+    post = apply_ops(world["tables"], plan.ops, now=RUN)
+    assert build_plan(post, dict(world["facts"]), migration_date=DATE,
+                      keep_current_month_placeholder=True).ops == []
     assert _row(post, "financial_periods", id="per-sf-empty")["org_id"] == "org-sf"
     assert _decision(plan, "periods", "per-sf-empty")["action"] == "untouched"
     assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # archived with Q&A
     assert _decision(plan, "periods", "per-qa-empty-b")["reason"] == \
         "empty: extra current-month placeholder (per-qa-empty-a kept)"
     assert _row(post, "financial_periods", id="per-qa-empty-b")["org_id"] == holding_org_id(OWNER)
+
+
+def test_by_default_the_placeholder_is_an_empty_period_and_is_archived(world):
+    """G4 of the workspace redesign: no period without an analysed file,
+    and nothing re-creates the current-month placeholder any more
+    (tests/engine/test_no_empty_period_creators.py). By default every
+    placeholder is archived like any empty period, and the post-state has
+    NO empty live period — with no exemption at all."""
+    post, plan = world["post"], world["plan"]
+    for pid in ("per-sf-empty", "per-qa-empty-a", "per-qa-empty-b"):
+        assert _decision(plan, "periods", pid)["reason"] == "empty: no source document", pid
+        assert _row(post, "financial_periods", id=pid)["org_id"] == holding_org_id(OWNER), pid
+    owner_live = {m["org_id"] for m in post["memberships"] if m["user_id"] == OWNER
+                  and not _row(post, "organizations", id=m["org_id"]).get("archived_at")}
+    assert owner_live and empty_live_periods(post, orgs=owner_live) == []
 
 
 def test_no_period_is_one_hard_delete_from_erasure(world):
@@ -721,10 +744,19 @@ def test_an_empty_workspace_is_not_archived_just_for_having_no_company():
                {"id": "p-empty", "org_id": "org-b", "period_start": "2026-09-30", "period_end": "2026-09-30",
                 "source_document_id": None}],
               metrics=[("p1", "org-a")], orgs=("org-a", "org-b"))
-    plan = build_plan(t, {"x": _ident(ALFA, "2025-12-31")}, migration_date=DATE)
+    # A run that keeps the placeholder: p-empty is org-b's current-month
+    # placeholder and stays (G4 exempts it in that mode).
+    plan = build_plan(t, {"x": _ident(ALFA, "2025-12-31")}, migration_date=DATE,
+                      keep_current_month_placeholder=True)
     post = apply_ops(t, plan.ops, now=RUN)
     assert _row(post, "organizations", id="org-b")["archived_at"] is None
-    # p-empty is org-b's current-month placeholder: it stays (G4 exempts it)
     assert _row(post, "financial_periods", id="p-empty")["org_id"] == "org-b"
     assert empty_live_periods(post, current_month=DATE[:7]) == []
     assert any("nothing to split" in w for w in plan.warnings)
+    # The default (G4, nothing re-creates it): p-empty is archived like any
+    # empty period, org-b still stays live, and no empty period is left.
+    plan = build_plan(t, {"x": _ident(ALFA, "2025-12-31")}, migration_date=DATE)
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "organizations", id="org-b")["archived_at"] is None
+    assert _row(post, "financial_periods", id="p-empty")["org_id"] != "org-b"
+    assert empty_live_periods(post) == []

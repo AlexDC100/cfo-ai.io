@@ -33,12 +33,16 @@ data would change what the other members see).
    when it has no source document, the source is missing / deleted / not
    analysed, or nothing was persisted for it (no calculated_metrics, no
    statement_line_items, no canonical envelope). EXCEPT the workspace's
-   CURRENT-MONTH placeholder (no source, dated in the migration's month):
+   CURRENT-MONTH placeholder (no source, dated in the migration's month)
+   WHEN the run is told to keep it (``keep_current_month_placeholder``):
    "every workspace always has a period for the current month and it can't
    be deleted" (operator, 2026-07-26 — frontend/lib/orgPeriods.ts
    useEnsureCurrentPeriod re-creates it on the next visit). One per
    workspace stays where it is; extra copies are archived. Archiving it
    made every re-run archive the re-created one, and a rollback leave two.
+   The workspace redesign (G4, 2026-09-21) deleted that re-creator — "no
+   period without an analysed file" — so by default the placeholder is an
+   empty period like any other and is archived.
 3. Per company per month exactly one period survives. One already in the
    company's own workspace always wins (a currently served period is never
    replaced); otherwise the one with the latest source document. The
@@ -233,11 +237,13 @@ class _Planner:
     def __init__(self, tables: Mapping[str, List[Mapping[str, Any]]],
                  facts: Mapping[str, Any], *, migration_date: str,
                  pks: Optional[Mapping[str, Sequence[str]]] = None,
-                 stale_before: Optional[str] = None) -> None:
+                 stale_before: Optional[str] = None,
+                 keep_current_month_placeholder: bool = False) -> None:
         self.t = tables
         self.pks = pks
         self.date = migration_date
         self.stale_before = stale_before
+        self.keep_placeholder = bool(keep_current_month_placeholder)
         self.plan = Plan(migration_date=migration_date)
         self.facts: Dict[str, DocFacts] = {str(k): DocFacts.coerce(v) for k, v in (facts or {}).items()}
 
@@ -621,7 +627,7 @@ class _Planner:
         if company is None:
             company = self.own.get(org)
         reason = None
-        if not sid and _month(p.get("period_end")) == _month(self.date):
+        if self.keep_placeholder and not sid and _month(p.get("period_end")) == _month(self.date):
             row.update(action="placeholder", reason="", company=company, month=_month(p.get("period_end")))
             return row
         if not sid:
@@ -1114,10 +1120,20 @@ class _Planner:
 
 def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str, Any], *,
                migration_date: str, pks: Optional[Mapping[str, Sequence[str]]] = None,
-               stale_before: Optional[str] = None) -> Plan:
-    """The migration plan for ``tables``. See the module docstring."""
+               stale_before: Optional[str] = None,
+               keep_current_month_placeholder: bool = False) -> Plan:
+    """The migration plan for ``tables``. See the module docstring.
+
+    ``keep_current_month_placeholder``: rule 2's exemption. OFF by default
+    since the workspace redesign (G4, 2026-09-21): nothing re-creates the
+    placeholder any more (useEnsureCurrentPeriod is deleted —
+    tests/engine/test_no_empty_period_creators.py), so it is an empty period
+    like any other and is archived. ON only for a run against a production
+    whose frontend still re-creates it (the rollback and re-run hazards
+    rule 2 describes)."""
     return _Planner(tables, facts, migration_date=migration_date, pks=pks,
-                    stale_before=stale_before).build()
+                    stale_before=stale_before,
+                    keep_current_month_placeholder=keep_current_month_placeholder).build()
 
 
 # ── facts from stored bytes ────────────────────────────────────────────

@@ -125,7 +125,9 @@ def test_execute_applies_the_reviewed_plan_and_the_recount_agrees(env):
     assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
     live = fake.tables
     owner_orgs = {m["org_id"] for m in live["memberships"] if m["user_id"] == OWNER}
-    assert empty_live_periods(live, orgs=owner_orgs, current_month="2026-09") == []
+    # G4 with no exemption: since the workspace redesign the current-month
+    # placeholder is archived by default like any empty period.
+    assert empty_live_periods(live, orgs=owner_orgs) == []
     assert cross_workspace_links(live) == []
     # every moved document's object exists under its new workspace; old ones kept
     for d in live["documents"]:

@@ -282,6 +282,10 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                                              "(default: the snapshot's date)")
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     ap.add_argument("--expect-plan-sha", help="refuse to execute unless the plan hashes to this")
+    ap.add_argument("--keep-current-month-placeholder", action="store_true",
+                    help="keep ONE source-less current-month period per workspace (rule 2). Only for a "
+                         "production whose frontend still re-creates it; since the workspace redesign "
+                         "(G4: no period without an analysed file) it is archived like any empty period")
     ap.add_argument("--resume", action="store_true",
                     help="execute although production drifted from the snapshot (an interrupted run)")
     args = ap.parse_args(argv)
@@ -327,7 +331,8 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
 
         rules = load_known_identities(args.known_identities)
         facts = compute_facts(db, tables, registry=reg, rules=rules, log=out)
-        plan = build_plan(tables, facts, migration_date=date, pks=pks, stale_before=stale_before)
+        plan = build_plan(tables, facts, migration_date=date, pks=pks, stale_before=stale_before,
+                          keep_current_month_placeholder=args.keep_current_month_placeholder)
         report = render_report(plan)
         out(report)
 
@@ -417,7 +422,7 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                 check["problems"].append("storage %s: copy holds sha256 %s, the plan read %s (document %s)"
                                          % (op["to_path"], hashlib.sha256(got).hexdigest()[:16], want[:16],
                                             op.get("document_id")))
-        g4 = empty_live_periods(current, current_month=date[:7])
+        g4 = empty_live_periods(current, current_month=date[:7] if args.keep_current_month_placeholder else None)
         links = cross_workspace_links(current)
         # A period whose source is trashed / in another workspace is one
         # "Clear all" or purge away from ON DELETE CASCADE. The run may not
