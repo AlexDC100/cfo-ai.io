@@ -567,7 +567,10 @@ def test_a_twin_that_slipped_past_the_first_check_is_archived_at_the_claim(app, 
     body = b"PK\x03\x04 the same bytes"
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
     twin = _seed_doc(world, org=ORG_SCANDIA, body=body, status="queued", with_period=False)
-    twin["pipeline_started_at"] = "2026-09-21T10:00:00+00:00"          # the twin is running
+    twin["pipeline_started_at"] = "2026-09-21T10:00:00+00:00"          # the twin is running —
+    from engine.api import _doc_dedupe                                  # ALIVE, in this process
+    assert _doc_dedupe.try_mark_in_flight(twin["id"])                   # (a run a restart killed
+    _doc_dedupe.mark_running(twin["id"])                                # is not an original)
     monkeypatch.setattr(_uploads, "find_duplicate", lambda **kw: None)  # the race window
     world.decision = "allowed"
     r = commit(app, body=body, target_org_id=ORG_SCANDIA, period_end="2025-12-31")

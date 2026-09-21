@@ -69,8 +69,14 @@ def _doc(doc_id: str, *, h: str = SCANDIA, org: str = ORG, user: str = OWNER, st
 @pytest.fixture()
 def world(monkeypatch):
     db = FakeDB({
-        "memberships": [{"user_id": OWNER, "org_id": ORG}, {"user_id": OWNER, "org_id": ORG_B},
-                        {"user_id": OTHER_USER, "org_id": ORG}],
+        # created_at + organizations: "Clear all" empties ONE live workspace
+        # (feat/ws-migration a14d0269) — the caller's oldest live membership
+        # when no X-Org-Id is sent — so the double carries what that
+        # resolution reads (`_org.default_org_for_user`).
+        "memberships": [{"user_id": OWNER, "org_id": ORG, "created_at": "2026-01-01T00:00:00+00:00"},
+                        {"user_id": OWNER, "org_id": ORG_B, "created_at": "2026-02-01T00:00:00+00:00"},
+                        {"user_id": OTHER_USER, "org_id": ORG, "created_at": "2026-01-02T00:00:00+00:00"}],
+        "organizations": [{"id": ORG, "archived_at": None}, {"id": ORG_B, "archived_at": None}],
         "financial_periods": [{"id": PERIOD, "org_id": ORG, "period_end": "2025-12-31"}],
         "documents": [],
         "subscriptions": [{"user_id": OWNER, "tier": "pro", "stripe_subscription_id": None,
