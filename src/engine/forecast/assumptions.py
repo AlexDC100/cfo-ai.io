@@ -171,6 +171,11 @@ _TIER_OF_SOURCE = {"derived": "book", "caller": "user",
 #: text (1.4, 3.4), and each is the sentence of the rung it names.
 _HISTORY_NOT_READ = "prior periods are not read in this build"
 _NO_SECTOR_SOURCE = "no sector source loaded"
+#: revenue_growth's book rung when the loader handed over no comparable
+#: prior year (B7 reads one when it exists; "not read in this build" stopped
+#: being true the day it did).
+_NO_COMPARABLE_PRIOR = ("no comparable prior year of this book is loaded in "
+                        "this workspace")
 _JURISDICTION_NOT_RECORDED = "the jurisdiction of this book is not recorded"
 
 _RATIO = "ratio"
@@ -216,7 +221,8 @@ class BookContext(object):
     (contract 4, R8). Frozen; built once per payload."""
 
     __slots__ = ("jurisdiction", "jurisdiction_source", "ratio_table", "pools",
-                 "tax_charge_rows", "prior_revenue", "prior_period_end")
+                 "tax_charge_rows", "prior_revenue", "prior_period_end",
+                 "sector_growth")
 
     #: The statement bucket the assembly files a profit-tax charge under.
     TAX_BUCKET = "taxExpense"
@@ -236,7 +242,8 @@ class BookContext(object):
                  pools: Optional[PoolSplit] = None,
                  tax_charge_rows: Optional[int] = None,
                  prior_revenue: Optional[int] = None,
-                 prior_period_end: Optional[str] = None) -> None:
+                 prior_period_end: Optional[str] = None,
+                 sector_growth: Any = None) -> None:
         #: How many statement rows this book files as a profit-tax charge;
         #: None when the payload carried no line items. A book with NO such
         #: row has an ABSENT charge, not a measured nil one (plan/2 B4
@@ -259,6 +266,12 @@ class BookContext(object):
         #: with a caveat attached.
         object.__setattr__(self, "prior_revenue", prior_revenue)
         object.__setattr__(self, "prior_period_end", prior_period_end)
+        #: The SECTOR rung's reading (``engine.forecast.sector``): the
+        #: sector median of net-turnover growth for this company's CAEN and
+        #: size band, or ABSENT with its reason. None when no caller looked
+        #: (an in-process caller with no loader), which the ladder records
+        #: as the rung not consulted — never as a zero.
+        object.__setattr__(self, "sector_growth", sector_growth)
 
     def __setattr__(self, name, value):  # pragma: no cover - frozen
         raise AttributeError("BookContext is frozen")
@@ -270,7 +283,18 @@ class BookContext(object):
         return BookContext(self.jurisdiction, self.jurisdiction_source,
                            self.ratio_table, self.pools,
                            tax_charge_rows=self.tax_charge_rows,
-                           prior_revenue=revenue, prior_period_end=period_end)
+                           prior_revenue=revenue, prior_period_end=period_end,
+                           sector_growth=self.sector_growth)
+
+    def with_sector(self, reading: Any) -> "BookContext":
+        """This context with the sector rung's reading attached (frozen,
+        so a copy). ``project_plan`` is the one caller."""
+        return BookContext(self.jurisdiction, self.jurisdiction_source,
+                           self.ratio_table, self.pools,
+                           tax_charge_rows=self.tax_charge_rows,
+                           prior_revenue=self.prior_revenue,
+                           prior_period_end=self.prior_period_end,
+                           sector_growth=reading)
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "BookContext":
@@ -1623,7 +1647,7 @@ def derive_assumptions(opening: Any, history: Any, *,
     book_growth_reason = authority_absent.get("revenue_growth")
     if book_growth_reason is None:
         if prior_revenue is None or prior_end is None:
-            book_growth_reason = _HISTORY_NOT_READ
+            book_growth_reason = _NO_COMPARABLE_PRIOR
         elif prior_revenue <= 0:
             book_growth_reason = (
                 "the prior period %s carries no positive turnover to grow "
@@ -1633,13 +1657,31 @@ def derive_assumptions(opening: Any, history: Any, *,
                                   "this book")
         else:
             book_growth = mul_div(revenue - prior_revenue, MICRO, prior_revenue)
-    if book_growth is None:
+    # The SECTOR rung (engine.forecast.sector): the median net-turnover
+    # growth of this company's sector, read from the ONE committed sector
+    # dataset, with its source, year and n. None when no caller consulted
+    # it (an in-process caller with no loader): recorded as "no sector
+    # source loaded", exactly as before a source existed.
+    sector = getattr(context, "sector_growth", None)
+    if sector is None:
+        sector_reason = _NO_SECTOR_SOURCE
+    elif not sector.present:
+        sector_reason = sector.reason
+    else:
+        sector_reason = None
+    if book_growth is None and sector_reason is None:
+        growth_steps = [_step("book", "absent", book_growth_reason)]
+    elif book_growth is None:
         growth_steps = [_step("book", "absent", book_growth_reason),
-                        _step("sector", "absent", _NO_SECTOR_SOURCE)]
+                        _step("sector", "absent", sector_reason)]
     else:
         growth_steps = []
     anchor = macro.anchor("inflation", jurisdiction)
-    if book_growth is not None:
+    if book_growth is None and sector_reason is None:
+        put("revenue_growth", _RATIO, sector.value, "engine_default",
+            sector.sentence, tier="sector", rule_id=sector.evidence["rule_id"],
+            evidence=dict(sector.evidence), steps=growth_steps)
+    elif book_growth is not None:
         put("revenue_growth", _RATIO, book_growth, "derived",
             "this book's own turnover: %s in %s against %s in %s, a growth "
             "of %s carried forward at constant real volume"
@@ -1736,13 +1778,20 @@ def _check_pedigree(key: str, exact: Optional[int], tier: str,
                     steps: Sequence[Dict[str, str]]) -> None:
     """The BASIS invariants of contract 3.3, enforced where a tier is set.
 
-    book, macro and convention carry exactly their evidence object; absent
+    book, sector, macro and convention carry exactly their evidence object
+    (a sector figure also carries its n, which must reach the lane's own
+    floor, levers.yaml#sector.min_n); absent
     carries no value, no evidence and at least one fallback step, and only
     a driver of the absent-legal list may end there without refusing."""
-    if tier in ("book", "macro", "convention"):
+    if tier in ("book", "sector", "macro", "convention"):
         if not isinstance(evidence, dict):
             raise AssumptionError(key, "tier %s requires its evidence" % tier)
         needed = {"book": ("method", "periods_used", "inputs"),
+                  # contract 3.3: the sector evidence object
+                  "sector": ("source_id", "source_url", "statistic", "p25",
+                             "p50", "p75", "n", "period_year",
+                             "caen_level_used", "size_band_used", "method",
+                             "computed_at"),
                   "macro": ("series_id", "kind", "source", "source_url",
                             "stated_as_of", "fetched_at",
                             "series_content_digest"),
@@ -1753,6 +1802,17 @@ def _check_pedigree(key: str, exact: Optional[int], tier: str,
                                   % (tier, ", ".join(lacking)))
         if exact is None:
             raise AssumptionError(key, "tier %s carries no value" % tier)
+        if tier == "sector":
+            from .levers_pack import sector_pack
+            n = evidence.get("n")
+            if not isinstance(n, int) or isinstance(n, bool) \
+                    or n < sector_pack().min_n:
+                raise AssumptionError(key, "tier sector stands on n=%r, below "
+                                           "the floor levers.yaml#sector.min_n"
+                                      % (n,))
+            if evidence.get("p50") != exact:
+                raise AssumptionError(key, "tier sector serves %r, its evidence "
+                                           "median is %r" % (exact, evidence.get("p50")))
     elif tier == "absent":
         if exact is not None or evidence is not None or not steps:
             raise AssumptionError(

@@ -264,7 +264,10 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
                     "eligible": list(history.get("eligible") or []),
                     "excluded": list(history.get("excluded") or [])},
         "pins": {"engine_version": inputs["engine_version"], "pack_hash": pack_hash(),
-                 "macro_snapshot_id": None, "sector_snapshot_id": None,
+                 "macro_snapshot_id": None,
+                 # the committed sector dataset's content digest, when this
+                 # plan's growth stood on (or was offered) a sector figure
+                 "sector_snapshot_id": inputs.get("sector_snapshot_id"),
                  "history_hash": _sha(pins_history)},
         "lever_set_hash": lever_set_hash(plan.request),
         "pins_changed": [],

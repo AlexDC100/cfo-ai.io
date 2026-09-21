@@ -120,13 +120,29 @@ def build_drivers(request: Any, inputs: Dict[str, Any],
                 "book": ({"values": [default] * length,
                           "basis": _basis(assumption, "book", None, None)}
                          if assumption["tier"] == "book" else None),
-                "sector": None,
+                "sector": _sector_alternative(assumption, length),
                 "macro": ({"values": [default] * length,
                            "basis": _basis(assumption, "macro", None, None)}
                           if assumption["tier"] == "macro" else None)},
             "breakeven": entry["breakeven"],
         }
     return out
+
+
+def _sector_alternative(assumption: Dict[str, Any], length: int
+                        ) -> Optional[Dict[str, Any]]:
+    """alternatives.sector: the sector figure, whether it is the tier the
+    driver stands on or an offer beside a higher rung (the book). None when
+    the sector rung found nothing — never an empty offer."""
+    if assumption.get("tier") == "sector":
+        return {"values": [assumption["exact"]] * length,
+                "basis": _basis(assumption, "sector", None, None)}
+    offer = assumption.get("sector_alternative")
+    if not offer:
+        return None
+    offer = dict(offer, key=assumption["key"])
+    return {"values": [offer["exact"]] * length,
+            "basis": _basis(offer, "sector", None, None)}
 
 
 def _text(value: Optional[Fraction]) -> Optional[str]:

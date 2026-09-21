@@ -244,10 +244,14 @@ def load_plan_inputs(jwt: str, org_id: str, period_id: str
     from engine.forecast.levers import PlanContext
     from engine.forecast.resolve import HISTORY_NOT_READ
 
+    from . import _org
     with _supabase.per_user(jwt) as client:
         loaded = _loaded(client, org_id, period_id)
         prior_periods, history = _history_block(
             client, org_id, period_id, (loaded["row"] or {}).get("period_end"))
+        # The workspace's CAEN, from its ONE authority (fails open to None,
+        # which the sector rung serves as "no CAEN code", never as a sector).
+        caen = _org.caen_for_org(client, org_id)
 
     row = loaded["row"]
     org = loaded["org"] or {}
@@ -264,7 +268,8 @@ def load_plan_inputs(jwt: str, org_id: str, period_id: str
     }
     jurisdiction, source = jurisdiction_of(envelope if isinstance(envelope, dict) else {})
     context = PlanContext(jurisdiction=jurisdiction, jurisdiction_source=source,
-                          industry_key=org.get("industry_key"))
+                          industry_key=org.get("industry_key"), caen=caen,
+                          sector_consulted=True)
     history["notes"] = ([] if history["held"] else [dict(HISTORY_NOT_READ)])
     history["anchor_updated_at"] = row.get("updated_at")
     return anchor_payload, prior_periods, context, history

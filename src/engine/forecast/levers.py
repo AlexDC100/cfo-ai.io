@@ -118,6 +118,14 @@ class PlanContext(object):
     industry_key: Optional[str] = None
     saved_case: Optional[Mapping[str, Any]] = None
     proposals: Tuple[Mapping[str, Any], ...] = ()
+    #: The workspace's CAEN code (``engine.api._org.caen_for_org``, the ONE
+    #: authority). It chooses the sector the revenue_growth ladder's sector
+    #: rung reads (``engine.forecast.sector``). None = no code recorded, or
+    #: an in-process caller with no loader; either way the rung says so.
+    caen: Optional[str] = None
+    #: False for an in-process caller that built no loader context: the
+    #: sector rung is then NOT consulted and says "no sector source loaded".
+    sector_consulted: bool = False
 
 
 class Plan(object):
@@ -656,6 +664,12 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
         book = BookContext(context.jurisdiction, context.jurisdiction_source,
                            book.ratio_table, book.pools,
                            tax_charge_rows=book.tax_charge_rows)
+    if context is not None and context.sector_consulted:
+        # The SECTOR rung's reading, taken once per plan from the committed
+        # sector dataset (engine.forecast.sector; pure, no I/O beyond that
+        # file). The ladder uses it only when the book rung is absent.
+        from .sector import sector_growth
+        book = book.with_sector(sector_growth(context.caen, history.revenue))
     assumptions, resolver_notes = resolve_defaults(
         opening, history, book, prior_periods, dict(assumption_overrides or {}))
 
@@ -947,6 +961,18 @@ def serving_inputs(plan: Plan) -> Dict[str, Any]:
         pedigree[key] = {"exact": item.exact, "tier": item.tier, "rule_id": item.rule_id,
                          "basis": item.basis, "evidence": item.evidence,
                          "fallback_steps": [dict(step) for step in item.fallback_steps]}
+    # The SECTOR alternative of revenue_growth: when the sector rung found a
+    # figure but a higher rung (the book's own history) won, the reader is
+    # still OFFERED the sector median as one tap, labelled with its source
+    # (alternatives.sector). The pedigree of the offer is the reading's own.
+    reading = getattr(plan.inputs["book"], "sector_growth", None)
+    sector_snapshot = None
+    if reading is not None and reading.present and "revenue_growth" in pedigree:
+        sector_snapshot = reading.snapshot_id
+        pedigree["revenue_growth"]["sector_alternative"] = {
+            "exact": reading.value, "tier": "sector",
+            "rule_id": reading.evidence.get("rule_id"), "basis": reading.sentence,
+            "evidence": dict(reading.evidence), "fallback_steps": []}
 
     inert = inert_drivers(plan)
     for key in plan.inputs["moved"]:
@@ -979,6 +1005,7 @@ def serving_inputs(plan: Plan) -> Dict[str, Any]:
         "revolver_rate_basis": {"code": rate.rule_id or "revolver_rate",
                                 "text": rate.basis},
         "engine_version": engine.__version__,
+        "sector_snapshot_id": sector_snapshot,
         "pack": {
             "latency": dict(serving.latency), "lines": list(serving.lines),
             "formulas": {"flow": serving.flow_formula, "balance": serving.balance_formula,

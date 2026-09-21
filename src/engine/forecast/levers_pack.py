@@ -41,6 +41,7 @@ __all__ = [
     "PlanPack",
     "RegistryEntry",
     "Rung",
+    "SectorPack",
     "TaxConvention",
     "capex_rules",
     "dividend_book_rung_absent",
@@ -48,6 +49,7 @@ __all__ = [
     "macro_pack",
     "min_cash_default",
     "plan_pack",
+    "sector_pack",
     "tax_conventions",
     "terminal_rung",
 ]
@@ -592,6 +594,63 @@ def serving_pack(path=None):
 
 
 # ── end plan/2 B6 ───────────────────────────────────────────────────────
+
+
+# ── forecast-scenarios-live: the sector rung (levers.yaml#sector) ─────────
+
+class SectorPack(object):
+    """The sector rung of revenue_growth: its floor on n, the ratio and
+    statistic it reads, the method sentence, the served sentence (rendered
+    from the evidence, never a numeral of its own) and one absent sentence
+    per refusal code of ``engine.benchmarks_ro.dataset.lookup``."""
+
+    __slots__ = ("min_n", "ratio", "statistic", "method", "sentence", "absent",
+                 "rule_id")
+
+    ABSENT_CODES = ("caen_absent", "turnover_absent", "sector_not_in_dataset",
+                    "insufficient_peers", "below_min_n", "ratio_not_in_dataset")
+
+    def __init__(self, raw):
+        where = "%s#sector" % PACK_FILE
+        body = _mapping(_mapping(raw, PACK_FILE).get("sector"), where)
+        n = body.get("min_n")
+        if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            raise PackError("%s.min_n: a positive whole number" % (where,))
+        self.min_n = n
+        self.ratio = _text(body, "ratio", where)
+        self.statistic = _text(body, "statistic", where)
+        self.method = _text(body, "method", where)
+        self.sentence = _text(body, "sentence", where)
+        if any(ch.isdigit() for ch in self.sentence):
+            raise PackError("%s.sentence: the sentence carries a numeral" % (where,))
+        absent = _mapping(body.get("absent"), where + ".absent")
+        missing = [c for c in self.ABSENT_CODES if c not in absent]
+        if missing:
+            raise PackError("%s.absent: no sentence for %s" % (where, ", ".join(missing)))
+        self.absent = dict((c, _sentence(absent, c, where + ".absent"))
+                           for c in self.ABSENT_CODES)
+        self.rule_id = where
+
+
+_SECTOR_CACHE = {}  # type: Dict[str, SectorPack]
+
+
+def sector_pack(path=None):
+    # type: (Optional[str]) -> SectorPack
+    target = path or _pack_path()
+    cached = _SECTOR_CACHE.get(target)
+    if cached is not None:
+        return cached
+    if not os.path.isfile(target):
+        raise PackError("forecast lever pack not found: %s" % target)
+    with open(target, "r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh)
+    pack = SectorPack(raw)
+    _SECTOR_CACHE[target] = pack
+    return pack
+
+
+# ── end forecast-scenarios-live sector ──────────────────────────────────
 
 
 # ── plan/2 B3: accessors ────────────────────────────────────────────────

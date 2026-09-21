@@ -849,3 +849,40 @@ lines:
   cf.opening_cash: closing cash of the prior period
   cf.closing_cash: opening cash + net change in cash
 # ── end plan/2 B6 ───────────────────────────────────────────────────────
+
+# ── forecast-scenarios-live: the SECTOR rung of revenue_growth (contract
+# 3.3 sector evidence, 3.4 ladder: book -> sector -> macro -> convention) ──
+# The rung reads ONE committed dataset, engine.benchmarks_ro
+# (src/engine/data/ro_sector_benchmarks.json: Ministry of Finance annual
+# filings on data.gov.ro, CC-BY-4.0), at the company's CAEN class and its
+# own size band; the dataset's own law already refuses a median published on
+# fewer peers than it declares, and min_n below is the forecast lane's floor
+# on top of it. A sentence carries no numeral: every figure, year, count and
+# code in it is rendered from the evidence the engine used (TC-10).
+sector:
+  min_n: 5
+  ratio: revenue_growth
+  statistic: median
+  method: >-
+    median of net turnover growth between the dataset's two filed years,
+    filers of families UU and BL with a positive prior turnover, joined by
+    company identifier
+  sentence: >-
+    no comparable book history is loaded, so revenue grows at the median
+    net turnover growth of this company's sector: {sector} ({level}), size
+    band {band}, {growth} over {n} filers, {prior_year} to {year} ({source})
+  absent:
+    caen_absent: >-
+      this workspace carries no CAEN code, so no sector can be looked up
+    turnover_absent: >-
+      this book reports no positive turnover, so no size band can be chosen
+    sector_not_in_dataset: >-
+      this company's CAEN class and division are not in the sourced sector
+      dataset
+    insufficient_peers: >-
+      the sector cell holds too few filers to publish a median growth
+    below_min_n: >-
+      the sector median stands on fewer filers than this lane's floor
+    ratio_not_in_dataset: >-
+      the sourced sector dataset publishes no turnover growth for this cell
+# ── end forecast-scenarios-live sector ──────────────────────────────────
