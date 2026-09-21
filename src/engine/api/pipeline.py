@@ -1145,6 +1145,70 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
             if _ai_parsed is not None:
                 return _ai_parsed
 
+        # ── Text-line balanta reader (2026-09-21) ───────────────────
+        # The position-based ingester below finds no rows on balante that
+        # print space-thousands figures ("45 200.00"), so those went to
+        # Claude — which fails outright without Anthropic credit and never
+        # captures the account-121 anchor. `pdf_balanta_text` reads the
+        # PDF's text lines — two layouts, chosen by header tokens: the
+        # eight-figure "sume totale" balanta and the WinMentor/SceptrumERP
+        # five-pair one (Sold initial / Rulaj anterior / Rulaj curent /
+        # Total rulaj / Sold final). It REFUSES unless every account line
+        # carries its layout's full figure count, each class sums to the
+        # document's own printed class total and debit == credit on every
+        # column pair (the five-pair layout also checks both per-row
+        # identities to the cent). On success
+        # the balance is handed over as a SAGA 10-column workbook to the
+        # SAME parse call an .xlsx upload takes, so anchor, mapping and
+        # rebuild are the Excel path unchanged. A refusal keeps today's
+        # behaviour exactly.
+        #
+        # It runs BEFORE the positional fast-path: a read it accepts is
+        # verified line by line against the document's own printed totals,
+        # while the positional ingester keeps only undotted codes — on a
+        # five-pair book with analytic codes ("1015.03") it returns the few
+        # plain rows, and when account 121 is one of them its fast-path
+        # accepts that partial balance on the anchor alone. The two readers
+        # only overlap when this one verifies the whole document, so every
+        # PDF it refuses takes exactly the path it took before.
+        try:
+            _pdf_for_text: Optional[bytes] = _pdf_bytes
+        except NameError:
+            _pdf_for_text = None
+        if _pdf_for_text is not None:
+            try:
+                from engine.country_packs.ro_romania import pdf_balanta_text as _pbt
+                _conv = _pbt.read_balanta_text_pdf(_pdf_for_text)
+                if _conv is not None:
+                    _xlsx_bytes, _meta = _conv
+                    pack = _ro_pack()
+                    tb_rows = pack.parse_trial_balance(_xlsx_bytes, "balanta.xlsx")
+                    shaped = pack.accounts_to_assemble_shape(tb_rows) if tb_rows else []
+                    statutory_anchor = pack.compute_statutory_net_profit_anchor(tb_rows) if tb_rows else None
+                    if shaped and statutory_anchor is not None:
+                        source_quality = pack.compute_source_imbalance(tb_rows)
+                        logger.info(
+                            "[stage_extract] text-line balanta PDF path: %s — %d accounts "
+                            "(%s layout, %s number format) → %d mapped, ct 121 anchor = %s RON",
+                            doc.get("original_filename") or "(no filename)",
+                            _meta.get("accounts"), _meta.get("layout"), _meta.get("number_format"),
+                            len(shaped), f"{statutory_anchor:,.2f}",
+                        )
+                        return _deterministic_tb_parsed(
+                            doc, tb_rows, shaped, statutory_anchor, source_quality,
+                        )
+                    logger.info(
+                        "[stage_extract] text-line balanta PDF read but not used "
+                        "(mapped=%d, anchor=%s) — falling back",
+                        len(shaped or []), statutory_anchor,
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.info(
+                    "[stage_extract] text-line balanta PDF path skipped (%s) — "
+                    "falling back to the positional ingester",
+                    type(e).__name__,
+                )
+
         # ── F3.8c — Deterministic PDF trial-balance fast-path ───────
         # Romanian RAS PDF trial balances (WinMENTOR / SAGA / Ciel /
         # generic-RAS) parse cleanly via the PyMuPDF position-based
@@ -1193,56 +1257,6 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 "falling back to Claude/statements parser",
                 type(e).__name__,
             )
-
-        # ── Text-line balanta reader (2026-09-21) ───────────────────
-        # The position-based ingester above finds no rows on balante that
-        # print space-thousands figures ("45 200.00"), so those went to
-        # Claude — which fails outright without Anthropic credit and never
-        # captures the account-121 anchor. `pdf_balanta_text` reads the
-        # PDF's text lines and REFUSES unless every account line has eight
-        # figures, each class sums to the document's own printed class
-        # total and debit == credit on all four column pairs. On success
-        # the balance is handed over as a SAGA 10-column workbook to the
-        # SAME parse call an .xlsx upload takes, so anchor, mapping and
-        # rebuild are the Excel path unchanged. A refusal keeps today's
-        # behaviour exactly.
-        try:
-            _pdf_for_text: Optional[bytes] = _pdf_bytes
-        except NameError:
-            _pdf_for_text = None
-        if _pdf_for_text is not None:
-            try:
-                from engine.country_packs.ro_romania import pdf_balanta_text as _pbt
-                _conv = _pbt.read_balanta_text_pdf(_pdf_for_text)
-                if _conv is not None:
-                    _xlsx_bytes, _meta = _conv
-                    pack = _ro_pack()
-                    tb_rows = pack.parse_trial_balance(_xlsx_bytes, "balanta.xlsx")
-                    shaped = pack.accounts_to_assemble_shape(tb_rows) if tb_rows else []
-                    statutory_anchor = pack.compute_statutory_net_profit_anchor(tb_rows) if tb_rows else None
-                    if shaped and statutory_anchor is not None:
-                        source_quality = pack.compute_source_imbalance(tb_rows)
-                        logger.info(
-                            "[stage_extract] text-line balanta PDF path: %s — %d accounts "
-                            "(%s number format) → %d mapped, ct 121 anchor = %s RON",
-                            doc.get("original_filename") or "(no filename)",
-                            _meta.get("accounts"), _meta.get("number_format"),
-                            len(shaped), f"{statutory_anchor:,.2f}",
-                        )
-                        return _deterministic_tb_parsed(
-                            doc, tb_rows, shaped, statutory_anchor, source_quality,
-                        )
-                    logger.info(
-                        "[stage_extract] text-line balanta PDF read but not used "
-                        "(mapped=%d, anchor=%s) — falling back",
-                        len(shaped or []), statutory_anchor,
-                    )
-            except Exception as e:  # noqa: BLE001
-                logger.info(
-                    "[stage_extract] text-line balanta PDF path skipped (%s) — "
-                    "falling back to Claude/statements parser",
-                    type(e).__name__,
-                )
 
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url(

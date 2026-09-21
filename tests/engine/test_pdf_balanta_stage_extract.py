@@ -7,7 +7,10 @@ PDF branch on a synthetic balanta PDF (generated here with PyMuPDF, an
 invented company and invented figures) with storage faked and the
 `anthropic` module made unimportable: if any code path reaches Claude, the
 test fails. It asserts the text-line reader produced the Excel-path parse
-(source_format saga_10_col) with the account-121 anchor.
+(source_format saga_10_col) with the account-121 anchor — for both layouts
+the reader knows: the eight-figure "sume totale" balanta and the five-pair
+WinMentor/SceptrumERP one (Sold initial / Rulaj anterior / Rulaj curent /
+Total rulaj / Sold final, comma-thousands figures, dotted analytic codes).
 """
 from __future__ import annotations
 
@@ -98,14 +101,68 @@ def _fake_client_factory(content: bytes):
     return _FakeClient
 
 
-@pytest.fixture
-def balanta_pdf(monkeypatch):
-    content = _pdf_bytes(_synthetic_balanta_lines())
+def _arm(monkeypatch, content: bytes) -> bytes:
     monkeypatch.setattr(pipeline._supabase, "admin", lambda: _FakeAdmin())
     monkeypatch.setattr(pipeline.httpx, "Client", _fake_client_factory(content))
     monkeypatch.setattr(pipeline, "_maybe_route_ai_lane", lambda *a, **k: None)
     monkeypatch.setitem(sys.modules, "anthropic", None)  # any Claude path now raises
     return content
+
+
+@pytest.fixture
+def balanta_pdf(monkeypatch):
+    return _arm(monkeypatch, _pdf_bytes(_synthetic_balanta_lines()))
+
+
+def _fmt5(v: Decimal) -> str:
+    return f"{v:,.2f}"
+
+
+def _synthetic_five_pair_lines(n: int = 12):
+    """Five (debit, credit) pairs per account: Sold initial, Rulaj anterior,
+    Rulaj curent, Total rulaj (= anterior + curent), Sold final (= initial +
+    Total rulaj). Invented company, invented figures."""
+    z = Decimal(0)
+    lines = [
+        "Balanta analitica",
+        "Societate: EXEMPLU TEST SRL",
+        "Adresa: Str. Exemplu 1 Decembrie 2025",
+        "C.U.I: RO1234567",
+        "Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final",
+        "Debit Credit Debit Credit Debit Credit Debit Credit Debit Credit",
+    ]
+
+    def row(si_d, si_c, ra_d, ra_c, rl_d, rl_c):
+        tr_d, tr_c = ra_d + rl_d, ra_c + rl_c
+        net = (si_d - si_c) + (tr_d - tr_c)
+        return [si_d, si_c, ra_d, ra_c, rl_d, rl_c, tr_d, tr_c, max(net, z), max(-net, z)]
+
+    c1, c5 = [], []
+    for i in range(n):
+        a = Decimal(1000 + 137 * i) + Decimal("0.25")
+        b = Decimal(1_234_567) + i
+        c = Decimal(-250) if i == 3 else Decimal(20_000 + 11 * i)  # row 3: a storno
+        c1.append((f"10{i:02d}.01", f"Capital {i} 10{i:02d}.01", row(z, a, z, b, z, c)))
+        c5.append((f"51{i:02d}.01", f"Cont bancar {i} 51{i:02d}.01", row(a, z, b, z, c, z)))
+    # account 121 closes in credit (a profit) — the anchor the Excel path reads
+    c1.append(("121", "121 Profit sau pierdere", row(z, z, z, Decimal("12000.00"), z, Decimal("345.67"))))
+    c5.append(("5311.07", "Casa in lei 5311.07", row(z, z, Decimal("12000.00"), z, Decimal("345.67"), z)))
+    grand = [z] * 10
+    for cls, rows in (("1", c1), ("5", c5)):
+        lines.append(f"Clasa {cls}")
+        for cont, name, v in rows:
+            lines.append(f"{cont} {name} " + " ".join(_fmt5(x) for x in v))
+        tot = [sum((r[2][i] for r in rows), z) for i in range(10)]
+        grand = [g + t for g, t in zip(grand, tot)]
+        lines.append(f"Total clasa {cls}: " + " ".join(_fmt5(x) for x in tot))
+    lines.append("Total general: " + " ".join(_fmt5(x) for x in grand))
+    lines.append("Data si ora tiparirii: 02/01/2026 10:00 1 / 1")
+    return lines
+
+
+@pytest.fixture
+def five_pair_pdf(monkeypatch):
+    return _arm(monkeypatch, _pdf_bytes(_synthetic_five_pair_lines()))
 
 
 def _doc():
@@ -119,6 +176,20 @@ def _doc():
 
 
 def test_a_balanta_pdf_is_read_on_the_excel_path_without_claude(balanta_pdf):
+    parsed = pipeline.stage_extract(_doc())
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "saga_10_col", ext
+    assert ext.get("method") == "deterministic", ext
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    assert str(parsed.get("period_end")) == "2025-12-31"
+    assert parsed.get("accounts"), "no mapped accounts"
+
+
+def test_a_five_pair_balanta_pdf_is_read_on_the_excel_path_without_claude(five_pair_pdf):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    conv = pdf_balanta_text.read_balanta_text_pdf(five_pair_pdf)
+    assert conv is not None and conv[1]["layout"] == "five_pair", "the reader refused the synthetic book"
     parsed = pipeline.stage_extract(_doc())
     ext = parsed.get("extraction") or {}
     assert ext.get("source_format") == "saga_10_col", ext
