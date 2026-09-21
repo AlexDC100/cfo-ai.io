@@ -195,6 +195,16 @@ def build_router() -> APIRouter:
                 "code": "document_not_waiting",
                 "message": "This document is not waiting for an extra analysis.",
             })
+        if _pipeline._book_already_counted(doc):
+            # The plan already COUNTED this book (the quota ledger): a free
+            # correction re-run of it failed, and a stale €-dialog must not
+            # reserve — or bill — it a second time (verifier lens S). Its
+            # re-run is unmetered; nothing is waiting for an extra.
+            raise HTTPException(409, {
+                "code": "document_already_counted",
+                "message": ("This document was already counted in your plan. Re-run it — "
+                            "no extra analysis is needed."),
+            })
 
         if not _ug.has_extra_grant(str(document_id)):
             # Pre-flight: the user must actually be over base quota; we

@@ -588,6 +588,42 @@ def find_live_original(
     return _hit(row) if row else None
 
 
+def book_copy_ids(row: Dict[str, Any]) -> Optional[List[str]]:
+    """The ids of every live copy of `row`'s BOOK — `row` itself included:
+    the same company, uploader (`uploaded_by`), content, scope and period
+    (`same_period` against `row`'s own confirmed date), not deleted. Any
+    status: a counted copy whose analysis later failed is still the book the
+    plan counted (`pipeline._book_already_counted`).
+
+    A row without a content hash is its own book. None when the copies or
+    their periods cannot be read — the caller cannot prove the book was
+    counted and decides by the status rule."""
+    rid = str(row.get("id") or "")
+    ids = [rid] if rid else []
+    h = normalize_hash(row.get("content_hash"))
+    org = str(row.get("org_id") or "")
+    uploader = str(row.get("uploaded_by") or "")
+    if not (h and org and uploader):
+        return ids
+    try:
+        rows = _candidates(org, uploader, h, normalize_scope(row.get("scope")))
+    except Exception:  # noqa: BLE001
+        logger.exception("[dedupe] could not list the copies of document %s", rid)
+        return None
+    info = _period_info(org, [r.get("period_id") for r in rows])
+    if info is None:
+        return None
+    for r in rows:
+        cid = str(r.get("id") or "")
+        if not cid or cid == rid:
+            continue
+        pid = r.get("period_id")
+        if same_period(row.get("period_end_hint"), r.get("period_end_hint"),
+                       (info.get(str(pid)) or {}).get("period_end") if pid else None):
+            ids.append(cid)
+    return ids
+
+
 def hash_stored_object(doc: Dict[str, Any]) -> Optional[str]:
     """SHA-256 of a document's stored bytes, or None when they cannot be
     read. Tenant-checked by `signed_url` (the path must sit under the row's
@@ -858,10 +894,14 @@ def month_of(ts: Any) -> Optional[str]:
 
 
 def unique_successful(rows: Iterable[Dict[str, Any]],
-                      period_end_of: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
-    """The documents that count: analysed, not an archived duplicate, one per
-    (org, scope, content, period). Rows without a hash are unique by id — nothing
-    proves them equal. Returned in created order (the first of each group
+                      period_end_of: Optional[Dict[str, str]] = None,
+                      counted_ids: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
+    """The documents that count: analysed — or COUNTED by the meter
+    (`counted_ids`, the quota ledger's committed documents: a counted book
+    whose correction re-run later failed is still counted, and the meter
+    never gives it back) — not an archived duplicate, one per (org, scope,
+    content, period). Rows without a hash are unique by id — nothing proves
+    them equal. Returned in created order (the first of each group
     represents it).
 
     THE LIVE GATE'S RULE, so the banner and the restore count what the meter
@@ -874,10 +914,17 @@ def unique_successful(rows: Iterable[Dict[str, Any]],
         is not its original — the live gate analyses (and the meter counts)
         a re-upload after a delete."""
     period_end_of = period_end_of or {}
+    counted = {str(i) for i in (counted_ids or ())}
     kept: List[Dict[str, Any]] = []
     groups: Dict[Tuple[str, str, str], List[Tuple[Optional[str], Optional[datetime]]]] = {}
+    seen_ids: set = set()
     for row in sorted(rows, key=lambda r: (str(r.get("created_at") or ""), str(r.get("id") or ""))):
-        if str(row.get("status") or "").lower() != "analyzed" or is_archived_duplicate(row):
+        rid = str(row.get("id") or "")
+        if rid and rid in seen_ids:
+            continue
+        seen_ids.add(rid)
+        successful = str(row.get("status") or "").lower() == "analyzed" or (rid and rid in counted)
+        if not successful or is_archived_duplicate(row):
             continue
         h = normalize_hash(row.get("content_hash"))
         if not h:
@@ -905,7 +952,9 @@ def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
     Uniqueness is decided over the history up to the month's end, then the
     documents FIRST analysed in the month are counted: a copy of an earlier
     month's book is not a new document this month (the live gate has no
-    month limit either)."""
+    month limit either). A document the meter COUNTED (the quota ledger)
+    counts even when its analysis has since failed — the meter never gives
+    a count back, and the banner and the 402 must agree (verifier lens S)."""
     try:
         start = datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=timezone.utc)
     except ValueError:
@@ -930,6 +979,21 @@ def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
                 },
                 order="created_at.asc",
             ) or []
+        rows = list(rows)
+        # Counted documents that are no longer `analyzed` (a correction
+        # re-run of them failed): read by id, in the same member orgs.
+        from . import _quota_ledger
+        counted = _quota_ledger.committed_document_ids_for_user(str(user_id)) or set()
+        missing = sorted(counted - {str(r.get("id")) for r in rows})
+        if missing:
+            with _supabase.admin() as ac:
+                for i in range(0, len(missing), 100):
+                    rows.extend(ac.select("documents", filters={
+                        "id": "in.(" + ",".join(missing[i:i + 100]) + ")",
+                        "org_id": "in.(" + ",".join(orgs) + ")",
+                        "uploaded_by": f"eq.{user_id}",
+                        "created_at": "lt.%s" % nxt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    }) or [])
         period_end_of: Dict[str, str] = {}
         pids = sorted({str(r["period_id"]) for r in rows if r.get("period_id")})
         if pids:
@@ -941,5 +1005,5 @@ def unique_successful_docs_in_month(user_id: str, month: str) -> Optional[int]:
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] unique-document count failed for user=%s", user_id)
         return None
-    return sum(1 for r in unique_successful(rows, period_end_of)
+    return sum(1 for r in unique_successful(rows, period_end_of, counted_ids=counted)
                if month_of(r.get("created_at")) == month)
