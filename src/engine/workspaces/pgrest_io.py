@@ -107,12 +107,16 @@ class PgRest:
     # ── reads ─────────────────────────────────────────────────────────
 
     def select_all(self, table: str, pk: Sequence[str], *,
-                   filters: Optional[Mapping[str, str]] = None) -> List[Dict[str, Any]]:
+                   filters: Optional[Mapping[str, str]] = None,
+                   columns: str = "*") -> List[Dict[str, Any]]:
+        """Every row (or every row the filters match), paged by primary key
+        until PostgREST's exact count is reached. ``columns`` narrows the
+        projection for a read-only check that must not pull every envelope."""
         rows: List[Dict[str, Any]] = []
         total: Optional[int] = None
         order = ",".join("%s.asc" % c for c in pk)
         while True:
-            params = {"select": "*", "order": order, "limit": str(PAGE), "offset": str(len(rows))}
+            params = {"select": columns, "order": order, "limit": str(PAGE), "offset": str(len(rows))}
             params.update(filters or {})
             headers = dict(self.c._headers)
             headers["Prefer"] = "count=exact"

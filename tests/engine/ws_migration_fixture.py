@@ -438,6 +438,9 @@ class FakeSupabase:
             if v == "is.null":
                 if val is not None:
                     return False
+            elif v == "not.is.null":
+                if val is None:
+                    return False
             elif v.startswith("eq."):
                 if val is None or str(val) != v[3:]:
                     return False
