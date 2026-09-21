@@ -17,7 +17,7 @@ import { useOrgPeriods } from "@/lib/orgPeriods";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { isPublicTestMode } from "@/lib/testMode";
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
-import { buildDashboardCanonical } from "@/lib/scenarios/dashboardCanon";
+import { buildDashboardCanonical } from "@/lib/comparison/dashboardCanon";
 import { buildActualLines, buildVarianceRows, normalizeDatasetCurrency } from "@/lib/comparison/buildVariance";
 import { useRates } from "@/stores/currency";
 import { buildDemoComparison } from "@/lib/comparison/demoSeed";

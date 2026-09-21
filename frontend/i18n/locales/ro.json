@@ -3375,7 +3375,18 @@
     },
     "growth": {
       "title": "Creșterea veniturilor se sprijină pe",
-      "absentInput": "nu se poate măsura din această balanță"
+      "absentInput": "nu se poate măsura din această balanță",
+      "sectorLine": "CAEN {{caen}} · {{band}} · n={{n}} · FY{{prior}}→FY{{year}}",
+      "division": "diviziunea CAEN, nu clasa",
+      "macroLine": "{{source}} · la data de {{date}}",
+      "band": {
+        "lt_1m": "cifră de afaceri sub 1M RON",
+        "1m_10m": "cifră de afaceri 1M–10M RON",
+        "10m_50m": "cifră de afaceri 10M–50M RON",
+        "50m_250m": "cifră de afaceri 50M–250M RON",
+        "gte_250m": "cifră de afaceri de 250M RON și peste",
+        "all_sizes": "toate dimensiunile"
+      }
     },
     "levers": {
       "title": "Pârghii",
@@ -3404,7 +3415,16 @@
       "showMonthly": "Arată lunile primului an",
       "note": "Ambele granulații sunt servite de motor"
     },
-    "stale": "Serverul nu a acceptat schimbarea, așa că toate cifrele de mai jos sunt tot ultima proiecție pe care a produs-o. Ce ai scris rămâne în panoul de pârghii; corectează valoarea sau resetează pârghia."
+    "stale": "Serverul nu a acceptat schimbarea, așa că toate cifrele de mai jos sunt tot ultima proiecție pe care a produs-o. Ce ai scris rămâne în panoul de pârghii; corectează valoarea sau resetează pârghia.",
+    "openScenarios": "Testează planul",
+    "year0": {
+      "title": "Anul 0 · real",
+      "lead": "Cifrele pe care le arată panoul. Fiecare an proiectat de mai jos se sprijină pe ele.",
+      "revenue": "Venituri din exploatare",
+      "ebitda": "EBITDA",
+      "netProfit": "Profit net",
+      "cash": "Numerar"
+    }
   },
   "radar": {
     "eyebrow": "Radar",
@@ -3452,11 +3472,11 @@
   "scenarios": {
     "eyebrow": "Analiză",
     "title": "Planificare pe scenarii",
-    "context": "Simulări „ce-ar fi dacă” pe proiecția pentru {{period}}. Fiecare cifră e calculată de motorul de prognoză.",
+    "context": "Simulări „ce-ar fi dacă” pe prognoza pentru {{period}}. Fiecare cifră e calculată de motorul de prognoză.",
     "actualsLocked": "Datele reale nu se schimbă niciodată",
     "banner": {
       "eyebrow": "Fiecare cifră de pe această pagină e o proiecție",
-      "body": "Fiecare număr e produs de motorul de prognoză pornind de la poziția de închidere din {{period}} și de la șocurile și pârghiile listate pe această pagină. Nimic de aici nu îți modifică balanța de verificare."
+      "body": "Fiecare număr e produs de motorul de prognoză pornind de la poziția de închidere din {{period}} și de la șablonul și pârghiile de pe această pagină. Coloana de bază e planul din pagina Prognoză. Nimic de aici nu îți modifică balanța de verificare."
     },
     "empty": {
       "eyebrow": "Planificare pe scenarii",
@@ -3468,10 +3488,11 @@
     },
     "templates": {
       "title": "Șabloane",
-      "lead": "Fiecare șablon e un set numit de șocuri trimis motorului de prognoză. Alege unul ca să-l vezi lângă planul de bază.",
+      "lead": "Fiecare șablon e un set numit de șocuri pe care motorul de prognoză îl aplică planului tău. Alege unul ca să-l vezi lângă planul de bază.",
       "changes": "Ce schimbă acest șablon",
-      "noShocks": "Nimic: planul motorului, doar cu pârghiile pe care le setezi mai jos.",
-      "window": "Fiecare șoc se aplică din prima lună a planului până la sfârșitul lui."
+      "noShocks": "Nimic: prognoza însăși, doar cu pârghiile pe care le setezi mai jos.",
+      "window": "Fiecare șoc se aplică din prima lună a planului până la sfârșitul lui.",
+      "unavailable": "Șabloanele motorului nu au putut fi citite, așa că e afișat doar planul de bază."
     },
     "template": {
       "base": {
@@ -3480,8 +3501,8 @@
       },
       "recession": {
         "name": "Recesiune",
-        "question": "Ce se întâmplă dacă volumul vânzărilor scade și tai din costurile de exploatare?",
-        "note": "În motor, costul vânzărilor urmează volumul; celelalte venituri din exploatare rămân constante."
+        "question": "Ce se întâmplă dacă volumul vânzărilor scade cu o cincime, tai din costurile de exploatare, iar lanțurile de magazine plătesc cu o lună mai târziu?",
+        "note": "Costul vânzărilor urmează volumul, nu prețul de vânzare; celelalte venituri din exploatare rămân constante; orice lipsă de numerar e trasă dintr-o linie de finanțare la propria ta rată de împrumut."
       },
       "input_cost_inflation": {
         "name": "Inflația costurilor de achiziție",
@@ -3497,6 +3518,16 @@
         "name": "Presiune pe capitalul de lucru",
         "question": "Ce se întâmplă dacă clienții plătesc mai târziu și stocul stă mai mult?",
         "note": "Zilele mută soldurile, nu EBITDA: efectul apare în numerar, în linia de finanțare și în dobânda ei."
+      },
+      "revenue_down_10": {
+        "name": "Venituri −10%",
+        "question": "Ce se întâmplă dacă vinzi cu o zecime mai puțin și nimic altceva nu se schimbă?",
+        "note": "Se mișcă doar veniturile și liniile care urmează volumul vânzărilor."
+      },
+      "energy_shock": {
+        "name": "Șoc pe prețul energiei",
+        "question": "Ce se întâmplă dacă electricitatea și gazele se scumpesc serios?",
+        "note": "Se mișcă doar grupul de costuri cu energia și utilitățile; costul vânzărilor și veniturile nu."
       }
     },
     "shock": {
@@ -3509,7 +3540,8 @@
       "pool_level_count_other": "Costurile de exploatare, toate cele {{count}} de grupuri de costuri din această balanță",
       "dso_days": "Zile de încasare a creanțelor",
       "dio_cogs_days": "Zile de stoc",
-      "dpo_cogs_days": "Zile de plată a furnizorilor"
+      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "pool_level__energy_utilities": "Costurile cu energia și utilitățile"
     },
     "op": {
       "level_pct": "{{value}}%",
@@ -3546,7 +3578,9 @@
       "runway": "Luni până când numerarul atinge pragul",
       "runwayAtLeast": "cel puțin {{months}}",
       "fundingRate": "Cum e prețuită linia de finanțare:",
-      "dscrNotServed": "Gradul de acoperire a serviciului datoriei nu e în răspunsul servit de această versiune, așa că nu e afișat."
+      "dscrNotServed": "Gradul de acoperire a serviciului datoriei nu e în răspunsul servit de această versiune, așa că nu e afișat.",
+      "noShortfall": "niciunul în orizontul planului",
+      "notServed": "nu e servit pentru acest plan"
     },
     "levers": {
       "lead": "Pârghiile de mai jos se aplică fiecărei coloane: atât planul de bază, cât și șablonul ales le poartă."
@@ -3555,6 +3589,29 @@
       "title": "Nicio proiecție",
       "fallback": "Motorul nu a returnat o proiecție.",
       "noServedKeys": "această balanță nu servește niciun grup de costuri de exploatare, așa că șocul pe costurile de exploatare al acestui șablon nu poate fi aplicat, iar șablonul nu rulează parțial"
+    },
+    "pageName": "Scenarii",
+    "unit": {
+      "percent": "{{value}}%",
+      "days": "{{value}} zile",
+      "percentage_points": "{{value}} pp"
+    },
+    "saved": {
+      "title": "Scenarii salvate",
+      "nameLabel": "Numele scenariului",
+      "save": "Salvează scenariul",
+      "saving": "Se salvează…",
+      "error": "Scenariul nu a putut fi salvat sau citit: {{message}}",
+      "loading": "Citesc scenariile salvate ale acestei companii…",
+      "empty": "Încă nu ai niciun scenariu salvat pentru această companie. Un scenariu salvat păstrează șablonul și pârghiile tale și le trece din nou prin motor când îl deschizi.",
+      "remove": "Șterge {{name}}"
     }
+  },
+  "companyCards": {
+    "noCompany": "{{page}} lucrează pe una dintre companiile tale și încă nu ai niciuna.",
+    "noYear": "{{company}} nu are încă niciun an analizat, așa că {{page}} nu are pe ce să se sprijine. Alege altă companie:",
+    "pick": "Alege compania pe care lucrează {{page}}:",
+    "onScreen": "Pe ecran",
+    "open": "Deschide"
   }
 }

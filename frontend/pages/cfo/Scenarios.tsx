@@ -1,41 +1,44 @@
-// SCENARIOS — named lever sets, run through the ONE forecast engine.
+// SCENARIOS — named templates, run by the ONE forecast engine, on the company
+// on screen (forecast-scenarios-live).
 //
-// plan/2 B13 (minimal cut): "one engine" (plan_contract_v2 S4). This page used
-// to compute its own what-if in the browser: `buildScenarioBaseline` +
-// `applyCascade` from the `lib/scenarios` modules. That cascade held cost of sales flat
-// under a revenue move (defect 0.1), let cash run below zero with no funding
-// line (0.3), and labelled the top-line lever with another industry's word for
-// every company (0.2). It is gone from this page. Nothing here is calculated
-// in the browser.
+// "One engine" (plan_contract_v2 S4; scenarios_rulings R6). This page used to
+// compute its own what-if in the browser (a client cascade that held cost of
+// sales flat under a revenue move, let cash run below zero with no funding
+// line, and labelled the top-line lever with another industry's word). That
+// cascade is DELETED, with every module under frontend/lib/scenarios/ and the
+// old input store. Nothing on this page is calculated in the browser.
 //
 // ── WHAT THE PAGE DOES ─────────────────────────────────────────────────
 //
-//   · POSTs the BASE plan to /api/forecast/{id}/recompute: the reader's lever
-//     overrides and no shocks;
-//   · POSTs the SELECTED TEMPLATE the same way: the same overrides, plus the
-//     template's declared shock set (`lib/scenarioTemplates`), each shock in
-//     the engine's own vocabulary. Cost of sales follows volume, other
-//     operating income is held, cash is floored and the shortfall is drawn on
-//     a priced funding line — all by the engine (R2, R3, S3);
+//   · reads the engine's template catalogue (GET /api/forecast/templates/
+//     scenarios: packs/scenarios/templates.yaml, FMCG Romania);
+//   · POSTs the BASE plan to /api/forecast/{id}/scenario with template
+//     "base" and the reader's lever overrides — the engine's
+//     `project_levers`, the same function the forecast GET runs, so the base
+//     column IS the forecast (gate F4);
+//   · POSTs the SELECTED TEMPLATE the same way, by id: the ENGINE compiles its
+//     shocks over this book (cost of sales follows volume, other operating
+//     income is held, cash is floored and every shortfall is drawn on a
+//     priced funding line whose interest is its own line — R2, R3, S3);
 //   · paints both served responses side by side through `lib/forecastFacts`
-//     and <ProjectedAmount>. No delta column: the engine does not serve one in
-//     this build, and a subtraction here would be a second model;
-//   · reuses the Forecast page's lever rail for the free levers;
-//   · on a 409/422 renders the ENGINE'S sentence as the refusal — never a
-//     blank page, and never numbers held over from a different request.
+//     and <ProjectedAmount>. No delta column: a subtraction here would be a
+//     second model;
+//   · saves the REQUEST (template id + levers) to the company on screen's own
+//     prefs (org_prefs.prefs.scenarios), and re-runs it through the engine
+//     when opened (gate F6);
+//   · on a 409/422 renders the ENGINE'S sentence — never a blank page, and
+//     never numbers held over from a different request.
 //
-// The horizon is the engine's: the page sends monthly_months and omits
-// total_years (2.2), and learns the plan length from the served labels.
+// With no company open, or a company with no analysed year, it says so in one
+// sentence and offers the user's companies. It carries no upload control.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Lock, Sparkles } from "lucide-react";
+import { Lock } from "lucide-react";
 
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
-import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
+import { CompanyCards } from "@/components/cfo/CompanyCards";
 import { LeverRail, cellToWire } from "@/components/forecast/LeverRail";
 import {
   ScenarioOutcome,
@@ -43,25 +46,20 @@ import {
   type OutcomeColumn,
 } from "@/components/scenarios/ScenarioOutcome";
 import { ScenarioTemplatePicker } from "@/components/scenarios/ScenarioTemplatePicker";
-import { useActivePeriod } from "@/lib/activePeriod";
-import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
+import { SavedScenarios } from "@/components/scenarios/SavedScenarios";
+import { usePageCompany } from "@/lib/pageCompany";
 import { useActiveLocale } from "@/lib/locale";
 import { cfoApi } from "@/lib/cfoApi";
 import { readProjection, type LeverRef, type ProjectionView } from "@/lib/forecastFacts";
-import {
-  applyLeverEdit,
-  buildRecomputeBody,
-  planYearLabels,
-  type LeverEdit,
-} from "@/lib/forecastLevers";
+import { applyLeverEdit, buildRecomputeBody, type LeverEdit } from "@/lib/forecastLevers";
 import { readEngineRefusal } from "@/lib/forecastRefusal";
 import {
   BASE_TEMPLATE_ID,
-  SCENARIO_MONTHLY_MONTHS,
-  SCENARIO_TEMPLATES,
-  compileTemplate,
+  SCENARIO_HORIZON,
+  readCatalogue,
   scenarioRequestBody,
-} from "@/lib/scenarioTemplates";
+} from "@/lib/scenarioCatalogue";
+import type { SavedScenario } from "@/lib/savedScenarios";
 
 type Read = { view: ProjectionView } | { error: string } | null;
 
@@ -96,12 +94,23 @@ function columnState(
   return { kind: "loading" };
 }
 
+/** A saved scenario's overrides as lever edits (the rail's own shape). */
+function editsOf(overrides: Record<string, { values: (string | null)[] }>): LeverEdit[] {
+  return Object.keys(overrides)
+    .sort()
+    .map((key) => ({ key, values: [...overrides[key].values] }));
+}
+
 function ScenariosEngine({
   periodId,
   periodLabel,
+  companyName,
+  orgId,
 }: {
   periodId: string;
   periodLabel: string | null;
+  companyName: string | null;
+  orgId: string | null;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -113,41 +122,45 @@ function ScenariosEngine({
   const editsKey = JSON.stringify(edits);
   const committedKey = JSON.stringify(committed);
 
+  const catalogueQuery = useQuery({
+    queryKey: ["scenario-templates"],
+    queryFn: () => cfoApi.forecastScenarioTemplates(),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const catalogue = useMemo(() => readCatalogue(catalogueQuery.data), [catalogueQuery.data]);
+  const templates = catalogue?.templates ?? [];
+
   /** The last BASE plan the server produced for this book. It feeds the lever
-   *  rail (its controls, never the comparison's numbers) and the driver keys a
-   *  template's `pool_level.*` expands over. */
+   *  rail (its controls, never the comparison's numbers) and the pool count
+   *  a template card names. */
   const [lastGood, setLastGood] = useState<{ periodId: string; view: ProjectionView } | null>(
     null,
   );
   const held = lastGood && lastGood.periodId === periodId ? lastGood.view : null;
   const leversRef = useRef<readonly LeverRef[]>([]);
-  const planYears = held ? planYearLabels(held.horizon, held.horizonAnnual).length : 0;
 
   const overrides = useMemo(
     () =>
       buildRecomputeBody(
-        Math.max(planYears, 1),
-        SCENARIO_MONTHLY_MONTHS,
+        SCENARIO_HORIZON.total_years,
+        SCENARIO_HORIZON.monthly_months,
         committed,
         leversRef.current,
-      ).overrides,
+      ).overrides as Record<string, { values: (string | null)[] }>,
     // committedKey carries the content of `committed`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [committedKey, planYears],
+    [committedKey],
   );
 
   const baseQuery = useQuery({
     queryKey: ["scenarios", periodId, BASE_TEMPLATE_ID, committedKey],
-    queryFn: () => cfoApi.forecastRecompute(periodId, scenarioRequestBody(overrides, [])),
-    // While a lever recompute is in flight the last BASE answer stays up with
-    // "Recomputing…" beside it. On a refusal TanStack drops it: the column
-    // then carries the engine's sentence and no number.
-    //
+    queryFn: () =>
+      cfoApi.forecastScenario(periodId, scenarioRequestBody(BASE_TEMPLATE_ID, overrides)),
     // SCOPED TO THIS PERIOD. TanStack hands `placeholderData` the observer's
     // last query WITH data — including a query of another period, and one
-    // `queryClient.clear()` (the workspace switch) has already removed. An
-    // unscoped `keepPreviousData` therefore painted the previous period's (or
-    // the previous company's) projection under the new one while it loaded.
+    // `queryClient.clear()` (the workspace switch) has already removed.
     placeholderData: (previous, previousQuery) =>
       previousQuery && previousQuery.queryKey[1] === periodId ? previous : undefined,
     refetchOnWindowFocus: false,
@@ -158,41 +171,26 @@ function ScenariosEngine({
   const baseIsPlaceholder = baseQuery.isPlaceholderData;
 
   useEffect(() => {
-    // Only a view THIS request served becomes `lastGood`. A placeholder is an
-    // earlier answer; stamping the current periodId onto it is how a previous
-    // period's lever rail and label survived a switch (and how a refusal of
-    // the new period failed to reach the page-level refusal state).
+    // Only a view THIS request served becomes `lastGood`: a placeholder is an
+    // earlier answer, and stamping the current periodId onto it is how a
+    // previous period's lever rail and label survived a switch.
     if (!baseView || baseIsPlaceholder) return;
     leversRef.current = baseView.levers;
     setLastGood({ periodId, view: baseView });
   }, [baseView, baseIsPlaceholder, periodId]);
 
-  const template =
-    SCENARIO_TEMPLATES.find((tpl) => tpl.id === templateId) ?? SCENARIO_TEMPLATES[0];
-  const isBase = template.id === BASE_TEMPLATE_ID;
+  const isBase = templateId === BASE_TEMPLATE_ID;
   const servedKeys = useMemo(() => (held ? held.levers.map((l) => l.key) : null), [held]);
-  const compiled = useMemo(
-    () => (servedKeys ? compileTemplate(template, servedKeys) : null),
-    [template, servedKeys],
-  );
-  const shocksKey = compiled && compiled.ok ? JSON.stringify(compiled.shocks) : "";
 
   const templateQuery = useQuery({
-    queryKey: ["scenarios", periodId, template.id, committedKey, shocksKey],
-    queryFn: () =>
-      cfoApi.forecastRecompute(
-        periodId,
-        scenarioRequestBody(overrides, compiled && compiled.ok ? compiled.shocks : []),
-      ),
-    enabled: !isBase && !!compiled && compiled.ok,
+    queryKey: ["scenarios", periodId, templateId, committedKey],
+    queryFn: () => cfoApi.forecastScenario(periodId, scenarioRequestBody(templateId, overrides)),
+    enabled: !isBase,
     // Held over ONLY while the same template recomputes FOR THE SAME PERIOD.
-    // Switching template never shows the previous template's figures under
-    // the new one's name, and switching period never shows the previous
-    // period's.
     placeholderData: (previous, previousQuery) =>
       previousQuery &&
       previousQuery.queryKey[1] === periodId &&
-      previousQuery.queryKey[2] === template.id
+      previousQuery.queryKey[2] === templateId
         ? previous
         : undefined,
     refetchOnWindowFocus: false,
@@ -209,34 +207,12 @@ function ScenariosEngine({
     return () => clearTimeout(id);
   }, [editsKey, committedKey, debounceMs]);
 
-  // A period switch resets the edits, the held base plan and both query
-  // observers by REMOUNTING this component (`key={period.id}` below), not by
-  // an effect: an effect runs after the first render of the new period, which
-  // has already painted with the old state.
-
   const refusedFallback = t("scenarios.refusal.fallback", "The engine did not return a projection.");
   const baseState = columnState(baseQuery, baseRead, refusedFallback);
-  const templateName = t(`scenarios.template.${template.id}.name`);
-  let templateState: ColumnState | null = null;
-  if (!isBase) {
-    if (compiled && !compiled.ok) {
-      // A declared pattern this book serves no driver for. The page's own
-      // refusal: applying the rest would be half a template under its name.
-      templateState = {
-        kind: "refused",
-        sentence: t(
-          "scenarios.refusal.noServedKeys",
-          "this book serves no operating-cost pool, so the operating-cost shock of this template cannot be applied, and the template is not run in part",
-        ),
-      };
-    } else if (!compiled) {
-      templateState = baseQuery.isError
-        ? { kind: "refused", sentence: baseState.kind === "refused" ? baseState.sentence : refusedFallback }
-        : { kind: "loading" };
-    } else {
-      templateState = columnState(templateQuery, templateRead, refusedFallback);
-    }
-  }
+  const templateName = t(`scenarios.template.${templateId}.name`, templateId.replace(/_/g, " "));
+  const templateState: ColumnState | null = isBase
+    ? null
+    : columnState(templateQuery, templateRead, refusedFallback);
 
   const columns: OutcomeColumn[] = [
     { id: "base", title: t("scenarios.template.base.name"), state: baseState },
@@ -252,7 +228,7 @@ function ScenariosEngine({
   const onChange = (key: string, index: number, text: string) => {
     const lever = leversRef.current.find((l) => l.key === key);
     if (!lever) return;
-    const length = lever.shape === "scalar" ? 1 : Math.max(planYears, 1);
+    const length = lever.shape === "scalar" ? 1 : SCENARIO_HORIZON.total_years;
     setEdits((prev) =>
       applyLeverEdit(prev, key, index, text === "" ? null : cellToWire(text, lever), length),
     );
@@ -269,10 +245,19 @@ function ScenariosEngine({
       ),
     );
   };
+  const onOpenSaved = (saved: SavedScenario) => {
+    // A saved scenario is a REQUEST: its template and its levers go back to
+    // the engine as they were saved, sent at once (no debounce to wait out).
+    const next = editsOf(saved.overrides);
+    setTemplateId(saved.templateId);
+    setEdits(next);
+    setCommitted(next);
+  };
 
   // The page-level refusal: the BASE plan could not be built, so there is no
   // projection to compare anything with. The engine's sentence, verbatim.
   const pageRefused = baseState.kind === "refused" && !held;
+  const shownLabel = held?.basePeriodLabel ?? periodLabel ?? "—";
 
   return (
     <div className="max-w-[1560px] space-y-5 pb-16">
@@ -281,11 +266,16 @@ function ScenariosEngine({
         title={t("scenarios.title", "Scenario planning")}
         context={
           <>
+            {companyName ? (
+              <span data-testid="scenarios-company" className="font-medium text-ink">
+                {companyName}
+              </span>
+            ) : null}
             <span>
               {t(
                 "scenarios.context",
-                "What-if on the projection of {{period}}. Every figure is computed by the forecast engine.",
-                { period: held?.basePeriodLabel ?? periodLabel ?? "—" },
+                "What-if on the forecast of {{period}}. Every figure is computed by the forecast engine.",
+                { period: shownLabel },
               )}
             </span>
             <Chip tone="neutral" className="whitespace-nowrap">
@@ -307,17 +297,44 @@ function ScenariosEngine({
         <p className="mt-1 text-ink-soft">
           {t(
             "scenarios.banner.body",
-            "Each number is produced by the forecast engine from the closing position of {{period}} and the shocks and levers listed on this page. Nothing here changes your trial balance.",
-            { period: held?.basePeriodLabel ?? periodLabel ?? "—" },
+            "Each number is produced by the forecast engine from the closing position of {{period}} and the template and levers on this page. The base column is the Forecast page's plan. Nothing here changes your trial balance.",
+            { period: shownLabel },
           )}
         </p>
       </div>
 
-      <ScenarioTemplatePicker
-        selectedId={template.id}
-        servedDriverKeys={servedKeys}
-        onSelect={setTemplateId}
-      />
+      {catalogueQuery.isError || (catalogueQuery.isSuccess && !catalogue) ? (
+        <p
+          data-testid="scenarios-templates-unavailable"
+          className="rounded-xl border border-rule bg-surface px-4 py-3 text-[13px] text-ink-soft"
+        >
+          {t(
+            "scenarios.templates.unavailable",
+            "The engine's templates could not be read, so only the base plan is shown.",
+          )}
+        </p>
+      ) : (
+        <ScenarioTemplatePicker
+          templates={templates}
+          selectedId={templateId}
+          servedDriverKeys={servedKeys}
+          onSelect={setTemplateId}
+        />
+      )}
+
+      {/* Shown once the base plan is served: a saved scenario's levers are
+          sized by the served levers' own shapes before they go back out. */}
+      {orgId && held ? (
+        <SavedScenarios
+          orgId={orgId}
+          periodId={periodId}
+          periodLabel={held?.basePeriodLabel ?? periodLabel}
+          templateId={templateId}
+          templateName={templateName}
+          overrides={overrides}
+          onOpen={onOpenSaved}
+        />
+      ) : null}
 
       {pageRefused ? (
         <div
@@ -360,53 +377,40 @@ function ScenariosEngine({
 }
 
 export default function Scenarios() {
-  useActivePeriodFallback();
-  const period = useActivePeriod();
-  const navigate = useNavigate();
   const { t } = useTranslation();
+  const onScreen = usePageCompany();
+  const pageName = t("scenarios.pageName", "Scenarios");
 
-  if (!period.id) {
+  if (onScreen.status === "ready") {
+    // KEYED BY PERIOD. Everything the engine view holds — the last base plan
+    // the server produced, the reader's edits, the selected template and both
+    // query observers — is an answer about ONE period of ONE company. A new
+    // period (the ?period= stepper, or a workspace switch, which also clears
+    // the query cache) mounts a fresh one.
     return (
-      <div className="max-w-[1560px] space-y-8">
-        <PageHeader
-          hero
-          eyebrow={t("scenarios.empty.eyebrow", "Scenario planning")}
-          title={t("scenarios.empty.title", "Stress-test your plan before it happens")}
-          subtitle={t(
-            "scenarios.empty.subtitle",
-            "Scenarios run named sets of shocks through the forecast engine: sales volume, selling and purchase prices, operating costs and working-capital days. Upload or open a period to begin; your actuals are never changed.",
-          )}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            data-testid="scenarios-empty-dashboard"
-            className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 px-5 py-2.5 text-[13.5px] font-medium text-ink hover:border-brand/60 transition-colors"
-          >
-            {t("scenarios.empty.dashboard", "Go to dashboard")}
-          </button>
-          <button
-            type="button"
-            onClick={() => openAskCfoAi(t("scenarios.empty.askPrompt"))}
-            data-testid="scenarios-empty-ask-cfo-ai"
-            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
-          >
-            <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
-            {t("scenarios.empty.ask", "Ask CFO AI")}
-          </button>
-        </div>
-      </div>
+      <ScenariosEngine
+        key={onScreen.period.id}
+        periodId={onScreen.period.id as string}
+        periodLabel={onScreen.period.label ?? null}
+        companyName={onScreen.company?.name ?? null}
+        orgId={onScreen.company?.id ?? null}
+      />
     );
   }
-
-  // KEYED BY PERIOD. Everything this component holds — the last base plan the
-  // server produced (which feeds the lever rail and the page-level refusal),
-  // the reader's edits, the selected template and both query observers — is
-  // an answer about ONE period. A new period (the ?period= stepper, or the
-  // workspace switch, which also clears the query cache) mounts a fresh one,
-  // so nothing from a different request is ever painted under the new label.
   return (
-    <ScenariosEngine key={period.id} periodId={period.id} periodLabel={period.label ?? null} />
+    <div className="max-w-[1560px] space-y-5 pb-16">
+      <InstrumentPageHeader
+        eyebrow={t("scenarios.eyebrow", "Analysis")}
+        title={t("scenarios.title", "Scenario planning")}
+        context={onScreen.company ? <span>{onScreen.company.name}</span> : undefined}
+      />
+      {onScreen.status === "loading" ? (
+        <p className="px-1 text-[13px] text-ink-mute" data-testid="scenarios-loading">
+          {t("scenarios.outcome.loading", "Projecting…")}
+        </p>
+      ) : (
+        <CompanyCards reason={onScreen.status} pageName={pageName} />
+      )}
+    </div>
   );
 }

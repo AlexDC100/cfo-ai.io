@@ -1,0 +1,132 @@
+{
+ "family": "fmcg",
+ "jurisdiction": "RO",
+ "pack_id": "scenario-templates-ro-fmcg",
+ "source": "packs/scenarios/templates.yaml",
+ "templates": [
+  {
+   "id": "base",
+   "shocks": []
+  },
+  {
+   "id": "recession",
+   "shocks": [
+    {
+     "display": {
+      "unit": "percent",
+      "value": "-20"
+     },
+     "driver_key": "volume_index",
+     "op": "level_pct",
+     "pattern": false,
+     "value": "-0.20"
+    },
+    {
+     "display": {
+      "unit": "percent",
+      "value": "-5"
+     },
+     "driver_key": "pool_level.*",
+     "op": "level_pct",
+     "pattern": true,
+     "value": "-0.05"
+    },
+    {
+     "display": {
+      "unit": "days",
+      "value": "30"
+     },
+     "driver_key": "dso_days",
+     "op": "add_days",
+     "pattern": false,
+     "value": "30"
+    }
+   ]
+  },
+  {
+   "id": "revenue_down_10",
+   "shocks": [
+    {
+     "display": {
+      "unit": "percent",
+      "value": "-10"
+     },
+     "driver_key": "volume_index",
+     "op": "level_pct",
+     "pattern": false,
+     "value": "-0.10"
+    }
+   ]
+  },
+  {
+   "id": "input_cost_inflation",
+   "shocks": [
+    {
+     "display": {
+      "unit": "percent",
+      "value": "10"
+     },
+     "driver_key": "input_price_index",
+     "op": "level_pct",
+     "pattern": false,
+     "value": "0.10"
+    }
+   ]
+  },
+  {
+   "id": "price_pressure",
+   "shocks": [
+    {
+     "display": {
+      "unit": "percent",
+      "value": "-5"
+     },
+     "driver_key": "price_index",
+     "op": "level_pct",
+     "pattern": false,
+     "value": "-0.05"
+    }
+   ]
+  },
+  {
+   "id": "energy_shock",
+   "shocks": [
+    {
+     "display": {
+      "unit": "percent",
+      "value": "30"
+     },
+     "driver_key": "pool_level.energy_utilities",
+     "op": "level_pct",
+     "pattern": false,
+     "value": "0.30"
+    }
+   ]
+  },
+  {
+   "id": "working_capital_squeeze",
+   "shocks": [
+    {
+     "display": {
+      "unit": "days",
+      "value": "15"
+     },
+     "driver_key": "dso_days",
+     "op": "add_days",
+     "pattern": false,
+     "value": "15"
+    },
+    {
+     "display": {
+      "unit": "days",
+      "value": "10"
+     },
+     "driver_key": "dio_cogs_days",
+     "op": "add_days",
+     "pattern": false,
+     "value": "10"
+    }
+   ]
+  }
+ ]
+}

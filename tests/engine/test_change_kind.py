@@ -44,14 +44,16 @@ TRUTH = REPO / "tests" / "fixtures" / "contracts" / "change_kind_truth_table.jso
 PACK = REPO / "packs" / "serving" / "change_kind.yaml"
 TS_PACK = REPO / "frontend" / "lib" / "changeKindPack.json"
 
-#: Contract section 7 "Consumers converted in the same change (B1)", verbatim.
+#: Contract section 7 "Consumers converted in the same change (B1)", verbatim,
+#: less frontend/components/scenarios/ScenarioComparison.tsx, DELETED with the
+#: client scenario cascade (forecast-scenarios-live): the engine-backed
+#: Scenarios page renders no change, so it has no flip to classify.
 CONSUMERS = (
     "frontend/lib/learning/computeDeltas.ts",
     "frontend/lib/amountFormat.ts",
     "frontend/components/instrument/Amount.tsx",
     "frontend/components/ui/Money.tsx",
     "frontend/components/period/DeltaBadge.tsx",
-    "frontend/components/scenarios/ScenarioComparison.tsx",
     "frontend/components/comparison/VarianceTable.tsx",
     "frontend/components/comparison/KpiVarianceStrip.tsx",
     "frontend/lib/comparison/buildVariance.ts",

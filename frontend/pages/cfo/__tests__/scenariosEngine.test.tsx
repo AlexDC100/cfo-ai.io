@@ -1,43 +1,41 @@
 // @vitest-environment jsdom
 /**
- * THE SCENARIOS PAGE ON THE ONE ENGINE (plan/2 B13, minimal cut).
+ * THE SCENARIOS PAGE ON THE ONE ENGINE (plan/2 B13; forecast-scenarios-live R6).
  *
  * Rendered over the REAL served bytes (`fp1_2_agras_served.json`, the agras
- * corpus book through the real route), with `cfoApi.forecastRecompute` the only
- * seam: what the page SENDS is asserted, and what it PAINTS is the engine's.
+ * corpus book through the real route) and the ENGINE's own template catalogue
+ * (`scenario_catalogue.json`, pinned to engine.forecast.scenario_templates by
+ * tests/engine/test_scenario_page_templates.py), with `cfoApi.forecastScenario`
+ * the only projection seam: what the page SENDS is asserted, and what it
+ * PAINTS is the engine's.
  *
  * WHAT IT REDS ON (TC-11, after the repair)
  *   · the page, or anything it imports, reaching a client scenario-math module
- *     (`lib/scenarios/*`, the old `stores/scenario`) — the page computes
- *     nothing (S4, defect 0.5);
- *   · a template POSTing anything but its declared shock set: a changed value,
- *     a dropped pool, an extra shock, a shock outside the first-month / no-ramp
- *     / no-end window, or a body that states `total_years` (2.2);
- *   · a template the data file declares that this suite does not pin;
+ *     (`lib/scenarios/*`, the old `stores/scenario`) — both are DELETED, and
+ *     the page computes nothing (S4, defect 0.5);
+ *   · a template POSTing anything but its id, the Forecast page's horizon and
+ *     the reader's overrides: a shock, a number of the page's own, a changed
+ *     horizon (the ENGINE compiles the template over the book, R6);
+ *   · a template the engine serves that this suite does not pin, or a pinned
+ *     one the engine stopped serving;
  *   · a 409/422 from the engine painting anything but the engine's sentence —
  *     a blank page, a generic line, or a projected number;
  *   · an industry word (en or ro) anywhere in the rendered page (S2, 8.6);
  *   · a served negative cash balance painted as the page's cash, or drawn on
  *     its cash chart, instead of the funding line the engine served (S3);
  *   · the funding-line row labelled as an amount DRAWN when what it paints is
- *     the served year-end balance (`bs.revolver`, FY formula "closing month"):
- *     a line drawn and repaid inside plan year one reads nil there, beside
- *     the served peak, and the label has to say which of the two it is;
+ *     the served year-end balance (`bs.revolver`, FY formula "closing month");
  *   · a new active period (the ?period= stepper, or a workspace switch after
- *     queryClient.clear()) painting ANYTHING of the previous one while the new
- *     one loads or after it refuses: a figure, the template column, the
- *     period label, the lever rail — or a refusal of the new period failing
- *     to reach the page-level refusal with the engine's sentence;
+ *     queryClient.clear()) painting ANYTHING of the previous one;
  *   · a digit painted anywhere on the page (outside the template picker's
- *     declared values and the lever rail) that is not inside a
- *     <ProjectedAmount>, a served sentence, the served runway count or a
- *     served period label — a number the page computed (section 8).
+ *     declared values, the saved-scenario names and the lever rail) that is not
+ *     inside a <ProjectedAmount>, a served sentence, the served runway count or
+ *     a served period label — a number the page computed (section 8);
+ *   · a bare dash where the summary expects a figure (gate F5, section 9).
  *
  * WHAT IT CANNOT SEE
  *   · whether the engine's projection is right — the engine's own gates own
- *     that (scenario-cost-behaviour, scenario-funding-line, and
- *     tests/engine/test_scenario_page_templates.py, which runs this page's
- *     template file through project_plan on the four corpus books);
+ *     that (scenario-page-templates, forecast-f-gates);
  *   · pixels, and a dynamic import built from a string.
  */
 
@@ -52,22 +50,68 @@ import { MemoryRouter } from "react-router-dom";
 import i18n from "@/i18n";
 import Scenarios from "../Scenarios";
 import { CfoApiError } from "@/lib/cfoApi";
-import { SCENARIO_TEMPLATES } from "@/lib/scenarioTemplates";
 
 const PERIOD = { id: "p-1", label: "Dec 2025" };
 /** The active period the page reads. A holder, so a test can switch period
  *  (the ?period= stepper, or a workspace switch) and rerender. */
-const ACTIVE: { period: { id: string; label: string } } = { period: PERIOD };
+const ACTIVE: { period: { id: string | null; label: string | null } } = { period: PERIOD };
+/** The workspaces the user holds: the company on screen, or none. */
+const ORGS = vi.hoisted(() => ({ onScreen: true, holdsAny: true }));
 
 vi.mock("@/lib/activePeriod", () => ({
   useActivePeriod: () => ACTIVE.period,
 }));
 vi.mock("@/hooks/useActivePeriodFallback", () => ({
-  useActivePeriodFallback: () => ({ periodId: ACTIVE.period.id, status: "resolved" }),
+  useActivePeriodFallback: () => ({ periodId: ACTIVE.period.id, status: "ready" }),
 }));
+/** The company on screen: one workspace, the book's own. */
+const ORG = {
+  id: "org-agras", name: "Agra's Food Factory SRL", industry_key: null,
+  industry_display_name: null, default_currency: "RON", role: "owner" as const,
+  archived_at: null, purge_after: null, created_at: "2026-01-01T00:00:00Z",
+};
+vi.mock("@/lib/org", () => ({
+  useActiveOrg: () => ({
+    org: ORGS.onScreen ? ORG : null, orgs: ORGS.holdsAny ? [ORG] : [], archived: [],
+    loading: false, loadError: false,
+    needsOnboarding: false, refresh: async () => undefined, switchOrg: async () => undefined,
+    createWorkspace: async () => null, renameWorkspace: async () => false,
+    setWorkspaceIndustry: async () => false, archiveWorkspace: async () => false,
+    restoreWorkspace: async () => false, purgeWorkspace: async () => false,
+  }),
+  daysUntilPurge: () => 30,
+}));
+/** Saved scenarios: an in-memory org_prefs, keyed by org (the real module's
+ *  persistence is gate F6's, scenariosSaved.test.tsx). */
+const SAVED = vi.hoisted(() => ({ byOrg: new Map<string, unknown[]>() }));
+vi.mock("@/lib/savedScenarios", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/savedScenarios")>(
+    "@/lib/savedScenarios",
+  );
+  return {
+    ...actual,
+    loadSavedScenarios: async (orgId: string) =>
+      actual.scenariosOfCompany(SAVED.byOrg.get(orgId) ?? [], orgId),
+    saveScenario: async (orgId: string, input: Record<string, unknown>) => {
+      const next = [
+        { ...input, id: `s-${(SAVED.byOrg.get(orgId) ?? []).length + 1}`, orgId, savedAt: "2026-09-21T00:00:00Z" },
+        ...(SAVED.byOrg.get(orgId) ?? []),
+      ];
+      SAVED.byOrg.set(orgId, next);
+      return actual.scenariosOfCompany(next, orgId);
+    },
+    deleteSavedScenario: async (orgId: string, id: string) => {
+      const next = (SAVED.byOrg.get(orgId) ?? []).filter((e) => (e as { id: string }).id !== id);
+      SAVED.byOrg.set(orgId, next);
+      return actual.scenariosOfCompany(next, orgId);
+    },
+  };
+});
 
-const forecastRecompute = vi.fn();
+const forecastScenario = vi.fn();
+const forecastScenarioTemplates = vi.fn();
 const forecast = vi.fn();
+const forecastRecompute = vi.fn();
 vi.mock("@/lib/cfoApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/cfoApi")>("@/lib/cfoApi");
   return {
@@ -75,6 +119,8 @@ vi.mock("@/lib/cfoApi", async () => {
     cfoApi: {
       forecast: (...args: unknown[]) => forecast(...args),
       forecastRecompute: (...args: unknown[]) => forecastRecompute(...args),
+      forecastScenario: (...args: unknown[]) => forecastScenario(...args),
+      forecastScenarioTemplates: (...args: unknown[]) => forecastScenarioTemplates(...args),
     },
   };
 });
@@ -84,6 +130,11 @@ const SERVED_TEXT = readFileSync(
   resolve(REPO, "tests/engine/fixtures/forecast/fp1_2_agras_served.json"),
   "utf8",
 );
+/** The ENGINE's template catalogue (GET /api/forecast/templates/scenarios). */
+const CATALOGUE = JSON.parse(
+  readFileSync(resolve(REPO, "tests/engine/fixtures/forecast/scenario_catalogue.json"), "utf8"),
+) as { templates: Array<{ id: string; shocks: Array<Record<string, unknown>> }> };
+const TEMPLATE_IDS = CATALOGUE.templates.map((t) => t.id);
 /** The served payload, as JSON: the test reads and plants fields by path. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = Record<string, any>;
@@ -97,11 +148,11 @@ const SERVED_POOLS: string[] = (SERVED.driver_order as string[]).filter((k) =>
 );
 
 type Body = {
+  template: string;
   horizon: Record<string, unknown>;
   overrides: Record<string, unknown>;
-  shocks: Array<Record<string, unknown>>;
 };
-const bodies = (): Body[] => forecastRecompute.mock.calls.map((c) => c[1] as Body);
+const bodies = (): Body[] => forecastScenario.mock.calls.map((c) => c[1] as Body);
 const lastBody = (): Body => bodies()[bodies().length - 1];
 
 function renderPage() {
@@ -121,9 +172,15 @@ function renderPage() {
 
 beforeEach(() => {
   ACTIVE.period = PERIOD;
+  ORGS.onScreen = true;
+  ORGS.holdsAny = true;
+  SAVED.byOrg.clear();
+  forecastScenario.mockReset();
+  forecastScenarioTemplates.mockReset();
   forecastRecompute.mockReset();
   forecast.mockReset();
-  forecastRecompute.mockImplementation(async () => served());
+  forecastScenario.mockImplementation(async () => served());
+  forecastScenarioTemplates.mockImplementation(async () => CATALOGUE);
 });
 
 afterEach(async () => {
@@ -189,7 +246,18 @@ describe("the page computes nothing (one engine)", () => {
     ).toEqual([]);
   });
 
-  it("asks the engine: the page POSTs /recompute and names no cascade", () => {
+  it("the client scenario math is gone from disk, not merely unreachable", () => {
+    for (const gone of [
+      "frontend/lib/scenarios",
+      "frontend/stores/scenario.tsx",
+      "frontend/lib/scenarioTemplates.ts",
+      "frontend/lib/scenarioTemplates.json",
+    ]) {
+      expect(() => statSync(join(REPO, gone)), `${gone} still exists`).toThrow();
+    }
+  });
+
+  it("asks the engine: the page POSTs /scenario and names no cascade", () => {
     const page = readFileSync(join(REPO, "frontend/pages/cfo/Scenarios.tsx"), "utf8");
     // Line comments FIRST: a `//` line that mentions a path ending in `/*`
     // would otherwise open a "block comment" that swallows the imports.
@@ -198,83 +266,51 @@ describe("the page computes nothing (one engine)", () => {
       .filter((l) => !/^\s*\/\//.test(l))
       .join("\n")
       .replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(code).toMatch(/\bforecastRecompute\s*\(/);
-    expect(code).not.toMatch(/\b(applyCascade|buildScenarioBaseline|buildDashboardCanonical|computeMetric)\b/);
+    expect(code).toMatch(/\bforecastScenario\s*\(/);
+    expect(code).not.toMatch(/\b(applyCascade|buildScenarioBaseline|buildDashboardCanonical|computeMetric|compileTemplate)\b/);
   });
 });
 
-// ── 2. templates POST exactly their declared shock sets ────────────────
+// ── 2. templates POST exactly their id: the ENGINE compiles them ───────
 
-const shock = (
-  template: string,
-  n: number,
-  driverKey: string,
-  op: string,
-  value: string,
-  groupId: string | null = null,
-) => ({
-  id: `template:${template}:${n}`,
-  driver_key: driverKey,
-  op,
-  value,
-  start_month: 1,
-  ramp_months: 0,
-  end_month: null,
-  source: `template:${template}`,
-  group_id: groupId,
-});
+/** THE PINNED IDS, written out literally: a gate that derived its
+ *  expectation from the catalogue under test would agree with any change. */
+const EXPECTED_IDS = [
+  "base",
+  "recession",
+  "revenue_down_10",
+  "input_cost_inflation",
+  "price_pressure",
+  "energy_shock",
+  "working_capital_squeeze",
+];
+const HORIZON = { total_years: 5, monthly_months: 12 };
 
-/** THE PINNED SETS. Written out literally, not recompiled from the data file:
- *  a gate that derived its expectation from the module under test would agree
- *  with any change to it. */
-const EXPECTED: Record<string, Array<Record<string, unknown>>> = {
-  base: [],
-  recession: [
-    shock("recession", 1, "volume_index", "level_pct", "-0.20"),
-    ...SERVED_POOLS.map((pool, i) =>
-      shock("recession", i + 2, pool, "level_pct", "-0.05", "template:recession:pool_level"),
-    ),
-  ],
-  input_cost_inflation: [
-    shock("input_cost_inflation", 1, "input_price_index", "level_pct", "0.10"),
-  ],
-  price_pressure: [shock("price_pressure", 1, "price_index", "level_pct", "-0.05")],
-  working_capital_squeeze: [
-    shock("working_capital_squeeze", 1, "dso_days", "add_days", "15"),
-    shock("working_capital_squeeze", 2, "dio_cogs_days", "add_days", "10"),
-  ],
-};
-
-describe("templates are lever sets the engine runs", () => {
-  it("pins every template the data file declares", () => {
+describe("templates are the engine's, sent by id", () => {
+  it("pins every template the engine serves", () => {
     expect(SERVED_POOLS.length).toBeGreaterThan(0);
-    expect(SCENARIO_TEMPLATES.map((t) => t.id).sort()).toEqual(Object.keys(EXPECTED).sort());
+    expect([...TEMPLATE_IDS].sort()).toEqual([...EXPECTED_IDS].sort());
   });
 
-  it("the base plan POSTs no shock, and never states total_years", async () => {
+  it("the base plan POSTs the base template, the Forecast page's horizon, no shock", async () => {
     renderPage();
     await screen.findByTestId("scenarios-outcome-table");
-    expect(forecastRecompute).toHaveBeenCalledTimes(1);
-    expect(forecastRecompute.mock.calls[0][0]).toBe(PERIOD.id);
-    expect(lastBody()).toEqual({
-      horizon: { monthly_months: 12 },
-      overrides: {},
-      shocks: [],
-    });
-    // GET serves 3 or 5 years only; the Scenarios horizon is the pack's.
+    expect(forecastScenario).toHaveBeenCalledTimes(1);
+    expect(forecastScenario.mock.calls[0][0]).toBe(PERIOD.id);
+    expect(lastBody()).toEqual({ template: "base", horizon: HORIZON, overrides: {} });
     expect(forecast).not.toHaveBeenCalled();
+    expect(forecastRecompute).not.toHaveBeenCalled();
   });
 
-  for (const id of Object.keys(EXPECTED).filter((k) => k !== "base")) {
-    it(`${id} POSTs exactly its declared shock set`, async () => {
+  for (const id of EXPECTED_IDS.filter((k) => k !== "base")) {
+    it(`${id} POSTs its id and nothing the page computed`, async () => {
       renderPage();
       await screen.findByTestId("scenarios-outcome-table");
       fireEvent.click(screen.getByTestId(`scenarios-template-${id}`));
-      await waitFor(() => expect(forecastRecompute).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(forecastScenario).toHaveBeenCalledTimes(2));
       const body = lastBody();
-      expect(body.horizon).toEqual({ monthly_months: 12 });
-      expect(body.overrides).toEqual({});
-      expect(body.shocks).toEqual(EXPECTED[id]);
+      expect(body).toEqual({ template: id, horizon: HORIZON, overrides: {} });
+      expect(Object.keys(body)).not.toContain("shocks");
       // The column is the template's, and it paints served figures.
       const cell = await screen.findByTestId(
         `scenarios-cell-template-revenue-${SERVED.horizon.labels_annual[0]}`,
@@ -283,7 +319,7 @@ describe("templates are lever sets the engine runs", () => {
     });
   }
 
-  it("every card shows what its template changes, as declared", async () => {
+  it("every card shows what its template changes, as the engine declares it", async () => {
     renderPage();
     await screen.findByTestId("scenarios-outcome-table");
     const recession = screen.getByTestId("scenarios-template-recession-changes");
@@ -294,13 +330,26 @@ describe("templates are lever sets the engine runs", () => {
       `all ${SERVED_POOLS.length} cost pools this book serves`,
     );
     expect(recession.textContent).toContain("\u22125%");
+    expect(recession.textContent).toContain("+30 days");
     const squeeze = screen.getByTestId("scenarios-template-working_capital_squeeze-changes");
     expect(squeeze.textContent).toContain("+15 days");
     expect(squeeze.textContent).toContain("+10 days");
     expect(screen.getByTestId("scenarios-template-input_cost_inflation-changes").textContent)
       .toContain("+10%");
+    expect(screen.getByTestId("scenarios-template-revenue_down_10-changes").textContent)
+      .toContain("\u221210%");
+    expect(screen.getByTestId("scenarios-template-energy_shock-changes").textContent)
+      .toContain("Energy and utilities costs");
     expect(screen.getByTestId("scenarios-template-base-changes").textContent)
       .toMatch(/Nothing/);
+  });
+
+  it("the catalogue unreadable: one sentence, and the base plan still stands", async () => {
+    forecastScenarioTemplates.mockImplementation(async () => ({ pack_id: "x", templates: "no" }));
+    renderPage();
+    await screen.findByTestId("scenarios-outcome-table");
+    expect(screen.getByTestId("scenarios-templates-unavailable")).toBeTruthy();
+    expect(screen.queryByTestId("scenarios-templates")).toBeNull();
   });
 });
 
@@ -310,7 +359,7 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
   it("422 on the base plan: the page's refusal state is the engine's text", async () => {
     const sentence =
       "the assembled profit and loss carries no revenue line, so there is no revenue to project; an absent revenue is never read as nil";
-    forecastRecompute.mockImplementation(async () => {
+    forecastScenario.mockImplementation(async () => {
       throw new CfoApiError(JSON.stringify({ code: "revenue_absent" }), 422, {
         code: "revenue_absent",
         text: sentence,
@@ -329,7 +378,7 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
 
   it("409 on the base plan (statements rebuild failed): the same", async () => {
     const sentence = "the statements of this period could not be rebuilt from its line items";
-    forecastRecompute.mockImplementation(async () => {
+    forecastScenario.mockImplementation(async () => {
       throw new CfoApiError("409", 409, { code: "statements_rebuild_failed", text: sentence });
     });
     renderPage();
@@ -341,8 +390,8 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
   it("422 on a template: that column is the sentence, the base column stands", async () => {
     const sentence =
       "dio_cogs_days is not measured on this book, so a change in days has nothing to add to; set it instead";
-    forecastRecompute.mockImplementation(async (_id: string, body: Body) => {
-      if (body.shocks.length > 0) {
+    forecastScenario.mockImplementation(async (_id: string, body: Body) => {
+      if (body.template !== "base") {
         throw new CfoApiError("422", 422, {
           code: "days_not_measured",
           text: sentence,
@@ -367,8 +416,8 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
 
   it("switching template never paints the previous template's figures", async () => {
     let release: (v: unknown) => void = () => undefined;
-    forecastRecompute.mockImplementation(async (_id: string, body: Body) => {
-      if (body.shocks.some((s) => s.driver_key === "price_index")) {
+    forecastScenario.mockImplementation(async (_id: string, body: Body) => {
+      if (body.template === "price_pressure") {
         return new Promise((r) => {
           release = r;
         });
@@ -438,10 +487,10 @@ describe("no industry word on the page", () => {
       renderPage();
       await screen.findByTestId("scenarios-outcome-table");
       const seen: string[] = [renderedWords()];
-      for (const tpl of SCENARIO_TEMPLATES) {
-        fireEvent.click(screen.getByTestId(`scenarios-template-${tpl.id}`));
+      for (const id of TEMPLATE_IDS) {
+        fireEvent.click(screen.getByTestId(`scenarios-template-${id}`));
         await waitFor(() =>
-          expect(screen.getByTestId(`scenarios-template-${tpl.id}`)).toHaveAttribute(
+          expect(screen.getByTestId(`scenarios-template-${id}`)).toHaveAttribute(
             "aria-pressed",
             "true",
           ),
@@ -486,7 +535,7 @@ describe("a served negative cash is never the page's cash", () => {
   });
 
   it("paints the served funding line instead, and withholds the chart", async () => {
-    forecastRecompute.mockImplementation(async () => withNegativeCash());
+    forecastScenario.mockImplementation(async () => withNegativeCash());
     renderPage();
     const cell = await screen.findByTestId(`scenarios-cell-base-closing_cash-${fy}`);
     expect(cell.querySelector('[data-cash-floored="true"]')).not.toBeNull();
@@ -566,7 +615,7 @@ describe("the funding-line row is the balance at year end", () => {
   ] as const) {
     it(`${lang}: the row names the year-end balance, beside the served peak`, async () => {
       await i18n.changeLanguage(lang);
-      forecastRecompute.mockImplementation(async () => drawnAndRepaidInYearOne());
+      forecastScenario.mockImplementation(async () => drawnAndRepaidInYearOne());
       renderPage();
       const row = await screen.findByTestId("scenarios-row-funding_line");
       const rowLabel = row.querySelector("td")?.textContent ?? "";
@@ -619,9 +668,9 @@ describe("switching period or workspace never paints the previous request", () =
   /** p-1 serves its marked payload (the template column its own marked
    *  revenue); p-2 answers as `p2` says. */
   function serve(p2: "pending" | "refused") {
-    forecastRecompute.mockImplementation(async (id: string, body: Body) => {
+    forecastScenario.mockImplementation(async (id: string, body: Body) => {
       if (id === PERIOD.id) {
-        return p1Payload(body.shocks.length > 0 ? 222_222_200 : 111_111_100);
+        return p1Payload(body.template !== "base" ? 222_222_200 : 111_111_100);
       }
       if (p2 === "pending") return new Promise(() => undefined);
       throw new CfoApiError("409", 409, { code: "statements_rebuild_failed", text: P2_SENTENCE });
@@ -654,7 +703,7 @@ describe("switching period or workspace never paints the previous request", () =
     const page = await onP1(false);
     ACTIVE.period = P2;
     page.rerenderPage();
-    await waitFor(() => expect(forecastRecompute.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
+    await waitFor(() => expect(forecastScenario.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
     expectNothingOfP1();
     expect(screen.getByTestId("scenarios-loading")).toBeTruthy();
     expect(document.body.textContent).toContain(P2.label);
@@ -666,7 +715,7 @@ describe("switching period or workspace never paints the previous request", () =
     const page = await onP1(true);
     ACTIVE.period = P2;
     page.rerenderPage();
-    await waitFor(() => expect(forecastRecompute.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
+    await waitFor(() => expect(forecastScenario.mock.calls.some((c) => c[0] === P2.id)).toBe(true));
     expectNothingOfP1();
   });
 
@@ -727,7 +776,15 @@ function expectEveryDigitServed(
   payloads: readonly Json[],
   extra: { labels?: readonly string[]; sentences?: readonly string[] } = {},
 ) {
-  const labels = new Set<string>([PERIOD.label, ...(extra.labels ?? [])]);
+  // Template NAMES are page chrome declared in the locale bundle (a name may
+  // carry its magnitude, "Revenue −10%"): a declared label, not a number the
+  // page computed. Read from i18n in the active language, never typed here.
+  const templateNames = TEMPLATE_IDS.map((id) => i18n.t(`scenarios.template.${id}.name`));
+  const labels = new Set<string>([
+    PERIOD.label as string,
+    ...templateNames,
+    ...(extra.labels ?? []),
+  ]);
   const sentences = new Set<string>(extra.sentences ?? []);
   const months = new Set<string>();
   for (const p of payloads) {
@@ -750,7 +807,14 @@ function expectEveryDigitServed(
     if (Number.isInteger(p.summary?.runway?.months)) months.add(String(p.summary.runway.months));
   }
   const byLength = [...labels].sort((a, b) => b.length - a.length);
-  const CHROME = ['[data-testid="scenarios-templates"]', '[data-testid="forecast-levers"]'];
+  // Chrome, by name: the template picker (declared shock values), the lever
+  // rail (the reader's inputs) and the saved-scenario bar (names the reader
+  // typed) — none of them is a figure the engine served or the page computed.
+  const CHROME = [
+    '[data-testid="scenarios-templates"]',
+    '[data-testid="forecast-levers"]',
+    '[data-testid="scenarios-saved"]',
+  ];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const offenders: string[] = [];
   let checked = 0;
@@ -794,8 +858,8 @@ describe("every digit on the page is a served figure, label or sentence", () => 
       expect(base.projected).toBeGreaterThan(10);
       expect(base.checked).toBeGreaterThan(base.projected);
       const fy = SERVED.horizon.labels_annual[0] as string;
-      for (const tpl of SCENARIO_TEMPLATES.filter((t) => t.id !== "base")) {
-        fireEvent.click(screen.getByTestId(`scenarios-template-${tpl.id}`));
+      for (const id of TEMPLATE_IDS.filter((t) => t !== "base")) {
+        fireEvent.click(screen.getByTestId(`scenarios-template-${id}`));
         await waitFor(() =>
           expect(
             screen
@@ -807,4 +871,66 @@ describe("every digit on the page is a served figure, label or sentence", () => 
       }
     });
   }
+});
+
+// ── 9. gate F5: no placeholder where a value exists ────────────────────
+
+describe("gate F5: no dash and no zero where the engine served a figure", () => {
+  it("every outcome cell whose served figure is non-zero paints that figure", async () => {
+    renderPage();
+    await screen.findByTestId("scenarios-outcome-table");
+    const byKey = new Map<string, Json>(
+      (SERVED.figures as Json[]).map((f) => [`${f.line}|${f.period}`, f]),
+    );
+    let checked = 0;
+    for (const cell of Array.from(document.querySelectorAll("[data-line][data-period]"))) {
+      const f = byKey.get(`${cell.getAttribute("data-line")}|${cell.getAttribute("data-period")}`);
+      if (!f || typeof f.amount_minor !== "number" || f.amount_minor === 0) continue;
+      const painted = cell.querySelector("[data-projected-value]")?.textContent ?? "";
+      expect(painted, `${f.line} ${f.period}`).not.toBe("");
+      expect((cell.textContent ?? "").trim(), `${f.line} ${f.period}`).not.toBe("\u2014");
+      expect(painted, `${f.line} ${f.period} painted as zero`).not.toMatch(/^[^1-9]*$/);
+      checked += 1;
+    }
+    expect(checked, "vacuous: no non-zero figure was checked").toBeGreaterThan(10);
+    for (const id of ["peak-funding", "funding-interest", "first-shortfall", "runway"]) {
+      const text = (screen.getByTestId(`scenarios-summary-${id}-base`).textContent ?? "").trim();
+      expect(text, `summary ${id} is a bare placeholder`).not.toMatch(/^[\u2014-]?$/);
+    }
+  });
+});
+
+// ── 10. the company on screen, or the cards to pick one ────────────────
+
+describe("no company open: one sentence and the company cards, never a blank page", () => {
+  it("the company on screen has no analysed year: the sentence names it, the cards follow", async () => {
+    ACTIVE.period = { id: null, label: null };
+    renderPage();
+    const cards = await screen.findByTestId("company-cards");
+    expect(cards.getAttribute("data-reason")).toBe("no_year");
+    expect(screen.getByTestId("company-cards-sentence").textContent).toContain(ORG.name);
+    expect(screen.getByTestId(`company-card-${ORG.id}`)).toBeTruthy();
+    expect(forecastScenario).not.toHaveBeenCalled();
+    // No upload control on this page, in any state.
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it("no company at all: one sentence, no card, no projection", async () => {
+    ACTIVE.period = { id: null, label: null };
+    ORGS.onScreen = false;
+    ORGS.holdsAny = false;
+    renderPage();
+    const cards = await screen.findByTestId("company-cards");
+    expect(cards.getAttribute("data-reason")).toBe("no_company");
+    expect(screen.queryAllByTestId(/^company-card-/)).toHaveLength(0);
+    expect(forecastScenario).not.toHaveBeenCalled();
+  });
+
+  it("with a company on screen the header names it, beside the one primary action", async () => {
+    renderPage();
+    await screen.findByTestId("scenarios-outcome-table");
+    expect(screen.getByTestId("scenarios-company").textContent).toBe(ORG.name);
+    expect(document.querySelectorAll('[data-primary-action="true"]')).toHaveLength(1);
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
 });

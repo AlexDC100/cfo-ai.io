@@ -1,31 +1,34 @@
 // THE TEMPLATE PICKER — each template, and exactly what it changes.
 //
-// plan/2 B13 (minimal cut). A template is a named set of shocks the page
-// POSTs to the forecast engine (`lib/scenarioTemplates`). This component
-// shows the reader that set, line by line, before they pick it: the driver
-// the shock moves, and the value it moves it by, as the template declares it.
+// The templates are the ENGINE's (packs/scenarios/templates.yaml, FMCG
+// Romania), served by GET /api/forecast/templates/scenarios and read through
+// `lib/scenarioCatalogue`. The page sends a template's id to POST
+// /api/forecast/{id}/scenario and the engine compiles it over this book. This
+// component only shows the reader, before they pick, what each template
+// declares: the driver a shock moves and the value it moves it by, in the
+// display value the engine served.
 //
 // ── NO INDUSTRY WORD, AND NO POOL NAME ─────────────────────────────────
 //
 // An operating-cost shock is declared once over every cost pool the book
 // serves (`pool_level.*`). It is shown as ONE line naming how many pools it
-// covers, never as the pool keys: those are the engine's internal account
-// groupings, and painting them would put accounting-plan words into page
-// chrome that must carry no industry vocabulary at all (plan_contract_v2 8.6).
-// Labels and questions are page chrome in the `scenarios` locale namespace.
+// covers — the count of the SERVED base plan's pool drivers — never as the
+// pool keys: those are the engine's internal account groupings, and painting
+// them would put accounting-plan words into page chrome that must carry no
+// industry vocabulary at all (plan_contract_v2 8.6). Labels and questions are
+// page chrome in the `scenarios` locale namespace.
 
 import { useTranslation } from "react-i18next";
 
 import {
   BASE_TEMPLATE_ID,
-  SCENARIO_TEMPLATES,
-  compileTemplate,
-  declaredLines,
-  shockValueText,
-  type ShockLine,
-} from "@/lib/scenarioTemplates";
+  signedDisplay,
+  type CatalogueShock,
+  type CatalogueTemplate,
+} from "@/lib/scenarioCatalogue";
 
 export interface ScenarioTemplatePickerProps {
+  readonly templates: readonly CatalogueTemplate[];
   readonly selectedId: string;
   /** The driver keys the served base plan declares, or null before it is
    *  served — a pool pattern's count is then not known and is not guessed. */
@@ -33,19 +36,28 @@ export interface ScenarioTemplatePickerProps {
   onSelect(id: string): void;
 }
 
-function ShockLineText({ line }: { line: ShockLine }) {
+function ShockLineText({
+  shock,
+  servedDriverKeys,
+}: {
+  shock: CatalogueShock;
+  servedDriverKeys: readonly string[] | null;
+}) {
   const { t } = useTranslation();
-  const base = line.pattern ? line.driverKey.slice(0, -2) : line.driverKey;
-  const label = line.pattern
-    ? line.expandedOver > 0
-      ? t(`scenarios.shock.${base}_count`, { count: line.expandedOver })
+  const base = shock.pattern ? shock.driverKey.slice(0, -2) : shock.driverKey;
+  const count =
+    shock.pattern && servedDriverKeys
+      ? servedDriverKeys.filter((k) => k.startsWith(`${base}.`)).length
+      : 0;
+  // A plain key may itself carry a dot (one named pool, `pool_level.<pool>`);
+  // i18next reads a dot as nesting, so the locale key spells it `__`.
+  const label = shock.pattern
+    ? count > 0
+      ? t(`scenarios.shock.${base}_count`, { count })
       : t(`scenarios.shock.${base}`)
-    : t(`scenarios.shock.${base}`, base.replace(/_/g, " "));
-  const value = shockValueText(line.op, line.value);
-  const valueText =
-    value === null
-      ? line.value
-      : t(`scenarios.op.${line.op}`, { value, defaultValue: value });
+    : t(`scenarios.shock.${base.replace(/\./g, "__")}`, base.replace(/[_.]/g, " "));
+  const value = signedDisplay(shock.display.value);
+  const valueText = t(`scenarios.unit.${shock.display.unit}`, { value, defaultValue: value });
   return (
     <>
       <span className="text-ink">{label}</span>
@@ -57,6 +69,7 @@ function ShockLineText({ line }: { line: ShockLine }) {
 }
 
 export function ScenarioTemplatePicker({
+  templates,
   selectedId,
   servedDriverKeys,
   onSelect,
@@ -71,17 +84,13 @@ export function ScenarioTemplatePicker({
         <p className="mt-1 text-[12px] leading-snug text-ink-soft">
           {t(
             "scenarios.templates.lead",
-            "Each template is a named set of shocks sent to the forecast engine. Pick one to see it beside the base plan.",
+            "Each template is a named set of shocks the forecast engine applies to your plan. Pick one to see it beside the base plan.",
           )}
         </p>
       </header>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {SCENARIO_TEMPLATES.map((template) => {
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {templates.map((template) => {
           const selected = template.id === selectedId;
-          const lines =
-            servedDriverKeys === null
-              ? declaredLines(template)
-              : compileTemplate(template, servedDriverKeys).lines;
           return (
             <div
               key={template.id}
@@ -99,10 +108,10 @@ export function ScenarioTemplatePicker({
                 className="px-4 pt-3 pb-2 text-left hover:bg-bg-2/40 rounded-t-xl"
               >
                 <span className="block text-[13.5px] font-medium text-ink">
-                  {t(`scenarios.template.${template.id}.name`)}
+                  {t(`scenarios.template.${template.id}.name`, template.id.replace(/_/g, " "))}
                 </span>
                 <span className="mt-0.5 block text-[12px] leading-snug text-ink-soft">
-                  {t(`scenarios.template.${template.id}.question`)}
+                  {t(`scenarios.template.${template.id}.question`, "")}
                 </span>
               </button>
               <div
@@ -112,24 +121,24 @@ export function ScenarioTemplatePicker({
                 <p className="font-mono text-[9.5px] uppercase tracking-wider text-ink-mute">
                   {t("scenarios.templates.changes", "What this template changes")}
                 </p>
-                {lines.length === 0 ? (
+                {template.shocks.length === 0 ? (
                   <p className="mt-1 text-[12px] leading-snug text-ink-soft">
                     {t(
                       "scenarios.templates.noShocks",
-                      "Nothing: the engine's own plan, with only the levers you set below.",
+                      "Nothing: the forecast itself, with only the levers you set below.",
                     )}
                   </p>
                 ) : (
                   <ul className="mt-1 space-y-0.5 text-[12px] leading-snug">
-                    {lines.map((line, i) => (
+                    {template.shocks.map((shock, i) => (
                       <li
-                        key={`${line.driverKey}-${i}`}
+                        key={`${shock.driverKey}-${i}`}
                         data-testid={`scenarios-template-${template.id}-shock-${i}`}
-                        data-driver-key={line.driverKey}
-                        data-op={line.op}
-                        data-value={line.value}
+                        data-driver-key={shock.driverKey}
+                        data-op={shock.op}
+                        data-value={shock.value}
                       >
-                        <ShockLineText line={line} />
+                        <ShockLineText shock={shock} servedDriverKeys={servedDriverKeys} />
                       </li>
                     ))}
                   </ul>

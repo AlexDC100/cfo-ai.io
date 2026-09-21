@@ -17,3 +17,9 @@ one["figures"] = [f for f in body["figures"] if f["period"] in keep]
 one["series"] = dict((k, [p for p in v if p["period"] in keep]) for k, v in body["series"].items())
 json.dump(one, open(base + "fp1_2_agras_engine_one_period.json", "w"), indent=1, sort_keys=True, ensure_ascii=False)
 print(len(body["figures"]), len(one["figures"]))
+# forecast-scenarios-live: the scenario template catalogue the engine serves
+# (GET /api/forecast/templates/scenarios), for the frontend gates to read the
+# ENGINE's catalogue rather than a hand-typed copy. Pinned by
+# tests/engine/test_scenario_page_templates.py.
+from engine.forecast.scenario_templates import catalogue
+json.dump(catalogue(), open(base + "scenario_catalogue.json", "w"), indent=1, sort_keys=True, ensure_ascii=False)

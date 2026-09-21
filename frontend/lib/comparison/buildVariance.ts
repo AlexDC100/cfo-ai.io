@@ -8,7 +8,7 @@
 // the uploaded (or demo) ComparisonDataset.
 
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
-import type { DashboardCanonical } from "@/lib/scenarios/dashboardCanon";
+import type { DashboardCanonical } from "@/lib/comparison/dashboardCanon";
 import { convertFromTo } from "@/lib/money";
 import type { Currency, Rates } from "@/lib/rates";
 import {

@@ -3351,7 +3351,18 @@
     },
     "growth": {
       "title": "Revenue growth stands on",
-      "absentInput": "not measurable from this book"
+      "absentInput": "not measurable from this book",
+      "sectorLine": "CAEN {{caen}} · {{band}} · n={{n}} · FY{{prior}}→FY{{year}}",
+      "division": "CAEN division, not the class",
+      "macroLine": "{{source}} · stated as of {{date}}",
+      "band": {
+        "lt_1m": "turnover under 1M RON",
+        "1m_10m": "turnover 1M–10M RON",
+        "10m_50m": "turnover 10M–50M RON",
+        "50m_250m": "turnover 50M–250M RON",
+        "gte_250m": "turnover 250M RON and over",
+        "all_sizes": "all sizes"
+      }
     },
     "levers": {
       "title": "Levers",
@@ -3380,7 +3391,16 @@
       "showMonthly": "Show months of year one",
       "note": "Both grains are served by the engine"
     },
-    "stale": "The server would not take that change, so every figure below is still the last projection it produced. Your edit is in the rail; correct it or reset the lever."
+    "stale": "The server would not take that change, so every figure below is still the last projection it produced. Your edit is in the rail; correct it or reset the lever.",
+    "openScenarios": "Stress this plan",
+    "year0": {
+      "title": "Year 0 · actual",
+      "lead": "The figures the dashboard shows. Every projected year below stands on them.",
+      "revenue": "Operating revenue",
+      "ebitda": "EBITDA",
+      "netProfit": "Net profit",
+      "cash": "Cash"
+    }
   },
   "radar": {
     "eyebrow": "Radar",
@@ -3428,11 +3448,11 @@
   "scenarios": {
     "eyebrow": "Analysis",
     "title": "Scenario planning",
-    "context": "What-if on the projection of {{period}}. Every figure is computed by the forecast engine.",
+    "context": "What-if on the forecast of {{period}}. Every figure is computed by the forecast engine.",
     "actualsLocked": "Actuals never change",
     "banner": {
       "eyebrow": "Every figure on this page is a projection",
-      "body": "Each number is produced by the forecast engine from the closing position of {{period}} and the shocks and levers listed on this page. Nothing here changes your trial balance."
+      "body": "Each number is produced by the forecast engine from the closing position of {{period}} and the template and levers on this page. The base column is the Forecast page's plan. Nothing here changes your trial balance."
     },
     "empty": {
       "eyebrow": "Scenario planning",
@@ -3444,10 +3464,11 @@
     },
     "templates": {
       "title": "Templates",
-      "lead": "Each template is a named set of shocks sent to the forecast engine. Pick one to see it beside the base plan.",
+      "lead": "Each template is a named set of shocks the forecast engine applies to your plan. Pick one to see it beside the base plan.",
       "changes": "What this template changes",
-      "noShocks": "Nothing: the engine's own plan, with only the levers you set below.",
-      "window": "Every shock runs from the first plan month to the end of the plan."
+      "noShocks": "Nothing: the forecast itself, with only the levers you set below.",
+      "window": "Every shock runs from the first plan month to the end of the plan.",
+      "unavailable": "The engine's templates could not be read, so only the base plan is shown."
     },
     "template": {
       "base": {
@@ -3456,8 +3477,8 @@
       },
       "recession": {
         "name": "Recession",
-        "question": "What if sales volume falls and operating costs are cut back?",
-        "note": "Cost of sales follows volume in the engine; other operating income is held."
+        "question": "What if sales volume falls by a fifth, you cut operating costs back and the retail chains pay a month later?",
+        "note": "Cost of sales follows volume, not the selling price; other operating income is held; any cash shortfall is drawn on a funding line priced at your own borrowing rate."
       },
       "input_cost_inflation": {
         "name": "Input cost inflation",
@@ -3473,6 +3494,16 @@
         "name": "Working-capital squeeze",
         "question": "What if customers pay later and stock sits longer?",
         "note": "Days move balances, not EBITDA: the effect lands on cash, the funding line and its interest."
+      },
+      "revenue_down_10": {
+        "name": "Revenue −10%",
+        "question": "What if you sell a tenth less, and nothing else changes?",
+        "note": "Only revenue and the lines that follow sales volume move."
+      },
+      "energy_shock": {
+        "name": "Energy price shock",
+        "question": "What if electricity and gas get markedly dearer?",
+        "note": "Only the energy and utilities cost pool moves; cost of sales and revenue do not."
       }
     },
     "shock": {
@@ -3484,7 +3515,8 @@
       "pool_level_count_other": "Operating costs, all {{count}} cost pools this book serves",
       "dso_days": "Days sales outstanding",
       "dio_cogs_days": "Days inventory on hand",
-      "dpo_cogs_days": "Days payable outstanding"
+      "dpo_cogs_days": "Days payable outstanding",
+      "pool_level__energy_utilities": "Energy and utilities costs"
     },
     "op": {
       "level_pct": "{{value}}%",
@@ -3521,7 +3553,9 @@
       "runway": "Months until cash reaches the floor",
       "runwayAtLeast": "at least {{months}}",
       "fundingRate": "How the funding line is priced:",
-      "dscrNotServed": "Debt service coverage is not in this build's served response, so it is not shown."
+      "dscrNotServed": "Debt service coverage is not in this build's served response, so it is not shown.",
+      "noShortfall": "none within the plan",
+      "notServed": "not served for this plan"
     },
     "levers": {
       "lead": "The levers below apply to every column: the base plan and the selected template both carry them."
@@ -3530,6 +3564,29 @@
       "title": "No projection",
       "fallback": "The engine did not return a projection.",
       "noServedKeys": "this book serves no operating-cost pool, so the operating-cost shock of this template cannot be applied, and the template is not run in part"
+    },
+    "pageName": "Scenarios",
+    "unit": {
+      "percent": "{{value}}%",
+      "days": "{{value}} days",
+      "percentage_points": "{{value}} pp"
+    },
+    "saved": {
+      "title": "Saved scenarios",
+      "nameLabel": "Scenario name",
+      "save": "Save scenario",
+      "saving": "Saving…",
+      "error": "The scenario could not be saved or read: {{message}}",
+      "loading": "Reading this company's saved scenarios…",
+      "empty": "No saved scenario for this company yet. A saved scenario keeps the template and your levers, and re-runs them through the engine when you open it.",
+      "remove": "Remove {{name}}"
     }
+  },
+  "companyCards": {
+    "noCompany": "{{page}} works on one of your companies, and you have none yet.",
+    "noYear": "{{company}} has no analysed year yet, so {{page}} has nothing to stand on. Pick another company:",
+    "pick": "Pick the company {{page}} works on:",
+    "onScreen": "On screen",
+    "open": "Open"
   }
 }

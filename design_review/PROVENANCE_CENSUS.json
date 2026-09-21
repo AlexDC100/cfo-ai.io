@@ -496,24 +496,6 @@
       "affordances": 0,
       "why": "OPENED 2026-09-04. Axis ticks and a Recharts tooltip over a price series — a chart body, not a figure a reader can focus. The series' source is stated once by the drawer above it; a per-point affordance inside a canvas tooltip is not a DOM the keyboard can reach."
     },
-    "frontend/components/scenarios/AdjustmentEditor.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 1,
-      "affordances": 0,
-      "why": "The lever's own value chip — the number the user is currently typing. Same reason as ScenarioComparison."
-    },
-    "frontend/components/scenarios/CovenantPanel.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 2,
-      "affordances": 0,
-      "why": "OPENED 2026-09-04. A covenant threshold from the bank/config and the modelled leverage against it — what the reader configured and what the scenario produced. Same law as ScenarioComparison."
-    },
-    "frontend/components/scenarios/ScenarioComparison.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 7,
-      "affordances": 0,
-      "why": "Scenario deltas are what the reader modelled, not what was read. There is no cell behind a lever the user just dragged, and inventing one would be the worst bucket. plan/2 B1 (2026-09-15): a currency row whose change crosses zero paints the money change beside the words (the seventh site); still what the reader modelled."
-    },
     "frontend/components/scenarios/ScenarioOutcome.tsx": {
       "bucket": "LACKS_SILENT",
       "sites": 1,
@@ -639,6 +621,12 @@
       "sites": 1,
       "affordances": 0,
       "why": "OPENED 2026-09-04. THE CURRENCY STORE. One formatAmountFrom() inside the useAmountFormatter binding every other surface calls — it converts and spells whatever it is handed and holds no payload, exactly as ui/Money.tsx does. Callers that have an origin wrap the result."
+    },
+    "frontend/components/forecast/YearZeroStrip.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (forecast-scenarios-live, owner gate F1). The Forecast page's YEAR 0: the dashboard's own four headline ACTUALS (operating revenue, EBITDA, net profit, cash), computed by the one function the dashboard computes them with (lib/dashboardHeadline.ts) over the same served period payload. The one site is the Intl.NumberFormat that prints them in the book's own currency beside the projection. Silent on purpose: the dashboard's cards carry these figures' provenance, and a source-cell affordance here would sit among projected figures that must never offer one (Forecast.tsx)."
     }
   },
   "absent_leaf": {
@@ -718,6 +706,11 @@
       "bucket": "FILED_ZERO",
       "substitutions": 4,
       "why": "CHECKED 2026-09-04. docs_used / docs_included on the plan-gate response (:489, :503). These are QUOTA COUNTERS for the signed-in account, not figures read from any company's envelope, and a subscriber with no usage row genuinely has used zero documents. No provenance card is rendered over either. Note the neighbouring `extra_doc_eur ?? null` in the same object literal already uses the honest shape."
+    },
+    "frontend/lib/dashboardHeadline.ts": {
+      "bucket": "FILED_ZERO",
+      "substitutions": 2,
+      "why": "Neither substitution produces a zero. Both fall back to ANOTHER served figure: operating revenue to the statement's revenue when the P&L builder produced no first section, EBITDA to the builder's operating EBITDA when assembled_pl.ebitda_statutory is absent. Moved verbatim (2026-09-21) out of the dashboard headline memo in pages/cfo/FinancialStatements.tsx so the Forecast year 0 and the dashboard share one computation. Checked on the four corpus envelopes (frontend/components/forecast/__tests__/forecastYearZero.test.tsx): both primary leaves are served, so neither fallback fires."
     }
   },
   "_README_ABSENT_LEAF": [

@@ -18,7 +18,13 @@
 // StoryOverview, CmpCells or BsCmpCells; a flip rendered without its word
 // (en or ro); a same-sign control that stops rendering its percent.
 //
-// B13 re-targets the Scenarios half from ScenarioComparison to CompareTable.
+// The Scenarios half is RETIRED with its surface (forecast-scenarios-live):
+// ScenarioComparison, the client cascade's change table where defect 0.4 was
+// measured, is deleted with the cascade. The engine-backed Scenarios page
+// renders no change at all — two served columns side by side, no delta — so
+// there is no Scenarios flip left to render (scenariosEngine.test.tsx, "every
+// digit on the page is served", reds on any computed delta). The remaining
+// consumers below are held exactly as before.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -27,8 +33,6 @@ import type { ReactNode } from "react";
 import i18n from "@/i18n";
 import { CurrencyProvider } from "@/stores/currency";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
-import { ScenarioComparison } from "../ScenarioComparison";
 import { VarianceTable } from "@/components/comparison/VarianceTable";
 import { KpiVarianceStrip } from "@/components/comparison/KpiVarianceStrip";
 import { buildVarianceRows } from "@/lib/comparison/buildVariance";
@@ -71,43 +75,7 @@ function expectWordNoRatio(node: Element | null, word: string) {
   checked += 1;
 }
 
-const BASELINE: ReportingMetrics = {
-  revenue: 413_727_560, cogs: 250_000_000, opex: 109_283_560,
-  depreciation: 12_000_000, amortization: 0,
-  netFinancialResult: -3_000_000, incomeTax: 5_000_000,
-  ebitda: EBITDA_BASE, ebit: EBITDA_BASE - 12_000_000, netProfit: 34_444_000,
-  totalDebt: 60_000_000, cash: CASH_BASE,
-  receivables: 90_000_000, inventory: 40_000_000, accountsPayable: 70_000_000,
-  currentAssets: 140_000_000, currentLiabilities: 100_000_000,
-  shareholdersEquity: 150_000_000, totalAssets: 293_000_000, capex: 15_000_000,
-};
-const SCENARIO: ReportingMetrics = {
-  ...BASELINE,
-  // same-sign control: revenue falls 20 percent
-  revenue: 330_982_048,
-  ebitda: EBITDA_PLAN,
-  ebit: EBITDA_PLAN - 12_000_000,
-  cash: CASH_PLAN,
-};
-
 describe("S7 — a sign flip renders in words on every converted consumer", () => {
-  it("ScenarioComparison: cash 6,104,815.29 → -107,630,000 is 'turned negative', no percent, no multiplier", () => {
-    const { container } = render(
-      <Providers>
-        <ScenarioComparison baseline={BASELINE} scenario={SCENARIO} currency="RON" active />
-      </Providers>,
-    );
-    const change = (key: string) => {
-      const row = container.querySelector(`[data-testid="scenario-row-${key}"]`);
-      expect(row).not.toBeNull();
-      return row!.querySelector('[data-testid="delta-badge"]');
-    };
-    expectWordNoRatio(change("cash"), "turned negative");
-    expectWordNoRatio(change("ebitda"), "turned negative");
-    // the same-sign control still renders its percentage
-    expect(change("operating_revenue")?.textContent ?? "").toMatch(/%/);
-  });
-
   it("VarianceTable and KpiVarianceStrip: EBITDA vs last year crossing zero shows words beside the money change", () => {
     const actual = { ebitda: EBITDA_PLAN, operating_revenue: 330_982_048, net_profit: CASH_PLAN } as Record<
       VarianceLineKey,
@@ -247,10 +215,12 @@ describe("S7 — a sign flip renders in words on every converted consumer", () =
     expectWordNoRatio(screen.getByTestId("ro"), "a devenit negativ");
     // TC-12 / TC-13: coverage and scope printed.
     console.log(
-      `SIGN-FLIP rendered checks: ${checked} flip renderings across ScenarioComparison, VarianceTable, ` +
+      `SIGN-FLIP rendered checks: ${checked} flip renderings across VarianceTable, ` +
         "KpiVarianceStrip, Money/DeltaBadge, KeyMetricsRow, StoryOverview, CmpCells, BsCmpCells, Amount (ro); " +
         "pairs: Scandia FY2025 cash and EBITDA aggregates (defect 0.4), hand-built fixtures, no client book",
     );
-    expect(checked).toBeGreaterThanOrEqual(9);
+    // 9 before the ScenarioComparison case (2 renderings) left with its
+    // deleted surface; every surviving consumer still renders its flips.
+    expect(checked).toBeGreaterThanOrEqual(7);
   });
 });

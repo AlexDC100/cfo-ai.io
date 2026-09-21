@@ -590,18 +590,20 @@ const SURFACES = {
     files: [
       "frontend/pages/cfo/Forecast.tsx",
       "frontend/components/forecast/ProjectedAmount.tsx",
+      // forecast-scenarios-live (gate F1): the year-0 ACTUALS strip — the
+      // dashboard's headline figures, silent here by design (LACKS_SILENT).
+      "frontend/components/forecast/YearZeroStrip.tsx",
     ],
   },
   scenarios: {
     ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
     witness: "live: P2[scenarios] asserts NO affordance on a LACKS_SILENT surface",
     files: [
-      "frontend/components/scenarios/ScenarioComparison.tsx",
-      "frontend/components/scenarios/AdjustmentEditor.tsx",
-      "frontend/components/scenarios/CovenantPanel.tsx",
-      "frontend/pages/cfo/Scenarios.tsx",
-      // plan/2 B13 (minimal cut): the page's figures now render here, every
+      // forecast-scenarios-live: the client cascade's renderers
+      // (ScenarioComparison, AdjustmentEditor, CovenantPanel) are DELETED with
+      // the cascade; the page's figures render only in ScenarioOutcome, every
       // one a served projection through <ProjectedAmount>; the floor stays 0.
+      "frontend/pages/cfo/Scenarios.tsx",
       "frontend/components/scenarios/ScenarioOutcome.tsx",
     ],
   },

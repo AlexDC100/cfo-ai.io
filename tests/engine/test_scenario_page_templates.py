@@ -165,6 +165,17 @@ def test_the_pack_declares_the_named_templates():
     WORK["units"] += 1
 
 
+def test_the_committed_catalogue_is_what_the_engine_serves():
+    """RED ON: tests/engine/fixtures/forecast/scenario_catalogue.json (what the
+    frontend gates read) drifting from GET /api/forecast/templates/scenarios's
+    own builder. Regenerate with scripts/gen_fp1_2_fixtures.py."""
+    from engine.forecast.scenario_templates import catalogue
+    on_disk = json.loads((REPO / "tests" / "engine" / "fixtures" / "forecast"
+                          / "scenario_catalogue.json").read_text(encoding="utf-8"))
+    assert on_disk == catalogue(), "scenario_catalogue.json is stale"
+    WORK["units"] += 1
+
+
 def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE scenario-page-templates (packs/scenarios/templates.yaml, "

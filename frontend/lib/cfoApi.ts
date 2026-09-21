@@ -363,6 +363,28 @@ export const cfoApi = {
       body: JSON.stringify(body),
       signal,
     }),
+  /** POST /api/forecast/{id}/scenario (R6): a template the ENGINE compiles
+   *  over this book (packs/scenarios/templates.yaml) plus the reader's lever
+   *  overrides, projected through the same `project_levers` the forecast GET
+   *  runs — `template: "base"` IS the forecast. Body: {template, horizon,
+   *  overrides, want}; the page sends no shock and no number of its own.
+   *  Returns the raw fp1.2 payload with its `scenario` block; read it through
+   *  `readProjection()` only. */
+  forecastScenario: (
+    periodId: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) =>
+    call<unknown>(`/api/forecast/${encodeURIComponent(periodId)}/scenario`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+    }),
+  /** GET /api/forecast/templates/scenarios: the templates this engine serves,
+   *  each with its declared shocks and the display value to print (pack
+   *  data; no figure of any book). */
+  forecastScenarioTemplates: () =>
+    call<unknown>("/api/forecast/templates/scenarios"),
   today: (req: TodayRequest) =>
     call<TodayResponse>("/api/cfo/today", { method: "POST", body: JSON.stringify(req) }),
   cash: (req: TodayRequest) =>

@@ -53,8 +53,7 @@ frontend/lib/financialValuation.ts
 frontend/lib/learning/buildReportingMetrics.ts
 frontend/lib/periodFacts.ts
 frontend/lib/resolveFormulaInput.ts
-frontend/lib/scenarios/baseline.ts
-frontend/lib/scenarios/dashboardCanon.ts
+frontend/lib/comparison/dashboardCanon.ts
 frontend/pages/cfo/FinancialStatements.tsx
 
 # ── BURN-DOWN: carved out of financialReport.ts on 2026-09-08 ─────────────────

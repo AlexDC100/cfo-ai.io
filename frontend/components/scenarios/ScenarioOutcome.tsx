@@ -72,12 +72,17 @@ const ROWS: ReadonlyArray<{ id: string; line: string; strong?: boolean; cash?: b
  *  MAJOR units — `projectedDisplay` has already divided once. */
 function useBookFormatter(currency: string, locale: string) {
   return useMemo(() => {
+    // Whole units, except a figure under one unit keeps its cents: a served
+    // 0.01 is never painted "RON 0" (gate F5; the Forecast page's formatter
+    // holds the same rule).
     const fmt = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency || "RON",
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
     });
-    return (value: number) => fmt.format(value);
+    return (value: number) =>
+      fmt.format(Math.abs(value) >= 1 ? Math.sign(value) * Math.round(Math.abs(value)) : value);
   }, [currency, locale]);
 }
 
@@ -453,7 +458,12 @@ export function ScenarioOutcome({
                       projectedLabel={projectedLabel}
                     />
                   ) : (
-                    <span className="text-ink-mute">—</span>
+                    // Gate F5: never a bare dash where the reader expects a
+                    // figure — the engine did not serve one, and says why in
+                    // the partial-refusal notice above.
+                    <span className="text-ink-mute" data-state="not-served">
+                      {t("scenarios.summary.notServed", "not served for this plan")}
+                    </span>
                   )
                 }
               />
@@ -479,10 +489,13 @@ export function ScenarioOutcome({
                       ) : null}
                     </>
                   ) : (
-                    // The engine served no shortfall period. The runway row
-                    // below carries its own sentence for why; a "none" typed
-                    // here would be the page answering for the engine.
-                    <span className="text-ink-mute">—</span>
+                    // The engine served no shortfall period (summary.
+                    // first_shortfall_period null): the words say so, and the
+                    // runway row below carries the engine's own sentence. Gate
+                    // F5: no bare dash in a figure's place.
+                    <span className="text-ink-mute" data-state="none">
+                      {t("scenarios.summary.noShortfall", "none within the plan")}
+                    </span>
                   )
                 }
               />

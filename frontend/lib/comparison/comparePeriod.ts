@@ -10,7 +10,7 @@
 import type { Statements, PriorPeriod } from "@/lib/financialReport";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
-import { buildDashboardCanonical } from "@/lib/scenarios/dashboardCanon";
+import { buildDashboardCanonical } from "@/lib/comparison/dashboardCanon";
 import { buildActualLines } from "./buildVariance";
 import { convertFromTo } from "@/lib/money";
 import type { Currency, Rates } from "@/lib/rates";

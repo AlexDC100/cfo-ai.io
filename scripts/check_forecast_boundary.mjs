@@ -502,17 +502,22 @@ if (tsChecked + pyChecked === 0) {
 //
 // RED ON (TC-11): the page, or anything it imports, importing a module under
 // frontend/lib/scenarios/ (cascade, baseline, covenants, levers, templates,
-// types, dashboardCanon) or the old input store frontend/stores/scenario.tsx;
-// the closure not reaching frontend/lib/forecastFacts.ts (the one reader of
-// a served projection); the page no longer POSTing the engine
-// (`forecastRecompute`); the page file missing (a closure over nothing).
+// types) or the old input store frontend/stores/scenario.tsx; ANY file
+// existing under frontend/lib/scenarios/, or frontend/stores/scenario.tsx
+// existing at all (forecast-scenarios-live DELETED the client scenario math
+// with its tests; a calculator on disk is one import away from the page); the
+// closure not reaching frontend/lib/forecastFacts.ts (the one reader of a
+// served projection); the page no longer POSTing the engine's scenario route
+// (`forecastScenario`, POST /api/forecast/{id}/scenario, R6); the page file
+// missing (a closure over nothing).
 //
 // CANNOT SEE: a dynamic import built from a string; a surface that copies the
 // fp1 JSON into its own local interface (the header above says the same).
 //
-// The old cascade renderers under frontend/components/scenarios/ stay on disk
-// (a sign-flip canary still renders ScenarioComparison) and are printed below
-// as unreachable from the page, so their presence is never read as coverage.
+// The old cascade renderers under frontend/components/scenarios/ were deleted
+// with the cascade; anything under that folder the page does not reach is
+// still printed below as unreachable, so its presence is never read as
+// coverage.
 
 const SCENARIOS_PAGE = "frontend/pages/cfo/Scenarios.tsx";
 const SCENARIOS_CLIENT_MATH = [
@@ -595,17 +600,29 @@ if (!PROBE_VACUITY) {
       .filter((line) => !/^\s*\/\//.test(line))
       .join("\n")
       .replace(/\/\*[\s\S]*?\*\//g, "");
-    if (!/\bforecastRecompute\s*\(/.test(pageCode)) {
+    if (!/\bforecastScenario\s*\(/.test(pageCode)) {
       fail(
-        `${SCENARIOS_PAGE} no longer POSTs /api/forecast/{id}/recompute ` +
-          `(cfoApi.forecastRecompute). Its templates are lever sets the ENGINE ` +
-          `runs; a page that stops asking the engine is computing its own.`,
+        `${SCENARIOS_PAGE} no longer POSTs /api/forecast/{id}/scenario ` +
+          `(cfoApi.forecastScenario). Its templates are pack data the ENGINE ` +
+          `compiles and runs; a page that stops asking the engine is computing ` +
+          `its own.`,
+      );
+    }
+  }
+  // forecast-scenarios-live: the client scenario math is DELETED, not merely
+  // unreachable. A calculator left on disk is one import away from the page.
+  for (const p of files.map(rel)) {
+    if (SCENARIOS_CLIENT_MATH.some((rx) => rx.test(p))) {
+      fail(
+        `${p} exists. The client scenario math was deleted with the cascade ` +
+          `(forecast-scenarios-live); every Scenarios figure is served by ` +
+          `POST /api/forecast/{id}/scenario.`,
       );
     }
   }
 }
 const scenariosSurface = scenariosClosure.filter((p) =>
-  /^frontend\/(pages\/cfo\/Scenarios\.tsx|components\/scenarios\/|lib\/scenarioTemplates)/.test(p),
+  /^frontend\/(pages\/cfo\/Scenarios\.tsx|components\/scenarios\/|lib\/(scenarioCatalogue|savedScenarios)\.ts$)/.test(p),
 );
 
 // ── plan/2 B13 repair (2026-09-21): THE PAGE-OWNED FILES READ NO VALUE ──
@@ -626,7 +643,8 @@ const scenariosSurface = scenariosClosure.filter((p) =>
 // painted by <ProjectedAmount>, which is not a page-owned file.
 //
 // RED ON (TC-11), in the page-owned files of the closure (pages/cfo/Scenarios.tsx,
-// components/scenarios/*, lib/scenarioTemplates.ts), comments aside:
+// components/scenarios/*, lib/scenarioCatalogue.ts, lib/savedScenarios.ts),
+// comments aside:
 //   · `unwrapProjected` or `projectedDisplay`, called or merely named (an alias
 //     is the same door) — projectedDisplay belongs to <ProjectedAmount> only;
 //   · `amountMinor` / `amount_minor` in any spelling or access form — a
