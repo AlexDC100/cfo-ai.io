@@ -7,15 +7,15 @@ not read fell through to the Claude extractor. With the Anthropic account
 out of credit that meant every such upload failed; and even with credit the
 Claude path captures no account-121 anchor. Measured on a real book (a
 Bucharest real-estate SRL, Dec 2025): `pdf_ingester` found no account rows,
-because its word grouping splits space-thousands numbers ("45 200.00") into
+because its word grouping splits space-thousands numbers ("12 345.00") into
 separate tokens.
 
 This reader works on the PDF's TEXT LINES instead. One account per line:
 
     <cont> <name ...> <si_d> <si_c> <rl_d> <rl_c> <st_d> <st_c> <sf_d> <sf_c>
 
-numbers in the "1 523 085.88" (space thousands, dot decimals) or
-"1.523.085,88" (dot thousands, comma decimals) shape, continuation lines
+numbers in the "1 234 567.89" (space thousands, dot decimals) or
+"1.234.567,89" (dot thousands, comma decimals) shape, continuation lines
 extending the name, and "Total sume clasa N" lines carrying the document's
 own per-class totals.
 
@@ -105,8 +105,8 @@ logger = logging.getLogger(__name__)
 MIN_ACCOUNTS = 20
 
 # One number shape per locale; a document must use exactly one.
-_NUM_SPACE = r"-?\d{1,3}(?: \d{3})*\.\d{2}"      # 1 523 085.88
-_NUM_EURO = r"-?\d{1,3}(?:\.\d{3})*,\d{2}"        # 1.523.085,88
+_NUM_SPACE = r"-?\d{1,3}(?: \d{3})*\.\d{2}"      # 1 234 567.89
+_NUM_EURO = r"-?\d{1,3}(?:\.\d{3})*,\d{2}"        # 1.234.567,89
 
 _HEADER_TOKENS = ("balanta de verificare", "solduri", "rulaj", "sume totale", "finale")
 _SKIP_PREFIXES = (
@@ -263,7 +263,7 @@ def _parse_eight_figure(lines: List[str]) -> Optional[Dict[str, Any]]:
     for euro, num in ((False, _NUM_SPACE), (True, _NUM_EURO)):
         row_re = re.compile(r"^(\d{3,9})\s+(.*?)((?:\s+" + num + r"){8})\s*$")
         # The class digit is consumed by the prefix, so it can never be read
-        # as the leading group of the first figure ("clasa 1 269 375.40").
+        # as the leading group of the first figure ("clasa 1 234 567.89").
         tot_re = re.compile(r"^total\s+sume\s+clasa\s+(\d)\s+((?:" + num + r"\s+){7}" + num + r")\s*$", re.I)
         rows: List[Dict[str, Any]] = []
         class_totals: Dict[str, List[Decimal]] = {}

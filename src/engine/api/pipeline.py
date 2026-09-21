@@ -1166,7 +1166,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
         # ── Text-line balanta reader (2026-09-21) ───────────────────
         # The position-based ingester below finds no rows on balante that
-        # print space-thousands figures ("45 200.00"), so those went to
+        # print space-thousands figures ("12 345.00"), so those went to
         # Claude — which fails outright without Anthropic credit and never
         # captures the account-121 anchor. `pdf_balanta_text` reads the
         # PDF's text lines — two layouts, chosen by header tokens: the
