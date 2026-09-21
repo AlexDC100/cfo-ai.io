@@ -1088,7 +1088,12 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"GATE-WORK forecast-boundary-scenarios units=(\d+)", floor=40,
              units="modules in the Scenarios page's import closure",
              canaries=("in the Scenarios closure: frontend/pages/cfo/Scenarios.tsx",
-                       "in the Scenarios closure: frontend/components/scenarios/ScenarioOutcome.tsx")),
+                       "in the Scenarios closure: frontend/components/scenarios/ScenarioOutcome.tsx",
+                       # B13 repair (2026-09-21): the page-owned files are also
+                       # read for value reads and type escapes (plants A/B/C in
+                       # gates.md); a rule that stops running is loud here.
+                       "page-owned, checked for value reads and type escapes: frontend/pages/cfo/Scenarios.tsx",
+                       "page-owned, checked for value reads and type escapes: frontend/components/scenarios/ScenarioOutcome.tsx")),
         # ── end plan/2 B13 ───────────────────────────────────────────────
         Gate("narrative-units", ["node", "scripts/check_narrative_units.mjs"],
              work_rx=r"(\d+) narrative producer\(s\) scanned", floor=7,

@@ -8209,3 +8209,109 @@ file declares that the suite does not pin; a 409/422 painting anything but the e
 sentence, or painting the previous template's figures while a new one loads; an industry
 word in the rendered page (en, ro); a served negative cash painted as cash or drawn on the
 chart.
+
+<!-- ═══ plan/2 B13 repair (2026-09-21): arithmetic planted in the page stayed green ═══
+An adversarial review of feat/scenarios-engine @ adc994a planted arithmetic in the page's
+own files. Every plant passed forecast-boundary, scenarios-closure and the vitest canary.
+Two repairs, one per half: the static gate reads the page-owned files for value reads, and
+the canary asserts that every digit on the rendered page is served. -->
+
+## scenarios-closure — the page-owned files read no value (B13 repair)
+
+`scripts/check_forecast_boundary.mjs`, the same gate as `scenarios-closure` above. Two
+changes:
+
+1. **The `<ProjectedAmount>` presence test reads code, not prose.** The rule "a `.tsx`
+   that reaches a projected value must use `<ProjectedAmount>`" tested the RAW source.
+   Scenarios.tsx's header comment names the primitive (`and <ProjectedAmount>. No delta
+   column…`), so the comment alone satisfied the rule and it never fired on the page.
+   The reviewer's own evidence: the same plant with that comment reworded went red. The
+   presence test now runs on `presenceCode(src)` (`stripProse`, then trailing `//`
+   comments). That errs toward stripping more, because for a presence test a false red
+   is loud and a false green is silent.
+2. **A new rule for the page-owned files in the closure** (`pages/cfo/Scenarios.tsx`,
+   `components/scenarios/*`, `lib/scenarioTemplates.ts`), with comments stripped by
+   `absenceCode`. That stripper errs toward stripping less: whole `//` lines go first,
+   then only block comments that start a line or a JSX expression. It reds on:
+   `unwrapProjected` or `projectedDisplay`, named at all; `amountMinor` / `amount_minor`
+   in any spelling, including bracket access; `as any`, `as unknown`, `<any>`, or a
+   ts-ignore / ts-expect-error / ts-nocheck directive; a namespace or dynamic import of
+   lib/forecastFacts; fewer than three page-owned code files found, or the page or
+   ScenarioOutcome missing from them.
+   Scope printed on every run as `page-owned, checked for value reads and type escapes:
+   <path>` (4 files). Two of those lines are battery canaries.
+
+**PLANT A** (the rendered form is A2): in Scenarios.tsx, `unwrapProjected(baseView.figure("pl.revenue",
+"FY2026"), …) - 1`, painted through `Intl.NumberFormat` as `<p data-testid="plant-delta">`.
+The header comment was left intact.
+**PLANT B** — in Scenarios.tsx, `Number((baseView.figure(…) as any)["amountMinor"]) / 100 * 1.1`
+painted as `<p data-testid="plant-scaled">`.
+**PLANT C** — in ScenarioOutcome.tsx, a delta row: `unwrapProjected(template revenue)/100 -
+unwrapProjected(base revenue)/100`, painted with the table's `format()`.
+**PLANT D** — in ScenarioOutcome.tsx, `const plantD = (f) => unwrapProjected(f, "", (m) => m * 2)`
+placed between `// the old cascade lived under lib/scenarios/*` and `/* end of the plant */`.
+Block-first stripping would open a "block" at the `/*` in the `//` line and swallow the
+plant.
+
+```
+GREEN (plants A, B, C against the gate as it stood at adc994a)
+exit 0 — PASS — 14 forecast-namespace consumer(s); no laundering cast, no raw-wire read, ...
+
+RED (plant A, repaired gate) exit 1
+  · frontend/pages/cfo/Scenarios.tsx reaches a projected VALUE but does not use <ProjectedAmount>. ...
+  · frontend/pages/cfo/Scenarios.tsx:50 names unwrapProjected — the door that hands over a projected number ("unwrapProjected"). ...
+RED (plant B) exit 1
+  · frontend/pages/cfo/Scenarios.tsx:318 reads amountMinor / amount_minor — the projected amount itself ("amountMinor"). ...
+  · frontend/pages/cfo/Scenarios.tsx:318 casts to any — a way around the opaque ProjectedMinor type ("as any"). ...
+RED (plant C) exit 1
+  · frontend/components/scenarios/ScenarioOutcome.tsx:26 names unwrapProjected — the door that hands over a projected number ("unwrapProjected"). ...
+RED (plant D) exit 1
+  · frontend/components/scenarios/ScenarioOutcome.tsx:245 names unwrapProjected — ...
+```
+
+**REVERT** — both files restored byte-exact (Scenarios.tsx sha `7daf1346`,
+ScenarioOutcome.tsx sha `fc26bfdf`); `PASS`, `--probe-vacuity` `PROBE OK`.
+
+**After the repair it reds on:** everything listed for scenarios-closure above. It also
+reds on a page-owned Scenarios file that names unwrapProjected or projectedDisplay, reads
+amountMinor in any form, or carries a type escape or a namespace/dynamic import of
+lib/forecastFacts, and on a forecast-namespace `.tsx` whose only mention of
+`<ProjectedAmount>` is a comment.
+**CANNOT SEE:** a value reached through a key built at runtime from a plain import
+(`Object.values(fig)`, `fig[k]`); a shared, non-page-owned module that computes and hands
+the page a string. The DOM half below catches both.
+
+## vitest — Scenarios engine canary: every digit is served (B13 repair)
+
+`frontend/pages/cfo/__tests__/scenariosEngine.test.tsx`, section 8, and
+`expectEveryDigitServed` called from sections 3, 5, 6, 7. Every text node on the rendered
+page that carries a digit must be one of four things:
+
+- inside `[data-projected="true"]` (a `<ProjectedAmount>`);
+- a served sentence, verbatim (runway, funding-rate basis, a refusal);
+- the served runway month count, in the runway row;
+- made of digits that all belong to served period labels.
+
+Two regions are out of scope, by name: the template picker (declared shock values) and
+the lever rail. The test counts what it checked, so it cannot pass vacuously: more than
+ten projected nodes, and more checked nodes than projected ones.
+
+```
+RED (plant A2)  × every digit ... > en: base plus every template   (and ro, and the digit checks in sections 3, 5, 6)
+     → a number is painted on the Scenarios page that is not a served figure, label or sentence:
+       expected [ '"<the planted delta>" (in plant-delta)' ] to deeply equal []      Tests 6 failed | 20 passed (26)
+RED (plant B)   the same six; offender '"<the planted figure>" (in plant-scaled)'   Tests 6 failed | 20 passed (26)
+RED (plant C)   × every digit ... > en / ro; offender '"RON 0" (in plant-delta-row)' Tests 2 failed | 24 passed (26)
+```
+
+(Plant C paints "RON 0" because the mock serves the same payload to both columns. That is
+still a number the page computed, and it reds.)
+
+**REVERT** — `Tests 26 passed (26)`.
+
+**After the repair it reds on:** a number painted anywhere on the page, outside the
+picker and the lever rail, that is not a served figure inside `<ProjectedAmount>`, a
+served sentence, the served runway count or a served period label.
+**CANNOT SEE:** a computed number painted INSIDE the template picker or the lever rail.
+The static rule above covers the picker's file. Also out of reach: pixels, and a number
+drawn as SVG geometry rather than text.

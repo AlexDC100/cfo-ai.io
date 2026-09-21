@@ -27,7 +27,11 @@
  *     queryClient.clear()) painting ANYTHING of the previous one while the new
  *     one loads or after it refuses: a figure, the template column, the
  *     period label, the lever rail — or a refusal of the new period failing
- *     to reach the page-level refusal with the engine's sentence.
+ *     to reach the page-level refusal with the engine's sentence;
+ *   · a digit painted anywhere on the page (outside the template picker's
+ *     declared values and the lever rail) that is not inside a
+ *     <ProjectedAmount>, a served sentence, the served runway count or a
+ *     served period label — a number the page computed (section 8).
  *
  * WHAT IT CANNOT SEE
  *   · whether the engine's projection is right — the engine's own gates own
@@ -318,6 +322,7 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
     expect(detail.textContent).toBe(sentence);
     expect(document.querySelector('[data-projected="true"]')).toBeNull();
     expect(screen.queryByTestId("scenarios-outcome-table")).toBeNull();
+    expectEveryDigitServed([], { sentences: [sentence] });
     // The rest of the page still stands: templates are chrome, not figures.
     expect(screen.getByTestId("scenarios-templates")).toBeTruthy();
   });
@@ -357,6 +362,7 @@ describe("a refusal is the engine's sentence, never a blank page or a number", (
     expect(templateCell.querySelector('[data-state="refused"]')).not.toBeNull();
     const baseCell = screen.getByTestId(`scenarios-cell-base-revenue-${fy}`);
     expect(baseCell.querySelector('[data-projected="true"]')).not.toBeNull();
+    expectEveryDigitServed([SERVED], { sentences: [sentence] });
   });
 
   it("switching template never paints the previous template's figures", async () => {
@@ -499,6 +505,7 @@ describe("a served negative cash is never the page's cash", () => {
     expect(figures[0].querySelector("[data-projected-value]")?.textContent).toBe(revolver);
     expect(screen.queryByTestId("scenarios-cash-chart")).toBeNull();
     expect(screen.getByTestId("scenarios-cash-chart-withheld")).toBeTruthy();
+    expectEveryDigitServed([withNegativeCash()]);
   });
 });
 
@@ -574,9 +581,10 @@ describe("the funding-line row is the balance at year end", () => {
       // The peak and the interest are the engine's, not a sum of the months.
       const peak = screen.getByTestId("scenarios-summary-peak-funding-base");
       expect(peak.textContent).toContain(PEAK_MONTH);
-      expect(peak.querySelector("[data-projected-value]")?.textContent).toMatch(/765[.,\s  ]?432/);
+      expect(peak.querySelector("[data-projected-value]")?.textContent).toMatch(/765[.,\s\u00a0\u202f]?432/);
       const interest = screen.getByTestId(`scenarios-cell-base-funding_interest-${fy}`);
-      expect(interest.querySelector("[data-projected-value]")?.textContent).toMatch(/12[.,\s  ]?345/);
+      expect(interest.querySelector("[data-projected-value]")?.textContent).toMatch(/12[.,\s\u00a0\u202f]?345/);
+      expectEveryDigitServed([drawnAndRepaidInYearOne()]);
     });
   }
 });
@@ -650,6 +658,7 @@ describe("switching period or workspace never paints the previous request", () =
     expectNothingOfP1();
     expect(screen.getByTestId("scenarios-loading")).toBeTruthy();
     expect(document.body.textContent).toContain(P2.label);
+    expectEveryDigitServed([], { labels: [P2.label] });
   });
 
   it("(a') with a template selected: p-1's template column is not painted under p-2", async () => {
@@ -670,6 +679,7 @@ describe("switching period or workspace never paints the previous request", () =
     expect(detail.textContent).toBe(P2_SENTENCE);
     expectNothingOfP1();
     expect(screen.queryByTestId("scenarios-outcome-table")).toBeNull();
+    expectEveryDigitServed([], { labels: [P2.label], sentences: [P2_SENTENCE] });
   });
 
   it("(c) workspace switch — cache cleared, then a refused period of the new company", async () => {
@@ -684,4 +694,117 @@ describe("switching period or workspace never paints the previous request", () =
     expect(detail.textContent).toBe(P2_SENTENCE);
     expectNothingOfP1();
   });
+});
+
+// ── 8. every digit on the page is served ───────────────────────────────
+//
+// THE DOM HALF OF "the page computes nothing". The static rule
+// (check_forecast_boundary.mjs, page-owned files) catches the doors it can
+// name; this catches a painted number whatever route it took. Every text node
+// on the page that carries a digit must be one of:
+//   · inside a <ProjectedAmount> (`[data-projected="true"]`) — a served
+//     figure painted with its projected mark;
+//   · a served SENTENCE, verbatim (the runway sentence, the funding-rate
+//     basis, a refusal) — the engine's words, digits included;
+//   · the served runway month count, in the runway row;
+//   · digits that are all served period LABELS (horizon labels, the base
+//     period, the active period's label).
+// Two regions are chrome and out of scope, by name: the template picker (the
+// DECLARED shock values, "−20%", "+15 days") and the lever rail (the reader's
+// inputs and the served lever bases). Found by plant (2026-09-21): a delta
+// computed on the page and painted through Intl.NumberFormat — in the page
+// (A2), with `as any` (B), or as a row of ScenarioOutcome (C) — passed every
+// gate and the canary; each is a text node with a digit outside a
+// [data-projected="true"], and reds here.
+
+function stringsUnder(node: unknown, out: Set<string>) {
+  if (typeof node === "string") out.add(node.trim());
+  else if (Array.isArray(node)) node.forEach((n) => stringsUnder(n, out));
+  else if (node && typeof node === "object") Object.values(node).forEach((n) => stringsUnder(n, out));
+}
+
+function expectEveryDigitServed(
+  payloads: readonly Json[],
+  extra: { labels?: readonly string[]; sentences?: readonly string[] } = {},
+) {
+  const labels = new Set<string>([PERIOD.label, ...(extra.labels ?? [])]);
+  const sentences = new Set<string>(extra.sentences ?? []);
+  const months = new Set<string>();
+  for (const p of payloads) {
+    for (const l of [
+      ...((p.horizon?.labels as string[]) ?? []),
+      ...((p.horizon?.labels_annual as string[]) ?? []),
+      p.horizon?.served_through,
+      p.base_period?.label,
+      p.base_period?.period_end,
+    ]) {
+      if (typeof l === "string" && l) labels.add(l);
+    }
+    for (const s of [
+      p.summary?.runway?.sentence?.text,
+      p.summary?.funding_rate_basis?.sentence?.text,
+    ]) {
+      if (typeof s === "string" && s) sentences.add(s.trim());
+    }
+    stringsUnder(p.refusal, sentences);
+    if (Number.isInteger(p.summary?.runway?.months)) months.add(String(p.summary.runway.months));
+  }
+  const byLength = [...labels].sort((a, b) => b.length - a.length);
+  const CHROME = ['[data-testid="scenarios-templates"]', '[data-testid="forecast-levers"]'];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const offenders: string[] = [];
+  let checked = 0;
+  let projected = 0;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent ?? "";
+    if (!/\d/.test(text)) continue;
+    const el = node.parentElement;
+    if (!el || CHROME.some((sel) => el.closest(sel))) continue;
+    checked += 1;
+    if (el.closest('[data-projected="true"]')) {
+      projected += 1;
+      continue;
+    }
+    if (sentences.has(text.trim())) continue;
+    let rest = text;
+    if (el.closest('[data-testid^="scenarios-summary-runway-"]')) {
+      for (const m of months) rest = rest.replace(new RegExp(`(^|\\D)${m}(?!\\d)`), "$1");
+    }
+    for (const l of byLength) rest = rest.split(l).join("");
+    if (/\d/.test(rest)) {
+      const where = el.closest("[data-testid]")?.getAttribute("data-testid") ?? el.tagName;
+      offenders.push(`${JSON.stringify(text)} (in ${where})`);
+    }
+  }
+  expect(
+    offenders,
+    "a number is painted on the Scenarios page that is not a served figure, label or sentence",
+  ).toEqual([]);
+  return { checked, projected };
+}
+
+describe("every digit on the page is a served figure, label or sentence", () => {
+  for (const lang of ["en", "ro"] as const) {
+    it(`${lang}: base plus every template`, async () => {
+      await i18n.changeLanguage(lang);
+      renderPage();
+      await screen.findByTestId("scenarios-outcome-table");
+      const base = expectEveryDigitServed([SERVED]);
+      // Not vacuous: the check read projected figures, and more than them.
+      expect(base.projected).toBeGreaterThan(10);
+      expect(base.checked).toBeGreaterThan(base.projected);
+      const fy = SERVED.horizon.labels_annual[0] as string;
+      for (const tpl of SCENARIO_TEMPLATES.filter((t) => t.id !== "base")) {
+        fireEvent.click(screen.getByTestId(`scenarios-template-${tpl.id}`));
+        await waitFor(() =>
+          expect(
+            screen
+              .getByTestId(`scenarios-cell-template-revenue-${fy}`)
+              .querySelector('[data-projected="true"]'),
+          ).not.toBeNull(),
+        );
+        expectEveryDigitServed([SERVED]);
+      }
+    });
+  }
 });
