@@ -20,7 +20,7 @@ import pytest
 
 from engine.workspaces import pgrest_io
 from engine.workspaces.migration_plan import cross_workspace_links, empty_live_periods, holding_org_id
-from engine.workspaces.rowstore import pk_for, row_key, rows_equal
+from engine.workspaces.rowstore import OpConflict, pk_for, row_key, rows_equal
 
 from ws_migration_fixture import OWNER, FakeSupabase, build_world
 
@@ -258,6 +258,50 @@ def test_a_resume_later_in_the_day_finishes_the_run(env, monkeypatch, keep_state
     if keep_state:
         assert any(l.startswith("RESUME: reusing the interrupted run's timestamp %s" % RUN) for l in env["lines"])
     assert env["fake"].deletes == []
+
+
+def test_a_copy_whose_source_vanished_after_planning_stops_before_any_row_moves(env, monkeypatch):
+    """PLANT (verifier probe_copy_miss.py): the facts pass reads
+    org-qa/uploads/q-carnex-src.xlsx; the copy step's download of the same
+    object returns None (a 400/404 at apply time). The 10fd52ab run logged
+    "row still moves", repointed the KEPT live source of per-carnex at a
+    path with no object and reported "production equals the plan". Now the
+    run stops at the copy, before any document row moves."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    real = pgrest_io.PgRest.download
+    seen = {"n": 0}
+
+    def vanishing(self, bucket, path, *, org_id):
+        if path == "org-qa/uploads/q-carnex-src.xlsx":
+            seen["n"] += 1
+            if seen["n"] > 1:          # the facts pass got it; the copy does not
+                return None
+        return real(self, bucket, path, org_id=org_id)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "download", vanishing)
+    with pytest.raises(OpConflict, match="q-carnex-src.xlsx: the object the plan read"):
+        _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap)
+    doc = next(d for d in env["fake"].tables["documents"] if d["id"] == "q-carnex-src")
+    assert doc["storage_path"] == "org-qa/uploads/q-carnex-src.xlsx" and doc["org_id"] == "org-qa"
+    assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
+
+
+def test_a_copy_with_the_wrong_bytes_fails_the_recount(env, monkeypatch):
+    """PLANT: the storage write lands different bytes (a truncated upload).
+    The recount compares every copied object with the sha256 the plan read."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    real = pgrest_io.PgRest.upload
+
+    def truncating(self, bucket, path, content, *, org_id, content_type):
+        if path.endswith("/uploads/q-carnex-src.xlsx"):
+            content = content[: len(content) // 2]
+        return real(self, bucket, path, content, org_id=org_id, content_type=content_type)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "upload", truncating)
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    assert any("MISMATCH: storage" in l and "q-carnex-src" in l and "the plan read" in l for l in env["lines"])
 
 
 # ── restore ────────────────────────────────────────────────────────────

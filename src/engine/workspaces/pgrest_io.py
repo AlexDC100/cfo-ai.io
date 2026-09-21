@@ -359,13 +359,24 @@ def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
         kind = op["op"]
         if kind == "copy_object":
             if db.object_exists(op["bucket"], op["to_path"], org_id=op["to_org"]):
-                done["copy_skipped"] += 1
+                done["copy_skipped"] += 1   # its bytes are checked by the recount
                 continue
             content = db.download(op["bucket"], op["from_path"], org_id=op["from_org"])
+            want = op.get("expect_sha256")
             if content is None:
+                if want:
+                    # The plan's facts pass read this object. Moving the row
+                    # now would point a live document at a path with no file.
+                    raise OpConflict("[%d] copy %s: the object the plan read (sha256 %s) is gone — "
+                                     "stopping before any document row moves" % (i, op["from_path"], want[:16]))
                 done["missing_objects"].append(op["from_path"])
-                log("  [%d] copy %s: source object missing — row still moves" % (i, op["from_path"]))
+                log("  [%d] copy %s: source object missing (it was not found when planning either) "
+                    "— row still moves" % (i, op["from_path"]))
                 continue
+            if want and hashlib.sha256(content).hexdigest() != want:
+                raise OpConflict("[%d] copy %s: the object changed since the plan read it (sha256 %s, "
+                                 "planned %s)" % (i, op["from_path"], hashlib.sha256(content).hexdigest()[:16],
+                                                  want[:16]))
             db.upload(op["bucket"], op["to_path"], content, org_id=op["to_org"],
                       content_type=op.get("content_type"))
             done["copied"] += 1

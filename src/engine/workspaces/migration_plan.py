@@ -873,9 +873,12 @@ class _Planner:
                     patch["storage_path"] = new_path
                     f = self.facts.get(did)
                     if not (f and f.object_exists is False):
+                        # expect_sha256: the facts pass READ this object; the
+                        # copy must find exactly these bytes (None: unknown).
                         ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
                                     "from_path": path, "from_org": cur, "to_path": new_path,
-                                    "to_org": final, "content_type": d.get("mime_type")})
+                                    "to_org": final, "content_type": d.get("mime_type"),
+                                    "expect_sha256": f.sha256 if f and f.object_exists and f.sha256 else None})
             if dd["action"] == "archive" and d.get("deleted_at") is None:
                 patch["deleted_at"] = NOW
                 patch["error"] = dd["reason"]

@@ -39,6 +39,7 @@ user_usage / billing_events / auth, a Stripe or Anthropic call.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timedelta
@@ -321,10 +322,23 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
 
         current = pgrest_io.read_tables(db, list(tables), pks)
         check = post_check(tables, current, plan.ops, pks)
+        # Every copy the plan made: the object is at its new path with the
+        # bytes the plan read. Skipped only for a source that was missing
+        # when planning AND when copying (no bytes were ever known).
         for op in plan.ops:
-            if op["op"] == "copy_object" and op["from_path"] not in done["missing_objects"]:
-                if not db.object_exists(op["bucket"], op["to_path"], org_id=op["to_org"]):
-                    check["problems"].append("storage %s: copy missing" % op["to_path"])
+            if op["op"] != "copy_object":
+                continue
+            want = op.get("expect_sha256")
+            if not want and op["from_path"] in done["missing_objects"]:
+                continue
+            got = db.download(op["bucket"], op["to_path"], org_id=op["to_org"])
+            if got is None:
+                check["problems"].append("storage %s: copy missing (document %s)"
+                                         % (op["to_path"], op.get("document_id")))
+            elif want and hashlib.sha256(got).hexdigest() != want:
+                check["problems"].append("storage %s: copy holds sha256 %s, the plan read %s (document %s)"
+                                         % (op["to_path"], hashlib.sha256(got).hexdigest()[:16], want[:16],
+                                            op.get("document_id")))
         g4 = empty_live_periods(current)
         links = cross_workspace_links(current)
         # A period whose source is trashed / in another workspace is one

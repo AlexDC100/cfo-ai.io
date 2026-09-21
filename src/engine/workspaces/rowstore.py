@@ -23,9 +23,11 @@ OPERATIONS
 ``{"op": "upsert", "table": T, "row": {...}}``
     put the whole row back (restore only).
 ``{"op": "copy_object", "bucket": B, "from_path", "from_org", "to_path",
-  "to_org", "document_id", "content_type"}``
+  "to_org", "document_id", "content_type", "expect_sha256"}``
     copy a storage object to another org's prefix. No row effect; the old
-    object is never deleted.
+    object is never deleted. ``expect_sha256`` (when the plan's facts pass
+    read the object) is what the copy must find and write: a source that is
+    gone or different by then stops the run before any row moves.
 
 The value ``"$now"`` in an operation is replaced by the run's timestamp,
 so a plan is free of clocks and two plans of the same state compare equal.
