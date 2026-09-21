@@ -8618,6 +8618,19 @@ E   AssertionError: {"detail":{"code":"AssumptionError","text":"assumption 'reve
 
 **REVERT** — both files restored byte-exact; `7 passed`.
 
+**PLANT sector-offer-says-no-history** (added with the offer sentence, found
+on the Scenarios screenshots: the lever rail printed "Use the sector figure —
+no comparable book history is loaded" on Scandia, whose workspace holds FY2024
+beside FY2025) — `levers.py`: alternatives.sector served with the rung's own
+sentence instead of `reading.offer_sentence`.
+
+```
+RED (plant sector-offer-says-no-history)
+E   AssertionError: no comparable book history is loaded, so revenue grows at the median net turnover growth of this company's sector: CAEN 1011 Prelucrarea si conservarea carnii (class), size band 50m_250m, 5.4094% over 35 filers, 2023 to 2024 (...)
+```
+
+**REVERT** — restored; `7 passed`, `GATE-WORK forecast-sector-rung units=37`.
+
 **After the repair it reds on:** a one-year book with a sector the dataset
 carries not standing on tier `sector`; its value not the dataset's own median
 for the company's class and size band (agras: CAEN 1011, 50m_250m, 5.4094%,
@@ -8625,7 +8638,8 @@ n=35); a contract 3.3 sector field missing, n below
 levers.yaml#sector.min_n, or pins.sector_snapshot_id not the dataset digest; no
 CAEN or an unknown CAEN not falling to macro with the rung's reason; a median
 below the floor being used; a comparable prior leaving the book rung or not
-offering alternatives.sector. **It cannot see** sectors outside the dataset
+offering alternatives.sector; the offered sector figure saying the book history is
+missing. **It cannot see** sectors outside the dataset
 (CAEN 10, 1011, 1013 today) or whether a sector median is a good forecast.
 
 ## scenarios-preview

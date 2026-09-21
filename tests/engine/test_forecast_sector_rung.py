@@ -155,7 +155,14 @@ def test_a_comparable_prior_keeps_the_book_rung_and_offers_the_sector():
     assert offer is not None, "the sector median is not offered beside the book rung"
     assert offer["basis"]["tier"] == "sector" and offer["basis"]["sector"]["n"] >= 5
     assert body["pins"]["sector_snapshot_id"], body["pins"]
-    WORK["units"] += 3
+    # The OFFER is not the rung: beside a book that carries its own history
+    # it may not say the history is missing (the Scenarios lever rail printed
+    # "Use the sector figure — no comparable book history is loaded" on a
+    # workspace holding FY2024 beside FY2025).
+    offered = offer["basis"]["sentence"]["text"]
+    assert "no comparable book history" not in offered, offered
+    assert "offered beside this book's own history" in offered, offered
+    WORK["units"] += 5
 
 
 def test_a_sector_pedigree_serves_its_own_evidence_median():

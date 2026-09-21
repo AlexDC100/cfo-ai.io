@@ -43,17 +43,22 @@ class SectorReading(object):
     the evidence contract 3.3 requires, or ``value None`` with the reason."""
 
     __slots__ = ("value", "evidence", "reason_code", "reason", "snapshot_id",
-                 "sentence")
+                 "sentence", "offer_sentence")
 
     def __init__(self, value: Optional[int], evidence: Optional[Dict[str, Any]],
                  reason_code: Optional[str], reason: Optional[str],
-                 snapshot_id: Optional[str], sentence: Optional[str]) -> None:
+                 snapshot_id: Optional[str], sentence: Optional[str],
+                 offer_sentence: Optional[str] = None) -> None:
         self.value = value
         self.evidence = evidence
         self.reason_code = reason_code
         self.reason = reason
         self.snapshot_id = snapshot_id
+        #: the basis when the growth STANDS on the sector rung
         self.sentence = sentence
+        #: the basis when the same figure is only OFFERED beside the book
+        #: rung (alternatives.sector) — it never says the history is missing
+        self.offer_sentence = offer_sentence
 
     @property
     def present(self) -> bool:
@@ -168,10 +173,12 @@ def sector_growth(caen: Optional[str], revenue_cents: Optional[int]) -> SectorRe
         "fallback_from": row.get("fallback_from"),
         "rule_id": pack.rule_id,
     }
-    sentence = pack.sentence.format(
+    fields = dict(
         sector="CAEN %s %s" % (sector_caen, label or ""),
         level=("class" if level == "caen4" else "division"),
         band=band.get("key"), growth=_pct(p50), n=n,
         prior_year=prior_year, year=year, source=row.get("source"))
+    sentence = pack.sentence.format(**fields)
+    offer = pack.offer_sentence.format(**fields)
     return SectorReading(p50, evidence, None, None, dataset_snapshot_id(),
-                         " ".join(sentence.split()))
+                         " ".join(sentence.split()), " ".join(offer.split()))

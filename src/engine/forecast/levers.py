@@ -1020,7 +1020,7 @@ def serving_inputs(plan: Plan) -> Dict[str, Any]:
         sector_snapshot = reading.snapshot_id
         pedigree["revenue_growth"]["sector_alternative"] = {
             "exact": reading.value, "tier": "sector",
-            "rule_id": reading.evidence.get("rule_id"), "basis": reading.sentence,
+            "rule_id": reading.evidence.get("rule_id"), "basis": reading.offer_sentence,
             "evidence": dict(reading.evidence), "fallback_steps": []}
 
     inert = inert_drivers(plan)

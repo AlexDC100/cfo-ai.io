@@ -871,6 +871,13 @@ sector:
     no comparable book history is loaded, so revenue grows at the median
     net turnover growth of this company's sector: {sector} ({level}), size
     band {band}, {growth} over {n} filers, {prior_year} to {year} ({source})
+  # The same figure OFFERED beside a higher rung (alternatives.sector, when
+  # the book's own history won): it names the sector median and never claims
+  # the book history is missing.
+  offer_sentence: >-
+    the median net turnover growth of this company's sector, offered beside
+    this book's own history: {sector} ({level}), size band {band}, {growth}
+    over {n} filers, {prior_year} to {year} ({source})
   absent:
     caen_absent: >-
       this workspace carries no CAEN code, so no sector can be looked up

@@ -601,11 +601,13 @@ def serving_pack(path=None):
 class SectorPack(object):
     """The sector rung of revenue_growth: its floor on n, the ratio and
     statistic it reads, the method sentence, the served sentence (rendered
-    from the evidence, never a numeral of its own) and one absent sentence
-    per refusal code of ``engine.benchmarks_ro.dataset.lookup``."""
+    from the evidence, never a numeral of its own), the sentence the same
+    figure carries when it is only OFFERED beside the book's own history,
+    and one absent sentence per refusal code of
+    ``engine.benchmarks_ro.dataset.lookup``."""
 
-    __slots__ = ("min_n", "ratio", "statistic", "method", "sentence", "absent",
-                 "rule_id")
+    __slots__ = ("min_n", "ratio", "statistic", "method", "sentence",
+                 "offer_sentence", "absent", "rule_id")
 
     ABSENT_CODES = ("caen_absent", "turnover_absent", "sector_not_in_dataset",
                     "insufficient_peers", "below_min_n", "ratio_not_in_dataset")
@@ -621,8 +623,10 @@ class SectorPack(object):
         self.statistic = _text(body, "statistic", where)
         self.method = _text(body, "method", where)
         self.sentence = _text(body, "sentence", where)
-        if any(ch.isdigit() for ch in self.sentence):
-            raise PackError("%s.sentence: the sentence carries a numeral" % (where,))
+        self.offer_sentence = _text(body, "offer_sentence", where)
+        for name in ("sentence", "offer_sentence"):
+            if any(ch.isdigit() for ch in getattr(self, name)):
+                raise PackError("%s.%s: the sentence carries a numeral" % (where, name))
         absent = _mapping(body.get("absent"), where + ".absent")
         missing = [c for c in self.ABSENT_CODES if c not in absent]
         if missing:
