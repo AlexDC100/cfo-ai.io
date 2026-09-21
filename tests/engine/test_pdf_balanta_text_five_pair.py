@@ -727,6 +727,80 @@ def test_an_all_zero_dotted_row_beside_its_extensions_is_read():
     assert got is not None and by_cont(got, "401.3")["figures"] == [Z] * 10
 
 
+# ── a subtotal beside the rows it sums, however it is coded ─────────────
+#
+# Before the repair the parent rule knew only parents whose code is a string
+# prefix of their children's. A subtotal coded with a zero suffix ("401.000"
+# beside "401.04", "401.02"), after its children ("401.99"), or as an
+# undotted sibling ("4010" beside "4011", "4012") was READ — the class and
+# grand totals counting both levels, every sum tied and debit == credit held,
+# and the served 401 balance was doubled.
+
+
+def _payables(*extra: Row, bank: str) -> List[str]:
+    return render(rows() + list(extra) + [_bank(bank)])
+
+
+def test_a_zero_suffix_subtotal_beside_the_accounts_it_sums_refuses(caplog):
+    k1, k2 = _credit("401.04", "Furnizor A", "300.00"), _credit("401.02", "Furnizor B", "200.00")
+    lines = _payables(_sum_of(Row("401.000", "Furnizori total"), k1, k2), k1, k2, bank="1000.00")
+    assert refused(caplog, lines, "account 401.000 is listed beside its children 401.04, 401.02")
+
+
+def test_a_zero_suffix_subtotal_of_a_single_account_refuses(caplog):
+    k1 = _credit("401.04", "Furnizor A", "300.00")
+    lines = _payables(_sum_of(Row("401.000", "Furnizori total"), k1), k1, bank="600.00")
+    assert refused(caplog, lines, "account 401.000 is listed beside its children 401.04")
+
+
+def test_a_subtotal_coded_after_the_accounts_it_sums_refuses(caplog):
+    k1, k2 = _credit("401.04", "Furnizor A", "300.00"), _credit("401.02", "Furnizor B", "200.00")
+    lines = _payables(k1, k2, _sum_of(Row("401.99", "Total furnizori"), k1, k2), bank="1000.00")
+    assert refused(caplog, lines, "account 401.99 equals the sum of 401.04, 401.02")
+
+
+def test_an_undotted_subtotal_beside_its_undotted_siblings_refuses(caplog):
+    k1, k2 = _credit("4011", "Furnizor exemplu A", "300.00"), _credit("4012", "Furnizor exemplu B", "200.00")
+    lines = _payables(_sum_of(Row("4010", "Furnizori"), k1, k2), k1, k2, bank="1000.00")
+    assert refused(caplog, lines, "account 4010 equals the sum of 4011, 4012")
+
+
+def test_a_subtotal_is_refused_when_another_base_under_its_root_spoils_the_root_sum(caplog):
+    # "4011.5" sits under the same root 401, at the children's code length,
+    # and spoils every root-wide sum; the rows sharing 401.99's base still
+    # add up to it
+    k1, k2 = _credit("401.04", "Furnizor A", "300.00"), _credit("401.02", "Furnizor B", "200.00")
+    lines = _payables(k1, k2, _sum_of(Row("401.99", "Total furnizori"), k1, k2),
+                      _credit("4011.5", "Furnizor C", "70.00"), bank="1070.00")
+    assert refused(caplog, lines, "account 401.99 equals the sum of 401.04, 401.02")
+
+
+def test_a_subtotal_is_refused_when_a_longer_code_under_its_base_spoils_the_base_sum(caplog):
+    # "401.201" shares 401.99's base and spoils the base-wide sum; the rows
+    # at the children's code length still add up to it
+    k1, k2 = _credit("401.04", "Furnizor A", "300.00"), _credit("401.02", "Furnizor B", "200.00")
+    lines = _payables(k1, k2, _sum_of(Row("401.99", "Total furnizori"), k1, k2),
+                      _credit("401.201", "Furnizor D", "70.00"), bank="1070.00")
+    assert refused(caplog, lines, "account 401.99 equals the sum of 401.04, 401.02")
+
+
+def test_a_zero_suffix_account_that_is_not_a_subtotal_is_read():
+    # the control: "401.000" is an account of its own when its figures are not
+    # the others' sum
+    k1, k2 = _credit("401.04", "Furnizor A", "300.00"), _credit("401.02", "Furnizor B", "200.00")
+    got = P.parse_lines(_payables(_credit("401.000", "Furnizori diversi", "450.00"), k1, k2, bank="950.00"))
+    assert got is not None and by_cont(got, "401.000")["figures"][9] == Decimal("450.00")
+
+
+def test_two_sibling_accounts_with_identical_figures_are_read():
+    # the boundary: one identical sibling is not a sum — two accounts may
+    # carry the same figures (and neither code extends the other)
+    got = P.parse_lines(_payables(_credit("401.05", "Garantie A", "300.00"),
+                                  _credit("401.06", "Garantie B", "300.00"), bank="600.00"))
+    assert got is not None
+    assert by_cont(got, "401.05")["figures"] == by_cont(got, "401.06")["figures"]
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 

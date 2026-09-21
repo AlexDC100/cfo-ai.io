@@ -73,11 +73,15 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     accounts must be zero); a printed "Total general:", if any, equals the
     sum of every row on all ten columns;
   * total debit == total credit on each of the five pairs;
-  * no account code appears twice, and none is listed beside its parent
-    (an undotted code that prefixes another's base: "100" / "1000.01",
-    "121" / "121.07"; or a non-zero dotted code whose ten figures equal
-    the sum of the dotted codes that extend it — all of them, or all at
-    one suffix length: "401.1" beside "401.101" / "401.102"); at least
+  * no account code appears twice, none is listed beside its parent (an
+    undotted code that prefixes another's base: "100" / "1000.01", "121" /
+    "121.07"), and no subtotal is listed beside the rows it sums, however
+    it is coded (`_subtotal_refusal`): a non-zero row is refused when its
+    ten figures equal, to the cent, the sum of its children — the codes
+    extending its own ("401.1" / "401.101", "401.102") or, for an all-zero
+    suffix, every code sharing its base ("401.000" / "401.04", "401.02") —
+    or the sum of two or more other rows under the same three-digit root
+    ("401.99" / "401.04", "401.02"; "4010" / "4011", "4012"); at least
     MIN_ACCOUNTS accounts;
   * no other line carries two or more figures (a figure row this reader
     could not attribute to an account is a refusal, never a skip) — and
@@ -381,6 +385,91 @@ def _repeats_in_a_slot(code: str, printed: List[str]) -> bool:
     return bool(printed) and (printed[0] == code or printed[-1] == code)
 
 
+def _vsum(group: List[Dict[str, Any]]) -> List[Decimal]:
+    return [sum((k["figures"][i] for k in group), Decimal(0)) for i in range(10)]
+
+
+def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
+    shown = ", ".join(k["cont"] for k in group[:limit])
+    return shown + (" and %d more" % (len(group) - limit) if len(group) > limit else "")
+
+
+def _parent_prefix(code: str) -> str:
+    """The prefix a code's children carry: the code itself ("401.1" ->
+    "401.101"), or — for an all-zero suffix, a subtotal by its very code —
+    the base and the dot ("401.000" -> every "401.xx")."""
+    base, dot, suffix = code.partition(".")
+    return base + "." if dot and suffix and set(suffix) == {"0"} else code
+
+
+def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
+    """Why a row is a subtotal listed beside the rows it sums, or None.
+
+    A parent listed beside its children double-counts them, and the SAGA
+    path does no parent de-duplication; when the document's own class and
+    grand totals count both levels, every sum still ties and debit ==
+    credit holds. Codes alone cannot tell it: the layout prints sibling
+    analytics whose codes prefix one another ("401.20" beside "401.201",
+    each its own account), and a subtotal need not prefix what it sums
+    ("401.000" or "401.99" beside "401.04" and "401.02"). The figures can.
+    A row whose ten figures are not all zero is refused when they equal,
+    to the cent:
+
+      * the sum of its CHILDREN — the other rows whose code starts with
+        `_parent_prefix` of its own — all of them, or all at one code
+        length (a sibling-by-prefix at another length would otherwise
+        spoil the full sum); one child is enough, a parent may have one;
+      * the sum of TWO OR MORE other rows under the same three-digit root
+        (the RAS synthetic account): all of them, all sharing its base
+        (the code before the dot), or all of either at one code length.
+        One identical sibling is not a sum — two accounts may carry the
+        same figures.
+
+    An all-zero row is exempt: listed twice or not, it adds nothing to any
+    figure. Sums over a whole root are taken from running totals, so a
+    root with hundreds of analytics costs no more than a small one.
+    """
+    families: Dict[str, List[Dict[str, Any]]] = {}
+    sums: Dict[Tuple[Any, ...], List[Decimal]] = {}
+    members: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+    lengths: Dict[Tuple[str, str], set] = {}
+    for r in rows:
+        code = r["cont"]
+        root, base = code[:3], code.split(".")[0]
+        families.setdefault(root, []).append(r)
+        for scope, name in (("root", root), ("base", base)):
+            lengths.setdefault((scope, name), set()).add(len(code))
+            for key in ((scope, name), (scope, name, len(code))):
+                total = sums.setdefault(key, [Decimal(0)] * 10)
+                for i in range(10):
+                    total[i] += r["figures"][i]
+                members.setdefault(key, []).append(r)
+    for r in rows:
+        v = r["figures"]
+        if not any(v):
+            continue
+        code = r["cont"]
+        root, base = code[:3], code.split(".")[0]
+        prefix = _parent_prefix(code)
+        kids = [k for k in families[root] if k is not r and k["cont"].startswith(prefix)]
+        for group in [kids] + [[k for k in kids if len(k["cont"]) == n]
+                               for n in sorted({len(k["cont"]) for k in kids})]:
+            if group and _vsum(group) == v:
+                return "account %s is listed beside its children %s" % (code, _codes(group))
+        for scope, name in (("root", root), ("base", base)):
+            keys = [(scope, name)] + [(scope, name, n) for n in sorted(lengths[(scope, name)])]
+            for key in keys:
+                inside = r in members[key]
+                if len(members[key]) - inside < 2:
+                    continue
+                total = sums[key]
+                if [total[i] - (v[i] if inside else 0) for i in range(10)] == v:
+                    group = [k for k in members[key] if k is not r]
+                    return ("account %s equals the sum of %s — a subtotal listed beside the "
+                            "accounts it sums" % (code, _codes(group)))
+    return None
+
+
 def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     """The five-pair layout: every check in the module docstring, or None."""
     rows: List[Dict[str, Any]] = []
@@ -568,27 +657,11 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
             parent = base[:k]
             if parent != r["cont"] and parent in undotted:
                 return _refuse5("account %s is listed beside its parent %s", r["cont"], parent)
-    # A DOTTED parent ("401.1" beside "401.101" and "401.102") double-counts
-    # the same way. The prefix alone cannot tell it: the layout prints
-    # sibling analytics whose codes prefix one another ("401.20" beside
-    # "401.201", each its own account). The figures can: a dotted code is
-    # refused as a parent when its ten figures equal, to the cent, the sum
-    # of every other dotted code that starts with it — or of all those at
-    # one suffix length (its children, when a sibling-by-prefix at another
-    # length would spoil the full sum). An all-zero row is exempt: listed
-    # twice or not, it adds nothing to any figure.
-    dotted = [r for r in rows if "." in r["cont"]]
-    for r in dotted:
-        if not any(r["figures"]):
-            continue
-        kids = [k for k in dotted if k is not r and k["cont"].startswith(r["cont"])]
-        groups = [kids] + [[k for k in kids if len(k["cont"]) == n]
-                           for n in sorted({len(k["cont"]) for k in kids})]
-        for group in groups:
-            if group and [sum((k["figures"][i] for k in group), Decimal(0))
-                          for i in range(10)] == r["figures"]:
-                return _refuse5("account %s is listed beside its children %s", r["cont"],
-                                ", ".join(k["cont"] for k in group))
+    # A subtotal listed beside the rows it sums double-counts them the
+    # same way, whatever its code — see `_subtotal_refusal`.
+    subtotal = _subtotal_refusal(rows)
+    if subtotal is not None:
+        return _refuse5("%s", subtotal)
     for r in rows:
         v = r["figures"]
         if v[_TR_D] != v[_RA_D] + v[_RL_D] or v[_TR_C] != v[_RA_C] + v[_RL_C]:
