@@ -517,12 +517,16 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
         refreshPeriodLists();
       }
       const { uploadDocument, subscribeToDocumentStatus } = await import("@/lib/supabase");
-      const { row, error } = await uploadDocument(file, {
+      const { row, error, duplicate } = await uploadDocument(file, {
         scope: "financial",
         // ── THE FIX ──────────────────────────────────────────────────
         // Human-confirmed, document-derived. Never `p.period_end`.
         periodEndHint: result.periodEnd,
       });
+      if (duplicate) {
+        uploadEnqueue.notifyAlreadyUploaded(duplicate);
+        return;
+      }
       if (!row) throw new Error(error ?? t("errors.uploadFailed"));
       const enq = await uploadEnqueue.enqueue(row.id);
       if (enq.kind !== "queued") return;

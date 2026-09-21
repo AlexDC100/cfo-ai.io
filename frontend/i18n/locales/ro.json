@@ -47,6 +47,9 @@
     "signIn": "Autentificare"
   },
   "upload": {
+    "alreadyUploaded": "Deja încărcat — deschide",
+    "alreadyUploadedBody": "Fișierul ăsta e deja în compania ta pentru perioada asta, așa că nu l-am încărcat din nou și nu ți-am consumat nimic din cotă.",
+    "openExisting": "Deschide",
     "hero_title": "Încarcă balanța de verificare pentru a începe",
     "hero_subtitle": "Extragem datele financiare, calculăm peste 25 de indicatori, semnalizăm riscurile și producem o analiză gata pentru consiliu. Limba și formatul contabil sunt detectate automat.",
     "choose_file": "Alege un fișier",
