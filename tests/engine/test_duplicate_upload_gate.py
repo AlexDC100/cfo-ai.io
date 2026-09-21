@@ -783,13 +783,22 @@ def test_the_named_original_is_the_copy_that_holds_the_analysis(world, source):
     assert rr["status"] == "duplicate" and rr["existing_document_id"] == "live-later", rr
 
 
-def test_copies_without_any_analysis_still_dedupe_on_the_first(world):
-    """When NO copy holds a period (e.g. rows whose analysis carries none),
-    the first analysed copy is still the original."""
+def test_copies_whose_analysis_is_periodless_by_kind_still_dedupe_on_the_first(world):
+    """A public-records summary files no period BY KIND: its first analysed
+    copy is still the original.
+
+    This gate used to assert the same of ANY period-less analysed copy — the
+    defect verifier lens R3 found (TC-11): a trial balance whose period a
+    twin's /retry deleted holds no analysis, yet it refused the re-upload
+    "open it" with period_id null and archived it. A period-less copy that
+    is not period-less by kind never is the original
+    (tests/engine/test_orphan_original_gates.py)."""
     world["db"].rows("documents").extend([
         _doc("first", status="analyzed", period_id=None, created="2026-09-18T10:00:00+00:00"),
         _doc("again", created="2026-09-21T11:00:00+00:00"),
     ])
+    world["db"].rows("sku_analyses").append({"org_id": ORG, "document_id": "first",
+                                             "summary": {"kind": "public_records_summary"}})
     r = world["post"]("/api/pipeline/run", {"document_id": "again"}).json()
     assert r["status"] == "duplicate" and r["existing_document_id"] == "first", r
 
