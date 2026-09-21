@@ -160,8 +160,19 @@ def _synthetic_five_pair_lines(n: int = 12):
     return lines
 
 
+def _on_parser(monkeypatch, version: str) -> None:
+    """The five-pair layout is served only on tb_parser_v6 or later (the
+    deploy-order guard). The extraction under test here does not depend on
+    the parser's 709 reading, so the read path is exercised under a v6
+    label on any tree; on a v6 tree this is a no-op."""
+    from engine.country_packs.ro_romania import trial_balance_parser
+
+    monkeypatch.setattr(trial_balance_parser, "PARSER_VERSION", version)
+
+
 @pytest.fixture
 def five_pair_pdf(monkeypatch):
+    _on_parser(monkeypatch, "tb_parser_v6")
     return _arm(monkeypatch, _pdf_bytes(_synthetic_five_pair_lines()))
 
 
@@ -267,3 +278,32 @@ def test_an_eight_figure_refusal_keeps_its_fall_back(monkeypatch):
     with pytest.raises(Exception) as fell_through:
         pipeline.stage_extract(_doc())
     assert not isinstance(fell_through.value, pipeline.BalantaPdfRefusedError)
+
+
+# ── the deploy-order guard: never served on a parser that adds 709 ──────
+
+
+def test_a_five_pair_book_is_refused_on_a_parser_that_adds_709_to_revenue(monkeypatch):
+    _on_parser(monkeypatch, "tb_parser_v5")
+    _arm(monkeypatch, _pdf_bytes(_synthetic_five_pair_lines()))
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert "tb_parser_v5" in str(refused.value) and "709" in str(refused.value)
+
+
+def test_the_eight_figure_book_is_served_on_any_parser(monkeypatch):
+    # the guard is the five-pair layout's alone
+    _on_parser(monkeypatch, "tb_parser_v5")
+    _arm(monkeypatch, _pdf_bytes(_synthetic_balanta_lines()))
+    parsed = pipeline.stage_extract(_doc())
+    assert (parsed.get("extraction") or {}).get("source_format") == "saga_10_col"
+
+
+@pytest.mark.parametrize("version, servable", [
+    ("tb_parser_v5", False), ("tb_parser_v4", False), ("tb_parser_v6", True),
+    ("tb_parser_v12", True), ("", False), ("tb_parser_v6rc", False), ("map_guided_v1", False),
+])
+def test_five_pair_is_servable_only_on_parser_v6_or_later(version, servable):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    assert pdf_balanta_text.five_pair_servable_on(version) is servable

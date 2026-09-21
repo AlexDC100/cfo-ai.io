@@ -189,6 +189,23 @@ LAYOUT_FIVE_PAIR = "five_pair"
 LAYOUT_EIGHT_FIGURE = "eight_figure"
 LAYOUT_BOTH = "both"
 
+# THE PARSER THIS LAYOUT NEEDS. The five-pair books this reader was built
+# for print their 709 commercial reductions as mirrored entry magnitudes.
+# tb_parser_v5 and earlier ADD such reductions to revenue (the real FY2025
+# five-pair book served revenue millions above the filed turnover on v5);
+# tb_parser_v6 reads each contra family by the document's own convention.
+# The owner ruled this reader ships AFTER parser v6, as its own deploy —
+# `five_pair_servable_on` makes that ordering mechanical: on an older
+# parser the pipeline refuses a five-pair PDF instead of serving it.
+MIN_PARSER_FOR_FIVE_PAIR = 6
+_PARSER_VERSION_RE = re.compile(r"^tb_parser_v(\d+)$")
+
+
+def five_pair_servable_on(parser_version: str) -> bool:
+    """True only for tb_parser_v6 or later; anything unreadable is False."""
+    m = _PARSER_VERSION_RE.match(parser_version or "")
+    return bool(m) and int(m.group(1)) >= MIN_PARSER_FOR_FIVE_PAIR
+
 
 class TextRead(NamedTuple):
     """What the header names, and what came of reading it.

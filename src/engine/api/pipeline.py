@@ -1211,7 +1211,19 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 _five_pair_named = _verdict.layout in (_pbt.LAYOUT_FIVE_PAIR, _pbt.LAYOUT_BOTH)
                 if _five_pair_named and _verdict.workbook is None:
                     _balanta_refusal = _verdict.refusal or "the reader refused it"
-                if _verdict.workbook is not None and _verdict.meta is not None:
+                from engine.country_packs.ro_romania import trial_balance_parser as _tbp
+                if (_verdict.workbook is not None and _five_pair_named
+                        and not _pbt.five_pair_servable_on(_tbp.PARSER_VERSION)):
+                    # Deploy-order guard (owner ruling 2026-09-21: this
+                    # layout ships after parser v6). Never served on a
+                    # parser that adds 709 reductions to revenue.
+                    _balanta_refusal = (
+                        "this engine's trial-balance parser (%s) adds a document's 709 "
+                        "commercial reductions to revenue instead of deducting them; "
+                        "five-pair balanta PDFs are read only on tb_parser_v6 or later"
+                        % _tbp.PARSER_VERSION
+                    )
+                elif _verdict.workbook is not None and _verdict.meta is not None:
                     _xlsx_bytes, _meta = _verdict.workbook, _verdict.meta
                     pack = _ro_pack()
                     tb_rows = pack.parse_trial_balance(_xlsx_bytes, "balanta.xlsx")
