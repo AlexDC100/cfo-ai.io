@@ -3152,6 +3152,11 @@
       "description": "Move price, volume and cost levers and see profit, cash and covenant headroom move with them.",
       "requirement": "Enabled after launch"
     },
+    "forecast": {
+      "title": "Forecast",
+      "description": "Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is marked PROJECTED and the assumption schedule states each driver, its value and the basis it was measured from.",
+      "requirement": "Enabled after launch"
+    },
     "variance": {
       "title": "Comparison",
       "description": "Compares the period you are looking at against the previous period and the same period last year, line by line. The budget column unlocks when you upload a budget.",
