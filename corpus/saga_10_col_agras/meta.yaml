@@ -1,5 +1,18 @@
 # GOLDEN CORPUS case metadata — see corpus/README.md for the schema.
+#
+# ┌──────────────────────────────────────────────────────────────────────┐
+# │ PRELIMINARY CLOSE — NOT THE FILED YEAR.                              │
+# │ This book is a parser fixture, not the company's FY2025 accounts.    │
+# │ It closes account 121 at 7,533,676.02; the FY2025 net profit filed   │
+# │ with the Ministry of Finance differs from this book's 121 close (the │
+# │ final close carries the year-end entries — legal reserve via 129,    │
+# │ revaluation surplus into 1051 — that this export predates).          │
+# │ Never use it as the filed FY2025 figures: forecast acceptance, and   │
+# │ anything that states "the company's FY2025", runs on the filed       │
+# │ version. The numbers below and in expected/ are unchanged.           │
+# └──────────────────────────────────────────────────────────────────────┘
 case_id: "saga_10_col_agras"
+close_status: "preliminary close — not the filed year"
 jurisdiction: "RO"
 expected_parser: "saga_10_col"
 period: "FY2025 (12-25)"
@@ -7,4 +20,4 @@ period_end: "2025-12-31"
 synthetic: false
 anonymized: true
 expect_ai_never_consulted: true
-source_notes: "files/agras_tb_2025.xlsx — real 10-col-family export with trailing IFRS-mapping helper columns and no totals row. Labels/sheet name scrambled by scripts/anonymize_tb.py (seed = source content hash); codes and all numerics preserved to the cent."
+source_notes: "PRELIMINARY CLOSE — NOT THE FILED YEAR (121 closes at 7,533,676.02; the FY2025 net profit filed with the Ministry of Finance differs from this 121 close). files/agras_tb_2025.xlsx — real 10-col-family export with trailing IFRS-mapping helper columns and no totals row. Labels/sheet name scrambled by scripts/anonymize_tb.py (seed = source content hash); codes and all numerics preserved to the cent."
