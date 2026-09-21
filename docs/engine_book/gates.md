@@ -8957,3 +8957,132 @@ dropped by the engine without the inventory being re-captured — the moment the
 Romanian rules must be re-read, because a rule that no longer matches prints the
 engine's English on a Romanian page. **It cannot see** sentences the corpus
 books never provoke, or whether a sentence is a good explanation.
+
+## forecast-cockpit
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_cockpit.py -q -s` |
+| canary | `SCOPE forecast-cockpit (forecast-scenarios-live)`, `C-F1 books: agras, carniprod, retail, realestate` |
+| work count | `GATE-WORK forecast-cockpit units=(\d+)`, floor **11000** (measured 12230) |
+
+**SCOPE** — the Forecast COCKPIT (owner-approved spec: four numbers, one
+chart, sliders; the page does no math): `engine.forecast.cockpit` over
+`packs/forecast/cockpit.yaml` and the dated series of
+`packs/forecast/ro_macro.yaml#series`, served by POST
+`/api/forecast/{period_id}/cockpit` and `/cockpit/export`, through the REAL
+`create_app()` over the tenancy double (org_prefs declared from
+`supabase/schema_phase_prefs.sql`) on the four committed corpus books (agras is
+files/agras_tb_2025.xlsx, the preliminary close, not the filed year), agras
+with workspace CAEN 1011, agras over a comparable prior (the same book scaled
+by four fifths — SYNTHETIC, the one way a committed book reaches the [book]
+growth rung), and — opt-in, never committed — the owner's Scandia FY2025 +
+FY2024 pair (`FORECAST_LOCAL_SCANDIA`). F1 year 0 = the dashboard to the cent;
+F2 every plan year of every case and of every lever at its min and at its max
+(and the adverse corner) balances, BS cash = CF closing cash, cash never below
+the floor; F3 same bytes twice and in a second process under another hash seed;
+F4 the base case IS the forecast (every statement line of every year equals the
+GET's served FY figure; no engine request), one lever moves only lines its
+engine drivers drive (the forecast's own served `consumed_by`), and moves them
+by what its basis states (growth compounds year-0 revenue, inflation moves the
+fixed part of operating cost, wages reach (1 + w)^n of the personnel pool, raw
+materials reach cost of sales by their measured share, energy moves its pool,
+a payout pays its share); reset gives the base back byte for byte; F5 every
+projected figure an integer or a refusal with a sentence, the four numbers are
+readings of the statements (final-year EBITDA, cumulative operating + investing
+cash, the DSCR's numerator and denominator), interest on every year with debt
+and on a drawn line; F6 a saved case is read from the resolved company's own
+prefs row, survives a new client, is not found from another company, and an
+entry naming another company is refused; F7 the growth default is the book's
+own history, else the sector median stamped, else the BNR anchor with its
+sentence, never a silent 0, and a set value is what projects; F8 below the
+floor a priced credit line, the need, its first month and its interest named,
+the gap charted; F9 the bridge from base sums exactly for every case, a mixed
+lever set and every scenario template (Recession's cash never negative); the
+routes (401, 403 on a non-member company, 404, every refusal by code, the
+export's assumptions page and sources); p95 slider latency against
+`levers.yaml#latency.chart_inprocess_p50_ms` (1500 ms).
+
+Plants, each applied alone to a clean tree by
+`scratchpad/cockpit/plants.py`, the named subset run, then restored byte-exact
+(the script asserts the bytes) — ten of ten RED:
+
+**PLANT bridge-drops-the-credit-line-and-closes-by-construction** —
+`cockpit.bridge`: the debt step loses the funding-line movement and the cash
+step is set to the sum of the steps.
+```
+RED (plant bridge-drops-the-credit-line-and-closes-by-construction, -k f9)
+E   AssertionError: ('agras/mix/year_one', -772123738, -2712285892)
+```
+**PLANT base-compiles-a-noop** — `compile_levers` sends revenue growth at its
+own default.
+```
+RED (plant base-compiles-a-noop, -k f4)
+E   AssertionError: {'overrides': {'revenue_growth': ['0.025', '0.025', '0.025', '0.025', '0.025']}, 'shocks': []}
+```
+**PLANT dscr-without-the-credit-line** — `_dscr` leaves the funding-line
+balance out of short-term debt.
+```
+RED (plant dscr-without-the-credit-line, -k f5)
+E   AssertionError: agras/squeeze: DSCR divides by 492217257; interest + short-term debt + the credit line is 6554520327
+```
+**PLANT saved-case-not-org-filtered** — the route reads org_prefs with no org
+filter.
+```
+RED (plant saved-case-not-org-filtered, -k f6)
+E   AssertionError: ('agras', {'case_id': 'saved:c2'}, 404, ...case_not_found...)   [company B's own saved case not found: the unfiltered read took company A's row]
+```
+**PLANT saved-case-other-company-computed** — `saved_case_levers` stops
+checking the entry's company.
+```
+RED (plant saved-case-other-company-computed, -k f6)
+E   assert (200 == 422)
+```
+**PLANT funding-need-shown-as-min-cash** — the cash number never reports a
+drawn line.
+```
+RED (plant funding-need-shown-as-min-cash, -k f8)
+E   assert 'min_cash' == 'funding_need'
+```
+**PLANT growth-default-flat-zero** — a macro-tier growth default served as 0.
+```
+RED (plant growth-default-flat-zero, -k f7)
+E   AssertionError: assert Fraction(0, 1) != 0
+```
+**PLANT year0-read-off-the-projection** — year-0 cash read off the first
+projected month.
+```
+RED (plant year0-read-off-the-projection, -k f1)
+E   AssertionError: agras: cockpit year 0 is not the served actuals (dashboard, cockpit): {'cash': (116804704, 148978821)}
+```
+**PLANT unbalanced-year-aggregate** — the year's total assets drop inventory.
+```
+RED (plant unbalanced-year-aggregate, -k f2)
+E   AssertionError: agras/base FY2026: assets 3721770754, equity + liabilities 4637437321
+```
+**PLANT wages-ignore-inflation** — the wage lever's level step is the wage
+growth itself (personnel then grows by inflation AND wages).
+```
+RED (plant wages-ignore-inflation, -k basis_states)
+E   AssertionError: agras wages year 1: moved 190429224, its basis says 134177771.0 (slack 11521.367)
+```
+
+**REVERT** — every file restored byte-exact; `34 passed`, `GATE-WORK
+forecast-cockpit units=12230`.
+
+**After the repair it reds on:** year 0 drifting from the dashboard; a plan
+year of any case or slider extreme that does not balance or whose BS cash is
+not its CF closing cash, or cash below the floor; two identical requests (or
+two processes) serving different bytes; a base case that is not the forecast
+or that sends the engine anything; a lever moving a line its drivers do not
+drive, or moving its lines by other than what its basis states; a projected
+figure with no value; a year with debt charged no interest, a drawn line
+charged none; a four-numbers figure that is not a reading of the statements;
+a saved case served across companies; a growth default that is not the book's
+history / the sector / the stamped anchor; negative cash, or a funding need
+the numbers or the sentence do not name; a bridge that does not sum to the
+cash it explains; a route binding a body as a query, a refusal without its
+code; p95 slider latency over budget. **It cannot see** what the page paints
+(the frontend gates), network latency to Supabase in production, the owner's
+books unless FORECAST_LOCAL_SCANDIA is set, or whether a forecast is a GOOD
+one.
