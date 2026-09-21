@@ -134,8 +134,12 @@ for (const lang of ["ro", "en"] as const) {
       await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL", { timeout: 20_000 });
       await expect(page.locator("body")).toContainText(millions(AGRAS_REVENUE, lang), { timeout: 30_000 });
       await expectOneUploadComponent(page, 0);
-      // Toast + bell.
+      // Toast + bell entry.
       await expect(page.locator("[data-sonner-toast]").first()).toContainText("Agras SRL");
+      await expect(page.getByTestId("notifications-badge")).toBeVisible();
+      await page.getByTestId("notifications-button").click();
+      await expect(page.getByTestId("notifications-analysis").first()).toContainText("Agras SRL");
+      await page.keyboard.press("Escape");
 
       // ── The company page now has the year ─────────────────────────
       await page.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
