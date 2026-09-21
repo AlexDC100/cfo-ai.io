@@ -5423,9 +5423,12 @@ build --outDir <dist>`, `npx vite preview --outDir <dist> --port 4417`, then
 loop). Neither host resolves: nothing leaves the machine.
 
 **PLANT → RED → REVERT → GREEN, re-run on the final integrated tree**
-(2026-09-21 ~21:00–21:40, after the last `fix/dedupe-quota` merge `77af2dd2`
-and `5a84c9c9`). Every plant is applied to the PRODUCT, the gate run, the
-file restored with `git checkout --`, the gate run again. Runners and the
+(2026-09-21 ~21:00–21:40, after the `fix/dedupe-quota` merge `77af2dd2` and
+`5a84c9c9`; the engine and browser plants were run AGAIN after the last Lane A
+merge `2fe5aa92` — f8c7276b, `/run`'s `_meter_first_analysis` resolved onto the
+one meter — with identical red and green counts, and the e2e plants again on
+its bundle). Every plant is applied to the PRODUCT, the gate run, the file
+restored with `git checkout --`, the gate run again. Runners and the
 full red transcripts: `scratchpad/wsr/plant_runner_final.py`,
 `e2e_plant_runner_final.py`, `plants_final/*.txt`. An earlier pass (20:00–20:07,
 before the last merges) is superseded by this one.
@@ -5463,8 +5466,8 @@ REVERT is the file restored before the unplanted bundle is rebuilt)
 | # | PLANT (product) | Result |
 |---|---|---|
 | G1 | `analyseUpload` sends the company on screen as `targetOrgId` | RED — `spec:120 expect(double.commits[0].target_org_id).toBe(ORG_AGRAS)`: `Expected: "…0000a9" Received: "…000051"` (the commit on the wire names Scandia) |
-| G6 v1 | the card navigates BEFORE switching the workspace (1.5 s gap) AND the page does not wait for the header | GREEN, correctly — `G6 header checks (ro): 7, violations: 0`. The company page's own corrective switch (`useCompanyOnScreen`'s effect) rewrites the header in the same task, so the desynced DOM never reaches a microtask checkpoint and so never a paint; the watch sees every state that can be painted. Not a user-visible defect on this tree (the earlier pass, on an older tree, saw it red) |
-| G6 v2 | v1 + that corrective switch lagging 1.5 s — a real, visible desync | RED — `spec:157 watch.violations`: 4 × `/workspace/0a9a…a9: header "Scandia Food SRL · dec.…Ctrl+K" over "Agras SRL"` |
+| G6 v1 | the card navigates BEFORE switching the workspace (1.5 s gap) AND the page does not wait for the header | INTERMITTENT, by the nature of the plant. RED on the final merged tree (21:55: `spec:157 watch.violations`, 1 × `/workspace/0a9a…a9: header "Scandia Food SRL · dec.…Ctrl+K" over "Agras SRL"`) and on the 20:04 tree; GREEN once in between (`G6 header checks (ro): 7, violations: 0`). The company page's own corrective switch (`useCompanyOnScreen`'s effect) usually rewrites the header before the next microtask checkpoint and sometimes does not, so the desync this plant opens is a race: the watch — which sees every state at a microtask checkpoint, a superset of the painted ones — reds whenever it manifests. The deterministic proof of the same defect is the vitest G6 gate above (3 failed, every run) |
+| G6 v2 | v1 + that corrective switch lagging 1.5 s — a desync held open | RED on both runs (the final tree, before and after the last merge) — `spec:157 watch.violations`: 4 × `/workspace/0a9a…a9: header "Scandia Food SRL · dec.…Ctrl+K" over "Agras SRL"` |
 | G7 | a finished analysis the card follows does not open the dashboard | RED — `toHaveURL /dashboard?period=5ea5…a925&org=0a9a…a9` for 60 s, received `/workspace/0a9a…a9` |
 
 Unplanted, the three e2e gates pass: G7 RO 26.0 s and EN 26.0 s (`G6 header
