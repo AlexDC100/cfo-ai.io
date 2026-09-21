@@ -102,9 +102,11 @@ def _fake_client_factory(content: bytes):
 
 
 def _arm(monkeypatch, content: bytes) -> bytes:
+    # Storage is faked; the AI-lane jurisdiction gate is NOT — it is the one
+    # Claude-capable gate that runs before the text-line reader, so it runs
+    # for real here, under the unimportable-`anthropic` guard.
     monkeypatch.setattr(pipeline._supabase, "admin", lambda: _FakeAdmin())
     monkeypatch.setattr(pipeline.httpx, "Client", _fake_client_factory(content))
-    monkeypatch.setattr(pipeline, "_maybe_route_ai_lane", lambda *a, **k: None)
     monkeypatch.setitem(sys.modules, "anthropic", None)  # any Claude path now raises
     return content
 
@@ -307,3 +309,14 @@ def test_five_pair_is_servable_only_on_parser_v6_or_later(version, servable):
     from engine.country_packs.ro_romania import pdf_balanta_text
 
     assert pdf_balanta_text.five_pair_servable_on(version) is servable
+
+
+@pytest.mark.parametrize("lines", [_synthetic_balanta_lines, _synthetic_five_pair_lines],
+                         ids=["eight-figure", "five-pair"])
+def test_the_real_jurisdiction_gate_resolves_both_synthetic_books_to_ro(lines):
+    # the gate runs unstubbed in every test above; it must keep routing
+    # these balante to the RO path, never to the AI lane
+    from engine import ai_lane
+
+    resolution = ai_lane.resolve_jurisdiction(_doc(), _pdf_bytes(lines()))
+    assert str(resolution.get("jurisdiction") or "RO") == "RO"
