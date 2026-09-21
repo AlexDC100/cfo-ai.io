@@ -115,6 +115,9 @@ export interface ShellNavItem {
   /** Resolved at render: the registry does not report this feature active,
    *  so the row is muted and its route renders PendingState. */
   pending?: boolean;
+  /** Resolved at render: an early-access (preview) surface — the row carries
+   *  a "Beta" label. */
+  beta?: boolean;
 }
 
 // ANALYZE keeps the operator's order (2026-08-28): Scenarios leads,
@@ -149,6 +152,7 @@ export const SHELL_GROUP_LABEL_KEYS: Record<ShellNavGroup, string> = {
 function markByRegistry(
   items: ShellNavItem[],
   status: (k: FeatureKey) => FeatureStatus | undefined,
+  beta: (k: FeatureKey) => boolean = () => false,
 ): ShellNavItem[] {
   return items
     .filter((item) =>
@@ -180,7 +184,7 @@ function markByRegistry(
       // `undefined` is the registry being unreachable, not a verdict: it
       // marks pending rather than claiming the feature works, and rather
       // than making the whole nav vanish on a failed fetch.
-      if (s === "active") return item;
+      if (s === "active") return beta(item.featureKey) ? { ...item, beta: true } : item;
       if (s === "hidden") return null;
       return { ...item, pending: true };
     })
@@ -198,7 +202,11 @@ export interface ShellNavGroupResolved {
 export function useShellNav(): ShellNavGroupResolved[] {
   const { t } = useTranslation();
   const { features } = useFeatures();
-  const visible = markByRegistry(SHELL_NAV_ALL, (k) => features[k]?.status);
+  const visible = markByRegistry(
+    SHELL_NAV_ALL,
+    (k) => features[k]?.status,
+    (k) => features[k]?.beta === true,
+  );
   return SHELL_GROUP_ORDER.map((g) => ({
     key: g,
     label: t(SHELL_GROUP_LABEL_KEYS[g]),
@@ -336,7 +344,7 @@ export function Sidebar({
         </div>
         {groups.filter((g) => g.key !== "ask").map((g) => (
           <Section key={g.key} label={g.label} collapsed={effectivelyCollapsed}>
-            {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey, pending }) => (
+            {g.items.map(({ to, labelKey, icon: Icon, testId, end, shortcutKey, pending, beta }) => (
               <SidebarLink
                 key={to}
                 to={to}
@@ -349,6 +357,7 @@ export function Sidebar({
                 disabled={noWorkspace && !ALWAYS_ENABLED.has(to)}
                 shortcutKey={shortcutKey}
                 pending={pending}
+                beta={beta}
                 trailing={
                   to === "/chat" && chatReplyPending ? (
                     <Loader2
@@ -470,6 +479,7 @@ function SidebarLink({
   disabled = false,
   shortcutKey,
   pending = false,
+  beta = false,
 }: {
   to: string;
   testId: string;
@@ -486,6 +496,8 @@ function SidebarLink({
   /** The registry does not report this feature active: the row stays,
    *  muted, and its route renders PendingState. */
   pending?: boolean;
+  /** Early access: the row carries a small "Beta" label. */
+  beta?: boolean;
   shortcutKey?: string;
 }) {
   const [params] = useSearchParams();
@@ -565,6 +577,14 @@ function SidebarLink({
           >
             <span className={pending ? "opacity-50" : undefined}>{label}</span>
           </span>
+          {!collapsed && beta && !pending && (
+            <span
+              data-testid={`${testId}-beta`}
+              className="ml-auto shrink-0 rounded-sm border border-brand/40 px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-brand-dark"
+            >
+              Beta
+            </span>
+          )}
           {!collapsed && pending && !trailing && (
             // A quiet dot, not a word: the row says "there, not yet" without
             // shouting it on every render. The destination itself explains.
