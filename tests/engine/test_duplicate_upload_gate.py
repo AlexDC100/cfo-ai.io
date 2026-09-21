@@ -113,7 +113,9 @@ def world(monkeypatch):
             period_month_bucket="2026-09", extra_docs_pending_this_period=meter.pending)
 
     monkeypatch.setattr(_plan_state, "get_plan_state", plan_state)
-    pipeline._QUOTA_RUNS.clear()
+    # Process-wide state, isolated per test (and restored after it).
+    monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
+    monkeypatch.setattr(_doc_dedupe, "_ARCHIVED_HERE", set())
 
     app = FastAPI()
     app.include_router(pipeline.build_router())
