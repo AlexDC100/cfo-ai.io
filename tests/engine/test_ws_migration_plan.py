@@ -28,6 +28,8 @@ from engine.workspaces.migration_plan import (
     build_plan,
     cross_workspace_links,
     empty_live_periods,
+    hidden_conversations,
+    render_report,
     holding_org_id,
     new_org_id,
     period_source_hazards,
@@ -115,15 +117,62 @@ def test_workspaces_created_per_company_with_prefs(world):
     assert sf["cui"] == ALFA and sf["display_currency"] == "RON"
 
 
-def test_the_qa_workspace_is_split_and_archived(world):
-    post = world["post"]
+def test_the_qa_workspace_is_split_and_stays_live_for_the_owners_conversations(world):
+    """Verifier finding (2026-09-21; real snapshot: thread 99dbaf2b, 7
+    messages, in the owner's Q&A workspace 98c06428): the plan archived Q&A
+    as a HELD archive while it still held the owner's chat history. The hub
+    hides a held archive and chatRemote.ts lists only the active
+    workspace's threads, so the conversation became unreachable — and the
+    plan and report never mentioned it. This test used to assert exactly
+    that ("archived with the workspace"). Chat history is live content
+    (rule 7): Q&A is split, keeps no book, and stays live; the conversation
+    stays where it is and is listed in the plan."""
+    post, plan = world["post"], world["plan"]
     qa = _row(post, "organizations", id="org-qa")
-    assert qa["archived_at"] == RUN and qa["purge_after"] is None
+    assert qa["archived_at"] is None
     live_in_qa = [d for d in post["documents"] if d["org_id"] == "org-qa" and d["deleted_at"] is None]
     assert live_in_qa == []
+    assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] == "org-qa"
+    ws = next(w for w in plan.workspaces if w["org_id"] == "org-qa")
+    assert ws["action"] == "keep" and ws["company"] is None
+    ct = _row(post, "chat_threads", id="ct-1")
+    assert ct["org_id"] == "org-qa" and ct["active_period_label"] == "Dec 2025"
+    # its grounding named per-q25, archived into the holding workspace: the
+    # reference is cleared rather than left pointing there (rule 8)
+    assert _row(post, "financial_periods", id="per-q25")["org_id"] == holding_org_id(OWNER)
+    assert ct["active_period_id"] is None
+    chat = next(c for c in plan.chats if c["id"] == "ct-1")
+    assert chat["workspace_after"] == "live" and chat["grounding"].startswith("cleared: period per-q25")
+    assert any("ct-1" in w and "conversation" in w for w in plan.warnings)
+    report = render_report(plan)
+    assert "conversations (never moved or archived)" in report and "ct-1" in report
+    assert hidden_conversations(world["tables"], post) == [] and plan.blocking == []
+
+
+def test_without_conversations_the_split_qa_workspace_is_archived():
+    """The same world with no chat history: rule 7 archives the split Q&A
+    workspace (held) and nobody is left sitting in it."""
+    tables, storage, rules = build_world()
+    tables["chat_threads"] = []
+    plan = build_plan(tables, facts_for(tables, storage, rules), migration_date=DATE)
+    post = apply_ops(tables, plan.ops, now=RUN)
+    qa = _row(post, "organizations", id="org-qa")
+    assert qa["archived_at"] == RUN and qa["purge_after"] is None
     assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] is None
-    # the user's chat thread stays where it was (archived with the workspace)
-    assert _row(post, "chat_threads", id="ct-1")["org_id"] == "org-qa"
+    assert plan.chats == [] and plan.blocking == []
+
+
+def test_a_conversation_is_never_left_in_an_archived_workspace(world):
+    """The planner's own post-state gate (rule 7): a conversation its user
+    could open, in a workspace the plan archives, blocks the plan. PLANT:
+    the post-state with Q&A archived — what the planner used to produce."""
+    pre, post = world["tables"], world["post"]
+    planted = copy.deepcopy(post)
+    _row(planted, "organizations", id="org-qa")["archived_at"] = RUN
+    assert hidden_conversations(pre, planted) == ["chat_threads ct-1 ('q') in org-qa"]
+    # a thread whose user is not a member was never reachable: not counted
+    _row(planted, "chat_threads", id="ct-1")["user_id"] = SOLO_USER
+    assert hidden_conversations(pre, planted) == []
 
 
 def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world):
@@ -237,6 +286,11 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
     for d in post["documents"]:
         if d["org_id"] not in owner_orgs or d["org_id"] not in _live_orgs(post):
             continue
+        if d["org_id"] not in prefs:
+            # a company-less workspace kept live (its owner's conversations)
+            # holds no live book at all
+            assert d["deleted_at"] is not None or d.get("scope") != "financial", d["id"]
+            continue
         ident = facts[d["id"]].identity if d["id"] in facts else None
         key = ident.company_key if ident else None
         want = ("cui:" + prefs[d["org_id"]]["cui"]) if prefs[d["org_id"]].get("cui") else \
@@ -272,7 +326,7 @@ def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived(world)
     post, plan = world["post"], world["plan"]
     assert _row(post, "financial_periods", id="per-sf-empty")["org_id"] == "org-sf"
     assert _decision(plan, "periods", "per-sf-empty")["action"] == "untouched"
-    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # archived with Q&A
+    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # Q&A's placeholder
     assert _decision(plan, "periods", "per-qa-empty-b")["reason"] == \
         "empty: extra current-month placeholder (per-qa-empty-a kept)"
     assert _row(post, "financial_periods", id="per-qa-empty-b")["org_id"] == holding_org_id(OWNER)
@@ -350,6 +404,10 @@ def test_no_document_or_row_points_into_another_workspace(world):
     _row(planted, "documents", id="d-delta-1")["period_id"] = "per-sf25"
     _row(planted, "briefings", id="br-1")["org_id"] = "org-qa"
     assert len(cross_workspace_links(planted)) == 2
+    # a conversation's grounding (TEXT, no foreign key) is a link too: the
+    # thread left pointing at its period after the period moved
+    _row(planted, "chat_threads", id="ct-1")["active_period_id"] = "per-q25"
+    assert "chat_threads ct-1.active_period_id -> period per-q25" in cross_workspace_links(planted)
 
 
 def test_the_plan_of_the_post_state_is_empty(world):
@@ -421,7 +479,11 @@ def test_nothing_is_hard_deleted_and_billing_is_never_written(world):
         assert all(row_key(r, pk) in have for r in rows), table
     assert {op["op"] for op in plan.ops} <= {"insert", "merge_prefs", "update", "copy_object"}
     touched = {op.get("table") for op in plan.ops}
-    assert not touched & {"subscriptions", "user_usage", "billing_events", "chat_threads", "chat_messages"}
+    assert not touched & {"subscriptions", "user_usage", "billing_events", "chat_messages"}
+    # a conversation is never moved: its only write is a grounding cleared (rule 8)
+    chat_ops = [op for op in plan.ops if op.get("table") == "chat_threads"]
+    assert chat_ops and all(op["op"] == "update" and op["set"] == {"active_period_id": None}
+                            for op in chat_ops), chat_ops
     for table in ("subscriptions", "user_usage", "billing_events"):
         assert post[table] == pre[table]
 
