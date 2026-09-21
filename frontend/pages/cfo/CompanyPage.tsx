@@ -27,10 +27,11 @@ import { ArrowLeft, Settings2 } from "lucide-react";
 import { Money } from "@/components/ui/Money";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "@/components/ui/sonner";
-import { ORG_INDUSTRIES, orgIndustryDisplayLabel, orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
+import { orgIndustryLabel } from "@/components/cfo/OrgIndustryPills";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { DangerZone, FinancingSection, GeneralSection } from "@/components/cfo/workspace/WorkspaceSettingsV2";
 import { UploadDrop } from "@/components/cfo/upload/UploadDrop";
+import { useIndustryLabel } from "@/components/cfo/upload/industryLabel";
 import { dashboardHref } from "@/components/cfo/upload/UploadFlowHost";
 import { useCompanyOnScreen } from "@/lib/companyOnScreen";
 import { activeLocale } from "@/lib/locale";
@@ -122,6 +123,7 @@ function CompanyReady({
     staleTime: 60_000,
   });
   const cui = dirQ.data?.[orgId]?.cui ?? null;
+  const industryLabel = useIndustryLabel(industryKey, industryName);
 
   const years = yearsQ.data ?? [];
   // On a narrow screen the one-line row overflows: open it at its END, where
@@ -151,14 +153,9 @@ function CompanyReady({
           </h1>
           <p className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-ink-soft sm:flex-row sm:items-center sm:gap-x-2">
             {cui && <span className="font-mono tabular-nums" data-testid="company-cui">{t("wsV2.home.cui", { cui })}</span>}
-            {cui && industryKey && <span aria-hidden className="hidden sm:inline">·</span>}
-            {industryKey && (
-              <span data-testid="company-industry">
-                {ORG_INDUSTRIES.some((i) => i.key === industryKey)
-                  ? orgIndustryDisplayLabel(industryKey)
-                  : industryName ?? industryKey}
-              </span>
-            )}
+            {cui && industryLabel && <span aria-hidden className="hidden sm:inline">·</span>}
+            {/* Words, never a catalog key ("food_manufacturing"): no label, no line. */}
+            {industryLabel && <span data-testid="company-industry">{industryLabel}</span>}
           </p>
         </div>
         <button

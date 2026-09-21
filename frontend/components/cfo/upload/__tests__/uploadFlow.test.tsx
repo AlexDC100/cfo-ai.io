@@ -452,6 +452,31 @@ describe("confirmation card", () => {
     expect(within(card()).getByTestId("upload-card-analyse")).not.toBeDisabled();
   });
 
+  it("no industry in the document → the company keeps its own, said so; nothing is sent", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({}, {
+        industry_key: null,
+        industry_label: null,
+        caen_code: null,
+        sources: {
+          cui: { signal: "document_header_cui", evidence: "C.U.I. 7654321" },
+          period_end: { signal: "closing_balance", evidence: "la data de 31.12.2025" },
+        },
+      }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-9", org_id: "agras", company_name: "Agras SA" });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    // Agras is recorded as agriculture: that is what it keeps.
+    await waitFor(() => expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture"));
+    expect(row("upload-card-industry-from")).toHaveTextContent("from your company's settings");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() => expect(api.commitUpload).toHaveBeenCalledTimes(1));
+    // The company's own industry is not re-sent as a choice.
+    expect(api.commitUpload.mock.calls[0][0].industryKey).toBeNull();
+  });
+
   it("a value the engine gave no origin for shows none — the card never guesses one", async () => {
     api.identifyUpload.mockResolvedValue(identity({}, { sources: {} }));
     renderHome();

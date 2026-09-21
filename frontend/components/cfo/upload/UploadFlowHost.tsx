@@ -51,10 +51,10 @@ import {
   type FlowState,
 } from "@/lib/uploadFlow";
 import type { ExtraDocConfirmation, IdentifyResult } from "@/lib/uploadsApi";
-import { listProfiles } from "@/lib/industryApi";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { sourceKey } from "./identitySources";
+import { useIndustryCatalog, useIndustryLabel } from "./industryLabel";
 
 // ── Navigation helpers ─────────────────────────────────────────────────
 
@@ -235,7 +235,7 @@ export function UploadFlowHost() {
         }}
       >
         <DialogContent
-          className="w-[calc(100vw-24px)] max-w-[520px] gap-0 rounded-md border-rule bg-surface p-0 sm:rounded-md"
+          className="w-[calc(100vw-24px)] max-w-[520px] gap-0 rounded-md border-rule bg-surface p-0 outline-none focus:outline-none focus-visible:outline-none sm:rounded-md"
           data-testid="upload-card"
           data-phase={flow.phase}
           // Radix would focus the first tabbable — the close cross — and ring
@@ -300,14 +300,9 @@ interface IndustryOption {
 function useIndustryOptions(docKey: string | null, docLabel: string | null): IndustryOption[] {
   const { i18n } = useTranslation();
   const ro = (i18n.language ?? "").startsWith("ro");
-  const profilesQ = useQuery({
-    queryKey: ["industry-profiles", "upload-card"],
-    queryFn: () => listProfiles(),
-    staleTime: 60 * 60 * 1000,
-    retry: false,
-  });
+  const catalog = useIndustryCatalog();
   return useMemo(() => {
-    const profiles = profilesQ.data ?? [];
+    const profiles = catalog ?? [];
     const list: IndustryOption[] =
       profiles.length > 0
         ? profiles
@@ -316,7 +311,7 @@ function useIndustryOptions(docKey: string | null, docLabel: string | null): Ind
         : ORG_INDUSTRIES.map((i) => ({ key: i.key, label: orgIndustryDisplayLabel(i.key) }));
     if (docKey && !list.some((i) => i.key === docKey)) list.unshift({ key: docKey, label: docLabel ?? docKey });
     return list;
-  }, [profilesQ.data, ro, docKey, docLabel]);
+  }, [catalog, ro, docKey, docLabel]);
 }
 
 // ── Views ──────────────────────────────────────────────────────────────
@@ -402,7 +397,7 @@ function ConfirmView({
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
-  const { org: activeOrg } = useActiveOrg();
+  const { org: activeOrg, orgs } = useActiveOrg();
   const [changing, setChanging] = useState(false);
   const { identity, target } = result;
   const src = identity.sources;
@@ -436,9 +431,19 @@ function ConfirmView({
       ? fromPhrase(src.cui?.signal)
       : t("wsV2.from.company_settings");
   const periodFrom = choice.edited.period ? t("wsV2.from.user") : fromPhrase(src.period_end?.signal, "period_end");
+  // The document names no industry and the file goes to a company that
+  // already has one: that company keeps it, so the card says so — the
+  // company's own industry, "from your company's settings". Words only:
+  // a key the catalog cannot name is not shown.
+  const targetOrg = choice.mode === "existing" ? orgs.find((o) => o.id === choice.orgId) ?? null : null;
+  const companyIndustry = useIndustryLabel(targetOrg?.industry_key ?? null, targetOrg?.industry_display_name ?? null);
+  const keepsCompanyIndustry =
+    !choice.edited.industry && !choice.industryKey && !choice.industryLabel && !!companyIndustry;
   const industryFrom = choice.edited.industry
     ? t("wsV2.from.user")
-    : fromPhrase(src.industry_key?.signal ?? src.industry_label?.signal ?? src.caen_code?.signal);
+    : keepsCompanyIndustry
+      ? t("wsV2.from.company_settings")
+      : fromPhrase(src.industry_key?.signal ?? src.industry_label?.signal ?? src.caen_code?.signal);
 
   const periodValue = choice.periodEnd
     ? t("wsV2.card.periodValue", {
@@ -448,8 +453,10 @@ function ConfirmView({
   void locale; // re-render on language change (formatDateOnly reads the active locale)
   const industries = useIndustryOptions(identity.industry_key, identity.industry_label);
   const industryValue = choice.industryKey
-    ? industries.find((i) => i.key === choice.industryKey)?.label ?? choice.industryLabel ?? choice.industryKey
-    : choice.industryLabel;
+    ? industries.find((i) => i.key === choice.industryKey)?.label ?? choice.industryLabel ?? null
+    : keepsCompanyIndustry
+      ? companyIndustry
+      : choice.industryLabel;
 
   const otherThanOnScreen =
     choice.mode === "existing" &&

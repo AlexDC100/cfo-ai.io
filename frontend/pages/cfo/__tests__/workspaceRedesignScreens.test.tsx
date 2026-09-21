@@ -11,6 +11,8 @@
 //                              with no left settings sub-nav.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes, useLocation } from "react-router-dom";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "@/i18n";
@@ -61,7 +63,10 @@ vi.mock("@/lib/uploadsApi", () => ({
 
 const orgApi = vi.hoisted(() => ({
   activeId: "scandia",
+  // Companies a single test adds (reset in beforeEach).
+  extra: [] as Array<Record<string, unknown>>,
   archiveWorkspace: vi.fn(async () => true),
+  purgeWorkspace: vi.fn(async () => true),
   renameWorkspace: vi.fn(async () => true),
   setWorkspaceIndustry: vi.fn(async () => true),
   restoreWorkspace: vi.fn(async () => true),
@@ -76,8 +81,8 @@ vi.mock("@/lib/org", () => {
   ];
   return {
     useActiveOrg: () => ({
-      org: orgs.find((o) => o.id === orgApi.activeId) ?? null,
-      orgs,
+      org: [...orgs, ...orgApi.extra].find((o) => o.id === orgApi.activeId) ?? null,
+      orgs: [...orgs, ...orgApi.extra],
       archived,
       loading: false,
       loadError: false,
@@ -85,6 +90,7 @@ vi.mock("@/lib/org", () => {
       refresh: async () => {},
       switchOrg: async () => {},
       archiveWorkspace: orgApi.archiveWorkspace,
+      purgeWorkspace: orgApi.purgeWorkspace,
       renameWorkspace: orgApi.renameWorkspace,
       setWorkspaceIndustry: orgApi.setWorkspaceIndustry,
       restoreWorkspace: orgApi.restoreWorkspace,
@@ -131,6 +137,7 @@ function renderAt(route: string) {
 beforeEach(async () => {
   await i18n.changeLanguage("en");
   orgApi.activeId = "scandia";
+  orgApi.extra = [];
   writeWorkspaceName("Scandia Food SRL");
   __resetUploadFlowForTest();
   identifyUpload.mockClear();
@@ -228,6 +235,23 @@ describe("Company page — /workspace/<orgId>", () => {
     await waitFor(() => expect(identifyUpload).toHaveBeenCalledWith(file, "scandia"));
   });
 
+  it("the industry is words, never its catalog key", async () => {
+    orgApi.extra = [
+      { id: "carni", name: "Carniprod SRL", industry_key: "food_manufacturing", industry_display_name: null, default_currency: null, role: "owner", archived_at: null, purge_after: null, created_at: "2025-03-01" },
+    ];
+    orgApi.activeId = "carni";
+    writeWorkspaceName("Carniprod SRL");
+    const { unmount } = renderAt("/workspace/carni");
+    expect(await screen.findByTestId("company-title")).toHaveTextContent("Carniprod SRL");
+    // No catalog label, no stored name: no industry line — not "food_manufacturing".
+    expect(screen.queryByTestId("company-industry")).toBeNull();
+    expect(screen.getByTestId("company-page").textContent).not.toMatch(/food_manufacturing/);
+    unmount();
+    orgApi.extra = [{ ...orgApi.extra[0], industry_display_name: "Food manufacturing" }];
+    renderAt("/workspace/carni");
+    expect(await screen.findByTestId("company-industry")).toHaveTextContent("Food manufacturing");
+  });
+
   it("a company with no year yet says where the first file goes", async () => {
     orgApi.activeId = "agras";
     writeWorkspaceName("Agras SA");
@@ -297,3 +321,76 @@ describe("Dashboard with nothing analysed — no upload control there", () => {
     expect(container.querySelector('input[type="file"]')).toBeNull();
   });
 });
+
+// ── G8 — archive, never delete ─────────────────────────────────────────
+//
+// Owner rule: every removal in the redesign is an ARCHIVE (organizations
+// .archived_at — restorable from Home for 30 days), never a hard delete.
+// Reds on: the danger zone calling anything but the archive; the Home shelf
+// offering a permanent deletion; any redesign module naming a purge or a
+// delete call.
+const REDESIGN_MODULES = [
+  "pages/cfo/CompanyPage.tsx",
+  "pages/cfo/WorkspaceHomeV2.tsx",
+  "components/cfo/upload/UploadDrop.tsx",
+  "components/cfo/upload/UploadFlowHost.tsx",
+  "components/cfo/upload/identitySources.ts",
+  "components/cfo/upload/industryLabel.ts",
+  "lib/uploadFlow.ts",
+  "lib/uploadsApi.ts",
+  "lib/uploadNotices.ts",
+  "lib/companyOnScreen.ts",
+  "lib/previewFeatures.ts",
+];
+// A permanent deletion in any of its shapes: the purge RPC or its wrapper,
+// a permanent-delete / clear-deleted route, a PostgREST `.delete()`, an HTTP
+// DELETE. (Set/Map `.delete` and the archive's own purge COUNTDOWN label are
+// not deletions.)
+const PERMANENT_DELETE =
+  /\b(purge_workspace|purgeWorkspace\w*|purge_expired\w*|permanent[_-]?delete\w*|permanentDelete\w*|delete_my_\w+|delete_all_my_data|clear[_-]deleted)\b|method:\s*["'`]DELETE|\.from\([^)]*\)\s*\.delete\s*\(/i;
+
+describe("G8 — archive, never delete", () => {
+  beforeEach(() => {
+    orgApi.archiveWorkspace.mockClear();
+    orgApi.purgeWorkspace.mockClear();
+  });
+
+  it("the danger zone ARCHIVES the company (restorable) and never purges it", async () => {
+    renderAt("/workspace/scandia");
+    fireEvent.click(await screen.findByTestId("company-gear"));
+    const sheet = await screen.findByTestId("company-settings");
+    fireEvent.click(within(sheet).getByTestId("workspace-settings-delete"));
+    const dialog = await screen.findByTestId("workspace-settings-delete-dialog");
+    fireEvent.change(within(dialog).getByTestId("wsset-delete-confirm-input"), {
+      target: { value: "Scandia Food SRL" },
+    });
+    fireEvent.click(within(dialog).getByTestId("workspace-settings-delete-confirm"));
+    await waitFor(() => expect(orgApi.archiveWorkspace).toHaveBeenCalledWith("scandia"));
+    expect(orgApi.archiveWorkspace).toHaveBeenCalledTimes(1);
+    expect(orgApi.purgeWorkspace).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/workspace"));
+  });
+
+  it("Home keeps archived companies restorable and offers no permanent deletion", async () => {
+    renderAt("/workspace");
+    const shelf = await screen.findByTestId("workspace-home-deleted");
+    expect(within(shelf).getByTestId("workspace-home-restore-old")).toBeInTheDocument();
+    expect(shelf.textContent ?? "").not.toMatch(/permanent|definitiv/i);
+    expect(orgApi.purgeWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("no redesign module names a purge or a delete call", () => {
+    const FE = resolve(__dirname, "../../..");
+    const hits: string[] = [];
+    for (const rel of REDESIGN_MODULES) {
+      const code = readFileSync(resolve(FE, rel), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+      code.split("\n").forEach((line, i) => {
+        if (PERMANENT_DELETE.test(line)) hits.push(`${rel}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+});
+
