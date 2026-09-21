@@ -425,15 +425,24 @@ def test_the_post_body_binds_at_module_scope(app):
     a QUERY parameter and every body answers 422 loc [query, body]."""
     from engine.api import _forecast_routes as FR
     for name in ("PlanRequestBody", "HorizonBody", "ShockBody", "OverrideBody",
-                 "BehaviourOverrideBody", "DebtRowBody", "SpreadBody"):
+                 "BehaviourOverrideBody", "DebtRowBody", "SpreadBody",
+                 "ScenarioRequestBody"):
         assert getattr(FR, name).__module__ == FR.__name__
         assert getattr(FR, name).__qualname__ == name, "nested: %s" % name
     paths = [(r.path, sorted(getattr(r, "methods", ()) or ())) for r in app.routes]
     assert ("/api/forecast/{period_id}/recompute", ["POST"]) in paths
-    assert not any(p.endswith("/scenario") for p, _m in paths)
+    # R6 (scenarios_rulings, forecast-scenarios-live) mounts the scenario on
+    # POST .../scenario; this line used to pin its ABSENCE. Now it pins the
+    # route is exactly that POST and that its body binds as a BODY too.
+    scenario_routes = [(p, m) for p, m in paths if p.endswith("/scenario")]
+    assert scenario_routes == [("/api/forecast/{period_id}/scenario", ["POST"])], scenario_routes
     status, body = _call("agras", "POST", body={"horizon": {"total_years": 3}})
     assert status == 200, str(body)[:300]
     assert "query" not in json.dumps(body.get("detail", ""))
+    status, body = _call("agras", "POST", route="scenario",
+                         body={"template": "recession", "horizon": {"total_years": 3}})
+    assert status == 200, str(body)[:300]
+    assert body["scenario"]["template"] == "recession", body.get("scenario")
 
 
 @pytest.mark.parametrize("body,code,field", [
