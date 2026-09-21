@@ -3957,13 +3957,28 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         )
 
 
+def _enter_run(doc: Dict[str, Any], user_id: str) -> "_doc_dedupe.Entry":
+    """`/api/pipeline/run`'s entry (`_doc_dedupe.enter_analysis`, FIRST).
+
+    When another entry holds this document's claim and is still asking the
+    meter (a recovery on page mount), wait — bounded — for it to decide:
+    if it gives the claim back, THIS /run is the one that asks, instead of
+    answering "queued" for a run nobody is going to start."""
+    entry = _doc_dedupe.enter_analysis(doc, user_id, now_iso=_now_iso(), mode=_doc_dedupe.FIRST)
+    if entry.kind == _doc_dedupe.BUSY and _doc_dedupe.await_decision(str(doc.get("id") or "")) is None:
+        entry = _doc_dedupe.enter_analysis(doc, user_id, now_iso=_now_iso(), mode=_doc_dedupe.FIRST)
+    return entry
+
+
 def _run_pipeline_sync(document_id: str) -> None:
     """Run the stages, then settle THIS run's reservation on the outcome.
 
     Every terminal path goes through the one settlement below — the early
     successes (public-records summary, AI-lane cache hit, AI lane, SKU scope)
     used to `return` past the commit and leave their reservation outstanding
-    forever, and a document that vanished mid-run released nothing."""
+    forever, and a document that vanished mid-run released nothing. The
+    document leaves the in-flight registry only after its settlement, so a
+    second entry can never claim it while this run still holds its slot."""
     outcome = "failed"
     try:
         outcome = _run_pipeline_stages(document_id)
@@ -3972,6 +3987,8 @@ def _run_pipeline_sync(document_id: str) -> None:
             _commit_pipeline_quota(document_id, success=(outcome == "analyzed"))
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] quota settlement failed (non-fatal)")
+        finally:
+            _doc_dedupe.clear_in_flight(document_id)
 
 
 def _run_pipeline_stages(document_id: str) -> str:
@@ -5763,12 +5780,22 @@ def build_router() -> APIRouter:
         # analysed, counted or billed. Otherwise the run CLAIMS the document
         # (its pipeline_started_at) under the same lock, so a racing twin
         # finds it running and is the one archived.
-        prior_claim = doc.get("pipeline_started_at")
-        hit = _doc_dedupe.claim_or_duplicate(doc, user_id, now_iso=_now_iso(), claim=True)
-        if hit is not None:
+        entry = _enter_run(doc, user_id)
+        if entry.kind == _doc_dedupe.DUPLICATE:
             return RunResponse(document_id=req.document_id, status="duplicate",
-                               existing_document_id=hit.existing_document_id,
-                               period_id=hit.period_id)
+                               existing_document_id=entry.hit.existing_document_id if entry.hit else None,
+                               period_id=entry.hit.period_id if entry.hit else None)
+        if entry.kind != _doc_dedupe.CLAIMED:
+            # ONE RUN PER DOCUMENT (2026-09-21). This document already has its
+            # run (in flight in this process) or its analysis: nothing is
+            # reserved and nothing is enqueued, and the answer is where it
+            # stands — the browser polls the row either way. The failed-upload
+            # banner's Retry posts /run on the SAME id, and a `failed` banner
+            # can be a lost response for a run the server did start (CLAUDE.md
+            # §24): that Retry used to reserve and commit the book a second
+            # time, or leave a second reservation behind for good.
+            return RunResponse(document_id=req.document_id, status=entry.status or "queued",
+                               period_id=entry.period_id)
         enqueued = False
         try:
             # Pricing V3 (refined spec gaps C + D) — atomic reserve,
@@ -5786,6 +5813,11 @@ def build_router() -> APIRouter:
             _usage_limits.check_quota(user_id, "upload")
             from . import _usage_gate as _ug
             decision = _ug.reserve_document(user_id)
+            if decision.kind == "allowed":
+                # Into the ledger BEFORE any other write: a row patch that
+                # fails below must find the reservation here to release it.
+                _register_quota_run(req.document_id, user_id=user_id,
+                                    was_extra=bool(decision.was_extra))
             if decision.kind == "blocked":
                 raise HTTPException(
                     status_code=429,
@@ -5831,10 +5863,8 @@ def build_router() -> APIRouter:
                 with _supabase.admin() as ac:
                     ac.update("documents", patch, filters={"id": f"eq.{req.document_id}"})
 
-            if decision.kind == "allowed":
-                _register_quota_run(req.document_id, user_id=user_id,
-                                    was_extra=bool(decision.was_extra))
             _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
+            _doc_dedupe.mark_running(req.document_id)
             _enqueue(req.document_id)
             enqueued = True
         finally:
@@ -5843,7 +5873,7 @@ def build_router() -> APIRouter:
                 # goes back — a dismissed dialog must not leave a phantom
                 # "running" original behind for the next upload to hit —
                 # and a reservation already taken is released, not leaked.
-                _doc_dedupe.release_claim({**doc, "pipeline_started_at": prior_claim})
+                _doc_dedupe.release_claim(entry.released_row())
                 orphan = _take_quota_run(req.document_id)
                 if orphan is not None and orphan.doc_reserved and orphan.user_id:
                     from . import _usage_gate as _ug_release
@@ -7305,13 +7335,30 @@ def build_router() -> APIRouter:
         # A re-run of a document that duplicates a live one (an older copy
         # uploaded before dedupe existed, retried from the Docs panel) is
         # archived instead of re-analysed. The retry reserves nothing and —
-        # with no ledger entry — its terminal settles nothing either.
-        hit = _doc_dedupe.claim_or_duplicate(doc, _user_id_from_jwt(jwt),
-                                             now_iso=_now_iso(), claim=False)
-        if hit is not None:
+        # with no ledger entry — its terminal settles nothing either. A
+        # document whose run is already in flight is not started a second
+        # time: two daemon threads on one document is never a re-run.
+        entry = _doc_dedupe.enter_analysis(doc, _user_id_from_jwt(jwt),
+                                           now_iso=_now_iso(), mode=_doc_dedupe.RERUN)
+        if entry.kind == _doc_dedupe.DUPLICATE:
             return RunResponse(document_id=req.document_id, status="duplicate",
-                               existing_document_id=hit.existing_document_id,
-                               period_id=hit.period_id)
+                               existing_document_id=entry.hit.existing_document_id if entry.hit else None,
+                               period_id=entry.hit.period_id if entry.hit else None)
+        if entry.kind != _doc_dedupe.CLAIMED:
+            return RunResponse(document_id=req.document_id, status=entry.status or "queued",
+                               period_id=entry.period_id)
+        enqueued = False
+        try:
+            _retry_rerun(req.document_id, doc)
+            enqueued = True
+        finally:
+            if not enqueued:
+                _doc_dedupe.release_claim(entry.released_row())
+        return RunResponse(document_id=req.document_id, status="queued")
+
+    def _retry_rerun(document_id: str, doc: Dict[str, Any]) -> None:
+        """The body of a claimed retry: wipe the prior derivatives, queue,
+        hand the run to its thread."""
         # Wipe prior derivatives via cascade — deleting the financial_periods
         # row removes statement_line_items, calculated_metrics, briefings,
         # AND alerts (alerts.document_id has on delete set null, we explicitly
@@ -7336,15 +7383,15 @@ def build_router() -> APIRouter:
                     "org_id": f"eq.{doc_org}",
                 })
         with _supabase.admin() as admin_client:
-            admin_client.delete("alerts", filters={"document_id": f"eq.{req.document_id}"})
+            admin_client.delete("alerts", filters={"document_id": f"eq.{document_id}"})
             admin_client.update(
                 "documents",
                 {"period_id": None, "error": None, "duration_ms": None},
-                filters={"id": f"eq.{req.document_id}"},
+                filters={"id": f"eq.{document_id}"},
             )
-        _admin_set_status(req.document_id, "queued", pipeline_started_at=_now_iso())
-        _enqueue(req.document_id)
-        return RunResponse(document_id=req.document_id, status="queued")
+        _admin_set_status(document_id, "queued", pipeline_started_at=_now_iso())
+        _doc_dedupe.mark_running(document_id)
+        _enqueue(document_id)
 
     @router.get("/api/period/{period_id}")
     def get_period(period_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:

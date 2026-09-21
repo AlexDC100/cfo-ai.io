@@ -343,6 +343,69 @@ def test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it(world):
     assert world["enqueued"] == [] and world["meter"].calls == []
 
 
+# ── One run per document (verifier P-A, 2026-09-21) ──────────────────────
+
+
+def test_run_twice_on_the_same_analysed_document_counts_once(world):
+    """The failed-upload banner's Retry posts /run on the SAME id
+    (FinancialStatements.retryFailedUpload), and a `failed` banner can be a
+    lost response for a run the server did start (CLAUDE.md §24). The second
+    /run answers where the document stands and reserves nothing."""
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    calls_after_first = list(world["meter"].calls)
+    r = world["post"]("/api/pipeline/run", {"document_id": "book"})
+    assert r.status_code == 202, r.text
+    assert r.json()["status"] == "analyzed" and r.json()["period_id"] == PERIOD, r.json()
+    assert world["enqueued"] == ["book"], "an analysed document was analysed again"
+    assert world["meter"].calls == calls_after_first, "a second /run reached the meter"
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_run_twice_while_the_first_is_in_flight_reserves_once(world):
+    """The first response was lost; Retry posts /run again while thread 1
+    runs. One claim, one reservation, one ledger entry, one terminal."""
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    second = world["post"]("/api/pipeline/run", {"document_id": "book"})
+    assert second.status_code == 202 and second.json()["status"] == "queued", second.text
+    assert world["enqueued"] == ["book"], "one document handed to two daemon threads"
+    assert world["meter"].calls == ["reserve_user_upload"], world["meter"].calls
+    world["finish"]("book", "analyzed")
+    assert world["meter"].snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert _doc_dedupe.in_flight("book") is None, "the terminal left the document claimed"
+
+
+def test_a_retry_of_a_document_in_flight_starts_no_second_thread(world):
+    world["db"].rows("documents").append(_doc("book"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    assert world["enqueued"] == ["book"]
+
+
+def test_a_run_whose_row_patch_fails_releases_its_reservation(world, monkeypatch):
+    """The browser always sends output_language, so /run patches the row
+    after reserving. A transient PostgREST error there is a 500 — and the
+    reservation must already be in the ledger for the finally to release."""
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").append(_doc("book"))
+    real_update = db.update
+
+    def update(table, patch, *, filters):
+        if table == "documents" and "detected_language" in patch:
+            raise RuntimeError("PostgREST 503")
+        return real_update(table, patch, filters=filters)
+
+    monkeypatch.setattr(db, "update", update)
+    client = TestClient(world["app"], raise_server_exceptions=False)
+    r = client.post("/api/pipeline/run", json={"document_id": "book", "output_language": "ro"},
+                    headers={"Authorization": "Bearer jwt:%s" % OWNER})
+    assert r.status_code == 500
+    assert meter.snapshot()["reserved"] == 0, "an errored /run left its reservation counted"
+    assert _row(world, "book")["pipeline_started_at"] is None and _doc_dedupe.in_flight("book") is None
+
+
 # ── Failures and duplicates are never counted ────────────────────────────
 
 
