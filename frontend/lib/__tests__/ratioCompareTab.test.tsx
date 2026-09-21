@@ -136,6 +136,37 @@ const withoutMetricRows = (p: Pair): Pair => {
   return p;
 };
 
+/** THE PLANTED SPLIT — non-vacuity for the G11 / G12 colour gates
+ *  (2026-09-21).
+ *
+ *  Those gates prove the badge is the SERVED band, and that proof only
+ *  means something on a tile where the browser's own verdict says
+ *  otherwise. Until tb_parser_v6 the real pair carried exactly one such
+ *  tile: net_margin, browser 11.9 % healthy on the rebuilt profit against
+ *  the engine's 6.35 % watch on account 121. Under v6 the rebuilt profit
+ *  reads 5.8 %, watch on both sides, and the real pair carries no badge
+ *  split at all (measured: 0 on G11 and on G12). The gates were right;
+ *  the fixture stopped exercising them.
+ *
+ *  So the split is PLANTED, on the browser side only. With no persisted
+ *  metric rows computeRatios grades net_margin from its own
+ *  `pbt − taxExpense` over revenue; raising taxExpense by 5 % of revenue
+ *  moves that margin down exactly 5 pp — across the 3 % watch rung into
+ *  critical — while every served document (the period's ratio_table and
+ *  the comparison rows: net_margin 6.8 %, watch) is left exactly as
+ *  served. A gate that painted the browser's verdict would now paint red
+ *  where the served band is amber; the gate must keep the served side,
+ *  and must count exactly this one split on top of whatever the real pair
+ *  carries (asserted in the planted G11 / G12 cases below).
+ */
+const PLANTED_SPLIT_KEY = "net_margin";
+const withPlantedBrowserSplit = (): Pair => {
+  const p = withoutMetricRows(fresh());
+  const is = p.current_body.statements.incomeStatement;
+  is.taxExpense = (is.taxExpense ?? 0) + is.revenue * 0.05;
+  return p;
+};
+
 const bundle = (lang: "en" | "ro", key: string): string => {
   const v = key
     .split(".")
@@ -290,63 +321,97 @@ describe("G1 the tile and the table print the served strings, not a browser comp
   });
 
   const q = (root: ParentNode, id: string) => root.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+  /** The G12 gate over one pair: every parity assertion runs here; the
+   *  counters and the keys whose browser badge tone parts from the served
+   *  band are returned for the non-vacuity checks. */
+  const g12Gate = (p: Pair) => {
+    const { ratios } = pageInputs(p);
+    const all = [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency];
+    const view = viewOf(p);
+    const counters = { divergentLadders: 0, divergentBadges: 0, ranges: 0, chips: 0 };
+    const badgeSplits: string[] = [];
+    for (const fe of all) {
+      const key = engineKeyOf(fe.key);
+      if (!view.periodTable?.rows.some((r) => r.key === key)) continue;
+      const r = renderTab(p, view);
+      const tl = tile(fe.key);
+      const side = bandSideOf(view, key);
+      fireEvent.click(tl);
+      const drawer = q(document, "ratio-detail-drawer")!;
+      const badge = q(drawer, "ratio-detail-band-now")!;
+      expect(badge, fe.key).not.toBeNull();
+      expect(badge.textContent, fe.key).toBe(q(tl, "ratio-band-now")!.textContent);
+      const tone = BADGE_BY_TONE[bandTone(side)];
+      expect(badge.className, fe.key).toContain(tone);
+      for (const other of Object.values(BADGE_BY_TONE)) {
+        if (other !== tone) expect(badge.className, `${fe.key} ${other}`).not.toContain(other.split(" ")[0]);
+      }
+      const tileLadder = q(tl, "ratio-ladder")!.textContent ?? "";
+      expect(q(drawer, "ratio-detail-ladder")!.textContent, fe.key).toBe(tileLadder);
+      if (fe.ladder) {
+        const browserLadder = ladderSentence(fe.ladder, fe.unit);
+        if (browserLadder !== "" && browserLadder !== tileLadder) {
+          counters.divergentLadders++;
+          expect(drawer.textContent, fe.key).not.toContain(browserLadder);
+        }
+      }
+      for (const chip of drawer.querySelectorAll<HTMLElement>('[data-testid="ratio-related-chip"]')) {
+        const rk = engineKeyOf(chip.getAttribute("data-ratio-key")!);
+        if (!view.periodTable?.rows.some((x) => x.key === rk)) continue;
+        counters.chips++;
+        expect(cell(chip, "current"), `${fe.key} -> ${rk}`).toBe(printRatioRow(view, rk, "en")!.current);
+      }
+      // a ratio with no knowledge entry opens the fallback body, which
+      // has no range section; every other drawer has one
+      const range = q(drawer, "ratio-detail-good-range");
+      if (range) {
+        counters.ranges++;
+        const knowledgeRange = range.textContent ?? "";
+        expect(knowledgeRange.startsWith(tileLadder), fe.key).toBe(true);
+        expect(knowledgeRange.slice(tileLadder.length), fe.key).not.toMatch(/\d/);
+      }
+      if (browserTone(fe.verdict) !== bandTone(side)) {
+        counters.divergentBadges++;
+        badgeSplits.push(key);
+      }
+      r.unmount();
+    }
+    return { counters, badgeSplits };
+  };
+
   for (const [name, make] of [["with persisted metric rows", fresh], ["without persisted metric rows", () => withoutMetricRows(fresh())]] as const) {
     it(`G12 on every served tile ${name}, the drawer's badge, ladder, range and related figures are the tile's`, () => {
-      const p = make();
-      const { ratios } = pageInputs(p);
-      const all = [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency];
-      const view = viewOf(p);
-      const counters = { divergentLadders: 0, divergentBadges: 0, ranges: 0, chips: 0 };
-      for (const fe of all) {
-        const key = engineKeyOf(fe.key);
-        if (!view.periodTable?.rows.some((r) => r.key === key)) continue;
-        const r = renderTab(p, view);
-        const tl = tile(fe.key);
-        const side = bandSideOf(view, key);
-        fireEvent.click(tl);
-        const drawer = q(document, "ratio-detail-drawer")!;
-        const badge = q(drawer, "ratio-detail-band-now")!;
-        expect(badge, fe.key).not.toBeNull();
-        expect(badge.textContent, fe.key).toBe(q(tl, "ratio-band-now")!.textContent);
-        const tone = BADGE_BY_TONE[bandTone(side)];
-        expect(badge.className, fe.key).toContain(tone);
-        for (const other of Object.values(BADGE_BY_TONE)) {
-          if (other !== tone) expect(badge.className, `${fe.key} ${other}`).not.toContain(other.split(" ")[0]);
-        }
-        const tileLadder = q(tl, "ratio-ladder")!.textContent ?? "";
-        expect(q(drawer, "ratio-detail-ladder")!.textContent, fe.key).toBe(tileLadder);
-        if (fe.ladder) {
-          const browserLadder = ladderSentence(fe.ladder, fe.unit);
-          if (browserLadder !== "" && browserLadder !== tileLadder) {
-            counters.divergentLadders++;
-            expect(drawer.textContent, fe.key).not.toContain(browserLadder);
-          }
-        }
-        for (const chip of drawer.querySelectorAll<HTMLElement>('[data-testid="ratio-related-chip"]')) {
-          const rk = engineKeyOf(chip.getAttribute("data-ratio-key")!);
-          if (!view.periodTable?.rows.some((x) => x.key === rk)) continue;
-          counters.chips++;
-          expect(cell(chip, "current"), `${fe.key} -> ${rk}`).toBe(printRatioRow(view, rk, "en")!.current);
-        }
-        // a ratio with no knowledge entry opens the fallback body, which
-        // has no range section; every other drawer has one
-        const range = q(drawer, "ratio-detail-good-range");
-        if (range) {
-          counters.ranges++;
-          const knowledgeRange = range.textContent ?? "";
-          expect(knowledgeRange.startsWith(tileLadder), fe.key).toBe(true);
-          expect(knowledgeRange.slice(tileLadder.length), fe.key).not.toMatch(/\d/);
-        }
-        if (browserTone(fe.verdict) !== bandTone(side)) counters.divergentBadges++;
-        r.unmount();
-      }
-      // non-vacuity: the fixture carries the splits this gate exists for
+      const { counters } = g12Gate(make());
+      // non-vacuity: the fixture carries the splits this gate exists for.
+      // The badge split is no longer one of them on the real pair under
+      // tb_parser_v6 (see withPlantedBrowserSplit); it is proven on the
+      // planted variant below instead.
       expect(counters.divergentLadders).toBeGreaterThan(0);
       expect(counters.ranges).toBeGreaterThan(15);
       expect(counters.chips).toBeGreaterThan(10);
-      if (name === "without persisted metric rows") expect(counters.divergentBadges).toBeGreaterThan(0);
     }, 30_000);
   }
+
+  it("G12 on a planted browser-side badge split (no persisted metric rows), the drawer's badge is still the served band and the split is counted", () => {
+    const real = g12Gate(withoutMetricRows(fresh()));
+    const planted = g12Gate(withPlantedBrowserSplit());
+    // the plant is real: the browser now grades the planted key off the
+    // served band, and the served band is untouched
+    const p = withPlantedBrowserSplit();
+    const fe = [...pageInputs(p).ratios.profitability].find((x) => engineKeyOf(x.key) === PLANTED_SPLIT_KEY)!;
+    expect(fe, "the planted key has no browser row").toBeTruthy();
+    expect(browserTone(fe.verdict)).not.toBe(bandTone(bandSideOf(viewOf(p), PLANTED_SPLIT_KEY)));
+    expect(bandSideOf(viewOf(p), PLANTED_SPLIT_KEY)).toEqual(bandSideOf(viewOf(withoutMetricRows(fresh())), PLANTED_SPLIT_KEY));
+    // non-vacuity, restored: the gate ran every parity assertion on a tile
+    // whose browser verdict parts from the served band — exactly the one
+    // planted, on top of whatever the real pair carries
+    expect(planted.counters.divergentBadges).toBeGreaterThanOrEqual(1);
+    expect(planted.badgeSplits).toContain(PLANTED_SPLIT_KEY);
+    expect([...planted.badgeSplits].sort()).toEqual([...new Set([...real.badgeSplits, PLANTED_SPLIT_KEY])].sort());
+    expect(planted.counters.divergentLadders).toBeGreaterThan(0);
+    expect(planted.counters.ranges).toBeGreaterThan(15);
+    expect(planted.counters.chips).toBeGreaterThan(10);
+  }, 60_000);
 
   it("G1b when the two documents disagree about the current figure, no change is printed", () => {
     const p = fresh();
@@ -867,46 +932,67 @@ describe("G10 a band withheld by the comparison is not a disagreement about the 
 // ── G11 ───────────────────────────────────────────────────────────────
 
 describe("G11 the band columns, badges, ladders and colours are the served sides, on the table and the tile", () => {
+  /** The G11 gate over one pair: every assertion runs here; the keys whose
+   *  browser badge tone parts from the served band are returned for the
+   *  non-vacuity checks. */
+  const g11Gate = (p: Pair) => {
+    const view = viewOf(p);
+    const r = p.comparatives.ratios;
+    const rendered = renderTab(p, view);
+    for (const row of [...r.rows, ...r.composites]) {
+      const tr = tableRow(row.key);
+      expect(cell(tr, "band_now"), row.key).toBe(formatRatioBand(bandSideOf(view, row.key), "en"));
+      expect(cell(tr, "band_prior"), row.key).toBe(formatRatioBand(row.prior, "en"));
+      expect(cell(tr, "movement"), row.key).toBe(formatRatioMovement(row.movement, "en"));
+      expect(tr.querySelector('[data-col="movement"]')!.className, row.key).toContain(toneText(movementTone(row.movement)));
+    }
+    const tiles = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-tile"][data-source="served"]')];
+    expect(tiles.length).toBeGreaterThanOrEqual(23);
+    const toneSplits: string[] = [];
+    const { ratios } = pageInputs(p);
+    const verdictOf = new Map(
+      [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency].map((x) => [x.key, x.verdict]),
+    );
+    for (const tl of tiles) {
+      const key = tl.getAttribute("data-engine-key")!;
+      const side = bandSideOf(view, key);
+      const served = r.rows.find((x) => x.key === key) ?? r.composites.find((x) => x.key === key)!;
+      const badge = within(tl).getByTestId("ratio-band-now");
+      expect(badge.textContent, key).toBe(formatRatioBand(side, "en"));
+      const tone = bandTone(side);
+      expect(badge.className, key).toContain(BADGE_BY_TONE[tone]);
+      const v = verdictOf.get(tl.getAttribute("data-ratio-key")!);
+      if (v && browserTone(v) !== tone) toneSplits.push(key);
+      expect(within(tl).getByTestId("ratio-ladder").textContent, key).toBe(
+        ladderText(side, served.higher_is_better, served.display_unit, "en"),
+      );
+      expect(cell(tl, "band_prior"), key).toBe(formatRatioBand(served.prior, "en"));
+      expect(cell(tl, "movement"), key).toBe(formatRatioMovement(served.movement, "en"));
+      expect(tl.querySelector('[data-col="movement"]')!.className, key).toContain(toneText(movementTone(served.movement)));
+    }
+    rendered.unmount();
+    return { toneSplits };
+  };
+
   for (const [name, make] of [["with persisted metric rows", fresh], ["without persisted metric rows", () => withoutMetricRows(fresh())]] as const) {
     it(`every census row and composite, ${name}`, () => {
-      const p = make();
-      const view = viewOf(p);
-      const r = p.comparatives.ratios;
-      renderTab(p, view);
-      for (const row of [...r.rows, ...r.composites]) {
-        const tr = tableRow(row.key);
-        expect(cell(tr, "band_now"), row.key).toBe(formatRatioBand(bandSideOf(view, row.key), "en"));
-        expect(cell(tr, "band_prior"), row.key).toBe(formatRatioBand(row.prior, "en"));
-        expect(cell(tr, "movement"), row.key).toBe(formatRatioMovement(row.movement, "en"));
-        expect(tr.querySelector('[data-col="movement"]')!.className, row.key).toContain(toneText(movementTone(row.movement)));
-      }
-      const tiles = [...document.querySelectorAll<HTMLElement>('[data-testid="ratio-tile"][data-source="served"]')];
-      expect(tiles.length).toBeGreaterThanOrEqual(23);
-      let toneSplits = 0;
-      const { ratios } = pageInputs(p);
-      const verdictOf = new Map(
-        [...ratios.liquidity, ...ratios.profitability, ...ratios.leverage, ...ratios.coverage, ...ratios.efficiency].map((x) => [x.key, x.verdict]),
-      );
-      for (const tl of tiles) {
-        const key = tl.getAttribute("data-engine-key")!;
-        const side = bandSideOf(view, key);
-        const served = r.rows.find((x) => x.key === key) ?? r.composites.find((x) => x.key === key)!;
-        const badge = within(tl).getByTestId("ratio-band-now");
-        expect(badge.textContent, key).toBe(formatRatioBand(side, "en"));
-        const tone = bandTone(side);
-        expect(badge.className, key).toContain(BADGE_BY_TONE[tone]);
-        const v = verdictOf.get(tl.getAttribute("data-ratio-key")!);
-        if (v && browserTone(v) !== tone) toneSplits++;
-        expect(within(tl).getByTestId("ratio-ladder").textContent, key).toBe(
-          ladderText(side, served.higher_is_better, served.display_unit, "en"),
-        );
-        expect(cell(tl, "band_prior"), key).toBe(formatRatioBand(served.prior, "en"));
-        expect(cell(tl, "movement"), key).toBe(formatRatioMovement(served.movement, "en"));
-        expect(tl.querySelector('[data-col="movement"]')!.className, key).toContain(toneText(movementTone(served.movement)));
-      }
-      if (name === "without persisted metric rows") expect(toneSplits).toBeGreaterThan(0);
+      // The tone split's non-vacuity is proven on the planted variant
+      // below: under tb_parser_v6 the real pair carries none (see
+      // withPlantedBrowserSplit).
+      g11Gate(make());
     });
   }
+
+  it("every census row and composite, on a planted browser-side badge split (no persisted metric rows): the badge is still the served band and the split is counted", () => {
+    const real = g11Gate(withoutMetricRows(fresh()));
+    const planted = g11Gate(withPlantedBrowserSplit());
+    // non-vacuity, restored: the badge assertions ran on a tile whose
+    // browser verdict parts from the served band — exactly the one
+    // planted, on top of whatever the real pair carries
+    expect(planted.toneSplits.length).toBeGreaterThanOrEqual(1);
+    expect(planted.toneSplits).toContain(PLANTED_SPLIT_KEY);
+    expect([...planted.toneSplits].sort()).toEqual([...new Set([...real.toneSplits, PLANTED_SPLIT_KEY])].sort());
+  });
 
   it("a crossed_up row is green and a crossed_down row is red, in the table and on the tile", () => {
     const p = fresh();

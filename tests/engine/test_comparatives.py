@@ -391,6 +391,80 @@ def test_a_negative_base_percentage_uses_magnitude_so_the_sign_is_the_movement()
     assert col.delta_pct == 0.5, "a loss halving is +50% of the magnitude, not -50%"
 
 
+# ── plan/2 B1 (plan_contract_v2 section 7, S7): cross-sign columns ─────
+#
+# Defect 0.4: a column whose two periods sit on opposite sides of zero
+# served (current - prior) / |prior| as its percentage — a profit of
+# 6,104,815.29 becoming a loss of 107,630,000 read -18.63, which the FE
+# printed as "-19x". The column keeps its disclosure status (both periods
+# reported it) and carries the classifier's kind with NO percentage.
+
+def test_a_cross_sign_column_carries_its_kind_and_no_percentage():
+    t = CO.build_comparative_columns(
+        _env(pl={"ebitda": -107630000.0}, buckets=["revenue"]),
+        _env(pl={"ebitda": 6104815.29}, buckets=["revenue"]),
+        current_level=ANALYTIC, prior_level=ANALYTIC)
+    col = _col(t, "pl.ebitda")
+    assert col.status == CO.STATUS_COMPARED
+    assert col.delta == -113734815.29
+    assert col.delta_pct is None, "a sign flip served a percentage: %r" % col.delta_pct
+    assert col.change_kind == "flip_to_negative"
+    assert col.has_movement and "%" not in col.note
+
+    mirror = CO.build_comparative_columns(
+        _env(pl={"ebitda": 6104815.29}, buckets=["revenue"]),
+        _env(pl={"ebitda": -107630000.0}, buckets=["revenue"]),
+        current_level=ANALYTIC, prior_level=ANALYTIC)
+    m = _col(mirror, "pl.ebitda")
+    assert (m.status, m.delta_pct, m.change_kind) == (
+        CO.STATUS_COMPARED, None, "flip_to_positive")
+
+
+def test_a_move_to_zero_or_from_zero_is_a_kind_never_a_hundred_percent():
+    to_zero = CO.build_comparative_columns(
+        _env(pl={"revenue": CO.PCT_BASE_FLOOR / 2.0}, buckets=["revenue"]),
+        _env(pl={"revenue": 500.0}, buckets=["revenue"]),
+        current_level=ANALYTIC, prior_level=ANALYTIC)
+    col = _col(to_zero, "pl.revenue")
+    assert (col.delta_pct, col.change_kind) == (None, "to_zero")
+    from_zero = CO.build_comparative_columns(
+        _env(pl={"revenue": 500.0}, buckets=["revenue"]),
+        _env(pl={"revenue": 0.0}, buckets=["revenue"]),
+        current_level=ANALYTIC, prior_level=ANALYTIC)
+    col = _col(from_zero, "pl.revenue")
+    assert (col.status, col.delta_pct, col.change_kind) == (
+        CO.STATUS_COMPARED_NO_BASE, None, "from_zero")
+
+
+def test_change_kind_is_set_exactly_on_movement_statuses_over_every_orientation():
+    """The sweep. change_kind is orthogonal to the disclosure status: set
+    only on compared / compared_no_base, and a percentage only rides the
+    kind "compared"."""
+    seen = kinds = words = 0
+    for cur, pri, cl, pl_ in (
+        (ANALYTIC_BOOK, CONDENSED_BOOK, ANALYTIC, SYNTHETIC),
+        (CONDENSED_BOOK, ANALYTIC_BOOK, SYNTHETIC, ANALYTIC),
+        (ANALYTIC_BOOK, SYNTHETIC_BOOK, ANALYTIC, SYNTHETIC),
+        (ANALYTIC_BOOK, ANALYTIC_BOOK, ANALYTIC, ANALYTIC),
+        (ANALYTIC_BOOK, ANALYTIC_BOOK, INDETERMINATE, ANALYTIC),
+    ):
+        t = CO.build_comparative_columns(cur, pri, current_level=cl, prior_level=pl_)
+        for col in t.columns:
+            seen += 1
+            if col.status in CO.MOVEMENT_STATUSES:
+                assert col.change_kind is not None, col.key
+                kinds += 1
+                words += col.change_kind != "compared"
+            else:
+                assert col.change_kind is None, (col.key, col.status, col.change_kind)
+            if col.delta_pct is not None:
+                assert col.change_kind == "compared", (col.key, col.change_kind)
+    assert seen >= 5 * len(LN.LINE_SPECS) and kinds > 0
+    print("SIGN-FLIP comparatives sweep: %d columns, %d carrying a change kind, %d of them "
+          "a word kind (no percentage)" % (seen, kinds, words))
+    print("GATE-WORK sign-flip units=%d label=comparative-columns" % seen)
+
+
 def test_no_column_anywhere_carries_a_non_finite_number():
     """The sweep. Every column of every orientation of the real pair."""
     seen = 0

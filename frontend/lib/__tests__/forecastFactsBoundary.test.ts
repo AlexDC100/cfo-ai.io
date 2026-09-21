@@ -70,14 +70,14 @@ import { toDisplay } from "@/lib/servedFacts";
 import { formatAmount } from "@/lib/amountFormat";
 
 const REPO = resolve(__dirname, "../../..");
-const FP1 = resolve(REPO, "tests/engine/fixtures/forecast/fp1_agras.json");
+const FP1 = resolve(REPO, "tests/engine/fixtures/forecast/fp1_2_agras.json");
 // The SERVED wire form — what `ProjectionGateway.as_dict()` really puts on the
 // wire, and therefore what a browser really receives. See the round-trip
 // describe block near the bottom of this file for why it is here and what its
 // absence cost.
 const FP1_SERVED = resolve(
   REPO,
-  "tests/engine/fixtures/forecast/fp1_agras_served.json",
+  "tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 const AGRAS = resolve(REPO, "tests/engine/fixtures/firm/saga_10_col_agras.json");
 
@@ -104,7 +104,9 @@ const revenueY1 = (): ProjectedFigure => {
 describe("a projected amount is not a number to the type checker", () => {
   it("cannot be used in arithmetic with an actual", () => {
     const figure = revenueY1();
-    const actualMinor = 11857681964; // agras revenue, measured, in cents
+    // plan/2 B4a: agras revenue re-measured at 110,798,309.14 (its mirrored 709
+    // reductions now enter revenue as reductions); FY+1 follows in fp1_agras.json.
+    const actualMinor = 11079830914; // agras revenue, measured, in cents
     // @ts-expect-error a projected amount has no arithmetic with an actual
     const bogus = actualMinor + figure.amountMinor;
     // At RUNTIME the value is an ordinary number and the sum is real — which
@@ -113,7 +115,7 @@ describe("a projected amount is not a number to the type checker", () => {
     // `@ts-expect-error` above is the entire gate, and it fails if the line
     // ever starts compiling.
     expect(typeof bogus).toBe("number");
-    expect(bogus).toBe(11857681964 + 12806296521);
+    expect(bogus).toBe(11079830914 + 11966217387);
   });
 
   it("cannot be passed where a number is expected", () => {
@@ -141,7 +143,7 @@ describe("a projected amount is not a number to the type checker", () => {
     const figure = revenueY1();
     // @ts-expect-error toDisplay is the actuals cents→display boundary
     const asIfActual = toDisplay(figure.amountMinor);
-    expect(asIfActual).toBe(128062965.21);
+    expect(asIfActual).toBe(119662173.87);
   });
 
   it("cannot be handed to formatAmount, the product's figure formatter", () => {
@@ -159,7 +161,7 @@ describe("a projected amount is not a number to the type checker", () => {
       return v;
     });
     // 118,576,819.64 grown 8% — the same figure the engine gate measures.
-    expect(value).toBe(128062965.21);
+    expect(value).toBe(119662173.87);
     expect(seen).not.toBeNull();
     const marker = seen as unknown as ProjectedMarker;
     expect(marker.projected).toBe(true);
@@ -171,7 +173,7 @@ describe("a projected amount is not a number to the type checker", () => {
 
   it("unwrapProjected hands over minor units, never a bare float", () => {
     const minor = unwrapProjected(revenueY1(), "base", (m) => m);
-    expect(minor).toBe(12806296521);
+    expect(minor).toBe(11966217387);
     expect(Number.isInteger(minor)).toBe(true);
   });
 });
@@ -191,7 +193,7 @@ describe("actuals and projections cannot be mixed in one payload", () => {
       projected: true,
       line: "revenue",
       period: "FY+1",
-      amount_minor_projected: 12806296521,
+      amount_minor_projected: 11966217387,
     };
     const leaks = projectionLeaksIntoActuals(planted);
     expect(leaks).toEqual(["$.statements.assembled_pl.revenue_next_year"]);
@@ -203,7 +205,7 @@ describe("actuals and projections cannot be mixed in one payload", () => {
     planted.line_items.push({
       line: "revenue",
       period: "FY+1",
-      amount_minor: 12806296521,
+      amount_minor: 11966217387,
       assumption_ids: ["revenue_growth"],
     });
     expect(projectionLeaksIntoActuals(planted).length).toBeGreaterThan(0);
@@ -280,7 +282,7 @@ describe("every projected figure resolves to its drivers", () => {
 
   it("a figure whose assumptions do not resolve is refused, not numbered", () => {
     const root = JSON.parse(readFileSync(FP1, "utf8"));
-    root.figures[0].assumption_ids = ["a_driver_nobody_declared"];
+    root.figures[0].driver_ids = ["a_driver_nobody_declared"];
     const v = readProjection(root);
     const figure = v!.figure("revenue", "FY+1");
     expect(isProjectionRefusal(figure)).toBe(true);
@@ -349,7 +351,7 @@ describe("fp1 constants agree with the engine's own contract module", () => {
   );
 
   it("the version and the discriminant", () => {
-    expect(contractPy).toContain(`CONTRACT_VERSION = "${FORECAST_CONTRACT_VERSION}"`);
+    expect(contractPy).toContain(`PLAN_CONTRACT_VERSION = "${FORECAST_CONTRACT_VERSION}"`);
     expect(contractPy).toContain(`KIND = "${PROJECTION_KIND}"`);
   });
 
@@ -438,7 +440,7 @@ describe("the wire form the engine actually serves", () => {
   it("carries the same number as the input form, to the cent", () => {
     const f = readProjection(served())!.figure("revenue", "FY+1");
     if (!isProjectedFigure(f)) throw new Error(`refused: ${JSON.stringify(f)}`);
-    expect(unwrapProjected(f, "base", (m) => m)).toBe(12806296521);
+    expect(unwrapProjected(f, "base", (m) => m)).toBe(11966217387);
   });
 
   it("carries the DRIVER VALUES, not a schedule serialized away", () => {
@@ -480,19 +482,44 @@ describe("the wire form the engine actually serves", () => {
     expect(() => assertNoActualProvenance(root)).not.toThrow();
   });
 
-  it("still reads the unmistakable amount name, so neither can be dropped", () => {
-    // Both names ride on the wire and carry the identical integer. The
-    // unmistakable one exists so no actuals consumer reaches it by habit;
-    // the contract's one exists so the payload reads back. Emitting only one
-    // is what caused the em-dash above, in either direction.
-    const figures = (served() as { figures: Record<string, unknown>[] }).figures;
-    for (const f of figures) {
-      expect(f.amount_minor).toBe(f.amount_minor_projected);
-      expect(f.assumption_ids).toEqual(
-        (f.basis as { id: string }[]).map((a) => a.id),
-      );
-      expect(f[PROJECTED_MARKER]).toBe(true);
+  it("the REAL served fp1.2 bytes: every figure is kinded, integer and resolves", () => {
+    // plan/2 B6 retires the fp1 pin "amount_minor === amount_minor_projected
+    // and assumption_ids === basis ids": fp1.2 carries ONE amount name, a
+    // figure kind instead of a marker, and ids instead of basis prose. What
+    // replaces it is read off the bytes GET /api/forecast really serves on
+    // agras (fp1_2_agras_served.json, held to the route by
+    // test_forecast_serving_boundary.py).
+    const real = JSON.parse(
+      readFileSync(
+        resolve(REPO, "tests/engine/fixtures/forecast/fp1_2_agras_served.json"),
+        "utf8",
+      ),
+    ) as {
+      figures: Record<string, unknown>[];
+      drivers: Record<string, unknown>;
+      conventions: Record<string, unknown>;
+    };
+    expect(real.figures.length).toBeGreaterThan(500);
+    for (const f of real.figures) {
+      expect(["projected", "projected_aggregate"]).toContain(f.kind);
+      expect(Number.isInteger(f.amount_minor)).toBe(true);
+      expect("basis" in f).toBe(false);
+      expect("amount_minor_projected" in f).toBe(false);
+      const ids = f.driver_ids as string[];
+      expect(ids.length).toBeGreaterThan(0);
+      for (const id of ids) {
+        expect(id in real.drivers || id in real.conventions).toBe(true);
+      }
     }
+    const view = readProjection(real);
+    expect(view).not.toBeNull();
+    const painted = view!.figures().filter(isProjectedFigure);
+    expect(painted.length).toBe(real.figures.length);
+    // an FY aggregate is a SERVED total, read like any figure (F2)
+    expect(view!.horizonAnnual.length).toBe(1);
+    expect(
+      isProjectedFigure(view!.figure("pl.revenue", view!.horizonAnnual[0])),
+    ).toBe(true);
   });
 });
 
@@ -588,7 +615,7 @@ describe("the producer-facing constants agree with the engine's", () => {
 describe("a driver value the payload does not state reads as ABSENT", () => {
   const withValues = (values: unknown) => {
     const root = JSON.parse(readFileSync(FP1, "utf8"));
-    root.assumptions[0].values = values;
+    root.drivers.revenue_growth.values = values;
     return readProjection(root)!.figure("revenue", "FY+1");
   };
 

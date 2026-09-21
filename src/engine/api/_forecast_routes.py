@@ -3,8 +3,13 @@
 WHAT THIS ROUTER IS FOR
 =======================
 `engine.forecast` builds a linked three-statement projection off ONE
-persisted period. `engine.forecast_serving` wraps it in the ``fp1``
-contract, whose whole job is to make a projected number impossible to
+persisted period. `engine.forecast_serving` serves it as ``fp1.2``
+(plan/2 B6, plan_contract_v2 sections 1.2, 2 and 3): ONE handler answers
+``POST /api/forecast/{period_id}/recompute`` and ``GET
+/api/forecast/{period_id}?horizon=3|5``, the GET being exactly a POST of
+``{"horizon": {"total_years": h, "monthly_months": 12}}``, so the two share
+a body_hash. The ``fp1`` contract this router first served wrapped the
+projection in a shape whose whole job is to make a projected number impossible to
 mistake for an actual. Between them they had, until this module, no
 caller: the forecast shipped complete and unreachable, which the owner
 found the only way an unreachable feature is ever found — by looking for
@@ -49,19 +54,137 @@ Python 3.9 — no ``match``, no ``X | Y`` unions.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, model_validator
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["build_router"]
+__all__ = ["ALLOWED_HORIZONS", "PlanRequestBody", "build_router"]
 
-#: The horizons the product offers. A caller asking for anything else is
-#: refused by name rather than clamped: silently serving three years to
+#: The horizons the product offers on GET. A caller asking for anything else
+#: is refused by name rather than clamped: silently serving three years to
 #: someone who asked for seven is the shape of defect this repo keeps
 #: finding, and the number of years is on the page the reader signs.
 ALLOWED_HORIZONS = (3, 5)
+
+
+# ── the wire body (2.1) ───────────────────────────────────────────────────
+# MODULE SCOPE, every one (CLAUDE.md 22): a Pydantic model nested in the
+# router factory of a future-annotations module binds as a QUERY parameter
+# and the route answers 422 to every body. test_the_post_body_binds_at_
+# module_scope and the route-binding gate hold it. Decimal values are typed
+# str: no float ever enters the engine (1.1).
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class HorizonBody(_Strict):
+    total_years: Optional[int] = None
+    monthly_months: int = 12
+
+
+class OverrideBody(_Strict):
+    values: List[Optional[str]]
+
+
+class ShockBody(_Strict):
+    id: str
+    driver_key: str
+    op: str
+    value: str
+    start_month: int = 1
+    ramp_months: int = 0
+    end_month: Optional[int] = None
+    source: str = "user"
+    group_id: Optional[str] = None
+
+
+class BehaviourOverrideBody(_Strict):
+    pool: str
+    fixed_share: Optional[str] = None
+    volume_elasticity: Optional[str] = None
+
+
+class DebtRowBody(_Strict):
+    year: int
+    st_draw: str = "0.00"
+    st_repay: str = "0.00"
+    lt_draw: str = "0.00"
+    lt_repay: str = "0.00"
+
+
+class SpreadBody(_Strict):
+    rate_pp: str
+    level_pct: str
+    direction: str
+
+
+class PlanRequestBody(_Strict):
+    """plan_contract_v2 2.1. Every field is declared from B6; a field whose
+    batch has not landed must hold its default (2.9). Which fields have
+    landed, and which want keys are accepted, is read from
+    ``engine.forecast_serving.blocks`` at validation time, so no later batch
+    edits this module to lift a refusal."""
+    horizon: Optional[HorizonBody] = None
+    case: str = "base"
+    case_id: Optional[str] = None
+    overrides: Dict[str, OverrideBody] = {}
+    shocks: List[ShockBody] = []
+    behaviour_overrides: List[BehaviourOverrideBody] = []
+    accept_proposals: List[str] = []
+    debt_schedule: List[DebtRowBody] = []
+    spread: Optional[SpreadBody] = None
+    compare_case_ids: List[str] = []
+    tornado_metric: Optional[str] = None
+    breakeven_from: str = "baseline"
+    want: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def _only_what_has_landed(self) -> "PlanRequestBody":
+        from engine.forecast_serving import blocks
+        fresh = PlanRequestBody.model_construct()
+        for name in type(self).model_fields:
+            if name in blocks.LANDED_REQUEST_FIELDS:
+                continue
+            if getattr(self, name) != getattr(fresh, name):
+                raise _Refusal(_not_served(), name)
+        for key in self.want or []:
+            if key not in blocks.ACCEPTED_WANT_KEYS:
+                raise _Refusal({"code": "unknown_want_key",
+                                "text": "want key %r is not served; the served "
+                                        "keys are %s" % (
+                                            key, ", ".join(blocks.ACCEPTED_WANT_KEYS))},
+                               key)
+        return self
+
+    @staticmethod
+    def accepted_want_keys() -> "tuple":
+        """What the gates read at run time (3.13, 11.1)."""
+        from engine.forecast_serving import blocks
+        return tuple(blocks.ACCEPTED_WANT_KEYS)
+
+
+class _Refusal(ValueError):
+    """Raised inside the validator; the handler answers 422 with it. Never a
+    pydantic ValueError subclass message: the sentence travels as data."""
+
+    def __init__(self, sentence: Dict[str, str], field: Optional[str]) -> None:
+        ValueError.__init__(self, sentence["text"])
+        self.sentence = sentence
+        self.field = field
+
+
+def _not_served() -> Dict[str, str]:
+    from engine.forecast.levers_pack import serving_pack
+    return dict(serving_pack().not_served)
+
+
+def _detail(code: str, text: str, field: Optional[str] = None) -> Dict[str, Any]:
+    return {"code": code, "text": text, "field": field}
 
 
 def _require_jwt(authorization: Optional[str]) -> str:
@@ -71,48 +194,103 @@ def _require_jwt(authorization: Optional[str]) -> str:
     return authorization.split(" ", 1)[1].strip()
 
 
-def _load_period(jwt: str, org_id: str, period_id: str) -> Dict[str, Any]:
-    """The period's persisted envelope and its assembled statements.
+def _wire(body: PlanRequestBody) -> Dict[str, Any]:
+    """The validated fields as a plain mapping of decimal strings: the engine
+    never receives the Pydantic class (1.1). An omitted total_years is filled
+    from the pack here, before validation of the horizon (2.2)."""
+    from engine.forecast.levers_pack import serving_pack
+    pack = serving_pack()
+    raw = body.model_dump()
+    if raw.get("horizon") is None:
+        # 2.1: required unless case_id is sent (case_id lands in B15)
+        raise HTTPException(422, _detail(pack.horizon_required["code"],
+                                         pack.horizon_required["text"], "horizon"))
+    horizon = dict(raw["horizon"])
+    if horizon.get("total_years") is None:
+        horizon["total_years"] = pack.scenarios_total_years
+    if not 1 <= horizon["total_years"] <= pack.max_total_years:
+        raise HTTPException(422, _detail(
+            pack.total_years_range["code"],
+            pack.total_years_range["text"].format(max=pack.max_total_years,
+                                                  got=horizon["total_years"]),
+            "horizon.total_years"))
+    horizon.setdefault("monthly_months", 12)
+    raw["horizon"] = horizon
+    if raw.get("spread") is None:
+        raw["spread"] = None
+    return raw
 
-    Read through the caller's OWN Supabase client, so RLS scopes the row
-    to their memberships — the `org_id` filter is a second lock on top of
-    that, never the only one.
-    """
-    from . import _supabase
 
-    with _supabase.per_user(jwt) as client:
-        rows = client.select(
-            "financial_periods",
-            filters={"id": "eq.%s" % period_id, "org_id": "eq.%s" % org_id},
-            limit=1,
-        ) or []
-        if not rows:
-            raise HTTPException(404, "No such period in this workspace.")
-        row = rows[0]
-        line_items = client.select(
-            "statement_line_items",
-            filters={"period_id": "eq.%s" % period_id},
-            columns="statement,bucket,ro_account_code,ro_account_name,amount",
-        ) or []
+def recompute(period_id: str, body: PlanRequestBody, jwt: str,
+              x_org_id: Optional[str]) -> Dict[str, Any]:
+    """THE handler. GET and POST both end here; nothing else projects."""
+    started = time.perf_counter()
+    from . import _org
 
-    statements = None  # type: Optional[Dict[str, Any]]
+    # `resolve_org` returns (user_id, org_id) — BOTH, and unpacking it
+    # is not a style choice. Bound as one name it becomes the tuple,
+    # `"eq.%s" % org_id` renders `eq.('uid', 'orgid')`, and PostgREST
+    # is handed a filter that matches nothing. The route would answer
+    # 404 to every caller and read as "no such period".
+    _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+    from . import _forecast_history
+    from .pipeline import PeriodNotFound, StatementsRebuildError
     try:
-        from .pipeline import _rebuild_assembled_for_briefing
-        statements = _rebuild_assembled_for_briefing(
-            line_items, row, None).get("statements")
-    except Exception:  # noqa: BLE001
-        logger.exception("[forecast] statements rebuild failed for %s",
-                         period_id)
-        statements = None
+        period, prior_periods, context, history = (
+            _forecast_history.load_plan_inputs(jwt, org_id, period_id))
+    except PeriodNotFound:
+        raise HTTPException(404, {"code": "period_not_found",
+                                  "text": "No such period in this workspace.",
+                                  "id": period_id})
+    except StatementsRebuildError as exc:
+        # contract 1.4: never a projection built with statements None, and
+        # never cached.
+        raise HTTPException(409, exc.sentence())
 
-    return {
-        "envelope": row.get("assembled_canonical_v1"),
-        "statements": statements,
-        "period_end": row.get("period_end"),
-        "period_label": row.get("period_label"),
-        "currency": row.get("currency") or "RON",
-        "company_name": row.get("company_name"),
-    }
+    from engine.forecast.errors import (BalanceViolation, ForecastError,
+                                        PlanRequestError)
+    from engine.forecast.levers import plan_request_from_body, project_plan
+    from engine.forecast_serving import boundary
+    from engine.forecast_serving.plan_response import (PlanResponseError,
+                                                       build_response)
+
+    try:
+        request = plan_request_from_body(_wire(body))
+        plan = project_plan(period, prior_periods, request, context,
+                            client_sent=True)
+        from engine.forecast.levers import serving_inputs
+        payload = build_response(plan, serving_inputs(plan), period, history,
+                                 request.want, period_id,
+                                 anchor_updated_at=history.get("anchor_updated_at"))
+    except PlanRequestError as exc:
+        raise HTTPException(422, _detail(exc.code, exc.text, exc.field))
+    except BalanceViolation as exc:
+        # 3.11: the period and the amount as data, not only inside the text
+        raise HTTPException(422, {
+            "code": "balance_violation", "text": str(exc),
+            "period": exc.period_label, "difference_minor": exc.delta_cents,
+            "run_kind": getattr(exc, "run_kind", None)})
+    except ForecastError as exc:
+        # The engine's own sentence, verbatim. It names the driver that
+        # could not be measured and the basis that failed to measure it,
+        # which is the only thing that tells the reader what to do.
+        raise HTTPException(422, _detail(
+            getattr(exc, "code", None) or type(exc).__name__, str(exc),
+            getattr(exc, "key", None)))
+    except PlanResponseError as exc:
+        # A producer defect, not a book defect: the caller cannot fix it
+        # and must not be told they can.
+        logger.error("[forecast] fp1.2 contract refused period %s: %s",
+                     period_id, exc)
+        raise HTTPException(
+            500, "The projection did not satisfy its own serving "
+                 "contract, so it was not served.")
+
+    # Belt and braces, on the bytes that actually leave.
+    boundary.assert_no_actual_provenance(payload)
+    # OUTSIDE body_hash (1.2); the only clock the forecast lane reads.
+    payload["recompute_ms"] = int((time.perf_counter() - started) * 1000)
+    return payload
 
 
 def build_router() -> APIRouter:
@@ -125,15 +303,9 @@ def build_router() -> APIRouter:
         authorization: Optional[str] = Header(None),
         x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
-        """One fp1 projection over one persisted period.
-
-        Every figure in the response is PROJECTED. Nothing in it resolves
-        to a cell in the uploaded book, and the contract makes that
-        machine-checkable rather than a matter of reading the route name.
-        """
+        """Exactly a POST of {"horizon": {"total_years": h, "monthly_months":
+        12}} (1.2). Every figure in the response is PROJECTED."""
         jwt = _require_jwt(authorization)
-        from . import _org
-
         if horizon not in ALLOWED_HORIZONS:
             raise HTTPException(
                 422,
@@ -141,49 +313,42 @@ def build_router() -> APIRouter:
                 "will not quietly serve a different length than the one the "
                 "reader asked for."
                 % (" or ".join(str(h) for h in ALLOWED_HORIZONS), horizon))
+        body = PlanRequestBody(horizon=HorizonBody(total_years=horizon,
+                                                   monthly_months=12))
+        return recompute(period_id, body, jwt, x_org_id)
 
-        # `resolve_org` returns (user_id, org_id) — BOTH, and unpacking it
-        # is not a style choice. Bound as one name it becomes the tuple,
-        # `"eq.%s" % org_id` renders `eq.('uid', 'orgid')`, and PostgREST
-        # is handed a filter that matches nothing. The route would answer
-        # 404 to every caller and read as "no such period".
-        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
-        period = _load_period(jwt, org_id, period_id)
-
-        from engine.forecast import project_payload
-        from engine.forecast.errors import ForecastError
-        from engine.forecast_serving import boundary, contract
-        from engine.forecast_serving.adapter import fp1_from_forecast_v1
-        from engine.forecast_serving.gateway import ProjectionGateway
-
-        try:
-            projection = project_payload(period, horizon_years=horizon)
-        except ForecastError as exc:
-            # The engine's own sentence, verbatim. It names the driver
-            # that could not be measured and the basis that failed to
-            # measure it, which is the only thing that tells the reader
-            # what to do about it.
-            raise HTTPException(422, str(exc))
-
-        try:
-            gateway = ProjectionGateway(
-                fp1_from_forecast_v1(projection.as_dict()))
-        except contract.ProjectionContractError as exc:
-            # A producer defect, not a book defect: the caller cannot fix
-            # it and must not be told they can.
-            logger.error("[forecast] contract refused period %s: %s",
-                         period_id, exc)
-            raise HTTPException(
-                500, "The projection did not satisfy its own serving "
-                     "contract, so it was not served.")
-
-        payload = gateway.as_dict()
-        # Belt and braces, on the bytes that actually leave.
-        boundary.assert_no_actual_provenance(payload)
-
-        payload["period_id"] = period_id
-        payload["company_name"] = period.get("company_name")
-        payload["notes"] = list(projection.notes)
-        return payload
+    @router.post("/{period_id}/recompute")
+    def forecast_recompute(
+        period_id: str,
+        body: Dict[str, Any],
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """One plan over one persisted period (1.2). Read-only compute: it
+        projects a period the caller's membership reads and writes no table."""
+        jwt = _require_jwt(authorization)
+        return recompute(period_id, _validated(body), jwt, x_org_id)
 
     return router
+
+
+def _validated(raw: Dict[str, Any]) -> PlanRequestBody:
+    """The wire body to PlanRequestBody, every refusal as 422 {code, text,
+    field}. The route takes the raw JSON object so an unknown field, a float
+    where a decimal string belongs and a field whose batch has not landed all
+    answer in ONE shape (3.11), not pydantic's."""
+    from pydantic import ValidationError
+    try:
+        return PlanRequestBody.model_validate(raw)
+    except _Refusal as exc:
+        raise HTTPException(422, _detail(exc.sentence["code"], exc.sentence["text"],
+                                         exc.field))
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        cause = (first.get("ctx") or {}).get("error")
+        if isinstance(cause, _Refusal):
+            raise HTTPException(422, _detail(cause.sentence["code"],
+                                             cause.sentence["text"], cause.field))
+        field = ".".join(str(p) for p in first.get("loc") or ())
+        raise HTTPException(422, _detail(
+            "invalid_request", "%s: %s" % (field or "body", first.get("msg")), field))

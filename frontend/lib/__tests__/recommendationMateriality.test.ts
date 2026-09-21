@@ -722,12 +722,15 @@ describe("§7 the same amount grades differently on books of different size", ()
 // EBIT figure (55.644 on agras, where EBITDA / interest is 66.2774). No
 // rule reads either fact today, which is why nothing reddened: latent.
 // REDS ON, after the repair: either fact carrying the other's figure, or
-// the EBIT fact unplumbed. Literals are the engine's served rows (D14).
+// the EBIT fact unplumbed. Literals are the engine's served rows (D14),
+// re-read from the tb_parser_v6 capture (served_metrics.json: agras
+// interest_coverage 28.1403, ebitda_to_interest 38.7737) after the 609/709
+// contra-convention repair; before it they were 55.644 and 66.2774.
 describe("§8 the coverage facts the rules are handed", () => {
-  it("agras: EBIT / interest 55.64 and EBITDA / interest 66.28, each under its own name", () => {
+  it("agras: EBIT / interest 28.14 and EBITDA / interest 38.77, each under its own name", () => {
     const { facts } = run("agras");
     expect(facts.ratios.interest_coverage_ebit).not.toBeNull();
-    expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("55.64");
-    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("66.28");
+    expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("28.14");
+    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("38.77");
   });
 });

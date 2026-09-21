@@ -1,0 +1,638 @@
+{
+ "schema": "change_kind_truth_table/1",
+ "contract": "plan_contract_v2 section 7; R21",
+ "delta_pct_places": 6,
+ "rule": "base null: absent_base; plan null: absent_plan; both within the zero floor: compared (delta_pct null); base within, plan not: from_zero; base not, plan within: to_zero; base > 0 and plan < 0: flip_to_negative; base < 0 and plan > 0: flip_to_positive; same non-zero sign: compared, delta_pct = (plan - base) / |base| rounded once half away from zero. Within the floor: exactly zero, or magnitude strictly below the floor.",
+ "rows": [
+  {
+   "group": "minor_units_floor_0",
+   "base": null,
+   "plan": null,
+   "zero_floor": 0,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": null,
+   "plan": -500000,
+   "zero_floor": 0,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": null,
+   "plan": 0,
+   "zero_floor": 0,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": null,
+   "plan": 300000,
+   "zero_floor": 0,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": -250000,
+   "plan": null,
+   "zero_floor": 0,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": -250000,
+   "plan": -500000,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "-1.000000",
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": -250000,
+   "plan": 0,
+   "zero_floor": 0,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": -250000,
+   "plan": 300000,
+   "zero_floor": 0,
+   "kind": "flip_to_positive",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 0,
+   "plan": null,
+   "zero_floor": 0,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 0,
+   "plan": -500000,
+   "zero_floor": 0,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 0,
+   "plan": 0,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 0,
+   "plan": 300000,
+   "zero_floor": 0,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 250000,
+   "plan": null,
+   "zero_floor": 0,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 250000,
+   "plan": -500000,
+   "zero_floor": 0,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 250000,
+   "plan": 0,
+   "zero_floor": 0,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 250000,
+   "plan": 300000,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "0.200000",
+   "note": ""
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": 1,
+   "plan": -1,
+   "zero_floor": 0,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": "one minor unit each side of zero"
+  },
+  {
+   "group": "minor_units_floor_0",
+   "base": -1,
+   "plan": 1,
+   "zero_floor": 0,
+   "kind": "flip_to_positive",
+   "delta_pct": null,
+   "note": "one minor unit each side of zero"
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": null,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "absent_base",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "-0.200000",
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -100.0,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "flip_to_positive",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": -0.004,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.0,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.004,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "from_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": null,
+   "zero_floor": 0.005,
+   "kind": "absent_plan",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": -120.0,
+   "zero_floor": 0.005,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": -0.001,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": 0.0,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": 0.002,
+   "zero_floor": 0.005,
+   "kind": "to_zero",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 100.0,
+   "plan": 50.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "-0.500000",
+   "note": ""
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 0.005,
+   "plan": 1.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "199.000000",
+   "note": "a base exactly AT the floor is not within it"
+  },
+  {
+   "group": "rounded_money_floor_0.005",
+   "base": 1.0,
+   "plan": 0.005,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "-0.995000",
+   "note": "a plan exactly AT the floor is not within it"
+  },
+  {
+   "group": "floor_0_sub_cent",
+   "base": 0.004,
+   "plan": -0.001,
+   "zero_floor": 0,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": "below half a cent is still a sign at floor 0"
+  },
+  {
+   "group": "floor_0_sub_cent",
+   "base": -0.004,
+   "plan": 0.002,
+   "zero_floor": 0,
+   "kind": "flip_to_positive",
+   "delta_pct": null,
+   "note": ""
+  },
+  {
+   "group": "defect_0.4",
+   "base": 6104815.29,
+   "plan": -107630000.0,
+   "zero_floor": 0.005,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": "Scenarios cash 6,104,815.29 -> -107,630,000 (rendered -19x)"
+  },
+  {
+   "group": "defect_0.4",
+   "base": 54444000.0,
+   "plan": -20257000.0,
+   "zero_floor": 0.005,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": "Recession EBITDA 54.444M -> -20.257M (rendered -137.2%)"
+  },
+  {
+   "group": "defect_0.4",
+   "base": 610481529,
+   "plan": -10763000000,
+   "zero_floor": 0,
+   "kind": "flip_to_negative",
+   "delta_pct": null,
+   "note": "the same cash in minor units"
+  },
+  {
+   "group": "rounding",
+   "base": 2000000,
+   "plan": 2000001,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "0.000001",
+   "note": "+0.0000005 is a tie: rounds away to 0.000001"
+  },
+  {
+   "group": "rounding",
+   "base": 2000000,
+   "plan": 1999999,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "-0.000001",
+   "note": "-0.0000005 is a tie: rounds away to -0.000001"
+  },
+  {
+   "group": "rounding",
+   "base": 10000000,
+   "plan": 9999999,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "0.000000",
+   "note": "-0.0000001 rounds to zero, rendered without a sign"
+  },
+  {
+   "group": "rounding",
+   "base": 3,
+   "plan": 5,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "0.666667",
+   "note": "2/3"
+  },
+  {
+   "group": "rounding",
+   "base": -3,
+   "plan": -5,
+   "zero_floor": 0,
+   "kind": "compared",
+   "delta_pct": "-0.666667",
+   "note": "a loss deepening: -2/3 of the magnitude"
+  },
+  {
+   "group": "rounding",
+   "base": -100.0,
+   "plan": -50.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "0.500000",
+   "note": "a loss halving is +0.5 of the magnitude"
+  },
+  {
+   "group": "rounding",
+   "base": 0.1,
+   "plan": 0.3,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "2.000000",
+   "note": "binary64 inputs are read exactly in both runtimes"
+  },
+  {
+   "group": "rounding",
+   "base": 1.0,
+   "plan": 20.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "19.000000",
+   "note": "a same-sign x20 stays a percentage (19)"
+  },
+  {
+   "group": "rounding",
+   "base": 100.0,
+   "plan": 100.0,
+   "zero_floor": 0.005,
+   "kind": "compared",
+   "delta_pct": "0.000000",
+   "note": "no change on a non-zero base is 0, not null"
+  }
+ ]
+}

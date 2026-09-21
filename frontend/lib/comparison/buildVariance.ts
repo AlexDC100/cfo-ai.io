@@ -111,6 +111,10 @@ export interface VarianceRow {
   vsLastYearSentiment: DeltaSentiment | null;
 }
 
+/** One variance cell. `delta()` runs the one sign-flip classifier
+ *  (lib/changeKind.ts, plan_contract_v2 section 7), so a line that crosses
+ *  zero carries `change.kind` and no `pct` — the renderers state it in
+ *  words, never as a percent. */
 function rowDelta(
   actual: number | null,
   comparison: number | null,

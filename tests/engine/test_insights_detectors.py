@@ -203,14 +203,20 @@ def test_related_party_exposure_names_the_accounts_and_haircuts_the_ratios():
     assert abs(sum(a["amount"] for a in insight["accounts"]) - 7692202.74) < 0.01
 
 
-def test_reconstruction_gap_is_a_headline_on_agras_not_a_footnote():
-    """~47% of the reconstructed profit, per the coordinator's read."""
+def test_reconstruction_gap_on_agras_is_graded_from_the_measured_step():
+    """RESTATED (plan/2 B4a). The coordinator's ~47% read (14,106,102.03
+    rebuilt against 7,533,676.02 filed) was mostly the 609/709 double
+    count: agras's mirrored 709 reductions (3,889,255.25) entered revenue
+    with the exporter's positive sign. Read as reductions the rebuild is
+    6,461,988.99 and the step +1,071,687.03 (16.6%) — what the mirrored 711
+    production variation hides — grading medium, not high. The finding
+    still fires, with the honest distance."""
     insight = _by_id(_block("agras"))["reconstruction_gap"]
-    _approx(_measure(insight, "step"), -6572426.01, 0.01)
-    _approx(_measure(insight, "reconstructed"), 14106102.03, 0.01)
+    _approx(_measure(insight, "step"), 1071687.03, 0.01)
+    _approx(_measure(insight, "reconstructed"), 6461988.99, 0.01)
     _approx(_measure(insight, "statutory"), 7533676.02, 0.01)
-    _approx(_measure(insight, "graded_share"), 0.465928, 1e-5)
-    assert insight["severity"]["level"] == "high"
+    _approx(_measure(insight, "graded_share"), 0.165845, 1e-5)
+    assert insight["severity"]["level"] == "medium"
     # The evidence names account 121 itself, even though the served line
     # items EXCLUDE it as the profit control account: the canonical row
     # names exactly one account, so the row's amount is that account's
@@ -228,15 +234,19 @@ def test_reconstruction_gap_is_a_headline_on_agras_not_a_footnote():
 
 def test_trade_float_prices_the_cycle_in_currency_and_in_days():
     insight = _by_id(_block("agras"))["trade_float"]
-    _approx(_measure(insight, "dso"), 26.205674, 1e-4)
+    # plan/2 B4a: DSO moves with agras's revenue (110,798,309.14 once its
+    # 709 reductions are read as reductions); DPO and the float in
+    # currency, which read payables and cost of sales, do not.
+    _approx(_measure(insight, "dso"), 28.045424, 1e-4)
     _approx(_measure(insight, "dpo"), 37.175931, 1e-4)
-    _approx(_measure(insight, "float_days"), -10.970257, 1e-4)
+    _approx(_measure(insight, "float_days"), -9.130507, 1e-4)
     _approx(_measure(insight, "float"), 1327011.19, 0.01)
 
 
 def test_financial_position_flags_the_book_that_earns_more_than_it_pays():
     """Retail earns RON 5.45M of affiliate dividends against an operating
-    EBITDA of RON 220k — the case the lane asked to be flagged."""
+    EBITDA of RON 2.26M (220k before plan/2 B4a removed the 609 double
+    count from its opex) — the case the lane asked to be flagged."""
     insight = _by_id(_block("retail"))["financial_position"]
     _approx(_measure(insight, "financial_income"), 5511010.41, 0.01)
     _approx(_measure(insight, "financial_expense"), 3092377.62, 0.01)
@@ -253,9 +263,12 @@ def test_financial_position_flags_the_book_that_earns_more_than_it_pays():
 
 def test_earnings_quality_separates_trading_margin_from_the_rest():
     insight = _by_id(_block("retail"))["earnings_quality"]
+    # plan/2 B4a: retail's EBITDA is 2,263,417.48 once its mirrored 609
+    # supplier discounts stop being added to opex twice (220,162.84 before);
+    # non-trading income is unchanged, so its share falls from 3.30x to 32%.
     _approx(_measure(insight, "non_trading"), 726868.64, 0.01)
-    _approx(_measure(insight, "ebitda"), 220162.84, 0.01)
-    _approx(_measure(insight, "graded_share"), 3.30147, 1e-4)
+    _approx(_measure(insight, "ebitda"), 2263417.48, 0.01)
+    _approx(_measure(insight, "graded_share"), 0.321138, 1e-4)
     _approx(_measure(insight, "cash_proxy"), 4682050.27, 0.01)
     assert insight["severity"]["level"] == "critical"
 

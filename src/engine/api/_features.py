@@ -415,7 +415,15 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         # and the owner needs to walk it on their own book before an
         # accounting firm does. Flip to `active` after that walk; nothing
         # else changes.
-        "coming_soon",
+        #
+        # ACTIVE 2026-09-21, owner instruction ("every menu item active and
+        # fully functional"), on the owner's own acceptance measured on the
+        # Scandia FY2025 book with FY2024 as prior: every projected period
+        # balances, no figure at 20x its base, and the growth default reads
+        # the book (-3.0477%, tier book) instead of the 0% engine default
+        # that kept it off earlier the same day. The deploy re-measures all
+        # three on production data inside the new image before switching.
+        "active",
         label="Forecast",
         description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
     ),

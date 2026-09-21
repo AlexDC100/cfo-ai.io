@@ -416,6 +416,75 @@ const formulaOf = (sp: Spec, e: Env): string =>
 const show = (n: number, unit: Spec["unit"]) =>
   unit === "%" ? `${n.toFixed(4)}%` : unit === "days" ? `${n.toFixed(4)} d` : `${n.toFixed(4)}×`;
 
+//: books that can tell the filed account-121 figure from the reconstruction
+//: (plan/2 B4a: filled per book, checked once across the scope, TC-3).
+const DISCRIMINATING = new Map<string, number>();
+
+/** The known seams this gate is told to expect, by owner ruling, until they
+ *  are repaired. Each entry takes exactly one (book, ratio) pair out of the
+ *  strict per-book value assertion and runs it as `it.fails` instead — NOT
+ *  skipped, NOT a widened tolerance. When the seam is repaired the
+ *  `it.fails` case starts passing and therefore reds; the repair is done
+ *  when the entry is deleted and the pair is back under the strict loop.
+ *
+ *  retail / interest_coverage — under tb_parser_v6 retail's served
+ *  `assembled_pl` carries two EBITs 1,923.78 apart: `ebit` 786,579.83 and
+ *  `operating_ebit` 788,503.61, over `interest_expense` 2,421,110.34. The
+ *  document prints the engine's served 0.3249 ("0.32×", ebit ÷ interest);
+ *  this gate recomputes from operating_ebit, 0.3257× — off by 0.0057
+ *  against a tolerance of 0.0051. The owner deferred it until after the
+ *  demo freeze on 2026-09-21 ("Interest coverage 0.32 vs 0.3257: after
+ *  freeze. Rounding seam, not demo-visible"); this file does NOT pick a
+ *  numerator. The same seam is `it.fails` in interestCoverageBasis.test.ts. */
+const DEFERRED_SEAMS: ReadonlyArray<{ book: Book; key: string; ruled: string }> = [
+  { book: "retail", key: "interest_coverage", ruled: "2026-09-21" },
+];
+
+function isDeferredSeam(book: Book, key: string): boolean {
+  return DEFERRED_SEAMS.some((d) => d.book === book && d.key === key);
+}
+
+/** G4's value check over the given specs for one book: every rendered
+ *  figure against this gate's own recomputation. */
+function valueFailures(book: Book, specs: Spec[]): string[] {
+  const doc = exportDoc(book as Book);
+  const env = envOf(book as Book);
+  const failures: string[] = [];
+  for (const sp of specs) {
+    const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
+    const card = cardNamed(doc, label);
+    const rendered = parsePrinted(card.value);
+    const expected = sp.recompute(env);
+    if (expected === null || !Number.isFinite(expected)) {
+      // The formula is undefined for this book — the card must refuse,
+      // not print a figure.
+      if (rendered !== null) {
+        failures.push(
+          `${book}: “${label}” prints ${card.value} but its formula (${formulaOf(sp, env)}) is ` +
+            `undefined on this book — a refusal was the only honest answer`,
+        );
+      }
+      continue;
+    }
+    if (rendered === null) {
+      failures.push(
+        `${book}: “${label}” prints ${JSON.stringify(card.value)} and its formula ` +
+          `recomputes to ${show(expected, sp.unit)}`,
+      );
+      continue;
+    }
+    const tol = tolerance(sp.unit, expected);
+    if (Math.abs(rendered - expected) > tol) {
+      failures.push(
+        `${book}: “${label}” prints ${card.value} (${rendered}) but ${formulaOf(sp, env)} ` +
+          `recomputes to ${show(expected, sp.unit)} — off by ` +
+          `${Math.abs(rendered - expected).toFixed(4)}, tolerance ${tol.toFixed(4)}`,
+      );
+    }
+  }
+  return failures;
+}
+
 describe("G4 — every rendered ratio equals its stated formula", () => {
   it("declares a formula for every ratio the printed document states", () => {
     // Not vacuous, and not silently outgrown: a ratio card added to the
@@ -481,48 +550,37 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
     });
 
     it(`${book}: each rendered value equals that formula, recomputed`, () => {
-      const doc = exportDoc(book as Book);
-      const env = envOf(book as Book);
-      const failures: string[] = [];
-      for (const sp of SPECS) {
-        const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
-        const card = cardNamed(doc, label);
-        const rendered = parsePrinted(card.value);
-        const expected = sp.recompute(env);
-        if (expected === null || !Number.isFinite(expected)) {
-          // The formula is undefined for this book — the card must refuse,
-          // not print a figure.
-          if (rendered !== null) {
-            failures.push(
-              `${book}: “${label}” prints ${card.value} but its formula (${formulaOf(sp, env)}) is ` +
-                `undefined on this book — a refusal was the only honest answer`,
-            );
-          }
-          continue;
-        }
-        if (rendered === null) {
-          failures.push(
-            `${book}: “${label}” prints ${JSON.stringify(card.value)} and its formula ` +
-              `recomputes to ${show(expected, sp.unit)}`,
-          );
-          continue;
-        }
-        const tol = tolerance(sp.unit, expected);
-        if (Math.abs(rendered - expected) > tol) {
-          failures.push(
-            `${book}: “${label}” prints ${card.value} (${rendered}) but ${formulaOf(sp, env)} ` +
-              `recomputes to ${show(expected, sp.unit)} — off by ` +
-              `${Math.abs(rendered - expected).toFixed(4)}, tolerance ${tol.toFixed(4)}`,
-          );
-        }
-      }
+      // Every spec, strictly — except the one (book, ratio) pair named in
+      // DEFERRED_SEAMS, which runs on its own as `it.fails` below.
+      const specs = SPECS.filter((sp) => !isDeferredSeam(book as Book, sp.key));
+      const failures = valueFailures(book as Book, specs);
       expect(failures, `${book}: a rendered ratio does not equal its stated formula`).toEqual([]);
     });
+
+    for (const seam of DEFERRED_SEAMS.filter((d) => d.book === book)) {
+      // KNOWN-FAILING — see DEFERRED_SEAMS. Remove `.fails` (and the
+      // DEFERRED_SEAMS entry) once the seam is repaired; it reds until you do.
+      it.fails(`${book}: ${seam.key} equals its formula, recomputed (KNOWN SEAM, deferred ${seam.ruled})`, () => {
+        const sp = SPECS.find((x) => x.key === seam.key);
+        // Only the seam may fail here: a missing spec, card or figure
+        // returns WITHOUT throwing, which turns this `it.fails` red instead
+        // of letting it pass on the wrong failure.
+        if (!sp) return;
+        const env = envOf(book as Book);
+        const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
+        const card = ratioCards(exportDoc(book as Book)).find((c) => c.label === label);
+        const rendered = card ? parsePrinted(card.value) : null;
+        const expected = sp.recompute(env);
+        if (rendered === null || expected === null || !Number.isFinite(expected)) return;
+        expect(valueFailures(book as Book, [sp])).toEqual([]);
+      });
+    }
 
     it(`${book}: every net-income ratio consumes the filed account-121 figure`, () => {
       const doc = exportDoc(book as Book);
       const env = envOf(book as Book);
       const anchored: string[] = [];
+      const cannotTell: string[] = [];
       const failures: string[] = [];
       for (const sp of SPECS) {
         if (sp.onReconstruction === undefined) continue;
@@ -533,12 +591,19 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         if (rendered === null || onFiled === null || onRebuilt === null) continue;
         const tol = tolerance(sp.unit, onFiled);
         // Non-vacuity: the two bases must actually differ on this book, or
-        // "it is on the anchor" is a statement about nothing.
-        expect(
-          Math.abs(onFiled - onRebuilt),
-          `${book}: “${label}” — the filed and reconstructed bases are the same number ` +
-            `(${show(onFiled, sp.unit)}), so this book cannot tell them apart`,
-        ).toBeGreaterThan(tol * 4);
+        // "it is on the anchor" is a statement about nothing. A book whose
+        // reconstruction reaches account 121 (retail, since plan/2 B4a read
+        // its mirrored 609/709 rows as reductions) or comes within four
+        // tolerances of it (carniprod) cannot tell them apart and is
+        // recorded as unable to, by name; the scope-wide TC-3 check below
+        // requires at least one book that can.
+        if (Math.abs(onFiled - onRebuilt) <= tol * 4) {
+          cannotTell.push(
+            `${book}: “${label}” — filed ${show(onFiled, sp.unit)} and reconstructed ` +
+              `${show(onRebuilt, sp.unit)} agree within four tolerances`,
+          );
+          continue;
+        }
         anchored.push(label);
         if (Math.abs(rendered - onFiled) > tol) {
           failures.push(
@@ -550,10 +615,22 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           );
         }
       }
-      expect(anchored.length, `${book}: no net-income ratio was compared`).toBe(3);
+      expect(
+        anchored.length + cannotTell.length,
+        `${book}: not every net-income ratio was considered`,
+      ).toBe(3);
+      DISCRIMINATING.set(book, anchored.length);
       expect(failures, `${book}: a ratio is built on the reconstruction, not the anchor`).toEqual(
         [],
       );
     });
   }
+
+  it("at least one book tells the filed account-121 figure from the reconstruction (TC-3)", () => {
+    const counts = Array.from(DISCRIMINATING.entries()).map(([b, n]) => `${b}: ${n} of 3`);
+    expect(
+      Math.max(0, ...DISCRIMINATING.values()),
+      `no book discriminates the two bases — ${counts.join(", ")}`,
+    ).toBeGreaterThan(0);
+  });
 });

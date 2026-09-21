@@ -95,6 +95,13 @@ __all__ = [
 #: with a migration note here and in the gates that pin it.
 CONTRACT_VERSION = "fp1"
 
+#: plan/2 B6: the version served on the wire by GET /api/forecast/{period_id}
+#: and POST .../recompute (plan_contract_v2 section 3). ``CONTRACT_VERSION``
+#: above stays the version of the in-process fp1 gateway this package still
+#: carries for the AI write-path and narrative guards; nothing on the wire
+#: speaks it from B6 on. See engine.forecast_serving.plan_response.
+PLAN_CONTRACT_VERSION = "fp1.2"
+
 #: The discriminant. Present, and equal to this, or the payload is not a
 #: projection and this namespace will not touch it.
 KIND = "projection"
@@ -148,6 +155,8 @@ BASE_PERIOD_KEYS = ("base_period", "opening")
 #: period (which `assumption_value_neither_number_nor_absent` already
 #: permits) and renders as its basis sentence.
 UNITS = ("pct", "days", "ratio", "money_minor", "count", "months",
+         # plan/2 B6: fp1.2 index drivers (volume, price, pool level)
+         "index",
          "convention")
 
 #: Top-level keys that mean "this object carries ACTUAL figures". A

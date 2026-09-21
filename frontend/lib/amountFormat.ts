@@ -16,7 +16,11 @@
 //  PERCENTAGE SANITY — |Δ| ≤ 999% renders as a percent; beyond that a
 //    percent stops carrying meaning for a reader ("↓10834.3%") and the
 //    value renders as a signed multiplier ("−108×"), exact percent in
-//    the tooltip.
+//    the tooltip. The multiplier is for SAME-SIGN magnitudes only
+//    (plan_contract_v2 section 7): a change from zero, to zero or across
+//    sign never reaches this formatter as a number — the one classifier
+//    (lib/changeKind.ts) gives it no delta_pct, and `formatChangePercent`
+//    refuses it, so "6.1M → −107.6M" can never print "−19×" (defect 0.4).
 //
 //  CAPPED VALUES — a cap renders as "≥99×", never a bare ">99×": the
 //    instrument states the bound it is sure of, the tooltip carries the
@@ -29,6 +33,8 @@
 // Locale follows the UI LANGUAGE setting (ro-RO: 1.234.567,8 · en:
 // 1,234,567.8) — per the A1 spec, and unlike lib/money.ts whose legacy
 // surfaces follow the currency. New Instrument surfaces use this module.
+
+import type { ChangeResult } from "@/lib/changeKind";
 
 export type AmountKind = "money" | "percent" | "multiple" | "count";
 
@@ -155,6 +161,18 @@ export function formatPercentDelta(
     asMultiplier: true,
     exactPercent: exact,
   };
+}
+
+/** A classified change as a percent: ONLY the kind "compared" with the
+ *  classifier's delta_pct renders (multiplier branch included, same-sign
+ *  by construction). Every other kind returns null — the caller states it
+ *  in words (locale namespace changeKind), never as a percent. */
+export function formatChangePercent(
+  change: ChangeResult | null | undefined,
+  opts: { locale?: string; fractionDigits?: number } = {},
+): PercentResult | null {
+  if (!change || change.kind !== "compared" || change.deltaPct === null) return null;
+  return formatPercentDelta(Number(change.deltaPct), opts);
 }
 
 export interface MultipleResult {

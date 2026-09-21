@@ -71,10 +71,15 @@ vi.mock("@/lib/cfoApi", async () => {
 const PAYLOAD = JSON.parse(
   readFileSync(
     resolve(__dirname,
-      "../../../../tests/engine/fixtures/forecast/fp1_agras_engine_one_period.json"),
+      "../../../../tests/engine/fixtures/forecast/fp1_2_agras_engine_one_period.json"),
     "utf-8",
   ),
 ) as Record<string, unknown>;
+
+/** Every driver's basis sentence, read from fp1.2 `drivers` (3.2, 3.3). */
+const BASIS_SENTENCES: string[] = Object.values(
+  (PAYLOAD.drivers ?? {}) as Record<string, { basis?: { sentence?: { text?: string } } }>,
+).map((d) => String(d.basis?.sentence?.text ?? ""));
 
 function wrap() {
   const client = new QueryClient({
@@ -107,7 +112,6 @@ describe("FC1 — a painted figure equals its payload value", () => {
     await screen.findByTestId("forecast-assumptions");
 
     const figures = (PAYLOAD.figures ?? []) as Array<Record<string, unknown>>;
-    const horizon = (PAYLOAD.horizon ?? []) as string[];
     const byKey = new Map<string, number>();
     for (const f of figures) {
       const minor = Number(f.amount_minor);
@@ -115,11 +119,17 @@ describe("FC1 — a painted figure equals its payload value", () => {
     }
 
     let checked = 0;
+    // THE PERIOD IS READ OFF THE CELL, not off its index. v1.5 gave the table
+    // FY columns by default with the months of year one behind a toggle, so a
+    // gate that maps column i to `horizon.labels[i]` is asserting the old
+    // column choice rather than the magnitude it exists to check — it went red
+    // on a correct page. The cell states which period it is.
     for (const row of Array.from(document.querySelectorAll("[data-testid^='forecast-row-']"))) {
       const line = (row.getAttribute("data-testid") || "").replace("forecast-row-", "");
-      const cells = Array.from(row.querySelectorAll("td")).slice(1);
-      cells.forEach((cell, i) => {
-        const period = horizon[i];
+      const cells = Array.from(row.querySelectorAll("td[data-period]"));
+      cells.forEach((cell) => {
+        const period = cell.getAttribute("data-period") || "";
+        expect(cell.getAttribute("data-line")).toBe(line);
         if (!period) return;
         const expected = byKey.get(`${line}|${period}`);
         if (expected === undefined) return;              // refused — its own test
@@ -148,8 +158,8 @@ describe("FC1 — a painted figure equals its payload value", () => {
 
     // Every number the engine wrote into a driver's basis sentence.
     const quoted: number[] = [];
-    for (const a of (PAYLOAD.assumptions ?? []) as Array<Record<string, unknown>>) {
-      for (const m of String(a.basis ?? "").matchAll(/\b\d[\d,]{5,}(?:\.\d+)?\b/g)) {
+    for (const text of BASIS_SENTENCES) {
+      for (const m of text.matchAll(/\b\d[\d,]{5,}(?:\.\d+)?\b/g)) {
         const n = Number(m[0].replace(/,/g, ""));
         if (Number.isFinite(n) && n > 1000) quoted.push(n);
       }
@@ -176,20 +186,30 @@ describe("FC2 — magnitude sanity against the source period", () => {
     wrap();
     await screen.findByTestId("forecast-assumptions");
 
-    const horizon = (PAYLOAD.horizon ?? []) as string[];
+    // fp1.2 (plan/2 B6): plan year one's revenue is the SERVED FY aggregate
+    // (3.6), never a sum this test or the browser makes over the months (F2).
+    const fy = ((PAYLOAD.horizon as { labels_annual?: string[] })?.labels_annual ?? [])[0];
     const figures = (PAYLOAD.figures ?? []) as Array<Record<string, unknown>>;
-    const yearOne = figures
-      .filter((f) => String(f.line).endsWith(".revenue") && horizon.includes(String(f.period)))
-      .reduce((sum, f) => sum + Number(f.amount_minor || 0) / 100, 0);
+    const aggregate = figures.find(
+      (f) => f.line === "pl.revenue" && f.period === fy && f.kind === "projected_aggregate",
+    );
+    expect(aggregate, "no served FY aggregate of pl.revenue; the gate is vacuous").toBeTruthy();
+    const yearOne = Number(aggregate!.amount_minor) / 100;
 
-    // The source period's revenue, from the driver that names it.
-    const basis = ((PAYLOAD.assumptions ?? []) as Array<Record<string, unknown>>)
-      .map((a) => String(a.basis ?? ""))
-      .find((b) => /revenue/i.test(b) && /\d[\d,]{6,}/.test(b)) ?? "";
-    const match = basis.match(/([\d,]{7,}(?:\.\d+)?)/);
-    if (!match) return;                                   // no stated source revenue
-    const sourceRevenue = Number(match[1].replace(/,/g, ""));
-    if (!Number.isFinite(sourceRevenue) || sourceRevenue <= 0) return;
+    // The source period's revenue, from the driver that names it: the
+    // figure that FOLLOWS the word "revenue" in a basis sentence. (plan/2
+    // B4b: the first revenue-naming driver used to be the cost-of-sales
+    // share, whose first figure was the cost; with the cost pools that
+    // driver is gone and the first such sentence is days sales
+    // outstanding, whose first figure is the receivables — so the figure
+    // is taken by its label, not by its position.)
+    const basis = BASIS_SENTENCES.find((b) => /revenue\s+\d[\d,]{6,}/i.test(b)) ?? "";
+    const match = basis.match(/revenue\s+([\d,]{7,}(?:\.\d+)?)/i);
+    // plan/2 B6 retires the two early returns that stood here: a payload
+    // that names no source revenue used to PASS this gate by leaving it.
+    expect(match, "no driver basis states the source revenue; the band has nothing to stand on").not.toBeNull();
+    const sourceRevenue = Number(match![1].replace(/,/g, ""));
+    expect(Number.isFinite(sourceRevenue) && sourceRevenue > 0).toBe(true);
 
     // THE BAND, declared here and not inferred: year-one revenue may sit
     // anywhere from a halving to a doubling of the source period without

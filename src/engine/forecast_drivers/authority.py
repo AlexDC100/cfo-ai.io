@@ -25,10 +25,11 @@ COMPANY: anything measured from its book, or defaulted from a named
 external anchor when its book cannot answer.
 
 ``engine.forecast.assumptions`` owns the concepts that describe the
-PROJECTION and not the company: the horizon, the year-one granularity,
-the days basis, the cash floor below which the funding line draws, the
-debt schedule. A company has no opinion about how many years you choose
-to project it for.
+PROJECTION and not the company: the days basis, the cash floor below
+which the funding line draws, the debt schedule. (The horizon is not a
+driver at all since plan/2 B2: ``total_years`` and ``monthly_months`` are
+request fields ``project()`` takes as arguments, so no concept rules on
+them.)
 
 The mechanism is the model's own override channel:
 ``derive_assumptions(opening, history, **overrides)`` already re-stamps
@@ -56,15 +57,23 @@ an unruled key that starts carrying a value MEASURED FROM THE BOOK,
 because that is the moment a second authority exists again — and that is
 what the gate checks, on real books, rather than on a list.
 
-WHAT THIS FILE CANNOT DO
-========================
-The model's override channel drops a ``None``
-(``if key in overrides and overrides[key] is not None``), so an ABSENT
-driver cannot be conveyed through it at all: the model falls back to its
-own default and asserts a number where this package says the book is
-silent. Those concepts are listed by :func:`unrepresentable` rather than
-quietly rounded to zero, and the gate measures the behaviour rather than
-trusting this paragraph.
+ONE DERIVATION (plan/2 B3, contract 4)
+======================================
+Since B3 every shared concept this package publishes is READ from
+``engine.forecast``'s own resolution of the same payload (see
+``derive.EngineResolution``), so the value that crosses back is the
+model's own integer. What crosses therefore carries it UNROUNDED — the
+exact micros or micro-days, with the engine's tier, rule id, evidence and
+fallback steps — and a hand-over never demotes a book or convention value
+to a caller's. ``round_dp`` is a display rounding of this package and
+never reaches the model.
+
+An ABSENT concept crosses as an explicit :class:`AbsentHandover` naming
+its reason. The model's channel used to DROP a ``None`` and fill the key
+from its own default while looking like a hand-over; that check is gone
+and a ``None`` is refused. The model takes the absent hand-over as its
+book rung refused for the stated reason and continues its ladder (tax
+falls to the statutory rate, an absent-legal driver stays absent).
 
 No I/O, no network, no clock. Python 3.9 — no `match`, no `X | Y`.
 """
@@ -74,6 +83,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 __all__ = [
+    "AbsentHandover",
     "OWNER_DRIVERS",
     "OWNER_MODEL",
     "STATUSES_OF_CONCEPT",
@@ -169,6 +179,30 @@ class SuppliedValue(float):
     #: of that. `test_hx6` pins it.
 
 
+class AbsentHandover(object):
+    """An ABSENT driver, crossing as an explicit object (contract 4).
+
+    Never a number and never ``None``: ``engine.forecast.assumptions``
+    recognises ``is_absent_handover`` and takes the book rung of the model
+    key as refused for ``reason``."""
+
+    __slots__ = ("pedigree",)
+
+    is_absent_handover = True
+
+    def __init__(self, pedigree):
+        # type: (Dict[str, Any]) -> None
+        self.pedigree = pedigree
+
+    @property
+    def reason(self):
+        # type: () -> str
+        return str(self.pedigree.get("basis") or "")
+
+    def __repr__(self):  # pragma: no cover - debugging aid
+        return "AbsentHandover(%s)" % (self.pedigree.get("model_key"),)
+
+
 #: The two publishers. A concept names exactly one of them.
 OWNER_DRIVERS = "engine.forecast_drivers"
 OWNER_MODEL = "engine.forecast.assumptions"
@@ -183,7 +217,12 @@ OWNER_MODEL = "engine.forecast.assumptions"
 #: ``model_only`` a property of the projection, not of the company. The
 #:               model owns it outright and this package must never
 #:               publish one.
-STATUSES_OF_CONCEPT = ("supplied", "blocked", "model_only")
+#: ``read``       the model owns the MEASUREMENT (plan/2 B4b: the cost
+#:               pools split from the anchor's line items, contract 5);
+#:               this package publishes it under its own driver key by
+#:               reading the model's integer, and hands nothing back —
+#:               there is no model driver to hand it to.
+STATUSES_OF_CONCEPT = ("supplied", "blocked", "model_only", "read")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -240,6 +279,12 @@ class Concept(object):
                 raise AuthorityError(
                     "concept %r is model_only, so it cannot also be "
                     "published here" % (concept_id,))
+        elif status == "read":
+            if owner != OWNER_MODEL or not driver_key or not model_keys:
+                raise AuthorityError(
+                    "concept %r is read from the model, so it names the "
+                    "model fact it reads and the driver key it is "
+                    "published under" % (concept_id,))
         else:
             if owner != OWNER_DRIVERS or not driver_key:
                 raise AuthorityError(
@@ -263,6 +308,19 @@ class Concept(object):
             raise AuthorityError(
                 "concept %r has no declared translation" % (self.concept_id,))
         return TRANSLATIONS[self.translation][0](float(value))
+
+    def convert_exact(self, exact, unit):
+        # type: (Optional[int], str) -> Optional[int]
+        """The exact integer in the model's terms (plan/2 B3). None stays
+        None; the complement of a share is taken in micros, exactly."""
+        if exact is None:
+            return None
+        if self.translation == "identity":
+            return int(exact)
+        if self.translation == "complement" and unit == "rate":
+            return 1000000 - int(exact)
+        raise AuthorityError("concept %r cannot translate an exact %s"
+                             % (self.concept_id, unit))
 
     def as_dict(self):
         # type: () -> Dict[str, Any]
@@ -291,38 +349,50 @@ CONCEPTS = (
         but a claim that the company's prices fall in real terms every
         projected year. One concept cannot carry both answers."""),
     Concept(
-        "cost_of_sales_share", OWNER_DRIVERS, "supplied",
-        "gross_margin", ("cogs_pct_of_revenue",), "complement",
-        """The engine already publishes a gross margin through its
-        methodology pack, and the rest of the product prints it. The
-        model recomputed the cost share from a different cost field, so
-        the projection's cost structure and the printed margin were two
-        different statements about one company."""),
+        "cost_of_sales_share", OWNER_MODEL, "read",
+        "gross_margin", ("pools.cost_of_sales_share",), "complement",
+        """plan/2 B4b (contract 4, 5.1): cost of sales is the model's
+        cost_of_sales POOL, split from the anchor's line items; its base
+        over revenue is the one cost share, and this package's gross
+        margin is one minus it. Nothing crosses back: the model has no
+        share driver any more, only the pool."""),
     Concept(
-        "operating_cost_share", OWNER_DRIVERS, "supplied",
-        "opex_rate", ("opex_pct_of_revenue",), "identity",
-        """This package had a growth RATE for operating cost but no
-        LEVEL, so the model had to measure the level itself. The level
-        driver now exists here and the model consumes it; without it the
-        two packages would go on reading the same field separately, one
-        renaming away from disagreeing."""),
+        "operating_cost_share", OWNER_MODEL, "read",
+        "opex_rate", ("pools.operating_cost_share",), "identity",
+        """plan/2 B4b: operating costs are the model's opex POOLS; their
+        sum over revenue is the level this package publishes as
+        opex_rate. Read from the model, never re-measured, never handed
+        back."""),
+    Concept(
+        "opex_fixed_share", OWNER_MODEL, "read",
+        "opex_fixed_share", ("pools.opex_fixed_share",), "identity",
+        """plan/2 B4b (contract 4): the engine.forecast pool split of
+        section 5 is the ONE authority for how much of operating cost is
+        fixed; this package reads the amount-weighted share of the served
+        pools. Its former leaf-based nature split is retired with it."""),
     Concept(
         "days_sales_outstanding", OWNER_DRIVERS, "supplied",
         "dso", ("dso_days",), "identity",
-        """The engine's published days ratio is the one the report shows.
-        The model rounds it to whole days for its integer arithmetic;
-        that is a precision choice inside the model, not a second
-        measurement."""),
+        """engine.forecast's formula forecast.dso is the authority (plan/2
+        contract 4): receivables over revenue, in micro-days. This package
+        reads it and crosses the same integer back."""),
     Concept(
         "days_inventory_outstanding", OWNER_DRIVERS, "supplied",
-        "dio", ("dio_days",), "identity",
-        """As days_sales_outstanding. On a book with no cost of sales the
-        driver is ABSENT here and the model holds inventory rather than
-        liquidating it, which is the same ruling reached twice."""),
+        "dio", ("dio_cogs_days",), "identity",
+        """Days of COST OF SALES, formula forecast.dio_cogs (R8). The ratio
+        table divides inventory by total operating expense and is quoted
+        beside it, never served under this name. On a book with no cost of
+        sales the driver is ABSENT on both sides and inventory is HELD."""),
     Concept(
         "days_payable_outstanding", OWNER_DRIVERS, "supplied",
-        "dpo", ("dpo_days",), "identity",
-        """As days_sales_outstanding."""),
+        "dpo", ("dpo_cogs_days",), "identity",
+        """As days_inventory_outstanding, over cost of sales
+        (forecast.dpo_cogs). NOT the ratio table's operand: the model reads
+        canonical_bs.rows.trade_payables, the ratio table
+        balanceSheet.accountsPayable (agras 7,186,373.77 against
+        7,554,847.25; retail 14,005,085.38 against 6,455,119.80), so the
+        basis renders the ratio table's own operands beside its value
+        rather than claiming one payables figure."""),
     Concept(
         "capital_intensity", OWNER_DRIVERS, "supplied",
         "capex_rate", ("capex_pct_of_revenue",), "identity",
@@ -336,17 +406,19 @@ CONCEPTS = (
         "effective_tax_rate", OWNER_DRIVERS, "supplied",
         "tax_rate", ("tax_rate",), "identity",
         """The effective rate this book paid, not the statutory headline.
-        It crosses ONLY when a class-69 account stands behind the charge
-        AND the build-up it sits in reaches the net income filed in
-        account 121 — the sum of an empty set is an absence, and a rate
-        divided out of a build-up that does not tie is measured across
-        the gap. On all four committed books one or both fail, so nothing
-        crosses and the model states the statutory rate under its own
-        name. Before this was true, retail crossed a 0.0000% stamped
-        `derived` over that stated default, the five-year plan paid no
-        tax, and the served driver carried NEITHER party's reason. The
-        substitution survives because an absent driver cannot cross the
-        override channel at all — see unrepresentable()."""),
+        ONE derivation (plan/2 contract 4, 3.4, R16; B3 repair): the
+        engine's existing effective-rate rule — measured only when the
+        pre-tax result is positive and the build-up reaches the net income
+        filed in account 121 with nothing unexplained — else the
+        jurisdiction's packed statutory rate, else absent. This package
+        reads that resolution (derive.py `_from_engine("tax_rate")`) and
+        crosses the same integer and tier back. It used to hold a second
+        rule (a class-69 account must stand behind the charge); on a book
+        that ties with a nil charge and no class-69 account that rule
+        refused where the engine measured 0%, and once absences crossed
+        the drivers path taxed the plan at the statutory rate while GET
+        charged nothing. The tie is the measurement: a book whose pre-tax
+        result less a nil charge IS its filed profit booked no charge."""),
     Concept(
         "borrowing_rate", OWNER_DRIVERS, "supplied",
         "interest_rate", ("interest_rate_debt", "revolver_rate"), "identity",
@@ -364,26 +436,19 @@ CONCEPTS = (
         model defaults to 0.0%, which reads as a measured policy of
         paying nothing. See unrepresentable()."""),
 
-    # ── blocked: published on both sides, and not the same quantity ──
+    # ── was blocked until plan/2 B3; closed by renaming ───────────────
     Concept(
-        "depreciation_rate", OWNER_DRIVERS, "blocked",
+        "depreciation_rate", OWNER_DRIVERS, "supplied",
         "depreciation_rate", ("depreciation_rate",), "identity",
-        """The two are not one concept wearing two values; they are two
-        concepts wearing one name. This package publishes an annual
-        charge over the GROSS cost of the depreciable assets — the
-        policy rate an accountant states, with land and assets under
-        construction excluded because neither is depreciated. The model
-        needs a run-off rate over NET BOOK VALUE, because it projects the
-        charge as rate x carrying amount; and the carrying amount it uses
-        includes land and construction in progress, so its model
-        depreciates assets that are not depreciable. Handing this
-        package's rate to that base would change a charge the model
-        currently reproduces from the book exactly, so the crossing is
-        refused rather than fudged. Closing it needs the model to exclude
-        land and assets under construction from its depreciable carrying
-        amount, and this package to publish the matching net-book-value
-        run-off rate alongside the policy rate under its own name — two
-        numbers with two names, never two numbers with one."""),
+        """The run-off rate over closing NET BOOK VALUE, engine.forecast's
+        rule (plan/2 contract 4, R17): the anchor's charge over its
+        closing property, plant, equipment and intangibles, which
+        reproduces the anchor's own charge in plan year one. It was
+        BLOCKED while this package published the gross-base policy rate
+        under the same name; that quantity is now
+        depreciation_share_of_gross_depreciable_base, never crosses, and
+        this package publishes the engine's rate under this one — two
+        numbers with two names."""),
 
     # ── the projection's own mechanics ───────────────────────────────
     Concept(
@@ -407,16 +472,6 @@ CONCEPTS = (
         None, ("days_basis",), None,
         """The day count every rate-to-period conversion uses. An
         arithmetic convention of the model."""),
-    Concept(
-        "horizon_years", OWNER_MODEL, "model_only",
-        None, ("horizon_years",), None,
-        """How far the plan runs. The company has no opinion about it."""),
-    Concept(
-        "year_one_granularity", OWNER_MODEL, "model_only",
-        None, ("year_one_granularity",), None,
-        """Whether year one is projected monthly or annually. A shape
-        choice, and the only model key that is a word rather than a
-        quantity."""),
 )
 
 
@@ -484,10 +539,8 @@ def model_overrides(assumption_set):
     otherwise re-measure arrives already measured, stamped
     ``source="caller"``.
 
-    An ABSENT driver produces NO entry. It is deliberately not sent as
-    ``None``: the model's override channel drops a None and falls back to
-    its own default, so emitting one would look like a hand-over and
-    behave like a silence. :func:`unrepresentable` names those instead.
+    An ABSENT driver crosses as an explicit :class:`AbsentHandover` naming
+    its reason (plan/2 B3, contract 4) — never a number, never ``None``.
 
     Every value is a :class:`SuppliedValue` — a real float carrying this
     package's own basis, status and served field paths, so the pedigree
@@ -501,7 +554,12 @@ def model_overrides(assumption_set):
         if concept.status != "supplied":
             continue
         driver = assumption_set.driver(concept.driver_key)
-        if driver is None or driver.value is None:
+        if driver is None:
+            continue
+        if driver.value is None:
+            for model_key in concept.model_keys:
+                out[model_key] = AbsentHandover(
+                    _pedigree(concept, driver, model_key))
             continue
         converted = concept.convert(driver.value)
         for model_key in concept.model_keys:
@@ -525,7 +583,7 @@ def _pedigree(concept, driver, model_key):
     holding the MODEL's key may be shown — the same thing when the
     translation is the identity, and the translated statement when it is
     not. The two are separate fields on purpose: `gross_margin` 0.396283
-    crosses to `cogs_pct_of_revenue` 0.603717, and printing "the engine's
+    is read off `pools.cost_of_sales_share` 0.603717 (plan/2 B4b), and printing "the engine's
     own gross margin" beside 0.603717 is precisely the unattributed
     figure this file exists to end.
     """
@@ -533,7 +591,19 @@ def _pedigree(concept, driver, model_key):
     if concept.translation is not None and concept.translation != "identity":
         basis = "%s Under the model's name %s this is %s." % (
             driver.basis, model_key, TRANSLATIONS[concept.translation][1])
+    exact = concept.convert_exact(getattr(driver, "exact", None), driver.unit)
     return {
+        # plan/2 B3 (contract 4): the unrounded integer and its unit, and
+        # the tier pedigree, so the crossing never rounds and never demotes.
+        "exact": exact,
+        "exact_unit": (None if exact is None
+                       else {"rate": "micros", "days": "micro_days"}
+                       [driver.unit]),
+        "tier": _tier_of(driver),
+        "rule_id": getattr(driver, "rule_id", None),
+        "evidence": _evidence_of(driver),
+        "fallback_steps": [dict(step) for step in
+                           (getattr(driver, "fallback_steps", ()) or ())],
         "concept_id": concept.concept_id,
         "driver_key": driver.key,
         "model_key": model_key,
@@ -546,6 +616,48 @@ def _pedigree(concept, driver, model_key):
         "periods_used": list(driver.derivation.periods_used),
         "authority": [i.authority for i in driver.derivation.inputs],
     }
+
+
+def _tier_of(driver):
+    # type: (Any) -> str
+    """The tier a crossing driver carries: the engine's own, when the
+    concept was read from it; otherwise this package's status in the
+    contract 3.4 vocabulary (derived -> book, fallback -> convention,
+    absent -> absent)."""
+    tier = getattr(driver, "tier", None)
+    if tier:
+        return str(tier)
+    return {"derived": "book", "fallback": "convention",
+            "absent": "absent"}[driver.status]
+
+
+def _evidence_of(driver):
+    # type: (Any) -> Any
+    """The evidence object the tier requires (contract 3.3)."""
+    evidence = getattr(driver, "evidence", None)
+    if evidence is not None or getattr(driver, "tier", None):
+        return evidence
+    derivation = driver.derivation
+    if driver.status == "derived":
+        method = "cagr" if derivation.method in ("cagr", "yoy") else "level"
+        inputs = []
+        for item in derivation.inputs:
+            field = ("value_minor"
+                     if item.authority.startswith(("assembled_pl",
+                                                   "canonical_bs"))
+                     else "value_micros")
+            scale = 100 if field == "value_minor" else 1000000
+            inputs.append({"fact": item.name, "period_end": item.period,
+                           field: (None if item.value is None
+                                   else int(round(item.value * scale))),
+                           "authority": item.authority})
+        return {"method": method,
+                "periods_used": list(derivation.periods_used),
+                "inputs": inputs}
+    if driver.status == "fallback":
+        return {"rule_id": derivation.source, "pack_address": None,
+                "evidence": []}
+    return None
 
 
 def handover_basis(assumption_set):
@@ -569,7 +681,7 @@ def handover_basis(assumption_set):
         if concept.status != "supplied":
             continue
         driver = assumption_set.driver(concept.driver_key)
-        if driver is None or driver.value is None:
+        if driver is None:
             continue
         for model_key in concept.model_keys:
             out[model_key] = _pedigree(concept, driver, model_key)
@@ -578,13 +690,12 @@ def handover_basis(assumption_set):
 
 def unrepresentable(assumption_set):
     # type: (Any) -> Tuple[Dict[str, Any], ...]
-    """Concepts this package says are ABSENT that the model's shape
-    cannot be told about.
+    """Concepts this package says are ABSENT, named with their reason.
 
-    Each entry names the driver, the model key that will be filled from
-    the model's own default instead, and this package's stated reason for
-    the absence — so a surface can print the refusal beside whatever the
-    model asserted, rather than letting the assertion stand alone.
+    Until plan/2 B3 the model's shape could not be told about these at
+    all. They now cross as :class:`AbsentHandover` objects; this view
+    stays so a surface can print each refusal beside whatever rung the
+    model's ladder then took.
     """
     out = []  # type: List[Dict[str, Any]]
     for concept in CONCEPTS:

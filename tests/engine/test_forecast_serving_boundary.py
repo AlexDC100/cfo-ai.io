@@ -194,8 +194,8 @@ def test_the_projections_own_accessors_work_and_carry_the_real_number():
     128,062,965.21 — carried as integer minor units and divided exactly once,
     at the display boundary."""
     figure = _gateway().figure("revenue", "FY+1")
-    assert figure.projected_minor == 12806296521
-    assert figure.to_display() == 128062965.21
+    assert figure.projected_minor == 11966217387
+    assert figure.to_display() == 119662173.87
 
 
 def test_the_gateway_refuses_a_payload_that_also_carries_actual_figures():
@@ -251,7 +251,7 @@ def test_a_projection_stripped_of_its_marker_is_still_caught():
     stripped = {
         "line": "revenue",
         "period": "FY+1",
-        "amount_minor": 12806296521,
+        "amount_minor": 11966217387,
         "assumption_ids": ["revenue_growth"],
     }
     planted = copy.deepcopy(book)
@@ -605,7 +605,7 @@ def test_the_committed_fp1_fixture_is_exactly_what_the_builder_produces():
 
 def test_the_committed_fixture_loads_through_the_gateway_unchanged():
     gateway = ProjectionGateway.from_payload(json.loads(FP1_FIXTURE.read_text()))
-    assert gateway.figure("revenue", "FY+1").projected_minor == 12806296521
+    assert gateway.figure("revenue", "FY+1").projected_minor == 11966217387
     assert gateway.unbalanced_periods() == ()
 
 
@@ -1109,6 +1109,61 @@ def test_the_committed_served_fixture_reads_back_through_the_gateway():
     assert gateway is not None
     figure = gateway.figure("revenue", "FY+1")
     assert isinstance(figure, ProjectedFigure)
-    assert figure.projected_minor == 12806296521
+    assert figure.projected_minor == 11966217387
     assert [(a.id, a.value) for a in figure.basis] == [("revenue_growth", 0.08)]
     assert gateway.unbalanced_periods() == ()
+
+
+# ── plan/2 B6: the fp1.2 fixtures the frontend reads, kept honest, and the
+# 3.13 provenance boundary on the REAL POST bytes ─────────────────────────
+
+def test_the_committed_fp12_stand_in_is_exactly_what_the_builder_produces():
+    """RED ON: fp1_2_agras.json edited by hand, or the builder changing
+    without the file being regenerated (engine and FE read IDENTICAL bytes)."""
+    from forecast_boundary_fixture import FP12_FIXTURE, fp12_bytes
+    assert FP12_FIXTURE.read_text(encoding="utf-8") == fp12_bytes(), (
+        "tests/engine/fixtures/forecast/fp1_2_agras.json is stale; regenerate it "
+        "from forecast_boundary_fixture.fp12_bytes()")
+
+
+def test_the_committed_fp12_served_fixture_is_what_the_real_route_serves():
+    """RED ON: fp1_2_agras_served.json drifting from what GET
+    /api/forecast/{id}?horizon=3 answers on agras through create_app. The
+    frontend paints THESE bytes; a fixture nobody feeds back is a shape
+    nobody has read. recompute_ms is a clock reading and is not recorded."""
+    from test_forecast_route import _call
+    status, body = _call("agras", "GET", 3)
+    assert status == 200
+    body.pop("recompute_ms")
+    on_disk = json.loads((REPO / "tests" / "engine" / "fixtures" / "forecast"
+                          / "fp1_2_agras_served.json").read_text(encoding="utf-8"))
+    assert on_disk["body_hash"] == body["body_hash"], (
+        "fp1_2_agras_served.json is stale; regenerate it from the route "
+        "(as-built B6: scratchpad b6/gen_fixtures.py)")
+    assert on_disk == body
+
+
+def test_no_actual_provenance_on_real_post_bytes(capsys):
+    """3.13. The accepted want keys are read at run time from the
+    PlanRequestBody validator, so a block a later batch adds is covered
+    without editing this file. Each key alone and all together, on the four
+    books. RED ON: any served block carrying an ACTUAL_PROVENANCE_FIELDS key
+    outside base_period; zero keys swept (TC-3)."""
+    from engine.api._forecast_routes import PlanRequestBody
+    from engine.forecast_serving import boundary as B
+    from test_forecast_route import BOOKS, _call
+    keys = PlanRequestBody.accepted_want_keys()
+    assert keys, "TC-3: the validator accepts no want key; nothing was swept"
+    posts = 0
+    for name in BOOKS:
+        for want in [[k] for k in keys] + [list(keys)]:
+            status, body = _call(name, "POST", body={
+                "horizon": {"total_years": 3, "monthly_months": 12}, "want": want})
+            assert status == 200, (name, want, str(body)[:200])
+            for k in keys:
+                assert (k in body) == (k in want), (name, want, k)
+            B.assert_no_actual_provenance(body)
+            posts += 1
+    with capsys.disabled():
+        print("\nSCOPE forecast-serving-boundary 3.13: books %s; want keys %d (%s); "
+              "POSTs %d" % (", ".join(BOOKS), len(keys), ", ".join(keys), posts))

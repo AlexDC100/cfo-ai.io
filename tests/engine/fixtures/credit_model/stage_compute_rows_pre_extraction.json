@@ -97,7 +97,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -105,7 +105,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 48019704.96
+     "value": 40241194.46
     },
     {
      "direction": "higher",
@@ -113,7 +113,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -121,7 +121,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -129,7 +129,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 210512337.61
+     "value": 202868224.57
     },
     {
      "direction": "neutral",
@@ -145,7 +145,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 15465144.89
+     "value": 7821031.85
     },
     {
      "direction": "higher",
@@ -153,7 +153,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -161,7 +161,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -177,7 +177,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -185,7 +185,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -193,7 +193,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 310668665.97
+     "value": 302890155.47
     },
     {
      "direction": "neutral",
@@ -209,7 +209,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.405
+     "value": 0.3632
     },
     {
      "direction": "higher",
@@ -217,7 +217,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1553
+     "value": 0.0973
     },
     {
      "direction": "higher",
@@ -225,7 +225,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0635
+     "value": 0.068
     },
     {
      "direction": "neutral",
@@ -273,7 +273,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1976
+     "value": 0.3378
     },
     {
      "direction": "higher",
@@ -281,7 +281,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 55.644
+     "value": 28.1403
     },
     {
      "direction": "higher",
@@ -305,7 +305,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.4713
+     "value": 0.2383
     },
     {
      "direction": "higher",
@@ -329,7 +329,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "neutral",
@@ -417,7 +417,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1342
+     "value": 0.2294
     },
     {
      "direction": "higher",
@@ -449,7 +449,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -457,7 +457,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 7.4345
+     "value": 4.3493
     },
     {
      "direction": "higher",
@@ -465,7 +465,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 40.2209
+     "value": 23.5301
     },
     {
      "direction": "higher",
@@ -473,7 +473,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 3.0193
+     "value": 2.8213
     },
     {
      "direction": "lower",
@@ -481,7 +481,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 26.2057
+     "value": 28.0454
     },
     {
      "direction": "lower",
@@ -489,7 +489,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 31.5035
+     "value": 31.5444
     },
     {
      "direction": "higher",
@@ -497,7 +497,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 26.6422
+     "value": 26.6769
     },
     {
      "direction": "lower",
@@ -505,7 +505,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 31.0669
+     "value": 32.913
     },
     {
      "direction": "higher",
@@ -513,7 +513,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 11.586
+     "value": 11.571
     },
     {
      "direction": "higher",
@@ -521,7 +521,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1304
+     "value": 0.0706
     },
     {
      "direction": "higher",
@@ -529,7 +529,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1521
+     "value": 0.0937
     },
     {
      "direction": "higher",
@@ -537,7 +537,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "higher",
@@ -545,7 +545,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 7.31
+     "value": 6.01
     },
     {
      "direction": "higher",
@@ -569,7 +569,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.3938
+     "value": 0.1991
     },
     {
      "direction": "higher",
@@ -585,7 +585,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 80.7
+     "value": 81.0
     },
     {
      "direction": "higher",
@@ -601,7 +601,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 31.7
+     "value": 33.2
     },
     {
      "direction": "higher",
@@ -657,7 +657,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -665,7 +665,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 48019704.96
+     "value": 40241194.46
     },
     {
      "direction": "higher",
@@ -673,7 +673,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -681,7 +681,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -689,7 +689,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 210512337.61
+     "value": 202868224.57
     },
     {
      "direction": "neutral",
@@ -705,7 +705,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 15465144.89
+     "value": 7821031.85
     },
     {
      "direction": "higher",
@@ -713,7 +713,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -721,7 +721,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -737,7 +737,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -745,7 +745,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -753,7 +753,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 310668665.97
+     "value": 302890155.47
     },
     {
      "direction": "neutral",
@@ -769,7 +769,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.405
+     "value": 0.3632
     },
     {
      "direction": "higher",
@@ -777,7 +777,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1553
+     "value": 0.0973
     },
     {
      "direction": "higher",
@@ -785,7 +785,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0635
+     "value": 0.068
     },
     {
      "direction": "neutral",
@@ -841,7 +841,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 55.644
+     "value": 28.1403
     },
     {
      "direction": "higher",
@@ -889,7 +889,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "neutral",
@@ -1009,7 +1009,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1017,7 +1017,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1025,7 +1025,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1081,7 +1081,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1304
+     "value": 0.0706
     },
     {
      "direction": "higher",
@@ -1089,7 +1089,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1521
+     "value": 0.0937
     },
     {
      "direction": "higher",
@@ -1097,7 +1097,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_agras.json",
@@ -1112,7 +1112,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 99424740.16
+     "value": 94509939.96
     },
     {
      "direction": "higher",
@@ -1120,7 +1120,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 41994943.93
+     "value": 37080143.73
     },
     {
      "direction": "higher",
@@ -1128,7 +1128,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1136,7 +1136,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1144,7 +1144,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 98042740.07
+     "value": 93447975.09
     },
     {
      "direction": "neutral",
@@ -1160,7 +1160,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5893218.98
+     "value": 1298454.0
     },
     {
      "direction": "higher",
@@ -1168,7 +1168,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5843449.04
+     "value": 1248684.06
     },
     {
      "direction": "higher",
@@ -1176,7 +1176,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5843449.04
+     "value": 1248684.06
     },
     {
      "direction": "higher",
@@ -1192,7 +1192,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1200,7 +1200,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 99424740.16
+     "value": 94509939.96
     },
     {
      "direction": "higher",
@@ -1208,7 +1208,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 187878735.66
+     "value": 182963935.46
     },
     {
      "direction": "neutral",
@@ -1224,7 +1224,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.4224
+     "value": 0.3923
     },
     {
      "direction": "higher",
@@ -1232,7 +1232,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0964
+     "value": 0.0528
     },
     {
      "direction": "higher",
@@ -1240,7 +1240,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0144
+     "value": 0.0152
     },
     {
      "direction": "neutral",
@@ -1320,7 +1320,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0463
+     "value": 0.0102
     },
     {
      "direction": "higher",
@@ -1344,7 +1344,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 8182523.5
+     "value": 3587758.52
     },
     {
      "direction": "neutral",
@@ -1432,7 +1432,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -1.0559
+     "value": -2.0274
     },
     {
      "direction": "higher",
@@ -1488,7 +1488,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.7898
+     "value": 0.7508
     },
     {
      "direction": "lower",
@@ -1496,7 +1496,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 39.7572
+     "value": 41.8247
     },
     {
      "direction": "lower",
@@ -1504,7 +1504,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 37.662
+     "value": 37.7894
     },
     {
      "direction": "higher",
@@ -1512,7 +1512,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 51.4901
+     "value": 51.6642
     },
     {
      "direction": "lower",
@@ -1520,7 +1520,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 25.9292
+     "value": 27.9499
     },
     {
      "direction": "higher",
@@ -1528,7 +1528,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 9.6915
+     "value": 9.6588
     },
     {
      "direction": "higher",
@@ -1536,7 +1536,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0593
+     "value": 0.0137
     },
     {
      "direction": "higher",
@@ -1544,7 +1544,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0823
+     "value": 0.038
     },
     {
      "direction": "higher",
@@ -1552,7 +1552,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 8182523.5
+     "value": 3587758.52
     },
     {
      "direction": "higher",
@@ -1560,7 +1560,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 6.62
+     "value": 6.38
     },
     {
      "direction": "higher",
@@ -1584,7 +1584,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0468
+     "value": 0.0103
     },
     {
      "direction": "higher",
@@ -1616,7 +1616,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 5.3
+     "value": 5.5
     },
     {
      "direction": "higher",
@@ -2230,7 +2230,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79510264.65
+     "value": 79018306.77
     },
     {
      "direction": "higher",
@@ -2238,7 +2238,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 16133643.2
+     "value": 15641685.32
     },
     {
      "direction": "higher",
@@ -2246,7 +2246,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2254,7 +2254,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2262,7 +2262,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "neutral",
@@ -2278,7 +2278,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -1256674.81
+     "value": 786579.83
     },
     {
      "direction": "higher",
@@ -2286,7 +2286,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 1161957.98
+     "value": 3205212.62
     },
     {
      "direction": "higher",
@@ -2294,7 +2294,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 1161957.98
+     "value": 3205212.62
     },
     {
      "direction": "higher",
@@ -2310,7 +2310,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2318,7 +2318,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79512188.43
+     "value": 79020230.55
     },
     {
      "direction": "higher",
@@ -2326,7 +2326,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79512188.43
+     "value": 79020230.55
     },
     {
      "direction": "neutral",
@@ -2342,7 +2342,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.2029
+     "value": 0.198
     },
     {
      "direction": "higher",
@@ -2350,7 +2350,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0028
+     "value": 0.0286
     },
     {
      "direction": "higher",
@@ -2358,7 +2358,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0403
+     "value": 0.0406
     },
     {
      "direction": "neutral",
@@ -2406,7 +2406,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 126.5382
+     "value": 12.3084
     },
     {
      "direction": "higher",
@@ -2414,7 +2414,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.519
+     "value": 0.3249
     },
     {
      "direction": "higher",
@@ -2438,7 +2438,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0199
+     "value": 0.0124
     },
     {
      "direction": "higher",
@@ -2462,7 +2462,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -506705.8
+     "value": 1536548.84
     },
     {
      "direction": "neutral",
@@ -2550,7 +2550,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 121.3692
+     "value": 11.8056
     },
     {
      "direction": "higher",
@@ -2582,7 +2582,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0909
+     "value": 0.9349
     },
     {
      "direction": "higher",
@@ -2590,7 +2590,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0909
+     "value": 0.9349
     },
     {
      "direction": "higher",
@@ -2598,7 +2598,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0373
+     "value": 0.3834
     },
     {
      "direction": "higher",
@@ -2606,7 +2606,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 1.1344
+     "value": 1.1274
     },
     {
      "direction": "lower",
@@ -2614,7 +2614,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 1.1704
+     "value": 1.1777
     },
     {
      "direction": "lower",
@@ -2622,7 +2622,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 30.4348
+     "value": 31.412
     },
     {
      "direction": "higher",
@@ -2630,7 +2630,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 28.9116
+     "value": 29.8399
     },
     {
      "direction": "lower",
@@ -2638,7 +2638,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 2.6936
+     "value": 2.7498
     },
     {
      "direction": "higher",
@@ -2646,7 +2646,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 11.9928
+     "value": 11.6198
     },
     {
      "direction": "higher",
@@ -2654,7 +2654,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0158
+     "value": 0.01
     },
     {
      "direction": "higher",
@@ -2662,7 +2662,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0013
+     "value": 0.0245
     },
     {
      "direction": "higher",
@@ -2670,7 +2670,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -103684.94
+     "value": 1939569.7
     },
     {
      "direction": "higher",
@@ -2678,7 +2678,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.6
+     "value": 0.79
     },
     {
      "direction": "higher",
@@ -2702,7 +2702,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0179
+     "value": 0.0112
     },
     {
      "direction": "higher",
@@ -2718,7 +2718,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 15.8
+     "value": 20.6
     },
     {
      "direction": "higher",
@@ -2726,7 +2726,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 21.5
+     "value": 28.6
     },
     {
      "direction": "higher",
@@ -2734,7 +2734,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 17.7
+     "value": 17.8
     },
     {
      "direction": "higher",
@@ -2750,7 +2750,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 0
+     "value": 9.7
     },
     {
      "direction": "higher",
@@ -2758,7 +2758,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 1.9
+     "value": 19.2
     },
     {
      "direction": "higher",

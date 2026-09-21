@@ -326,8 +326,12 @@ def test_b4_every_derived_default_names_the_authority_it_was_read_from(book):
     # `assembled_bands.*` is a legitimate authority: a case driver that did
     # NOT move still records the band rungs it was compared against, and
     # that comparison is the reason it held.
+    # plan/2 B4b: `line_items` — the anchor's statement_line_items rows, the
+    # ONLY source of the cost pools (contract 5.1); gross_margin and
+    # opex_rate are read off the engine's pool facts measured from them.
     known = ("assembled_pl", "canonical_bs", "envelope", "pack",
-             "methodology.ratios", "statements", "assembled_bands", "book")
+             "methodology.ratios", "statements", "assembled_bands", "book",
+             "line_items")
     for case in build_case_set([_load(book)]).cases:
         for driver in case.drivers:
             if driver.status != "derived":
@@ -472,20 +476,19 @@ def test_d5_level_drivers_are_derived_from_a_single_period(agras):
         assert driver.kind == "level"
         assert driver.derivation.periods_used == ("2025-12-31",), key
         if key == "tax_rate":
-            # SCOPE CHANGE, recorded rather than quietly dropped.
-            # `tax_rate` was in the `derived` list because agras' book
-            # carries a real 691 charge of 1,471,550.00 against a pre-tax
-            # result of 15,577,652.03. Measured later: that build-up does
-            # not reach the 7,533,676.02 agras filed in account 121, and
-            # 6,572,426.01 of the distance is attributable to no line on
-            # the statement — so the 9.4465% was a rate measured across a
-            # gap. The refusal is the repair; this list asserting
-            # `derived` was the gate pinning the defect. What d5 is
-            # actually about — a level is a state, read from ONE period
-            # and never emitted as a fallback — is checked for it above
-            # and below, which is the part that must not regress.
-            assert driver.status in ("derived", "absent"), key
-            assert driver.status != "fallback", key
+            # RESTATED (plan/2 B3 repair, contract 4): tax_rate is read
+            # from engine.forecast's ONE derivation. agras' effective rate
+            # is not measured (its build-up misses account 121 by
+            # 6,572,426.01), so the engine takes the statutory rung; the
+            # driver's status mirrors that tier ("derived" only for a book
+            # measurement, "fallback" for the macro rung) and the refused
+            # book rung is recorded, never dropped. What d5 is about — a
+            # level read from ONE period — is still checked above.
+            assert (driver.status == "derived") == (driver.tier == "book"), key
+            if driver.tier != "book":
+                assert driver.tier in ("macro", "absent"), key
+                assert driver.fallback_steps[0]["tier"] == "book", key
+                assert driver.fallback_steps[0]["outcome"] == "absent", key
             continue
         assert driver.status == "derived", key
 
@@ -813,8 +816,9 @@ def test_h3_every_macro_anchor_declares_its_external_source(pack):
 # ──────────────────────────────────────────────────────────────────────
 
 from engine.forecast_drivers.authority import (  # noqa: E402
-    CONCEPTS, RULED_MODEL_KEYS, AuthorityError, Concept, blocked_model_keys,
-    concept_for_model_key, model_overrides, model_owned_keys, unrepresentable)
+    CONCEPTS, RULED_MODEL_KEYS, AbsentHandover, AuthorityError, Concept,
+    blocked_model_keys, concept_for_model_key, model_overrides,
+    model_owned_keys, unrepresentable)
 
 
 def _model_assumptions(payload, **overrides):
@@ -822,25 +826,19 @@ def _model_assumptions(payload, **overrides):
 
     Imported inside the helper, not at module scope: this file's other 66
     tests are about THIS package, and a broken sibling package should not
-    stop them collecting.
+    stop them collecting. plan/2 B3: with the book's own context (its
+    jurisdiction, contract 0.3), exactly as ``project_payload`` builds it.
     """
-    from engine.forecast import (OpeningPosition, derive_assumptions,
-                                 pl_history_from_payload)
-    from engine.serving.facts import FactsGateway
+    from engine.forecast.project import assumptions_for_payload
 
-    envelope = payload.get("envelope")
-    gateway = FactsGateway.from_envelope(
-        envelope if isinstance(envelope, dict) else payload,
-        currency=str(payload.get("currency") or "RON"))
-    opening = OpeningPosition.from_gateway(
-        gateway, str(payload.get("period_end") or ""))
-    return derive_assumptions(
-        opening, pl_history_from_payload(payload), **overrides)
+    return assumptions_for_payload(payload, **overrides)
 
 
 def _model_keys():
-    from engine.forecast.assumptions import KEYS
-    return tuple(KEYS)
+    """KEYS plus the pool FACTS the model publishes for the `read` concepts
+    (plan/2 B4b, contract 4): measured by the pool split, read by key."""
+    from engine.forecast.assumptions import KEYS, AssumptionSet
+    return tuple(KEYS) + tuple(AssumptionSet.POOL_FACTS)
 
 
 def _base(book):
@@ -956,9 +954,24 @@ def test_j7_every_supplied_concept_arrives_with_this_packages_value(book):
             assert got.source == "caller", (
                 "%s/%s: handed over but the model kept its own %s value"
                 % (book, model_key, got.source))
-            assert got.value() == pytest.approx(want, abs=5e-7), (
-                "%s/%s: this package publishes %r, the model holds %r"
-                % (book, model_key, want, got.value()))
+            if driver.exact is not None:
+                # plan/2 B3 (contract 4): the crossing carries the EXACT
+                # integer, unrounded. This asserted the model held the
+                # display value within 5e-7, which a day count rounded to
+                # four places (26.2057 for 26.205674) can never meet once
+                # the crossing stops rounding — the gate is restated on the
+                # integer it is now about.
+                assert got.exact == concept.convert_exact(
+                    driver.exact, driver.unit), (
+                    "%s/%s: this package publishes %r exactly, the model "
+                    "holds %r" % (book, model_key, driver.exact, got.exact))
+                # and a hand-over never demotes the engine's tier to a
+                # caller's
+                assert got.tier == driver.tier, (book, model_key, got.tier)
+            else:
+                assert got.value() == pytest.approx(want, abs=5e-7), (
+                    "%s/%s: this package publishes %r, the model holds %r"
+                    % (book, model_key, want, got.value()))
             checked += 1
     assert checked, "%s: nothing crossed at all" % (book,)
 
@@ -967,13 +980,16 @@ def test_j7_every_supplied_concept_arrives_with_this_packages_value(book):
 def test_j8_an_absent_driver_never_becomes_a_number_in_the_handover(book):
     """ABSENT != ZERO, at the boundary between the two packages.
 
-    A driver this package refuses to value must not appear in the
-    overrides at all — not as 0.0, and not as None either, because the
-    model's channel DROPS a None (`overrides[key] is not None`) and would
-    fill the key from its own default while looking like a hand-over.
+    RETIRED AND RESTATED (plan/2 B3, contract 4: "an absent concept
+    crosses as an explicit absent object, never dropped"). This asserted
+    an absent driver did not appear in the overrides at all, because the
+    model's channel dropped a None. That drop is gone; the law it guarded
+    survives in the stronger form — an absent driver crosses, but only as
+    an AbsentHandover carrying its reason, never as a number or a None.
     """
     base = _base(book)
     overrides = model_overrides(base)
+    crossed_absent = 0
     for concept in CONCEPTS:
         if concept.status == "model_only":
             continue
@@ -981,22 +997,47 @@ def test_j8_an_absent_driver_never_becomes_a_number_in_the_handover(book):
         if driver is None or driver.value is not None:
             continue
         for model_key in concept.model_keys:
-            assert model_key not in overrides, (
+            value = overrides.get(model_key)
+            assert isinstance(value, AbsentHandover), (
                 "%s: %r is ABSENT here but was handed to the model as %r"
-                % (book, concept.driver_key, overrides.get(model_key)))
+                % (book, concept.driver_key, value))
+            assert value.reason == driver.basis
+            crossed_absent += 1
     for value in overrides.values():
         assert value is not None
+        if isinstance(value, AbsentHandover):
+            assert not isinstance(value, float)
+    assert crossed_absent, "%s: no absent concept crossed (TC-3)" % (book,)
 
 
-def test_j9_the_models_channel_really_does_drop_a_none():
-    """The reason test_j8 exists, proven against the model rather than
-    asserted about it. If this ever stops being true, an absent driver
-    becomes conveyable and `unrepresentable()` should shrink."""
+def test_j9_the_models_channel_refuses_a_none_and_honours_an_absent_handover():
+    """RETIRED AND RESTATED (plan/2 B3). This proved the model's channel
+    DROPPED a None — the silence contract 4 removes ("the None check is
+    removed"). After the repair: a None is refused by name, and the
+    explicit absent hand-over removes the model's book rung, recording the
+    authority's reason, while its ladder continues.
+
+    RESTATED AGAIN (B3 repair): tax_rate now reads the engine, so on the
+    calibration book it crosses the engine's statutory value, not an
+    absence. The absence is built where it is real — a copy whose
+    jurisdiction is not recorded, where both packages end absent — and
+    handed to the RO book, whose ladder continues to the statutory rung."""
+    from engine.forecast.errors import AssumptionError
+
     payload = _load(_CALIBRATION_BOOK)
-    plain = _model_assumptions(payload)
-    nulled = _model_assumptions(payload, tax_rate=None)
-    assert nulled["tax_rate"].source == plain["tax_rate"].source
-    assert nulled["tax_rate"].value() == plain["tax_rate"].value()
+    with pytest.raises(AssumptionError) as caught:
+        _model_assumptions(payload, tax_rate=None)
+    assert "None is not a driver value" in str(caught.value)
+    unrecorded = copy.deepcopy(payload)
+    unrecorded["envelope"].pop("pack_provenance", None)
+    unrecorded["envelope"].pop("ai_audit", None)
+    handover = model_overrides(
+        build_case_set([unrecorded]).case("base"))["tax_rate"]
+    assert isinstance(handover, AbsentHandover)
+    after = _model_assumptions(payload, tax_rate=handover)
+    assert after["tax_rate"].tier == "macro"
+    assert after["tax_rate"].fallback_steps[0]["tier"] == "book"
+    assert after["tax_rate"].fallback_steps[0]["reason"] == handover.reason
 
 
 @pytest.mark.parametrize("book", _BOOKS)
@@ -1021,12 +1062,18 @@ def test_j10_what_cannot_cross_is_named_rather_than_silently_asserted(book):
 def test_j11_a_blocked_concept_must_argue_the_change_that_would_close_it():
     """A refusal to cross is only legitimate while it says what would
     make it unnecessary. Otherwise `blocked` becomes a permanent excuse
-    for two authorities."""
+    for two authorities.
+
+    RETIRED AS ITS OWN DOCSTRING INSTRUCTED (plan/2 B3, contract 4:
+    "blocked_model_keys is emptied"). The one blocked concept,
+    depreciation_rate, crosses since B3: this package's gross-base rate
+    was renamed depreciation_share_of_gross_depreciable_base and the
+    engine's closing-NBV rate is published under the name. What survives
+    is the rule for any FUTURE blocked concept, and the record that none
+    remains."""
     blocked = tuple(c for c in CONCEPTS if c.status == "blocked")
-    assert blocked, (
-        "no blocked concept remains — delete this test rather than "
-        "loosening it, and record that every concept now crosses")
-    for concept in blocked:
+    assert blocked_model_keys() == ()
+    for concept in blocked:  # pragma: no cover - none remain at B3
         assert "Closing it needs" in concept.why, (
             "%s is blocked with no stated route out" % (concept.concept_id,))
 
@@ -1050,8 +1097,12 @@ def test_j12_the_model_owns_only_the_projections_own_mechanics(pack):
 #: Derivation methods whose arithmetic this file can redo, and the shape
 #: it redoes them in. A base-case driver whose method is not here cannot
 #: be checked, and test_j13 reds rather than skipping it.
+#: plan/2 B3: ``engine_forecast`` — a shared concept read from the model's
+#: own resolution, whose first input is the engine's exact value (the
+#: arithmetic behind it is gated by the model's own tests and by
+#: forecast-authority); ``pack_convention`` — the convention rung.
 _ONE_INPUT_METHODS = ("published_ratio", "pack_macro", "engine_assumption",
-                      "pack_default")
+                      "pack_default", "engine_forecast", "pack_convention")
 _QUOTIENT_METHODS = ("period_ratio",)
 _SHARE_METHODS = ("nature_split",)
 _ARITHMETIC_METHODS = (_ONE_INPUT_METHODS + _QUOTIENT_METHODS
@@ -1188,6 +1239,30 @@ def test_j17_every_percentage_written_into_a_note_is_one_of_its_own_numbers(book
                 known.add(round(driver.value * 100.0, 6))
             for token in percent.findall(note):
                 number = float(token.replace(",", ""))
+                # a case clone does not carry the pedigree; its steps are
+                # the base driver's (the rungs are resolved once, B3-8)
+                rejected = [step["reason"] for source in
+                            (driver, case_set.case("base").driver(driver.key))
+                            for step in
+                            (getattr(source, "fallback_steps", None) or ())
+                            if step.get("outcome") in ("absent", "rejected")]
+                if any(token + "%" in reason or token + " %" in reason
+                       for reason in rejected):
+                    # plan/2 B3 repair: a driver read from the engine quotes
+                    # the reason each rung it did NOT take was refused
+                    # (tax: "an effective rate of 9.4465% read off two
+                    # figures inside that build-up"). That percentage is
+                    # the measurement the rung REJECTS, computed by the
+                    # engine from the book's own figures, and it is quoted
+                    # verbatim from the recorded fallback step, never typed.
+                    continue
+                if driver.status == "absent" and number == 0.0:
+                    # plan/2 B3: an ABSENT driver read from the engine
+                    # quotes the engine's refusal ("it is not taken to be
+                    # 0%"). The 0% is the value the refusal REJECTS, not a
+                    # threshold, and an absent driver carries no value to
+                    # match it against. Any other percentage still reds.
+                    continue
                 assert any(abs(number - k) < 1e-6 for k in known), (
                     "%s/%s/%s: the note says %s%% and no input, and not the "
                     "driver's own value, carries it"
@@ -1210,13 +1285,19 @@ def test_j18_the_pedigree_travels_with_the_numbers(book):
         "%s: %s crossed with no pedigree behind it"
         % (book, sorted(set(overrides) - set(carried))))
     for model_key, entry in carried.items():
-        assert entry["status"] in ("derived", "fallback"), model_key
-        assert entry["basis"].strip(), model_key
-        assert entry["authority"], model_key
-        assert entry["periods_used"], model_key
         driver = base.driver(entry["driver_key"])
+        assert entry["basis"].strip(), model_key
         assert entry["basis"] == driver.basis
         assert entry["status"] == driver.status
+        if entry["status"] == "absent":
+            # plan/2 B3: an absent concept crosses with its reason and no
+            # value; it has no authority to cite and no exact integer.
+            assert isinstance(overrides[model_key], AbsentHandover)
+            assert entry["exact"] is None, model_key
+            continue
+        assert entry["status"] in ("derived", "fallback"), model_key
+        assert entry["authority"], model_key
+        assert entry["periods_used"], model_key
 
 
 def test_j19_a_fallback_does_not_cross_over_looking_like_a_measurement():
@@ -1259,82 +1340,75 @@ def test_j19_a_fallback_does_not_cross_over_looking_like_a_measurement():
 #       8 on carniprod, 7 on realestate.
 # ══════════════════════════════════════════════════════════════════════
 
-#: The class the Romanian chart of accounts holds the profit-tax charge
-#: in. Read from the rule rather than restated, so the gate and the code
-#: cannot drift apart (TC-10).
-def _income_tax_prefixes():
-    from engine.forecast_drivers.derive import _INCOME_TAX_PREFIXES
-    return _INCOME_TAX_PREFIXES
-
-
-def _tax_accounts(book):
-    from engine.forecast_drivers.reader import ActualsPeriod
-    return ActualsPeriod(_load(book)).accounts_with_prefix(
-        _income_tax_prefixes())
-
-
 # ── H1: an unattributed zero is an absence ────────────────────────────
+
+#: The class the Romanian chart of accounts holds the profit-tax charge in
+#: (691 impozit pe profit, 698). The rule that read it was retired by the
+#: B3 repair (contract 4: one derivation); the tests keep it only to build
+#: and describe their books.
+_TAX_ACCOUNT_CLASS = ("69",)
+
 
 @pytest.mark.parametrize("book", _BOOKS)
 def test_hx1_a_zero_tax_charge_no_account_stands_behind_is_refused(book):
     """UNATTRIBUTED != MEASURED.
 
-    `assembled_pl.income_tax` is the SUM of the book's class-69 accounts.
-    A book carrying none of them reports 0.00 — the sum of an empty set —
-    and an effective rate divided out of that describes the MAPPING, not
-    the company. Measured on the four committed books: agras 691 =
-    1,471,550.00, carniprod 691 = 287,686.00, realestate and retail carry
-    no class-69 account at all.
+    RESTATED (plan/2 B3 repair, contract 4, R16). This package's second
+    tax rule (a class-69 account must stand behind the charge) is retired:
+    the concept has ONE derivation, the engine's effective-rate rule. The
+    law that survives: a 0.00 charge no class-69 account stands behind is
+    never published as a measured rate unless the book's pre-tax result
+    less that nil charge IS the profit it filed in account 121 (the tie is
+    then the measurement). On the corpus books realestate and retail carry
+    no class-69 account; realestate does not tie, so it measures no rate.
+    RESTATED (plan/2 B4a): retail TIES once its mirrored 609/709 rows are
+    read as reductions (the 2,043,254.64 gap was the double count), so on
+    retail the nil charge is now the measurement — book 0, on both paths —
+    exactly the hx2b law. Which branch a book takes is read off the book
+    (its unexplained step against 121), never off its name.
     """
     from engine.forecast_drivers.reader import ActualsPeriod
 
-    period = ActualsPeriod(_load(book))
+    payload = _load(book)
+    period = ActualsPeriod(payload)
     driver = _base(book).driver("tax_rate")
     tax = period.pl("income_tax")
-    pretax = period.pl("pretax")
-    if _tax_accounts(book) or tax is None or abs(tax) > 1e-9:
+    if period.accounts_with_prefix(_TAX_ACCOUNT_CLASS) or tax is None \
+            or abs(tax) > 1e-9:
         return
-    assert driver.value is None and driver.status == "absent", (
-        "%s: income_tax is %r and no class-69 account stands behind it, "
-        "but the driver publishes %r as %r. A zero nothing was mapped to "
-        "is an absence; dividing it produces a rate that reads as this "
-        "company's and is this assembly's."
-        % (book, tax, driver.value, driver.status))
-    assert driver.derivation.inputs, (
-        "%s: the refusal quotes the book's own figures, so it carries "
-        "them as inputs rather than as prose (TC-10)" % (book,))
-    note = driver.derivation.note
-    if pretax is not None and pretax > 0.0:
-        # The base IS usable, so the missing charge account is the ONLY
-        # reason there is no rate, and the refusal has to say which class
-        # is missing or a reader cannot check it. Where the base is also
-        # unusable (realestate: a pre-tax LOSS of 30,391,418.38) the
-        # driver keeps the deeper refusal it already had — the ordering
-        # in `_ratio_of` is deliberate, and this gate follows it rather
-        # than forcing the newer sentence over the truer one.
-        assert "class-69" in note, (
-            "%s: the base is usable (%r) and the charge is unattributed, "
-            "so the refusal must name the missing account class: %r"
-            % (book, pretax, note))
-    else:
-        assert "not a usable base" in note, (
-            "%s: the pre-tax base is %r, which is the first thing that "
-            "makes the rate unmeasurable, and the refusal should still "
-            "say so: %r" % (book, pretax, note))
+    model = _model_assumptions(payload)["tax_rate"]
+    unexplained = float(payload["statements"]["assembled_pl"].get(
+        "net_income_unexplained_vs_121") or 0.0)
+    if abs(unexplained) < 0.005:
+        # RESTATED (plan/2 B4 repair, B4V-6): the statement rows reach the
+        # engine since B4b, so the ENGINE now sees that no profit-tax row
+        # stands behind the 0.00 — an absent charge, never a measured nil.
+        # This test's own name is the law again, with still one derivation:
+        # both paths take the statutory rung, the book rung absent first.
+        assert model.tier == "macro" and driver.tier == "macro", (
+            "%s ties to account 121 with a nil charge and NO class-69 "
+            "account: the charge is absent, not nil — expected the statutory "
+            "rung on both paths, got %r / %r" % (book, model.tier, driver.tier))
+        assert driver.exact == model.exact and model.exact > 0, (book, driver.exact, model.exact)
+        assert model.fallback_steps[0]["tier"] == "book" \
+            and model.fallback_steps[0]["outcome"] == "absent"
+        assert "books no profit-tax charge" in model.basis
+        return
+    assert model.tier != "book" and driver.tier != "book", (
+        "%s: income_tax is %r, no class-69 account stands behind it and "
+        "the build-up does not tie, but a rate was measured (%r / %r)"
+        % (book, tax, driver.value, driver.tier))
+    assert driver.fallback_steps and \
+        driver.fallback_steps[0]["tier"] == "book", (book,
+                                                     driver.fallback_steps)
 
 
 def test_hx2_a_nil_charge_an_account_does_stand_behind_still_measures_zero():
-    """The discriminator is the CHART OF ACCOUNTS, not the sign.
+    """A nil charge on a book that ties is a measurement.
 
-    This is the half that stops the H1 repair from being "zero is always
-    absent". A book that carries a class-69 account whose movement really
-    is nil HAS measured a 0% effective rate — a carried-forward loss, a
-    micro-enterprise regime — and keeps `derived`, with the standing note
-    about what projecting it assumes.
-    """
-    #: `_retail_that_ties()` plus ONE further change — a class-69 account
-    #: at a nil movement. `test_hx2b` is the same book without it, so the
-    #: pair isolates the attribution condition and nothing else.
+    RESTATED (B3 repair): the value now comes from the engine's rule, so
+    the note is the engine's measured-nil sentence, and the integer and
+    tier are the engine's."""
     payload = _retail_that_ties()
     payload["line_items"].append({
         "ro_account_code": "691",
@@ -1344,10 +1418,10 @@ def test_hx2_a_nil_charge_an_account_does_stand_behind_still_measures_zero():
     })
     driver = build_case_set([payload]).case("base").driver("tax_rate")
     assert driver.status == "derived" and driver.value == 0.0, (
-        "a nil charge on an account that EXISTS is a measurement; it must "
-        "not be swept up by the refusal, which is about an unmapped "
-        "absence: got %r / %r" % (driver.value, driver.status))
-    assert "measured 0%" in driver.derivation.note
+        "a nil charge on a book that ties is a measurement: got %r / %r"
+        % (driver.value, driver.status))
+    assert driver.tier == "book" and driver.exact == 0
+    assert "the charge it measures is nil" in driver.derivation.note
 
 
 def _retail_that_ties():
@@ -1393,65 +1467,93 @@ def _p121_block(payload):
             ["p121_cross_check"])
 
 
-def test_hx2b_a_tying_book_with_no_charge_account_still_refuses():
-    """The attribution condition, isolated.
+def test_hx2b_a_tying_book_holds_one_rate_on_both_paths_with_or_without_a_charge_account():
+    """RETIRED BY NAME (plan/2 B4 repair, B4V-6):
+    test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_account.
+    It pinned book 0 on a tying book with NO class-69 account — an absent
+    charge spent as a 0% rate on every plan year. B3R-4 chose that because
+    the engine could not see the rows; since B4b it can. What survives is
+    B3R-4's real law — ONE derivation, the same tier and integer on the
+    drivers path, the GET path and after the hand-over, and the same tax
+    charged — now with the two shapes told apart: no account -> statutory
+    macro rung; a class-69 account closing at nil -> measured book 0.
 
-    Same book as `test_hx2` in every respect except that no class-69
-    account is added. `test_hx2` measures 0%; this one must refuse — and
-    the ONLY difference between them is whether an account stands behind
-    the charge.
+    (earlier history) RETIRED: test_hx2b_a_tying_book_with_no_charge_account_still_refuses.
+
+    It pinned this package's second tax rule (class-69 attribution) as
+    law, which gave the drivers path an absence where GET measured 0% and,
+    once absences crossed (B3), a 16% statutory charge on the drivers path
+    against 0 on GET for the same book (549,384.54 RON of tax over three
+    years on this copy). Contract 3.4 and R16 name the engine's existing
+    effective-rate rule as the book rung, so that rule is the one
+    derivation (contract 4).
+
+    NEW ASSERTION: on a book whose pre-tax result less a nil charge IS the
+    profit it filed in account 121, both packages hold the same measured
+    0% (tier book, integer 0) whether or not a class-69 account is in the
+    chart — the tie itself shows no charge was booked against the filed
+    profit — and the plan they project charges the same tax.
     """
-    driver = build_case_set([_retail_that_ties()]).case("base").driver(
-        "tax_rate")
-    assert driver.value is None and driver.status == "absent", (
-        "the build-up reaches account 121, so nothing else is in the way: "
-        "a 0.00 income_tax that no class-69 account stands behind is the "
-        "sum of an empty set and must not become a measured 0%%, got "
-        "%r / %r" % (driver.value, driver.status))
-    assert "class-69" in driver.derivation.note
-    assert driver.derivation.inputs
+    from engine.forecast import project_payload
+
+    bare = _retail_that_ties()
+    charged = _retail_that_ties()
+    charged["line_items"].append({
+        "ro_account_code": "691", "label": "Cheltuieli cu impozitul pe profit",
+        "amount": 0.0, "is_derived": False})
+    seen = []
+    for name, payload in (("no class-69 account", bare),
+                          ("a nil class-69 account", charged)):
+        base = build_case_set([payload]).case("base")
+        driver = base.driver("tax_rate")
+        model = _model_assumptions(payload)["tax_rate"]
+        crossed = _model_assumptions(payload, **model_overrides(base))[
+            "tax_rate"]
+        got = ((driver.tier, driver.exact), (model.tier, model.exact),
+               (crossed.tier, crossed.exact))
+        if name == "a nil class-69 account":
+            assert got == (("book", 0),) * 3, (name, got)
+        else:
+            assert got[0] == got[1] == got[2], (name, got)
+            assert got[0][0] == "macro" and got[0][1] > 0, (name, got)
+        get_tax = sum(p.pl["income_tax"] for p in
+                      project_payload(payload, horizon_years=3).periods)
+        drv_tax = sum(p.pl["income_tax"] for p in project_payload(
+            payload, horizon_years=3, **model_overrides(base)).periods)
+        assert get_tax == drv_tax, (name, get_tax, drv_tax)
+        seen.append(got)
+    # the two shapes are TOLD APART (the plant `charge_absent = False` reds here)
+    assert seen[0] != seen[1], seen
 
 
 @pytest.mark.parametrize("book", _BOOKS)
 def test_hx3_the_two_producers_hold_one_tax_rate_or_neither_holds_one(book):
     """One concept, one value, across both producers.
 
-    Before the repair the registry crossed retail's `0.0 derived` over
-    the model's `0.16 engine_default` and the model's own written reason
-    for refusing that reading was discarded with it. The two packages
-    then arrived, independently and in the same session, at two DIFFERENT
-    conditions for when the rate is measurable — the charge being
-    attributed to a class-69 account, and the build-up reaching account
-    121 — and both are necessary. This gate does not care which
-    conditions they are; it cares that the two producers never end up
-    holding different answers about the same book.
+    RESTATED (plan/2 B3 repair, contract 4): the two packages used to
+    carry two conditions for when the rate is measurable. There is now one
+    derivation, so the law is exact: both producers hold the same tier and
+    the same integer (or both are absent), and what crosses is that value
+    with its tier — an absence crosses as an AbsentHandover, never a
+    number.
     """
     payload = _load(book)
     ours = _base(book).driver("tax_rate")
     theirs = _model_assumptions(payload)["tax_rate"]
+    assert (ours.tier, ours.exact) == (theirs.tier, theirs.exact), (
+        "%s: this package holds %r/%r and the model %r/%r — one book, two "
+        "answers" % (book, ours.tier, ours.exact, theirs.tier, theirs.exact))
+    crossed = model_overrides(_base(book)).get("tax_rate")
     if ours.value is None:
-        assert "tax_rate" not in model_overrides(_base(book)), (
-            "%s: this package refuses to value the tax rate, so nothing "
-            "may cross under that name" % (book,))
-        assert theirs.source != "derived", (
-            "%s: this package says the effective rate is not measurable "
-            "and the model measured one anyway (%r) — one book, two "
-            "answers, and the registry would make this package's silence "
-            "lose" % (book, theirs.value()))
+        assert isinstance(crossed, AbsentHandover), (book, crossed)
+        return
+    after = _model_assumptions(payload, tax_rate=crossed)["tax_rate"]
+    assert (after.tier, after.exact) == (theirs.tier, theirs.exact), (
+        book, after.tier, after.exact)
+    if theirs.tier != "book":
         assert theirs.basis.strip(), (
             "%s: the model substitutes a rate, so it owes the reason"
             % (book,))
-        return
-    assert theirs.source != "engine_default", (
-        "%s: this package measured %r from the book and the model refused "
-        "to, falling back to a default. The registry rules, so this "
-        "package's number would cross and delete the model's stated "
-        "reason for refusing it — which is exactly the H1 defect wearing "
-        "a different value." % (book, ours.value))
-    if theirs.source == "derived":
-        assert theirs.value() == pytest.approx(ours.value, abs=5e-7), (
-            "%s: this package publishes %r, the model measures %r"
-            % (book, ours.value, theirs.value()))
 
 
 @pytest.mark.parametrize("book", _BOOKS)
@@ -1474,9 +1576,10 @@ def test_hx4_a_profitable_projected_plan_is_never_charged_nothing(book):
     if pretax <= 0.0 or abs(tax) > 0.0:
         return
     #: A plan CAN honestly be charged nothing — but only when the rate in
-    #: force is a measured zero, which under `_tax_rate` means a class-69
-    #: account stood behind a nil charge on a build-up that reached
-    #: account 121. Anything else means an absence became a number.
+    #: force is a measured zero, which under the engine's effective-rate
+    #: rule (the one derivation, plan/2 B3 repair) means a nil charge on a
+    #: build-up that reached account 121. Anything else means an absence
+    #: became a number.
     #: Written this way so the gate cannot red on a correct product: it
     #: refuses the unexplained zero, not the zero.
     rate = projection.assumptions["tax_rate"]
@@ -1509,6 +1612,12 @@ def test_hx5_every_crossed_value_carries_its_own_pedigree(book):
     carried = handover_basis(base)
     assert set(overrides) == set(carried)
     for model_key, value in overrides.items():
+        if isinstance(value, AbsentHandover):
+            # plan/2 B3: an absence crosses with its reason attached
+            assert value.pedigree == carried[model_key]
+            assert value.reason == base.driver(
+                value.pedigree["driver_key"]).basis
+            continue
         assert isinstance(value, SuppliedValue), (
             "%s/%s crossed as a bare %s — the reason it is that number is "
             "gone the moment it leaves this package"
@@ -1580,13 +1689,21 @@ def test_hx7_the_pedigree_reaches_the_wire(book):
     """
     from engine.forecast import project_payload
 
-    projection = project_payload(_load(book), **model_overrides(_base(book)))
-    crossed = set(model_overrides(_base(book)))
+    overrides = model_overrides(_base(book))
+    projection = project_payload(_load(book), **overrides)
+    # plan/2 B3: an AbsentHandover crosses a REASON, not a measurement, so
+    # the model keeps its own ladder's rung (with its own pedigree) for it;
+    # only a crossed VALUE must arrive with a measured derivation.
+    crossed = set(k for k, v in overrides.items()
+                  if not isinstance(v, AbsentHandover))
+    absent = set(overrides) - crossed
     blank = sorted(
         row["id"] for row in projection.fp1_assumptions()
-        if row["id"] in crossed
-        and (row["basis"].startswith("supplied by the caller")
-             or not row["derived_from"]))
+        if (row["id"] in crossed
+            and (row["basis"].startswith("supplied by the caller")
+                 or not row["derived_from"]))
+        or (row["id"] in absent
+            and row["basis"].startswith("supplied by the caller")))
     assert not blank, (
         "%s: %s crossed with a measured pedigree and reached the wire "
         "with none" % (book, ", ".join(blank)))
@@ -1852,51 +1969,45 @@ def test_hg0_the_premise_this_section_rests_on():
 def test_hg1_a_sub_threshold_miss_refuses_the_rate():
     """The live defect: a rate measured across a gap nothing reported.
 
-    The book carries a class-69 account, so lane H's attribution
-    condition is satisfied and the RECONCILIATION condition is the only
-    thing that can refuse — which is what makes this gate isolate it.
+    RESTATED (plan/2 B3 repair): the rate is the engine's one derivation,
+    so "refuses" now means the BOOK rung is refused, with the engine's
+    reason recorded as the first fallback step, and the ladder takes the
+    statutory rung. The reason quotes the filed balance and the build-up
+    at the engine's own rendering (TC-10: both are the book's figures).
     """
+    from engine.forecast.money import cents_from, fmt
+
     payload = _micro_sub_threshold()
     driver = build_case_set([payload]).case("base").driver("tax_rate")
-    pl = payload["statements"]["assembled_pl"]
     filed = _p121_block(payload)["p121"]
-    assert driver.value is None and driver.status == "absent", (
-        "this book's build-up reaches %s and it filed %s — a miss of %s "
-        "that `net_income_unexplained_vs_121` reports as 0.00 — and the "
-        "driver published %r as %r. The condition is reading a field the "
-        "assembly sets to zero without measuring anything."
-        % (_build_up(payload), filed, round(_build_up(payload) - filed, 2),
-           driver.value, driver.status))
-    note = driver.derivation.note
-    assert "class-69" not in note, (
-        "a class-69 account stands behind this charge, so the refusal "
-        "must not blame the attribution condition: %r" % (note,))
-    #: TC-10 — the numbers in the sentence are the driver's own inputs.
-    values = [i.value for i in driver.derivation.inputs]
-    assert filed in values, (
-        "the refusal quotes the filed balance, so it must carry it as an "
-        "input a reader can check: %r" % (values,))
-    for token in ("%.2f" % filed, "%.2f" % _build_up(payload)):
-        assert token.rstrip("0").rstrip(".") in note, (token, note)
+    assert driver.tier != "book", (
+        "this book's build-up reaches %s and it filed %s, and the driver "
+        "published %r as a book measurement"
+        % (_build_up(payload), filed, driver.value))
+    step = driver.fallback_steps[0]
+    assert (step["tier"], step["outcome"]) == ("book", "absent"), step
+    for amount in (filed, _build_up(payload)):
+        assert fmt(cents_from(amount)) in step["reason"], (amount, step)
 
 
 def test_hg2_a_book_with_no_filed_balance_refuses_rather_than_ties():
     """ABSENT != ZERO, in its sharpest form.
 
-    No account-121 row survived extraction, so there is nothing to check
-    the build-up against — and `net_income_unexplained_vs_121` says 0.00
-    anyway. A rate cannot be certified against a comparison that was
-    never made.
+    RESTATED (plan/2 B3 repair): no account-121 row survived extraction,
+    so the engine's rule has nothing to check the build-up against and
+    refuses the book rung, saying so; the ladder takes the statutory rung.
     """
     payload = _micro_without_a_filed_balance()
     driver = build_case_set([payload]).case("base").driver("tax_rate")
-    assert driver.value is None and driver.status == "absent", (
+    assert driver.tier != "book", (
         "no account-121 balance survived extraction, so the build-up was "
         "checked against nothing; the driver published %r as %r"
-        % (driver.value, driver.status))
-    assert "survived extraction" in driver.derivation.note, (
-        "the refusal must say the balance is ABSENT rather than say the "
-        "book missed one: %r" % (driver.derivation.note,))
+        % (driver.value, driver.tier))
+    step = driver.fallback_steps[0]
+    assert (step["tier"], step["outcome"]) == ("book", "absent"), step
+    assert "nothing to check an effective rate against" in step["reason"], (
+        "the refusal must say there is nothing to compare against rather "
+        "than say the book missed one: %r" % (step["reason"],))
 
 
 def test_hg3_a_book_that_does_reproduce_its_filed_profit_still_measures():
@@ -1926,10 +2037,10 @@ def test_hg3_a_book_that_does_reproduce_its_filed_profit_still_measures():
 def test_hg4_the_plan_never_spends_a_rate_this_package_refused():
     """GATE THE SPEND, not the assumption object.
 
-    The two defects this section exists for are invisible to any gate
-    that inspects the driver alone: the number that costs money is the
-    one the PROJECTION holds. Reds if a rate this package refused to
-    measure ever reaches a plan under this package's name.
+    RESTATED (plan/2 B3 repair): the plan never spends a BOOK rate on a
+    book whose rate is not measured. What crosses is the engine's own
+    statutory rung with its tier and evidence, and the plan holds exactly
+    that — never a book or user rate made out of it.
     """
     from engine.forecast import project_payload
 
@@ -1937,51 +2048,27 @@ def test_hg4_the_plan_never_spends_a_rate_this_package_refused():
                           ("no filed balance",
                            _micro_without_a_filed_balance())):
         base = build_case_set([payload]).case("base")
-        assert base.driver("tax_rate").value is None, name
+        assert base.driver("tax_rate").tier != "book", name
         overrides = model_overrides(base)
-        assert "tax_rate" not in overrides, (
-            "%s: this package refused to measure the rate and handed one "
-            "over anyway — the refusal is worth exactly nothing if the "
-            "number crosses regardless" % (name,))
         projection = project_payload(payload, **overrides)
-        assert projection.assumptions["tax_rate"].source != "caller", (
-            "%s: the plan is taxed at a rate that arrived from this "
-            "package, which refused to publish one" % (name,))
+        held = projection.assumptions["tax_rate"]
+        alone = project_payload(payload).assumptions["tax_rate"]
+        assert held.tier not in ("book", "user"), (
+            "%s: the plan is taxed at a rate stamped %s on a book whose "
+            "rate is not measured" % (name, held.tier))
+        assert (held.tier, held.exact) == (alone.tier, alone.exact), name
 
 
-#: THE MARKER IS GONE BECAUSE THE DEFECT IS, and both halves landed in
-#: one commit as the marker demanded. It was a strict xfail rather
-#: than a comment precisely so it could not outlive the repair — a
-#: strict xfail XPASSES, and reports red, the moment the product
-#: becomes correct. It did.
-#:
-#: `history.PlHistory` now carries `filed_net_income_121`, read from
-#: `canonical_bs.invariants.p121_cross_check.p121` — published whether
-#: or not the assembly's anchor override fired, and None when no
-#: account-121 row survived. `unexplained_vs_filed()` measures against
-#: THAT and returns None when it is absent, so an unchecked build-up is
-#: no longer reported as one that ties.
-#:
-#: Measured after: retail `unexplained_vs_filed` 0 -> 2,043,254.64, the
-#: book's real distance from its filed profit, which the model had been
-#: reporting as nothing at all.
 def test_hg5_the_model_does_not_measure_a_rate_this_package_refused():
     """One book, one answer — the `test_hx3` law, on the shape that
-    breaks it.
-
-    `test_hx3` proves the two producers agree on the four committed
-    books. All four fail the reconciliation condition by a wide margin,
-    so none of them exercises the band where the upstream field goes
-    blind, and the agreement they prove is an agreement about easy books.
+    breaks it. RESTATED (plan/2 B3 repair): both producers hold the same
+    non-book tier and integer on the sub-threshold book.
     """
     payload = _micro_sub_threshold()
-    base = build_case_set([payload]).case("base")
-    assert base.driver("tax_rate").value is None
+    ours = build_case_set([payload]).case("base").driver("tax_rate")
     theirs = _model_assumptions(payload)["tax_rate"]
-    assert theirs.source != "derived", (
-        "this package says the effective rate is not measurable on this "
-        "book and the model measured %r anyway — one book, two answers"
-        % (theirs.value(),))
+    assert theirs.tier != "book"
+    assert (ours.tier, ours.exact) == (theirs.tier, theirs.exact)
 
 
 # ── HG6-8: the bridge — one concept across both readers ───────────────
@@ -1991,28 +2078,26 @@ def test_hg6_the_distance_is_the_engines_own_unexplained_step(book):
     """Two readers of one quantity, pinned equal wherever the engine
     measured it.
 
-    `assembled_pl.net_income_unexplained_vs_121` IS this distance —
-    whenever the assembly's anchor override fired, which is exactly when
-    the statutory figure it published is the filed balance. This gate
-    reds if the driver ever starts measuring something else and calls it
-    the same thing; it deliberately says nothing about the band where the
-    engine writes 0.00 without comparing, because there the engine has no
-    opinion to agree with.
+    RESTATED (plan/2 B3 repair): this package no longer measures the
+    distance itself (its rule is retired), so the pin moves to the one
+    reader left, engine.forecast.history.unexplained_vs_filed, against the
+    assembly's published field wherever the assembly measured one.
     """
+    from engine.forecast.money import cents_from
+    from engine.forecast.project import _opening_and_history
+
     payload = _load(book)
     pl = payload["statements"]["assembled_pl"]
     filed = _p121_block(payload)["p121"]
     if filed is None or round(pl["net_income_statutory"] - filed, 2) != 0.0:
         pytest.skip("the assembly did not measure a distance on this book")
-    driver = build_case_set([payload]).case("base").driver("tax_rate")
-    by_input = dict((i.name, i.value) for i in driver.derivation.inputs)
-    if "account_121_closing" not in by_input:
-        pytest.skip("the driver refused before it reached the comparison")
-    distance = round(by_input["account_121_closing"] - _build_up(payload), 2)
-    assert distance == round(pl["net_income_unexplained_vs_121"], 2), (
-        "%s: the driver measures %s from account 121 and the assembly "
+    _, history = _opening_and_history(payload)
+    gap = history.unexplained_vs_filed()
+    assert gap is not None, book
+    assert abs(gap) == abs(cents_from(pl["net_income_unexplained_vs_121"])), (
+        "%s: the engine measures %s from account 121 and the assembly "
         "publishes %s — two authorities for one number"
-        % (book, distance, pl["net_income_unexplained_vs_121"]))
+        % (book, gap, pl["net_income_unexplained_vs_121"]))
 
 
 def test_hg7_capitalised_own_work_does_bridge_the_distance():
@@ -2046,38 +2131,47 @@ def test_hg8_an_inventory_variation_does_not_bridge_the_distance():
 
     Same book, same distance, 711 instead of 722. The assembly's
     reconciliation to statutory net income does not carry the inventory
-    variation, so the build-up does not reproduce the filed figure — and
-    admitting it would leave this rate divided by a base the charge was
-    not assessed on. Measured on the committed realestate book, that is
-    -30,391,418.38 against -801,604.14.
+    variation, so the build-up does not reproduce the filed figure.
 
-    This book used to sit inside the anchor override's band, where the
-    engine published `net_income_unexplained_vs_121 = 0.00` for it and
-    the condition this repair replaced would therefore have measured a
-    rate here. UPDATED 2026-09-09: the band is gone, so the engine now
-    reports the 3,000.00 itself — which is the same claim from the other
-    side, and a stronger premise. The assertion below used to read
-    `== 0.0` ("this fixture only tests what it claims while the upstream
-    field is still blind here"); it is not relaxed, it is inverted,
-    because the engine's own answer now agrees with this gate's.
+    RESTATED (plan/2 B3 repair): the refusal is the engine's (book rung
+    absent, statutory rung taken). The retired second rule also NAMED the
+    inventory variation in its sentence; the engine's sentence names the
+    unattributed distance instead, and that loss is recorded in the
+    as-built log (B3R) for the sentence work of B6.
     """
+    from engine.forecast.money import cents_from, fmt
+
     payload = _micro_book(22000.0, extra_accounts=[
         {"code": "711", "name": "Venituri aferente costurilor stocurilor",
          "amount": 3000.0}])
     pl = payload["statements"]["assembled_pl"]
     assert pl["inventory_variation_memo"] == 3000.0, pl
-    assert pl["net_income_unexplained_vs_121"] == round(
-        _p121_block(payload)["p121"] - _build_up(payload), 2) != 0.0, (
+    distance = round(_p121_block(payload)["p121"] - _build_up(payload), 2)
+    assert pl["net_income_unexplained_vs_121"] == distance != 0.0, (
         "the assembly must itself report the inventory variation as NOT "
         "bridging the distance to the filed balance; got %r"
         % (pl["net_income_unexplained_vs_121"],))
     driver = build_case_set([payload]).case("base").driver("tax_rate")
-    assert driver.value is None and driver.status == "absent", (
+    assert driver.tier != "book", (
         "the inventory variation is not in the assembly's reconciliation "
         "to the filed figure, so the build-up of %s does not reach the %s "
         "filed: got %r / %r"
         % (_build_up(payload), _p121_block(payload)["p121"],
-           driver.value, driver.status))
-    assert "inventory variation" in driver.derivation.note, (
-        "a reader is owed the size of the thing that is NOT closing the "
-        "distance: %r" % (driver.derivation.note,))
+           driver.value, driver.tier))
+    step = driver.fallback_steps[0]
+    assert fmt(cents_from(abs(distance))) in step["reason"], step
+
+
+# ── plan/2 B3: printed scope (TC-12/TC-13; B0-16 assigned it to B3) ─────
+
+def test_zz_scope(capsys):
+    """The scope this gate ran on, printed. The work count stays pytest's
+    junit count (a printed count would not see a collapse of one section)."""
+    with capsys.disabled():
+        print("\nSCOPE forecast-drivers (plan/2 B3): books %s, one period "
+              "each; multi-period rungs on SYNTHETIC histories scaled from "
+              "agras (constructed, labelled in this file); micro-SRL books "
+              "assembled through the real Romanian assembly; shared concepts "
+              "read from engine.forecast (contract 4)"
+              % ", ".join(_BOOKS))
+    assert _BOOKS

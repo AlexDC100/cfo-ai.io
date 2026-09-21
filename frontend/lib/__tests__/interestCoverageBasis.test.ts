@@ -22,22 +22,65 @@ import { computeCreditScore } from "@/lib/financialValuation";
 import { statementsFor, type Book } from "./exportBooks";
 
 // EBIT / interest as served by the engine for the same books (D14 blast
-// radius) — literals, NOT recomputed here from the statements.
+// radius) — literals, NOT recomputed here from the statements. Re-read from
+// the tb_parser_v6 capture (tests/engine/fixtures/firm/served_metrics.json,
+// `interest_coverage` / `ebitda_to_interest`) after the 609/709
+// contra-convention repair moved agras and retail; before it they were
+// agras 55.64 / 66.28 and retail -0.52 / 0.09.
 const EBIT_BASIS: Array<[Book, number, number]> = [
   // book, EBIT / interest, EBITDA / interest (what the row must NOT be)
-  ["agras", 55.64, 66.28],
+  ["agras", 28.14, 38.77],
   ["realestate", -25.13, -25.08],
-  ["retail", -0.52, 0.09],
 ];
+
+// ── RETAIL: A KNOWN, DEFERRED SEAM (owner ruling, 2026-09-21) ──────────
+// Under tb_parser_v6 retail's served `assembled_pl` carries two EBITs
+// 1,923.78 apart: `ebit` 786,579.83 and `operating_ebit` 788,503.61, over
+// `interest_expense` 2,421,110.34. The engine's served coverage divides the
+// first (0.3249 -> "0.32"); this no-envelope model divides the second
+// (0.3257 -> "0.33"). The owner ruled the seam deferred until after the
+// demo freeze ("Interest coverage 0.32 vs 0.3257: after freeze. Rounding
+// seam, not demo-visible"), and this file does NOT pick a numerator.
+//
+// So exactly the retail VALUE assertion is `it.fails`: it is expected to
+// fail while the seam stands. When the seam is repaired, it starts passing,
+// `it.fails` turns that into a RED, and the repair is not done until
+// someone deletes `.fails` here and in exportRatioFormulas.test.ts (G4,
+// retail interest_coverage) — only then is this assertion green again,
+// strictly. The retail row's existence, label and not-the-EBITDA-figure
+// assertions are unaffected by the seam and stay strict below.
+const RETAIL_EBIT_BASIS = 0.32; // served `interest_coverage`, tb_parser_v6 capture
+const RETAIL_EBITDA_BASIS = 0.93; // served `ebitda_to_interest` — never this
+
+const coverageRow = (book: Book) =>
+  computeCreditScore(statementsFor(book)).components.find((c) => c.label.startsWith("Interest coverage"));
 
 describe("the no-envelope credit model's coverage row divides EBIT", () => {
   it.each(EBIT_BASIS)("%s: %d, never the EBITDA figure %d", (book, ebitBasis, ebitdaBasis) => {
-    const credit = computeCreditScore(statementsFor(book));
-    const row = credit.components.find((c) => c.label.startsWith("Interest coverage"));
+    const row = coverageRow(book);
     expect(row, "no coverage component").toBeTruthy();
     expect(row!.label).toBe("Interest coverage (EBIT / interest)");
     expect(Number(row!.value).toFixed(2)).toBe(ebitBasis.toFixed(2));
     expect(Number(row!.value).toFixed(2)).not.toBe(ebitdaBasis.toFixed(2));
+  });
+
+  it(`retail: an EBIT-labelled coverage row, never the EBITDA figure ${RETAIL_EBITDA_BASIS}`, () => {
+    const row = coverageRow("retail");
+    expect(row, "no coverage component").toBeTruthy();
+    expect(row!.label).toBe("Interest coverage (EBIT / interest)");
+    expect(Number.isFinite(Number(row!.value))).toBe(true);
+    expect(Number(row!.value).toFixed(2)).not.toBe(RETAIL_EBITDA_BASIS.toFixed(2));
+  });
+
+  // KNOWN-FAILING — the deferred ebit / operating_ebit seam above. Remove
+  // `.fails` once the seam is repaired (it reds until you do).
+  it.fails(`retail: ${RETAIL_EBIT_BASIS}, the served EBIT basis (KNOWN SEAM, deferred 2026-09-21)`, () => {
+    const row = coverageRow("retail");
+    // Only the seam may fail here: a missing row returns WITHOUT throwing,
+    // which turns this `it.fails` red instead of letting it pass on the
+    // wrong failure (the strict test above reds on it too).
+    if (!row) return;
+    expect(Number(row.value).toFixed(2)).toBe(RETAIL_EBIT_BASIS.toFixed(2));
   });
 });
 
@@ -116,8 +159,11 @@ describe("the no-envelope model refuses or declares the rung on a zero interest 
     },
   );
 
-  it("a non-positive EBIT declares nothing (retail: EBIT < 0, with its interest zeroed and its debt removed)", () => {
-    const s = statementsFor("retail");
+  // realestate, not retail: under tb_parser_v6 retail's EBIT is positive,
+  // so it no longer carries the non-positive-EBIT case this test is about.
+  it("a non-positive EBIT declares nothing (realestate: EBIT < 0, with its interest zeroed and its debt removed)", () => {
+    const s = statementsFor("realestate");
+    expect(s.assembled_pl?.ebit ?? Number.NaN).toBeLessThan(0);
     s.incomeStatement = { ...s.incomeStatement, interestExpense: 0 };
     s.balanceSheet = { ...s.balanceSheet, shortTermDebt: 0, longTermDebt: 0 };
     if (s.assembled_pl) s.assembled_pl = { ...s.assembled_pl, interest_expense: 0 };

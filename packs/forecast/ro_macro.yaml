@@ -42,7 +42,12 @@ currency: "RON"
 anchors:
 
   inflation:
+    # plan/2 B3 (contract 3.3, 4): the id both engine.forecast and
+    # engine.forecast_drivers cite for this series. One file, one loader
+    # (engine.forecast.levers_pack.macro_pack), one id.
+    series_id: "ro.bnr.inflation_target"
     label: "Inflation anchor"
+    source_url: null
     value: 0.025
     band_half_width: 0.010
     source: "Banca Naţională a României — flat inflation target, 2.5% ±1pp"
@@ -59,3 +64,26 @@ anchors:
     used_for:
       - revenue_growth
       - opex_growth
+
+# ── plan/2 B3: statutory rates (contract 3.3 macro kind statutory, 3.4 R16)
+# A statutory rate is law, not a forecast print: it is the rung a driver
+# takes when the book cannot measure its own effective rate, for a period
+# whose jurisdiction is this pack's (the anchor envelope's
+# pack_provenance.jurisdiction, contract 0.3). A jurisdiction with no
+# packed record refuses the plan rather than assume one.
+#
+# OPERATOR NOTE: `value` was the literal 0.16 in
+# src/engine/forecast/assumptions.py before B3 moved it here. `stated_as_of`
+# records the day it was moved, NOT a fresh confirmation against the
+# source; `source_url` is null (the chip then says "source link not
+# recorded") until a person confirms both against the published code.
+statutory:
+  profit_tax_rate:
+    series_id: "ro.codul_fiscal.profit_tax_rate"
+    label: "Profit tax rate"
+    value: 0.16
+    source: "Codul fiscal, Legea 227/2015, art. 17"
+    source_url: null
+    stated_as_of: "2026-09-15"
+    unit: rate
+# ── end plan/2 B3 ───────────────────────────────────────────────────────

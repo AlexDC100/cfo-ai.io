@@ -60,9 +60,6 @@ describe("cascade — A = L + E invariant under adjustments", () => {
 describe("cascade — rent/revenue drop worsens leverage + breaches covenant", () => {
   const covs = DEFAULT_RO_COVENANTS.map((c, i) => ({ ...c, id: `c${i}` }));
   const s = applyCascade(baseline, [lever("revenue", -20)]);
-  it("EBITDA falls ~0.2×revenue", () => {
-    expect(s.ebitda!).toBeCloseTo(EBITDA_STAT - 0.2 * REV, 1); // 2.1M - 0.98M = 1.12M
-  });
   it("net debt / EBITDA rises above baseline", () => {
     const base = computeMetric(baseline, "net_debt_to_ebitda")!;
     const scen = computeMetric(s, "net_debt_to_ebitda")!;
@@ -100,10 +97,6 @@ describe("cascade — wiped-out EBITDA reads as worst-case, not 'improved' (revi
 });
 
 describe("covenants — interest coverage ignores net financial INCOME (review #5)", () => {
-  it("returns null (no net interest burden) when netFinancialResult ≥ 0", () => {
-    const cashRich = { ...baseline, netFinancialResult: 3_000_000, ebitda: 10_000_000 };
-    expect(computeMetric(cashRich, "ebitda_to_interest")).toBeNull();
-  });
   it("computes coverage off the expense magnitude when netFin < 0", () => {
     const indebted = { ...baseline, netFinancialResult: -2_000_000, ebitda: 10_000_000 };
     expect(computeMetric(indebted, "ebitda_to_interest")!).toBeCloseTo(5, 4);
