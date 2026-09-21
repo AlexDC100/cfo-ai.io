@@ -1,5 +1,5 @@
 /**
- * WORKSPACE V2 — the browser gates (G7 end to end, with G1, G3, G5 and G6
+ * workspace_v2 — the browser gates (G7 end to end, with G1, G3, G5 and G6
  * watched on the way), against the REAL production bundle and a hermetic
  * backend double (e2e/workspace-v2.double.ts). Nothing leaves the machine.
  *
@@ -150,8 +150,11 @@ for (const lang of ["ro", "en"] as const) {
 
       // ── G6 held on every mutation of the run ──────────────────────
       expect(watch.violations).toEqual([]);
-      expect(watch.checks).toBeGreaterThan(5);
+      // Distinct (page, header) states checked — at least the four the run
+      // walks: Scandia's page, Agras's page, Agras's dashboard, Agras again.
+      expect(watch.checks).toBeGreaterThanOrEqual(4);
       expect(double.unhandled.filter((u) => u.startsWith("THREW"))).toEqual([]);
+      console.log(`[workspace-v2] G6 header checks (${lang}): ${watch.checks}, violations: ${watch.violations.length}`);
       console.log(`[workspace-v2] unmodelled requests (${lang}):`, JSON.stringify([...new Set(double.unhandled)]));
     });
   });
