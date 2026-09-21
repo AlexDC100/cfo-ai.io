@@ -44,17 +44,21 @@ through `_served_books` (the production write path and the real router):
      (retail), so a row re-pointed at `operating_ebit` reds here; and at
      least two books with positive interest.
 The frontend halves are held in vitest: `interestCoverageBasis.test.ts`
-(the no-envelope credit model, retail strict at 0.32) and
+(the no-envelope credit model, retail strict at 0.32),
 `exportRatioFormulas.test.ts` G4 (the export's printed value against its
-own recomputation from `assembled_pl.ebit`).
+own recomputation from `assembled_pl.ebit`) and
+`interestCoveragePopover.test.tsx` (the Ratios card's "How it's computed"
+popover: its printed EBIT and Interest tokens recompute the card's digits
+on the same five books, and an absent interest prints "not reported",
+never 0).
 
 WHAT IT REDS ON (TC-11): the engine row, the metric row or the table
 fallback dividing `operating_ebit` (or any EBIT whose recomputation does
 not print the served digits); a served EBIT that no longer foots to
 pretax; a scope with no book that discriminates the two operands.
 IT CANNOT SEE: surfaces that recompute coverage outside the served row
-(held by the two vitest gates above); books with zero interest (carniprod
-is refused / declared, and is printed as such).
+(held by the three vitest halves above); books with zero interest
+(carniprod is refused / declared, and is printed as such).
 """
 from __future__ import annotations
 

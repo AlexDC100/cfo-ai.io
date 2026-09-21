@@ -522,7 +522,8 @@ def _engine_gates() -> List[Gate]:
         # (`assembled_pl.ebit`) and equals its own recomputation to the
         # printed digit, on the four corpus books and the Scandia
         # baseline through the real GET /api/period. The frontend halves
-        # are vitest (interestCoverageBasis, exportRatioFormulas G4).
+        # are vitest (interestCoverageBasis, exportRatioFormulas G4, and
+        # interestCoveragePopover — the Ratios card's learning popover).
         # Plant log: docs/engine_book/gates.md.
         Gate("interest-coverage-one-operand",
              [PY, "-m", "pytest", "tests/engine/test_interest_coverage_one_operand.py", "-q"],

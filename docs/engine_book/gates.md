@@ -5510,7 +5510,8 @@ equals its own recomputation; fix the 0.32 vs 0.3257 seam").
 `tests/engine/test_interest_coverage_one_operand.py`, registered in
 `scripts/run_battery.py` beside `statements-anchor-gap`; the frontend
 halves are vitest (`interestCoverageBasis.test.ts`,
-`exportRatioFormulas.test.ts` G4).
+`exportRatioFormulas.test.ts` G4, and `interestCoveragePopover.test.tsx`,
+the Ratios card's learning popover — see "The popover half" below).
 
 THE DEFECT. `assembled_pl` carries two EBITs: `ebit` (revenue − COGS −
 opex + other operating income − D&A) and `operating_ebit` (the operating
@@ -5589,3 +5590,59 @@ no-envelope Altman X3 and the Piotroski operating-margin check
 (`financialValuation.ts`, and the engine's own Piotroski check in
 `chart_of_accounts.py`) still read the operating view; those are not
 interest coverage and are reported, not changed, here.
+
+### The popover half (`frontend/lib/__tests__/interestCoveragePopover.test.tsx`)
+
+THE DEFECT (adversarial verifier, v6 port round 1; older than the port —
+both files unchanged since f7fec0f9). The Ratios tab wraps each measured
+interest-coverage card in `<LearnableNumber conceptKey="interest_coverage">`,
+whose "How it's computed" popover prints `EBIT <x> ÷ Interest <y>`.
+`buildReportingMetricsSnapshot` never set `interestExpense` (declared in
+`_schema.ts`), and the concept printed `m.interestExpense ?? 0`: every book
+with interest read `Interest 0 RON` beneath its served coverage (retail
+0.32×, agras 28.14×, realestate −25.13×, Scandia 13.27×). Neither the
+engine gate nor the other two vitest halves read this surface.
+
+THE REPAIR. The snapshot carries `interestExpense` from the authority the
+engine row divides — `assembled_pl.interest_expense`, else
+`incomeStatement.interestExpense` (the same `pick` `financialReport.ts`
+uses); a source that declares the line absent carries none. The concept's
+two operands are absent-aware (`coverageOperand`): a figure the snapshot
+lacks prints "Interest not reported" / "Interest neraportat" as text,
+never a value token reading 0. Nothing else reads the snapshot's
+`interestExpense` (the dashboard resolver, the variance lines and the
+scenario cascade do not), so no other figure moves.
+
+WHAT IT CHECKS. On the same five books (the firm books in their served
+shape with the served metric map, and the Scandia baseline): the card
+prints the served digits (literals re-read from the served GET); the
+popover's value tokens are EBIT and Interest, equal to `assembled_pl.ebit`
+and `assembled_pl.interest_expense` to the cent; token EBIT ÷ token
+Interest prints the card's digits; the rendered formula prints the
+interest figure and never `Interest 0 RON`. Controls: the snapshot without
+`interestExpense` renders "not reported" in both languages with no
+interest value token; a declared-absent source carries no figure.
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand (popover half):
+books 5 (agras, carniprod, realestate, retail, scandia_baseline); popover
+operands recomputed on 4`, then per book e.g. `retail card 0.32×; popover
+EBIT 786579.83 ÷ Interest 2421110.34 = 0.32; rendered "EBIT787K
+RONInterest2.42M RON"` (carniprod: card refused, no popover renders).
+
+**PLANTS, each observed RED** (`scratchpad/v6_repair/plants_popover.py`,
+each file restored byte-exact, sha1 checked):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| L0 | both files as on f7fec0f9 (the pre-repair tree) | `3 failed` | `retail: the rendered popover reads "EBIT787K RONInterest0 RON"` |
+| L1 | the snapshot drops `interestExpense` | `3 failed` | `retail: the popover's value tokens are [{…"conceptKey":"ebit"…}]` |
+| L2 | the concept's `m.interestExpense ?? 0` restored | `1 failed` | `expected [ 'ebit', 'interest_expense' ] to deeply equal [ 'ebit' ]` |
+| L3 | interest read from `financial_expense_total` | `2 failed` | `retail: popover EBIT 786579.83 ÷ Interest 3092377.62 = 0.25, the card prints 0.32×` |
+| L4 | the EBIT token on `operating_ebit` | `1 failed` | `retail: popover EBIT 788503.61 ÷ Interest 2421110.34 = 0.33, the card prints 0.32×` |
+
+**After the repair it reds on (TC-11):** the snapshot dropping or zeroing
+interest; a `?? 0` operand; an EBIT or interest token read from another
+authority than the engine row's; an absent operand printed as a number.
+**It cannot see:** the engine row (the gate above); the export and the
+no-envelope model (the other two halves); carniprod's reported 0.00
+interest — its card is refused and no popover renders.
