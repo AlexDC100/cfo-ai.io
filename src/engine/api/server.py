@@ -768,6 +768,12 @@ def create_app(
     # commit it into the confirmed company, and the company page's years.
     # Metered through the same function /api/pipeline/run uses.
     app.include_router(create_uploads_router())
+    # The quota ledger's heartbeat + orphaned-reservation sweep (verifier
+    # lens S, S8): a reservation a restart orphaned is given back instead of
+    # counting against the plan for the rest of the month. Inert without a
+    # configured database or with ENGINE_QUOTA_LEDGER_MAINTENANCE=0.
+    from .pipeline import start_quota_ledger_maintenance
+    start_quota_ledger_maintenance()
     # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III) —
     # removed 2026-07-24 (ask.py deleted). It had tool-use + live pipeline
     # re-grounding the Edge Function doesn't replicate, but nothing in the

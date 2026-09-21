@@ -25,7 +25,16 @@ account and month and writes nothing. `--apply` writes ONLY the rows whose
 value changes, each write CONDITIONAL on the values it was planned from (a
 run committing meanwhile is re-read and re-planned, never overwritten), then
 re-reads them and prints the recount; it exits 1 if any re-read disagrees
-with its target. The current month's reservations are never written.
+with its target.
+
+RESERVATIONS (verifier lens S, S8). A run a deploy restart killed used to
+keep its slot in `uploads_reserved` for the rest of the month, and this
+script left the current month alone. `--apply` now first releases every
+reservation in the quota ledger whose owning engine process stopped
+heartbeating (`_quota_ledger.sweep_stale`, compare-and-set — the engine's
+own sweep and this script never release one twice), then sets the current
+month's `uploads_reserved` to the reservations still live — never higher
+than it is. Past months go to 0.
 
 Rows stored without a content hash (uploads before the hash existed) are
 hashed from their storage object so identical files collapse — a READ of
@@ -111,12 +120,19 @@ def _read(user: Optional[str], hash_missing: bool) -> Dict[str, List[Dict[str, A
     # whose correction re-run later failed is still counted — the restore
     # must not hand back a count the meter holds (verifier lens S).
     counted = _quota_ledger.all_committed_ids()
-    if counted is None:
+    live = _quota_ledger.live_outstanding()
+    if counted is None or live is None:
         raise RuntimeError("the quota ledger (document_quota_ledger) could not be read — "
                            "apply supabase/schema_phase_document_quota_ledger.sql first")
+    # The reservations some engine process still holds (it heartbeats them).
+    live_reserved: Dict[tuple, int] = {}
+    for r in live:
+        key = (str(r.get("user_id") or ""), str(r.get("month") or ""))
+        live_reserved[key] = live_reserved.get(key, 0) + 1
     print("[recompute] loaded %d user_usage rows, %d subscriptions, %d documents (%d hashed from "
           "storage), %d counted in the quota ledger" % (len(usage), len(subs), len(docs), hashed, len(counted)))
     return {"usage": usage, "subs": subs, "docs": docs, "counted_ids": counted,
+            "live_reserved": live_reserved,
             "period_end_of": {str(p.get("id")): str(p.get("period_end") or "")
                               for p in periods if p.get("id")}}
 
@@ -149,8 +165,8 @@ def _write_if_unchanged(ac: Any, plan: RecomputePlan) -> None:
     (optimistic concurrency, 2026-09-21, verifier lens Q): a run that
     commits or reserves between the read and the write is never overwritten
     with the stale snapshot — the row simply does not match and is re-planned.
-    The current month's reservations are never written at all (a run may be
-    in flight); a past month's go to 0."""
+    The current month's reservations go down to the ones still live in the
+    quota ledger (lens S); a past month's go to 0."""
     for u in plan.usage_writes():
         patch: Dict[str, Any] = {"uploads": u.uploads_after}
         if u.reserved_after != u.reserved_before:
@@ -211,7 +227,8 @@ def apply(plan: RecomputePlan, *, user: Optional[str] = None, hash_missing: bool
                              [s for s in fresh["subs"] if str(s.get("user_id")) in moved],
                              current_month=plan.current_month, included_docs_for=included_docs_for,
                              period_end_of=fresh.get("period_end_of"),
-                             counted_ids=fresh.get("counted_ids"))
+                             counted_ids=fresh.get("counted_ids"),
+                             live_reserved=fresh.get("live_reserved"))
         bad, _moved = _recount(ac, plan, final=True)
     return bad
 
@@ -226,6 +243,23 @@ def main(argv: Optional[List[str]] = None) -> int:
                     help="do not hash rows that lack content_hash from storage")
     args = ap.parse_args(argv)
     try:
+        # Reservations whose owning engine process stopped heartbeating (a
+        # run a restart killed, a confirmed extra it lost): released first,
+        # so the plan below reads the counters without them.
+        stale = _quota_ledger.stale_outstanding()
+        if stale is None:
+            raise RuntimeError("the quota ledger (document_quota_ledger) could not be read")
+        if args.user:
+            stale = [r for r in stale if str(r.get("user_id")) == args.user]
+        for r in stale:
+            print("[recompute] orphaned reservation: document %s user %s month %s extra=%s (owner %s, "
+                  "last heartbeat %s)%s" % (r.get("document_id"), r.get("user_id"), r.get("month"),
+                                            bool(r.get("was_extra")), r.get("owner"), r.get("heartbeat_at"),
+                                            "" if args.apply else " — would be released"))
+        if args.apply and stale:
+            wanted = {str(r.get("document_id")) for r in stale}
+            released = _quota_ledger.sweep_stale(is_live=lambda d: d not in wanted)
+            print("[recompute] released %d orphaned reservation(s)" % len(released))
         data = load(args.user, hash_missing=not args.no_hash_missing)
     except Exception as exc:  # noqa: BLE001
         print("[recompute] could not load: %s: %s" % (type(exc).__name__, exc))
@@ -234,7 +268,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                      current_month=_pricing_tiers.current_month_bucket(),
                      included_docs_for=included_docs_for,
                      period_end_of=data.get("period_end_of"),
-                     counted_ids=data.get("counted_ids"))
+                     counted_ids=data.get("counted_ids"),
+                     live_reserved=data.get("live_reserved"))
     print_plan(plan)
     if not args.apply:
         print("\n[recompute] DRY RUN — nothing written. Re-run with --apply to write.")

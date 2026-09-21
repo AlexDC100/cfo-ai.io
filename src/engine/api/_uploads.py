@@ -829,7 +829,8 @@ def build_router() -> APIRouter:
             # The run ledger: the terminal settles exactly this reservation
             # (committed on `analyzed`, released on failure).
             if reserved:
-                _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
+                _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra,
+                                              month=getattr(decision, "month", "") or None)
             _pipeline._admin_set_status(doc_id, "queued", pipeline_started_at=_pipeline._now_iso())
             _doc_dedupe.mark_running(doc_id)
             _pipeline._enqueue(doc_id)
@@ -850,9 +851,15 @@ def build_router() -> APIRouter:
                     from . import _doc_dedupe
                     _doc_dedupe.release_claim(claimed)  # also leaves the in-flight registry
                 if reserved:
-                    if doc_id:
-                        _pipeline._take_quota_run(doc_id)  # drop a ledger entry, if written
-                    _release(user_id, was_extra)
+                    run = _pipeline._take_quota_run(doc_id) if doc_id else None
+                    if run is not None:
+                        # Registered: released through the run's own record —
+                        # the meter in the month it was reserved in AND the
+                        # quota ledger row, so the orphan sweep never gives
+                        # the same slot back a second time.
+                        _pipeline._release_run_reservation(doc_id, run)
+                    else:
+                        _release(user_id, was_extra)
                 if doc_id:
                     _ug.cancel_extra_grant(doc_id)  # an unclaimed grant goes back unbilled
             raise

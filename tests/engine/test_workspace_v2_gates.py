@@ -315,10 +315,12 @@ def gw(app, monkeypatch):
     monkeypatch.setattr(pipeline, "_enqueue", lambda doc_id: w.enqueued.append(doc_id))
     monkeypatch.setattr(_usage_gate, "enforcement_enabled", lambda: True)
     monkeypatch.setattr(_usage_gate, "reserve_document", meter.reserve)
+    # `month`: the settlement commits / releases in the month the
+    # reservation was made in (fix/dedupe-quota 11f84259, the restart repair).
     monkeypatch.setattr(_usage_gate, "commit_document",
-                        lambda uid, was_extra=False: meter.committed.append((uid, was_extra)))
+                        lambda uid, was_extra=False, month=None: meter.committed.append((uid, was_extra)))
     monkeypatch.setattr(_usage_gate, "release_document",
-                        lambda uid, was_extra=False: meter.released.append((uid, was_extra)))
+                        lambda uid, was_extra=False, month=None: meter.released.append((uid, was_extra)))
     from engine.api import _doc_dedupe
     monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
     monkeypatch.setattr(_doc_dedupe, "_ARCHIVED_HERE", set())
@@ -506,6 +508,32 @@ def test_g3_a_counted_book_re_uploaded_on_the_card_after_its_analysis_failed_is_
     second = run_analysis(gw, r.json()["document_id"])
     assert second["status"] == "analyzed", (second["status"], second.get("error"))
     assert gw.meter.committed == [(USER, False)], "G3: the book was counted a second time"
+
+
+def test_g3_a_commit_whose_hand_off_fails_gives_its_reservation_back_once_ledger_included(app, gw, monkeypatch):
+    """Nothing ran, so nothing is counted — and the slot goes back EXACTLY
+    once. Since fix/dedupe-quota 11f84259 (the restart repair) a registered
+    reservation is also a row in the quota ledger, which an orphan sweep
+    releases when its owner process is gone. The commit's failure path used
+    to hand the slot back to the meter and leave that row outstanding: the
+    sweep would then give the same slot back a second time."""
+    from engine.api import _quota_ledger
+
+    def _no_thread(doc_id: str) -> None:
+        raise RuntimeError("the daemon thread could not start")
+
+    monkeypatch.setattr(pipeline, "_enqueue", _no_thread)
+    content = agras_workbook()
+    ident = identify(app, content, "balanta.xlsx", org=ORG_AGRAS).json()
+    r = commit(app, content, "balanta.xlsx", target_org_id=ORG_AGRAS,
+               period_end=ident["identity"]["period_end"])
+    assert r.status_code == 500, r.text[:300]
+    assert gw.meter.reserved == [USER] and gw.meter.committed == []
+    assert gw.meter.released == [(USER, False)], "G3: the slot was not given back exactly once"
+    (doc,) = gw.docs(org_id=ORG_AGRAS)
+    rows = [x for x in gw.db.rows(_quota_ledger.TABLE) if x["document_id"] == doc["id"]]
+    assert rows and all(not x.get("reserved_at") for x in rows), (
+        "G3: the ledger still holds the reservation — the orphan sweep would release it again", rows)
 
 
 def test_g3_the_same_bytes_for_another_period_or_company_are_not_duplicates(app, gw):

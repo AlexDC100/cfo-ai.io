@@ -175,6 +175,39 @@ def test_a_counted_book_whose_correction_failed_is_never_handed_back():
     assert unique_successful_by_user_month(docs) == {(U1, "2026-09"): 1}
 
 
+def test_the_audit_never_lists_a_products_extra_of_a_dashboard_workbook():
+    """Verifier lens R, R7: the SCOPE clause. The same workbook analysed on
+    the dashboard and then on Products is two analyses — the Products one
+    is a legitimate paid extra, not a duplicate charge."""
+    docs = [d("fin", created="2026-09-10T10:00:00+00:00"),
+            dict(d("sku", created="2026-09-11T10:00:00+00:00", metered=True), scope="sku")]
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}]) == []
+
+
+def test_the_audit_never_lists_a_paid_extra_of_another_confirmed_period():
+    """Verifier lens R, R8: the PERIOD clause. The same bytes confirmed for
+    another closing date are another book — to the gate, to the restore and
+    to the audit."""
+    docs = [d("fy2024", created="2026-09-10T10:00:00+00:00", hint="2024-12-31"),
+            d("fy2025", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True)]
+    assert unique_successful_by_user_month(docs)[(U1, "2026-09")] == 2
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}]) == []
+    # an undated original analysed into 31.12.2024 vs a copy confirmed for 2025
+    docs = [dict(d("undated", created="2026-09-10T10:00:00+00:00"), period_id="p24"),
+            d("fy2025", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True)]
+    assert classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}],
+                                      period_end_of={"p24": "2024-12-31"}) == []
+
+
+def test_the_audit_still_lists_a_paid_copy_of_the_same_book_and_period():
+    """Positive control for R7 / R8."""
+    docs = [d("orig", created="2026-09-10T10:00:00+00:00", hint="2025-12-31"),
+            d("copy", created="2026-09-11T10:00:00+00:00", hint="2025-12-31", metered=True),
+            d("undated-copy", created="2026-09-12T10:00:00+00:00", metered=True)]
+    found = classify_metered_documents(docs, [{"user_id": U1, "stripe_subscription_id": None}])
+    assert [(f.document_id, f.duplicate_of) for f in found] == [("copy", "orig"), ("undated-copy", "orig")]
+
+
 # ── The scripts, end to end over the double ─────────────────────────────
 
 
@@ -255,9 +288,23 @@ def test_apply_never_overwrites_a_run_that_committed_after_the_read(prod_like, m
     assert (row["uploads"], row["uploads_reserved"]) == (3, 0), row   # a1/a2 + b1 + the new one
 
 
-def test_apply_never_writes_the_current_months_reservations(prod_like):
-    prod_like.rows("user_usage")[0]["uploads_reserved"] = 1
+def test_apply_keeps_exactly_the_current_months_reservations_a_live_run_holds(prod_like):
+    """This gate used to assert the current month's reservations are NEVER
+    written — the defect verifier lens S (S8) found: a run a restart killed
+    kept its slot for the rest of the month and the restore "reconciled"
+    nothing. The rule now: down to the reservations still LIVE in the quota
+    ledger (their owning engine process heartbeats), never below them —
+    a run in flight while the script runs keeps its slot."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    prod_like.rows("user_usage")[0]["uploads_reserved"] = 3
+    prod_like.rows("document_quota_ledger").append({
+        "document_id": "in-flight", "user_id": U1, "month": "2026-09", "was_extra": False,
+        "reservation_id": "r1", "reserved_at": now, "heartbeat_at": now, "owner": "engine:1"})
     mod = _load("recompute_document_quota.py")
     assert mod.main(["--apply", "--no-hash-missing"]) == 0
-    writes = [p for t, p, _f in prod_like.updates if t == "user_usage"]
-    assert writes and all("uploads_reserved" not in p for p in writes), writes
+    assert prod_like.rows("user_usage")[0]["uploads_reserved"] == 1
+    # and a second run changes nothing: the live run's slot stays
+    prod_like.updates.clear()
+    assert mod.main(["--apply", "--no-hash-missing"]) == 0
+    assert [p for t, p, _f in prod_like.updates if t == "user_usage"] == []

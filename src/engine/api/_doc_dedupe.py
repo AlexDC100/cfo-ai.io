@@ -22,10 +22,12 @@ A document DUPLICATES a live one when all four agree:
                account and company (`_unhashed_candidates`, same size,
                bounded) — is hashed from its storage object before it is
                compared, and the hash is written back.
-  * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader,
-               and only when that is the verified caller (`dedupe_account`).
-               The quota and the bill are per user; a colleague's copy is
-               theirs, and a colleague's entry never archives an upload.
+  * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader
+               (`look_account`), a member of the company. The quota and
+               the bill are per user; a colleague's copy is theirs. Only
+               the uploader's OWN entry archives a duplicate
+               (`dedupe_account`); a colleague's entry for the uploader's
+               duplicate is answered `duplicate` and changes nothing.
   * COMPANY  — `documents.org_id` is the same workspace. The same file in
                a DIFFERENT company is not a duplicate.
   * SCOPE    — `documents.scope`: a financial analysis and a Products
@@ -33,8 +35,12 @@ A document DUPLICATES a live one when all four agree:
   * PERIOD   — when the new upload carries a user-confirmed closing date
                (`period_end_hint`), the original matches only if its own
                date — its hint, else the period it was analysed into — is
-               unknown or equal. Without a hint the same bytes are the same
-               period.
+               KNOWN and equal: a running original whose month is not known
+               yet, or periods that cannot be read, prove nothing and
+               refuse nothing (verifier lens R3). Without a hint the same
+               bytes are the same period. The COUNT is kept safe apart
+               from the look: a book is counted once, whatever the look let
+               through (`book_copy_ids`, `pipeline._book_already_counted`).
 
 A duplicate is NOT stored, NOT analysed and NOT counted. The browser asks
 `POST /api/documents/duplicate-check` before it writes a byte to storage;
@@ -46,9 +52,14 @@ WHAT COUNTS AS THE LIVE ORIGINAL
 ================================
 Not deleted, not failed, and either
 
-  * analysed — when the document being checked is itself analysed (a
-    re-run of an old copy), only an EARLIER analysed copy (created_at, id)
-    counts, so the first copy is always the one kept; or
+  * analysed AND still holding its analysis (`_analysis_state`): its period
+    exists and names it (or names no source), or its analysis is
+    period-less by kind (the public-records summary). A copy whose period
+    is null or gone — a twin's /retry deleted the shared period — holds
+    nothing: it is never the original and "open it" never names it. When
+    the document being checked is itself analysed (a re-run of an old
+    copy) and holds its analysis, only an EARLIER holding copy
+    (created_at, id) counts, so the first copy is always the one kept; or
   * running with `pipeline_started_at` set AND its run in flight in this
     process — it holds the reservation. A run a restart killed is not.
 
@@ -171,15 +182,23 @@ def _date10(value: Any) -> Optional[str]:
     return s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else None
 
 
-def same_period(new_hint: Any, orig_hint: Any, orig_period_end: Any) -> bool:
+def same_period(new_hint: Any, orig_hint: Any, orig_period_end: Any, *,
+                unknown_matches: bool = True) -> bool:
     """The PERIOD clause. No hint on the new upload → the same bytes are the
     same period. A hint → the original's own date (its hint, else its
-    analysed period's end) must be unknown or equal."""
+    analysed period's end) must be equal; an UNKNOWN date matches only when
+    `unknown_matches`. The duplicate look passes False — refusing an upload
+    is the claim that needs proof (verifier lens R3: a FY2024 upload was
+    archived against a run that then landed in FY2025, or behind one
+    financial_periods 503); a count check keeps True — counting a book a
+    second time is the claim that needs proof."""
     new = _date10(new_hint)
     if new is None:
         return True
     orig = _date10(orig_hint) or _date10(orig_period_end)
-    return orig is None or orig == new
+    if orig is None:
+        return unknown_matches
+    return orig == new
 
 
 _ISO_PARTS = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?)(?:\.(\d+))?(.*)$")
@@ -209,24 +228,40 @@ def _ts(value: Any) -> Optional[datetime]:
 #: What an analysed copy holds (`_analysis_state`).
 _HOLDS, _ORPHAN, _SUPERSEDED = "holds", "orphan", "superseded"
 
+#: An analysis that files no period BY KIND: the public-records summary
+#: (`pipeline._run_pipeline_stages` short-circuit — persisted to
+#: sku_analyses with `summary.kind`, the documents row marked analysed with
+#: period_id NULL; `detected_type` is tagged best-effort).
+PERIODLESS_KINDS = frozenset({"public_records_summary"})
 
-def _analysis_state(row: Dict[str, Any], period_source_of: Optional[Dict[str, Optional[str]]]) -> str:
+
+def _analysis_state(row: Dict[str, Any], period_source_of: Optional[Dict[str, Optional[str]]],
+                    periodless: Optional[Iterable[str]] = None) -> str:
     """Does this analysed copy still HOLD its analysis?
 
       * holds      — a financial copy whose period exists in this company and
-                     names it as its source (or names none); any SKU copy
-                     (SKU analyses carry no period);
-      * orphan     — a financial copy with no period (a /retry of a twin
-                     deleted the shared period: `documents.period_id` is
-                     ON DELETE SET NULL), or whose period is gone;
+                     names it as its source (or names none); a financial
+                     copy whose analysis is period-less BY KIND
+                     (`periodless`: the public-records summary); any SKU
+                     copy (SKU analyses carry no period);
+      * orphan     — any other financial copy with no period (a /retry of a
+                     twin deleted the shared period: `documents.period_id`
+                     is ON DELETE SET NULL), or whose period is gone. It
+                     holds NOTHING (verifier lens R3, 2026-09-21): a trial
+                     balance whose period was deleted used to count as the
+                     original whenever no other copy held a period, and a
+                     re-upload was refused "open it" with period_id null;
       * superseded — its period now shows ANOTHER document (the pipeline's
                      duplicate-month REPLACE re-pointed the month).
-    `period_source_of` None = the periods could not be read: every copy is
-    taken to hold (the check can only refuse what it can prove)."""
+    `period_source_of` None = the periods could not be read: every copy
+    WITH a period is taken to hold."""
     if str(row.get("scope") or "financial").lower() != "financial":
         return _HOLDS
     pid = row.get("period_id")
     if not pid:
+        if (str(row.get("detected_type") or "").lower() in PERIODLESS_KINDS
+                or str(row.get("id") or "") in set(periodless or ())):
+            return _HOLDS
         return _ORPHAN
     if period_source_of is None:
         return _HOLDS
@@ -244,6 +279,7 @@ def pick_original(
     period_end_of: Optional[Dict[str, str]] = None,
     run_is_live: Optional[Callable[[str], bool]] = None,
     period_source_of: Optional[Dict[str, Optional[str]]] = None,
+    periodless: Optional[Iterable[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """The live original among `candidates` (rows already narrowed to the
     same org + uploaded_by + content hash), or None.
@@ -259,17 +295,17 @@ def pick_original(
     block every re-upload of that file for good ("Already uploaded — open
     it", pointing at a run that will never finish).
 
-    An ANALYSED row is an original only while it holds its analysis
+    An ANALYSED row is an original only while it HOLDS its analysis
     (`_analysis_state`, over `period_source_of` = period id → its
-    source_document_id). A SUPERSEDED copy — its month now shows another
+    source_document_id, and `periodless` = the ids whose analysis is
+    period-less by kind). A SUPERSEDED copy — its month now shows another
     document — never is: re-uploading the file to put the month back was
     refused, and "open it" opened someone else's analysis. An ORPHAN copy
-    (no period) is one only when no copy — the one being checked included —
-    holds an analysis: "open it" must lead to the copy that has one, and
-    re-running the copy that owns the live period must not archive it
-    against an orphan. The first-copy-wins rule (a LATER analysed copy never
-    displaces the one being checked) applies when the one being checked
-    holds its analysis.
+    (no period, or a period that is gone) never is either (verifier lens
+    R3): "open it" must lead to an analysis, and after a twin's failed
+    re-run deleted the month the re-upload IS the analysis the user needs.
+    The first-copy-wins rule (a LATER analysed copy never displaces the one
+    being checked) applies when the one being checked holds its analysis.
     """
     period_end_of = period_end_of or {}
     if run_is_live is None:
@@ -277,7 +313,8 @@ def pick_original(
     rows = list(candidates)
     self_id = str((self_row or {}).get("id") or "")
     self_analyzed = str((self_row or {}).get("status") or "").lower() == "analyzed"
-    self_state = _analysis_state(self_row, period_source_of) if (self_row and self_analyzed) else None
+    self_state = (_analysis_state(self_row, period_source_of, periodless)
+                  if (self_row and self_analyzed) else None)
     self_key = (_ts((self_row or {}).get("created_at")), self_id)
 
     def eligible(row: Dict[str, Any]) -> bool:
@@ -288,14 +325,11 @@ def pick_original(
             return False
         pid = row.get("period_id")
         return same_period(hint, row.get("period_end_hint"),
-                           period_end_of.get(str(pid)) if pid else None)
+                           period_end_of.get(str(pid)) if pid else None,
+                           unknown_matches=False)
 
     pool = [r for r in rows if eligible(r)]
-    someone_holds = self_state == _HOLDS or any(
-        str(r.get("status") or "").lower() == "analyzed"
-        and _analysis_state(r, period_source_of) == _HOLDS for r in pool)
-    first_copy_wins = self_analyzed and (
-        self_state == _HOLDS or (self_state == _ORPHAN and not someone_holds))
+    first_copy_wins = self_analyzed and self_state == _HOLDS
 
     ranked: List[Tuple[int, str, str, Dict[str, Any]]] = []
     for row in pool:
@@ -303,9 +337,8 @@ def pick_original(
         status = str(row.get("status") or "").lower()
         created = _ts(row.get("created_at"))
         if status == "analyzed":
-            state = _analysis_state(row, period_source_of)
-            if state == _SUPERSEDED or (state == _ORPHAN and someone_holds):
-                continue
+            if _analysis_state(row, period_source_of, periodless) != _HOLDS:
+                continue  # superseded or orphaned: it holds no analysis
             if first_copy_wins and self_key[0] is not None and created is not None \
                     and (created, rid) > self_key:
                 continue  # a LATER analysed copy never displaces the first one
@@ -505,6 +538,34 @@ def _period_info(org_id: str, period_ids: Sequence[Any]) -> Optional[Dict[str, D
             for r in rows if r.get("id")}
 
 
+def _periodless_analyses(org_id: str, rows: Iterable[Dict[str, Any]]) -> set:
+    """The ids among `rows` — analysed financial copies WITHOUT a period —
+    whose analysis is period-less by kind: a `public_records_summary` row in
+    sku_analyses for that document. Unreadable → none (an orphan then holds
+    nothing, and the check refuses nothing it cannot prove)."""
+    ids = sorted({str(r.get("id")) for r in rows
+                  if r.get("id") and not r.get("period_id")
+                  and str(r.get("status") or "").lower() == "analyzed"
+                  and normalize_scope(r.get("scope")) == "financial"})
+    if not ids:
+        return set()
+    try:
+        with _supabase.admin() as ac:
+            found = ac.select("sku_analyses", filters={
+                "org_id": f"eq.{org_id}", "document_id": "in.(" + ",".join(ids) + ")",
+            }, columns="document_id,summary") or []
+    except Exception:  # noqa: BLE001
+        logger.exception("[dedupe] could not read the period-less analyses of org %s", org_id)
+        return set()
+    out = set()
+    for r in found:
+        summary = r.get("summary")
+        kind = summary.get("kind") if isinstance(summary, dict) else None
+        if str(kind or "").lower() in PERIODLESS_KINDS and r.get("document_id"):
+            out.add(str(r["document_id"]))
+    return out
+
+
 #: At most this many hash-less copies are hashed from storage per entry.
 LEGACY_HASH_LIMIT = 5
 
@@ -583,17 +644,23 @@ def find_live_original(
     period_end_of = {pid: v["period_end"] for pid, v in (info or {}).items()}
     period_source_of = ({pid: v.get("source_document_id") for pid, v in info.items()}
                         if info is not None else None)
+    periodless = _periodless_analyses(str(org_id), rows + ([self_row] if self_row else []))
     row = pick_original(rows, hint=hint, self_row=self_row, period_end_of=period_end_of,
-                        period_source_of=period_source_of)
+                        period_source_of=period_source_of, periodless=periodless)
     return _hit(row) if row else None
 
 
 def book_copy_ids(row: Dict[str, Any]) -> Optional[List[str]]:
     """The ids of every live copy of `row`'s BOOK — `row` itself included:
-    the same company, uploader (`uploaded_by`), content, scope and period
-    (`same_period` against `row`'s own confirmed date), not deleted. Any
-    status: a counted copy whose analysis later failed is still the book the
-    plan counted (`pipeline._book_already_counted`).
+    the same company, uploader (`uploaded_by`), content, scope and period,
+    not deleted. Any status: a counted copy whose analysis later failed is
+    still the book the plan counted (`pipeline._book_already_counted`).
+
+    PERIOD, for a count: each copy's date is its confirmed hint, else the
+    period it was analysed into; two copies are the same book unless BOTH
+    dates are known and differ — counting a book twice is the claim that
+    needs proof (the look lets an upload of unknown month through; the
+    settlement then counts the book once, in either order).
 
     A row without a content hash is its own book. None when the copies or
     their periods cannot be read — the caller cannot prove the book was
@@ -610,16 +677,22 @@ def book_copy_ids(row: Dict[str, Any]) -> Optional[List[str]]:
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] could not list the copies of document %s", rid)
         return None
-    info = _period_info(org, [r.get("period_id") for r in rows])
+    info = _period_info(org, [r.get("period_id") for r in rows] + [row.get("period_id")])
     if info is None:
         return None
+
+    def date_of(r: Dict[str, Any]) -> Optional[str]:
+        pid = r.get("period_id")
+        return _date10(r.get("period_end_hint")) or (
+            _date10((info.get(str(pid)) or {}).get("period_end")) if pid else None)
+
+    mine = date_of(row)
     for r in rows:
         cid = str(r.get("id") or "")
         if not cid or cid == rid:
             continue
-        pid = r.get("period_id")
-        if same_period(row.get("period_end_hint"), r.get("period_end_hint"),
-                       (info.get(str(pid)) or {}).get("period_end") if pid else None):
+        theirs = date_of(r)
+        if mine is None or theirs is None or mine == theirs:
             ids.append(cid)
     return ids
 
@@ -733,6 +806,26 @@ DELETED = "deleted"
 NOT_MINE = "not_mine"
 
 
+def look_account(row: Dict[str, Any]) -> Optional[str]:
+    """The ACCOUNT a document's duplicates are looked for under: its own
+    uploader, when that uploader is a member of the document's company.
+    Whoever makes the entry (verifier lens S, S9: a colleague's retry of
+    the uploader's duplicate skipped the look and analysed — and counted —
+    the copy). None → no look (an unverifiable account proves nothing)."""
+    uploader = str(row.get("uploaded_by") or "").strip()
+    org = str(row.get("org_id") or "").strip()
+    if not uploader or not org:
+        return None
+    try:
+        from . import _org
+        if not _org.user_is_member(uploader, org):
+            return None
+    except Exception:  # noqa: BLE001 — an unverifiable account proves no duplicate
+        logger.exception("[dedupe] membership of %s in %s could not be read", uploader, org)
+        return None
+    return uploader
+
+
 def dedupe_account(row: Dict[str, Any], caller_id: str) -> Optional[str]:
     """The ACCOUNT an analysis entry checks for duplicates under: the
     document's OWN uploader — and only when that uploader is the verified
@@ -748,17 +841,9 @@ def dedupe_account(row: Dict[str, Any], caller_id: str) -> Optional[str]:
     responsible accountant both members). None → the entry never archives."""
     uploader = str(row.get("uploaded_by") or "").strip()
     caller = str(caller_id or "").strip()
-    org = str(row.get("org_id") or "").strip()
-    if not uploader or uploader != caller or not org:
+    if not uploader or uploader != caller:
         return None
-    try:
-        from . import _org
-        if not _org.user_is_member(uploader, org):
-            return None
-    except Exception:  # noqa: BLE001 — an unverifiable account proves no duplicate
-        logger.exception("[dedupe] membership of %s in %s could not be read", uploader, org)
-        return None
-    return uploader
+    return look_account(row)
 
 
 @dataclass(frozen=True)
@@ -826,8 +911,10 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
         never-started (a /run claimed it meanwhile)          → BUSY
       * a RECOVERY of an upload that is not the caller's own  → NOT_MINE
       * it duplicates a live original of the same account
-        (`dedupe_account`: the document's own uploader, when
-        that is the caller), company and period              → archived, DUPLICATE
+        (`look_account`: the document's own uploader, whoever
+        makes the entry), company and period                 → DUPLICATE
+        — archived only when the uploader is the caller
+        (`dedupe_account`); a colleague's entry changes nothing
       * otherwise the document is CLAIMED: in the in-flight
         registry (test-and-set) and `pipeline_started_at`
         stamped — the claim a racing twin finds              → CLAIMED
@@ -846,8 +933,11 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
     account = dedupe_account(doc, caller_id)
     if mode == RECOVER and account is None:
         return Entry(NOT_MINE, dict(doc))
-    h = ensure_content_hash(doc, hasher) if account else None
-    lock = _lock_for(org_id, account, h) if h else _doc_lock(doc_id)
+    # The look runs under the UPLOADER's account whoever makes the entry;
+    # only the uploader's own entry archives (verifier lens S, S9).
+    look = account or look_account(doc)
+    h = ensure_content_hash(doc, hasher) if look else None
+    lock = _lock_for(org_id, look, h) if h else _doc_lock(doc_id)
     with lock:
         row = _fresh_row(doc_id, org_id) or dict(doc)
         if h and not row.get("content_hash"):
@@ -865,11 +955,16 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
         if mode == RECOVER and (status != "queued" or row.get("pipeline_started_at")):
             return Entry(BUSY, row)
         if h:
-            hit = find_live_original(org_id=org_id, user_id=account, content_hash=h,
+            hit = find_live_original(org_id=org_id, user_id=look, content_hash=h,
                                      hint=row.get("period_end_hint"), self_row=row,
                                      hasher=hasher)
             if hit is not None:
-                archive_as_duplicate(row, hit, now_iso=now_iso)
+                if account is not None:
+                    archive_as_duplicate(row, hit, now_iso=now_iso)
+                else:
+                    logger.info("[dedupe] document %s duplicates %s of its uploader — a "
+                                "colleague's entry: not analysed, not archived", doc_id,
+                                hit.existing_document_id)
                 return Entry(DUPLICATE, row, hit=hit)
         if not try_mark_in_flight(doc_id):
             return Entry(BUSY, row)
