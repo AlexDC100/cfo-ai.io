@@ -474,6 +474,40 @@ def test_g3_the_same_file_twice_is_stored_analysed_and_counted_once(app, gw):
             list(gw.enqueued)) == counts, "G3: the second copy was analysed or counted"
 
 
+def test_g3_a_counted_book_re_uploaded_on_the_card_after_its_analysis_failed_is_not_counted_again(app, gw):
+    """Lane A's lens S (fix/dedupe-quota a8c1c8cf, S10) through the
+    redesign's own entry. A book the plan COUNTED whose later correction
+    failed — `failed`, its period gone — is no live original, so the card
+    stores and analyses the re-upload (the user gets the book back); but the
+    book was counted at its first analysis and is never counted — nor
+    reserved, nor at the cap put to the €-dialog — again. /run reads that
+    fact from the quota ledger (`pipeline._book_already_counted`); the
+    commit, which meters BEFORE it stores, must read the same fact."""
+    from engine.api import _quota_ledger
+    content = agras_workbook()
+    first = one_tap(app, content, "balanta.xlsx")
+    doc = run_analysis(gw, first["commit"]["document_id"])
+    assert doc["status"] == "analyzed", (doc["status"], doc.get("error"))
+    assert gw.meter.committed == [(USER, False)]
+    assert [r["document_id"] for r in gw.db.rows(_quota_ledger.TABLE) if r.get("committed_at")] == [doc["id"]]
+    # The free correction re-run failed (a PDF on an empty Anthropic balance,
+    # §24): the counted copy is `failed` and its analysis is gone.
+    period_id = doc["period_id"]
+    gw.db.update("documents", {"status": "failed", "period_id": None, "error": "correction failed"},
+                 filters={"id": "eq.%s" % doc["id"]})
+    gw.db.tables["financial_periods"] = [p for p in gw.db.rows("financial_periods") if p["id"] != period_id]
+    reserved = list(gw.meter.reserved)
+
+    again = identify(app, content, "balanta (2).xlsx", org=ORG_AGRAS)
+    assert again.status_code == 200 and again.json()["duplicate"] is None, again.text[:300]
+    r = commit(app, content, "balanta (2).xlsx", target_org_id=ORG_AGRAS, period_end="2025-12-31")
+    assert r.status_code == 200 and r.json()["status"] == "queued", r.text[:300]
+    assert gw.meter.reserved == reserved, "G3: the card reserved a book the plan already counted"
+    second = run_analysis(gw, r.json()["document_id"])
+    assert second["status"] == "analyzed", (second["status"], second.get("error"))
+    assert gw.meter.committed == [(USER, False)], "G3: the book was counted a second time"
+
+
 def test_g3_the_same_bytes_for_another_period_or_company_are_not_duplicates(app, gw):
     content = agras_workbook()
     first = one_tap(app, content, "balanta.xlsx")

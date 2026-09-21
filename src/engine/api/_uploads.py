@@ -732,7 +732,22 @@ def build_router() -> APIRouter:
         from . import pipeline as _pipeline
         from . import _usage_gate as _ug
         doc_id = str(uuid.uuid4())  # type: Optional[str]
-        if str(confirm_extra or "").strip().lower() in ("1", "true", "yes"):
+        # A BOOK THE PLAN ALREADY COUNTED is never metered again — /run's
+        # rule (`_needs_metering`, fix/dedupe-quota a8c1c8cf, lens S), read
+        # from the same quota ledger. A counted book whose later correction
+        # failed is no live original (the duplicate check above misses it),
+        # so its re-upload through the card is stored and analysed — the
+        # user gets the book back — but never reserved, counted, or at the
+        # cap put to the €-dialog a second time. The ledger unreadable
+        # (None): a new document holds no analysis, so it is metered — the
+        # status rule /run falls back to.
+        already_counted = company is not None and bool(_pipeline._book_already_counted({
+            "org_id": company["org_id"], "uploaded_by": user_id, "content_hash": content_hash,
+            "scope": "financial", "period_end_hint": confirmed_end}))
+        if already_counted:
+            logger.info("[uploads] %s: the book was already counted — analysed unmetered", doc_id)
+            decision = None  # type: Any
+        elif str(confirm_extra or "").strip().lower() in ("1", "true", "yes"):
             granted = _ug.confirm_extra_document(user_id, doc_id)
             if granted.kind == "blocked":
                 raise HTTPException(409, {"code": "extra_doc_not_confirmed",
