@@ -514,6 +514,12 @@
       "affordances": 0,
       "why": "Scenario deltas are what the reader modelled, not what was read. There is no cell behind a lever the user just dragged, and inventing one would be the worst bucket. plan/2 B1 (2026-09-15): a currency row whose change crosses zero paints the money change beside the words (the seventh site); still what the reader modelled."
     },
+    "frontend/components/scenarios/ScenarioOutcome.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (plan/2 B13, minimal cut). The Scenarios page's figures: two served projections (the base plan and the selected template) placed side by side. Every figure is a PROJECTION read through lib/forecastFacts and painted by <ProjectedAmount>, so — exactly as on Forecast.tsx — a jump to a source cell would be an affordance over nothing. The one site is the Intl.NumberFormat that formats projected values in the book's own currency (the display toggle is deliberately not applied, same reason as Forecast.tsx makeFormatter). Replaces the Scenarios.tsx entry: the page itself paints no figure any more."
+    },
     "frontend/components/ui/Money.tsx": {
       "bucket": "LACKS_SILENT",
       "sites": 4,
@@ -621,12 +627,6 @@
       "sites": 25,
       "affordances": 10,
       "why": "The period names its origin: source (the vendor dataset id), normalizer_version as pack, fiscal_period_end as period. Ratios: `derived · computeRatios · <key>` over that feed (x/days/ratio units; PercentLevel has no provenance prop). Valuation tiles: `<source> · market_metrics.<field>` with market.as_of as computedAt. KNOWN GAP: the Overview KPI/Metric/Ratio tiles sit inside LearnableMetricCard (a button) and stay plain — no nested interactive."
-    },
-    "frontend/pages/cfo/Scenarios.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 5,
-      "affordances": 0,
-      "why": "OPENED 2026-09-04. Base and scenario leverage multiples on the what-if page — the scenario's output beside its input. Same law as ScenarioComparison."
     },
     "frontend/pages/cfo/Settings.tsx": {
       "bucket": "LACKS_SILENT",

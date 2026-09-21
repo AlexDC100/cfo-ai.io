@@ -62,6 +62,10 @@ const CANARIES = [
   // plan/2 B6: the fp1.2 reader over the real served bytes; the magnitude band
   "frontend/lib/__tests__/forecastFactsReader.test.ts",
   "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
+  // plan/2 B13 (minimal cut): the Scenarios page on the engine — no client
+  // math in its closure, templates POST their declared sets, refusals are the
+  // engine's sentence, no industry word, no negative cash painted
+  "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "battery-vitest-"));

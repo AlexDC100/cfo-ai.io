@@ -1,260 +1,342 @@
-// F6.0.5 (2026-06-20) — Scenario Planning / What-If page.
+// SCENARIOS — named lever sets, run through the ONE forecast engine.
 //
-// "If next year's rent drops 20% (or we sell the asset), what happens to my
-// leverage and covenants?" This page answers exactly that. It takes the live
-// period (reconciled to the dashboard via buildScenarioBaseline), applies the
-// user's lever adjustments through the deterministic cascade engine, and
-// shows the baseline → scenario delta for every headline metric + ratio,
-// plus a covenant compliance read.
+// plan/2 B13 (minimal cut): "one engine" (plan_contract_v2 S4). This page used
+// to compute its own what-if in the browser: `buildScenarioBaseline` +
+// `applyCascade` from the `lib/scenarios` modules. That cascade held cost of sales flat
+// under a revenue move (defect 0.1), let cash run below zero with no funding
+// line (0.3), and labelled the top-line lever with another industry's word for
+// every company (0.2). It is gone from this page. Nothing here is calculated
+// in the browser.
 //
-// Architecture:
-//   · buildScenarioBaseline(statements) — calibrated baseline that ties to
-//     the dashboard tiles (4.9M / 2.1M / 5.92× for the EEI-style fixture).
-//   · applyCascade(baseline, adjustments) — pure what-if recompute.
-//   · ScenarioComparison / CovenantPanel — read-only renderers off both
-//     states.
-// The store (ScenarioProvider) owns only the INPUT (engaged levers).
+// ── WHAT THE PAGE DOES ─────────────────────────────────────────────────
+//
+//   · POSTs the BASE plan to /api/forecast/{id}/recompute: the reader's lever
+//     overrides and no shocks;
+//   · POSTs the SELECTED TEMPLATE the same way: the same overrides, plus the
+//     template's declared shock set (`lib/scenarioTemplates`), each shock in
+//     the engine's own vocabulary. Cost of sales follows volume, other
+//     operating income is held, cash is floored and the shortfall is drawn on
+//     a priced funding line — all by the engine (R2, R3, S3);
+//   · paints both served responses side by side through `lib/forecastFacts`
+//     and <ProjectedAmount>. No delta column: the engine does not serve one in
+//     this build, and a subtraction here would be a second model;
+//   · reuses the Forecast page's lever rail for the free levers;
+//   · on a 409/422 renders the ENGINE'S sentence as the refusal — never a
+//     blank page, and never numbers held over from a different request.
+//
+// The horizon is the engine's: the page sends monthly_months and omits
+// total_years (2.2), and learns the plan length from the served labels.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Lock, MoveRight, Sparkles } from "lucide-react";
-// Two header systems on purpose: the serif hero survives ONLY on the
-// no-period empty state; the loaded surface uses the compact instrument
-// PageHeader (A3 hero eviction).
+import { useTranslation } from "react-i18next";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Lock, Sparkles } from "lucide-react";
+
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
-import { CappedMultiple } from "@/components/comparison/MoneyAmount";
-// EXPLAIN ANYTHING (Prompt 12, Part D) — Simple-mode "Explain" on the
-// RESULTS side of the page only. Boundary note: the entry-points lane
-// owns ScenarioTemplateCards (the template cards); this affordance
-// deliberately mounts above the impact/results panels instead, grounded
-// in the same figures ImpactSummary already renders.
-import { ExplainButton } from "@/components/cfo/simple/ExplainButton";
-import type { ExplainFigure } from "@/lib/explain";
-import { formatMultiple } from "@/lib/amountFormat";
-import { useActiveLocale } from "@/lib/locale";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
+import { LeverRail, cellToWire } from "@/components/forecast/LeverRail";
+import {
+  ScenarioOutcome,
+  type ColumnState,
+  type OutcomeColumn,
+} from "@/components/scenarios/ScenarioOutcome";
+import { ScenarioTemplatePicker } from "@/components/scenarios/ScenarioTemplatePicker";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
-import { ScenarioProvider, useScenario } from "@/stores/scenario";
-import { buildScenarioBaseline } from "@/lib/scenarios/baseline";
-import { buildDashboardCanonical } from "@/lib/scenarios/dashboardCanon";
-import { applyCascade } from "@/lib/scenarios/cascade";
-import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
-import { computeMetric, detectCovenantBreaches } from "@/lib/scenarios/covenants";
-import { AdjustmentEditor } from "@/components/scenarios/AdjustmentEditor";
-import { ScenarioTemplateCards } from "@/components/scenarios/ScenarioTemplateCards";
-import { ScenarioComparison } from "@/components/scenarios/ScenarioComparison";
-import { CovenantPanel } from "@/components/scenarios/CovenantPanel";
-import type { Statements } from "@/lib/financialReport";
+import { useActiveLocale } from "@/lib/locale";
+import { cfoApi } from "@/lib/cfoApi";
+import { readProjection, type LeverRef, type ProjectionView } from "@/lib/forecastFacts";
+import {
+  applyLeverEdit,
+  buildRecomputeBody,
+  planYearLabels,
+  type LeverEdit,
+} from "@/lib/forecastLevers";
+import { readEngineRefusal } from "@/lib/forecastRefusal";
+import {
+  BASE_TEMPLATE_ID,
+  SCENARIO_MONTHLY_MONTHS,
+  SCENARIO_TEMPLATES,
+  compileTemplate,
+  scenarioRequestBody,
+} from "@/lib/scenarioTemplates";
 
-// Before → after strip: baseline value, a quiet arrow, the scenario value
-// carrying the semantic color. A non-finite scenario leverage renders as
-// the ≥99× bound (never ">99×" / "Infinity×").
-function ImpactSummary({
-  leverageBase,
-  leverageScen,
-  breachCount,
-}: {
-  leverageBase: number | null;
-  leverageScen: number | null;
-  breachCount: number;
-}) {
-  const worsened =
-    leverageBase !== null &&
-    leverageScen !== null &&
-    (!Number.isFinite(leverageScen) || leverageScen > leverageBase);
-  return (
-    <div
-      data-testid="scenario-impact-summary"
-      className="flex flex-wrap items-center gap-x-5 gap-y-2 py-1"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] text-ink-soft">Net debt / EBITDA</span>
-        <span className="text-[13px] font-semibold text-ink inline-flex items-center gap-1.5">
-          <CappedMultiple value={leverageBase} className="text-ink-soft" />
-          <MoveRight size={13} strokeWidth={1.75} className="text-ink-soft" aria-hidden />
-          <CappedMultiple
-            value={leverageScen}
-            className={worsened ? "text-alert" : "text-ink"}
-          />
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] text-ink-soft">Covenants</span>
-        {breachCount > 0 ? (
-          <Chip tone="alert" dot>
-            {breachCount} breached
-          </Chip>
-        ) : (
-          <Chip tone="success" dot>
-            all holding
-          </Chip>
-        )}
-      </div>
-    </div>
-  );
+type Read = { view: ProjectionView } | { error: string } | null;
+
+/** One served payload through the one reader. A payload that claims to be a
+ *  projection and breaks its own contract is a producer defect and paints
+ *  nothing, not half a projection. */
+function read(data: unknown): Read {
+  if (data === undefined || data === null) return null;
+  try {
+    const view = readProjection(data);
+    return view ? { view } : { error: "the response is not a projection" };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
-// Leverage as prose text for the Explain drawer — the SAME bound
-// discipline as CappedMultiple (non-finite renders the ≥99× bound, never
-// "Infinity×"), so the drawer's sentence matches the strip's figure.
-function leverageText(value: number | null, locale: string): string {
-  if (value === null) return "—";
-  if (!Number.isFinite(value)) return "≥99×";
-  return formatMultiple(value, { locale, cap: 99 })?.display ?? "—";
+function columnState(
+  query: { isError: boolean; error: unknown; isFetching: boolean },
+  parsed: Read,
+  refusedFallback: string,
+): ColumnState {
+  if (query.isError) {
+    return {
+      kind: "refused",
+      sentence: readEngineRefusal(query.error)?.text ?? refusedFallback,
+    };
+  }
+  if (parsed && "error" in parsed) return { kind: "contract", message: parsed.error };
+  if (parsed && "view" in parsed) {
+    return { kind: "ready", view: parsed.view, recomputing: query.isFetching };
+  }
+  return { kind: "loading" };
 }
 
-function ScenariosInner({
-  statements,
+function ScenariosEngine({
+  periodId,
   periodLabel,
-  lineItems,
-  metricRows,
 }: {
-  statements: Statements;
+  periodId: string;
   periodLabel: string | null;
-  lineItems: PeriodLineItem[];
-  metricRows: PeriodMetric[];
 }) {
-  const { adjustments, covenants } = useScenario();
-  const currency = statements.currency ?? "RON";
+  const { t } = useTranslation();
   const locale = useActiveLocale();
+  const [templateId, setTemplateId] = useState<string>(BASE_TEMPLATE_ID);
+  /** What the reader has typed into the lever rail; `committed` is what has
+   *  been SENT (after the pack's own debounce). */
+  const [edits, setEdits] = useState<readonly LeverEdit[]>([]);
+  const [committed, setCommitted] = useState<readonly LeverEdit[]>([]);
+  const editsKey = JSON.stringify(edits);
+  const committedKey = JSON.stringify(committed);
 
-  const baseline = useMemo(
+  /** The last BASE plan the server produced for this book. It feeds the lever
+   *  rail (its controls, never the comparison's numbers) and the driver keys a
+   *  template's `pool_level.*` expands over. */
+  const [lastGood, setLastGood] = useState<{ periodId: string; view: ProjectionView } | null>(
+    null,
+  );
+  const held = lastGood && lastGood.periodId === periodId ? lastGood.view : null;
+  const leversRef = useRef<readonly LeverRef[]>([]);
+  const planYears = held ? planYearLabels(held.horizon, held.horizonAnnual).length : 0;
+
+  const overrides = useMemo(
     () =>
-      buildScenarioBaseline(
-        statements,
-        buildDashboardCanonical(statements, lineItems, metricRows),
+      buildRecomputeBody(
+        Math.max(planYears, 1),
+        SCENARIO_MONTHLY_MONTHS,
+        committed,
+        leversRef.current,
+      ).overrides,
+    // committedKey carries the content of `committed`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [committedKey, planYears],
+  );
+
+  const baseQuery = useQuery({
+    queryKey: ["scenarios", periodId, BASE_TEMPLATE_ID, committedKey],
+    queryFn: () => cfoApi.forecastRecompute(periodId, scenarioRequestBody(overrides, [])),
+    // While a lever recompute is in flight the last BASE answer stays up with
+    // "Recomputing…" beside it. On a refusal TanStack drops it: the column
+    // then carries the engine's sentence and no number.
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const baseRead = useMemo(() => read(baseQuery.data), [baseQuery.data]);
+  const baseView = baseRead && "view" in baseRead ? baseRead.view : null;
+
+  useEffect(() => {
+    if (!baseView) return;
+    leversRef.current = baseView.levers;
+    setLastGood({ periodId, view: baseView });
+  }, [baseView, periodId]);
+
+  const template =
+    SCENARIO_TEMPLATES.find((tpl) => tpl.id === templateId) ?? SCENARIO_TEMPLATES[0];
+  const isBase = template.id === BASE_TEMPLATE_ID;
+  const servedKeys = useMemo(() => (held ? held.levers.map((l) => l.key) : null), [held]);
+  const compiled = useMemo(
+    () => (servedKeys ? compileTemplate(template, servedKeys) : null),
+    [template, servedKeys],
+  );
+  const shocksKey = compiled && compiled.ok ? JSON.stringify(compiled.shocks) : "";
+
+  const templateQuery = useQuery({
+    queryKey: ["scenarios", periodId, template.id, committedKey, shocksKey],
+    queryFn: () =>
+      cfoApi.forecastRecompute(
+        periodId,
+        scenarioRequestBody(overrides, compiled && compiled.ok ? compiled.shocks : []),
       ),
-    [statements, lineItems, metricRows],
-  );
-  const scenario = useMemo(
-    () => applyCascade(baseline, adjustments),
-    [baseline, adjustments],
-  );
+    enabled: !isBase && !!compiled && compiled.ok,
+    // Held over ONLY while the same template recomputes. Switching template
+    // never shows the previous template's figures under the new one's name.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && previousQuery.queryKey[2] === template.id ? previous : undefined,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const templateRead = useMemo(() => read(templateQuery.data), [templateQuery.data]);
 
-  const active = adjustments.length > 0;
+  /** THE DEBOUNCE IS THE PACK'S OWN (`client.debounce_ms`), read off the
+   *  payload. A number typed here would be a cut-off written as prose. */
+  const debounceMs = held?.client.debounceMs ?? 0;
+  useEffect(() => {
+    if (editsKey === committedKey) return undefined;
+    const id = setTimeout(() => setCommitted(JSON.parse(editsKey)), debounceMs);
+    return () => clearTimeout(id);
+  }, [editsKey, committedKey, debounceMs]);
 
-  const leverageBase = computeMetric(baseline, "net_debt_to_ebitda");
-  const leverageScen = computeMetric(scenario, "net_debt_to_ebitda");
-  const breachCount = active
-    ? detectCovenantBreaches(scenario, covenants).filter(
-        (b) => b.severity === "breach",
-      ).length
-    : 0;
+  useEffect(() => {
+    setEdits([]);
+    setCommitted([]);
+  }, [periodId]);
+
+  const refusedFallback = t("scenarios.refusal.fallback", "The engine did not return a projection.");
+  const baseState = columnState(baseQuery, baseRead, refusedFallback);
+  const templateName = t(`scenarios.template.${template.id}.name`);
+  let templateState: ColumnState | null = null;
+  if (!isBase) {
+    if (compiled && !compiled.ok) {
+      // A declared pattern this book serves no driver for. The page's own
+      // refusal: applying the rest would be half a template under its name.
+      templateState = {
+        kind: "refused",
+        sentence: t(
+          "scenarios.refusal.noServedKeys",
+          "this book serves no operating-cost pool, so the operating-cost shock of this template cannot be applied, and the template is not run in part",
+        ),
+      };
+    } else if (!compiled) {
+      templateState = baseQuery.isError
+        ? { kind: "refused", sentence: baseState.kind === "refused" ? baseState.sentence : refusedFallback }
+        : { kind: "loading" };
+    } else {
+      templateState = columnState(templateQuery, templateRead, refusedFallback);
+    }
+  }
+
+  const columns: OutcomeColumn[] = [
+    { id: "base", title: t("scenarios.template.base.name"), state: baseState },
+    ...(templateState ? [{ id: "template" as const, title: templateName, state: templateState }] : []),
+  ];
+
+  const baseRefusal = baseQuery.isError ? readEngineRefusal(baseQuery.error) : null;
+  const refusedLeverKey =
+    baseRefusal && leversRef.current.some((l) => l.key === baseRefusal.field)
+      ? baseRefusal.field
+      : null;
+
+  const onChange = (key: string, index: number, text: string) => {
+    const lever = leversRef.current.find((l) => l.key === key);
+    if (!lever) return;
+    const length = lever.shape === "scalar" ? 1 : Math.max(planYears, 1);
+    setEdits((prev) =>
+      applyLeverEdit(prev, key, index, text === "" ? null : cellToWire(text, lever), length),
+    );
+  };
+  const onReset = (key: string) => {
+    // Reset DROPS the override; the engine re-derives the value on its own
+    // ladder and re-states the tier it stands on.
+    setEdits((prev) => prev.filter((e) => e.key !== key));
+  };
+  const onAdopt = (key: string, values: readonly string[]) => {
+    setEdits((prev) =>
+      [...prev.filter((e) => e.key !== key), { key, values: [...values] }].sort((a, b) =>
+        a.key.localeCompare(b.key),
+      ),
+    );
+  };
+
+  // The page-level refusal: the BASE plan could not be built, so there is no
+  // projection to compare anything with. The engine's sentence, verbatim.
+  const pageRefused = baseState.kind === "refused" && !held;
 
   return (
-    <div className="max-w-[1560px] space-y-5">
-      {/* Header — compact instrument header (A3 hero eviction). The old
-          hero's promise survives in the context line; the "actuals are
-          never changed" guarantee becomes the locked-source chip. */}
+    <div className="max-w-[1560px] space-y-5 pb-16">
       <InstrumentPageHeader
-        eyebrow="Analysis"
-        title="Scenario planning"
+        eyebrow={t("scenarios.eyebrow", "Analysis")}
+        title={t("scenarios.title", "Scenario planning")}
         context={
           <>
             <span>
-              What-if on <span className="text-ink">{periodLabel ?? "the loaded period"}</span> —
-              EBITDA, leverage and covenants react live.
+              {t(
+                "scenarios.context",
+                "What-if on the projection of {{period}}. Every figure is computed by the forecast engine.",
+                { period: held?.basePeriodLabel ?? periodLabel ?? "—" },
+              )}
             </span>
-            {/* nowrap: at 390px the pill must drop below the sentence as
-                one piece, never wrap into a three-line lozenge. */}
             <Chip tone="neutral" className="whitespace-nowrap">
               <Lock size={11} strokeWidth={2} aria-hidden />
-              Actuals never change
+              {t("scenarios.actualsLocked", "Actuals never change")}
             </Chip>
           </>
         }
       />
 
-      {/* Templates — full-width, above the drivers + results grid (2026-07-26
-          per operator), styled like the Ask CFO AI prompt cards. The live
-          impact summary (Net debt/EBITDA + covenants) sits to the right of the
-          "Start from a template" label when a scenario is active. */}
-      <ScenarioTemplateCards
-        headerRight={
-          active ? (
-            <ImpactSummary
-              leverageBase={leverageBase}
-              leverageScen={leverageScen}
-              breachCount={breachCount}
-            />
-          ) : undefined
-        }
+      {/* NOT DISMISSIBLE: every number below is a projection. */}
+      <div
+        data-testid="scenarios-banner"
+        className="rounded-xl border border-amber/40 bg-amber/5 px-4 py-3 text-[13px] leading-snug text-ink"
+      >
+        <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+          {t("scenarios.banner.eyebrow", "Every figure on this page is a projection")}
+        </span>
+        <p className="mt-1 text-ink-soft">
+          {t(
+            "scenarios.banner.body",
+            "Each number is produced by the forecast engine from the closing position of {{period}} and the shocks and levers listed on this page. Nothing here changes your trial balance.",
+            { period: held?.basePeriodLabel ?? periodLabel ?? "—" },
+          )}
+        </p>
+      </div>
+
+      <ScenarioTemplatePicker
+        selectedId={template.id}
+        servedDriverKeys={servedKeys}
+        onSelect={setTemplateId}
       />
 
-      {/* Two-column workspace: editor (left) + results (right). */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] gap-5 items-start">
-        <div className="lg:sticky lg:top-20">
-          <AdjustmentEditor />
+      {pageRefused ? (
+        <div
+          data-testid="scenarios-refusal"
+          className="rounded-xl border border-rule bg-surface px-4 py-3 text-[13px] leading-snug"
+        >
+          <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+            {t("scenarios.refusal.title", "No projection")}
+          </span>
+          <p className="mt-1 text-ink-soft" data-testid="scenarios-refusal-detail">
+            {baseState.kind === "refused" ? baseState.sentence : refusedFallback}
+          </p>
         </div>
-        <div className="space-y-5">
-          {/* Explain (Simple mode) — grounded ONLY in figures already on
-              screen: the leverage before→after and the covenant count the
-              ImpactSummary strip renders. The drawer's figure list reuses
-              CappedMultiple, so its values are identical by construction. */}
-          {active && (
-            <div className="-mb-3 flex justify-end">
-              <ExplainButton
-                request={{
-                  panelId: "scenario-impact",
-                  panelKind: "scenario-impact",
-                  snapshotKey: periodLabel ?? "period",
-                  title: "Scenario impact",
-                  figures: [
-                    {
-                      termId: "leverage",
-                      label: "Net debt / EBITDA",
-                      value: leverageText(leverageBase, locale),
-                      compare: leverageText(leverageScen, locale),
-                    },
-                    {
-                      termId: "covenant",
-                      label: "Covenants breached",
-                      value: String(breachCount),
-                    },
-                  ] satisfies ExplainFigure[],
-                }}
-                figureDisplay={
-                  <div className="space-y-1 text-[12.5px]">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-ink-soft">Net debt / EBITDA</span>
-                      <span className="inline-flex items-center gap-1.5 font-medium text-ink">
-                        <CappedMultiple value={leverageBase} className="text-ink-soft" />
-                        <MoveRight size={12} strokeWidth={1.75} className="text-ink-soft" aria-hidden />
-                        <CappedMultiple value={leverageScen} />
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-ink-soft">Covenants breached</span>
-                      <span className="font-medium text-ink">{breachCount}</span>
-                    </div>
-                  </div>
-                }
-              />
-            </div>
-          )}
-          <ScenarioComparison
-            baseline={baseline}
-            scenario={scenario}
-            currency={currency}
-            active={active}
+      ) : (
+        <ScenarioOutcome columns={columns} locale={locale} />
+      )}
+
+      {held ? (
+        <div className="space-y-2">
+          <p className="px-1 text-[12px] leading-snug text-ink-soft">
+            {t(
+              "scenarios.levers.lead",
+              "The levers below apply to every column: the base plan and the selected template both carry them.",
+            )}
+          </p>
+          <LeverRail
+            view={held}
+            edits={edits}
+            recomputing={baseQuery.isFetching || templateQuery.isFetching}
+            error={baseRefusal?.text ?? null}
+            refusedKey={refusedLeverKey}
+            onChange={onChange}
+            onReset={onReset}
+            onAdopt={onAdopt}
           />
-          <CovenantPanel
-            baseline={baseline}
-            scenario={scenario}
-            covenants={covenants}
-            active={active}
-          />
-          {!active && (
-            <p className="text-[12px] text-ink-soft px-1">
-              Pick a template or drag a driver to see the scenario column fill
-              in. Net debt / EBITDA, current ratio and your covenants update
-              live as you move the sliders.
-            </p>
-          )}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -263,15 +345,19 @@ export default function Scenarios() {
   useActivePeriodFallback();
   const period = useActivePeriod();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  if (!period.statements) {
+  if (!period.id) {
     return (
       <div className="max-w-[1560px] space-y-8">
         <PageHeader
           hero
-          eyebrow="Scenario planning"
-          title={<>Stress-test your numbers <span className="text-grad">before they happen</span>.</>}
-          subtitle="Model what-if changes on top of a real trial balance — revenue or rent drops, cost shocks, slower collections — and see the impact on EBITDA, leverage and covenants. Upload or open a period to begin; your actuals are never changed."
+          eyebrow={t("scenarios.empty.eyebrow", "Scenario planning")}
+          title={t("scenarios.empty.title", "Stress-test your plan before it happens")}
+          subtitle={t(
+            "scenarios.empty.subtitle",
+            "Scenarios run named sets of shocks through the forecast engine: sales volume, selling and purchase prices, operating costs and working-capital days. Upload or open a period to begin; your actuals are never changed.",
+          )}
         />
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -280,36 +366,21 @@ export default function Scenarios() {
             data-testid="scenarios-empty-dashboard"
             className="inline-flex items-center gap-1.5 rounded-lg ask-ai-anim-fill [animation-duration:10s] border border-brand/40 px-5 py-2.5 text-[13.5px] font-medium text-ink hover:border-brand/60 transition-colors"
           >
-            Go to dashboard
+            {t("scenarios.empty.dashboard", "Go to dashboard")}
           </button>
           <button
             type="button"
-            onClick={() =>
-              openAskCfoAi(
-                "What can scenario planning do for me once my trial balance is uploaded? Walk me through the what-if levers and what they change.",
-              )
-            }
+            onClick={() => openAskCfoAi(t("scenarios.empty.askPrompt"))}
             data-testid="scenarios-empty-ask-cfo-ai"
             className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-rule bg-surface/70 backdrop-blur text-[13px] font-medium text-ink hover:bg-bg-2/60 hover:border-rule-strong transition-colors"
           >
             <Sparkles size={16} strokeWidth={2} className="text-brand-d" />
-            Ask CFO AI
+            {t("scenarios.empty.ask", "Ask CFO AI")}
           </button>
         </div>
       </div>
     );
   }
 
-  return (
-    <>
-      <ScenarioProvider>
-        <ScenariosInner
-          statements={period.statements}
-          periodLabel={period.label}
-          lineItems={period.lineItems ?? []}
-          metricRows={period.metrics ?? []}
-        />
-      </ScenarioProvider>
-    </>
-  );
+  return <ScenariosEngine periodId={period.id} periodLabel={period.label ?? null} />;
 }

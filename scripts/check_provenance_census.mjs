@@ -600,6 +600,9 @@ const SURFACES = {
       "frontend/components/scenarios/AdjustmentEditor.tsx",
       "frontend/components/scenarios/CovenantPanel.tsx",
       "frontend/pages/cfo/Scenarios.tsx",
+      // plan/2 B13 (minimal cut): the page's figures now render here, every
+      // one a served projection through <ProjectedAmount>; the floor stays 0.
+      "frontend/components/scenarios/ScenarioOutcome.tsx",
     ],
   },
   "decisions-alerts": {
