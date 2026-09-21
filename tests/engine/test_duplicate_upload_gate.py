@@ -1278,7 +1278,7 @@ def test_a_move_of_an_analysed_book_is_a_free_correction(world):
 # ── Doubles must be faithful ────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("method", ["select", "update", "insert", "delete", "delete_object", "signed_url"])
+@pytest.mark.parametrize("method", ["select", "update", "insert", "upsert", "delete", "delete_object", "signed_url"])
 def test_the_fake_database_takes_the_real_clients_signature(method):
     """A double that accepts a call the real client rejects hid two outages
     once (CLAUDE.md §21, FakeStore). Same parameters, same kinds."""

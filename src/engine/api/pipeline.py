@@ -56,6 +56,10 @@ from . import _period_detect
 # orphaned; the actual re-filing is delegated back to stage_persist via
 # the hint, so there is no second implementation of "which period".
 from . import _period_move
+# What the plan COUNTED, per document, where the browser cannot write it
+# (verifier lens S): whether a run is metered, and what the settlement
+# records. See `_needs_metering` and `_commit_pipeline_quota`.
+from . import _quota_ledger
 from . import _ratio_units
 from . import _reconcile
 from . import _supabase
@@ -3910,10 +3914,23 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 "or billed", document_id,
             )
             settle_as_success = False
+        if settle_as_success and run.doc_reserved and _run_book_already_counted(document_id):
+            # ONE COUNT PER BOOK, whatever entry reserved (verifier lens S):
+            # the document — or a live copy of the same book — was already
+            # counted (the quota ledger). Released, never committed or billed.
+            logger.error(
+                "[pipeline][billing] REFUSED commit for document=%s — its book was "
+                "already counted; released instead, never counted or billed", document_id,
+            )
+            settle_as_success = False
 
         if run.doc_reserved and run.user_id:
             if settle_as_success:
                 _ug.commit_document(run.user_id, was_extra=run.was_extra)
+                # The fact every later entry reads back: THIS document was
+                # counted (a table the browser cannot write).
+                _quota_ledger.record_commit(document_id, user_id=run.user_id,
+                                            was_extra=run.was_extra, month=_ug._month_bucket())
                 # WS2 — a successful PAID EXTRA records one usage unit on the
                 # user's Stripe metered item. Idempotency key = document_id.
                 if run.was_extra:
@@ -3990,6 +4007,19 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
             "[pipeline] _commit_pipeline_quota(%s, success=%s) failed",
             document_id, success,
         )
+
+
+def _run_book_already_counted(document_id: str) -> bool:
+    """The settlement's backstop: the document as it is NOW — is its book
+    already counted? Unknown (unreadable) → False: the run's own
+    reservation is settled as it always was."""
+    try:
+        with _supabase.admin() as ac:
+            found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] settlement: could not re-read document %s", document_id)
+        return False
+    return bool(_book_already_counted(dict(found[0]) if found else None))
 
 
 def _enter_run(doc: Dict[str, Any], user_id: str) -> "_doc_dedupe.Entry":
@@ -4071,20 +4101,55 @@ def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
         _ug_release.release_document(orphan.user_id, was_extra=orphan.was_extra)
 
 
-def _holds_no_analysis(entry: "_doc_dedupe.Entry") -> bool:
-    """True when the document entering a RE-RUN holds no analysis, read
-    under the entry's lock: it was never analysed (a failed first run, a
-    402 the user dismissed, a run a restart killed) or its last run failed.
+def _book_already_counted(row: Optional[Dict[str, Any]]) -> Optional[bool]:
+    """Has the plan already COUNTED this document's book? True when the
+    document itself, or any live copy of the same book (company, uploader,
+    content, scope, period — `_doc_dedupe.book_copy_ids`), carries a commit
+    in the quota ledger (`_quota_ledger`, a table the browser cannot
+    write). None when that cannot be read."""
+    if not row:
+        return None
+    ids = _doc_dedupe.book_copy_ids(row)
+    if ids is None:
+        return None
+    committed = _quota_ledger.committed_ids(ids)
+    if committed is None:
+        return None
+    return bool(committed)
 
-    Such a re-run is the document's first successful analysis, so it is
-    metered exactly like /run (2026-09-21, verifier lens Q probes
-    `test_probe_failed_then_rerun_success_is_never_counted` and
-    `..._sixteen_unique_books_via_fail_then_rerun_never_hit_the_402`). It
-    used to reserve nothing: a book whose first run failed and whose Docs-
-    panel re-run succeeded was never counted, and POST /retry on a
-    402-refused upload analysed it past the cap with no dialog at all. Only
-    an ANALYSED document's re-run — a correction — is unmetered."""
-    return str(entry.status or "").strip().lower() != "analyzed"
+
+def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:
+    """Is THIS claimed run the book's FIRST analysis — the one the meter
+    reserves, commits and (above the cap) bills?
+
+      * an ANALYSED document re-runs unmetered (a correction of a book the
+        plan counted, or analysed before the meter existed);
+      * a document whose book the plan already COUNTED re-runs unmetered,
+        whatever its status says now (verifier lens S, 2026-09-21);
+      * anything else — a failed first run, a 402 the user dismissed, a run
+        a restart killed — is metered exactly like /run (lens Q).
+
+    THE STATUS IS NOT THE RECORD (lens S). This used to be `status !=
+    analyzed` alone. A counted book goes back to `failed` whenever a free
+    correction re-run of it fails (the re-run has already deleted its
+    period; a PDF on an empty Anthropic balance, §24), and the next /retry,
+    the failed banner's /run or a re-upload of the same bytes then counted
+    it a second time — at the cap as a PAID EXTRA. What the plan counted is
+    now read from the quota ledger the settlement writes. When the ledger
+    cannot be read the status rule decides, logged."""
+    if str(entry.status or "").strip().lower() == "analyzed":
+        return False
+    counted = _book_already_counted(entry.row)
+    if counted is None:
+        logger.error(
+            "[pipeline][quota] the quota ledger could not be read for document %s — metering "
+            "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
+            entry.row.get("id"), entry.status)
+        return True
+    if counted:
+        logger.info("[pipeline][quota] document %s: its book was already counted — re-run "
+                    "unmetered", entry.row.get("id"))
+    return not counted
 
 
 def _start_rerun(doc: Dict[str, Any], caller_id: str, start: Any) -> "_doc_dedupe.Entry":
@@ -4093,9 +4158,10 @@ def _start_rerun(doc: Dict[str, Any], caller_id: str, start: Any) -> "_doc_dedup
     (`_doc_dedupe.enter_analysis`, RERUN — the one-run-per-document claim
     and the duplicate look, under the lock), then
 
-      * a document that holds an analysis re-runs UNMETERED (a correction
-        of a book already counted — it reserves, settles and bills nothing);
-      * a document that holds none is its FIRST successful analysis and is
+      * a document that holds an analysis, or whose book the plan already
+        counted (the quota ledger — `_needs_metering`), re-runs UNMETERED
+        (a correction: it reserves, settles and bills nothing);
+      * anything else is the book's FIRST successful analysis and is
         metered exactly like /run (`_meter_first_analysis`: the grant for
         this document, else the meter; 402 / 429 refuse it).
 
@@ -4111,7 +4177,7 @@ def _start_rerun(doc: Dict[str, Any], caller_id: str, start: Any) -> "_doc_dedup
             # first analysis goes back now, unbilled (verifier P-B).
             _ug.cancel_extra_grant(doc_id)
         return entry
-    metered = _holds_no_analysis(entry)
+    metered = _needs_metering(entry)
     if not metered:
         # An analysed document never spends a confirmed extra.
         _ug.cancel_extra_grant(doc_id)
@@ -4207,6 +4273,14 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
         return "skipped", {}
     enqueued = False
     try:
+        if not _needs_metering(entry):
+            # Its book was already counted (the quota ledger): recovered
+            # unmetered, like every other re-run of a counted book.
+            _admin_set_status(doc_id, "queued", pipeline_started_at=_now_iso())
+            _doc_dedupe.mark_running(doc_id)
+            _enqueue(doc_id)
+            enqueued = True
+            return "recovered", {}
         try:
             decision = _ug.reserve_document(caller_id)
         except Exception:  # noqa: BLE001 — an unreachable meter refuses
@@ -6094,13 +6168,22 @@ def build_router() -> APIRouter:
             # failure (gap D — "consumed" = success only). The ledger entry
             # `_meter_first_analysis` writes is what lets the terminal settle
             # exactly this one; a 402 / 429 is raised from there.
-            decision = _meter_first_analysis(req.document_id, user_id)
+            #
+            # A document whose BOOK the plan already counted (the quota
+            # ledger — its correction re-run failed and the failed banner's
+            # Retry lands here) is re-analysed unmetered: no reservation, no
+            # dialog, no second count (verifier lens S, `_needs_metering`).
+            decision = (_meter_first_analysis(req.document_id, user_id)
+                        if _needs_metering(entry) else None)
+            if decision is None:
+                from . import _usage_gate as _ug_counted
+                _ug_counted.cancel_extra_grant(req.document_id)
             # `allowed` or `disabled` — proceed with enqueue.
 
             # Stamp the was_extra flag on the row for visibility (support,
             # the audit scripts). The settlement reads the LEDGER, never
             # this stamp — a later re-run of the row would still carry it.
-            is_extra_reservation = decision.was_extra
+            is_extra_reservation = bool(decision is not None and decision.was_extra)
             if req.output_language or is_extra_reservation:
                 patch: Dict[str, Any] = {}
                 if req.output_language:

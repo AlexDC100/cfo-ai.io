@@ -7,8 +7,9 @@ analysed and counted again. The owner's account read 51 for September. This
 script puts every counter back to what the owner's rule says it is:
 
   uploads                   = unique successful documents that month
-                              (analysed, not an archived duplicate, one per
-                              company + content + period);
+                              (analysed — or counted in the quota ledger —
+                              not an archived duplicate, one per company +
+                              content + period);
   extra_docs_billed_period  = unique successful documents this month beyond
                               the plan's included documents;
   extra_docs_pending        = 0.
@@ -59,7 +60,7 @@ def _add_src_to_path() -> None:
 
 _add_src_to_path()
 
-from engine.api import _doc_dedupe, _pricing_config, _pricing_tiers, _supabase  # noqa: E402
+from engine.api import _doc_dedupe, _pricing_config, _pricing_tiers, _quota_ledger, _supabase  # noqa: E402
 from engine.api._quota_recompute import RecomputePlan, recompute  # noqa: E402
 
 PAGE = 1000
@@ -106,9 +107,16 @@ def _read(user: Optional[str], hash_missing: bool) -> Dict[str, List[Dict[str, A
                 if h:
                     d["content_hash"] = h
                     hashed += 1
-    print("[recompute] loaded %d user_usage rows, %d subscriptions, %d documents (%d hashed from storage)"
-          % (len(usage), len(subs), len(docs), hashed))
-    return {"usage": usage, "subs": subs, "docs": docs,
+    # The documents the meter COUNTED (the quota ledger): a counted book
+    # whose correction re-run later failed is still counted — the restore
+    # must not hand back a count the meter holds (verifier lens S).
+    counted = _quota_ledger.all_committed_ids()
+    if counted is None:
+        raise RuntimeError("the quota ledger (document_quota_ledger) could not be read — "
+                           "apply supabase/schema_phase_document_quota_ledger.sql first")
+    print("[recompute] loaded %d user_usage rows, %d subscriptions, %d documents (%d hashed from "
+          "storage), %d counted in the quota ledger" % (len(usage), len(subs), len(docs), hashed, len(counted)))
+    return {"usage": usage, "subs": subs, "docs": docs, "counted_ids": counted,
             "period_end_of": {str(p.get("id")): str(p.get("period_end") or "")
                               for p in periods if p.get("id")}}
 
@@ -202,7 +210,8 @@ def apply(plan: RecomputePlan, *, user: Optional[str] = None, hash_missing: bool
             plan = recompute(fresh["docs"], [u for u in fresh["usage"] if str(u.get("user_id")) in moved],
                              [s for s in fresh["subs"] if str(s.get("user_id")) in moved],
                              current_month=plan.current_month, included_docs_for=included_docs_for,
-                             period_end_of=fresh.get("period_end_of"))
+                             period_end_of=fresh.get("period_end_of"),
+                             counted_ids=fresh.get("counted_ids"))
         bad, _moved = _recount(ac, plan, final=True)
     return bad
 
@@ -224,7 +233,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     plan = recompute(data["docs"], data["usage"], data["subs"],
                      current_month=_pricing_tiers.current_month_bucket(),
                      included_docs_for=included_docs_for,
-                     period_end_of=data.get("period_end_of"))
+                     period_end_of=data.get("period_end_of"),
+                     counted_ids=data.get("counted_ids"))
     print_plan(plan)
     if not args.apply:
         print("\n[recompute] DRY RUN — nothing written. Re-run with --apply to write.")

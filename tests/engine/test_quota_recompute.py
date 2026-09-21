@@ -157,6 +157,24 @@ def test_the_audit_still_lists_a_copy_of_an_original_deleted_after_it():
     assert [(f.document_id, f.duplicate_of) for f in found] == [("copy", "orig")]
 
 
+def test_a_counted_book_whose_correction_failed_is_never_handed_back():
+    """Verifier lens S: the meter counted `book` at its first /run; a free
+    correction re-run of it then FAILED (its status is `failed`). The meter
+    never gives that count back — neither may the restore. The quota
+    ledger's committed documents stay successful; a copy of the same bytes
+    re-uploaded afterwards collapses into it."""
+    docs = [d("book", status="failed"), d("reupload", created="2026-09-21T10:00:00+00:00"),
+            d("never", h=H2, status="failed")]
+    usage = [{"id": "u", "user_id": U1, "month": "2026-09", "uploads": 1, "uploads_reserved": 0}]
+    assert unique_successful_by_user_month(docs, counted_ids={"book"}) == {(U1, "2026-09"): 1}
+    plan = recompute(docs, usage, [], current_month="2026-09", included_docs_for=_included,
+                     counted_ids={"book"})
+    assert plan.usage[0].uploads_after == 1 and not plan.usage_writes()
+    # without the ledger the failed original drops out and the re-upload
+    # alone is the book — still one, never two
+    assert unique_successful_by_user_month(docs) == {(U1, "2026-09"): 1}
+
+
 # ── The scripts, end to end over the double ─────────────────────────────
 
 

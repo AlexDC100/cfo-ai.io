@@ -104,6 +104,25 @@ class FakeDB:
                 self.rows(table).append(dict(r))
             return [dict(r) for r in body] if returning else []
 
+    def upsert(self, table: str, rows: Any, *, on_conflict: str,
+               returning: bool = False) -> List[Dict[str, Any]]:
+        """PostgREST `resolution=merge-duplicates`: a row whose conflict
+        columns match an existing one UPDATES only the columns it carries."""
+        with self.lock:
+            body = rows if isinstance(rows, list) else [rows]
+            keys = [k.strip() for k in on_conflict.split(",") if k.strip()]
+            out = []
+            for r in body:
+                hit = next((x for x in self.rows(table)
+                            if all(str(x.get(k)) == str(r.get(k)) for k in keys)), None)
+                if hit is None:
+                    hit = dict(r)
+                    self.rows(table).append(hit)
+                else:
+                    hit.update(copy.deepcopy(r))
+                out.append(dict(hit))
+            return out if returning else []
+
     def delete(self, table: str, *, filters: Dict[str, str]) -> None:
         with self.lock:
             self.tables[table] = [r for r in self.rows(table)

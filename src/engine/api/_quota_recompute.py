@@ -10,7 +10,10 @@ successfully, once per (company, content, period) — a duplicate is not
 counted and a failure is never counted. So, for every user and month:
 
   uploads (user_usage)                → the unique successful documents
-                                        that user uploaded that month;
+                                        that user uploaded that month (a
+                                        document the quota ledger records as
+                                        counted is successful even after a
+                                        correction re-run of it failed);
   extra_docs_billed_period (current)  → the unique successful documents
                                         this month beyond the plan's
                                         included documents;
@@ -90,7 +93,8 @@ def _int(v: Any) -> int:
 
 
 def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]],
-                                    period_end_of: Optional[Dict[str, str]] = None) -> Dict[tuple, int]:
+                                    period_end_of: Optional[Dict[str, str]] = None,
+                                    counted_ids: Optional[Iterable[str]] = None) -> Dict[tuple, int]:
     """{(user_id, 'YYYY-MM'): unique successful documents}. `uploaded_by` is
     the account; a unique document counts in the month its FIRST analysed
     copy was created (UTC).
@@ -99,7 +103,12 @@ def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]],
     (2026-09-21, verifier lens Q): the live gate refuses a re-upload of any
     earlier analysed copy with no month limit, so a September copy of an
     August book is the same (company, content, period) and never a new
-    September document — per-month buckets counted it again."""
+    September document — per-month buckets counted it again.
+
+    `counted_ids` — the quota ledger's committed documents: a book the meter
+    counted stays counted after a correction re-run of it failed (verifier
+    lens S), so the restore never hands back a count the meter still holds."""
+    counted = set(str(i) for i in (counted_ids or ()))
     by_user: Dict[str, List[Dict[str, Any]]] = {}
     for d in documents:
         uid = str(d.get("uploaded_by") or "")
@@ -108,7 +117,7 @@ def unique_successful_by_user_month(documents: Iterable[Dict[str, Any]],
         by_user.setdefault(uid, []).append(d)
     counts: Dict[tuple, int] = {}
     for uid, rows in by_user.items():
-        for kept in unique_successful(rows, period_end_of):
+        for kept in unique_successful(rows, period_end_of, counted_ids=counted):
             key = (uid, month_of(kept.get("created_at")))
             counts[key] = counts.get(key, 0) + 1
     return counts
@@ -122,12 +131,14 @@ def recompute(
     current_month: str,
     included_docs_for: Callable[[Dict[str, Any]], "tuple[str, int]"],
     period_end_of: Optional[Dict[str, str]] = None,
+    counted_ids: Optional[Iterable[str]] = None,
 ) -> RecomputePlan:
     """The whole restore, decided. `included_docs_for(subscription_row)` →
     (plan_key, included documents per month); `period_end_of` (period id →
     period_end) lets an undated copy take the period it was analysed into,
-    as the live gate does."""
-    counts = unique_successful_by_user_month(documents, period_end_of)
+    as the live gate does; `counted_ids` (the quota ledger's committed
+    documents) keeps a counted book counted after its analysis failed."""
+    counts = unique_successful_by_user_month(documents, period_end_of, counted_ids)
     plan = RecomputePlan(current_month=current_month)
     for u in sorted(usage_rows, key=lambda r: (str(r.get("user_id")), str(r.get("month")))):
         uid, month = str(u.get("user_id") or ""), str(u.get("month") or "")
