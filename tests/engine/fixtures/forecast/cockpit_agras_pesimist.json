@@ -1,0 +1,3672 @@
+{
+ "base_period": {
+  "figures": {
+   "cash": {
+    "amount_minor": 116804704,
+    "kind": "actual"
+   },
+   "ebitda": {
+    "amount_minor": 1077637824,
+    "kind": "actual"
+   },
+   "ebitda_margin_ppm": 97261,
+   "equity": {
+    "amount_minor": 2392408372,
+    "kind": "actual"
+   },
+   "net_income": {
+    "amount_minor": 753367602,
+    "kind": "actual"
+   },
+   "revenue": {
+    "amount_minor": 11079830914,
+    "kind": "actual"
+   },
+   "total_assets": {
+    "amount_minor": 3931911409,
+    "kind": "actual"
+   }
+  },
+  "label": "FY2025",
+  "period_end": "2025-12-31"
+ },
+ "bridge": {
+  "horizon": {
+   "closing_cash_base": {
+    "amount_minor": 3542856258,
+    "kind": "projected"
+   },
+   "closing_cash_case": {
+    "amount_minor": 1143844732,
+    "kind": "projected"
+   },
+   "period": "FY2030",
+   "steps": [
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "revenue",
+     "label": {
+      "en": "Revenue",
+      "ro": "Venituri"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -2841783839,
+      "kind": "projected"
+     },
+     "id": "costs",
+     "label": {
+      "en": "Operating costs",
+      "ro": "Costuri de exploatare"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -2841783839,
+      "kind": "projected"
+     },
+     "id": "ebitda",
+     "label": {
+      "en": "EBITDA",
+      "ro": "EBITDA"
+     },
+     "subtotal": true,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -11913100,
+      "kind": "projected"
+     },
+     "id": "working_capital",
+     "label": {
+      "en": "Working capital",
+      "ro": "Capital de lucru"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "capex",
+     "label": {
+      "en": "Capital expenditure",
+      "ro": "Investiții"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 454685413,
+      "kind": "projected"
+     },
+     "id": "interest_tax",
+     "label": {
+      "en": "Interest and tax",
+      "ro": "Dobânzi și impozit"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "dividends",
+     "label": {
+      "en": "Dividends",
+      "ro": "Dividende"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "debt",
+     "label": {
+      "en": "Debt and the credit line",
+      "ro": "Datorii și linia de credit"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -2399011526,
+      "kind": "projected"
+     },
+     "id": "cash",
+     "label": {
+      "en": "Closing cash",
+      "ro": "Numerar la sfârșit"
+     },
+     "subtotal": false,
+     "total": true
+    }
+   ],
+   "sums_exactly": true,
+   "window": "horizon"
+  },
+  "year_one": {
+   "closing_cash_base": {
+    "amount_minor": 772123738,
+    "kind": "projected"
+   },
+   "closing_cash_case": {
+    "amount_minor": 328402018,
+    "kind": "projected"
+   },
+   "period": "2026-12",
+   "steps": [
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "revenue",
+     "label": {
+      "en": "Revenue",
+      "ro": "Venituri"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -515391714,
+      "kind": "projected"
+     },
+     "id": "costs",
+     "label": {
+      "en": "Operating costs",
+      "ro": "Costuri de exploatare"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -515391714,
+      "kind": "projected"
+     },
+     "id": "ebitda",
+     "label": {
+      "en": "EBITDA",
+      "ro": "EBITDA"
+     },
+     "subtotal": true,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -10792680,
+      "kind": "projected"
+     },
+     "id": "working_capital",
+     "label": {
+      "en": "Working capital",
+      "ro": "Capital de lucru"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "capex",
+     "label": {
+      "en": "Capital expenditure",
+      "ro": "Investiții"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 82462674,
+      "kind": "projected"
+     },
+     "id": "interest_tax",
+     "label": {
+      "en": "Interest and tax",
+      "ro": "Dobânzi și impozit"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "dividends",
+     "label": {
+      "en": "Dividends",
+      "ro": "Dividende"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": 0,
+      "kind": "projected"
+     },
+     "id": "debt",
+     "label": {
+      "en": "Debt and the credit line",
+      "ro": "Datorii și linia de credit"
+     },
+     "subtotal": false,
+     "total": false
+    },
+    {
+     "figure": {
+      "amount_minor": -443721720,
+      "kind": "projected"
+     },
+     "id": "cash",
+     "label": {
+      "en": "Closing cash",
+      "ro": "Numerar la sfârșit"
+     },
+     "subtotal": false,
+     "total": true
+    }
+   ],
+   "sums_exactly": true,
+   "window": "year_one"
+  }
+ },
+ "case": {
+  "id": "pesimist",
+  "label": {
+   "en": "Pessimist",
+   "ro": "Pesimist"
+  },
+  "modified": false,
+  "name": null
+ },
+ "cases": [
+  {
+   "basis": {
+    "en": "the engine's forecast: every lever at the value its basis measures or states",
+    "ro": "prognoza motorului: fiecare pârghie la valoarea măsurată sau declarată în baza ei"
+   },
+   "id": "base",
+   "label": {
+    "en": "Base",
+    "ro": "Bază"
+   },
+   "levers": {}
+  },
+  {
+   "basis": {
+    "en": "revenue grows at 2.5% (the base forecast); inflation at the lower edge of the BNR target band, 1.5% (BNR, confirmed 2026-09-08)",
+    "ro": "veniturile cresc cu 2,5% (prognoza de bază); inflația la marginea de jos a intervalului țintei BNR, 1,5% (BNR, confirmat 2026-09-08)"
+   },
+   "id": "optimist",
+   "label": {
+    "en": "Optimist",
+    "ro": "Optimist"
+   },
+   "levers": {
+    "inflation": [
+     "0.015",
+     "0.015",
+     "0.015",
+     "0.015",
+     "0.015"
+    ],
+    "revenue_growth": [
+     "0.025",
+     "0.025",
+     "0.025",
+     "0.025",
+     "0.025"
+    ]
+   }
+  },
+  {
+   "basis": {
+    "en": "inflation on the BNR's projected path (6.1% 2026, 3.4% 2027, 2.8% 2028, 2.8% 2029, 2.8% 2030; BNR Inflation Report, 2026-08-13); raw materials dearer by 9.65%, the rise in manufacturing producer prices over the last twelve months (INS, July 2026)",
+    "ro": "inflația pe traiectoria proiectată de BNR (6,1% 2026, 3,4% 2027, 2,8% 2028, 2,8% 2029, 2,8% 2030; BNR, Raport asupra inflației, 2026-08-13); materia primă mai scumpă cu 9,65%, cât au crescut prețurile producției industriale în industria prelucrătoare în ultimele douăsprezece luni (INS, iulie 2026)"
+   },
+   "id": "pesimist",
+   "label": {
+    "en": "Pessimist",
+    "ro": "Pesimist"
+   },
+   "levers": {
+    "inflation": [
+     "0.061",
+     "0.034",
+     "0.028",
+     "0.028",
+     "0.028"
+    ],
+    "raw_material_price": [
+     "0.0965"
+    ]
+   }
+  }
+ ],
+ "chart": {
+  "cash": [
+   {
+    "cash_before_funding_minor": 116804704,
+    "cash_minor": 116804704,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "annual",
+    "kind": "actual",
+    "period": "FY2025"
+   },
+   {
+    "cash_before_funding_minor": 112209505,
+    "cash_minor": 112209505,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-01"
+   },
+   {
+    "cash_before_funding_minor": 120436788,
+    "cash_minor": 120436788,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-02"
+   },
+   {
+    "cash_before_funding_minor": 141496501,
+    "cash_minor": 141496501,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-03"
+   },
+   {
+    "cash_before_funding_minor": 161878864,
+    "cash_minor": 161878864,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-04"
+   },
+   {
+    "cash_before_funding_minor": 182942592,
+    "cash_minor": 182942592,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-05"
+   },
+   {
+    "cash_before_funding_minor": 203328757,
+    "cash_minor": 203328757,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-06"
+   },
+   {
+    "cash_before_funding_minor": 224396330,
+    "cash_minor": 224396330,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-07"
+   },
+   {
+    "cash_before_funding_minor": 245465798,
+    "cash_minor": 245465798,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-08"
+   },
+   {
+    "cash_before_funding_minor": 265857396,
+    "cash_minor": 265857396,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-09"
+   },
+   {
+    "cash_before_funding_minor": 286930472,
+    "cash_minor": 286930472,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-10"
+   },
+   {
+    "cash_before_funding_minor": 307325487,
+    "cash_minor": 307325487,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-11"
+   },
+   {
+    "cash_before_funding_minor": 328402018,
+    "cash_minor": 328402018,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "monthly",
+    "kind": "projected",
+    "period": "2026-12"
+   },
+   {
+    "cash_before_funding_minor": 536268092,
+    "cash_minor": 536268092,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "annual",
+    "kind": "projected",
+    "period": "FY2027"
+   },
+   {
+    "cash_before_funding_minor": 744635888,
+    "cash_minor": 744635888,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "annual",
+    "kind": "projected",
+    "period": "FY2028"
+   },
+   {
+    "cash_before_funding_minor": 944115046,
+    "cash_minor": 944115046,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "annual",
+    "kind": "projected",
+    "period": "FY2029"
+   },
+   {
+    "cash_before_funding_minor": 1143844732,
+    "cash_minor": 1143844732,
+    "funding_line_minor": 0,
+    "gap": false,
+    "granularity": "annual",
+    "kind": "projected",
+    "period": "FY2030"
+   }
+  ],
+  "ebitda": [
+   {
+    "amount_minor": 1077637824,
+    "kind": "actual",
+    "period": "FY2025"
+   },
+   {
+    "amount_minor": 588211829,
+    "kind": "projected",
+    "period": "FY2026"
+   },
+   {
+    "amount_minor": 580856880,
+    "kind": "projected",
+    "period": "FY2027"
+   },
+   {
+    "amount_minor": 587135772,
+    "kind": "projected",
+    "period": "FY2028"
+   },
+   {
+    "amount_minor": 593368156,
+    "kind": "projected",
+    "period": "FY2029"
+   },
+   {
+    "amount_minor": 599547165,
+    "kind": "projected",
+    "period": "FY2030"
+   }
+  ],
+  "funding_gap": false
+ },
+ "client": {
+  "budget_ms": 1500,
+  "debounce_ms": 150
+ },
+ "cockpit_version": "forecast_cockpit/1",
+ "company_name": "agras",
+ "conventions": [
+  {
+   "id": "wc_unwind_ramp",
+   "sentence": "a working-capital balance leaves the level the base plan gives it one day of flow per elapsed day, over its own days on hand, so a change in sales or terms reaches cash across that window and never in one month. Annual periods land on the new level"
+  },
+  {
+   "id": "debt_timing",
+   "sentence": "a scheduled draw lands in the first period of its plan year and a scheduled repayment in the last, so a year of interest is charged on what was drawn and none is saved on what is repaid"
+  }
+ ],
+ "cost_behaviour": [
+  {
+   "base_minor": 7055711468,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Cost of sales",
+    "ro": "Costul vânzărilor"
+   },
+   "pool": "cost_of_sales",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#cogs_variable",
+   "sentence": "cost of sales follows volume in full: its fixed share is nil by convention, and only a behaviour override moves it",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 2064273400,
+   "fixed_share_ppm": 1000000,
+   "label": {
+    "en": "Personnel",
+    "ro": "Personal"
+   },
+   "pool": "personnel",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 20,642,734.00 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 250458477,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Energy and utilities",
+    "ro": "Energie și utilități"
+   },
+   "pool": "energy_utilities",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 100164129,
+   "fixed_share_ppm": 1000000,
+   "label": {
+    "en": "Rent and insurance",
+    "ro": "Chirii și asigurări"
+   },
+   "pool": "rent_insurance",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 1,001,641.29 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 86780036,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Transport and logistics",
+    "ro": "Transport și logistică"
+   },
+   "pool": "transport_logistics",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 291353237,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Third-party services",
+    "ro": "Servicii terți"
+   },
+   "pool": "third_party_services",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 51786243,
+   "fixed_share_ppm": 842860,
+   "label": {
+    "en": "Other operating costs",
+    "ro": "Alte cheltuieli de exploatare"
+   },
+   "pool": "other_operating",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 436,485.34 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 140675155,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Non-inventory materials",
+    "ro": "Materiale nestocate"
+   },
+   "pool": "materials_non_inventory",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#classification",
+   "sentence": "fixed share by the convention classification of this pool's account prefixes by the nature of the cost (fixed-classified 0.00 of the pool)",
+   "tier": "convention"
+  },
+  {
+   "base_minor": 0,
+   "fixed_share_ppm": 0,
+   "label": {
+    "en": "Unallocated operating costs",
+    "ro": "Cheltuieli nealocate"
+   },
+   "pool": "unallocated_operating",
+   "rule_id": "packs/forecast/cost_behaviour.yaml#nil_pool",
+   "sentence": "this cost pool is nil on this book",
+   "tier": "convention"
+  }
+ ],
+ "currency": "RON",
+ "dscr_by_year": [
+  {
+   "denominator": {
+    "amount_minor": 247771259,
+    "kind": "projected"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 588211829,
+    "kind": "projected"
+   },
+   "period": "FY2026",
+   "status": "above",
+   "value_micros": 2374012
+  },
+  {
+   "denominator": {
+    "amount_minor": 247771255,
+    "kind": "projected"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 580856880,
+    "kind": "projected"
+   },
+   "period": "FY2027",
+   "status": "above",
+   "value_micros": 2344327
+  },
+  {
+   "denominator": {
+    "amount_minor": 247847400,
+    "kind": "projected"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 587135772,
+    "kind": "projected"
+   },
+   "period": "FY2028",
+   "status": "above",
+   "value_micros": 2368941
+  },
+  {
+   "denominator": {
+    "amount_minor": 247771255,
+    "kind": "projected"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 593368156,
+    "kind": "projected"
+   },
+   "period": "FY2029",
+   "status": "above",
+   "value_micros": 2394822
+  },
+  {
+   "denominator": {
+    "amount_minor": 247771255,
+    "kind": "projected"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 599547165,
+    "kind": "projected"
+   },
+   "period": "FY2030",
+   "status": "above",
+   "value_micros": 2419761
+  }
+ ],
+ "engine_request": {
+  "overrides": {
+   "inflation": [
+    "0.061",
+    "0.034",
+    "0.028",
+    "0.028",
+    "0.028"
+   ]
+  },
+  "shocks": [
+   {
+    "driver_key": "input_price_index",
+    "id": "cockpit.raw_material_price",
+    "op": "level_pct",
+    "start_month": 1,
+    "value": "0.060272595393"
+   }
+  ]
+ },
+ "funding_line": {
+  "floor_minor": 0,
+  "priced_at": "book",
+  "rate_basis": "the funding line is priced at this book's own borrowing rate: annual rate = interest expense 277,930.35 / interest-bearing debt at the closing date 3,640,202.33",
+  "reference": null
+ },
+ "horizon": {
+  "monthly_months": 12,
+  "total_years": 5,
+  "years": [
+   "FY2026",
+   "FY2027",
+   "FY2028",
+   "FY2029",
+   "FY2030"
+  ]
+ },
+ "kind": "projection",
+ "levers": [
+  {
+   "basis": {
+    "en": "no comparable prior year and no sector median: the BNR inflation anchor 2.5%, a nominal continuation at constant volume · no sector median: this workspace carries no CAEN code",
+    "ro": "fără an anterior comparabil și fără mediană de sector: ancora de inflație BNR 2,5%, creștere nominală la volum constant · mediana sectorului nu se poate citi: firma nu are cod CAEN în spațiul de lucru"
+   },
+   "default": "0.025",
+   "display": {
+    "en": "2.5%",
+    "ro": "2,5%"
+   },
+   "engine_drivers": [
+    "revenue_growth"
+   ],
+   "follows": null,
+   "group": "primary",
+   "id": "revenue_growth",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Revenue growth / year",
+    "ro": "Creștere venituri/an"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "0.3",
+    "min": "-0.3",
+    "step": "0.001"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "no comparable book history is loaded, so revenue grows at the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08): a nominal continuation at constant real volume",
+    "rule_id": "packs/forecast/ro_macro.yaml#anchors.inflation",
+    "sector": null,
+    "tier": "macro"
+   },
+   "unit": "pct",
+   "value": "0.025"
+  },
+  {
+   "basis": {
+    "en": "BNR target 2.5% ±1.0 pp (confirmed 2026-09-08) · BNR projection 6.1% December 2026, 3.4% December 2027, 2.8% June 2028 (Banca Naţională a României — Raport asupra inflaţiei, august 2026, 2026-08-13) · INS: 6.17% in August 2026 (2026-09-11)",
+    "ro": "ținta BNR 2,5% ±1,0 pp (confirmată 2026-09-08) · proiecția BNR 6,1% decembrie 2026, 3,4% decembrie 2027, 2,8% iunie 2028 (Banca Naţională a României — Raport asupra inflaţiei, august 2026, 2026-08-13) · INS: 6,17% în august 2026 (2026-09-11)"
+   },
+   "default": "0.025",
+   "display": {
+    "en": "6.1%",
+    "ro": "6,1%"
+   },
+   "engine_drivers": [
+    "inflation"
+   ],
+   "follows": null,
+   "group": "primary",
+   "id": "inflation",
+   "inert": null,
+   "is_default": false,
+   "label": {
+    "en": "Inflation / year",
+    "ro": "Inflație/an"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "case",
+   "range": {
+    "max": "0.15",
+    "min": "0",
+    "step": "0.001"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "fixed costs follow the inflation anchor of 2.5000% for jurisdiction RO (Banca Naţională a României — flat inflation target, 2.5% ±1pp, stated as of 2026-09-08)",
+    "rule_id": "packs/forecast/ro_macro.yaml#anchors.inflation",
+    "series": [
+     {
+      "kind": "central bank projection",
+      "pack_address": "packs/forecast/ro_macro.yaml#series.bnr_inflation_projection",
+      "points": [
+       {
+        "at": "2026-12",
+        "value": "0.061"
+       },
+       {
+        "at": "2027-12",
+        "value": "0.034"
+       },
+       {
+        "at": "2028-06",
+        "value": "0.028"
+       }
+      ],
+      "published": "2026-08-13",
+      "series_id": "ro.bnr.raport_inflatie.2026_08",
+      "source": "Banca Naţională a României — Raport asupra inflaţiei, august 2026",
+      "source_url": "https://www.bnr.ro/25729-raport-asupra-inflatiei-august-2026",
+      "stated_as_of": "2026-09-21"
+     },
+     {
+      "kind": "official statistic",
+      "pack_address": "packs/forecast/ro_macro.yaml#series.ins_cpi_annual",
+      "points": [
+       {
+        "at": "2026-07",
+        "value": "0.0816"
+       },
+       {
+        "at": "2026-08",
+        "value": "0.0617"
+       }
+      ],
+      "published": "2026-09-11",
+      "series_id": "ro.ins.ipc.rata_anuala",
+      "source": "Institutul Naţional de Statistică — Indicii preţurilor de consum, august 2026",
+      "source_url": "https://insse.ro/cms/ro/tags/comunicat-indicele-preturilor-de-consum",
+      "stated_as_of": "2026-09-21"
+     }
+    ],
+    "tier": "macro"
+   },
+   "unit": "pct",
+   "value": [
+    "0.061",
+    "0.034",
+    "0.028",
+    "0.028",
+    "0.028"
+   ]
+  },
+  {
+   "basis": {
+    "en": "raw materials and consumables (accounts 601, 602) RON 44.1M = 62.5% of the RON 70.6M cost of sales in 2025, so a move in their price moves cost of sales by 62.5% of it · INS: manufacturing producer prices +9.65%, July 2026 on the year before",
+    "ro": "materii prime și consumabile (conturile 601, 602) 44,1 mil. lei = 62,5% din costul vânzărilor de 70,6 mil. lei în 2025, deci o mișcare a prețului lor mută costul vânzărilor cu 62,5% din ea · INS: prețurile producției industriale în industria prelucrătoare +9,65%, iulie 2026 față de anul anterior"
+   },
+   "default": "0",
+   "display": {
+    "en": "9.7%",
+    "ro": "9,7%"
+   },
+   "engine_drivers": [
+    "input_price_index"
+   ],
+   "follows": null,
+   "group": "primary",
+   "id": "raw_material_price",
+   "inert": null,
+   "is_default": false,
+   "label": {
+    "en": "Raw-material price (vs 2025)",
+    "ro": "Preț materie primă (față de 2025)"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "case",
+   "range": {
+    "max": "0.5",
+    "min": "-0.3",
+    "step": "0.01"
+   },
+   "shape": "scalar",
+   "source": {
+    "facts": {
+     "account_prefixes": [
+      "601",
+      "602"
+     ],
+     "cost_of_sales_minor": 7055711468,
+     "raw_material_minor": 4406901995
+    },
+    "series": [
+     {
+      "kind": "official statistic",
+      "pack_address": "packs/forecast/ro_macro.yaml#series.ins_ippi_manufacturing",
+      "points": [
+       {
+        "at": "2026-07",
+        "value": "0.0965"
+       }
+      ],
+      "published": "2026-09",
+      "series_id": "ro.ins.ippi.industria_prelucratoare.anual",
+      "source": "Institutul Naţional de Statistică — Indicii preţurilor producţiei industriale, iulie 2026 (industria prelucrătoare, iulie 2026 faţă de iulie 2025)",
+      "source_url": "https://insse.ro/cms/ro/tags/comunicat-ippi",
+      "stated_as_of": "2026-09-21"
+     }
+    ],
+    "tier": "book"
+   },
+   "unit": "pct",
+   "value": "0.0965"
+  },
+  {
+   "basis": {
+    "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) RON 20.6M in 2025; by default it grows with inflation · gross minimum wage RON 4,050 → RON 4,325 from July 2026 (+6.8%; HG, 2026-03-12)",
+    "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 20,6 mil. lei în 2025; implicit cresc cu inflația · salariul minim brut 4.050 lei → 4.325 lei de la iulie 2026 (+6,8%; HG, 2026-03-12)"
+   },
+   "default": "0.025",
+   "display": {
+    "en": "6.1%",
+    "ro": "6,1%"
+   },
+   "engine_drivers": [
+    "pool_level.personnel"
+   ],
+   "follows": "inflation",
+   "group": "primary",
+   "id": "wage_growth",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Wage growth / year (incl. minimum wage)",
+    "ro": "Creștere salarii/an (incl. salariul minim)"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "0.2",
+    "min": "0",
+    "step": "0.001"
+   },
+   "shape": "per_year",
+   "source": {
+    "facts": {
+     "personnel_minor": 2064273400
+    },
+    "follows": "inflation",
+    "series": [
+     {
+      "kind": "statutory",
+      "pack_address": "packs/forecast/ro_macro.yaml#series.minimum_wage_gross",
+      "points": [
+       {
+        "at": "2025-01",
+        "value": "4050"
+       },
+       {
+        "at": "2026-07",
+        "value": "4325"
+       }
+      ],
+      "published": "2026-03-12",
+      "series_id": "ro.hg.salariul_minim_brut",
+      "source": "Hotărârea Guvernului aprobată la 12 martie 2026 — salariul de bază minim brut pe ţară garantat în plată (Ministerul Muncii, Familiei, Tineretului şi Solidarităţii Sociale)",
+      "source_url": "https://mmuncii.gov.ro/salariul-de-baza-minim-brut-pe-tara-garantat-in-plata-se-majoreaza/",
+      "stated_as_of": "2026-09-21"
+     }
+    ],
+    "tier": "follows"
+   },
+   "unit": "pct",
+   "value": [
+    "0.061",
+    "0.034",
+    "0.028",
+    "0.028",
+    "0.028"
+   ]
+  },
+  {
+   "basis": {
+    "en": "energy and utilities (account 605) RON 2.5M = 2.3% of revenue in 2025; its variable part follows volume",
+    "ro": "energie și utilități (cont 605) 2,5 mil. lei = 2,3% din venituri în 2025; partea variabilă urmează volumul"
+   },
+   "default": "0",
+   "display": {
+    "en": "0.0%",
+    "ro": "0,0%"
+   },
+   "engine_drivers": [
+    "pool_level.energy_utilities"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "energy_price",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Energy price (vs 2025)",
+    "ro": "Preț energie (față de 2025)"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "default",
+   "range": {
+    "max": "1",
+    "min": "-0.5",
+    "step": "0.01"
+   },
+   "shape": "scalar",
+   "source": {
+    "facts": {
+     "account_prefixes": [
+      "605"
+     ],
+     "energy_minor": 250458477
+    },
+    "tier": "book"
+   },
+   "unit": "pct",
+   "value": "0"
+  },
+  {
+   "basis": {
+    "en": "a trial balance does not split purchases by currency; until the imported share is stated, the rate moves nothing",
+    "ro": "balanța nu separă achizițiile din import de cele interne; până declari ponderea importată, cursul nu mută nimic"
+   },
+   "default": "0",
+   "display": {
+    "en": "0.0%",
+    "ro": "0,0%"
+   },
+   "engine_drivers": [
+    "input_price_index"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "eur_ron",
+   "inert": {
+    "en": "a trial balance does not split purchases by currency; until the imported share is stated, the rate moves nothing",
+    "ro": "balanța nu separă achizițiile din import de cele interne; până declari ponderea importată, cursul nu mută nimic"
+   },
+   "is_default": true,
+   "label": {
+    "en": "EUR/RON on imported inputs (vs 2025)",
+    "ro": "Curs EUR/RON pe inputuri importate (față de 2025)"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "0.3",
+    "min": "-0.2",
+    "step": "0.005"
+   },
+   "shape": "scalar",
+   "source": {
+    "tier": "not_measurable"
+   },
+   "unit": "pct",
+   "value": "0"
+  },
+  {
+   "basis": {
+    "en": "not measurable from a trial balance (none splits foreign suppliers); state the share of cost of sales bought in EUR",
+    "ro": "nemăsurabil din balanță (nicio balanță nu separă furnizorii externi); declară ponderea din costul vânzărilor cumpărată în EUR"
+   },
+   "default": "0",
+   "display": {
+    "en": "0.0%",
+    "ro": "0,0%"
+   },
+   "engine_drivers": [
+    "input_price_index"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "imported_share",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Imported share of cost of sales",
+    "ro": "Pondere inputuri importate în costul vânzărilor"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "1",
+    "min": "0",
+    "step": "0.01"
+   },
+   "shape": "scalar",
+   "source": {
+    "tier": "not_measurable"
+   },
+   "unit": "pct",
+   "value": "0"
+  },
+  {
+   "basis": {
+    "en": "28.0 days = trade receivables RON 8.5M / revenue RON 110.8M × 365 (2025)",
+    "ro": "28,0 zile = creanțe comerciale 8,5 mil. lei / venituri 110,8 mil. lei × 365 (2025)"
+   },
+   "default": "28.045424",
+   "display": {
+    "en": "28.0",
+    "ro": "28,0"
+   },
+   "engine_drivers": [
+    "dso_days"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "dso_days",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Days sales outstanding (DSO)",
+    "ro": "Zile încasare clienți (DSO)"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "default",
+   "range": {
+    "max": "365",
+    "min": "0",
+    "step": "1"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "days sales outstanding = 28.045424 days = trade receivables net 8,513,384.96 / revenue 110,798,309.14 x 365 days (forecast.dso)",
+    "rule_id": "forecast.dso",
+    "tier": "book"
+   },
+   "unit": "days",
+   "value": "28.045424"
+  },
+  {
+   "basis": {
+    "en": "46.2 days of cost of sales = inventory RON 8.9M / cost of sales RON 70.6M × 365 (2025)",
+    "ro": "46,2 zile de cost al vânzărilor = stocuri 8,9 mil. lei / cost al vânzărilor 70,6 mil. lei × 365 (2025)"
+   },
+   "default": "46.213147",
+   "display": {
+    "en": "46.2",
+    "ro": "46,2"
+   },
+   "engine_drivers": [
+    "dio_cogs_days"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "dio_days",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Days inventory (DIO)",
+    "ro": "Zile stoc (DIO)"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "default",
+   "range": {
+    "max": "365",
+    "min": "0",
+    "step": "1"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name",
+    "rule_id": "forecast.dio_cogs",
+    "tier": "book"
+   },
+   "unit": "days",
+   "value": "46.213147"
+  },
+  {
+   "basis": {
+    "en": "37.2 days of cost of sales = trade payables RON 7.2M / cost of sales RON 70.6M × 365 (2025)",
+    "ro": "37,2 zile de cost al vânzărilor = datorii comerciale 7,2 mil. lei / cost al vânzărilor 70,6 mil. lei × 365 (2025)"
+   },
+   "default": "37.175931",
+   "display": {
+    "en": "37.2",
+    "ro": "37,2"
+   },
+   "engine_drivers": [
+    "dpo_cogs_days"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "dpo_days",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Days payables outstanding (DPO)",
+    "ro": "Zile plată furnizori (DPO)"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "default",
+   "range": {
+    "max": "365",
+    "min": "0",
+    "step": "1"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name",
+    "rule_id": "forecast.dpo_cogs",
+    "tier": "book"
+   },
+   "unit": "days",
+   "value": "37.175931"
+  },
+  {
+   "basis": {
+    "en": "convention: capital expenditure replaces the RON 3.0M depreciation charge (2.7% of revenue); a trial balance shows no investment plan",
+    "ro": "convenție: investițiile înlocuiesc amortizarea de 3,0 mil. lei (2,7% din venituri); o balanță nu arată un plan de investiții"
+   },
+   "default": "0.026673",
+   "display": {
+    "en": "2.7%",
+    "ro": "2,7%"
+   },
+   "engine_drivers": [
+    "capex_pct_of_revenue"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "capex",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Capital expenditure (% of revenue)",
+    "ro": "Investiții (% din venituri)"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "0.3",
+    "min": "0",
+    "step": "0.001"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent",
+    "rule_id": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
+    "tier": "convention"
+   },
+   "unit": "pct",
+   "value": "0.026673"
+  },
+  {
+   "basis": {
+    "en": "7.64% = interest RON 277.9k / interest-bearing debt RON 3.6M (2025); the same rate prices the credit line",
+    "ro": "7,64% = dobânzi 277,9 mii lei / datorii purtătoare de dobândă 3,6 mil. lei (2025); aceeași rată se aplică liniei de credit"
+   },
+   "default": "0.07635",
+   "display": {
+    "en": "7.6%",
+    "ro": "7,6%"
+   },
+   "engine_drivers": [
+    "interest_rate_debt",
+    "revolver_rate"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "interest_rate",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Interest rate",
+    "ro": "Rata dobânzii"
+   },
+   "locked": null,
+   "measured": true,
+   "origin": "default",
+   "range": {
+    "max": "0.25",
+    "min": "0.01",
+    "step": "0.0005"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "annual rate = interest expense 277,930.35 / interest-bearing debt at the closing date 3,640,202.33",
+    "rule_id": "forecast.borrowing_rate",
+    "tier": "book"
+   },
+   "unit": "pct",
+   "value": "0.07635"
+  },
+  {
+   "basis": {
+    "en": "a closing trial balance does not show distributions; by default nothing is distributed",
+    "ro": "o balanță de închidere nu arată dividendele distribuite; implicit nu se distribuie nimic"
+   },
+   "default": "0",
+   "display": {
+    "en": "0.0%",
+    "ro": "0,0%"
+   },
+   "engine_drivers": [
+    "dividend_payout_pct"
+   ],
+   "follows": null,
+   "group": "more",
+   "id": "dividend_payout",
+   "inert": null,
+   "is_default": true,
+   "label": {
+    "en": "Dividends (% of net profit)",
+    "ro": "Dividende (% din profitul net)"
+   },
+   "locked": null,
+   "measured": false,
+   "origin": "default",
+   "range": {
+    "max": "1",
+    "min": "0",
+    "step": "0.05"
+   },
+   "shape": "per_year",
+   "source": {
+    "engine_basis": "no declared distribution, so none is projected",
+    "rule_id": "packs/forecast/levers.yaml#dividend_payout_pct.terminal_rung",
+    "tier": "convention"
+   },
+   "unit": "pct",
+   "value": "0"
+  }
+ ],
+ "not_modelled": [
+  {
+   "id": "fx_rate_move",
+   "sentence": "an exchange-rate move is not served: the book's revenue and costs are not split by currency"
+  },
+  {
+   "id": "headcount",
+   "sentence": "headcount is not served: a trial balance carries the personnel cost and not the number of people"
+  },
+  {
+   "id": "avg_personnel_cost",
+   "sentence": "average personnel cost is not served: it needs a headcount the book does not carry"
+  },
+  {
+   "id": "segment_growth",
+   "sentence": "growth by segment is not served: revenue is not split by segment in the book"
+  },
+  {
+   "id": "policy_rate_shift",
+   "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+  }
+ ],
+ "numbers": {
+  "cash": {
+   "display": {
+    "en": {
+     "amount": "RON 1.1M",
+     "when": "January 2026"
+    },
+    "ro": {
+     "amount": "1,1 mil. lei",
+     "when": "ianuarie 2026"
+    }
+   },
+   "figure": {
+    "amount_minor": 112209505,
+    "kind": "projected"
+   },
+   "granularity_note": {
+    "en": "at period closes: monthly in year one, annual after",
+    "ro": "la închiderile de perioadă: lunar în primul an, anual după"
+   },
+   "kind": "min_cash",
+   "period": "2026-01"
+  },
+  "cumulative_fcf": {
+   "display": {
+    "en": "RON 10.3M",
+    "ro": "10,3 mil. lei"
+   },
+   "figure": {
+    "amount_minor": 1027040028,
+    "kind": "projected"
+   },
+   "formula": {
+    "en": "operating cash + investing cash, cumulative",
+    "ro": "numerar din exploatare + numerar din investiții, cumulat"
+   },
+   "from": "FY2026",
+   "to": "FY2030"
+  },
+  "dscr_year_one": {
+   "colour": "green",
+   "denominator": {
+    "amount_minor": 247771259,
+    "kind": "projected"
+   },
+   "display": {
+    "en": {
+     "threshold": "1.25×",
+     "value": "2.37×"
+    },
+    "ro": {
+     "threshold": "1,25×",
+     "value": "2,37×"
+    }
+   },
+   "formula": {
+    "en": "EBITDA / (interest + short-term debt), the ratio table's formula",
+    "ro": "EBITDA / (dobânzi + datorii pe termen scurt), formula din tabelul de indicatori"
+   },
+   "kind": "projected",
+   "numerator": {
+    "amount_minor": 588211829,
+    "kind": "projected"
+   },
+   "period": "FY2026",
+   "status": "above",
+   "threshold": "1.25",
+   "threshold_band": "healthy",
+   "value_micros": 2374012
+  },
+  "ebitda_final_year": {
+   "display": {
+    "en": {
+     "amount": "RON 6.0M",
+     "margin": "4.8%",
+     "margin_year0": "9.7%"
+    },
+    "ro": {
+     "amount": "6,0 mil. lei",
+     "margin": "4,8%",
+     "margin_year0": "9,7%"
+    }
+   },
+   "figure": {
+    "amount_minor": 599547165,
+    "kind": "projected"
+   },
+   "margin_change_ppm": -49434,
+   "margin_ppm": 47827,
+   "margin_year0_ppm": 97261,
+   "period": "FY2030"
+  }
+ },
+ "period_id": "c-cur",
+ "pins": {
+  "body_hash": "sha256:796285c0850e3dd2706f32a87ff67d3620c1641399e576df661c641c41458275",
+  "cockpit_pack": "sha256:19a11d8d50807d7df64db5213885c82f418fcbda1b29929f0e1f27fe154402cd",
+  "engine_version": "0.1.0",
+  "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
+  "pack_id": "forecast-cockpit"
+ },
+ "sentence": {
+  "en": "In the pessimist case, cash never goes below zero, with a low of RON 1.1M in January 2026; DSCR stays above the bank's threshold: 2.37× in 2026 against 1.25×; EBITDA reaches RON 6.0M in 2030, a margin of 4.8% against 9.7% today.",
+  "facts": {
+   "cash": {
+    "amount_minor": 112209505,
+    "kind": "projected"
+   },
+   "dscr": 2374012,
+   "ebitda": {
+    "amount_minor": 599547165,
+    "kind": "projected"
+   }
+  },
+  "ro": "În scenariul pesimist, numerarul nu scade sub zero, cu un minim de 1,1 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 2,37× în 2026 față de 1,25×; EBITDA ajunge la 6,0 mil. lei în 2030, cu o marjă de 4,8% față de 9,7% azi.",
+  "template": [
+   "frame",
+   "no_funding",
+   "dscr_above",
+   "ebitda"
+  ]
+ },
+ "statements": {
+  "bs": [
+   {
+    "label": {
+     "en": "Cash",
+     "ro": "Numerar"
+    },
+    "line": "bs.cash",
+    "values": [
+     {
+      "amount_minor": 328402018,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 536268092,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 744635888,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 944115046,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 1143844732,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 116804704,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Trade receivables",
+     "ro": "Creanțe comerciale"
+    },
+    "line": "bs.ar",
+    "values": [
+     {
+      "amount_minor": 872621972,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 894437521,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 914293545,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 939718421,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 963211381,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 851338496,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Inventory",
+     "ro": "Stocuri"
+    },
+    "line": "bs.inventory",
+    "values": [
+     {
+      "amount_minor": 970856537,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 995127952,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 1017219249,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 1045506304,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 1071643962,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 893333242,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other current assets",
+     "ro": "Alte active curente"
+    },
+    "line": "bs.other_current_assets",
+    "values": [
+     {
+      "amount_minor": 890790558,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 890790558,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 890790558,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 890790558,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 890790558,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 890790558,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Property, plant and equipment",
+     "ro": "Imobilizări corporale"
+    },
+    "line": "bs.ppe_net",
+    "values": [
+     {
+      "amount_minor": 1127267672,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 1153713545,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 1180461486,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 1209222376,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 1238891436,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 1105544954,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Intangible assets",
+     "ro": "Imobilizări necorporale"
+    },
+    "line": "bs.intangibles_net",
+    "values": [
+     {
+      "amount_minor": 52176372,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 39029022,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 29167584,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 21817965,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 16320296,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 67309013,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Investment property",
+     "ro": "Investiții imobiliare"
+    },
+    "line": "bs.investment_property",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 0,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other non-current assets",
+     "ro": "Alte active imobilizate"
+    },
+    "line": "bs.other_non_current_assets",
+    "values": [
+     {
+      "amount_minor": 6790442,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 6790442,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 6790442,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 6790442,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 6790442,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 6790442,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Trade payables",
+     "ro": "Datorii comerciale"
+    },
+    "line": "bs.ap",
+    "values": [
+     {
+      "amount_minor": 781000602,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 800525618,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 818296850,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 841052228,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 862078533,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 718637377,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other current liabilities",
+     "ro": "Alte datorii curente"
+    },
+    "line": "bs.other_current_liabilities",
+    "values": [
+     {
+      "amount_minor": 362681990,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 362681990,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 362681990,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 362681990,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 362681990,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 362681990,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Short-term debt",
+     "ro": "Datorii financiare pe termen scurt"
+    },
+    "line": "bs.st_debt",
+    "values": [
+     {
+      "amount_minor": 219978310,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 219978310,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 219978310,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 219978310,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 219978310,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 219978310,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Credit line (funding need)",
+     "ro": "Linie de credit (finanțare necesară)"
+    },
+    "line": "bs.revolver",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 0,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Long-term debt",
+     "ro": "Datorii financiare pe termen lung"
+    },
+    "line": "bs.lt_debt",
+    "values": [
+     {
+      "amount_minor": 144041923,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 144041923,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 144041923,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 144041923,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 144041923,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 144041923,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other non-current liabilities",
+     "ro": "Alte datorii pe termen lung"
+    },
+    "line": "bs.other_non_current_liabilities",
+    "values": [
+     {
+      "amount_minor": 94163437,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 94163437,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 94163437,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 94163437,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 94163437,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 94163437,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Contributed equity",
+     "ro": "Capital social și prime"
+    },
+    "line": "bs.equity_contributed",
+    "values": [
+     {
+      "amount_minor": 879585500,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 879585500,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 879585500,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 879585500,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 879585500,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 879585500,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Reserves",
+     "ro": "Rezerve"
+    },
+    "line": "bs.equity_reserves",
+    "values": [
+     {
+      "amount_minor": 765618110,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 765618110,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 765618110,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 765618110,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 765618110,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 765618110,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Retained earnings",
+     "ro": "Rezultat reportat și al exercițiului"
+    },
+    "line": "bs.equity_retained",
+    "values": [
+     {
+      "amount_minor": 1001835699,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 1249562244,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 1498992632,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 1750839614,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 2003345004,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 747204762,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other equity",
+     "ro": "Alte capitaluri"
+    },
+    "line": "bs.equity_other",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 0,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Total assets",
+     "ro": "Total active"
+    },
+    "line": "bs_totals.assets",
+    "values": [
+     {
+      "amount_minor": 4248905571,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 4516157132,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 4783358752,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 5057961112,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 5331492807,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 3931911409,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Total equity",
+     "ro": "Total capitaluri proprii"
+    },
+    "line": "bs_totals.equity",
+    "values": [
+     {
+      "amount_minor": 2647039309,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 2894765854,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 3144196242,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 3396043224,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 3648548614,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 2392408372,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Total equity and liabilities",
+     "ro": "Total capitaluri și datorii"
+    },
+    "line": "bs_totals.equity_plus_liabilities",
+    "values": [
+     {
+      "amount_minor": 4248905571,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 4516157132,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 4783358752,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 5057961112,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 5331492807,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 3931911409,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   }
+  ],
+  "cf": [
+   {
+    "label": {
+     "en": "Net profit",
+     "ro": "Profit net"
+    },
+    "line": "cf.net_income",
+    "values": [
+     {
+      "amount_minor": 254630937,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 247726545,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 249430388,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 251846982,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 252505390,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Depreciation",
+     "ro": "Amortizare corporală"
+    },
+    "line": "cf.depreciation",
+    "values": [
+     {
+      "amount_minor": 281197920,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 284047781,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 291508055,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 297451505,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 304698645,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Amortisation",
+     "ro": "Amortizare necorporală"
+    },
+    "line": "cf.amortisation",
+    "values": [
+     {
+      "amount_minor": 15132641,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 13147350,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 9861438,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 7349619,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 5497669,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Change in receivables",
+     "ro": "Variația creanțelor"
+    },
+    "line": "cf.change_in_receivables",
+    "values": [
+     {
+      "amount_minor": -21283476,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -21815549,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -19856024,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -25424876,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -23492960,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Change in inventory",
+     "ro": "Variația stocurilor"
+    },
+    "line": "cf.change_in_inventory",
+    "values": [
+     {
+      "amount_minor": -77523295,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -24271415,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -22091297,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -28287055,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -26137658,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Change in payables",
+     "ro": "Variația datoriilor comerciale"
+    },
+    "line": "cf.change_in_payables",
+    "values": [
+     {
+      "amount_minor": 62363225,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 19525016,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 17771232,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 22755378,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 21026305,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Cash from operations",
+     "ro": "Numerar din exploatare"
+    },
+    "line": "cf.cash_from_operating",
+    "values": [
+     {
+      "amount_minor": 514517952,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 518359728,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 526623792,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 525691553,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 534097391,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Capital expenditure",
+     "ro": "Investiții în imobilizări corporale"
+    },
+    "line": "cf.capital_expenditure",
+    "values": [
+     {
+      "amount_minor": -302920638,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -310493654,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -318255996,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -326212395,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -334367705,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Intangible additions",
+     "ro": "Investiții în imobilizări necorporale"
+    },
+    "line": "cf.intangible_additions",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Cash from investing",
+     "ro": "Numerar din investiții"
+    },
+    "line": "cf.cash_from_investing",
+    "values": [
+     {
+      "amount_minor": -302920638,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -310493654,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -318255996,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -326212395,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -334367705,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Debt drawdowns",
+     "ro": "Trageri de credite"
+    },
+    "line": "cf.debt_drawdowns",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Debt repayments",
+     "ro": "Rambursări de credite"
+    },
+    "line": "cf.debt_repayments",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Dividends paid",
+     "ro": "Dividende plătite"
+    },
+    "line": "cf.dividends_paid",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Credit line movement",
+     "ro": "Mișcarea liniei de credit"
+    },
+    "line": "cf.funding_line_movement",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Cash from financing",
+     "ro": "Numerar din finanțare"
+    },
+    "line": "cf.cash_from_financing",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Net change in cash",
+     "ro": "Variația numerarului"
+    },
+    "line": "cf.net_change_in_cash",
+    "values": [
+     {
+      "amount_minor": 211597314,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 207866074,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 208367796,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 199479158,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 199729686,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Opening cash",
+     "ro": "Numerar la început"
+    },
+    "line": "cf.opening_cash",
+    "values": [
+     {
+      "amount_minor": 116804704,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 328402018,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 536268092,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 744635888,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 944115046,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   },
+   {
+    "label": {
+     "en": "Closing cash",
+     "ro": "Numerar la sfârșit"
+    },
+    "line": "cf.closing_cash",
+    "values": [
+     {
+      "amount_minor": 328402018,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 536268092,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 744635888,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 944115046,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 1143844732,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ]
+   }
+  ],
+  "pl": [
+   {
+    "label": {
+     "en": "Revenue",
+     "ro": "Cifra de afaceri"
+    },
+    "line": "pl.revenue",
+    "values": [
+     {
+      "amount_minor": 11356826687,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 11640747354,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 11931766038,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 12230060189,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 12535811694,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 11079830914,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Cost of sales",
+     "ro": "Costul vânzărilor"
+    },
+    "line": "pl.cost_of_sales",
+    "values": [
+     {
+      "amount_minor": -7668004871,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -7859704996,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -8056197622,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -8257602562,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -8464042626,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": -7055711468,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Operating costs",
+     "ro": "Cheltuieli de exploatare"
+    },
+    "line": "pl.operating_costs",
+    "values": [
+     {
+      "amount_minor": -3139619042,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -3239194533,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -3327441699,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -3418098526,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -3511230958,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": -2985490677,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other operating income",
+     "ro": "Alte venituri din exploatare"
+    },
+    "line": "pl.other_operating_income",
+    "values": [
+     {
+      "amount_minor": 39009055,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 39009055,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 39009055,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 39009055,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 39009055,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 39009055,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "EBITDA",
+     "ro": "EBITDA"
+    },
+    "line": "pl.ebitda",
+    "values": [
+     {
+      "amount_minor": 588211829,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 580856880,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 587135772,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 593368156,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 599547165,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 1077637824,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Depreciation",
+     "ro": "Amortizarea imobilizărilor corporale"
+    },
+    "line": "pl.depreciation",
+    "values": [
+     {
+      "amount_minor": -281197920,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -284047781,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -291508055,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -297451505,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -304698645,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Amortisation",
+     "ro": "Amortizarea imobilizărilor necorporale"
+    },
+    "line": "pl.amortisation",
+    "values": [
+     {
+      "amount_minor": -15132641,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -13147350,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -9861438,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -7349619,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -5497669,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Operating result (EBIT)",
+     "ro": "Rezultat din exploatare (EBIT)"
+    },
+    "line": "pl.ebit",
+    "values": [
+     {
+      "amount_minor": 291881268,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 283661749,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 285766279,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 288567032,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 289350851,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Interest on debt",
+     "ro": "Dobânzi la datorii"
+    },
+    "line": "pl.interest_expense_debt",
+    "values": [
+     {
+      "amount_minor": -27792949,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -27792945,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -27869090,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -27792945,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -27792945,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Interest on the credit line",
+     "ro": "Dobânzi la linia de credit"
+    },
+    "line": "pl.interest_expense_funding_line",
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Interest income",
+     "ro": "Venituri din dobânzi"
+    },
+    "line": "pl.interest_income",
+    "values": [
+     {
+      "amount_minor": 29938326,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 29938326,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 29938326,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 29938326,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 29938326,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 29938326,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Other financial income",
+     "ro": "Alte venituri financiare"
+    },
+    "line": "pl.other_financial_income",
+    "values": [
+     {
+      "amount_minor": 15700088,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 15700088,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 15700088,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 15700088,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 15700088,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Other financial expense",
+     "ro": "Alte cheltuieli financiare"
+    },
+    "line": "pl.other_financial_expense",
+    "values": [
+     {
+      "amount_minor": -6594665,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -6594665,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -6594665,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -6594665,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -6594665,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "kind": "actual",
+     "period": "FY2025",
+     "refused": {
+      "code": "year0_not_split",
+      "text": {
+       "en": "the base year's trial balance does not split this line the way the projection does",
+       "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+      }
+     }
+    }
+   },
+   {
+    "label": {
+     "en": "Pre-tax result",
+     "ro": "Rezultat înainte de impozit"
+    },
+    "line": "pl.pretax_result",
+    "values": [
+     {
+      "amount_minor": 303132068,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 294912553,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 296940938,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 299817836,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 300601655,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 793353899,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Income tax",
+     "ro": "Impozit pe profit"
+    },
+    "line": "pl.income_tax",
+    "values": [
+     {
+      "amount_minor": -48501131,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": -47186008,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": -47510550,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": -47970854,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": -48096265,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": -147155000,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Net profit",
+     "ro": "Profit net"
+    },
+    "line": "pl.net_income",
+    "values": [
+     {
+      "amount_minor": 254630937,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 247726545,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 249430388,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 251846982,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 252505390,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 753367602,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   }
+  ],
+  "years": [
+   "FY2025",
+   "FY2026",
+   "FY2027",
+   "FY2028",
+   "FY2029",
+   "FY2030"
+  ]
+ }
+}

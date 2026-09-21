@@ -1312,11 +1312,38 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
              "tier": p.tier, "rule_id": p.rule_id, "sentence": p.sentence}
             for p in base_plan.inputs["pools"].pools()],
         "not_modelled": [{"id": key, "sentence": text} for key, text in _unserved()],
-        "pins": {"pack_id": pack.pack_id, "cockpit_pack": pack.digest},
+        # what the page debounces a slider by, and the budget the answer is
+        # held to (packs/forecast/levers.yaml#latency): read, never typed twice
+        "client": _client_block(),
+        "pins": {"pack_id": pack.pack_id, "cockpit_pack": pack.digest,
+                 "macro_pack": _file_digest(macro_pack().path),
+                 "engine_version": _engine_version()},
     }
     body["pins"]["body_hash"] = "sha256:" + hashlib.sha256(json.dumps(
         body, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
     return body
+
+
+def _client_block() -> Dict[str, int]:
+    from .levers_pack import serving_pack
+    latency = serving_pack().latency
+    return {"debounce_ms": int(latency["debounce_ms"]),
+            "budget_ms": int(latency["chart_inprocess_p50_ms"])}
+
+
+_DIGESTS = {}  # type: Dict[str, str]
+
+
+def _file_digest(path: str) -> str:
+    if path not in _DIGESTS:
+        with open(path, "rb") as fh:
+            _DIGESTS[path] = "sha256:" + hashlib.sha256(fh.read()).hexdigest()
+    return _DIGESTS[path]
+
+
+def _engine_version() -> str:
+    import engine
+    return str(engine.__version__)
 
 
 def _unserved() -> List[Tuple[str, str]]:

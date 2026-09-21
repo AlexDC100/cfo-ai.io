@@ -893,6 +893,33 @@ def test_c_latency_a_slider_move_answers_inside_the_budget(name):
     WORK["units"] += len(times)
 
 
+#: The committed engine bytes the frontend's cockpit gates read
+#: (scripts/gen_cockpit_fixtures.py): name, route, body.
+FIXTURE_REQUESTS = (
+    ("base", "cockpit", {}),
+    ("pesimist", "cockpit", {"case_id": "pesimist"}),
+    ("funding", "cockpit", {"levers": {"dso_days": "300", "revenue_growth": "-0.25",
+                                       "dividend_payout": "1"}}),
+    ("export", "cockpit/export", {"case_id": "pesimist"}),
+)
+
+
+def test_c_the_committed_cockpit_fixtures_are_what_the_route_serves():
+    """The frontend's cockpit gates read these bytes; a stale copy would
+    let the page be tested against a cockpit the engine no longer serves."""
+    fixtures = REPO / "tests" / "engine" / "fixtures" / "forecast"
+    with _World("agras") as world:
+        for name, route, body in FIXTURE_REQUESTS:
+            served = world.ok(body, route=route)
+            on_disk = json.loads((fixtures / ("cockpit_agras_%s.json" % name)).read_text("utf-8"))
+            pins = (served.get("cockpit") or served)["pins"]["body_hash"]
+            disk = (on_disk.get("cockpit") or on_disk)["pins"]["body_hash"]
+            assert disk == pins, (
+                "cockpit_agras_%s.json is stale; regenerate it with "
+                "scripts/gen_cockpit_fixtures.py" % name)
+    WORK["units"] += len(FIXTURE_REQUESTS)
+
+
 def test_zz_scope_and_work(capsys):
     with capsys.disabled():
         print("\nSCOPE forecast-cockpit (forecast-scenarios-live): books %s (corpus: agras is the "
