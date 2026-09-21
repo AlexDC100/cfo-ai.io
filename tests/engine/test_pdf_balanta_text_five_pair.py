@@ -405,6 +405,50 @@ def test_a_sub_header_away_from_the_column_header_refuses(caplog):
     assert refused(caplog, lines, "does not directly follow the column header")
 
 
+def _book_with_a_zero_row_and_a_payable() -> List[Row]:
+    rs = rows()
+    rs.append(Row("4111.07", "Clienti interni"))  # printed, all zeros
+    rs.append(Row("4011.01", "Furnizori interni", si=(Z, Decimal("900.00")), rl=(Z, Decimal("100.00"))))
+    rs.append(Row("5199.01", "Banca Y", si=(Decimal("900.00"), Z), rl=(Decimal("100.00"), Z)))
+    return rs
+
+
+def _merge(lines: List[str], first: str, second: str) -> List[str]:
+    """Put two account rows on ONE text line, `first` leading."""
+    out = list(lines)
+    i = next(k for k, l in enumerate(out) if l.startswith(first + " "))
+    j = next(k for k, l in enumerate(out) if l.startswith(second + " "))
+    merged = out[i] + " " + out[j]
+    out[min(i, j)] = merged
+    del out[max(i, j)]
+    return out
+
+
+def test_the_zero_row_book_is_read():  # the control for the two tests below
+    got = P.parse_lines(render(_book_with_a_zero_row_and_a_payable()))
+    assert by_cont(got, "4011.01")["figures"][9] == Decimal("1000.00")
+    assert by_cont(got, "4111.07")["figures"] == [Z] * 10
+
+
+def test_two_rows_on_one_line_refuses(caplog):
+    # The all-zero client row leads; without the check its code took the
+    # payable's figures (a 1,000 payable served as a negative receivable)
+    # and 4011.01 vanished — class sums still tie, both are class 4.
+    lines = _merge(render(_book_with_a_zero_row_and_a_payable()), "4111.07", "4011.01")
+    assert refused(caplog, lines, "account 4111.07: its name carries 10 figure-shaped tokens")
+
+
+def test_a_name_holding_a_code_and_a_figure_refuses(caplog):
+    lines = _replace_line("1004.01 ", lambda l: l.replace("CAPITAL 4 ", "CAPITAL 4 4011.01 7.00 EXEMPLU ", 1))
+    assert refused(caplog, lines, "account 1004.01: its name holds a code followed by a figure")
+
+
+def test_a_single_figure_shaped_word_in_a_name_is_still_read():
+    lines = _replace_line("1004.01 ", lambda l: l.replace("CAPITAL 4 ", "CAPITAL 4.50 PROCENT ", 1))
+    got = P.parse_lines(lines)
+    assert got is not None and by_cont(got, "1004.01")["name"] == "CAPITAL 4.50 PROCENT"
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 

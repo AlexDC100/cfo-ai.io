@@ -75,7 +75,9 @@ can be checked to the cent — and it refuses unless ALL of these hold:
   * total debit == total credit on each of the five pairs;
   * no account code appears twice; at least MIN_ACCOUNTS accounts;
   * no other line carries two or more figures (a figure row this reader
-    could not attribute to an account is a refusal, never a skip).
+    could not attribute to an account is a refusal, never a skip) — and
+    neither does the NAME part of an account line, nor does it hold a
+    code followed by a figure (two rows merged onto one text line).
 
 Negative figures are carried verbatim: a storno is a negative movement on
 its own side, never a flipped side. The workbook maps SI = Sold initial,
@@ -341,6 +343,18 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
                 if any(x != code for x in extra):
                     return _refuse5("account %s carries %d figures, not 10", code, run)
                 name = [x for x in rest[:len(rest) - 10] if x != code]
+                # Figures the reader cannot attribute are a refusal, never
+                # a skip — and that holds for the NAME part of an account
+                # line too. Two rows on one text line put the first row's
+                # ten figures (and the second row's code) into the name,
+                # and the first code would take the second row's figures.
+                in_name = sum(1 for x in name if _FIG_5PAIR.match(x))
+                if in_name >= 2:
+                    return _refuse5("account %s: its name carries %d figure-shaped tokens "
+                                    "(two rows on one line?)", code, in_name)
+                if any(_CODE_5PAIR.match(a) and _FIG_5PAIR.match(b) for a, b in zip(name, name[1:])):
+                    return _refuse5("account %s: its name holds a code followed by a figure "
+                                    "(two rows on one line?)", code)
                 last = {
                     "cont": code,
                     "name": " ".join(name).rstrip(" -"),
