@@ -252,17 +252,21 @@ class _Planner:
 
         # A document whose bytes could not be read (object missing, image
         # PDF) but whose content hash equals an identified document's is
-        # that document: same bytes, same company, same period.
-        by_sha: Dict[str, List[str]] = defaultdict(list)
+        # that document: same bytes, same company, same period — WITHIN ONE
+        # USER. The map is keyed by (user, sha256): an identity can carry an
+        # operator rule scoped to its user (``match_known_identity``), and
+        # across users it handed another tenant that rule's company and
+        # wrote the owner's operator evidence into that tenant's org_prefs.
+        by_sha: Dict[Tuple[str, str], List[str]] = defaultdict(list)
         for did in sorted(self.docs):
             f = self.facts.get(did)
             if f and f.identity and f.identity.company_key and self.sha(did):
-                by_sha[str(self.sha(did))].append(did)
-        self.sibling: Dict[str, CompanyIdentity] = {}
-        for digest, dids in by_sha.items():
+                by_sha[(self.doc_user(did), str(self.sha(did)))].append(did)
+        self.sibling: Dict[Tuple[str, str], CompanyIdentity] = {}
+        for user_sha, dids in by_sha.items():
             idents = [self.facts[d].identity for d in dids]
             if len({i.company_key for i in idents}) == 1:
-                self.sibling[digest] = idents[0]
+                self.sibling[user_sha] = idents[0]
 
         # final placement, filled by the passes
         self.period_final_org: Dict[str, str] = {}
@@ -271,13 +275,24 @@ class _Planner:
 
     # ── facts ──────────────────────────────────────────────────────────
 
+    def doc_user(self, doc_id: str) -> str:
+        """The user a document belongs to: its workspace's sole member,
+        else whoever uploaded it."""
+        d = self.docs.get(doc_id) or {}
+        ms = self.members.get(str(d.get("org_id"))) or []
+        if len(ms) == 1:
+            return str(ms[0]["user_id"])
+        return str(d.get("uploaded_by") or "")
+
     def ident(self, doc_id: Optional[str]) -> Optional[CompanyIdentity]:
         f = self.facts.get(str(doc_id)) if doc_id else None
         own = f.identity if f else None
         if own is not None and own.company_key:
             return own
         digest = self.sha(str(doc_id)) if doc_id and str(doc_id) in self.docs else None
-        return self.sibling.get(str(digest)) if digest and str(digest) in self.sibling else own
+        if not digest:
+            return own
+        return self.sibling.get((self.doc_user(str(doc_id)), str(digest))) or own
 
     def sha(self, doc_id: str) -> Optional[str]:
         d = self.docs.get(doc_id) or {}

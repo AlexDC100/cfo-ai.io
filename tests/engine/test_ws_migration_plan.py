@@ -437,6 +437,41 @@ def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():
     assert d["deleted_at"] is None and d["org_id"] == "org-a" and d["error"] is None
 
 
+def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
+    """P1 (verifier, 2026-09-21): the content-hash sibling map spanned every
+    user. User v's unreadable copy of the same file took user u's
+    operator-verified identity, and the plan wrote merge_prefs on v's
+    workspace with u's operator evidence (production: 9cb39c90 stamped
+    cui 16070576 with the owner's rule text). Rules are scoped to a user;
+    so is the inheritance. Within ONE user an unreadable copy still
+    inherits its twin's identity."""
+    members = [{"org_id": "org-a", "user_id": "u", "role": "owner"},
+               {"org_id": "org-b", "user_id": "v", "role": "owner"},
+               {"org_id": "org-c", "user_id": "u", "role": "owner"}]
+    t = _mini([_doc("a1", "org-a", period="pa", sha="same-bytes"),
+               _doc("b1", "org-b", period="pb", sha="same-bytes"),
+               _doc("c1", "org-c", sha="same-bytes", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "pa", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "a1"},
+               {"id": "pb", "org_id": "org-b", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "b1"}],
+              metrics=[("pa", "org-a"), ("pb", "org-b")], orgs=("org-a", "org-b", "org-c"), members=members)
+    rule_ident = DocFacts(identity=CompanyIdentity(
+        cui=ALFA, company_name="ALFA FOOD SRL", period_end="2025-12-31",
+        sources={"cui": {"signal": "operator_verified", "evidence": "u's private filing match"},
+                 "company_name": {"signal": "operator_verified", "evidence": "u's private filing match"},
+                 "period_end": {"signal": "closing_balance", "evidence": "31.12.2025"}},
+        document_kind="trial_balance"))
+    unreadable = DocFacts(identity=CompanyIdentity(document_kind="unreadable"), object_exists=False)
+    plan = build_plan(t, {"a1": rule_ident, "b1": unreadable, "c1": unreadable}, migration_date=DATE)
+    assert not [op for op in plan.ops if "org-b" in repr(op)], [op for op in plan.ops if "org-b" in repr(op)]
+    assert "u's private filing match" not in repr([op for op in plan.ops if "org-a" not in repr(op)
+                                                    and "org-c" not in repr(op)])
+    assert _decision(plan, "periods", "pb")["action"] == "unplaced"
+    # the same user's unreadable copy still inherits (it is the same file)
+    assert _decision(plan, "documents", "c1")["company"] == "cui:" + ALFA
+
+
 def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
     t = _mini([_doc("s", "org-a", period="p1"),
                _doc("f1", "org-a", status="failed", sha="h", created="2026-09-01T00:00:00+00:00"),
