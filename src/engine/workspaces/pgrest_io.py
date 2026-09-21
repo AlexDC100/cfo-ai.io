@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 
 from engine.workspaces.rowstore import (
     KNOWN_PKS,
+    NOW,
     OpConflict,
     canonical_json,
     pk_for,
@@ -329,6 +330,21 @@ def verify_snapshot(db: PgRest, snap: Mapping[str, Any]) -> Dict[str, Dict[str, 
 
 # ── the read-before-write executor ─────────────────────────────────────
 
+def applied_at_another_time(row: Mapping[str, Any], raw_set: Mapping[str, Any]) -> bool:
+    """An ``update`` whose ``set`` carries ``"$now"`` is ALREADY IN EFFECT
+    when every other column holds its planned value and every ``$now``
+    column holds a timestamp — the one an earlier, interrupted run wrote.
+    Without this a resumed run compares the first run's timestamp with its
+    own clock, then the untouched ``expect`` (``deleted_at`` NULL) with the
+    first run's write, and stops half-migrated (OpConflict)."""
+    stamped = [c for c, v in raw_set.items() if v == NOW]
+    if not stamped:
+        return False
+    if any(row.get(c) is None for c in stamped):
+        return False
+    return values_match(row, {c: v for c, v in raw_set.items() if v != NOW})
+
+
 def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
                pks: Mapping[str, Sequence[str]], log: Callable[[str], None] = print
                ) -> Dict[str, Any]:
@@ -386,7 +402,7 @@ def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
                 continue
             if cur is None:
                 raise OpConflict("[%d] %s %s: row missing" % (i, table, canonical_json(key)))
-            if values_match(cur, op["set"]):
+            if values_match(cur, op["set"]) or applied_at_another_time(cur, raw["set"]):
                 done["skipped"] += 1
                 continue
             if "expect" in op and not values_match(cur, op["expect"]):

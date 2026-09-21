@@ -300,7 +300,19 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
             out("NOTHING TO DO: the plan is empty (already migrated).")
             return 0
 
+        # ONE run timestamp per plan: an interrupted run's "$now" values are
+        # already in production, so --resume reuses the timestamp recorded
+        # before the first write instead of taking a fresh one.
+        state_path = out_dir / ("run_state_%s.json" % plan.ops_sha256()[:16])
         run_ts = now or pgrest_io.utc_now_iso()
+        if args.resume and state_path.is_file():
+            state = json.loads(state_path.read_text())
+            if state.get("plan_sha256") == plan.ops_sha256() and state.get("run_at"):
+                run_ts = state["run_at"]
+                out("RESUME: reusing the interrupted run's timestamp %s (%s)" % (run_ts, state_path))
+        else:
+            state_path.write_text(json.dumps({"plan_sha256": plan.ops_sha256(), "run_at": run_ts,
+                                              "snapshot": args.snapshot}, indent=1))
         out("EXECUTE at %s%s" % (run_ts, " (resume)" if drifted else ""))
         done = pgrest_io.apply_live(db, plan.ops, now=run_ts, pks=pks, log=out)
         out("applied=%d skipped=%d copied=%d copy_skipped=%d missing_objects=%d" % (

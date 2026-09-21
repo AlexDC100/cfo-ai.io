@@ -210,6 +210,56 @@ def test_execute_refuses_while_the_purge_hold_guard_is_missing(env):
     assert env["fake"].writes == []
 
 
+def _interrupt_on(monkeypatch, nth):
+    real = pgrest_io.PgRest.update
+    calls = {"n": 0}
+
+    def flaky(self, table, key, patch):
+        calls["n"] += 1
+        if calls["n"] == nth:
+            raise RuntimeError("connection reset (simulated)")
+        return real(self, table, key, patch)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "update", flaky)
+    return real
+
+
+@pytest.mark.parametrize("keep_state", [True, False], ids=["state-file", "no-state-file"])
+def test_a_resume_later_in_the_day_finishes_the_run(env, monkeypatch, keep_state):
+    """The resume happens minutes later: a fresh clock. Updates already
+    applied carry the FIRST run's "$now" (documents.deleted_at, organizations.
+    archived_at). The 10fd52ab --resume compared them with its own clock and
+    stopped half-migrated with OpConflict (verifier probe_resume.py). Now the
+    run's timestamp is recorded before the first write and reused; without
+    that file a "$now" column holding any timestamp counts as applied."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    real = _interrupt_on(monkeypatch, 21)   # after three document archive stamps
+    with pytest.raises(RuntimeError):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    monkeypatch.setattr(pgrest_io.PgRest, "update", real)
+    stamped = [d for d in env["fake"].tables["documents"] if d.get("error", "") and
+               str(d.get("error")).startswith("archived:") and d.get("deleted_at") == RUN]
+    assert stamped, "the interruption must come after some $now writes"
+    if not keep_state:
+        for f in (env["tmp"] / "out").glob("run_state_*.json"):
+            f.unlink()
+    later = "2026-09-21T15:07:00+00:00"
+    rc = migration_cli.main(["--execute", "--resume", "--expect-plan-sha", sha, "--known-identities", env["rules"],
+                             "--out-dir", str(env["tmp"] / "out"), "--migration-date", "2026-09-21",
+                             "--snapshot", snap],
+                            client_factory=env["fake"].client, out=env["out"], now=later, registry=None)
+    assert rc == 0, "\n".join(env["lines"][-20:])
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
+    # the first run's stamps are not rewritten
+    for d in stamped:
+        assert next(x for x in env["fake"].tables["documents"] if x["id"] == d["id"])["deleted_at"] == RUN
+    if keep_state:
+        assert any(l.startswith("RESUME: reusing the interrupted run's timestamp %s" % RUN) for l in env["lines"])
+    assert env["fake"].deletes == []
+
+
 # ── restore ────────────────────────────────────────────────────────────
 
 
