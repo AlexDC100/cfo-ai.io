@@ -22,10 +22,12 @@ A document DUPLICATES a live one when all four agree:
                account and company (`_unhashed_candidates`, same size,
                bounded) — is hashed from its storage object before it is
                compared, and the hash is written back.
-  * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader,
-               and only when that is the verified caller (`dedupe_account`).
-               The quota and the bill are per user; a colleague's copy is
-               theirs, and a colleague's entry never archives an upload.
+  * ACCOUNT  — `documents.uploaded_by`: the new upload's own uploader
+               (`look_account`), a member of the company. The quota and
+               the bill are per user; a colleague's copy is theirs. Only
+               the uploader's OWN entry archives a duplicate
+               (`dedupe_account`); a colleague's entry for the uploader's
+               duplicate is answered `duplicate` and changes nothing.
   * COMPANY  — `documents.org_id` is the same workspace. The same file in
                a DIFFERENT company is not a duplicate.
   * SCOPE    — `documents.scope`: a financial analysis and a Products
@@ -733,6 +735,26 @@ DELETED = "deleted"
 NOT_MINE = "not_mine"
 
 
+def look_account(row: Dict[str, Any]) -> Optional[str]:
+    """The ACCOUNT a document's duplicates are looked for under: its own
+    uploader, when that uploader is a member of the document's company.
+    Whoever makes the entry (verifier lens S, S9: a colleague's retry of
+    the uploader's duplicate skipped the look and analysed — and counted —
+    the copy). None → no look (an unverifiable account proves nothing)."""
+    uploader = str(row.get("uploaded_by") or "").strip()
+    org = str(row.get("org_id") or "").strip()
+    if not uploader or not org:
+        return None
+    try:
+        from . import _org
+        if not _org.user_is_member(uploader, org):
+            return None
+    except Exception:  # noqa: BLE001 — an unverifiable account proves no duplicate
+        logger.exception("[dedupe] membership of %s in %s could not be read", uploader, org)
+        return None
+    return uploader
+
+
 def dedupe_account(row: Dict[str, Any], caller_id: str) -> Optional[str]:
     """The ACCOUNT an analysis entry checks for duplicates under: the
     document's OWN uploader — and only when that uploader is the verified
@@ -748,17 +770,9 @@ def dedupe_account(row: Dict[str, Any], caller_id: str) -> Optional[str]:
     responsible accountant both members). None → the entry never archives."""
     uploader = str(row.get("uploaded_by") or "").strip()
     caller = str(caller_id or "").strip()
-    org = str(row.get("org_id") or "").strip()
-    if not uploader or uploader != caller or not org:
+    if not uploader or uploader != caller:
         return None
-    try:
-        from . import _org
-        if not _org.user_is_member(uploader, org):
-            return None
-    except Exception:  # noqa: BLE001 — an unverifiable account proves no duplicate
-        logger.exception("[dedupe] membership of %s in %s could not be read", uploader, org)
-        return None
-    return uploader
+    return look_account(row)
 
 
 @dataclass(frozen=True)
@@ -826,8 +840,10 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
         never-started (a /run claimed it meanwhile)          → BUSY
       * a RECOVERY of an upload that is not the caller's own  → NOT_MINE
       * it duplicates a live original of the same account
-        (`dedupe_account`: the document's own uploader, when
-        that is the caller), company and period              → archived, DUPLICATE
+        (`look_account`: the document's own uploader, whoever
+        makes the entry), company and period                 → DUPLICATE
+        — archived only when the uploader is the caller
+        (`dedupe_account`); a colleague's entry changes nothing
       * otherwise the document is CLAIMED: in the in-flight
         registry (test-and-set) and `pipeline_started_at`
         stamped — the claim a racing twin finds              → CLAIMED
@@ -846,8 +862,11 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
     account = dedupe_account(doc, caller_id)
     if mode == RECOVER and account is None:
         return Entry(NOT_MINE, dict(doc))
-    h = ensure_content_hash(doc, hasher) if account else None
-    lock = _lock_for(org_id, account, h) if h else _doc_lock(doc_id)
+    # The look runs under the UPLOADER's account whoever makes the entry;
+    # only the uploader's own entry archives (verifier lens S, S9).
+    look = account or look_account(doc)
+    h = ensure_content_hash(doc, hasher) if look else None
+    lock = _lock_for(org_id, look, h) if h else _doc_lock(doc_id)
     with lock:
         row = _fresh_row(doc_id, org_id) or dict(doc)
         if h and not row.get("content_hash"):
@@ -865,11 +884,16 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
         if mode == RECOVER and (status != "queued" or row.get("pipeline_started_at")):
             return Entry(BUSY, row)
         if h:
-            hit = find_live_original(org_id=org_id, user_id=account, content_hash=h,
+            hit = find_live_original(org_id=org_id, user_id=look, content_hash=h,
                                      hint=row.get("period_end_hint"), self_row=row,
                                      hasher=hasher)
             if hit is not None:
-                archive_as_duplicate(row, hit, now_iso=now_iso)
+                if account is not None:
+                    archive_as_duplicate(row, hit, now_iso=now_iso)
+                else:
+                    logger.info("[dedupe] document %s duplicates %s of its uploader — a "
+                                "colleague's entry: not analysed, not archived", doc_id,
+                                hit.existing_document_id)
                 return Entry(DUPLICATE, row, hit=hit)
         if not try_mark_in_flight(doc_id):
             return Entry(BUSY, row)
