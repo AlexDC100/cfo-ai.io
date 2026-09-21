@@ -3546,6 +3546,90 @@
         "net_change_in_cash": "Variația netă a numerarului",
         "closing_cash": "Numerar la închidere"
       }
+    },
+    "cockpit": {
+      "appendix": "Situațiile proiectate complete — contul de profit și pierdere, bilanțul, fluxul de numerar",
+      "banner": "◇ marchează o cifră proiectată. Planul pornește de la poziția de închidere din {{period}}.",
+      "bridge": {
+        "open": "Motorul raportează că acești pași nu se închid pe diferența de numerar; puntea e afișată așa cum a fost servită.",
+        "title": "Punte față de {{from}}",
+        "horizon": "Până în {{year}}",
+        "yearOne": "Primul an"
+      },
+      "cases": {
+        "aria": "Scenariu",
+        "delete": "Șterge {{name}}",
+        "namePlaceholder": "Numește acest caz",
+        "save": "Salvează cazul meu",
+        "saveConfirm": "Salvează",
+        "saveHint": "Mută un cursor, apoi salvează setul ca propriul tău caz"
+      },
+      "chart": {
+        "aria": "EBITDA și numerar, cinci ani de plan",
+        "cash": "Numerar la final de an",
+        "ebitda": "EBITDA",
+        "gap": "Sub zero înainte de linia de finanțare"
+      },
+      "export": {
+        "assumptions": "Ipoteze",
+        "button": "Exportă pentru bancă",
+        "case": "Scenariu: {{name}}",
+        "currency": "Moneda",
+        "failed": "PDF-ul nu a putut fi generat",
+        "horizon": "Orizont",
+        "legend": "Bare: EBITDA. Linie: numerar la final de an. Hașurat: sub zero înainte de linia de finanțare.",
+        "projectedNote": "Fiecare cifră marcată cu ◇ este o proiecție produsă de ipotezele din pagina de ipoteze, pornind de la poziția de închidere din {{base}}. Nu este o cifră realizată.",
+        "standsOn": "Pornește de la",
+        "summary": "Planul în patru cifre",
+        "title": "Proiecție financiară",
+        "working": "Se pregătește PDF-ul…",
+        "costBehaviour": "Costuri fixe și variabile",
+        "fixedShare": "pondere fixă",
+        "fundingLine": "Linia de credit",
+        "origin": "Sursa",
+        "sources": "Surse externe",
+        "threshold": "prag"
+      },
+      "levers": {
+        "days": "zile",
+        "less": "Mai puține",
+        "more": "Mai multe ({{count}})",
+        "reset": "Înapoi la valoarea scenariului",
+        "resetAll": "Înapoi la scenariu",
+        "resetAria": "Resetează {{lever}}",
+        "title": "Ipoteze",
+        "notMeasured": "nemăsurat",
+        "path": "traiectorie"
+      },
+      "numbers": {
+        "aria": "Cele patru cifre pe care le cere o bancă",
+        "dscr": "DSCR {{year}}",
+        "dscrAbove": "peste pragul băncii",
+        "dscrBelow": "sub pragul băncii",
+        "dscrThreshold": "de {{threshold}}",
+        "ebitda": "EBITDA {{year}}",
+        "fcf": "Flux de numerar liber {{from}}–{{to}}",
+        "fundingFrom": "din {{month}}",
+        "fundingInterest": "dobândă",
+        "fundingNeed": "Necesar de finanțare",
+        "margin": "marjă",
+        "minCash": "Numerar minim",
+        "minCashWhen": "în {{month}} · fără finanțare",
+        "today": "azi",
+        "dscrNone": "Nu se aplică: planul nu are serviciu al datoriei în {{year}}"
+      },
+      "present": {
+        "aria": "Prezentarea planului",
+        "button": "Prezintă",
+        "close": "Închide (Esc)",
+        "kicker": "Plan pe cinci ani · {{case}}",
+        "standsOn": "Pornește de la {{period}} · fiecare cifră ◇ e o proiecție"
+      },
+      "stale": "Toate cifrele de mai jos sunt încă ultima proiecție produsă de motor; mută cursorul înapoi sau resetează-l.",
+      "title": "Plan pe cinci ani",
+      "appendixActual": "realizat",
+      "conventions": "Convenții ale modelului",
+      "notModelled": "Ce nu modelează această prognoză"
     }
   },
   "radar": {

@@ -562,11 +562,17 @@
       "affordances": 1,
       "why": "Builds HeadlineProvenance once (verified to the cent inside lib/headlineProvenance) and hands the SAME object to KeyMetricsRow, StoryOverview, FirstUploadJourney and, by context, the configurable tiles. Its own figure — the hero score — names assembled_metrics.credit.composite_score when the score IS that field, else the client derivation."
     },
-    "frontend/pages/cfo/Forecast.tsx": {
+    "frontend/components/forecast/cockpit/LeverSliders.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 2,
+      "sites": 1,
       "affordances": 0,
-      "why": "OPENED 2026-09-08. THE ONE SURFACE WHERE PROVENANCE MUST NOT BE OFFERED. Every figure on this page is a PROJECTION: it resolves to the assumptions above it, never to a cell in an uploaded book, and the fp1 contract enforces that structurally — `assert_no_actual_provenance` refuses any projected figure carrying a snapshot_id, line_id or source_cell, and `ProjectedMinor` makes the value unreachable except through `projectedDisplay`, which hands the consumer the projected marker in the same call. A dotted underline promising to jump to the source cell for 2030 revenue would be an affordance over nothing, which is precisely the LACKS_SHOWS bucket this census exists to keep empty. The one Intl.NumberFormat here paints projected minor units in the BOOK's own currency (the display toggle is deliberately not applied — see makeFormatter); the reason behind every number is instead rendered in full, above the statements, as the assumption schedule."
+      "why": "OPENED 2026-09-21 (Forecast cockpit). The sliders: leverText() prints the reader's own slider POSITION in the lever's unit while they drag it (the engine's own display replaces it once it answers). A lever position is an assumption the reader sets, not a figure read from a book; the basis the engine served is printed beneath it."
+    },
+    "frontend/components/forecast/cockpit/PresentMode.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (Forecast cockpit, present mode). The same served view as the cockpit, full screen; the one site is leverText() on a lever position in the assumptions list (see LeverSliders.tsx). Every figure on the Forecast cockpit is a PROJECTION: it resolves to the assumptions the engine served, never to a cell in an uploaded book, and the fp1 contract enforces that structurally (assert_no_actual_provenance refuses a projected figure carrying a snapshot_id, line_id or source_cell; ProjectedMinor makes the value unreachable except through projectedDisplay inside <ProjectedAmount>, which paints the ◇ mark in the same expression). A dotted underline promising a jump to the source cell of 2030 EBITDA would be an affordance over nothing — the LACKS_SHOWS bucket this census exists to keep empty. "
     },
     "frontend/pages/cfo/Landing.tsx": {
       "bucket": "LACKS_SILENT",

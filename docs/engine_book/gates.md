@@ -8957,3 +8957,152 @@ dropped by the engine without the inventory being re-captured — the moment the
 Romanian rules must be re-read, because a rule that no longer matches prints the
 engine's English on a Romanian page. **It cannot see** sentences the corpus
 books never provoke, or whether a sentence is a good explanation.
+
+## forecast-cockpit-page
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/forecastCockpit.test.tsx frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx frontend/components/forecast/cockpit/__tests__/cockpitNoMoneyMath.test.ts --reporter=verbose` |
+| canary | `LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one`, `gate F4: reset lands on the case answer EXACTLY, from the served bytes`, `saves the WHOLE lever set to the company on screen`, `no statement cell renders at a different magnitude from the bytes behind it`, `R5: the GATEWAY opens the opaque amount in exactly two places and divides once` |
+| work count | `Tests N passed`, floor **60** (measured 68) |
+
+**SCOPE** — the Forecast COCKPIT (owner-approved spec 2026-09-21: four
+numbers, one chart, sliders; THE PAGE DOES NO MATH), rendered over a SYNTHETIC
+double of the engine's `POST /api/forecast/{id}/cockpit` (`forecast_cockpit/1`,
+components/forecast/cockpit/__tests__/syntheticCockpit.ts — invented company
+and figures; no client name or figure is committed). The page, the real
+lib/forecastCockpit.ts reader, the real lib/forecastCases.ts over an org_prefs
+double with the `set_org_pref` one-key merge, and a reportPdf double.
+
+- **The engine's figures only.** The four numbers and the sentence are the
+  engine's own formatted text (per language); every other amount — chart
+  readouts, bridge steps, statement cells — reaches a number only through the
+  gateway's opaque `CockpitMinor` and its two doors. ◇ on every projected
+  figure, none on year 0. DSCR coloured by the engine's `status`, never a page
+  comparison. A funding need carries its month and its interest.
+- **Debounce + latest response wins.** One request per settled drag, after the
+  quiet period; nothing the engine computes moves before it answers; an older
+  answer arriving last is cached and never shown.
+- **F4** reset lands on the case's answer byte for byte — a cache read of the
+  served bytes, so a second request is also a red. **F6** a saved case is the
+  WHOLE lever set (the case's own decimals + the moved sliders), lands in the
+  company on screen, survives a reload, is reopened as `case_id: "saved:<id>"`
+  (the engine reads it from the company's own prefs row), and never lists on
+  another company.
+- **No 100×** (FC1/FC2): every statement cell equals its served
+  `amount_minor / 100` within one unit; the chart and the statements agree on
+  the same served EBITDA; plan year one's painted revenue sits inside a
+  halving-to-doubling band of year 0's.
+- **The no-math source scan** (cockpitNoMoneyMath.test.ts, R1–R6): no
+  `.reduce`, no wire amount, no arithmetic beside a money-named operand, no
+  door named in a painter, each door with exactly one user of each kind, the
+  gateway opening the opaque amount in exactly two places and dividing once,
+  and a roster that reds on an unscanned cockpit module.
+
+**PLANT latest-wins-dropped** — `useCockpit.ts`: the `mine !== seq.current`
+guard removed. **PLANT debounce-removed** — the debounce timer set to 0.
+**PLANT f4-no-cache** — the answer cache never hits. **PLANT f6-foreign-entry**
+— `forecastCases.ts`: the `r.orgId !== orgId` filter removed. **PLANT
+f6-saves-moves-only** — the save drops the case's own levers. **PLANT
+dscr-colour-not-engine** — the DSCR card always "good". **PLANT mark-dropped**
+— `ProjectedText.tsx` without its ◇. **PLANT money-100x** — `format.ts` divides
+the display value by 100 again. **PLANT export-not-engine-data** — the bank
+export built without asking the engine's export route.
+
+```
+baseline (0 failed, 68 passed)
+RED (plant latest-wins-dropped)  failed=2
+  × the sliders > LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one
+  → expected 'RON 17.3M' to be 'RON 17.4M' // Object.is equality
+RED (plant debounce-removed)  failed=1
+  × the sliders > one request per settled drag, after the debounce, with exact decimals
+  → expected "spy" to be called 1 times, but got 2 times
+RED (plant f4-no-cache)  failed=2
+  × the sliders > gate F4: reset lands on the case answer EXACTLY, from the served bytes
+  → expected 3 to be 2 // Object.is equality
+RED (plant f6-foreign-entry)  failed=1
+  × gate F6: … an entry naming another company, or not a lever set, is never listed
+  → expected <button type="button" …(5)></button> to be null
+RED (plant f6-saves-moves-only)  failed=1
+  → expected { name: 'Salarii mari', …(6) } to match object { name: 'Salarii mari', …(3) }
+RED (plant dscr-colour-not-engine)  failed=1
+  → expected 'good' to be 'bad' // Object.is equality
+RED (plant mark-dropped)  failed=1
+  → cockpit-ebitda-final lost its ◇: expected '' to be '◇' // Object.is equality
+RED (plant money-100x)  failed=3
+  → pl.revenue/FY2025: painted 970000, payload 97000000: expected 96030000 to be less than or equal to 1
+RED (plant export-not-engine-data)  failed=1
+  → expected "spy" to be called 1 times, but got 0 times
+```
+
+The no-math scan's own real-file plants (each restored byte-exact, sha256
+checked by scratchpad fcst_cockpit_plants/plants.py): a sum of two served
+amounts in `CockpitAppendix.tsx`, a `.reduce` in `Forecast.tsx`, a second
+`cockpitPlot` in the chart, an alias of `cockpitDisplay` in `CaseBridge.tsx`,
+a wire `amount_minor` read in `useCockpit.ts`, a third cast in the gateway, and
+an unrostered module under components/forecast/cockpit/ — each `failed=1`.
+A first alias plant (`const planted = projectedDisplay`) stayed GREEN: R4 read
+CALLS only. R4 now reds on the door's NAME, and the plant was re-run red.
+
+**REVERT** — every file restored byte-exact (sha256 checked by
+scratchpad fcst_cockpit_plants/page_plants.py); `Tests 68 passed (68)`.
+
+**After the repair it reds on:** a number on the cockpit that is not the
+engine's, or a projected one without ◇; a DSCR verdict the page decided; a
+second request for a position whose answer is cached, a request before the
+quiet period, or an older answer overwriting a newer one; a saved case that is
+not the whole lever set, lands in another company, or is reopened with levers
+of the page's own; a painted figure at a different magnitude from its bytes;
+arithmetic on an amount in any cockpit source. **It cannot see** whether the
+engine's numbers are right (the engine lane's cockpit gates), pixels, or real
+latency (the walk's p95).
+
+## forecast-boundary-cockpit
+
+| | |
+|---|---|
+| command | `node scripts/check_forecast_boundary.mjs` |
+| canary | `GATE-WORK forecast-boundary-cockpit` |
+| work count | `GATE-WORK forecast-boundary-cockpit units=N`, floor **3** (measured 4) |
+
+**SCOPE** — the static half of the cockpit's gateway, in the same script as
+forecast-boundary: `frontend/lib/forecastCockpit.ts` declares its opaque
+`CockpitMinor`, carries no formatter, casts the opaque amount to a number in
+exactly its two doors (`cockpitDisplay`, `cockpitPlot`); `cockpitDisplay` is
+named only by the gateway, <CockpitAmountView> and the bank export,
+`cockpitPlot` only by the gateway, the cockpit chart and the bank export; and
+<CockpitAmountView> renders the value and the ◇ mark inside its one
+`cockpitDisplay` callback. The gateway is the second sanctioned door beside
+forecastFacts.ts, and the laundering rule exempts it only because this
+section holds it to exactly two casts.
+
+**PLANT third-cast-in-gateway** — a third `as unknown as number` in the
+gateway. **PLANT formatter-in-gateway** — an `Intl.NumberFormat` in the
+gateway. **PLANT display-door-in-painter** — `HeadlineNumbers.tsx` names
+`cockpitDisplay`. **PLANT plot-door-in-bridge** — `CaseBridge.tsx` names
+`cockpitPlot`. **PLANT mark-outside-display** — the primitive's
+`data-projected-mark` renamed.
+
+```
+RED (plant third-cast-in-gateway)   exit 1
+  · frontend/lib/forecastCockpit.ts casts the opaque amount to a number 3 time(s); the gateway has exactly two doors (cockpitDisplay, cockpitPlot).
+RED (plant formatter-in-gateway)    exit 1
+  · frontend/lib/forecastCockpit.ts contains a formatter. The gateway returns typed objects; painting them is the components' job.
+RED (plant display-door-in-painter) exit 1
+  · frontend/components/forecast/cockpit/HeadlineNumbers.tsx names cockpitDisplay — only <CockpitAmountView> and the bank export may take delivery of a cockpit amount
+RED (plant plot-door-in-bridge)     exit 1
+  · frontend/components/forecast/cockpit/CaseBridge.tsx names cockpitPlot — only the cockpit chart and the bank export may plot a cockpit amount
+RED (plant mark-outside-display)    exit 1
+  · frontend/components/forecast/cockpit/CockpitAmountView.tsx: value and ◇ mark are no longer inside the one cockpitDisplay callback
+```
+
+**REVERT** — each file restored byte-exact (sha256 checked by scratchpad
+fcst_cockpit_plants/boundary_plants.py); exit 0, `--probe-vacuity` still
+reports PROBE OK.
+
+**After the repair it reds on:** a projected cockpit amount laundered to a
+number outside the gateway's two doors; a formatter in the gateway; a door
+named by any file but its sanctioned users; the ◇ mark leaving the primitive's
+one display callback. **It cannot see** a surface that copies the cockpit JSON
+into its own interface and never imports the gateway (the cockpit's no-math
+scan and its roster are that half).

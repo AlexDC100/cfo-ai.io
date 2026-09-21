@@ -380,6 +380,33 @@ export const cfoApi = {
       body: JSON.stringify(body),
       signal,
     }),
+  /** POST /api/forecast/{id}/cockpit — the Forecast cockpit (owner-approved
+   *  spec 2026-09-21, `forecast_cockpit/1`). Body: {case_id, levers:
+   *  {<lever id>: "<exact decimal>"}} — an engine case or "saved:<id>", and
+   *  the sliders the reader moved; the page sends positions and no number of
+   *  its own. The answer is the engine's cockpit: the four numbers (served
+   *  formatted), the chart, the sentence, every lever with its basis, the
+   *  cases, the bridge from base and the annual statements. Returns the raw
+   *  payload: `readCockpit()` in lib/forecastCockpit.ts is its one reader. */
+  forecastCockpit: (
+    periodId: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) =>
+    call<unknown>(`/api/forecast/${encodeURIComponent(periodId)}/cockpit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+    }),
+  /** POST /api/forecast/{id}/cockpit/export — the bank export's DATA for the
+   *  same body: {document, cockpit, assumptions_page}. The page renders it in
+   *  the CFO Report's print style (lib/forecastBankExport.ts) and posts the
+   *  HTML to /api/report/pdf; no figure is computed outside the engine. */
+  forecastCockpitExport: (periodId: string, body: Record<string, unknown>) =>
+    call<unknown>(`/api/forecast/${encodeURIComponent(periodId)}/cockpit/export`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** GET /api/forecast/templates/scenarios: the templates this engine serves,
    *  each with its declared shocks and the display value to print (pack
    *  data; no figure of any book). */

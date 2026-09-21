@@ -96,6 +96,11 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const PROBE_VACUITY = process.argv.includes("--probe-vacuity");
 
 const FORECAST_LIB = "frontend/lib/forecastFacts.ts";
+// The Forecast cockpit's gateway (2026-09-21): the one reader of the engine's
+// `forecast_cockpit/1` payload, and the second sanctioned door to a projected
+// amount (see the COCKPIT section below).
+const COCKPIT_LIB = "frontend/lib/forecastCockpit.ts";
+const COCKPIT_PRIMITIVE = "frontend/components/forecast/cockpit/CockpitAmountView.tsx";
 const PRIMITIVE = "frontend/components/forecast/ProjectedAmount.tsx";
 const ENGINE_PROJECTION = "src/engine/forecast_serving";
 const ENGINE_ACTUALS = "src/engine/serving";
@@ -408,8 +413,10 @@ for (const file of files) {
   if (!importsForecast) continue;
   consumers += 1;
 
-  // A cast that launders the opaque amount into a plain number.
-  if (path !== FORECAST_LIB && !isTest) {
+  // A cast that launders the opaque amount into a plain number. The
+  // cockpit's gateway (COCKPIT_LIB) is the second sanctioned door, held by its
+  // own stricter rule below (exactly two casts, both inside its doors).
+  if (path !== FORECAST_LIB && path !== COCKPIT_LIB && !isTest) {
     const laundering =
       /amountMinor\s+as\s+unknown\s+as\s+number/.test(src) ||
       /as\s+unknown\s+as\s+number/.test(src);
@@ -712,6 +719,89 @@ if (!PROBE_VACUITY && scenariosClosure.length > 0) {
     }
   }
 }
+
+// ── THE FORECAST COCKPIT'S GATEWAY (2026-09-21) ────────────────────────
+//
+// The cockpit reads the engine's `forecast_cockpit/1` payload, whose amounts
+// carry no driver attribution, so they cannot ride forecastFacts'
+// ProjectedMinor; lib/forecastCockpit.ts wraps them in its own opaque
+// CockpitMinor and opens it through exactly two doors: `cockpitDisplay`
+// (minor → major, the marker in the same call; <CockpitAmountView> and the
+// bank export's `paint`) and `cockpitPlot` (a chart coordinate; the cockpit
+// chart and the export's chart). This section holds that gateway to the same
+// law as forecastFacts.ts, and holds who may open its doors.
+//
+// RED ON (TC-11), comments aside:
+//   · the gateway not declaring its opaque `CockpitMinor` type, or carrying a
+//     formatter (toFixed / toLocaleString / Intl.NumberFormat);
+//   · `as unknown as number` in the gateway anywhere but its two doors
+//     (a count other than 2);
+//   · `cockpitDisplay` named in any non-test file but the gateway, the
+//     primitive and the bank export; `cockpitPlot` in any but the gateway,
+//     the cockpit chart and the bank export;
+//   · the primitive no longer rendering the value and the ◇ mark inside the
+//     one cockpitDisplay callback.
+// CANNOT SEE: a surface that copies the cockpit JSON into its own interface
+// and never imports the gateway; the cockpit's own no-math gate
+// (cockpitNoMoneyMath.test.ts) is the arithmetic half.
+const COCKPIT_DISPLAY_USERS = new Set([COCKPIT_LIB, COCKPIT_PRIMITIVE, "frontend/lib/forecastBankExport.ts"]);
+const COCKPIT_PLOT_USERS = new Set([
+  COCKPIT_LIB,
+  "frontend/components/forecast/cockpit/CockpitChart.tsx",
+  "frontend/lib/forecastBankExport.ts",
+]);
+let cockpitDoorFiles = 0;
+if (!PROBE_VACUITY) {
+  const gw = read(join(ROOT, COCKPIT_LIB));
+  if (!gw) {
+    fail(`ROSTER STALE: ${COCKPIT_LIB} does not exist`);
+  } else {
+    const code = absenceCode(gw);
+    if (!/export type CockpitMinor\b/.test(code)) {
+      fail(`${COCKPIT_LIB} no longer declares CockpitMinor — the opaque type IS the compile barrier`);
+    }
+    if (/\.toFixed\(|\.toLocaleString\(|Intl\.NumberFormat\(/.test(code)) {
+      fail(`${COCKPIT_LIB} contains a formatter. The gateway returns typed objects; painting them is the components' job.`);
+    }
+    const casts = (code.match(/as\s+unknown\s+as\s+number/g) ?? []).length;
+    if (casts !== 2) {
+      fail(
+        `${COCKPIT_LIB} casts the opaque amount to a number ${casts} time(s); ` +
+          `the gateway has exactly two doors (cockpitDisplay, cockpitPlot).`,
+      );
+    }
+  }
+  const prim = read(join(ROOT, COCKPIT_PRIMITIVE));
+  if (!prim) {
+    fail(`ROSTER STALE: ${COCKPIT_PRIMITIVE} does not exist`);
+  } else {
+    const d = prim.indexOf("cockpitDisplay(");
+    const v = prim.indexOf("data-projected-value");
+    const m = prim.indexOf("data-projected-mark");
+    if (!(d > -1 && d < v && v < m)) {
+      fail(`${COCKPIT_PRIMITIVE}: value and ◇ mark are no longer inside the one cockpitDisplay callback`);
+    }
+  }
+  for (const file of files) {
+    const path = rel(file);
+    if (!path.endsWith(".ts") && !path.endsWith(".tsx")) continue;
+    if (/__tests__|\.test\.|\.spec\./.test(path)) continue;
+    const code = absenceCode(read(file));
+    const display = /\bcockpitDisplay\b/.test(code);
+    const plot = /\bcockpitPlot\b/.test(code);
+    if (display || plot) cockpitDoorFiles += 1;
+    if (display && !COCKPIT_DISPLAY_USERS.has(path)) {
+      fail(`${path} names cockpitDisplay — only <CockpitAmountView> and the bank export may take delivery of a cockpit amount`);
+    }
+    if (plot && !COCKPIT_PLOT_USERS.has(path)) {
+      fail(`${path} names cockpitPlot — only the cockpit chart and the bank export may plot a cockpit amount`);
+    }
+  }
+  if (cockpitDoorFiles < 3) {
+    fail(`only ${cockpitDoorFiles} file(s) name the cockpit's doors — the rule would pass over nothing`);
+  }
+}
+console.log(`GATE-WORK forecast-boundary-cockpit units=${cockpitDoorFiles} label=files-naming-a-cockpit-door`);
 
 const unreachableScenarios = files
   .map(rel)

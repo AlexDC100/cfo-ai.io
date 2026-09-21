@@ -712,6 +712,36 @@ def _engine_gates() -> List[Gate]:
              units="distinct served sentences the Forecast and Scenarios pages paint",
              canaries=("SCOPE forecast-served-sentences",
                        "worlds agras, agras_caen1011, agras_caen1011_paired")),
+        # THE FORECAST COCKPIT (owner spec 2026-09-21): the page does NO math.
+        # Over a SYNTHETIC double of POST /api/forecast/{id}/cockpit: the four
+        # numbers, chart, bridge and statements are the engine's (◇ on every
+        # projected figure), debounce + latest-response-wins, reset -> the
+        # case's bytes (F4), saved cases per company (F6), present mode,
+        # the bank export from the engine's export data, no 100× (FC1/FC2),
+        # and the no-math source scan (R1-R6). Measured 68 tests, floor 60.
+        # Plant log: gates.md "forecast-cockpit-page".
+        Gate("forecast-cockpit-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/forecastCockpit.test.tsx",
+              "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
+              "frontend/components/forecast/cockpit/__tests__/cockpitNoMoneyMath.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
+             units="cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan)",
+             canaries=("LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one",
+                       "gate F4: reset lands on the case answer EXACTLY, from the served bytes",
+                       "saves the WHOLE lever set to the company on screen",
+                       "no statement cell renders at a different magnitude from the bytes behind it",
+                       "R5: the GATEWAY opens the opaque amount in exactly two places and divides once")),
+        # The cockpit gateway's static half: lib/forecastCockpit.ts declares the
+        # opaque CockpitMinor, formats nothing, opens it in exactly two doors,
+        # and only the primitive / chart / bank export name those doors. Same
+        # script as forecast-boundary, its own count. Measured 4 files.
+        # Plant log: gates.md "forecast-boundary-cockpit".
+        Gate("forecast-boundary-cockpit", ["node", "scripts/check_forecast_boundary.mjs"],
+             work_rx=r"GATE-WORK forecast-boundary-cockpit units=(\d+)", floor=3,
+             units="files naming a door of the cockpit gateway",
+             canaries=("GATE-WORK forecast-boundary-cockpit",)),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

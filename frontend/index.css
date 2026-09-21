@@ -1213,3 +1213,21 @@
   border-bottom-color: hsl(var(--rule-strong));
   white-space: nowrap;
 }
+
+/* ── Forecast cockpit (2026-09-21) ─────────────────────────────────────
+   A served answer SETTLES into place: every number re-mounts when the engine
+   answers and fades up from a hair below. No number is tweened — a digit
+   counting from the old value to the new one would be the browser showing
+   figures the engine never produced. The chart's bars and line glide between
+   the two SERVED shapes (geometry only). */
+@keyframes cockpit-settle {
+  from { opacity: 0.25; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+.cockpit-settle { animation: cockpit-settle 320ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.cockpit-bar { transition: y 360ms cubic-bezier(0.2, 0.7, 0.2, 1), height 360ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.cockpit-line { transition: d 360ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .cockpit-settle { animation: none; }
+  .cockpit-bar, .cockpit-line { transition: none; }
+}

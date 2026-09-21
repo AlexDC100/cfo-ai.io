@@ -3522,6 +3522,90 @@
         "net_change_in_cash": "Net change in cash",
         "closing_cash": "Closing cash"
       }
+    },
+    "cockpit": {
+      "appendix": "Full projected statements — profit and loss, balance sheet, cash flow",
+      "banner": "◇ marks a projected figure. The plan stands on the closing position of {{period}}.",
+      "bridge": {
+        "open": "The engine reports that these steps do not close on the cash difference; the bridge is shown as served.",
+        "title": "Bridge from {{from}}",
+        "horizon": "To {{year}}",
+        "yearOne": "Year one"
+      },
+      "cases": {
+        "aria": "Case",
+        "delete": "Delete {{name}}",
+        "namePlaceholder": "Name this case",
+        "save": "Save my case",
+        "saveConfirm": "Save",
+        "saveHint": "Move a slider, then save the set as your own case"
+      },
+      "chart": {
+        "aria": "EBITDA and cash, five plan years",
+        "cash": "Cash at year end",
+        "ebitda": "EBITDA",
+        "gap": "Below zero before the funding line"
+      },
+      "export": {
+        "assumptions": "Assumptions",
+        "button": "Export for the bank",
+        "case": "Case: {{name}}",
+        "currency": "Currency",
+        "failed": "The PDF could not be produced",
+        "horizon": "Horizon",
+        "legend": "Bars: EBITDA. Line: cash at year end. Shaded: below zero before the funding line.",
+        "projectedNote": "Every figure marked ◇ is a projection produced by the assumptions on the assumptions page, from the closing position of {{base}}. It is not an actual.",
+        "standsOn": "Stands on",
+        "summary": "The plan in four numbers",
+        "title": "Financial projection",
+        "working": "Preparing the PDF…",
+        "costBehaviour": "Fixed and variable costs",
+        "fixedShare": "fixed share",
+        "fundingLine": "The credit line",
+        "origin": "From",
+        "sources": "External sources",
+        "threshold": "threshold"
+      },
+      "levers": {
+        "days": "days",
+        "less": "Fewer",
+        "more": "More ({{count}})",
+        "reset": "Back to the case's value",
+        "resetAll": "Back to the case",
+        "resetAria": "Reset {{lever}}",
+        "title": "Assumptions",
+        "notMeasured": "not measured",
+        "path": "path"
+      },
+      "numbers": {
+        "aria": "The four numbers a bank asks for",
+        "dscr": "DSCR {{year}}",
+        "dscrAbove": "above the bank's threshold",
+        "dscrBelow": "below the bank's threshold",
+        "dscrThreshold": "of {{threshold}}",
+        "ebitda": "EBITDA {{year}}",
+        "fcf": "Free cash flow {{from}}–{{to}}",
+        "fundingFrom": "from {{month}}",
+        "fundingInterest": "interest",
+        "fundingNeed": "Funding need",
+        "margin": "margin",
+        "minCash": "Lowest cash",
+        "minCashWhen": "in {{month}} · no funding needed",
+        "today": "today",
+        "dscrNone": "Not applicable: the plan carries no debt service in {{year}}"
+      },
+      "present": {
+        "aria": "Presentation of the plan",
+        "button": "Present",
+        "close": "Close (Esc)",
+        "kicker": "Five-year plan · {{case}}",
+        "standsOn": "Stands on {{period}} · every ◇ figure is a projection"
+      },
+      "stale": "Every figure below is still the last projection the engine produced; move the slider back or reset it.",
+      "title": "Five-year plan",
+      "appendixActual": "actual",
+      "conventions": "Model conventions",
+      "notModelled": "What this forecast does not model"
     }
   },
   "radar": {

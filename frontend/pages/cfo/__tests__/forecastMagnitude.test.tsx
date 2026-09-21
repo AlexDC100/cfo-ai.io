@@ -1,55 +1,36 @@
+// @vitest-environment jsdom
 /**
- * FC1 + FC2 — THE RENDERED NUMBER IS THE NUMBER.
+ * FC1 / FC2 — NO 100× ON THE FORECAST COCKPIT.
  *
- * ── WHAT THIS EXISTS FOR ────────────────────────────────────────────────
+ * The forecast page once shipped rendering EVERY figure at one HUNDREDTH of
+ * its value: `projectedDisplay` had already divided minor units by 100 and the
+ * page's formatter divided again. Nothing caught it, because every suite
+ * asserted markers and refusals and none compared a painted number with the
+ * bytes behind it. This file does, on the cockpit (2026-09-21), over the
+ * synthetic double of the engine's cockpit route.
  *
- * The forecast page shipped rendering EVERY figure at one HUNDREDTH of its
- * value. Revenue for the year showed RON 4,137,276 while the assumption
- * schedule directly above it printed 413,727,560.16 in its own basis
- * sentence. One screen, two numbers, same concept, 100× apart — and the
- * document therefore contradicted itself in front of a lender.
- *
- * The cause was a second division. `projectedDisplay` in
- * `lib/forecastFacts.ts` does `minor / 100` and its docstring calls itself
- * "the single division, at the edge"; the page's own formatter divided
- * again. The producer was right, the serving lane was right, the boundary
- * was right. The PAGE was wrong.
- *
- * Nothing caught it. `forecastPage.test.tsx` asserts markers, refusals,
- * ordering and copy — every structural property — and never once asserts
- * that a painted number equals the number behind it. A gate that checks
- * everything about a figure except its VALUE is the gate this file adds.
- *
- * ── WHAT IT REDS ON (TC-11) ─────────────────────────────────────────────
- *   · any painted figure differing from its payload value (FC1);
- *   · a figure quoted inside BASIS PROSE differing from the same figure
- *     rendered in the table, to the cent (FC1 — the prose was outside
- *     every existing one-concept-one-value gate);
- *   · projected year-one revenue outside a declared band of the source
- *     period's revenue with no growth driver to explain it (FC2).
- * ── WHAT IT CANNOT SEE ──────────────────────────────────────────────────
- *   · whether the engine's arithmetic is right. `test_forecast_model.py`
- *     owns that. This file only asserts that what the engine said is what
- *     the reader sees.
+ * RED ON (TC-11):
+ *   · FC1 — a statement cell painted at a different magnitude from its served
+ *     `amount_minor` (tolerance ONE unit, never a percentage, which would let
+ *     a 100× through on a small figure); a chart readout and the statement
+ *     cell of the same served figure disagreeing about its size;
+ *   · FC1b — one of the four numbers painted from a different field than the
+ *     figure it names (the engine's display text vs its own figure);
+ *   · FC2 — plan year one's revenue outside a halving-to-doubling band of the
+ *     actual year's (an order-of-magnitude tripwire, not a forecasting view).
+ * CANNOT SEE: whether the engine's arithmetic is right (its own gates).
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 import Forecast from "../Forecast";
+import { syntheticCockpit } from "@/components/forecast/cockpit/__tests__/syntheticCockpit";
 
 const PERIOD = { id: "p-1", label: "Dec 2025" };
 vi.mock("@/lib/activePeriod", () => ({ useActivePeriod: () => PERIOD }));
-
-const forecast = vi.fn();
-// forecast-scenarios-live: the page resolves the COMPANY ON SCREEN
-// (lib/pageCompany) before it projects. These suites are about the
-// projection, so the period above is the one on screen and the workspace
-// layer answers "loaded, nothing else to say".
 vi.mock("@/hooks/useActivePeriodFallback", () => ({
   useActivePeriodFallback: () => ({ periodId: null, status: "ready" }),
 }));
@@ -63,45 +44,18 @@ vi.mock("@/lib/org", () => ({
   }),
   daysUntilPurge: () => 30,
 }));
+const cockpitCall = vi.fn();
 vi.mock("@/lib/cfoApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/cfoApi")>("@/lib/cfoApi");
-  return { ...actual, cfoApi: { forecast: (...a: unknown[]) => forecast(...a) } };
+  return { ...actual, cfoApi: { forecastCockpit: (...a: unknown[]) => cockpitCall(...a) } };
 });
 
-/** THE ENGINE'S OWN BYTES.
- *
- *  `fp1_agras_served.json`, the fixture that was already committed, is a
- *  hand-built five-line payload with three drivers whose bases read
- *  "supplied by the caller". It quotes no figure, so it could not have
- *  caught this defect and did not: the 100× error shipped past it.
- *
- *  This one is the real engine's output on the real agras book — 25
- *  drivers with the bases it derived ("cost of sales as a share of revenue
- *  = 70,557,114.68 (assembled_pl.cogs) / 118,576,819.64
- *  (assembled_pl.revenue)"), 57 figures, and it round-trips through
- *  `ProjectionContract` unchanged. Scoped to ONE period of the horizon,
- *  which is a valid fp1 payload and not a doctored one — every figure's
- *  period is in `horizon`, which is all the contract asks — because the
- *  full three-year payload is 3.6 MB (every figure inlines the full basis
- *  of every driver it names) and a fixture a human must review has to be
- *  reviewable. */
-const PAYLOAD = JSON.parse(
-  readFileSync(
-    resolve(__dirname,
-      "../../../../tests/engine/fixtures/forecast/fp1_2_agras_engine_one_period.json"),
-    "utf-8",
-  ),
-) as Record<string, unknown>;
-
-/** Every driver's basis sentence, read from fp1.2 `drivers` (3.2, 3.3). */
-const BASIS_SENTENCES: string[] = Object.values(
-  (PAYLOAD.drivers ?? {}) as Record<string, { basis?: { sentence?: { text?: string } } }>,
-).map((d) => String(d.basis?.sentence?.text ?? ""));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Json = Record<string, any>;
+const PAYLOAD = syntheticCockpit({ caseId: "pesimist", funding: true, dscrBelow: true, seed: 3 }) as Json;
 
 function wrap() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -111,135 +65,112 @@ function wrap() {
   );
 }
 
-/** Every digit group in a rendered cell, as one number. Currency symbol,
- *  thin spaces and the ◇ marker are stripped; the sign is kept. */
+/** "RON 1,234,567" / "−RON 12" → 1234567 / −12; anything else → null. */
 function paintedNumber(text: string): number | null {
-  const cleaned = text.replace(/[^\d,.\-−]/g, "").replace(/−/g, "-");
-  const digits = cleaned.replace(/[.,](?=\d{3}\b)/g, "").replace(/,/g, ".");
+  const t = text.replace(/ /g, " ").replace(/◇/g, "").trim();
+  const neg = /^[-−]/.test(t) || /\(.*\)/.test(t);
+  const digits = t.replace(/[^\d.]/g, "");
+  if (!digits) return null;
   const n = Number(digits);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? (neg ? -n : n) : null;
 }
 
-beforeEach(() => forecast.mockReset());
+/** "RON 17.2M" / "RON 123.5k" → units. */
+function compactNumber(text: string): number | null {
+  const t = text.replace(/ /g, " ").replace(/◇/g, "").trim();
+  const m = /(-|−)?RON\s*([\d.,]+)\s*([kKmM])?/.exec(t);
+  if (!m) return null;
+  const base = Number(m[2].replace(/,/g, ""));
+  const scale = m[3] ? (m[3].toLowerCase() === "m" ? 1_000_000 : 1_000) : 1;
+  return (m[1] ? -1 : 1) * base * scale;
+}
+
+beforeEach(() => {
+  cockpitCall.mockReset();
+  cockpitCall.mockResolvedValue(PAYLOAD);
+});
+afterEach(() => cleanup());
 
 describe("FC1 — a painted figure equals its payload value", () => {
-  it("no figure renders at a different magnitude from the bytes behind it", async () => {
-    forecast.mockResolvedValue(PAYLOAD);
+  it("no statement cell renders at a different magnitude from the bytes behind it", async () => {
     wrap();
-    await screen.findByTestId("forecast-assumptions");
-
-    const figures = (PAYLOAD.figures ?? []) as Array<Record<string, unknown>>;
+    await screen.findByTestId("forecast-block-pl");
     const byKey = new Map<string, number>();
-    for (const f of figures) {
-      const minor = Number(f.amount_minor);
-      if (Number.isFinite(minor)) byKey.set(`${f.line}|${f.period}`, minor / 100);
-    }
-
-    let checked = 0;
-    // THE PERIOD IS READ OFF THE CELL, not off its index. v1.5 gave the table
-    // FY columns by default with the months of year one behind a toggle, so a
-    // gate that maps column i to `horizon.labels[i]` is asserting the old
-    // column choice rather than the magnitude it exists to check — it went red
-    // on a correct page. The cell states which period it is.
-    for (const row of Array.from(document.querySelectorAll("[data-testid^='forecast-row-']"))) {
-      const line = (row.getAttribute("data-testid") || "").replace("forecast-row-", "");
-      const cells = Array.from(row.querySelectorAll("td[data-period]"));
-      cells.forEach((cell) => {
-        const period = cell.getAttribute("data-period") || "";
-        expect(cell.getAttribute("data-line")).toBe(line);
-        if (!period) return;
-        const expected = byKey.get(`${line}|${period}`);
-        if (expected === undefined) return;              // refused — its own test
-        const painted = paintedNumber(cell.textContent || "");
-        if (painted === null) return;
-        // Rounded to whole units for display, so the tolerance is one unit
-        // — NOT one percent, which would let a 100× error through on a
-        // small figure.
-        expect(
-          Math.abs(painted - expected),
-          `${line}/${period}: painted ${painted}, payload ${expected} ` +
-            `(ratio ${(expected === 0 ? 0 : painted / expected).toFixed(4)}) — ` +
-            `a page that paints a figure at a different magnitude from the ` +
-            `bytes behind it contradicts its own assumption schedule`,
-        ).toBeLessThanOrEqual(1.0);
-        checked += 1;
-      });
-    }
-    expect(checked, "no figure was compared at all — the gate is vacuous").toBeGreaterThan(3);
-  });
-
-  it("a figure quoted in BASIS PROSE equals the same figure in the table", async () => {
-    forecast.mockResolvedValue(PAYLOAD);
-    wrap();
-    const schedule = await screen.findByTestId("forecast-assumptions");
-
-    // Every number the engine wrote into a driver's basis sentence.
-    const quoted: number[] = [];
-    for (const text of BASIS_SENTENCES) {
-      for (const m of text.matchAll(/\b\d[\d,]{5,}(?:\.\d+)?\b/g)) {
-        const n = Number(m[0].replace(/,/g, ""));
-        if (Number.isFinite(n) && n > 1000) quoted.push(n);
+    for (const section of ["pl", "bs", "cf"]) {
+      for (const row of PAYLOAD.statements[section] as Json[]) {
+        for (const v of row.values as Json[]) byKey.set(`${row.line}|${v.period}`, v.amount_minor / 100);
+        if (row.year0 && typeof row.year0.amount_minor === "number") {
+          byKey.set(`${row.line}|${row.year0.period}`, row.year0.amount_minor / 100);
+        }
       }
     }
-    expect(quoted.length, "no basis sentence quotes a figure; gate is vacuous")
-      .toBeGreaterThan(0);
-
-    // The prose renders verbatim, so the same digits must be on screen.
-    const scheduleText = schedule.textContent || "";
-    for (const n of quoted.slice(0, 12)) {
-      const asWritten = n.toLocaleString("en-US");
+    let checked = 0;
+    for (const cell of Array.from(document.querySelectorAll("td[data-line][data-period]"))) {
+      const expected = byKey.get(`${cell.getAttribute("data-line")}|${cell.getAttribute("data-period")}`);
+      if (expected === undefined) continue;
+      const painted = paintedNumber(cell.textContent || "");
+      if (painted === null) continue;
       expect(
-        scheduleText.includes(asWritten) || scheduleText.includes(String(n)),
-        `the basis prose quotes ${asWritten} and the rendered schedule does ` +
-          `not contain it — the page states two values for one concept`,
-      ).toBe(true);
+        Math.abs(painted - expected),
+        `${cell.getAttribute("data-line")}/${cell.getAttribute("data-period")}: painted ${painted}, payload ${expected}`,
+      ).toBeLessThanOrEqual(1.0);
+      checked += 1;
+    }
+    expect(checked, "no figure was compared at all — the gate is vacuous").toBeGreaterThan(20);
+  });
+
+  it("a chart readout and the statement cell of the same served EBITDA agree about its size", async () => {
+    wrap();
+    await screen.findByTestId("cockpit-chart-readouts");
+    let checked = 0;
+    for (const y of ["FY2026", "FY2027", "FY2028", "FY2029", "FY2030"]) {
+      const readout = document.querySelector(
+        `[data-testid="cockpit-chart-readouts"] [data-period="${y}"] [data-series="ebitda"] [data-projected-value]`,
+      );
+      const cell = document.querySelector(`td[data-line="pl.ebitda"][data-period="${y}"] [data-projected-value]`);
+      const compact = compactNumber(readout?.textContent ?? "");
+      const full = paintedNumber(cell?.textContent ?? "");
+      expect(compact, `${y}: the chart paints no EBITDA`).not.toBeNull();
+      expect(full, `${y}: the statements paint no EBITDA`).not.toBeNull();
+      // compact prints one decimal of the millions: half a hundred thousand
+      expect(Math.abs((compact as number) - (full as number)), y).toBeLessThanOrEqual(50_000);
+      checked += 1;
+    }
+    expect(checked).toBe(5);
+  });
+});
+
+describe("FC1b — the four numbers are the figures they name", () => {
+  it("each of the engine's display texts states its own figure's magnitude", async () => {
+    wrap();
+    await screen.findByTestId("cockpit-numbers");
+    const pairs: Array<[string, number]> = [
+      ["cockpit-ebitda-final", PAYLOAD.numbers.ebitda_final_year.figure.amount_minor / 100],
+      ["cockpit-cumulative-fcf", PAYLOAD.numbers.cumulative_fcf.figure.amount_minor / 100],
+      ["cockpit-funding-need", PAYLOAD.numbers.cash.figure.amount_minor / 100],
+    ];
+    for (const [id, units] of pairs) {
+      const painted = compactNumber(
+        screen.getByTestId(id).querySelector("[data-projected-value]")?.textContent ?? "",
+      );
+      expect(painted, id).not.toBeNull();
+      expect(Math.abs((painted as number) - units), `${id}: painted ${painted}, figure ${units}`).toBeLessThanOrEqual(50_000);
     }
   });
 });
 
-describe("FC2 — magnitude sanity against the source period", () => {
-  it("year-one revenue is within a declared band of the source revenue", async () => {
-    forecast.mockResolvedValue(PAYLOAD);
+describe("FC2 — magnitude sanity against the actual year", () => {
+  it("plan year one's PAINTED revenue is within a declared band of year 0's", async () => {
     wrap();
-    await screen.findByTestId("forecast-assumptions");
-
-    // fp1.2 (plan/2 B6): plan year one's revenue is the SERVED FY aggregate
-    // (3.6), never a sum this test or the browser makes over the months (F2).
-    const fy = ((PAYLOAD.horizon as { labels_annual?: string[] })?.labels_annual ?? [])[0];
-    const figures = (PAYLOAD.figures ?? []) as Array<Record<string, unknown>>;
-    const aggregate = figures.find(
-      (f) => f.line === "pl.revenue" && f.period === fy && f.kind === "projected_aggregate",
-    );
-    expect(aggregate, "no served FY aggregate of pl.revenue; the gate is vacuous").toBeTruthy();
-    const yearOne = Number(aggregate!.amount_minor) / 100;
-
-    // The source period's revenue, from the driver that names it: the
-    // figure that FOLLOWS the word "revenue" in a basis sentence. (plan/2
-    // B4b: the first revenue-naming driver used to be the cost-of-sales
-    // share, whose first figure was the cost; with the cost pools that
-    // driver is gone and the first such sentence is days sales
-    // outstanding, whose first figure is the receivables — so the figure
-    // is taken by its label, not by its position.)
-    const basis = BASIS_SENTENCES.find((b) => /revenue\s+\d[\d,]{6,}/i.test(b)) ?? "";
-    const match = basis.match(/revenue\s+([\d,]{7,}(?:\.\d+)?)/i);
-    // plan/2 B6 retires the two early returns that stood here: a payload
-    // that names no source revenue used to PASS this gate by leaving it.
-    expect(match, "no driver basis states the source revenue; the band has nothing to stand on").not.toBeNull();
-    const sourceRevenue = Number(match![1].replace(/,/g, ""));
-    expect(Number.isFinite(sourceRevenue) && sourceRevenue > 0).toBe(true);
-
-    // THE BAND, declared here and not inferred: year-one revenue may sit
-    // anywhere from a halving to a doubling of the source period without
-    // a driver explaining it. That is wide on purpose — it is not a
-    // forecasting opinion, it is an ORDER-OF-MAGNITUDE tripwire. A 100×
-    // shift is never inside it, and neither is 0.01×.
-    const ratio = yearOne / sourceRevenue;
-    expect(
-      ratio,
-      `year-one revenue ${yearOne.toLocaleString()} against source ` +
-        `${sourceRevenue.toLocaleString()} is ${ratio.toFixed(4)}× — an ` +
-        `order-of-magnitude shift no growth driver explains`,
-    ).toBeGreaterThan(0.5);
+    await screen.findByTestId("forecast-block-pl");
+    const y0 = paintedNumber(document.querySelector('td[data-line="pl.revenue"][data-period="FY2025"]')?.textContent ?? "");
+    const y1 = paintedNumber(document.querySelector('td[data-line="pl.revenue"][data-period="FY2026"]')?.textContent ?? "");
+    expect(y0, "no actual revenue painted; the band has nothing to stand on").not.toBeNull();
+    expect(y1, "no plan-year-one revenue painted").not.toBeNull();
+    // An ORDER-OF-MAGNITUDE tripwire, not a forecasting opinion: a 100× shift
+    // is never inside it, and neither is 0.01×.
+    const ratio = (y1 as number) / (y0 as number);
+    expect(ratio).toBeGreaterThan(0.5);
     expect(ratio).toBeLessThan(2.0);
   });
 });
