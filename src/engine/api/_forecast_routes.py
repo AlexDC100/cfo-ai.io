@@ -55,15 +55,15 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, model_validator
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ALLOWED_HORIZONS", "PlanRequestBody", "ScenarioRequestBody",
-           "build_router"]
+__all__ = ["ALLOWED_HORIZONS", "CockpitRequestBody", "PlanRequestBody",
+           "ScenarioRequestBody", "build_router", "cockpit"]
 
 #: The horizons the product offers on GET. A caller asking for anything else
 #: is refused by name rather than clamped: silently serving three years to
@@ -182,6 +182,18 @@ class ScenarioRequestBody(_Strict):
     def as_plan_body(self) -> "PlanRequestBody":
         return PlanRequestBody(horizon=self.horizon, overrides=self.overrides,
                                want=self.want)
+
+
+class CockpitRequestBody(_Strict):
+    """POST /api/forecast/{period_id}/cockpit (and /cockpit/export): the
+    forecast cockpit (packs/forecast/cockpit.yaml). ``case_id`` is a built-in
+    case (base, optimist, pesimist) or a saved one ("saved:<id>", read from
+    the company's own org_prefs); ``levers`` are the sliders moved on top of
+    it, lever id -> an exact decimal string, or one per plan year. The page
+    sends ids and decimal strings only: the ENGINE compiles them onto its own
+    drivers and computes every figure."""
+    case_id: str = "base"
+    levers: Dict[str, Union[str, List[str], None]] = {}
 
 
 class _Refusal(ValueError):
@@ -314,6 +326,93 @@ def recompute(period_id: str, body: PlanRequestBody, jwt: str,
     return payload
 
 
+def _saved_case(jwt: str, org_id: str, case_id: str) -> Any:
+    """(name, levers) of a saved case, read from the RESOLVED company's own
+    prefs row through the caller's client (RLS is_member_of, plus the org
+    filter): a case saved on another company is never found here."""
+    from engine.forecast.cockpit import CockpitError, cockpit_pack, saved_case_levers
+    from . import _supabase
+    pack = cockpit_pack()
+    with _supabase.per_user(jwt) as client:
+        rows = client.select("org_prefs", filters={"org_id": "eq.%s" % org_id},
+                             columns="org_id,prefs", single=True) or []
+    bag = rows[0].get("prefs") if rows and rows[0].get("org_id") == org_id else None
+    try:
+        return saved_case_levers(bag, case_id, org_id, pack)
+    except CockpitError as exc:
+        raise HTTPException(exc.status, _detail(exc.code, exc.text, exc.field))
+
+
+def cockpit(period_id: str, body: CockpitRequestBody, jwt: str,
+            x_org_id: Optional[str]) -> Dict[str, Any]:
+    """THE cockpit handler: the same loader, membership resolution and
+    ``project_levers`` as :func:`recompute`, read into four numbers, one
+    chart, the sentence, the levers with their bases, the cases, the bridge
+    from base and the annual statements (engine.forecast.cockpit). Read-only
+    compute: it writes no table."""
+    started = time.perf_counter()
+    from . import _org
+    _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+    from . import _forecast_history
+    from .pipeline import PeriodNotFound, StatementsRebuildError
+    try:
+        period, prior_periods, context, _history = (
+            _forecast_history.load_plan_inputs(jwt, org_id, period_id))
+    except PeriodNotFound:
+        raise HTTPException(404, {"code": "period_not_found",
+                                  "text": "No such period in this workspace.",
+                                  "id": period_id})
+    except StatementsRebuildError as exc:
+        raise HTTPException(409, exc.sentence())
+
+    from engine.forecast.cockpit import (BridgeError, CockpitError, build_cockpit,
+                                         cockpit_pack)
+    from engine.forecast.errors import BalanceViolation, ForecastError, PlanRequestError
+    from engine.forecast_serving import boundary
+
+    saved = None
+    prefix = str(cockpit_pack().saved.get("id_prefix") or "saved:")
+    if body.case_id.startswith(prefix):
+        saved = _saved_case(jwt, org_id, body.case_id)
+    try:
+        payload = build_cockpit(period, prior_periods, context, case_id=body.case_id,
+                                levers=body.levers, saved=saved)
+    except CockpitError as exc:
+        raise HTTPException(exc.status, _detail(exc.code, exc.text, exc.field))
+    except PlanRequestError as exc:
+        raise HTTPException(422, _detail(exc.code, exc.text, exc.field))
+    except BalanceViolation as exc:
+        raise HTTPException(422, {
+            "code": "balance_violation", "text": str(exc),
+            "period": exc.period_label, "difference_minor": exc.delta_cents,
+            "run_kind": getattr(exc, "run_kind", None)})
+    except ForecastError as exc:
+        raise HTTPException(422, _detail(
+            getattr(exc, "code", None) or type(exc).__name__, str(exc),
+            getattr(exc, "key", None)))
+    except BridgeError as exc:
+        logger.error("[forecast] cockpit bridge refused period %s: %s", period_id, exc)
+        raise HTTPException(
+            500, "The cockpit's bridge from base did not sum to the change in "
+                 "cash, so it was not served.")
+    payload["period_id"] = period_id
+    boundary.assert_no_actual_provenance(payload)
+    # OUTSIDE pins.body_hash, like fp1.2's recompute_ms.
+    payload["recompute_ms"] = int((time.perf_counter() - started) * 1000)
+    return payload
+
+
+def _validated_cockpit(raw: Dict[str, Any]) -> CockpitRequestBody:
+    from pydantic import ValidationError
+    try:
+        return CockpitRequestBody.model_validate(raw)
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        field = ".".join(str(p) for p in first.get("loc") or ())
+        raise HTTPException(422, _detail(
+            "invalid_request", "%s: %s" % (field or "body", first.get("msg")), field))
+
+
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/forecast", tags=["forecast"])
 
@@ -379,6 +478,35 @@ def build_router() -> APIRouter:
         scenario = _validated_scenario(body)
         return recompute(period_id, _validated(scenario.as_plan_body().model_dump(
             exclude_defaults=True)), jwt, x_org_id, template_id=scenario.template)
+
+    @router.post("/{period_id}/cockpit")
+    def forecast_cockpit(
+        period_id: str,
+        body: Dict[str, Any],
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """The forecast cockpit over one persisted period: four numbers, one
+        chart, the sentence, every lever with its basis, the cases, the
+        bridge from base and the annual statements — every figure the
+        engine's. Read-only compute: it writes no table."""
+        jwt = _require_jwt(authorization)
+        return cockpit(period_id, _validated_cockpit(body), jwt, x_org_id)
+
+    @router.post("/{period_id}/cockpit/export")
+    def forecast_cockpit_export(
+        period_id: str,
+        body: Dict[str, Any],
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """The bank export's DATA: the same cockpit payload plus the
+        assumptions page, for the CFO-Report PDF pipeline (the page renders
+        it in the report's print style and posts the HTML to
+        /api/report/pdf). Read-only compute: it writes no table."""
+        jwt = _require_jwt(authorization)
+        from engine.forecast.cockpit import export_document
+        return export_document(cockpit(period_id, _validated_cockpit(body), jwt, x_org_id))
 
     return router
 

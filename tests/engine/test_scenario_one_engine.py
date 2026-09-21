@@ -11,10 +11,13 @@ h, "monthly_months": 12}} differing in body_hash on any corpus book at 3 or 5;
 POST /scenario {"template": "base"} at the same horizon differing from the GET
 in ANY block but its own ``scenario`` block and the hash; the mounted
 /api/forecast routes being anything but GET /{period_id}, POST
-/{period_id}/recompute, POST /{period_id}/scenario and GET
-/templates/scenarios; a projecting endpoint not going through the one
-handler; the handler not calling project_levers, or calling anything else
-that projects (project_payload, project, the fp1 adapter or gateway);
+/{period_id}/recompute, POST /{period_id}/scenario, GET /templates/scenarios
+and the cockpit's POST /{period_id}/cockpit and /cockpit/export; a projecting
+endpoint not going through the one handler (the fp1.2 routes through
+``recompute``, the cockpit routes through ``cockpit``); either handler not
+reaching project_levers, or calling anything else that projects
+(project_payload, project, project_plan, the fp1 adapter or gateway); the
+cockpit module projecting anywhere but through project_levers;
 project_levers not calling project_plan.
 CANNOT SEE: the Scenarios page (its import closure is held by
 scenarios-closure, not here); forecast_drivers cases, which still compute on
@@ -90,10 +93,31 @@ def test_both_verbs_reach_project_plan_through_one_handler_and_nothing_else_proj
     assert set(mounted) == {("/api/forecast/{period_id}", ("GET",)),
                             ("/api/forecast/{period_id}/recompute", ("POST",)),
                             ("/api/forecast/{period_id}/scenario", ("POST",)),
+                            ("/api/forecast/{period_id}/cockpit", ("POST",)),
+                            ("/api/forecast/{period_id}/cockpit/export", ("POST",)),
                             ("/api/forecast/templates/scenarios", ("GET",))}, sorted(mounted)
     calls = _calls(mounted[("/api/forecast/{period_id}/recompute", ("POST",))])
+    projects = set(FORBIDDEN) | {"project_plan", "project"}
+    # the cockpit (forecast-scenarios-live): its two routes go through ONE
+    # handler, which reaches the engine only through build_cockpit, which
+    # projects only through project_levers
+    cockpit_routes = [e for (path, _m), e in mounted.items() if "/cockpit" in path]
+    assert len(cockpit_routes) == 2
+    for endpoint in cockpit_routes:
+        assert "cockpit" in calls[endpoint.__name__], (
+            "%s does not go through the cockpit handler" % endpoint.__name__)
+        assert not calls[endpoint.__name__] & (projects | {"project_levers", "recompute"}), (
+            endpoint.__name__)
+    assert "build_cockpit" in calls["cockpit"], sorted(calls["cockpit"])
+    assert not calls["cockpit"] & (projects | {"project_levers"}), sorted(calls["cockpit"])
+    from engine.forecast import cockpit as CK
+    cockpit_calls = _calls(CK.build_cockpit)
+    assert "project_levers" in cockpit_calls["build_cockpit"], sorted(cockpit_calls["build_cockpit"])
+    for function, names in cockpit_calls.items():
+        assert not names & projects, "engine.forecast.cockpit.%s projects around " \
+            "project_levers: %s" % (function, sorted(names & projects))
     projecting = [e for (path, _m), e in mounted.items()
-                  if path != "/api/forecast/templates/scenarios"]
+                  if path != "/api/forecast/templates/scenarios" and "/cockpit" not in path]
     for endpoint in projecting:
         assert "recompute" in calls[endpoint.__name__], (
             "%s does not go through the one handler" % endpoint.__name__)
