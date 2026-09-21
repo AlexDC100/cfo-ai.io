@@ -1158,6 +1158,123 @@ def test_archived_duplicates_are_not_on_the_recently_deleted_shelf_or_emptied(wo
     assert db.deleted_objects == ["%s/uploads/user-deleted.xls" % ORG]
 
 
+# ── A re-run of a book that holds no analysis is its first (2026-09-21) ──
+#
+# Verifier lens Q probes (test_probe_failed_then_rerun_success_is_never_counted,
+# test_probe_sixteen_unique_books_via_fail_then_rerun_never_hit_the_402): a
+# re-run reserved NOTHING, whatever the document was. A book whose first run
+# failed (Anthropic credit exhausted, 2026-09-21) and whose Docs-panel re-run
+# succeeded was a unique success the banner counted and the meter never did;
+# POST /retry on a 402-refused upload analysed it past the cap with no dialog.
+# Only the re-run of an ANALYSED document — a correction — is free.
+
+
+def test_a_book_whose_first_run_failed_counts_once_when_its_re_run_succeeds(world):
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("pdf", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "pdf"}).json()["status"] == "queued"
+    world["finish"]("pdf", "failed")
+    assert meter.snapshot() == {"uploads": 0, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert world["post"]("/api/pipeline/retry", {"document_id": "pdf"}).json()["status"] == "queued"
+    assert meter.snapshot()["reserved"] == 1, "the re-run of a never-analysed book reserved nothing"
+    world["finish"]("pdf", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert _banner(world)["docs_used"] == meter.snapshot()["uploads"] == 1
+    # ... and a re-run of it now that it is analysed is a correction: free.
+    calls = list(meter.calls)
+    assert world["post"]("/api/pipeline/retry", {"document_id": "pdf"}).json()["status"] == "queued"
+    world["finish"]("pdf", "analyzed")
+    assert meter.calls == calls and meter.snapshot()["uploads"] == 1
+
+
+def test_a_failed_re_run_of_a_never_analysed_book_counts_nothing(world):
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("pdf", h=EEI, status="failed", started="2026-09-21T10:00:00+00:00"))
+    assert world["post"]("/api/pipeline/retry", {"document_id": "pdf"}).json()["status"] == "queued"
+    world["finish"]("pdf", "failed")
+    assert meter.snapshot() == {"uploads": 0, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert meter.calls == ["reserve_user_upload", "release_user_upload"]
+
+
+def test_a_retry_cannot_analyse_a_refused_upload_past_the_cap(world):
+    """The user dismissed the €-dialog; the Docs panel's re-run (or a
+    hand-made POST /retry) must meet the same 402 — and the confirmation,
+    when given, pays for exactly this document."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("over", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "over"}).status_code == 402
+    r = world["post"]("/api/pipeline/retry", {"document_id": "over"})
+    assert r.status_code == 402, ("a retry analysed a refused upload past the cap", r.status_code, r.text)
+    assert r.json()["detail"]["code"] == "extra_doc_confirmation_required"
+    assert world["enqueued"] == [] and meter.reserved == 0 and "over" not in pipeline._QUOTA_RUNS
+    row = _row(world, "over")
+    assert row["pipeline_started_at"] is None, "the refused retry kept its claim"
+    assert _doc_dedupe.in_flight("over") is None
+    assert _confirm(world, "over").status_code == 200
+    assert world["post"]("/api/pipeline/retry", {"document_id": "over"}).json()["status"] == "queued"
+    world["finish"]("over", "analyzed")
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    assert [b["reservation_id"] for b in world["billed"]] == ["over"]
+
+
+def test_fail_then_re_run_books_meet_the_402_at_the_cap(world):
+    """Fifteen unique books, each failing first and succeeding on its re-run,
+    use the plan's fifteen documents: the sixteenth meets the dialog, and
+    the banner and the meter agree the whole way."""
+    meter = world["meter"]
+    for i in range(15):
+        doc_id = "book-%02d" % i
+        world["db"].rows("documents").append(_doc(doc_id, h="%064x" % (i + 1),
+                                                  created="2026-09-21T10:%02d:00+00:00" % i))
+        assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).status_code == 202
+        world["finish"](doc_id, "failed")
+        assert world["post"]("/api/pipeline/retry", {"document_id": doc_id}).json()["status"] == "queued"
+        world["finish"](doc_id, "analyzed")
+    assert meter.snapshot()["uploads"] == 15 == _banner(world)["docs_used"]
+    world["db"].rows("documents").append(_doc("book-15", h="%064x" % 16, created="2026-09-21T10:15:00+00:00"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book-15"}).status_code == 402
+
+
+def test_a_move_that_gives_a_failed_undated_upload_its_month_counts_it_once(world):
+    """"Move to another period…" on a document detached by an earlier
+    failure re-runs it (the planner's no-period branch): that is its first
+    successful analysis, metered like /run."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("undated", h=EEI, status="failed",
+                                              started="2026-09-21T10:00:00+00:00"))
+    r = world["post"]("/api/documents/undated/move-period", {"period_end": "2025-12-31"})
+    assert r.status_code == 200, r.text
+    assert world["enqueued"] == ["undated"] and meter.calls == ["reserve_user_upload"]
+    assert _row(world, "undated")["period_end_hint"] == "2025-12-31"
+    world["finish"]("undated", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_move_of_a_refused_upload_past_the_cap_meets_the_402(world):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("over", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "over"}).status_code == 402
+    r = world["post"]("/api/documents/over/move-period", {"period_end": "2025-12-31"})
+    assert r.status_code == 402, (r.status_code, r.text)
+    assert world["enqueued"] == [] and meter.reserved == 0
+    assert _row(world, "over")["pipeline_started_at"] is None and _doc_dedupe.in_flight("over") is None
+
+
+def test_a_move_of_an_analysed_book_is_a_free_correction(world):
+    """Positive control: correcting the month of a counted book re-runs it
+    exactly as before — nothing reserved, settled or billed."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", status="analyzed", period_id=PERIOD,
+                                              started="2026-09-20T10:00:00+00:00", metered_extra=True))
+    r = world["post"]("/api/documents/book/move-period", {"period_end": "2024-12-31"})
+    assert r.status_code == 200, r.text
+    assert world["enqueued"] == ["book"]
+    world["finish"]("book", "analyzed")
+    assert meter.calls == [] and world["billed"] == []
+
+
 # ── Doubles must be faithful ────────────────────────────────────────────
 
 

@@ -672,7 +672,9 @@ def release_claim(doc: Dict[str, Any]) -> None:
 
 #: POST /api/pipeline/run — the metered FIRST analysis of an upload.
 FIRST = "first"
-#: POST /api/pipeline/retry — an unmetered re-run of the stored bytes.
+#: POST /api/pipeline/retry and the move-period / make-active corrections —
+#: a re-run of the stored bytes: unmetered for an analysed document, metered
+#: like FIRST for one that holds no analysis yet (`pipeline._start_rerun`).
 RERUN = "rerun"
 #: recover-stuck and the SKU watchdog — a /run that was refused or lost.
 RECOVER = "recover"
