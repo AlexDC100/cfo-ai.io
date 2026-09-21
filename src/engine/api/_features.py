@@ -18,15 +18,15 @@ exactly one row here with a status. The frontend reads the registry via
                     onClick. The user knows it's on the roadmap.
   · `hidden`      — registry entry exists for backend introspection but
                     the row never renders.
-  · `preview`     — built and walked, open to the users who opted in: the
-                    frontend treats it as `active` for a signed-in user whose
-                    `user_prefs.prefs.preview_features` array names the key,
-                    and as `coming_soon` for everyone else (so their UI is
-                    unchanged). The environment variable CFO_FEATURES_ACTIVE
-                    (a comma list of keys, read on EVERY request) promotes a
-                    key to `active` for everyone without a rebuild — the
-                    owner's switch, and the same mechanism the workspace
-                    redesign's `workspace_v2` flag uses.
+
+EARLY ACCESS (per account) is not a status here. A `coming_soon` key listed
+in the signed-in user's own `user_prefs.prefs.preview_features` is served to
+THAT user as `active` + a "Beta" label by the frontend's one resolver,
+`applyPreview` in frontend/lib/features.ts (release/live d734beed, the
+deployed mechanism); everyone else keeps this registry's answer. The
+environment variable CFO_FEATURES_ACTIVE (a comma list of keys, read on
+EVERY request) promotes a key to `active` for EVERYONE without a rebuild —
+the owner's switch once a surface's acceptance is walked.
 
 Adding a feature: add ONE entry below. Promote `coming_soon → active`
 the moment the underlying endpoint lands. Never delete an entry —
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 # Types — kept inline so this file is grep-able as a single contract
 # ──────────────────────────────────────────────────────────────────────
 
-FeatureStatus = Literal["active", "coming_soon", "hidden", "preview"]
+FeatureStatus = Literal["active", "coming_soon", "hidden"]
 
 #: The environment variable that promotes registry keys to `active` for
 #: everyone, read per request so the owner flips a feature without a rebuild.
@@ -376,13 +376,14 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # Gates: scenario-page-templates, scenario-one-engine, forecast-f1..f6,
     # scenarios-closure (docs/engine_book/gates.md). tests/engine/
     # test_scenarios_preview_acceptance.py replaces the off-path tripwire and
-    # reds if the flag moves past `preview` in this file while the acceptance
-    # it names is not measured.
+    # reds if this row leaves `coming_soon` in this file: `active` for
+    # everyone is the owner's CFO_FEATURES_ACTIVE switch, never an edit here.
     #
-    # PREVIEW, not active: the owner opts in per user (user_prefs.prefs.
-    # preview_features) or promotes it for everyone with CFO_FEATURES_ACTIVE.
+    # COMING SOON for the product as sold; open, labelled Beta, only for an
+    # account whose user_prefs.prefs.preview_features names it (the
+    # frontend's applyPreview — the deployed per-account early access).
     "scenarios": _feature(
-        "preview",
+        "coming_soon",
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
     ),
@@ -432,12 +433,12 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
     ),
     "forecast": _feature(
-        # PREVIEW (forecast-scenarios-live). The ROUTE stays mounted
-        # (`/api/forecast/*` answers 401, not 404) and the page opens for a
-        # user whose user_prefs.prefs.preview_features names "forecast", or
-        # for everyone once CFO_FEATURES_ACTIVE lists it. Everyone else sees
-        # the coming-soon row they saw before.
-        "preview",
+        # COMING SOON for the product as sold. The ROUTE stays mounted
+        # (`/api/forecast/*` answers 401, not 404) and the page opens,
+        # labelled Beta, for an account whose user_prefs.prefs.
+        # preview_features names "forecast" (the frontend's applyPreview), or
+        # for everyone once CFO_FEATURES_ACTIVE lists it.
+        "coming_soon",
         label="Forecast",
         description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
     ),

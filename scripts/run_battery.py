@@ -670,7 +670,7 @@ def _engine_gates() -> List[Gate]:
         Gate("scenarios-preview",
              [PY, "-m", "pytest", "tests/engine/test_scenarios_preview_acceptance.py", "-q"],
              work_junit=True, floor=4, units="tests",
-             canaries=("test_forecast_and_scenarios_are_preview_in_the_source",
+             canaries=("test_forecast_and_scenarios_are_coming_soon_in_the_source",
                        "test_the_active_env_promotes_exactly_the_listed_keys_per_request")),
         # The PAGE half of F1 / F5 / F6 and the preview opt-in: what the
         # Forecast and Scenarios pages paint and save, rendered over the real

@@ -8647,7 +8647,7 @@ missing. **It cannot see** sectors outside the dataset
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_scenarios_preview_acceptance.py -q` |
-| canary | `test_forecast_and_scenarios_are_preview_in_the_source`, `test_the_active_env_promotes_exactly_the_listed_keys_per_request` |
+| canary | `test_forecast_and_scenarios_are_coming_soon_in_the_source`, `test_the_active_env_promotes_exactly_the_listed_keys_per_request` |
 | work count | junit tests, floor **4** (measured 4) |
 
 **SCOPE** — `src/engine/api/_features.py` and GET /api/features/status through
@@ -8670,11 +8670,22 @@ E   AssertionError: the promotion stuck
 
 **REVERT** — restored byte-exact; `4 passed`.
 
-**After the repair it reds on:** either row leaving `preview` in the source;
+**After the repair it reds on:** either row leaving `coming_soon` in the source;
+a fourth (`preview`) status reappearing in FeatureStatus;
 CFO_FEATURES_ACTIVE not promoting a listed key, promoting an unknown one, or
 sticking after it is unset; the evidence or a named gate file vanishing.
 **It cannot see** the frontend's per-user half (user_prefs.prefs.
-preview_features): vitest `featuresPreview.test.ts`.
+preview_features): vitest `featuresPreview.test.ts` and `featurePreview.test.ts`.
+
+**CONVERGED (merge of release/live d734beed).** Production opens early access
+per account with the frontend's `applyPreview`: a `coming_soon` key named in
+`user_prefs.prefs.preview_features` becomes `active` + `beta` (the Beta labels
+in Sidebar and FeatureRoute). This branch had shipped a competing `preview`
+registry status resolved by `resolvePreview`; it is removed. Both rows are
+`coming_soon` in the source again, the canary is renamed
+`test_forecast_and_scenarios_are_coming_soon_in_the_source`, and the
+first-paint uid-scoped cache (forecast-f-page) now feeds `applyPreview` — the
+same mechanism read earlier, not a second one.
 
 ### scenario-one-engine — R6 extension (forecast-scenarios-live)
 

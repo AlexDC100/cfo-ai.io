@@ -1,22 +1,23 @@
 // @vitest-environment jsdom
 /**
- * THE PREVIEW STATUS, frontend half (forecast-scenarios-live; engine half:
+ * PER-ACCOUNT EARLY ACCESS, frontend half (forecast-scenarios-live, converged
+ * on release/live d734beed; engine half:
  * tests/engine/test_scenarios_preview_acceptance.py, gate scenarios-preview).
  *
- * `preview` is the workspace redesign's mechanism, added compatibly: the
- * engine serves `preview`, and the frontend resolves it ONCE, in
- * `lib/features.ts`, per signed-in user — `active` when the user's personal
- * prefs bag (`user_prefs.prefs.preview_features`) names the key,
- * `coming_soon` for everyone else, whose UI is then exactly what it was. The
- * owner's everyone-on switch is server-side (CFO_FEATURES_ACTIVE), and a key
- * it promotes arrives here as `active`.
+ * ONE mechanism, the deployed one: the engine serves `coming_soon`, and
+ * `applyPreview` in `lib/features.ts` opens it per signed-in user — `active`
+ * + `beta` when the user's personal prefs bag
+ * (`user_prefs.prefs.preview_features`) names the key, the registry's answer
+ * for everyone else, whose UI is then exactly what it was. The owner's
+ * everyone-on switch is server-side (CFO_FEATURES_ACTIVE), and a key it
+ * promotes arrives here as `active` (no Beta label).
  *
- * RED ON (TC-11): a preview key opening for a user who did not opt in; an
- * opted-in user seeing it muted/pending (the brief: "no grey, no dots"); the
- * resolution not following the prefs bag when it hydrates or changes; a
- * non-array opt-in read as a partial one; any status other than `preview`
- * being touched by the resolution; the sidebar row of an opted-in preview
- * feature still marked pending; an opted-in user's rows grey on a reload
+ * RED ON (TC-11): an early-access key opening for a user who did not opt in;
+ * an opted-in user seeing it muted/pending (the brief: "no grey, no dots");
+ * the resolution not following the prefs bag when it hydrates or changes; a
+ * non-array opt-in read as a partial one; an `active` or `hidden` row being
+ * touched by the opt-in; the sidebar row of an opted-in feature still marked
+ * pending or missing its Beta label; an opted-in user's rows grey on a reload
  * while the bag is still on its way (first paint reads this user's cached
  * list — the redesign's own cache key); another user on the same browser
  * inheriting that cached opt-in; a stale cached list outliving the bag.
@@ -56,17 +57,17 @@ import {
   __clearFeaturesForTest,
   __setFeaturesForTest,
   getFeatureStatus,
+  applyPreview,
   PREVIEW_CACHE_KEY,
   readPreviewCache,
-  resolvePreview,
   useFeatures,
   type FeatureRegistry,
 } from "@/lib/features";
 import { useShellNav } from "@/components/cfo/Sidebar";
 
 const RAW: FeatureRegistry = {
-  forecast: { status: "preview", label: "Forecast", description: "" },
-  scenarios: { status: "preview", label: "Scenario planning", description: "" },
+  forecast: { status: "coming_soon", label: "Forecast", description: "" },
+  scenarios: { status: "coming_soon", label: "Scenario planning", description: "" },
   benchmarks: { status: "active", label: "Benchmarks", description: "" },
   variance: { status: "hidden", label: "Comparison", description: "" },
   erp_connector: { status: "coming_soon", label: "ERP", description: "" },
@@ -88,16 +89,17 @@ beforeEach(() => {
   __setFeaturesForTest(RAW);
 });
 
-describe("resolvePreview", () => {
-  it("a preview key is active only for the keys the user opted into", () => {
-    const out = resolvePreview(RAW, new Set(["forecast"]));
-    expect(out.forecast?.status).toBe("active");
+describe("applyPreview (the one early-access resolver)", () => {
+  it("a coming_soon key is active + Beta only for the keys the user opted into", () => {
+    const out = applyPreview(RAW, ["forecast"]);
+    expect(out.forecast).toMatchObject({ status: "active", beta: true });
     expect(out.scenarios?.status).toBe("coming_soon");
+    expect(out.erp_connector?.status).toBe("coming_soon");
   });
 
-  it("every other status passes through untouched", () => {
-    const out = resolvePreview(RAW, new Set(["benchmarks", "variance", "erp_connector"]));
-    expect(out.benchmarks?.status).toBe("active");
+  it("an active or hidden row is never touched by an opt-in", () => {
+    const out = applyPreview(RAW, ["benchmarks", "variance"]);
+    expect(out.benchmarks).toEqual(RAW.benchmarks);
     expect(out.variance?.status).toBe("hidden");
     expect(out.erp_connector?.status).toBe("coming_soon");
   });
@@ -129,7 +131,7 @@ describe("useFeatures follows the personal prefs bag", () => {
   });
 });
 
-describe("the sidebar: an opted-in preview row is a normal row (no grey, no dot)", () => {
+describe("the sidebar: an opted-in early-access row is a normal row labelled Beta (no grey, no dot)", () => {
   const rows = () => {
     const { result } = renderHook(() => useShellNav());
     return result.current.flatMap((g) => g.items);
@@ -140,6 +142,8 @@ describe("the sidebar: an opted-in preview row is a normal row (no grey, no dot)
     const byKey = new Map(rows().map((r) => [r.featureKey, r]));
     expect(byKey.get("forecast")?.pending).toBeFalsy();
     expect(byKey.get("scenarios")?.pending).toBeFalsy();
+    expect(byKey.get("forecast")?.beta).toBe(true);
+    expect(byKey.get("scenarios")?.beta).toBe(true);
   });
 
   it("not opted in: both stay in the menu, marked pending, as before", () => {

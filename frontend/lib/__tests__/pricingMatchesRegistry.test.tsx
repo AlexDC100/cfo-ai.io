@@ -112,7 +112,7 @@ const REGISTRY_PATH = resolve(__dirname, "../../../src/engine/api/_features.py")
 function parseRegistry(): Record<string, FeatureStatus> {
   const src = readFileSync(REGISTRY_PATH, "utf8");
   const out: Record<string, FeatureStatus> = {};
-  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden|preview)"/g;
+  const rx = /"([a-z0-9_]+)":\s*_feature\(\s*(?:#[^\n]*\n\s*)*"(active|coming_soon|hidden)"/g;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(src)) !== null) out[m[1]] = m[2] as FeatureStatus;
   return out;

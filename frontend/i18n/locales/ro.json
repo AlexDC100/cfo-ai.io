@@ -3245,7 +3245,8 @@
       "title": "Istoric multianual",
       "description": "Situații financiare depuse în anii anteriori, preluate din registrul public.",
       "requirement": "Un furnizor de date"
-    }
+    },
+    "betaNote": "Acces anticipat — cifrele se pot încă schimba."
   },
   "legalX": {
     "consent_pre": "Prin crearea contului accept",
