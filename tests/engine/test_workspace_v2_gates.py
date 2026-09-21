@@ -1,4 +1,4 @@
-"""WORKSPACE V2 — THE GATE SUITE (G1–G4, G7, G8), on the REAL app and the REAL identifier.
+"""THE workspace_v2 GATE SUITE (G1–G4, G7, G8), on the REAL app and the REAL identifier.
 
 Owner spec (2026-09-21): one company per workspace, keyed by CUI; one upload
 component; a file lands in the company its own header names; the period is
