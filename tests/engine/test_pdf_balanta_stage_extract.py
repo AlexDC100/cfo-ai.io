@@ -1,0 +1,128 @@
+"""stage_extract reads a text-layer balanta PDF WITHOUT Claude.
+
+Production 2026-09-21: every balanta PDF the positional ingester could not
+read went to the Claude extractor, and with the Anthropic account out of
+credit every such upload failed (502). This drives the REAL stage_extract
+PDF branch on a synthetic balanta PDF (generated here with PyMuPDF, an
+invented company and invented figures) with storage faked and the
+`anthropic` module made unimportable: if any code path reaches Claude, the
+test fails. It asserts the text-line reader produced the Excel-path parse
+(source_format saga_10_col) with the account-121 anchor.
+"""
+from __future__ import annotations
+
+import sys
+from decimal import Decimal
+
+import pytest
+
+fitz = pytest.importorskip("fitz")
+
+from engine.api import pipeline  # noqa: E402
+
+
+def _fmt(v: Decimal) -> str:
+    return f"{v:,.2f}".replace(",", " ")
+
+
+def _synthetic_balanta_lines(n: int = 12):
+    lines = [
+        "EXEMPLU TEST SRL c.f. 1234567",
+        "Balanta de verificare",
+        "01.12.2025 -- 31.12.2025",
+        "Solduri initiale an Rulaje perioada Sume totale Solduri finale",
+        "Cont Denumirea contului",
+        "Debitoare Creditoare Debitoare Creditoare Debitoare Creditoare Debitoare Creditoare",
+    ]
+    c1, c5 = [], []
+    for i in range(n):
+        amt = Decimal(1000 + 137 * i) + Decimal("0.25")
+        big = Decimal(45_200) + i
+        c1.append((f"10{i:02d}", f"CAPITAL {i}", [Decimal(0), amt, Decimal(0), big, Decimal(0), amt + big, Decimal(0), amt + big]))
+        c5.append((f"51{i:02d}", f"CONT BANCAR {i}", [amt, Decimal(0), big, Decimal(0), amt + big, Decimal(0), amt + big, Decimal(0)]))
+    # account 121 closes in credit (a profit) — the anchor the Excel path reads
+    profit = Decimal("12345.67")
+    c1.append(("121", "PROFIT SI PIERDERE", [Decimal(0), Decimal(0), Decimal(0), profit, Decimal(0), profit, Decimal(0), profit]))
+    c5.append(("5311", "CASA IN LEI", [Decimal(0), Decimal(0), profit, Decimal(0), profit, Decimal(0), profit, Decimal(0)]))
+    for cls, rows in (("1", c1), ("5", c5)):
+        for cont, name, v in rows:
+            lines.append(f"{cont} {name} " + " ".join(_fmt(x) for x in v))
+        tot = [sum((r[2][i] for r in rows), Decimal(0)) for i in range(8)]
+        lines.append(f"Total sume clasa {cls} " + " ".join(_fmt(x) for x in tot))
+    return lines
+
+
+def _pdf_bytes(lines) -> bytes:
+    doc = fitz.open()
+    page = doc.new_page(width=1400, height=1000)
+    y = 30
+    for line in lines:
+        page.insert_text((20, y), line, fontsize=8)
+        y += 14
+    return doc.tobytes()
+
+
+class _FakeAdmin:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def signed_url(self, *a, **k):
+        return "https://storage.invalid/balanta.pdf"
+
+
+class _FakeResponse:
+    def __init__(self, content: bytes):
+        self.content = content
+
+    def raise_for_status(self):
+        return None
+
+
+def _fake_client_factory(content: bytes):
+    class _FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url):
+            return _FakeResponse(content)
+
+    return _FakeClient
+
+
+@pytest.fixture
+def balanta_pdf(monkeypatch):
+    content = _pdf_bytes(_synthetic_balanta_lines())
+    monkeypatch.setattr(pipeline._supabase, "admin", lambda: _FakeAdmin())
+    monkeypatch.setattr(pipeline.httpx, "Client", _fake_client_factory(content))
+    monkeypatch.setattr(pipeline, "_maybe_route_ai_lane", lambda *a, **k: None)
+    monkeypatch.setitem(sys.modules, "anthropic", None)  # any Claude path now raises
+    return content
+
+
+def _doc():
+    return {
+        "id": "00000000-0000-4000-8000-00000000pdf1",
+        "org_id": "00000000-0000-4000-8000-0000000000aa",
+        "storage_path": "org/balanta verificare test dec 2025.pdf",
+        "original_filename": "balanta verificare test dec 2025.pdf",
+        "mime_type": "application/pdf",
+    }
+
+
+def test_a_balanta_pdf_is_read_on_the_excel_path_without_claude(balanta_pdf):
+    parsed = pipeline.stage_extract(_doc())
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "saga_10_col", ext
+    assert ext.get("method") == "deterministic", ext
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    assert str(parsed.get("period_end")) == "2025-12-31"
+    assert parsed.get("accounts"), "no mapped accounts"
