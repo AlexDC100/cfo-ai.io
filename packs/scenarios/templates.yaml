@@ -1,0 +1,101 @@
+# SCENARIO TEMPLATES — FMCG Romania (forecast-scenarios-live).
+#
+# A template is DATA, never code (TC-10): a named set of shocks in the
+# vocabulary of packs/forecast/levers.yaml#registry (driver_key, op, value).
+# The ENGINE compiles it — POST /api/forecast/{period_id}/scenario with
+# {"template": "<id>"} — over the driver keys the book itself serves, and runs
+# it through engine.forecast.levers.project_levers, the one entry point the
+# forecast GET and the lever recompute also run through. The Scenarios page
+# sends the template's id and paints what comes back; it computes nothing.
+#
+# Every shock starts in the first plan month, has no ramp and never ends, so
+# a template is a level move against the BASE plan (the forecast the Forecast
+# page shows), and the base template is that forecast exactly (gate F4).
+#
+# Values are exact decimal strings in the driver's own unit: level_pct is a
+# decimal fraction of the level (-0.20 = one fifth lower), add_days is days.
+# A driver_key ending in ".*" expands over the served keys with that prefix
+# (pool_level.* = every operating-cost pool this book serves). A pattern, or a
+# plain key, the book does not serve REFUSES the whole template by name: a
+# template run in part under its whole name would be a different scenario.
+#
+# Cost behaviour is the ENGINE's (packs/forecast/cost_behaviour.yaml, R2/R3):
+# cost of sales follows sales VOLUME and purchase prices, never the selling
+# price; other operating income is held; the variable part of each operating
+# cost pool follows volume and its fixed part is held (inflated by the macro
+# anchor). Cash is floored at min_cash and every shortfall is drawn on a
+# funding line priced at the book's own borrowing rate, whose interest is
+# served as its own P&L line (pl.interest_expense_funding_line).
+#
+# The names, questions and notes are page chrome in the frontend i18n bundle
+# (namespace scenarios.template.<id>), in English and Romanian.
+
+schema_version: "scenario_templates/1"
+pack_id: "scenario-templates-ro-fmcg"
+jurisdiction: "RO"
+family: "fmcg"
+source: "packs/scenarios/templates.yaml"
+refusals:
+  unknown_template: >-
+    {template} is not a scenario template this engine serves; the served
+    templates are {served}
+  unmatched_key: >-
+    this book serves no {key} driver, so the {template} template cannot be
+    applied, and it is not run in part
+templates:
+  - id: base
+    # The forecast itself: no shock. Gate F4 holds the served figures of
+    # this template equal to the forecast's, figure by figure.
+    shocks: []
+  - id: recession
+    # A demand recession for a Romanian food manufacturer: sales volume one
+    # fifth lower than the base plan, operating costs cut back by a twentieth
+    # in every pool the book serves, and the retail chains paying a month
+    # later. Cost of sales falls with volume, not with the selling price.
+    shocks:
+      - driver_key: volume_index
+        op: level_pct
+        value: "-0.20"
+      - driver_key: "pool_level.*"
+        op: level_pct
+        value: "-0.05"
+      - driver_key: dso_days
+        op: add_days
+        value: "30"
+  - id: revenue_down_10
+    # Revenue ten per cent lower through sales volume, and nothing else: the
+    # lines volume drives move and no other line does (gate F4).
+    shocks:
+      - driver_key: volume_index
+        op: level_pct
+        value: "-0.10"
+  - id: input_cost_inflation
+    # Raw materials, packaging and energy inside cost of sales ten per cent
+    # dearer, with selling prices held.
+    shocks:
+      - driver_key: input_price_index
+        op: level_pct
+        value: "0.10"
+  - id: price_pressure
+    # The retail chains negotiate list prices down by a twentieth; cost of
+    # sales does not follow the selling price.
+    shocks:
+      - driver_key: price_index
+        op: level_pct
+        value: "-0.05"
+  - id: energy_shock
+    # Electricity and gas three tenths dearer, in the energy pool only.
+    shocks:
+      - driver_key: pool_level.energy_utilities
+        op: level_pct
+        value: "0.30"
+  - id: working_capital_squeeze
+    # Customers pay a fortnight later and stock sits ten days longer: balances
+    # move, EBITDA does not; the effect lands on cash and the funding line.
+    shocks:
+      - driver_key: dso_days
+        op: add_days
+        value: "15"
+      - driver_key: dio_cogs_days
+        op: add_days
+        value: "10"

@@ -338,7 +338,7 @@ def _measure():
     return M
 
 
-def _call(name, method, horizon=5, body=None, mutate=None):
+def _call(name, method, horizon=5, body=None, mutate=None, route="recompute"):
     """GET or POST through create_app and the route's own loader, rebuild,
     engine, fp1.2 builder and boundary guard, with the org and per-user seams
     replaced as scripts/measure_plan_blast_radius replaces them."""
@@ -359,7 +359,7 @@ def _call(name, method, horizon=5, body=None, mutate=None):
             res = client.get("/api/forecast/%s?horizon=%d" % (period_id, horizon),
                              headers=headers, follow_redirects=False)
         else:
-            res = client.post("/api/forecast/%s/recompute" % period_id,
+            res = client.post("/api/forecast/%s/%s" % (period_id, route),
                               headers=headers, json=body, follow_redirects=False)
     finally:
         _org.resolve_org, _supabase.per_user = saved

@@ -181,11 +181,15 @@ def _debt_echo(plan: Any, inputs: Mapping[str, Any]) -> List[Dict[str, Any]]:
 
 def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, Any],
                    history: Mapping[str, Any], want: Optional[Sequence[str]],
-                   period_id: str, anchor_updated_at: Optional[str] = None
+                   period_id: str, anchor_updated_at: Optional[str] = None,
+                   scenario: Optional[Mapping[str, Any]] = None
                    ) -> Dict[str, Any]:
     """The fp1.2 body of one Plan, body_hash stamped, recompute_ms absent
     (the route measures it and it sits outside the hash, 1.2). ``inputs`` is
-    ``engine.forecast.levers.serving_inputs(plan)``."""
+    ``engine.forecast.levers.serving_inputs(plan)``. ``scenario`` is the
+    template block ``project_levers`` returns for POST .../scenario: which
+    template ran and exactly which shocks it compiled to over this book —
+    inside the hash, because it is part of what was projected."""
     serving = inputs["pack"]
     wanted = tuple(DEFAULT_WANT if want is None else want)
     unknown = [k for k in wanted if k not in ACCEPTED_WANT_KEYS]
@@ -305,6 +309,8 @@ def build_response(plan: Any, inputs: Mapping[str, Any], anchor: Mapping[str, An
                                     serving["not_served"],
                                     aggregate_formulas["cumulative_fcf"])
 
+    if scenario is not None:
+        body["scenario"] = dict(scenario)
     violations = clause_violations(body)
     if violations:
         raise PlanResponseError(violations)

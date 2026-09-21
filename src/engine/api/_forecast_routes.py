@@ -62,7 +62,8 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ALLOWED_HORIZONS", "PlanRequestBody", "build_router"]
+__all__ = ["ALLOWED_HORIZONS", "PlanRequestBody", "ScenarioRequestBody",
+           "build_router"]
 
 #: The horizons the product offers on GET. A caller asking for anything else
 #: is refused by name rather than clamped: silently serving three years to
@@ -168,6 +169,21 @@ class PlanRequestBody(_Strict):
         return tuple(blocks.ACCEPTED_WANT_KEYS)
 
 
+class ScenarioRequestBody(_Strict):
+    """POST /api/forecast/{period_id}/scenario (R6). A scenario is a TEMPLATE
+    the engine compiles over this book (packs/scenarios/templates.yaml) plus
+    the reader's own lever overrides; the page sends no shock and no number
+    of its own. ``template`` "base" is the forecast itself (gate F4)."""
+    template: str = "base"
+    horizon: Optional[HorizonBody] = None
+    overrides: Dict[str, OverrideBody] = {}
+    want: Optional[List[str]] = None
+
+    def as_plan_body(self) -> "PlanRequestBody":
+        return PlanRequestBody(horizon=self.horizon, overrides=self.overrides,
+                               want=self.want)
+
+
 class _Refusal(ValueError):
     """Raised inside the validator; the handler answers 422 with it. Never a
     pydantic ValueError subclass message: the sentence travels as data."""
@@ -222,8 +238,12 @@ def _wire(body: PlanRequestBody) -> Dict[str, Any]:
 
 
 def recompute(period_id: str, body: PlanRequestBody, jwt: str,
-              x_org_id: Optional[str]) -> Dict[str, Any]:
-    """THE handler. GET and POST both end here; nothing else projects."""
+              x_org_id: Optional[str],
+              template_id: Optional[str] = None) -> Dict[str, Any]:
+    """THE handler. GET, the lever recompute and the scenario POST all end
+    here, and all project through ``engine.forecast.levers.project_levers``;
+    nothing else projects. ``template_id`` is the scenario's template (None
+    for GET and recompute, which serve no scenario block)."""
     started = time.perf_counter()
     from . import _org
 
@@ -249,19 +269,20 @@ def recompute(period_id: str, body: PlanRequestBody, jwt: str,
 
     from engine.forecast.errors import (BalanceViolation, ForecastError,
                                         PlanRequestError)
-    from engine.forecast.levers import plan_request_from_body, project_plan
+    from engine.forecast.levers import plan_request_from_body, project_levers
     from engine.forecast_serving import boundary
     from engine.forecast_serving.plan_response import (PlanResponseError,
                                                        build_response)
 
     try:
         request = plan_request_from_body(_wire(body))
-        plan = project_plan(period, prior_periods, request, context,
-                            client_sent=True)
+        plan, scenario = project_levers(period, prior_periods, request, context,
+                                        template_id=template_id, client_sent=True)
         from engine.forecast.levers import serving_inputs
         payload = build_response(plan, serving_inputs(plan), period, history,
                                  request.want, period_id,
-                                 anchor_updated_at=history.get("anchor_updated_at"))
+                                 anchor_updated_at=history.get("anchor_updated_at"),
+                                 scenario=scenario)
     except PlanRequestError as exc:
         raise HTTPException(422, _detail(exc.code, exc.text, exc.field))
     except BalanceViolation as exc:
@@ -296,6 +317,19 @@ def recompute(period_id: str, body: PlanRequestBody, jwt: str,
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/forecast", tags=["forecast"])
 
+    # Registered BEFORE "/{period_id}": two path segments, so it can never be
+    # read as a period id, and the order states it anyway.
+    @router.get("/templates/scenarios")
+    def scenario_templates(
+        authorization: Optional[str] = Header(None),
+    ) -> Dict[str, Any]:
+        """The scenario templates this engine serves (packs/scenarios/
+        templates.yaml): each id with its declared shocks and the display
+        value the page prints. Pack data only — no figure of any book."""
+        _require_jwt(authorization)
+        from engine.forecast.scenario_templates import catalogue
+        return catalogue()
+
     @router.get("/{period_id}")
     def forecast_for_period(
         period_id: str,
@@ -329,7 +363,36 @@ def build_router() -> APIRouter:
         jwt = _require_jwt(authorization)
         return recompute(period_id, _validated(body), jwt, x_org_id)
 
+    @router.post("/{period_id}/scenario")
+    def forecast_scenario(
+        period_id: str,
+        body: Dict[str, Any],
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """One scenario over one persisted period (R6): the template the
+        engine compiles over this book plus the reader's lever overrides,
+        through ``project_levers``. Read-only compute: it writes no table.
+        The response is the fp1.2 body with a ``scenario`` block naming the
+        template and the exact shocks it compiled to."""
+        jwt = _require_jwt(authorization)
+        scenario = _validated_scenario(body)
+        return recompute(period_id, _validated(scenario.as_plan_body().model_dump(
+            exclude_defaults=True)), jwt, x_org_id, template_id=scenario.template)
+
     return router
+
+
+def _validated_scenario(raw: Dict[str, Any]) -> ScenarioRequestBody:
+    """The scenario wire body, every refusal as 422 {code, text, field}."""
+    from pydantic import ValidationError
+    try:
+        return ScenarioRequestBody.model_validate(raw)
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        field = ".".join(str(p) for p in first.get("loc") or ())
+        raise HTTPException(422, _detail(
+            "invalid_request", "%s: %s" % (field or "body", first.get("msg")), field))
 
 
 def _validated(raw: Dict[str, Any]) -> PlanRequestBody:

@@ -48,7 +48,7 @@ graph LR
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
-    pkg_forecast["forecast (13 modules)"]
+    pkg_forecast["forecast (15 modules)"]
     pkg_forecast_drivers["forecast_drivers (7 modules)"]
     pkg_forecast_serving["forecast_serving (13 modules)"]
     pkg_frontends["frontends (11 modules)"]
@@ -136,6 +136,7 @@ graph LR
     pkg_firm -->|2| pkg_api
     pkg_firm -->|1| pkg_serving
     pkg_forecast -->|1| pkg__root_
+    pkg_forecast -->|1| pkg_benchmarks_ro
     pkg_forecast -->|1| pkg_canonical
     pkg_forecast -->|1| pkg_ratios
     pkg_forecast -->|1| pkg_serving

@@ -41,6 +41,11 @@ from tests.engine.test_identity_wall import app, hdr, world  # noqa: F401  (fixt
 #: recompute is a read-only compute and belongs here: it projects another
 #: tenant's period if the wall is missing. 422 never counts as a refusal.
 RECOMPUTE_BODY = {"horizon": {"total_years": 3, "monthly_months": 12}}
+#: POST /scenario (forecast-scenarios-live, R6) is the same read-only compute
+#: with a template the engine compiles over the book: it projects another
+#: tenant's period too if the wall is missing.
+SCENARIO_BODY = {"template": "recession",
+                 "horizon": {"total_years": 3, "monthly_months": 12}}
 
 
 def _routes():
@@ -53,6 +58,7 @@ def _routes():
         # belongs in the write census (test_identity_wall), not here.
         ("GET", "/api/forecast/%s" % p, None, 200),
         ("POST", "/api/forecast/%s/recompute" % p, RECOMPUTE_BODY, 200),
+        ("POST", "/api/forecast/%s/scenario" % p, SCENARIO_BODY, 200),
     ]
 
 

@@ -38,7 +38,8 @@ from .resolve import resolve_defaults
 from .timeline import Period, add_months, build_timeline
 
 __all__ = ["BehaviourOverride", "DebtRow", "Plan", "PlanContext", "PlanRequest",
-           "Shock", "plan_request_from_body", "project_plan", "registry_for",
+           "Shock", "plan_request_from_body", "project_levers", "project_plan",
+           "registry_for",
            "OP_RANK", "RESERVED_ID_PREFIXES"]
 
 #: 2.5 step 7: shocks apply by op rank, then by id.
@@ -758,6 +759,54 @@ def project_plan(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[st
                         "timeline": timeline, "anchor": anchor,
                         "stop_at_unpriced_draw": stop_at_unpriced_draw,
                         "moved": dict(moved)})
+
+
+# ── THE one entry point of GET, recompute and scenario (R6) ────────────────
+
+def project_levers(anchor_payload: Dict[str, Any],
+                   prior_periods: Sequence[Dict[str, Any]], request: PlanRequest,
+                   context: Optional[PlanContext] = None, *,
+                   template_id: Optional[str] = None, client_sent: bool = False,
+                   stop_at_unpriced_draw: bool = True
+                   ) -> "Tuple[Plan, Optional[Dict[str, Any]]]":
+    """R6 (scenarios_rulings): ``GET /api/forecast/{id}`` is
+    ``project_levers(base, no levers)``, the lever recompute is
+    ``project_levers(no template, the reader's levers)`` and ``POST
+    /api/forecast/{id}/scenario`` is ``project_levers(template, the reader's
+    levers)``. One function, so the base scenario IS the forecast (gate F4):
+    a template adds its compiled shocks to the request and nothing else.
+
+    ``template_id`` None serves no scenario block; ``"base"`` serves one with
+    no shock. The template's keys are expanded over the driver keys THIS book
+    serves (``registry_for`` over the book's own cost pools), so a
+    ``pool_level.*`` shock covers exactly the pools the book has. Returns
+    (plan, scenario block or None)."""
+    scenario = None  # type: Optional[Dict[str, Any]]
+    if template_id is not None:
+        from dataclasses import replace
+        from .scenario_templates import TEMPLATES_FILE, compile_template, load_templates
+        served = [key for key, _entry in
+                  registry_for(context_for_payload(anchor_payload).pools)]
+        template, wire = compile_template(template_id, served)
+        taken = set(s.id for s in request.shocks)
+        added = []  # type: List[Shock]
+        for item in wire:
+            if item["id"] in taken:
+                raise _refuse("duplicate_shock_id", item["id"], id=item["id"])
+            added.append(Shock(id=item["id"], driver_key=item["driver_key"],
+                               op=item["op"], value=_fraction(item["value"], item["id"]),
+                               start_month=item["start_month"],
+                               ramp_months=item["ramp_months"],
+                               end_month=item["end_month"], source=item["source"],
+                               group_id=item["group_id"]))
+        request = replace(request, shocks=tuple(request.shocks) + tuple(added))
+        scenario = {"template": template.id, "source": TEMPLATES_FILE,
+                    "pack_id": load_templates().pack_id,
+                    "shocks": [dict(item) for item in wire]}
+    plan = project_plan(anchor_payload, prior_periods, request, context,
+                        client_sent=client_sent,
+                        stop_at_unpriced_draw=stop_at_unpriced_draw)
+    return plan, scenario
 
 
 # ── in-process probes (plan/2 B6, contract 1.1, 3.6, 12) ──────────────────
