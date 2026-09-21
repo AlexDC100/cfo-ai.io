@@ -681,8 +681,26 @@ def test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot(tmp_path)
     check = _load_script("check_no_empty_periods")
     snapshot_cli = _load_script("db_snapshot")
     tables, storage, _rules = build_world()
+    # Every rule of the check, not only the file-less rows the world
+    # already carries: a period whose document FAILED, one whose document
+    # lives in ANOTHER workspace, and one whose analysed document left
+    # NOTHING persisted (no envelope, no metric, no line item).
+    base_doc = next(d for d in tables["documents"] if d["id"] == "d-sf24-src")
+    base_per = next(p for p in tables["financial_periods"] if p["id"] == "per-sf24")
+    for did, org, status in (("g4-doc-failed", "org-sf", "failed"), ("g4-doc-elsewhere", "org-qa", "analyzed"),
+                             ("g4-doc-bare", "org-sf", "analyzed")):
+        tables["documents"].append(dict(base_doc, id=did, org_id=org, status=status, period_id=None,
+                                        content_hash="%064x" % len(tables["documents"])))
+    for pid, src, env in (("g4-per-failed", "g4-doc-failed", {"v": 1}), ("g4-per-elsewhere", "g4-doc-elsewhere", {"v": 1}),
+                          ("g4-per-bare", "g4-doc-bare", None)):
+        tables["financial_periods"].append(dict(base_per, id=pid, source_document_id=src, period_end="2023-12-31",
+                                                period_start="2023-12-31", assembled_canonical_v1=env))
     expected = empty_live_periods(tables)
-    assert expected, "the production-shaped world must carry empty periods"
+    reasons = dict(expected)
+    assert reasons.get("g4-per-failed") == "source failed", expected
+    assert reasons.get("g4-per-elsewhere") == "source in another workspace", expected
+    assert reasons.get("g4-per-bare") == "nothing persisted", expected
+    assert reasons.get("per-sf-empty") == "no source document" and reasons.get("per-sf21") == "source deleted", expected
     fake = FakeSupabase(tables, storage, max_rows=5)
 
     lines = []  # type: List[str]
@@ -690,14 +708,14 @@ def test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot(tmp_path)
     assert snapshot_cli.main(["--out", snap], client_factory=fake.client, out=lines.append) == 0
     lines = []
     assert check.main(["--snapshot", snap], out=lines.append) == 1, lines
-    found = sorted(tuple(l.split("  ", 2)[1:3]) for l in lines if l.startswith("EMPTY"))
-    assert [pid for pid, _why in found] == [pid for pid, _why in expected], (found, expected)
+    found = sorted((l.split("  ")[1], l.split("  ")[2]) for l in lines if l.startswith("EMPTY"))
+    assert found == sorted(expected), (found, expected)
 
     writes_before = len(fake.row_writes())
     lines = []
     assert check.main([], client_factory=fake.client, out=lines.append) == 1, lines
-    live = sorted(l.split("  ", 2)[1] for l in lines if l.startswith("EMPTY"))
-    assert live == [pid for pid, _why in expected], (live, expected)
+    live = sorted((l.split("  ")[1], l.split("  ")[2]) for l in lines if l.startswith("EMPTY"))
+    assert live == sorted(expected), (live, expected)
     assert len(fake.row_writes()) == writes_before, "the check wrote to production"
     assert any(l.startswith("CHECKED") for l in lines), lines
 
