@@ -119,7 +119,7 @@ graph LR
     pkg_consensus -->|1| pkg_frontends
     pkg_consensus -->|1| pkg_interp
     pkg_consensus -->|1| pkg_passes
-    pkg_country_packs -->|2| pkg_canonical
+    pkg_country_packs -->|3| pkg_canonical
     pkg_country_packs -->|1| pkg_comparatives
     pkg_country_packs -->|1| pkg_confidence
     pkg_country_packs -->|1| pkg_consensus

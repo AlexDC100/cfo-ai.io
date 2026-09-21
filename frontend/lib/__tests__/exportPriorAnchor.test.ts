@@ -18,7 +18,9 @@
 // This drives the page's own join (ratioSurfacesOf → statementsForExportOf)
 // over the committed hermetic pair (agras Dec 2025 vs carniprod Dec 2024,
 // both anchored: prior account 121 = 1,435,533.59, prior reconstruction =
-// 5,843,449.04) and reads the three deliverables' bytes.
+// 1,248,684.06 under tb_parser_v6 — 5,843,449.04 before the 609/709
+// contra-convention repair, as recaptured by the plan/2 merge) and reads
+// the three deliverables' bytes.
 //
 // ── WHAT IT REDS ON, after the repair (TC-11) ─────────────────────────
 //  · a prior net income, anywhere in the strip model, the report's strip
@@ -117,7 +119,7 @@ describe("the fixture is the anchored pair this gate is about", () => {
     const p = fresh();
     expect(priorPl(p).net_income_anchor_status).toBe("anchored");
     expect(priorPl(p).net_income_statutory).toBe(1_435_533.59);
-    expect(priorPl(p).net_income_reconstructed).toBe(5_843_449.04);
+    expect(priorPl(p).net_income_reconstructed).toBe(1_248_684.06);
     expect(p.comparatives.bridges.pl.prior_total).toBe(priorPl(p).net_income_statutory);
     const pcb = (p.comparatives.prior_statements as { canonical_bs: { totals: { assets: number }; status: string } })
       .canonical_bs;

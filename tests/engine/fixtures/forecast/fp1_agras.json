@@ -61,7 +61,7 @@
     {
       "line": "revenue",
       "period": "FY+1",
-      "amount_minor": 12806296521,
+      "amount_minor": 11966217387,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -70,7 +70,7 @@
     {
       "line": "ebitda",
       "period": "FY+1",
-      "amount_minor": 1984975960,
+      "amount_minor": 1854763694,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -80,7 +80,7 @@
     {
       "line": "total_assets",
       "period": "FY+1",
-      "amount_minor": 4246567926,
+      "amount_minor": 3967997685,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -90,7 +90,7 @@
     {
       "line": "total_equity",
       "period": "FY+1",
-      "amount_minor": 4377384332,
+      "amount_minor": 4247172066,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -99,7 +99,7 @@
     {
       "line": "total_liabilities",
       "period": "FY+1",
-      "amount_minor": -130816406,
+      "amount_minor": -279174381,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",
@@ -110,7 +110,7 @@
     {
       "line": "revenue",
       "period": "FY+2",
-      "amount_minor": 13574674312,
+      "amount_minor": 12684190430,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -119,7 +119,7 @@
     {
       "line": "ebitda",
       "period": "FY+2",
-      "amount_minor": 2104074518,
+      "amount_minor": 1966049516,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -129,7 +129,7 @@
     {
       "line": "total_assets",
       "period": "FY+2",
-      "amount_minor": 4501362001,
+      "amount_minor": 4206077546,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -139,7 +139,7 @@
     {
       "line": "total_equity",
       "period": "FY+2",
-      "amount_minor": 6600557408,
+      "amount_minor": 6324507404,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -148,7 +148,7 @@
     {
       "line": "total_liabilities",
       "period": "FY+2",
-      "amount_minor": -2099195407,
+      "amount_minor": -2118429858,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",
@@ -159,7 +159,7 @@
     {
       "line": "revenue",
       "period": "FY+3",
-      "amount_minor": 14253408027,
+      "amount_minor": 13318399951,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -168,7 +168,7 @@
     {
       "line": "ebitda",
       "period": "FY+3",
-      "amount_minor": 2209278244,
+      "amount_minor": 2064351992,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -178,7 +178,7 @@
     {
       "line": "total_assets",
       "period": "FY+3",
-      "amount_minor": 4726430101,
+      "amount_minor": 4416381423,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -188,7 +188,7 @@
     {
       "line": "total_equity",
       "period": "FY+3",
-      "amount_minor": 9020243104,
+      "amount_minor": 8585464348,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -197,7 +197,7 @@
     {
       "line": "total_liabilities",
       "period": "FY+3",
-      "amount_minor": -4293813003,
+      "amount_minor": -4169082925,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",

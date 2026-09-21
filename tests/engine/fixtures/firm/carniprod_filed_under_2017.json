@@ -28,7 +28,7 @@
      "cogs_packaging",
      "discounts_received_supplier"
     ],
-    "net": 58177874.83
+    "net": 57857839.61
    },
    "contributed_capital": {
     "leaves": [
@@ -198,7 +198,7 @@
      "revenue_merchandise_resale",
      "revenue_commercial_reductions"
     ],
-    "net": 99424740.16
+    "net": 94509939.96
    },
    "tax_payables": {
     "leaves": [
@@ -306,7 +306,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "Anon_2bb7638cfd",
     "source_format": "saga_10_col"
    },
@@ -315,7 +315,7 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-     "cls7_minus_cls6": 94297444.54,
+     "cls7_minus_cls6": 89702679.56,
      "ok": false,
      "p121": 1435533.59
     },
@@ -1322,7 +1322,7 @@
    "discounts_received_supplier": {
     "magnitude": 161801.79,
     "ras_line_items_count": 4,
-    "ras_line_items_sum_signed": 160017.61,
+    "ras_line_items_sum_signed": -160017.61,
     "sign_meaning": "expense_negative"
    },
    "energy_utilities": {
@@ -1568,7 +1568,7 @@
    "revenue_commercial_reductions": {
     "magnitude": 2457400.1,
     "ras_line_items_count": 3,
-    "ras_line_items_sum_signed": 2457400.1,
+    "ras_line_items_sum_signed": -2457400.1,
     "sign_meaning": "revenue_negative"
    },
    "revenue_merchandise_resale": {
@@ -1628,10 +1628,10 @@
   },
   "methodology": {
    "ebitda": {
-    "adjusted": 8182523.5,
-    "cash": 9588744.57,
-    "reported": 9588744.57,
-    "strict": 8182523.5
+    "adjusted": 3587758.52,
+    "cash": 4993979.59,
+    "reported": 4993979.59,
+    "strict": 3587758.52
    },
    "errors": [],
    "industry_key_applied": "default",
@@ -1657,21 +1657,21 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.789799
+     "value": 0.750757
     },
     "capex_intensity": {
      "band": null,
      "direction": "neutral",
      "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
      "unit": "ratio",
-     "value": 0.041799
+     "value": 0.043973
     },
     "cash_conversion_cycle": {
      "band": null,
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 19.515206
+     "value": 21.470733
     },
     "cash_ratio": {
      "band": [
@@ -1701,7 +1701,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 61.458927
+     "value": 61.798882
     },
     "days_payable_outstanding": {
      "band": [
@@ -1711,7 +1711,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "days",
-     "value": 81.70091
+     "value": 82.152831
     },
     "days_sales_outstanding": {
      "band": [
@@ -1721,7 +1721,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 39.757189
+     "value": 41.824682
     },
     "debt_to_assets": {
      "band": null,
@@ -1745,14 +1745,14 @@
      "direction": "higher_is_better",
      "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
      "unit": "ratio",
-     "value": 78.193972
+     "value": 40.724737
     },
     "ebitda_margin_cash": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.096442
+     "value": 0.052841
     },
     "ebitda_margin_reported": {
      "band": [
@@ -1762,7 +1762,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.096442
+     "value": 0.052841
     },
     "ebitda_to_interest": {
      "band": [
@@ -1772,7 +1772,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 78.193972
+     "value": 40.724737
     },
     "equity_ratio": {
      "band": [
@@ -1789,7 +1789,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.414855
+     "value": 0.387812
     },
     "interest_coverage": {
      "band": [
@@ -1799,14 +1799,14 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 44.304042
+     "value": 6.834808
     },
     "inventory_turnover": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 5.938926
+     "value": 5.906256
     },
     "lt_debt_to_equity": {
      "band": null,
@@ -1823,7 +1823,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "ratio",
-     "value": -1.055912
+     "value": -2.027415
     },
     "net_margin": {
      "band": [
@@ -1833,7 +1833,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.054143
+     "value": 0.008342
     },
     "quick_ratio": {
      "band": [
@@ -1853,7 +1853,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.042762
+     "value": 0.006263
     },
     "return_on_equity": {
      "band": [
@@ -1863,7 +1863,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.050359
+     "value": 0.007375
     },
     "working_capital": {
      "band": null,
@@ -1877,10 +1877,10 @@
    "totals": {
     "current_assets": 31317306.47,
     "current_liabilities": 17064058.31,
-    "gross_profit": 41246865.33,
+    "gross_profit": 36652100.35,
     "net_debt": -10124869.04,
-    "operating_profit_reported": 5432901.5,
-    "revenue_net": 99424740.16,
+    "operating_profit_reported": 838136.52,
+    "revenue_net": 94509939.96,
     "total_assets": 125886192.51,
     "total_debt": 0.0,
     "total_equity": 106895967.91,
@@ -3324,7 +3324,7 @@
    "statement": "PL"
   },
   {
-   "amount": 28135.62,
+   "amount": -28135.62,
    "bucket": "operatingExpenses",
    "is_derived": false,
    "ro_account_code": "6090.01",
@@ -3332,7 +3332,7 @@
    "statement": "PL"
   },
   {
-   "amount": 9728.65,
+   "amount": -9728.65,
    "bucket": "operatingExpenses",
    "is_derived": false,
    "ro_account_code": "6090.02",
@@ -3340,7 +3340,7 @@
    "statement": "PL"
   },
   {
-   "amount": -892.09,
+   "amount": 892.09,
    "bucket": "operatingExpenses",
    "is_derived": false,
    "ro_account_code": "6090.03",
@@ -3348,7 +3348,7 @@
    "statement": "PL"
   },
   {
-   "amount": 123045.43,
+   "amount": -123045.43,
    "bucket": "operatingExpenses",
    "is_derived": false,
    "ro_account_code": "6090.05",
@@ -4268,7 +4268,7 @@
    "statement": "PL"
   },
   {
-   "amount": 987775.35,
+   "amount": -987775.35,
    "bucket": "revenue",
    "is_derived": false,
    "ro_account_code": "7093.04",
@@ -4276,7 +4276,7 @@
    "statement": "PL"
   },
   {
-   "amount": 1336597.29,
+   "amount": -1336597.29,
    "bucket": "revenue",
    "is_derived": false,
    "ro_account_code": "7094.01",
@@ -4284,7 +4284,7 @@
    "statement": "PL"
   },
   {
-   "amount": 133027.46,
+   "amount": -133027.46,
    "bucket": "revenue",
    "is_derived": false,
    "ro_account_code": "7099.04",
@@ -4766,21 +4766,21 @@
    "score_max": 9
   },
   "assembled_pl": {
-   "adjusted_ebitda": 8182523.5,
+   "adjusted_ebitda": 3587758.52,
    "capitalized_own_work_memo": 0.0,
    "cogs": 57429796.23,
-   "core_ebitda": 8182523.5,
+   "core_ebitda": 3587758.52,
    "cost_of_goods_sold": 57429796.23,
    "depreciation": 3695525.59,
    "discounts_received": 0.0,
-   "ebit": 5893218.98,
-   "ebitda": 9588744.57,
-   "ebitda_adjusted": 9588744.57,
-   "ebitda_cash": 9588744.57,
-   "ebitda_operating_view": 9588744.57,
-   "ebitda_operational": 9588744.57,
-   "ebitda_statutory": 9588744.57,
-   "ebitda_statutory_with_711": 98042740.07,
+   "ebit": 1298454.0,
+   "ebitda": 4993979.59,
+   "ebitda_adjusted": 4993979.59,
+   "ebitda_cash": 4993979.59,
+   "ebitda_operating_view": 4993979.59,
+   "ebitda_operational": 4993979.59,
+   "ebitda_statutory": 4993979.59,
+   "ebitda_statutory_with_711": 93447975.09,
    "financial_expense": 122627.67,
    "financial_expense_total": 122627.67,
    "financial_income": 360543.73,
@@ -4788,7 +4788,7 @@
    "free_cash_flow_proxy": 5131059.18,
    "fx_gain": 214598.26,
    "fx_loss": 122627.67,
-   "gross_profit": 41994943.93,
+   "gross_profit": 37080143.73,
    "income_tax": 287686.0,
    "interest_expense": 0.0,
    "interest_income": 145945.47,
@@ -4796,27 +4796,27 @@
    "net_financial_result": 237916.06,
    "net_income_anchor_source": "parsed_tb_rows",
    "net_income_anchor_status": "anchored",
-   "net_income_operational": 5843449.04,
-   "net_income_reconciliation_to_121": -4407915.45,
-   "net_income_reconstructed": 5843449.04,
+   "net_income_operational": 1248684.06,
+   "net_income_reconciliation_to_121": 186849.53,
+   "net_income_reconstructed": 1248684.06,
    "net_income_statutory": 1435533.59,
    "net_income_statutory_anchor": 1435533.59,
-   "net_income_unexplained_vs_121": -4407915.45,
-   "operating_ebit": 5893218.98,
-   "operating_ebitda": 9588744.57,
-   "opex_excluding_cogs_and_da": 33812420.43,
+   "net_income_unexplained_vs_121": 186849.53,
+   "operating_ebit": 1298454.0,
+   "operating_ebitda": 4993979.59,
+   "opex_excluding_cogs_and_da": 33492385.21,
    "opex_third_party": 3169934.65,
-   "opex_total": 33812420.43,
+   "opex_total": 33492385.21,
    "other_income_758": 945903.59,
    "other_income_781_reversals": 460317.48,
    "other_op_income_lump": 945903.59,
    "other_operating_income": 1406221.07,
-   "pretax": 6131135.04,
-   "revenue": 99424740.16,
+   "pretax": 1536370.06,
+   "revenue": 94509939.96,
    "tax": 287686.0,
-   "total_operating_expense": 94937742.25,
-   "total_operating_revenue": 99424740.16,
-   "total_operating_revenue_statutory": 187878735.66
+   "total_operating_expense": 94617707.03,
+   "total_operating_revenue": 94509939.96,
+   "total_operating_revenue_statutory": 182963935.46
   },
   "balanceSheet": {
    "accountsPayable": 13392746.23,
@@ -4845,9 +4845,9 @@
    "financialIncome": 360543.73,
    "interestExpense": 0.0,
    "inventoryVariationMemo": 88453995.5,
-   "operatingExpenses": 33812420.43,
+   "operatingExpenses": 33492385.21,
    "otherIncome": 1406221.07,
-   "revenue": 99424740.16,
+   "revenue": 94509939.96,
    "taxExpense": 287686.0
   },
   "industry": null,

@@ -3,7 +3,7 @@
   "caen": "1011",
   "caen_source": "workspace",
   "card_agreement_tolerance": 5e-05,
-  "company_turnover": 118576819.64,
+  "company_turnover": 110798309.14,
   "coverage": {
    "cards": 28,
    "cards_general": 24,
@@ -15,11 +15,23 @@
   "min_peers": 5,
   "movements": {
    "compared": 7,
-   "deteriorated": [],
+   "deteriorated": [
+    {
+     "company_now": 53.75207265956297,
+     "company_prior": 42.91914442985326,
+     "from": "median_to_p75",
+     "key": "receivables_days",
+     "n": 35,
+     "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+     "to": "above_p75",
+     "unit": "days",
+     "year": 2024
+    }
+   ],
    "improved": [
     {
-     "company_now": 0.06353413797799848,
-     "company_prior": 0.014438394183277291,
+     "company_now": 0.0679945035125109,
+     "company_prior": 0.015189233964253597,
      "from": "p25_to_median",
      "key": "net_margin",
      "n": 35,
@@ -538,7 +550,7 @@
     "company": {
      "basis": "restated_on_filed_basis",
      "card_agrees": true,
-     "card_value": 0.0635,
+     "card_value": 0.068,
      "operands": [
       {
        "name": "net_result",
@@ -548,10 +560,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 118576819.64
+       "value": 110798309.14
       }
      ],
-     "value": 0.06353413797799848
+     "value": 0.0679945035125109
     },
     "definition": {
      "card_key": "net_margin",
@@ -852,10 +864,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 118576819.64
+       "value": 110798309.14
       }
      ],
-     "value": 50.22599511043861
+     "value": 53.75207265956297
     },
     "definition": {
      "card_key": "dso",
@@ -872,7 +884,7 @@
       "dataset.quartiles"
      ]
     },
-    "position": "median_to_p75",
+    "position": "above_p75",
     "reason": null,
     "sector": {
      "dropped": {
@@ -895,7 +907,7 @@
     },
     "status": "sourced",
     "unit": "days",
-    "vs_sector": "inside"
+    "vs_sector": "worse"
    },
    {
     "company": {
@@ -911,10 +923,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 118576819.64
+       "value": 110798309.14
       }
      ],
-     "value": 27.49834531908854
+     "value": 29.428845607923147
     },
     "definition": {
      "card_key": "dio",
@@ -1026,15 +1038,15 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 118576819.64
+       "value": 110798309.14
       },
       {
        "name": "net_turnover_prior",
        "source": "assembled_pl.revenue",
-       "value": 99424740.16
+       "value": 94509939.96
       }
      ],
-     "value": 0.19262891156848272
+     "value": 0.17234556689903546
     },
     "definition": {
      "card_key": null,
@@ -1120,7 +1132,7 @@
   "caen": "1011",
   "caen_source": "workspace",
   "card_agreement_tolerance": 5e-05,
-  "company_turnover": 99424740.16,
+  "company_turnover": 94509939.96,
   "coverage": {
    "cards": 28,
    "cards_general": 24,
@@ -1622,7 +1634,7 @@
     "company": {
      "basis": "restated_on_filed_basis",
      "card_agrees": true,
-     "card_value": 0.0144,
+     "card_value": 0.0152,
      "operands": [
       {
        "name": "net_result",
@@ -1632,10 +1644,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 99424740.16
+       "value": 94509939.96
       }
      ],
-     "value": 0.014438394183277291
+     "value": 0.015189233964253597
     },
     "definition": {
      "card_key": "net_margin",
@@ -1936,10 +1948,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 99424740.16
+       "value": 94509939.96
       }
      ],
-     "value": 40.79754955026679
+     "value": 42.91914442985326
     },
     "definition": {
      "card_key": "dso",
@@ -1995,10 +2007,10 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 99424740.16
+       "value": 94509939.96
       }
      ],
-     "value": 35.96237492042746
+     "value": 37.83252622436647
     },
     "definition": {
      "card_key": "dio",
@@ -2110,7 +2122,7 @@
       {
        "name": "net_turnover",
        "source": "assembled_pl.revenue",
-       "value": 99424740.16
+       "value": 94509939.96
       }
      ],
      "value": null

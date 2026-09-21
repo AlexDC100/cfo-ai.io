@@ -269,12 +269,12 @@ describe("the owner's own findings survive into the reader", () => {
     expect(insight.claim).toContain("1.50×");
   });
 
-  it("carries the 46.6% reconstruction gap", () => {
+  it("carries the 16.6% reconstruction gap (46.6% before plan/2 B4a read the mirrored 709 reductions as reductions)", () => {
     const insight = insightById(
       blockFor("agras"),
       "reconstruction_gap",
     ) as Insight;
-    expect(insight.claim).toContain("46.6%");
+    expect(insight.claim).toContain("16.6%");
   });
 });
 

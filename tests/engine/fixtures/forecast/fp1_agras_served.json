@@ -70,8 +70,8 @@
   "currency": "RON",
   "figures": [
     {
-      "amount_minor": 12806296521,
-      "amount_minor_projected": 12806296521,
+      "amount_minor": 11966217387,
+      "amount_minor_projected": 11966217387,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -95,8 +95,8 @@
       "projected": true
     },
     {
-      "amount_minor": 1984975960,
-      "amount_minor_projected": 1984975960,
+      "amount_minor": 1854763694,
+      "amount_minor_projected": 1854763694,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -132,8 +132,8 @@
       "projected": true
     },
     {
-      "amount_minor": 4246567926,
-      "amount_minor_projected": 4246567926,
+      "amount_minor": 3967997685,
+      "amount_minor_projected": 3967997685,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -169,8 +169,8 @@
       "projected": true
     },
     {
-      "amount_minor": 4377384332,
-      "amount_minor_projected": 4377384332,
+      "amount_minor": 4247172066,
+      "amount_minor_projected": 4247172066,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -195,8 +195,8 @@
       "projected": true
     },
     {
-      "amount_minor": -130816406,
-      "amount_minor_projected": -130816406,
+      "amount_minor": -279174381,
+      "amount_minor_projected": -279174381,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",
@@ -244,8 +244,8 @@
       "projected": true
     },
     {
-      "amount_minor": 13574674312,
-      "amount_minor_projected": 13574674312,
+      "amount_minor": 12684190430,
+      "amount_minor_projected": 12684190430,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -269,8 +269,8 @@
       "projected": true
     },
     {
-      "amount_minor": 2104074518,
-      "amount_minor_projected": 2104074518,
+      "amount_minor": 1966049516,
+      "amount_minor_projected": 1966049516,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -306,8 +306,8 @@
       "projected": true
     },
     {
-      "amount_minor": 4501362001,
-      "amount_minor_projected": 4501362001,
+      "amount_minor": 4206077546,
+      "amount_minor_projected": 4206077546,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -343,8 +343,8 @@
       "projected": true
     },
     {
-      "amount_minor": 6600557408,
-      "amount_minor_projected": 6600557408,
+      "amount_minor": 6324507404,
+      "amount_minor_projected": 6324507404,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -369,8 +369,8 @@
       "projected": true
     },
     {
-      "amount_minor": -2099195407,
-      "amount_minor_projected": -2099195407,
+      "amount_minor": -2118429858,
+      "amount_minor_projected": -2118429858,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",
@@ -418,8 +418,8 @@
       "projected": true
     },
     {
-      "amount_minor": 14253408027,
-      "amount_minor_projected": 14253408027,
+      "amount_minor": 13318399951,
+      "amount_minor_projected": 13318399951,
       "assumption_ids": [
         "revenue_growth"
       ],
@@ -443,8 +443,8 @@
       "projected": true
     },
     {
-      "amount_minor": 2209278244,
-      "amount_minor_projected": 2209278244,
+      "amount_minor": 2064351992,
+      "amount_minor_projected": 2064351992,
       "assumption_ids": [
         "revenue_growth",
         "ebitda_margin"
@@ -480,8 +480,8 @@
       "projected": true
     },
     {
-      "amount_minor": 4726430101,
-      "amount_minor_projected": 4726430101,
+      "amount_minor": 4416381423,
+      "amount_minor_projected": 4416381423,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity"
@@ -517,8 +517,8 @@
       "projected": true
     },
     {
-      "amount_minor": 9020243104,
-      "amount_minor_projected": 9020243104,
+      "amount_minor": 8585464348,
+      "amount_minor_projected": 8585464348,
       "assumption_ids": [
         "ebitda_margin"
       ],
@@ -543,8 +543,8 @@
       "projected": true
     },
     {
-      "amount_minor": -4293813003,
-      "amount_minor_projected": -4293813003,
+      "amount_minor": -4169082925,
+      "amount_minor_projected": -4169082925,
       "assumption_ids": [
         "revenue_growth",
         "asset_intensity",

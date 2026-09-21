@@ -13,7 +13,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "TB_adversarial",
     "source_format": "saga_10_col"
   },
@@ -43,7 +43,7 @@
     "model": null,
     "origin": "deterministic",
     "original_difference": 1.6,
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "placement": "balance_sheet",
     "placement_detail": "bs",
     "prompt_version": null,
