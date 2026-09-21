@@ -33,7 +33,11 @@ const API_URL =
 // Types
 // ──────────────────────────────────────────────────────────────────────
 
-export type FeatureStatus = "active" | "coming_soon" | "hidden";
+// `preview` (2026-09-21): shipped for the signed-in users who opted in
+// (`user_prefs.prefs.preview_features` names the key) and OFF for everyone
+// else. Every helper below treats it as off, so a preview row changes
+// nothing until a caller resolves it for the signed-in user.
+export type FeatureStatus = "active" | "coming_soon" | "hidden" | "preview";
 
 /** Stable string keys — mirror `FEATURES` in `_features.py`. Adding a
  *  feature here without adding it backend (or vice versa) is a build-time
@@ -90,7 +94,9 @@ export type FeatureKey =
   | "chat_page"
   | "roadmap"
   | "firm_cockpit"
-  | "anomaly_radar";
+  | "anomaly_radar"
+  // ── WORKSPACE REDESIGN (2026-09-21) — `preview` server-side.
+  | "workspace_v2";
 
 export interface FeatureDefinition {
   status: FeatureStatus;
