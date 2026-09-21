@@ -4,6 +4,10 @@
 // Instrument pass (2026-08): the three actuals share ONE AmountGroup so
 // the row reads on a single scale; deltas render through <Amount>
 // (money + percent), colored only by the favorable/unfavorable verdict.
+// The percent is the one classifier's (plan_contract_v2 section 7): a
+// change from zero, to zero or across sign shows its words beside the
+// money change instead — EBITDA 54.4M to −20.3M is "turned negative",
+// never "−137.2%" (defect 0.4).
 
 import { Amount } from "@/components/instrument/Amount";
 import { Panel } from "@/components/instrument/Panel";
@@ -14,6 +18,7 @@ import {
 } from "@/components/comparison/MoneyAmount";
 import type { Currency } from "@/lib/rates";
 import type { Delta, DeltaSentiment } from "@/lib/learning/computeDeltas";
+import { isWordKind } from "@/lib/changeKind";
 import type { VarianceRow } from "@/lib/comparison/buildVariance";
 import { VARIANCE_KPI_KEYS } from "@/lib/comparison/types";
 import { cn } from "@/lib/utils";
@@ -48,9 +53,9 @@ function DeltaLine({
             unit={false}
             signed
           />
-          {d.pct !== null && (
+          {(d.pct !== null || (d.change !== null && isWordKind(d.change.kind))) && (
             <span className="ml-1.5">
-              <Amount kind="percent" value={d.pct} />
+              <Amount kind="percent" value={d.pct} change={d.change} />
             </span>
           )}
         </span>

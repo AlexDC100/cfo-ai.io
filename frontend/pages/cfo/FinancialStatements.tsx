@@ -83,7 +83,7 @@ import {
   journeySeen,
   markJourneySeen,
 } from "@/components/cfo/simple/FirstUploadJourney";
-import { KeyMetricsRow } from "@/components/cfo/KeyMetricsRow";
+import { KeyMetricsRow, type MetricTrend } from "@/components/cfo/KeyMetricsRow";
 import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import {
   NO_HEADLINE_PROVENANCE,
@@ -945,16 +945,19 @@ function FinancialStatementsInner() {
 
   // Per-concept vs-last-period trend, read from the SAME multi-year series
   // that already feeds the KPI sparklines (no new fetches). Null when fewer
-  // than two periods exist — the metric cards then render no arrow.
+  // than two periods exist — the metric cards then render no arrow. It
+  // hands over the two VALUES, never a pre-divided ratio: the cards run the
+  // one sign-flip classifier (plan_contract_v2 section 7, B1), so a move
+  // from zero or across sign renders in words, never as a percent.
   const trendFor = useCallback(
-    (conceptKey: string): { pct: number; prevLabel: string } | null => {
+    (conceptKey: string): MetricTrend | null => {
       if (multiYearSeries.available < 2) return null;
       const s = seriesForConcept(multiYearSeries, conceptKey);
       if (s.length < 2) return null;
       const prev = s[s.length - 2];
       const curr = s[s.length - 1];
-      if (!Number.isFinite(prev.value) || prev.value === 0) return null;
-      return { pct: (curr.value - prev.value) / Math.abs(prev.value), prevLabel: prev.label };
+      if (!Number.isFinite(prev.value) || !Number.isFinite(curr.value)) return null;
+      return { base: prev.value, current: curr.value, prevLabel: prev.label };
     },
     [multiYearSeries],
   );

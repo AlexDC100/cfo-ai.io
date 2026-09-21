@@ -1,0 +1,6 @@
+{
+  "schema": "change_kind/1",
+  "source": "packs/serving/change_kind.yaml (tests/engine/test_change_kind.py reds when these values differ)",
+  "delta_pct_places": 6,
+  "rounded_money_zero_floor": "0.005"
+}

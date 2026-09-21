@@ -3327,7 +3327,84 @@
     "balance": {
       "ok": "Fiecare perioadă proiectată se închide la bănuț. Verificarea este exactă, nu o marjă de toleranță.",
       "broken": "Bilanțul proiectat nu se închide în: {{periods}}. Este o eroare, nu o notă de rotunjire — proiecția este construită în unități întregi, deci verificarea este exactă."
-    }
+    },
+    "tier": {
+      "book": "balanță",
+      "sector": "sector",
+      "macro": "macro",
+      "user": "tu",
+      "convention": "convenție",
+      "absent": "absent"
+    },
+    "chart": {
+      "trajectory": "Venituri și EBITDA",
+      "grain": "Perioade servite: {{first}} → {{last}}",
+      "revenue": "Venituri",
+      "ebitda": "EBITDA",
+      "peak": "Vârf",
+      "cash": "Numerar",
+      "closingCash": "Numerar la final",
+      "minCash": "Pragul de numerar",
+      "onTheLine": "Pe linia de finanțare",
+      "trough": "Minim",
+      "fcf": "Flux de numerar liber",
+      "perPeriod": "Pe perioadă",
+      "cumulative": "Cumulat",
+      "weakest": "Cel mai slab",
+      "capex": "Investiții și amortizare",
+      "capexBar": "Investiții",
+      "depreciation": "Amortizare",
+      "signNote": "Ambele ies din numerar și din rezultat, cu semnul dat de motor",
+      "refused": "Nu se servește din {{period}}: ",
+      "months": "luni",
+      "years": "ani",
+      "fcfBarsNote": "Barele pe perioadă se opresc acolo unde se termină lunile: motorul nu servește un total anual pentru fluxul de numerar liber, iar unul însumat aici ar fi o cifră pe care proiecția nu a spus-o niciodată. Linia cumulată merge pe tot orizontul.",
+      "overHorizon": "Pe tot orizontul",
+      "fcfScaleNote": "Barele și linia cumulată sunt desenate pe scări verticale separate: un total care se adună ajunge la suma tuturor barelor, așa că pe o singură scară barele ar fi o linie dreaptă pe axă. Compară fiecare serie cu ea însăși, nu una cu cealaltă."
+    },
+    "strip": {
+      "peakFunding": "Necesarul maxim de finanțare",
+      "peakAt": "Vârful este atins în {{period}}",
+      "noDraw": "Planul nu trage niciodată pe linia de finanțare",
+      "firstBreach": "Prima încălcare de covenant",
+      "shortfallInstead": "Un deficit de numerar — alt lucru decât o încălcare de covenant — începe în {{period}}.",
+      "cumulativeFcf": "Flux de numerar liber cumulat",
+      "closingCash": "Numerar la final",
+      "atPeriod": "La {{period}}",
+      "unexpected": "—"
+    },
+    "growth": {
+      "title": "Creșterea veniturilor se sprijină pe",
+      "absentInput": "nu se poate măsura din această balanță"
+    },
+    "levers": {
+      "title": "Pârghii",
+      "lead": "Miști una și proiecția este refăcută integral pe server. Nimic din pagină nu se schimbă până nu răspunde el.",
+      "recomputing": "Se recalculează…",
+      "settled": "La zi",
+      "notServed": "Ce nu servește motorul",
+      "undeclared": "această proiecție nu declară un astfel de driver, deci nu există un control onest pentru el"
+    },
+    "lever": {
+      "resetTo": "Revino la {{tier}}",
+      "useTier": "Folosește cifra {{tier}}",
+      "revenue_growth": "Creșterea veniturilor",
+      "dso_days": "Zile de încasare a creanțelor",
+      "dio_cogs_days": "Zile de stoc",
+      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "capex_pct_of_revenue": "Investiții, pondere în venituri",
+      "dividend_payout_pct": "Distribuire de dividende",
+      "gross_margin": "Marja brută",
+      "opex_growth": "Creșterea costurilor de exploatare",
+      "range": "Acceptă de la {{min}} la {{max}}{{suffix}}",
+      "step": ", în pași de {{step}}"
+    },
+    "grain": {
+      "showFy": "Arată anii financiari",
+      "showMonthly": "Arată lunile primului an",
+      "note": "Ambele granulații sunt servite de motor"
+    },
+    "stale": "Serverul nu a acceptat schimbarea, așa că toate cifrele de mai jos sunt tot ultima proiecție pe care a produs-o. Ce ai scris rămâne în panoul de pârghii; corectează valoarea sau resetează pârghia."
   },
   "radar": {
     "eyebrow": "Radar",
@@ -3360,6 +3437,124 @@
       "held": "{{count}} reținute de plafon",
       "heldTitle": "Plafonul afișează constatările cu cel mai mare scor; restul sunt pe pagina Radar.",
       "open": "Deschide Radar"
+    }
+  },
+  "changeKind": {
+    "flip_to_negative": "a devenit negativ",
+    "flip_to_positive": "a devenit pozitiv",
+    "from_zero": "de la zero",
+    "to_zero": "la zero",
+    "absent_base": "nu există în bază",
+    "absent_plan": "nu mai este prezent",
+    "compared": "comparat",
+    "no_change": "nicio modificare"
+  },
+  "scenarios": {
+    "eyebrow": "Analiză",
+    "title": "Planificare pe scenarii",
+    "context": "Simulări „ce-ar fi dacă” pe proiecția pentru {{period}}. Fiecare cifră e calculată de motorul de prognoză.",
+    "actualsLocked": "Datele reale nu se schimbă niciodată",
+    "banner": {
+      "eyebrow": "Fiecare cifră de pe această pagină e o proiecție",
+      "body": "Fiecare număr e produs de motorul de prognoză pornind de la poziția de închidere din {{period}} și de la șocurile și pârghiile listate pe această pagină. Nimic de aici nu îți modifică balanța de verificare."
+    },
+    "empty": {
+      "eyebrow": "Planificare pe scenarii",
+      "title": "Testează-ți planul înainte să se întâmple",
+      "subtitle": "Scenariile trec seturi numite de șocuri prin motorul de prognoză: volumul vânzărilor, prețurile de vânzare și de achiziție, costurile de exploatare și zilele de capital de lucru. Încarcă sau deschide o perioadă ca să începi; datele tale reale nu se schimbă niciodată.",
+      "dashboard": "Mergi la panou",
+      "ask": "Întreabă CFO AI",
+      "askPrompt": "Ce poate face planificarea pe scenarii pentru mine după ce îmi încarc balanța de verificare? Explică-mi șabloanele și pârghiile pe care le mișcă."
+    },
+    "templates": {
+      "title": "Șabloane",
+      "lead": "Fiecare șablon e un set numit de șocuri trimis motorului de prognoză. Alege unul ca să-l vezi lângă planul de bază.",
+      "changes": "Ce schimbă acest șablon",
+      "noShocks": "Nimic: planul motorului, doar cu pârghiile pe care le setezi mai jos.",
+      "window": "Fiecare șoc se aplică din prima lună a planului până la sfârșitul lui."
+    },
+    "template": {
+      "base": {
+        "name": "Planul de bază",
+        "question": "Încotro merge planul fără niciun șoc?"
+      },
+      "recession": {
+        "name": "Recesiune",
+        "question": "Ce se întâmplă dacă volumul vânzărilor scade și tai din costurile de exploatare?",
+        "note": "În motor, costul vânzărilor urmează volumul; celelalte venituri din exploatare rămân constante."
+      },
+      "input_cost_inflation": {
+        "name": "Inflația costurilor de achiziție",
+        "question": "Ce se întâmplă dacă prețurile de achiziție cresc, iar prețurile de vânzare nu?",
+        "note": "Doar partea variabilă a costului vânzărilor urmează prețurile de achiziție."
+      },
+      "price_pressure": {
+        "name": "Presiune pe prețuri",
+        "question": "Ce se întâmplă dacă trebuie să scazi prețurile de vânzare?",
+        "note": "Costul vânzărilor nu urmează prețul de vânzare."
+      },
+      "working_capital_squeeze": {
+        "name": "Presiune pe capitalul de lucru",
+        "question": "Ce se întâmplă dacă clienții plătesc mai târziu și stocul stă mai mult?",
+        "note": "Zilele mută soldurile, nu EBITDA: efectul apare în numerar, în linia de finanțare și în dobânda ei."
+      }
+    },
+    "shock": {
+      "volume_index": "Volumul vânzărilor",
+      "price_index": "Prețurile de vânzare",
+      "input_price_index": "Prețurile de achiziție din costul vânzărilor",
+      "pool_level": "Costurile de exploatare, fiecare grup de costuri din această balanță",
+      "pool_level_count_one": "Costurile de exploatare, singurul grup de costuri din această balanță",
+      "pool_level_count_few": "Costurile de exploatare, toate cele {{count}} grupuri de costuri din această balanță",
+      "pool_level_count_other": "Costurile de exploatare, toate cele {{count}} de grupuri de costuri din această balanță",
+      "dso_days": "Zile de încasare a creanțelor",
+      "dio_cogs_days": "Zile de stoc",
+      "dpo_cogs_days": "Zile de plată a furnizorilor"
+    },
+    "op": {
+      "level_pct": "{{value}}%",
+      "add_days": "{{value}} zile",
+      "add_pp": "{{value}} pp"
+    },
+    "outcome": {
+      "title": "Rezultatul pe ani de plan",
+      "lead": "Cifre servite de rulări separate ale motorului, puse una lângă alta. Pe această pagină nu se calculează nicio diferență.",
+      "figure": "Cifră",
+      "loading": "Se proiectează…",
+      "cellLoading": "…",
+      "recomputing": "Se recalculează…",
+      "refusedColumn": "{{name}}: nicio proiecție",
+      "cashFloored": "Motorul a servit aici numerar sub zero, ceea ce nu are voie; numerarul nu e afișat niciodată sub zero. Soldul liniei de finanțare servit la închiderea acestei perioade:",
+      "chartWithheld": "Graficul numerarului nu e afișat: motorul a servit un punct de numerar sub zero, iar pe această pagină numerarul nu e desenat niciodată sub zero.",
+      "chartFor": "Numerarul și linia de finanțare: {{name}}",
+      "row": {
+        "revenue": "Venituri",
+        "ebitda": "EBITDA",
+        "net_income": "Rezultat net",
+        "closing_cash": "Numerar la închidere",
+        "funding_line": "Linie de finanțare la final de an",
+        "funding_interest": "Dobândă pe linia de finanțare"
+      }
+    },
+    "summary": {
+      "title": "Linia de finanțare și pragul de numerar, pe tot planul",
+      "peak": "Vârful liniei de finanțare",
+      "peakAt": "atins în {{period}}",
+      "neverDraws": "planul nu trage niciodată din ea",
+      "interest": "Dobânda pe linia de finanțare, pe tot planul",
+      "firstShortfall": "Primul deficit",
+      "runway": "Luni până când numerarul atinge pragul",
+      "runwayAtLeast": "cel puțin {{months}}",
+      "fundingRate": "Cum e prețuită linia de finanțare:",
+      "dscrNotServed": "Gradul de acoperire a serviciului datoriei nu e în răspunsul servit de această versiune, așa că nu e afișat."
+    },
+    "levers": {
+      "lead": "Pârghiile de mai jos se aplică fiecărei coloane: atât planul de bază, cât și șablonul ales le poartă."
+    },
+    "refusal": {
+      "title": "Nicio proiecție",
+      "fallback": "Motorul nu a returnat o proiecție.",
+      "noServedKeys": "această balanță nu servește niciun grup de costuri de exploatare, așa că șocul pe costurile de exploatare al acestui șablon nu poate fi aplicat, iar șablonul nu rulează parțial"
     }
   }
 }

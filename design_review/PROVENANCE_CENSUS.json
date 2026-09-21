@@ -101,9 +101,15 @@
     },
     "frontend/components/cfo/KeyMetricsRow.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 2,
+      "sites": 3,
       "affordances": 1,
-      "why": "KeyMetricItem now carries `provenance`, built ONCE by the page (lib/headlineProvenance) beside the figure and shared with Simple's twins. The headline Amount wears it; the YoY chip (a delta over a series) never does."
+      "why": "KeyMetricItem now carries `provenance`, built ONCE by the page (lib/headlineProvenance) beside the figure and shared with Simple's twins. The headline Amount wears it; the YoY chip (a delta over a series) never does. plan/2 B1 (2026-09-15): the YoY chip is TrendChange — a percent for a same-sign move, else the money change plus the one classifier's words — so it paints two Amounts, both plain (a delta over a series)."
+    },
+    "frontend/components/cfo/ComparativeCells.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 10,
+      "affordances": 0,
+      "why": "OPENED 2026-09-15 (plan/2 B1; unregistered since before B0, plan_as_built B0-12). The prior, delta, delta-percent and share cells of the engine's comparatives document: derivations over two periods keyed by line and period label, with no source cell behind a delta or a share. A change across zero renders the one classifier's words. Same law as DeltaBadge: a delta over two figures never wears the affordance."
     },
     "frontend/components/cfo/Level1BenchmarkView.tsx": {
       "bucket": "HAS_MISSING",
@@ -293,9 +299,9 @@
     },
     "frontend/components/cfo/simple/StoryOverview.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 2,
+      "sites": 1,
       "affordances": 1,
-      "why": "Receives the SAME HeadlineProvenance object as KeyMetricsRow; figureRow threads it into the one <Amount> it renders. Mode parity covers the origin as well as the value. The YoY chip stays plain."
+      "why": "Receives the SAME HeadlineProvenance object as KeyMetricsRow; figureRow threads it into the one <Amount> it renders. Mode parity covers the origin as well as the value. The YoY chip stays plain. plan/2 B1 (2026-09-15): the YoY chip moved into KeyMetricsRow's TrendChange (one sign-flip rendering for both modes), so this file paints one Amount of its own."
     },
     "frontend/components/cfo/workspace/WorkspaceSettingsV2.tsx": {
       "bucket": "LACKS_SILENT",
@@ -329,9 +335,9 @@
     },
     "frontend/components/instrument/Amount.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 4,
+      "sites": 5,
       "affordances": 1,
-      "why": "THE INSTRUMENT. Delegates to ProvenanceAffordance when the payload has substance; falls back to a plain rounding tooltip (no data-provenance, no dotted rule) when it does not."
+      "why": "THE INSTRUMENT. Delegates to ProvenanceAffordance when the payload has substance; falls back to a plain rounding tooltip (no data-provenance, no dotted rule) when it does not. plan/2 B1 (2026-09-15): +formatChangePercent — kind=\"percent\" with a `change` renders the classifier's delta_pct, or the change-kind words; no provenance is claimed for either."
     },
     "frontend/components/instrument/shell/TrustChip.tsx": {
       "bucket": "HAS_SHOWS",
@@ -504,9 +510,15 @@
     },
     "frontend/components/scenarios/ScenarioComparison.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 6,
+      "sites": 7,
       "affordances": 0,
-      "why": "Scenario deltas are what the reader modelled, not what was read. There is no cell behind a lever the user just dragged, and inventing one would be the worst bucket."
+      "why": "Scenario deltas are what the reader modelled, not what was read. There is no cell behind a lever the user just dragged, and inventing one would be the worst bucket. plan/2 B1 (2026-09-15): a currency row whose change crosses zero paints the money change beside the words (the seventh site); still what the reader modelled."
+    },
+    "frontend/components/scenarios/ScenarioOutcome.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (plan/2 B13, minimal cut). The Scenarios page's figures: two served projections (the base plan and the selected template) placed side by side. Every figure is a PROJECTION read through lib/forecastFacts and painted by <ProjectedAmount>, so — exactly as on Forecast.tsx — a jump to a source cell would be an affordance over nothing. The one site is the Intl.NumberFormat that formats projected values in the book's own currency (the display toggle is deliberately not applied, same reason as Forecast.tsx makeFormatter). Replaces the Scenarios.tsx entry: the page itself paints no figure any more."
     },
     "frontend/components/ui/Money.tsx": {
       "bucket": "LACKS_SILENT",
@@ -615,12 +627,6 @@
       "sites": 25,
       "affordances": 10,
       "why": "The period names its origin: source (the vendor dataset id), normalizer_version as pack, fiscal_period_end as period. Ratios: `derived · computeRatios · <key>` over that feed (x/days/ratio units; PercentLevel has no provenance prop). Valuation tiles: `<source> · market_metrics.<field>` with market.as_of as computedAt. KNOWN GAP: the Overview KPI/Metric/Ratio tiles sit inside LearnableMetricCard (a button) and stay plain — no nested interactive."
-    },
-    "frontend/pages/cfo/Scenarios.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 5,
-      "affordances": 0,
-      "why": "OPENED 2026-09-04. Base and scenario leverage multiples on the what-if page — the scenario's output beside its input. Same law as ScenarioComparison."
     },
     "frontend/pages/cfo/Settings.tsx": {
       "bucket": "LACKS_SILENT",

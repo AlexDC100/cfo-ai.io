@@ -5385,14 +5385,1115 @@ see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
 the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
 layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).
 
+<!-- ═══ plan/2 B0 (plan_contract_v2 28.3): forecast gate wiring ═══════════
+     Six gates registered by batch B0 of plan/2 (one engine for the forecast
+     cockpit and Scenarios). Each is registration_only in
+     docs/engine_book/plan_gates.json: an existing, already-passing test (or
+     the new census) registered with no repair in the same commit, so each
+     section records the plant red and, in place of the parent-commit red,
+     the line the contract requires (0.5). Later batches append their own
+     sections below their own anchors. -->
+
+## forecast-model
+
+`tests/engine/test_forecast_model.py` — the linked three-statement model in
+`engine.forecast`: every projected period closes assets to equity plus
+liabilities to the cent, the cash-flow statement articulates the balance
+sheet, and the calendar comes from the book, never a clock. It rode the
+whole-suite `pytest` gate, where a collapse of this one file hides inside
+1,500 tests; plan/2 extends it in B2 (`test_forecast_timeline_tax.py`) and B5
+(`test_forecast_wc_unwind.py`), so it is a named gate first.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_model.py -q` |
+| work count | junit-xml, floor **220** tests (measured 223 at registration, rounded down) |
+| canary | `test_f1_every_projected_period_closes_to_zero`, `test_f1_one_cent_is_enough_to_red_it`, `test_f1_the_cash_flow_statement_articulates_the_balance_sheet`, `test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book` |
+
+**SCOPE** — the four committed books (`tests/engine/fixtures/firm/saga_10_col_{agras,carniprod,realestate,retail}.json`), FY2025 anchors, year one monthly/quarterly/annual, horizons 1-5 as each test states; no SYNTHETIC pair (it lands in B7).
+
+**GREEN** — exit `0`: `223 passed in 3.06s`.
+
+**PLANT** — `src/engine/forecast/project.py`, one cent of closing PP&E in plan
+year 2 (contract F1's plant):
+
+```
+-            "ppe_net": closing_ppe,
++            "ppe_net": closing_ppe + (1 if period.year_offset == 2 else 0),
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s own runner, exit `1`,
+`165 failed, 58 passed`; the canary names the period and the cent:
+
+```
+FAIL forecast-model (exit 1, 7.4s)
+E   engine.forecast.errors.BalanceViolation: projected period FY2027 does not balance: assets 65,489,692.38 − (equity + liabilities) 65,489,692.37 = 0.01 (must be exactly 0)
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — file restored byte for byte (`git diff` empty); `PASS forecast-model (2.7s, 223 tests)`.
+
+**After the repair it reds on (TC-11):** any projected period of any book
+that does not close to the cent; a cash-flow statement that does not
+articulate the balance sheet; a clock read anywhere in `engine.forecast`.
+**It cannot see:** the served bytes (forecast-serving-boundary, forecast-route)
+or any lever run (forecast-balance, B5).
+
+## forecast-serving-boundary
+
+`tests/engine/test_forecast_serving_boundary.py` — the fp1 serving contract
+and its guard: a projected figure is not the type an actual is served as,
+carries no actual provenance (no snapshot id, line id or source cell on a
+figure), resolves to its drivers for its own period, and reads back through
+its own gateway byte for byte. Supporting gate of contract 26.3; B6 adds
+`test_no_actual_provenance_on_real_post_bytes` (3.13).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_serving_boundary.py -q` |
+| work count | junit-xml, floor **60** tests (measured 66, rounded down) |
+| canary | `test_the_guard_is_silent_on_all_four_committed_books`, `test_every_real_book_serves_a_whole_projection_at_every_horizon`, `test_the_projected_balance_sheet_closes_to_the_cent_on_the_real_book` |
+
+**SCOPE** — the four committed books at horizons 3 and 5, the committed fp1 fixtures `tests/engine/fixtures/forecast/fp1_agras*.json`, and hand-built contract fixtures inside the file.
+
+**GREEN** — exit `0`: `66 passed in 1.44s`.
+
+**PLANT** — `src/engine/forecast_serving/boundary.py`,
+`actual_provenance_on_projection` treats every node as the base-period
+pointer, so no source cell is ever found on a figure:
+
+```
+-    _walk(projection, "$", False)
++    _walk(projection, "$", True)
+```
+
+**RED (plant)** — exit `1`, `2 failed, 64 passed`:
+
+```
+FAIL forecast-serving-boundary (exit 1, 1.6s)
+E   AssertionError: []
+E   assert [] == ['$.periods[0].line_id']
+FAILED tests/engine/test_forecast_serving_boundary.py::test_plant_a_source_cell_onto_a_projected_figure_and_the_guard_reds
+FAILED tests/engine/test_forecast_serving_boundary.py::test_a_source_cell_on_a_producer_FIGURE_is_still_caught
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-serving-boundary (1.5s, 66 tests)`.
+
+**After the repair it reds on:** a projected figure carrying a source cell; a
+figure without the projected marker; a figure whose drivers do not resolve for
+its period; a wire form that does not read back through its gateway.
+**It cannot see:** what a page paints (forecast-boundary, vitest).
+
+## forecast-drivers
+
+`tests/engine/test_forecast_drivers.py` — `engine.forecast_drivers`: every
+driver carries a derivation and a basis generated from it, an absent driver
+is `None` and never `0`, a fallback never crosses into the model looking like
+a measurement, and the package holds no model call. Supporting gate of
+contract 26.3; B3 retires its `test_hx8` (listed in 28.3 B3).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_drivers.py -q` |
+| work count | junit-xml, floor **140** tests (measured 149 run + 1 skipped, rounded down) |
+| canary | `test_b2_absent_is_none_and_never_zero`, `test_f1_the_package_contains_no_model_call_and_no_place_for_one`, `test_j8_an_absent_driver_never_becomes_a_number_in_the_handover` |
+
+**SCOPE** — the four committed books, the forecast_drivers pack, and one-, two- and three-period histories built inside the file.
+
+**GREEN** — exit `0`: `149 passed, 1 skipped in 1.55s`.
+
+**PLANT** — `src/engine/forecast_drivers/derive.py`, `_absent` hands over a zero
+fallback instead of an absent driver (absent read as zero):
+
+```
+-        value=None, status="absent",
++        value=0.0, status="fallback",
+```
+
+**RED (plant)** — exit `1`, `17 failed, 132 passed, 1 skipped`:
+
+```
+FAIL forecast-drivers (exit 1, 1.8s)
+FAILED tests/engine/test_forecast_drivers.py::test_b2b_headcount_is_absent_on_the_real_book_not_zero
+E   AssertionError: assert 'fallback' == 'absent'
+FAILED tests/engine/test_forecast_drivers.py::test_hx7_the_pedigree_reaches_the_wire[agras]
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-drivers (1.6s, 149 tests)`.
+
+**After the repair it reds on:** a driver without a derivation or basis; an
+absent concept carrying a number; a fallback crossing into the model as a
+measurement; a model call in the package.
+**It cannot see:** the tier ladders of plan/2 section 3.4 (forecast-defaults, B3).
+
+## forecast-ai-write-path
+
+`tests/engine/test_forecast_no_ai_write_path.py` — contract F5, engine half:
+importing or exercising `engine.forecast`, `engine.forecast_drivers` and
+`engine.forecast_serving` loads no model surface, a model-authored numeral
+about a projection is refused, and the environment cannot disarm that
+channel. B18 and B19 raise its floor.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_no_ai_write_path.py -q` |
+| work count | junit-xml, floor **15** tests (measured 17, rounded down) |
+| canary | `test_the_scan_is_not_vacuous_and_names_what_it_covers`, `test_importing_the_forecast_packages_loads_no_model_surface`, `test_plant_a_forecast_module_that_imports_a_model_surface_and_it_reds` |
+
+**SCOPE** — the packages `engine.forecast`, `engine.forecast_drivers`, `engine.forecast_serving` (import walk in a fresh interpreter), the model-surface roster in `forecast_serving/boundary.py`, and agras for the end-to-end gateway run.
+
+**GREEN** — exit `0`: `17 passed in 0.73s`.
+
+**PLANT** — `src/engine/forecast/render.py` imports a model surface:
+
+```
+ from typing import Any, List
++import engine.ai_lane  # noqa: F401
+```
+
+**RED (plant)** — exit `1`, `1 failed, 16 passed`:
+
+```
+FAIL forecast-ai-write-path (exit 1, 1.1s)
+E   AssertionError: importing forecast, forecast_drivers, forecast_serving loaded a model surface: engine.ai_lane, engine.ai_lane._client, engine.ai_lane.classify, ... AI never produces a projected number — not a driver, not a result, not a rounding.
+FAILED tests/engine/test_forecast_no_ai_write_path.py::test_importing_the_forecast_packages_loads_no_model_surface
+```
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — restored; `PASS forecast-ai-write-path (1.1s, 17 tests)`.
+
+**After the repair it reds on:** a module of the model-surface roster
+(`MODEL_SURFACE_MODULES` in `forecast_serving/boundary.py`) that is LOADED when
+a fresh interpreter imports `engine.forecast`, `engine.forecast_drivers` and
+`engine.forecast_serving`, or when the gateway runs end to end on agras; a
+model-authored numeral about a projection reaching a served block; an
+environment variable that disarms the guard. It measures modules loaded, not
+import statements.
+**It cannot see:** an import placed inside a function (never executed by the
+import walk); a submodule the packages do not themselves import (a new
+`engine/forecast/breakeven.py` is invisible until something imports it);
+`import engine.ai` or `from engine.ai import advisory` when that loads only
+`engine.ai` and `engine.ai.registry`, which the roster leaves out on purpose.
+So contract 26.2 F5's own plant ("import engine.ai in
+engine.forecast.breakeven") does NOT red at B0. Measured on this tree, each
+applied to `src/engine/forecast/` and reverted (`git status` clean after):
+
+```
+top-level `import engine.ai` in render.py                        -> 17 passed
+new breakeven.py with top-level `from engine.ai import advisory`  -> 17 passed
+function-local `from engine.ai import advisory` in render.py      -> 17 passed
+control: top-level `import engine.ai_lane` in render.py           -> 1 failed, 16 passed
+```
+
+`import engine.ai` loads `['engine.ai', 'engine.ai.registry']` only. A
+function-local `import anthropic` in `forecast_drivers/derive.py` is caught,
+but by forecast-drivers, not by this gate. The extension that closes this
+(an AST scan of every import statement, function-local included, in every
+module under `src/engine/forecast*`, forbidding the prefixes `engine.ai` and
+`engine.ai_lane` apart from the guard's own sanctioned imports) belongs to the
+batch that owns `tests/engine/test_forecast_no_ai_write_path.py` (B18). B11
+creates `breakeven.py` before B18 runs, so the contract's plant shape stays
+open from B11 to B18 unless the owner rules that B11 extends the test
+(as-built B0-14).
+It also cannot see the proposal route of section 24 (B19) or
+`engine.forecast_findings` (B18), which do not exist yet.
+
+## forecast-boundary
+
+`node scripts/check_forecast_boundary.mjs` — contract F2, static half: a
+projected figure cannot be painted as a fact (no laundering cast, no raw wire
+read, no actuals primitive over a projection; the two serving namespaces never
+import each other). It existed with its own vacuity probe and was never in the
+battery. B0 adds the `units=` count the battery reads, an explicit red on a
+zero-file scan, and prints by name the Scenarios files it does not yet hold;
+its scope is unchanged. B6 extends it to `components/forecast/**`, B13 to the
+Scenarios page, B20 to the exports.
+
+| | |
+|---|---|
+| command | `node scripts/check_forecast_boundary.mjs` |
+| work count | `GATE-WORK forecast-boundary units=(\d+)`, floor **1000** ts+py files (measured 1,167 = 761 ts + 406 py, rounded down) |
+| canary | `FORECAST BOUNDARY GATE (F2, static half)`, `forecast-namespace consumers found` |
+
+**SCOPE** — every .ts/.tsx/.py under `frontend/` and `src/engine/`; the consumer rules hold the 4 files importing `frontend/lib/forecastFacts` and the two serving namespaces. Excluded until B13, printed by name on every run: 16 Scenarios files (`pages/cfo/Scenarios.tsx`, `stores/scenario.tsx`, `components/scenarios/**`, `lib/scenarios/**`), which compute their own cascade and do not import the forecast namespace.
+
+**GREEN** — exit `0`: `PASS — 4 forecast-namespace consumer(s); no laundering cast, ...`.
+
+**PLANT 1** — `frontend/components/forecast/ProjectedAmount.tsx` gains a laundering cast:
+
+```
+ import { type ReactNode } from "react";
++export const launder = (x: unknown) => x as unknown as number;
+```
+
+**RED (plant)** — exit `1`:
+
+```
+FAIL forecast-boundary (exit 1, 0.1s)
+FAIL — a projected figure can be painted as a fact:
+  · frontend/components/forecast/ProjectedAmount.tsx casts a projected amount into a plain number. The single documented door is unwrapProjected(), which hands over the marker in the same call.
+```
+
+**PLANT 2** — a zero-file scan: the script copied alone into an empty
+directory, so discovery finds nothing. **RED (plant)** — exit `1`, among ten
+failures:
+
+```
+GATE-WORK forecast-boundary units=0 ts=0 py=0 consumers=0 label=files-scanned
+  · ZERO FILES SCANNED — discovery found no .ts, .tsx or .py file under frontend/ or src/engine/. Nothing was checked, so nothing may pass.
+  · only 0 TypeScript file(s) scanned; discovery is broken (the tree carries far more)
+```
+
+`--probe-vacuity` agrees: `PROBE OK — emptied discovery produced 4 failure(s)`.
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test.
+
+**REVERT** — the cast removed (`git diff` empty); `PASS forecast-boundary (0.1s, 1167 ts+py files scanned)`.
+
+**After the repair it reds on:** a laundering cast or raw wire read in a
+forecast consumer; a projected value painted without `<ProjectedAmount>`; an
+actuals primitive in a file reaching a projected value; the serving namespaces
+importing each other or the producer; the two recognisers disagreeing; a
+zero-file scan.
+**It cannot see:** client arithmetic over projected values (F2's no-arithmetic
+check lands in B6), and the Scenarios files it lists as excluded.
+
+## plan-gate-census
+
+`python scripts/check_plan_gates.py` — contract F10: every entry of
+`docs/engine_book/plan_gates.json` maps to a battery gate with floor above
+zero and canaries (and, for vitest and playwright entries, the same literal in
+the runner's CANARIES array), and to a plant log here with PLANT, RED (plant),
+the parent-commit red or the registration_only line, REVERT and a SCOPE line.
+It prints the coverage of the eighteen F and S rows. Per batch it reds when the
+batch's `required_gates` omits a battery gate contract 28.3 says that batch
+first registers (`CONTRACT_LANDS` in the script), when its `required_rows`
+omits a row whose 26.1 Lands column is that batch, and when a required gate or
+row is met only by another batch's entry. Each batch adds its entries and both
+keys; B21's keys must name every 26.1 battery gate and every row, and are the
+only ones any batch's entry can meet. Only B0's six registrations may be
+`registration_only` (0.5). Schema `plan_gates/2` (as-built B0-13).
+
+| | |
+|---|---|
+| command | `python scripts/check_plan_gates.py` |
+| work count | `GATE-WORK plan-gate-census units=(\d+)`, floor **6** entries (measured 6) |
+| canary | `PLAN-GATE CENSUS (plan_contract_v2 F10)`, `coverage of the 18 contract rows` |
+
+**SCOPE** — `docs/engine_book/plan_gates.json` (6 entries at B0; rows F1, F2, F5, F10 covered, 14 rows with no gate yet; batches enforced: B0, with required gates forecast-model, forecast-serving-boundary, forecast-drivers, forecast-ai-write-path, forecast-boundary, plan-gate-census and required rows F5, F10) against the full battery (engine and frontend gates) and this file. Plants run on copies passed with `--battery`, `--gates-md`, `--plan-gates`. Printed as `GATE-WORK plan-gate-census units=6 rows=4 batches=1`.
+
+**GREEN** — exit `0`: `PASS — every listed plan gate is registered, planted and scoped.`
+
+**PLANT 1** — contract F10's first plant: a copy of this file with the
+`**PLANT**` block of `## forecast-drivers` deleted, passed with `--gates-md`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-drivers': plant log 'forecast-drivers' lacks PLANT
+```
+
+**PLANT 2** — F10's second plant: a copy of `scripts/run_battery.py` with
+`floor=15` set to `floor=0` (the substitution also hit `capsule-gates`, which
+no plan entry names), passed with `--battery`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-ai-write-path': battery gate 'forecast-ai-write-path' has floor 0; a floor of zero passes a run over nothing
+```
+
+**PLANT 3** — F10's third plant: a copy of `plan_gates.json` listing
+`forecast-ghost`, which `run_battery.py` does not register, passed with
+`--plan-gates`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 2 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-ghost': battery gate 'forecast-ghost' is not registered in scripts/run_battery.py
+  · plan_gates.json entry 'forecast-ghost': no plant log — gates.md has no heading 'forecast-ghost'
+```
+
+**PLANT 4** — TC-3: a copy of `plan_gates.json` with `gates: []`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 9 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json lists ZERO gates. A census over nothing is a broken census, not a clean one (TC-3).
+  · required_gates[B0]: gate 'forecast-model' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-serving-boundary' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-drivers' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-ai-write-path' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'forecast-boundary' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_gates[B0]: gate 'plan-gate-census' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+  · required_rows[B0]: row F5 has no registered gate landed in B0 (an earlier batch's entry does not count)
+  · required_rows[B0]: row F10 has no registered gate landed in B0 (an earlier batch's entry does not count)
+```
+
+(Re-run after the B0 repair round; the first recording showed the ZERO GATES
+line and the two row lines only.)
+
+**PLANT 5** — the repair round's defect, on a copy of `plan_gates.json`:
+`required_rows` gains `B5: [F1]`, `B6: [F2]`, `B21: [F1, F2, F5, F10]`, with no
+forecast-balance or forecast-server-side gate anywhere. Before the repair the
+census printed `PASS — every listed plan gate is registered, planted and
+scoped.` (B5's F1 was met by B0's forecast-model entry, B6's F2 by B0's
+forecast-boundary). **RED (plant)** — exit `1`:
+
+```
+FAIL — 63 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B5] omits 'forecast-balance', which contract 28.3 says B5 registers
+  · required_rows[B5]: row F1 has no registered gate landed in B5 (an earlier batch's entry does not count)
+  · required_gates[B6] omits 'forecast-server-side', which contract 28.3 says B6 registers
+  · required_rows[B6]: row F2 has no registered gate landed in B6 (an earlier batch's entry does not count)
+  · required_gates[B21] omits 'forecast-balance', which contract 26.1 says the final census registers
+  · ... (58 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 6** — a required gate with no entry: a copy of `plan_gates.json` with
+the `forecast-drivers` entry deleted while `required_gates[B0]` still names it.
+Before the repair: `PASS`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B0]: gate 'forecast-drivers' has no plan_gates.json entry landed in B0 (an earlier batch's entry does not count)
+```
+
+**PLANT 7** — `registration_only` outside 0.5: a copy adding
+`{id forecast-route, gate forecast-route, rows [S4, F9], landed_in B6,
+registration_only true, plant_log "forecast-route B6"}` and a copy of this file
+whose `## forecast-route B6` section holds only the marker words and the
+registration_only line. Before the repair: `PASS`, `units=7 rows=6`.
+**RED (plant)** — exit `1`:
+
+```
+FAIL — 16 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'forecast-route': registration_only (landed_in 'B6') — contract 0.5 allows it only for the six B0 registrations forecast-model, forecast-serving-boundary, forecast-drivers, forecast-ai-write-path, forecast-boundary, plan-gate-census; every other gate lands with its repair and records RED (parent commit)
+  · ... (15 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 8** — B21 listing every row and no gate. **RED (plant)** — exit `1`:
+
+```
+FAIL — 37 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B21] omits 'forecast-balance', which contract 26.1 says the final census registers
+  · required_rows[B21]: row F3 has no registered gate (any batch)
+  · ... (35 further lines, each an omission 28.3 or 26.1 names)
+```
+
+**PLANT 9** — an earlier batch's entry offered for a later batch's gate: a
+battery copy registering B5's seven gates, a `plan_gates.json` copy with every
+B5 key and entry correct (this passes: `PASS`, `batches=2`), then the one change
+`forecast-balance` `landed_in: B0`. **RED (plant)** — exit `1`:
+
+```
+FAIL — 2 plan gate claim(s) not backed by the battery and its plant log:
+  · required_gates[B5]: gate 'forecast-balance' has no plan_gates.json entry landed in B5 (an earlier batch's entry does not count)
+  · required_rows[B5]: row F1 has no registered gate landed in B5 (an earlier batch's entry does not count)
+```
+
+Before any section of this B0 block existed, the real census run over the
+tree also went red (six `no plant log — gates.md has no heading ...` lines),
+which is how the sections above came to be written first.
+
+**RED (parent commit)** — no repair in this commit; registration of an existing test (the census is new in B0 and the contract marks it registration_only, 0.5).
+
+**REVERT** — the copies discarded; the tree's files were never edited; `PASS plan-gate-census`.
+
+**After the repair it reds on:** an F or S entry without battery registration,
+floor, canary, plant log or scope line; a canary the battery gate or its
+runner does not carry; an unknown row or batch; `registration_only` on any
+entry but B0's six; a `retired_in` other than forecast-get-b4-parity at B6; a
+landed batch whose `required_gates` omits a gate 28.3 says it first registers
+or whose `required_rows` omits a row 26.1 lands there; a required gate or row
+met only by another batch's entry; a B21 key short of every 26.1 battery gate
+and every row; zero entries.
+**It cannot see:** whether a recorded red is true; a batch that registers
+nothing and writes no key (nothing marks it landed, so its 28.3 gates are
+checked only at B21, and only the 26.1 battery gates are, not the 26.3
+supporting ones); an extension (command extended, floor raised, canary
+added) of a gate an earlier batch registered; drift between the literal
+`CONTRACT_LANDS` / `ROW_BATTERY_GATES` reading and a later contract edit (the
+script checks only that the two agree with each other).
+
+<!-- ═══ plan/2 B2 (plan_contract_v2 28.3): timeline and year-to-date tax ═══
+     B2 lands one new gate (forecast-base-parity, contract 5.3 delta mode)
+     and extends forecast-model with tests/engine/test_forecast_timeline_tax.py
+     (6.1, 6.3). Both land in the commit that changes the tax rule and moves
+     the horizon out of KEYS, so each records the plant red and the gate run
+     against the parent commit (0.5). -->
+
+## forecast-base-parity
+
+`tests/engine/test_forecast_base_parity.py` — contract 5.3, **delta mode**.
+Today's engine is run on the four committed books at total_years 5 and a
+twelve-month window, and every (line, period) and plan-year total (sum of the
+year's periods for a flow, the closing period for a balance) is compared with
+`tests/engine/fixtures/forecast/base_get_b0.json`, the B0 reference. Every
+difference is printed. A difference is legal only on a line inside the
+downstream closure of the test's `CHANGED` set — the lines whose static
+attribution (`LINE_ASSUMPTIONS`, the inverse of consumed_by) names a CHANGED
+driver or convention; the reference's `checks.*` series are attributed through
+the served line each measures (declared in the test and printed). B2's CHANGED
+entries: `tax_accrued_year_to_date`, `tax_no_loss_carry_forward`, and the keys
+B2 removed from KEYS, `year_one_granularity` and `horizon_years` (their closure
+is empty: a horizon that became an argument may move no base figure). B3
+appends under its anchor; B4 re-points the gate to parity mode.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_base_parity.py -q` |
+| work count | `GATE-WORK forecast-base-parity units=(\d+)`, floor **4700** cells (measured 4788 at registration, rounded down) |
+| canary | `SCOPE forecast-base-parity (delta mode)`, `366-day plan year per book` |
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed
+`saga_10_col` fixtures, FY2025 anchors); total_years 5; monthly_months 12 only
+(delta mode's one window, contract 5.3); reference `base_get_b0.json`
+(recorded on 1944109); the 366-day plan year each book's scope covers is
+printed (plan year 3, FY2028, on all four) and a book with none reds (TC-3); no
+SYNTHETIC pair. Printed: `SCOPE forecast-base-parity (delta mode): books agras,
+carniprod, realestate, retail; total_years 5; monthly_months 12 (delta mode's
+only window); reference base_get_b0.json; 366-day plan year per book: agras
+plan year 3; carniprod plan year 3; realestate plan year 3; retail plan year 3`.
+
+**GREEN** — exit `0`, `4 passed`; `differences: 135 (0 outside closure)` —
+135 monthly cells moved by one minor unit (agras 55, carniprod 25, retail 55;
+75 by -1, 60 by +1) on `pl.income_tax`, `pl.net_income`, `cf.net_income`,
+`cf.cash_from_operating`, `cf.net_change_in_cash`, the cash roll,
+`bs.equity_retained` and `checks.cash_before_funding_line_cents`, months
+2026-02 to 2026-11 only; no plan-year total moved.
+`PASS forecast-base-parity (2.2s, 4788 (line, period) and plan-year cells compared)`.
+
+**PLANT 1** — contract 5.3's plant, in `src/engine/forecast/project.py`: one
+minor unit of other financial expense in plan year 1 (while CHANGED holds only
+B2's entries):
+
+```
+-        other_financial_expense = other_fin_expense_of[period.index]
++        other_financial_expense = other_fin_expense_of[period.index] + (1 if period.index == 0 else 0)
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s own runner, exit `1`; the
+red names book, line and period (month and plan year), and the pre-tax result
+it moves, which no B2 entry attributes either:
+
+```
+FAIL forecast-base-parity (exit 1, 1.6s)
+E     retail pl.other_financial_expense 2026-01: -5701174 -> -5701175 (delta -1 minor) [OUTSIDE CLOSURE]
+E     retail pl.other_financial_expense plan year 1: -67126728 -> -67126729 (delta -1 minor) [OUTSIDE CLOSURE]
+E     retail pl.pretax_result 2026-01: 9868651 -> 9868650 (delta -1 minor) [OUTSIDE CLOSURE]
+E   assert not ['agras pl.other_financial_expense 2026-01: -560095 -> -560096 (delta -1 minor) [OUTSIDE CLOSURE]', ...]
+```
+
+**PLANT 2** — contract 5.3's second plant (logged in B2 on delta mode, again in
+B4 on parity mode): revenue sliced by each period's days over the days basis
+instead of cumulatively over the plan year's own days:
+
+```
+-                _slice_by_days(running_revenue, periods),
++                [mul_div(running_revenue, p.days, days_basis) for p in periods],
+```
+
+**RED (plant)** — exit `1`; the 366-day plan year reds with its delta, on agras
+exactly the contract's measured +324,868.00, and the twelve monthly slices of
+the 365-day year are off by the per-period rounding:
+
+```
+FAIL forecast-base-parity (exit 1, 1.7s)
+E     agras pl.revenue FY2028: 11857681964 -> 11890168764 (delta +32486800 minor) [OUTSIDE CLOSURE]
+E     agras pl.revenue plan year 3: 11857681964 -> 11890168764 (delta +32486800 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue 2026-04: 653509024 -> 653509025 (delta +1 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue FY2028: 7951026465 -> 7972810099 (delta +21783634 minor) [OUTSIDE CLOSURE]
+E     retail pl.revenue plan year 1: 7951026465 -> 7951026469 (delta +4 minor) [OUTSIDE CLOSURE]
+```
+
+**RED (parent commit)** — the gate file copied onto a detached worktree of the
+parent `eb2ff8f` (`wave/plan-b0`), exit `1`, `3 failed, 1 passed`: the parent
+engine knows neither tax convention the CHANGED set names (it still charges
+tax per period, the defect B2 repairs), so the closure is empty and the
+in-closure check reds too:
+
+```
+E   AssertionError: CHANGED names ids the engine does not know (neither a driver, a convention nor a declared removed key): ['tax_accrued_year_to_date', 'tax_no_loss_carry_forward']
+E   AssertionError: assert ('pl.income_tax' in set())
+```
+
+**REVERT** — `project.py` restored from a byte copy after each plant (sha1
+143ae735a7e3d9e24f5faf55afdf0d22a1f04cc6 before and after);
+`PASS forecast-base-parity (1.5s, 4788 (line, period) and plan-year cells compared)`.
+
+**After the repair it reds on (TC-11):** any base figure that moves on a line no
+CHANGED driver or convention reaches; a revenue slice not exact to its plan
+year; a line the engine stops producing; a moved period axis; a CHANGED entry
+naming nothing the engine knows; a scope with no 366-day plan year or no
+compared cell.
+**It cannot see:** whether a move inside the closure is the intended one (the
+batch's own gates and the blast radius judge that); the served GET bytes
+(`scripts/measure_plan_blast_radius.py` measures those, and never asserts); a
+twenty-four-month window (parity mode, B4).
+
+### forecast-model — plan/2 B2 extension: the calendar and year-to-date tax
+
+B2 extends the `forecast-model` command with
+`tests/engine/test_forecast_timeline_tax.py` (contract 6.1, 6.3, 2.2) and
+raises the floor from **220** to **240** tests (measured 246: 203 in
+`test_forecast_model.py`, whose F1 matrix axis became monthly_months {12, 24}
+in place of monthly/quarterly/annual, plus 43 in the new file). Canaries added:
+`test_a_loss_month_then_profit_months_is_taxed_on_the_years_result`,
+`test_every_period_is_charged_the_tax_on_its_year_to_date_result`,
+`test_the_calendar_is_monthly_months_then_one_period_per_plan_year`. The work
+source stays junit-xml over both files (as-built B2): switching it to the new
+file's printed line would lose the collapse detection over
+`test_forecast_model.py` and the test-name canaries; the new file prints its
+own SCOPE and coverage lines instead.
+
+Retired in the same commit (contract 28.3 B2), each with its new assertion:
+`test_forecast_model.py:505` (the F1 axis monthly/quarterly/annual becomes
+monthly_months {12, 24}); the calendar and label tests around `:736` (labels
+asserted as twelve (or twenty-four) monthly periods then FY periods, with
+year_offset (k - 1) // 12 + 1); `:904` (the tax convention texts are now the
+pack's `tax_accrued_year_to_date` and `tax_no_loss_carry_forward`, served under
+those ids and on the face of the plan). Every other `year_one_granularity=`
+call is rewritten to the twelve-month window, and calls passing `horizon_years`
+to `project()` or `derive_assumptions` are rewritten to the arguments.
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed
+`saga_10_col` fixtures, FY2025 anchors); calendar over total_years 1-5 x
+monthly_months 12/24; the year-to-date law over the four books x
+monthly_months 12/24 x total_years 3/5; CONSTRUCTED on agras and labelled:
+a loss month then profit months, an in-year reversal, a loss plan year then a
+profit year; no SYNTHETIC pair. Printed: `SCOPE forecast-model/timeline-tax:
+books agras, carniprod, realestate, retail (committed saga_10_col fixtures,
+FY2025 anchors); monthly_months 12/24; total_years 1-5 (calendar), 3 and 5
+(tax sweep); ...` and `timeline-tax coverage: 574 periods checked, 17 loss plan
+years, 1 in-year reversals`.
+
+**PLANT** — contract 6.3's plant, in `src/engine/forecast/project.py`:
+per-period positive-only tax:
+
+```
+-        year_pretax += pretax
+-        year_tax_due = max(0, apply_rate(year_pretax, tax_rate))
+-        income_tax = year_tax_due - year_tax_charged
+-        year_tax_charged = year_tax_due
++        income_tax = apply_rate(pretax, tax_rate) if pretax > 0 else 0
+```
+
+**RED (plant)** — through the battery runner, exit `1`,
+`18 failed, 228 passed`; the loss-then-profit year names the over-charge, the
+reversal case finds no credit, and the year-to-date walk names each period:
+
+```
+FAIL forecast-model (exit 1, 6.7s)
+E   AssertionError: the year's tax 231269229 is not the tax on the year's pre-tax 1313128742 at 160000 micros (210100599); the loss month was not shielded
+E   AssertionError: agras: ['2026-02: cumulative tax 40288669, due on year-to-date pre-tax 251804178 at 160000 micros is 40288668', ...]
+E   assert [] == ['2026-12']
+```
+
+**RED (parent commit)** — the new file copied onto a detached worktree of the
+parent `eb2ff8f`: collection error (`ModuleNotFoundError: No module named
+'engine.forecast.levers_pack'`; the parent's `project()` has no `total_years`
+argument either). The defect itself, measured on the parent engine through its
+own API with the same construction (agras, opening debt repaid in month one at
+the rate the test renders, 8.635060):
+
+```
+PARENT eb2ff8f agras loss-then-profit year (rate 8.635060): month-1 pre-tax -132303927, year pre-tax 1313128742, charged 231269229, law max(0, tax on year) 210100599, over-charge 21168630
+```
+
+**REVERT** — `project.py` restored from a byte copy (sha1
+143ae735a7e3d9e24f5faf55afdf0d22a1f04cc6 before and after);
+`PASS forecast-model (5.7s, 246 tests)`.
+
+**After the repair it reds on (TC-11):** a plan year whose periods' tax differs
+from max(0, tax on the year's pre-tax result) to the minor unit; a period whose
+cumulative tax differs from the tax on its year-to-date result; a loss carried
+into the next plan year; a monthly period whose year_offset is not
+(k - 1) // 12 + 1; a calendar gap or overlap; `horizon_years` or
+`year_one_granularity` accepted as a driver; a horizon refusal that does not
+render the numbers it compared; a sweep that met no loss plan year, no in-year
+reversal or no period.
+**It cannot see:** whether the tax rate is right (forecast-defaults, B3);
+cost-of-sales plan-year totals across windows (a per-period share of revenue
+until the pools of B4); the served figures (forecast-route,
+forecast-serving-boundary).
+
+<!-- ═══ plan/2 B3 (plan_contract_v2 28.3): one driver authority and tier pedigree ═══
+     B3 lands two gates in the commit that moves the shared driver concepts
+     onto one derivation and gives every driver its tier ladder:
+     forecast-authority (contract 4) and forecast-defaults, engine half (F3,
+     3.3, 3.4, R16). It extends forecast-base-parity's CHANGED set under its
+     own anchor and prints a scope line for forecast-drivers (B0-16). Each
+     new gate records the plant red and the parent-commit red (0.5). -->
+
+## forecast-authority
+
+`tests/engine/test_forecast_driver_authority.py` — contract section 4, one
+concept one value. For every concept the authority registry marks `supplied`
+(`engine.forecast_drivers.authority.CONCEPTS`, read at run time, so a new
+concept is covered the day it is registered) plus the macro anchor both
+packages cite, on the four committed books: the drivers package's EXACT
+integer (micros, micro-days), translated to the model's key, equals the
+model's; the tiers agree; an absent concept on one side is not a book
+measurement on the other; the anchor has one series id and one value. It also
+checks that the crossing is exact and never demotes a tier, and that no
+blocked concept remains and the renamed gross-base depreciation share never
+crosses.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_driver_authority.py -q` |
+| work count | `GATE-WORK forecast-authority units=(\d+)`, floor **50** comparisons (measured 52 at registration: 12 model keys x 4 books + the macro anchor x 4) |
+| canary | `SCOPE forecast-authority (plan/2 B3, contract 4)`, `covered concepts` |
+
+**SCOPE** — books agras, carniprod, realestate, retail (committed `saga_10_col`
+fixtures, FY2025 anchors), one period each; no SYNTHETIC pair (history is B7);
+shared concepts from `authority.CONCEPTS` status supplied plus the macro
+anchor. Printed: `SCOPE forecast-authority (plan/2 B3, contract 4): books
+agras, carniprod, realestate, retail; one period each (history is B7, no
+SYNTHETIC pair); shared concepts from authority.CONCEPTS (status supplied) plus
+the macro anchor` and `covered concepts 12: borrowing_rate, capital_intensity,
+cost_of_sales_share, days_inventory_outstanding, days_payable_outstanding,
+days_sales_outstanding, depreciation_rate, dividend_policy, effective_tax_rate,
+macro_anchor, operating_cost_share, revenue_growth`.
+
+**GREEN** — `8 passed`; `PASS forecast-authority (1.0s, 52 shared-concept comparisons)`.
+
+**PLANT** — contract section 4's plant, in
+`src/engine/forecast_drivers/derive.py` (`_from_engine`): move dio by one
+micro-day.
+
+```
+-    exact = int(item.exact)
++    exact = int(item.exact) + (1 if model_key == "dio_cogs_days" else 0)
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s runner, `FAIL
+forecast-authority (exit 1, 1.0s)`, `5 failed, 3 passed`; each red names the
+concept, model key and book (realestate carries no cost of sales, so its dio is
+absent on both sides and does not move):
+
+```
+E   AssertionError: agras days_inventory_outstanding (dio_cogs_days): drivers 46213148, model 46213147 (delta +1)
+E   AssertionError: carniprod days_inventory_outstanding (dio_cogs_days): drivers 62259490, model 62259489 (delta +1)
+E   AssertionError: retail days_inventory_outstanding (dio_cogs_days): drivers 39135095, model 39135094 (delta +1)
+E   AssertionError: dio_cogs_days
+```
+
+**RED (parent commit)** — the gate file copied onto a detached worktree of the
+parent `f9ca64a` (`wave/plan-b2`): collection error, `ImportError: cannot
+import name 'assumptions_for_payload' from 'engine.forecast.project'`. The
+defect itself, measured on the parent through its own APIs
+(`scratchpad/b3/parent_probe.py`): two values for one concept on every book,
+and the one blocked concept.
+
+```
+RED agras dso_days: drivers 26.2057, model 26.205674
+RED agras dio_days: drivers 45.5484, model 46.213147
+RED agras dpo_days: drivers 36.6412, model 37.175931
+RED agras capex_pct_of_revenue: drivers 0.024957, model 0.024923
+RED agras depreciation_rate: drivers 0.073739, model 0.251979
+RED carniprod capex_pct_of_revenue: drivers 0.041799, model 0.037169
+RED realestate depreciation_rate: drivers 0.037849, model 0.009404
+blocked_model_keys: ('depreciation_rate',)
+```
+
+**REVERT** — `derive.py` restored from a byte copy (sha1
+d0b82b74085a88c80825986d65d18e35650b5a30 before and after);
+`PASS forecast-authority (1.0s, 52 shared-concept comparisons)`.
+
+**After the repair it reds on (TC-11):** any shared concept whose two integers
+differ by one unit on any corpus book (named by concept, model key and book); a
+drivers value with no exact integer where the model measured one; one package
+holding a book value the other refused; a tier disagreement; the macro anchor
+under two ids or values; a hand-over that changes the integer or tier the model
+holds; a blocked concept remaining or the gross-base share crossing; zero
+comparisons.
+**It cannot see:** whether the engine's derivation is right (the model's own
+gates own that); multi-period CAGR agreement (B7); the tax rule on constructed
+books where the two packages' conditions differ (a tying book with a nil charge
+and no class-69 account: the drivers package refuses, the model measures a nil
+rate; `test_forecast_drivers.py` hx2/hx2b and the model's nil-charge test gate
+each side, and the absent hand-over makes the model honour the refusal).
+
+## forecast-defaults
+
+`tests/engine/test_forecast_tier_ladders.py` — the engine half of F3 (contract
+26.2 F3, 3.3, 3.4, R16), through `project_payload` (`project()`) on the four
+books at horizons 3 and 5: every driver carries a tier on its 3.4 ladder (the
+test's `LADDERS` table) with the evidence its tier requires; no driver outside
+`ABSENT_LEGAL` ends absent; every response carrying an absent driver projects
+(counted, 0 reds); no revenue_growth is a silent zero (with and without a
+recorded jurisdiction); the tier does not move when the capex sentence is
+reworded; a book whose effective tax rate is not measured refuses with
+`no_statutory_tax_rate` in a jurisdiction with no packed statutory record (HU)
+and with no recorded jurisdiction, through the engine and through GET
+/api/forecast as a 422 (RO still 200); deleting the statutory record refuses a
+Romanian book; the jurisdiction source of every corpus book is printed and a
+null reds.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_tier_ladders.py -q` |
+| work count | `GATE-WORK forecast-defaults units=(\d+)`, floor **150** drivers checked (measured 160: 20 drivers x 4 books x 2 horizons) |
+| canary | `SCOPE forecast-defaults (engine half, plan/2 B3)`, `jurisdiction source per corpus book`, `responses with an absent driver that projected` |
+
+**SCOPE** — books agras, carniprod, realestate, retail; horizons 3 and 5;
+through `project_payload`; no SYNTHETIC pair (history is B7); Scandia not run
+in the battery. Printed: `jurisdiction source per corpus book: agras
+pack_provenance=RO; carniprod pack_provenance=RO; realestate
+pack_provenance=RO; retail pack_provenance=RO` and `responses 8; drivers
+checked 160; responses with an absent driver that projected 8`. Locally only,
+through the blast-radius harness of contract 10: Scandia FY2025 reads
+`('RO', 'pack_provenance')`, revenue_growth macro, tax_rate macro (its
+effective rate is not measured), interest_income_rate the one absent driver.
+
+**GREEN** — `24 passed`; `PASS forecast-defaults (1.5s, 160 drivers checked)`.
+
+**PLANT 1** — contract 26.2 F3: stamp revenue_growth absent, in
+`src/engine/forecast/assumptions.py` (the macro rung's `put`):
+
+```
+-        put("revenue_growth", _RATIO, growth, "engine_default",
+-            "no comparable book history is loaded, so revenue grows at the "
+-            ...
+-            evidence=anchor.evidence(), steps=growth_steps)
++        put("revenue_growth", _RATIO, None, "unavailable",
++            "planted: revenue growth stamped absent",
++            tier="absent", steps=growth_steps)
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.8s)`: the projection
+refuses (so the projects check reds on every book and horizon) and the silent
+-zero check reds naming the book:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'revenue_growth': is unavailable, so there is no rate to spend: planted: revenue growth stamped absent
+E   AssertionError: ('agras', 'absent', None)
+```
+
+**PLANT 2** — contract 26.2 F3: reword the capex sentence. The held-in-file
+test rewords it (with every tier and rule word removed); the plant makes the
+product infer the tier from the sentence, in `assumptions.py`:
+
+```
+-            tier="convention", rule_id=maintenance.rule_id,
++            tier=("convention" if "convention" in maintenance.sentence
++                  else "book"), rule_id=maintenance.rule_id,
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.6s)`,
+`test_the_served_tier_never_follows_the_sentence`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'capex_pct_of_revenue': tier book evidence lacks method, periods_used, inputs
+```
+
+**PLANT 3** — contract 26.2 F3: delete the statutory record, in
+`packs/forecast/ro_macro.yaml`:
+
+```
+-  profit_tax_rate:
++  profit_tax_rate_deleted:
+```
+
+**RED (plant)** — `FAIL forecast-defaults (exit 1, 1.6s)`: every corpus book
+refuses (none measures its own effective rate):
+
+```
+E   engine.forecast.assumptions.NoStatutoryTaxRate: assumption 'tax_rate': this book's reconstructed result of 14,106,102.03 (pre-tax 15,577,652.03 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and -6,572,426.01 of that distance is not attributable to any line on this statement. An effective rate of 9.4465% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, and no statutory profit-tax rate is packed for jurisdiction RO, so no tax rate can be assumed and the plan is refused; supply tax_rate to project it
+```
+
+**RED (parent commit)** — the gate file on the detached parent worktree
+`f9ca64a`: collection error, `ImportError: cannot import name 'ABSENT_LEGAL'
+from 'engine.forecast.assumptions'`. The defect itself on the parent engine
+(`scratchpad/b3/parent_probe.py`): revenue growth a silent zero and a tax rate
+assumed with no jurisdiction read, on every book.
+
+```
+RED agras revenue_growth: model engine_default 0 with no tier or fallback steps (silent zero); drivers 0.025
+RED agras tax_rate: engine_default 0.16 with no jurisdiction read (tier attribute: False)
+RED realestate revenue_growth: model engine_default 0 with no tier or fallback steps (silent zero); drivers 0.025
+```
+
+**REVERT** — `assumptions.py` restored from a byte copy after plants 1 and 2
+(sha1 97f602096e2659286231289dea0705537457f0f8 before and after), `ro_macro.yaml`
+after plant 3 (sha1 5a2e1b938d814fabbaf12cef6b68bcf9b39d9699);
+`PASS forecast-defaults (1.5s, 160 drivers checked)` after each.
+
+**After the repair it reds on (TC-11):** a tier outside the six or off the
+driver's ladder; evidence not matching the tier; an absent driver outside 3.3's
+list on a corpus book; a response with an absent driver that does not project;
+a zero growth without its convention rung and fallback steps; a tier that
+follows a reworded sentence; an unmeasured tax rate projected in a jurisdiction
+with no statutory record, or with none recorded, through the engine or the
+route; a corpus book with no recorded jurisdiction; no response carrying an
+absent driver (TC-3).
+**It cannot see:** the served bytes (B6, `test_forecast_defaults_f3.py`); the
+book-history rung (B7) and the sector rung (no sector store); a user value
+keeping its original on the wire (the engine keeps `original`; served in B6);
+rate spans (history, B7); whether a pack anchor is still the published figure.
+
+### forecast-base-parity — plan/2 B3 extension: the CHANGED set
+
+B3 appends under its anchor in `tests/engine/test_forecast_base_parity.py` the
+drivers whose tier, rung, key or convention 3.4 and 4 change (revenue_growth,
+dividend_payout_pct, tax_rate, capex_pct_of_revenue,
+intangible_additions_pct_of_revenue, depreciation_rate, dso_days, dio_cogs_days,
+dpo_cogs_days and the three held money drivers) and `REMOVED_KEYS_B3`
+(dio_days, dpo_days, renamed away; their closure is empty). Measured at B3:
+`differences: 2212 (0 outside closure)`, `GATE-WORK forecast-base-parity
+units=4788`. Revenue growth's closure is nearly every line, so delta mode now
+reds only on a line no B2 or B3 entry reaches (for example
+`pl.other_financial_income`, `bs.other_current_assets`).
+
+**Found by the gate, repaired in the same commit:** on the first B3 run,
+realestate's `pl.interest_expense_funding_line` moved OUTSIDE the closure
+(`FY2030: -830162066 -> -879863128 (delta -49701062 minor)`) — its static
+attribution named only the funding rate, while the charge is priced on the
+opening revolver, which is the running shortfall of everything that moves
+cash. `LINE_ASSUMPTIONS["pl.interest_expense_funding_line"]` now carries the
+cash closure, as `bs.revolver` already did; the next run printed 0 outside
+the closure. `test_revenue_is_outside_the_b2_closure_...` now states B2's claim
+on B2's own entries (revenue outside the tax conventions' closure) and adds
+that the renamed day drivers carry the old closure.
+
+### forecast-drivers — plan/2 B3: printed scope
+
+`tests/engine/test_forecast_drivers.py::test_zz_scope` prints `SCOPE
+forecast-drivers (plan/2 B3): books agras, carniprod, realestate, retail, one
+period each; multi-period rungs on SYNTHETIC histories scaled from agras
+(constructed, labelled in this file); micro-SRL books assembled through the
+real Romanian assembly; shared concepts read from engine.forecast (contract
+4)`. The work source stays the junit count (B2-7's reason: a printed count
+would not see one section collapse). Tests restated in B3, each named in the
+commit: j7 (the exact integer and tier, not the display value), j8 (absent
+crosses as AbsentHandover), j9 (a None is refused, the absent hand-over
+honoured), j11 (no blocked concept remains), j13 (learns `engine_forecast`
+and `pack_convention`), j17 (the refused 0% in an absent driver's engine
+refusal is not a cutoff), j18, hx3, hx5, hx7, hg4 (absent crossings).
+
+<!-- ═══ plan/2 B3 repair (plan_contract_v2 28.3, convergence review of B3) ═══
+     Two medium defects repaired with their gates: the days basis quoted a
+     methodology ratio under the ratio table's name (R8), and tax_rate had
+     two derivations (contract 4). Low findings closed in the same files:
+     the ai_audit jurisdiction rung, the rungs passed over, the statutory
+     value against its pack record, and the R16 precondition built rather
+     than borrowed from the corpus. -->
+
+### forecast-defaults — plan/2 B3 repair: the ratio table's own days value, the rungs passed over, the jurisdiction rungs
+
+Added to `tests/engine/test_forecast_tier_ladders.py`:
+
+* `test_the_days_basis_quotes_the_served_ratio_tables_own_value` — the
+  dio_cogs_days / dpo_cogs_days basis quotes `ratio_table.dio|dpo`, the value
+  `engine.ratios.table.build_ratio_table` computes (inventory or accounts
+  payable x period days / total operating expense), and never
+  `methodology.ratios` (which divides by cost of sales). Checked against
+  `tests/engine/fixtures/firm/served_metrics.json` at that file's own rounding
+  (the finest decimal places its dio/dpo values carry, 4, plus half a
+  micro-day). Printed: `ratio-table quotes checked 6` (realestate has no cost
+  of sales, so its two drivers are absent and quote nothing).
+* `STEPS` — the rungs each driver passed over, as data, keyed (driver, end
+  tier, rule); every driver of every response and of four built SYNTHETIC
+  shapes (agras with no depreciation charge, no interest income, no financial
+  income, no financial expense) must record exactly those steps. Printed:
+  `built step shapes 4`.
+* `test_the_jurisdiction_is_read_from_pack_provenance_then_ai_audit` — an
+  envelope with only `ai_audit.jurisdiction` reaches the macro and statutory
+  rungs; with both present `pack_provenance` wins (and a HU pack_provenance
+  beside an RO ai_audit refuses).
+* `test_the_statutory_rung_holds_the_pack_records_value` — the record's value
+  is moved by 0.03 in a tmp copy of `ro_macro.yaml`; the rung must follow.
+* The R16 refusal test and the statutory-deletion plant test now build their
+  precondition (account 121 forced one unit off the reconstruction) instead of
+  relying on no corpus book tying.
+* `PLAN_LOCAL_XLSX=<local trial balance>` prints the local book's jurisdiction
+  source from the scope test (opt-in, never in the battery). Run on the local
+  Scandia FY2025 book: `jurisdiction source, local book
+  scandia_trial_balance_2025_downloaded.xlsx: pack_provenance=RO`.
+
+| | |
+|---|---|
+| work count | unchanged, `GATE-WORK forecast-defaults units=(\d+)`, floor **150** |
+| canary | adds `built step shapes`, `ratio-table quotes checked` |
+
+**GREEN** — `34 passed`; `PASS forecast-defaults (2.1s, 160 drivers checked)`.
+
+**PLANT R1** — quote methodology.ratios, in `src/engine/forecast/assumptions.py`
+(`BookContext.from_payload`):
+
+```
+-        return cls(jurisdiction, source, ratio_table_days(payload))
++        return cls(jurisdiction, source, {"dio": dict(envelope["methodology"]["ratios"]["days_inventory_outstanding"], operands=[]), "dpo": dict(envelope["methodology"]["ratios"]["days_payable_outstanding"], operands=[])})
+```
+
+**RED (plant)** — `3 failed, 31 passed`:
+
+```
+E   AssertionError: agras dio_cogs_days quotes ratio_table.dio = 45.548379, the served ratio table reads 31.5035 (tolerance 0.0000505, 4 places)
+E     agras dpo_cogs_days quotes ratio_table.dpo = 36.641162, the served ratio table reads 26.6422 (tolerance 0.0000505, 4 places)
+E   AssertionError: carniprod dio_cogs_days quotes ratio_table.dio = 61.458927, the served ratio table reads 37.662 (tolerance 0.0000505, 4 places)
+E   AssertionError: retail dio_cogs_days quotes ratio_table.dio = 38.362280, the served ratio table reads 30.4348 (tolerance 0.0000505, 4 places)
+```
+
+**RED (parent commit)** — the repaired gate file on a detached worktree of
+`01a8894` (`wave/plan-b3` before the repair):
+
+```
+E   AssertionError: agras dio_cogs_days quotes methodology.ratios
+E     agras dio_cogs_days quotes the ratio table 0 times
+E   AssertionError: carniprod dio_cogs_days quotes methodology.ratios
+E   AssertionError: retail dio_cogs_days quotes methodology.ratios
+E   AssertionError: no ratio-table quote was checked (TC-3)
+```
+
+**PLANT R2** — the tax macro rung records no step (`steps=steps` ->
+`steps=()`). **RED** `12 failed, 22 passed`:
+`E   AssertionError: agras h3 tax_rate: fallback_steps [], the ladder passed over [('book', 'absent')]`.
+
+**PLANT R3** — the payout convention rung records no book step. **RED**:
+`E   AssertionError: agras h3 dividend_payout_pct: fallback_steps [], the ladder passed over [('book', 'absent')]`.
+
+**PLANT R4** — the capex no-charge terminal rung records no rejected
+maintenance step. **RED** `1 failed, 33 passed`:
+`E   AssertionError: agras without a depreciation charge capex_pct_of_revenue: fallback_steps [], the ladder passed over [('convention', 'rejected')]`.
+
+**PLANT R5** — the statutory integer as a code literal
+(`rate = _micros_of(statutory.value)` -> `rate = micros_from(0.16)`). **RED**
+`1 failed, 33 passed`:
+`E   AssertionError: the statutory rung holds 160000 with the pack record at 0.19 (was 0.16)`.
+
+**PLANT R6** — drop the ai_audit rung (`("pack_provenance", "ai_audit")` ->
+`("pack_provenance",)`). **RED** `1 failed, 33 passed`:
+`E   AssertionError: assert (None, None) == ('RO', 'ai_audit')`.
+
+**PLANT R7** — read ai_audit first. **RED** `1 failed, 33 passed`:
+`E   AssertionError: assert ('HU', 'ai_audit') == ('RO', 'pack_provenance')`.
+
+R2-R7 guard correct parent behaviour (the parent passes them): each records
+the plant red only. **REVERT** — each plant applied by
+`scratchpad/b3r/plant.py` from a byte copy and restored from it
+(`assumptions.py` sha1 fb2d2ceb1aaefa8472e87c5e7529f1d93bd52ae6 before and
+after every plant).
+
+**After the repair it also reds on (TC-11):** a days basis quoting any value
+under the ratio table's name that is not engine.ratios.table's own, or quoting
+methodology.ratios; a rung passed over and not recorded, or a driver ending on
+a rung the STEPS table does not name; a statutory integer that does not follow
+its pack record; the jurisdiction read from anywhere but pack_provenance, then
+ai_audit.
+**It cannot see:** the payables operand mismatch between the model
+(canonical trade payables) and the ratio table (balanceSheet.accountsPayable)
+— the quote renders the ratio table's own operands rather than claiming one
+figure; it is recorded for the owner, not gated.
+
+### forecast-authority — plan/2 B3 repair: one tax derivation, the hand-over, and the SYNTHETIC tying books
+
+B3 left `tax_rate` with two derivations: `engine.forecast_drivers.derive`
+kept its own `_tax_rate` (a class-69 account must stand behind the charge AND
+the build-up must reach account 121) while the model applied the engine's
+existing effective-rate rule (positive pre-tax result, reconstruction reaching
+account 121 with nothing unexplained), which contract 3.4 and R16 name as the
+book rung. On a book that ties with a nil charge and no class-69 account the
+model measured 0% and the drivers refused; B3's AbsentHandover then made the
+drivers path take the 16% statutory rung, so the same book projected 0 tax on
+GET and 549,384.54 RON of tax over three years on the drivers path. The repair
+makes derive.py read `_from_engine("tax_rate")` like the other shared concepts
+and deletes the second rule.
+
+Added to `tests/engine/test_forecast_driver_authority.py`:
+
+* `compare_book` also compares every shared concept after
+  `model_overrides` is applied: the drivers path and the GET path must hold
+  one tier and one integer.
+* `test_a_tying_book_holds_one_tax_rate_on_both_paths` over two SYNTHETIC
+  books (TC-13): retail with its account-121 gap removed, with no class-69
+  account and with a nil 691. Both must hold the engine's measured nil rate
+  (book, 0) alone, in the drivers package and after the hand-over.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-authority units=(\d+)`, floor raised **50 -> 140** (measured 150: the 52 of B3, plus 12 hand-over comparisons x 4 books, plus 25 x 2 SYNTHETIC books) |
+| canary | adds `each concept compared alone and after the hand-over` |
+
+**SCOPE** — printed: `SCOPE forecast-authority (plan/2 B3, contract 4): books
+agras, carniprod, realestate, retail; one period each (history is B7);
+SYNTHETIC books SYNTHETIC retail-ties-nil-class-69, SYNTHETIC
+retail-ties-no-class-69; shared concepts from authority.CONCEPTS (status
+supplied) plus the macro anchor; each concept compared alone and after the
+hand-over`.
+
+**GREEN** — `10 passed`; `PASS forecast-authority (1.3s, 150 shared-concept
+comparisons)`.
+
+**PLANT T1** — restore the second rule: `src/engine/forecast_drivers/derive.py`
+replaced by its pre-repair bytes (the `_tax_rate` class-69 rule and its
+dispatch). **RED (plant)** `3 failed, 7 passed`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'tax_rate': a hand-over carries None in None, and this driver holds micros
+E   AssertionError: SYNTHETIC retail-ties-no-class-69 effective_tax_rate (tax_rate): drivers ABSENT, model measured 0
+E     SYNTHETIC retail-ties-no-class-69 effective_tax_rate (tax_rate): the hand-over moves the model from book 0 to macro 160000
+```
+
+(The first line is a second defect of the same rule on the nil-class-69 book:
+its `derived 0.0` driver crossed with no exact integer and the model refused
+the hand-over.)
+
+**RED (parent commit)** — the repaired gate file on the detached worktree of
+`01a8894`: the same three reds (`zz_b3r_test_forecast_driver_authority.py`,
+`test_a_tying_book_holds_one_tax_rate_on_both_paths[SYNTHETIC
+retail-ties-no-class-69]` and `[... nil-class-69]`, and the scope check).
+
+**REVERT** — derive.py restored from its repaired byte copy (sha1
+d23afb774eab0fda2bee3af91a897f0942960837 before the plant and after the
+revert); `10 passed` after.
+
+**Retired / restated in this commit, by name (test_forecast_drivers.py):**
+`test_hx2b_a_tying_book_with_no_charge_account_still_refuses` RETIRED,
+replaced by
+`test_hx2b_a_tying_book_measures_the_same_nil_rate_with_or_without_a_charge_account`
+(new assertion: both packages and the crossing hold book 0 with and without a
+class-69 account, and GET and the drivers path charge the same tax).
+Restated over the one derivation: `test_hx1` (a zero no class-69 account
+stands behind is never a book rate unless the book ties), `test_hx2` (the
+measured nil carries the engine's sentence), `test_hx3` (one tier and one
+integer, and the crossing keeps them), `test_hx4` (comment), `test_hg1`,
+`test_hg2`, `test_hg4`, `test_hg5`, `test_hg8` (the book rung refused with the
+engine's reason recorded as the first fallback step; the statutory rung
+taken), `test_hg6` (the distance pin moves to
+`engine.forecast.history.unexplained_vs_filed`), `test_d5` (status mirrors
+the engine tier), `test_j9` (the absent hand-over is built from a copy whose
+jurisdiction is not recorded), `test_j17` (a percentage quoted verbatim from a
+rejected rung's recorded reason is the refused measurement, not a threshold).
+
+**After the repair it reds on (TC-11):** a shared concept whose model value
+moves when the drivers' hand-over is applied; either SYNTHETIC tying book
+holding anything but the engine's measured nil rate on any path; everything
+it redded on at B3.
+**It cannot see:** constructed shapes other than the two SYNTHETIC tying
+books; whether the engine's rule is right (forecast-model's nil-charge and
+p121 tests own that).
+
 ## statements-anchor-gap
 
+Production lineage (fix/parser-v6-port, merged here on feat/forecast-scenarios-live):
 Parser v6 (owner ruling 2026-09-18: the 609/709 double count is a P0;
 2026-09-21: v6 is correct and ships as its own deploy). Ported from
 wave/forecast-v15's plan/2 B4a (ca2e40c, 4d97d9b, 6f2db0f, 22fb9db,
 641d519) onto the production tree without any forecast/plan code.
 `tests/engine/test_statements_anchor_gap.py`, registered in
 `scripts/run_battery.py` beside `cron-auth`.
+
+plan/2 B4a (plan_contract_v2 5.1 / 28.3 B4; owner ruling 2026-09-18: the
+609/709 double count is a P0, fixed with a RED test first).
+`tests/engine/test_statements_anchor_gap.py`, registered in
+`scripts/run_battery.py` under the plan/2 B4a anchor.
 
 THE DEFECT. Saga exports that close class 6/7 into account 121 print each
 P&L row's cumulative value on both turnover sides ("mirrored"). For an
@@ -5458,6 +6559,61 @@ realestate 29,589,814.24 (29,589,814.25), saga_10_col 231,203.19
 
 **RED (parent commit, the v5 parser)** — the gate file committed first,
 run on f7fec0f9's parser, `9 failed`:
+
+the same reading as its law (revenue = the PRINTED class-70 sum), so the
+correct statement would have been refused by the live pipeline.
+
+THE REPAIR. The document decides its contra convention ONCE from its own
+mirrored 609/709 rows (`trial_balance_parser.contra_reading`: the net of
+the mirrored contra rows is positive only when reductions print positive;
+a document with no mirrored contra row decides nothing and nothing flips)
+— never a per-row guess. Under `entry_magnitude` a mirrored contra row
+enters its bucket negated; under `natural_signed` it enters as printed.
+The contra nature is the canonical schema's declared sign meaning of the
+leaf the account maps to, never a hand-kept list. `pl_sanity.class_movement`
+reads the same row through the same `contra_reading`, so the witness and
+the statement agree.
+
+WHAT THE GATE CHECKS. On every corpus book, the Scandia regression baseline
+(`regression_baselines/scandia_fy2025.json`, aggregates only) and any book
+in `PLAN_LOCAL_XLSX`, `|account 121 - reconstruction|` is printed and must
+be within a floor rendered from `packs/ro/statements_anchor.yaml#anchor_gap`
+and the book (TC-10): the cent tolerance plus the turnover of the book's
+711/712 rows, whose year net a mirrored exporter hides behind gross
+turnover on both sides. On retail, which has no 711, the floor is one
+cent. Then: retail reproduces 121 to the cent; every mirrored contra row
+of every corpus xlsx enters as a reduction under its document's
+convention; the metamorphic pair (the same ledger rewritten into the
+other convention) is byte-identical on revenue, cost of sales, operating
+cost and the reconstruction; 781 (expense_negative, credit-natural
+bucket) is never contra to its bucket.
+
+| | |
+|---|---|
+| work count | `GATE-WORK statements-anchor-gap units=(\d+)` (books judged + mirrored contra rows checked + metamorphic comparisons; measured 51), floor 45 |
+| canaries | `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)`, `floor from packs/ro/statements_anchor.yaml#anchor_gap`, `convention per document`, `mirrored contra rows checked` |
+
+**SCOPE** — printed: `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1):
+books examined 14 (6 carry account 121), floor from
+packs/ro/statements_anchor.yaml#anchor_gap`, then one line per book with
+its gap, floor, hidden turnover and decided convention (TC-12/TC-13), and
+`convention per document: ... saga_10_col natural_signed (3 mirrored contra
+rows, net -226845.35); saga_10_col_agras entry_magnitude (4 ...);
+saga_10_col_carniprod entry_magnitude (7 ...); saga_10_col_realestate
+not_decided (0 ...); saga_10_col_retail entry_magnitude (7 ...)`. With
+`PLAN_LOCAL_XLSX` naming the two local Scandia books: 16 examined, 8 with
+121, both `natural_signed` (33 and 6 mirrored contra rows), gaps
+519,389.11 and 2,832,404.19 inside floors of 762,030,968.14 and
+760,431,164.95 — unchanged by the repair.
+
+**GREEN** — `5 passed`; measured after the repair: retail 0.00 (floor
+0.01), agras 1,071,687.03 (floor 192,091,846.34), carniprod 186,849.53
+(88,453,995.51), realestate 29,589,814.24 (29,589,814.25), saga_10_col
+231,203.19 (82,948,008.60), regression baseline 519,389.11
+(630,091,698.20).
+
+**RED (parent commit)** — the gate file committed first (ca2e40c, the RED
+half) run on 832c566's parser, `4 failed, 1 passed`:
 
 ```
 E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01: the reconstruction misses account 121 by more than the production-variation turnover of this book can hide, so a class-6/7 row entered a statement bucket with the wrong sign
@@ -5646,3 +6802,1759 @@ authority than the engine row's; an absent operand printed as a number.
 **It cannot see:** the engine row (the gate above); the export and the
 no-envelope model (the other two halves); carniprod's reported 0.00
 interest — its card is refused and no popover renders.
+
+(the two contra-sign checks red on the missing parser helpers). Per book
+on the parent: retail 2,043,254.64 BEYOND floor 0.01; agras -6,572,426.01
+within 192,091,846.34; carniprod -4,407,915.45 within 88,453,995.51;
+realestate 29,589,814.24 within 29,589,814.25; golden 231,203.19 within
+82,948,008.60; baseline 519,389.11 within 630,091,698.20.
+
+**PLANT P1** — the exporter's sign taken as printed
+(`ContraReading.reads_as_reduction` returns False). **RED (plant)**
+`3 failed, 2 passed`:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01
+E   AssertionError: retail: the build-up reaches 1161957.98, account 121 filed 3205212.62
+E   AssertionError: saga_10_col revenue: natural_signed 48349081.59, the same ledger in the other exporter convention (entry_magnitude) 48802772.29
+```
+
+**PLANT P2** — a hand-kept account list in place of the schema's sign
+meaning (`_pl_contra_to_bucket` returns `code.startswith(("609", "709",
+"781"))`). **RED (plant)** `4 failed, 1 passed`: the 781 check reds
+(`assert not True`) and, because the provision reversals were flipped, the
+anchor gap reds too:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 155869.22 exceeds the floor 0.01
+E   AssertionError: retail: the build-up reaches 3049343.40, account 121 filed 3205212.62
+```
+
+**PLANT P3** — a per-row guess (flip any positive mirrored contra row,
+ignore the document's decision). **RED (plant)** `3 failed, 2 passed`: the
+retail stornos (609.304 -34,053.41, 609.904 -7,429.40) enter unflipped:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = -82965.62 exceeds the floor 0.01
+E   AssertionError: saga_10_col_carniprod 6090.03: printed -892.09 under entry_magnitude entered -892.09, want 892.09
+```
+
+**PLANT P4** — a natural-signed document flipped too (`!= CONTRA_NOT_DECIDED`
+in place of `!= CONTRA_ENTRY_MAGNITUDE`). **RED (plant)** `1 failed, 4
+passed`:
+
+```
+E   AssertionError: saga_10_col 709101: printed -202772.78 under natural_signed entered 202772.78, want -202772.78
+E     saga_10_col revenue: natural_signed 48802772.29, the same ledger in the other exporter convention (entry_magnitude) 48349081.59
+```
+
+**PLANT P5** — the floor's `hidden_net_prefixes` deleted from the pack
+(TC-10 liveness). **RED (plant)** `1 failed, 4 passed`:
+`E   KeyError: 'hidden_net_prefixes'`.
+
+**PLANT P6** — the served-P&L witness reads the printed class-70 sum
+(`pl_sanity.class_movement`, `c70_c += st_c` unconditionally), gate
+`tests/engine/test_pl_sanity.py`. **RED (plant)** `7 failed, 32 passed, 6
+skipped`:
+
+```
+E   AssertionError: saga_10_col_agras would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 110,798,309.14 does not equal the trial balance's one-sided class-70 credit 118,576,819.64, its 709 reductions read under the document's contra convention (entry_magnitude; drift -7,778,510.50)
+E   AssertionError: saga_10_col_carniprod would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 94,509,939.96 does not equal ...
+```
+
+**REVERT** — each plant applied by string replacement to
+`trial_balance_parser.py`, `pl_sanity.py` or `statements_anchor.yaml`,
+observed, and the three files restored from byte copies (sha1
+f28ee5c899cf2fb503f668e1e9de54de9cf9e1a0, d00db72b4aa0eb791e12ad267f3ee56168c09297,
+715f19a92dfc694cab48ef2ca4bf68eb7d4aed7c before every plant and after
+every revert); `5 passed` after.
+
+**Retired / restated in this commit, by name:**
+`tests/engine/test_pl_sanity.py::test_revenue_is_exactly_the_one_sided_class70_credit`
+pinned the defect as law (revenue = the printed class-70 sum) and is
+restated: the one-sided class-70 credit reads each mirrored 709 row under
+the document's convention; new
+`test_the_witness_reads_a_mirrored_709_as_a_reduction_on_entry_magnitude_books`
+proves the witness differs from the naive printed sum by twice the mirrored
+709 on entry-magnitude books and equals it on natural-signed ones.
+`tests/engine/test_insights_wire.py::test_agras_serves_the_reconstruction_gap`
+and `::test_agras_carries_all_eight_findings_into_the_summary_ordering`
+pinned agras's 46.6% reconstruction gap, most of which was the double count;
+restated to the measured 16.6% (+1,071,687.03, the hidden 711 net) and the
+ranking it gives.
+
+**After the repair it reds on (TC-11):** a class-6/7 row entering its
+bucket with the wrong sign on a book whose 711 turnover cannot hide it
+(retail, floor one cent); a mirrored contra row entering with the
+exporter's sign on an entry-magnitude document; a natural-signed document
+flipped; a per-row guess; a contra account read from a hand-kept list; a
+floor whose data is not in the pack; the served-P&L witness disagreeing
+with the assembler; a scope with no document of either convention or no
+book carrying 121.
+**It cannot see:** a wrong sign on a book whose 711 turnover is larger than
+the error (agras and carniprod on the parent parser were inside their
+floors; retail decided); a document whose contra rows net positive only
+because stornos outweigh the reductions they reverse; non-mirrored rows;
+the served statements of periods persisted before this repair (they need
+re-processing; the count is owed by the owner, forecast_blast_radius.md
+under 609).
+
+## forecast-pools
+
+plan/2 B4b (plan_contract_v2 5.1, 5.2, 5.3, 5.6; 28.3 B4, the pools half
+after the B4a statements repair). `tests/engine/test_forecast_pools.py`,
+registered in `scripts/run_battery.py` under the plan/2 B4b anchor; pack
+`packs/forecast/cost_behaviour.yaml` (new), engine `src/engine/forecast/pools.py`
+(new).
+
+THE DEFECT (0.1, the engine half). The engine priced cost of sales and
+operating costs as SHARES of each period's revenue (`cogs_pct_of_revenue`,
+`opex_pct_of_revenue`), so every cost was fully variable: a revenue fall took
+personnel and rent down with it, the opposite error to the page cascade's
+flat cost of sales. The measured fixed share of operating cost (agras
+0.739606 by the pack's prefix classification) never reached the model, and
+forecast_drivers held a SECOND derivation of it (a leaf-based nature split in
+`drivers.yaml`) that disagreed with anything the engine could have said.
+Other operating income was grown with revenue.
+
+THE REPAIR. The anchor's `statement_line_items` rows are the only pool
+source: `operatingExpenses` rows split into the pools of
+`cost_behaviour.yaml#prefix_to_pool` by longest account prefix (a prefix under
+two pools refuses at load; a pooled prefix with no `nature` refuses at load),
+`cogs` rows are the cost_of_sales pool, `envelope.leaves` is never read. Each
+opex pool resolves a fixed share down the 5.2 ladder — nil pool (base 0) ->
+fixed 0 by convention; a NET-CREDIT pool (retail materials_non_inventory,
+-1,071,951.53, where the 609 supplier discounts outweigh the materials) ->
+fixed 0 by convention `#negative_pool` (a credit that scales with purchases
+follows volume; the classification share of a negative base is meaningless);
+book two_point_fit recorded absent ("prior periods are not read in this
+build", B7); sector absent; convention classification = fixed-classified
+amount / pool amount; then the cap: a variable base above
+`#variable_base_max_share_of_revenue` x revenue is served fully fixed with the
+rejected rung kept. `unallocated_operating` follows the amount-weighted share
+of the pooled costs. A split that cannot be made refuses BY NAME into one
+pool `operating_costs` (`#max_unallocated_share`, `#rows_disagree`,
+`#no_line_items`), never a guessed split. `project()` then carries, per plan
+year n, F = round(B x f x C(n)) and V = round(B x G(n)) - round(B x f x G(n)),
+each ONE exact rational rounded once (5.3), sliced by days; cost of sales is
+fixed share 0 by convention `#cogs_variable`; other operating income is held
+(`other_operating_income_annual`, 5.5). `inflation` joins KEYS (macro anchor,
+else `levers.yaml#inflation.terminal_rung`); `cogs_pct_of_revenue`,
+`opex_pct_of_revenue` and `other_operating_income_pct_of_revenue` leave it.
+The per-book drivers `pool_fixed_share.<pool>` (cost_of_sales first) and
+`pool_level.<opex pool>` (neutral, `levers.yaml#index_neutral`) expand from
+the two `levers.yaml#pools.templates` entries; forecast_drivers reads the
+engine's `pools.opex_fixed_share` / `pools.cost_of_sales_share` /
+`pools.operating_cost_share` facts (concept status `read`, contract 4) and its
+leaf split is deleted.
+
+WHAT THE GATE CHECKS (5.6, no shocks): on the four books the pools plus
+unallocated equal `opex_excluding_cogs_and_da` to the cent and the projection
+runs on that split (shares printed, unallocated amount and share printed
+beside the refusal cutoff rendered from the pack); the amount-weighted fixed
+share computed in the test equals the engine fact equals forecast_drivers
+`opex_fixed_share`, to the micro; the cap checked DIRECTLY on every non-user
+pool (capped names and counts printed; realestate must cap, and must cap
+third_party_services); at revenue_growth -0.20 and inflation 0, plan-year-one
+cost of sales equals mul_div(base, 800000, MICRO) and operating costs equal
+the 5.3 formula evaluated in the test per pool; nil-pool counts printed; a
+test-built agras without its 624 rows serves transport_logistics on the
+nil_pool rung (fixed 0, convention, book and sector absent, classification
+rejected "nil pool") and projects; the pack refuses a duplicate prefix and an
+unclassified prefix at load.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-pools units=(\d+)` (sum, share, cap, growth and nil checks; measured 53), floor 50 |
+| canaries | `SCOPE forecast-pools (plan/2 B4b, contract 5.6)`, `capped pools per book`, `nil pools per book` |
+
+**SCOPE** — printed: `SCOPE forecast-pools (plan/2 B4b, contract 5.6): books
+agras, carniprod, realestate, retail; horizon 1 for the year-one checks (2 for
+the nil shape); no shocks; SYNTHETIC agras without its 624 rows
+(transport_logistics nil); pack packs/forecast/cost_behaviour.yaml`, then
+`capped pools per book: agras 0 (none); carniprod 0 (none); realestate 3
+(energy_utilities, third_party_services, materials_non_inventory); retail 0
+(none)` and `nil pools per book: ... 1 (unallocated_operating)` on each.
+
+**GREEN** — `25 passed`. Measured fixed shares (amount-weighted): agras
+0.739606, carniprod 0.749519, realestate 0.999978 (three pools capped against
+revenue of 162,365.46), retail 0.808766.
+
+**RED (parent commit)** — the gate file on fa2a04c (the B3 engine over the
+repaired books): `ERROR collecting tests/engine/test_forecast_pools.py —
+ModuleNotFoundError: No module named 'engine.forecast.pools'` — the parent has
+no pool split; its operating cost is one share of revenue.
+
+**PLANT P1** — the nil_pool rung deleted (`_classified_pool` no longer
+branches on base 0). **RED (plant)** `1 failed, 24 passed`:
+
+```
+FAILED tests/engine/test_forecast_pools.py::test_a_book_whose_pool_is_nil_serves_the_nil_pool_rung_and_projects
+E   ValueError: denominator must be positive, got 0
+```
+
+(the test-built book refuses instead of projecting). **REVERT** byte copy restored, sha verified.
+
+**PLANT P2** — one 641 row dropped from the pool input. **RED (plant)**
+`7 failed, 18 passed`:
+
+```
+E   AssertionError: agras: the split did not come from the line items (rows_disagree, packs/forecast/cost_behaviour.yaml#rows_disagree)
+```
+
+(every book's sum check reds: the rows no longer tie to the assembled figure
+and the split refuses by name). **REVERT** ok.
+
+**PLANT P3** — forecast_drivers derives its own opex fixed share (reads a
+different fact than the pool split). **RED (plant)** `4 failed, 21 passed`:
+
+```
+E   AssertionError: agras: forecast_drivers opex_fixed_share 636807, the engine's pool split 739606 — two derivations of one concept (contract 4)
+```
+
+**REVERT** ok.
+
+**PLANT P4** — the cap removed (`_cap` returns every pool). **RED (plant)**
+`2 failed, 23 passed`:
+
+```
+E   AssertionError: realestate energy_utilities: variable base 210,740.84 exceeds 1.0 x revenue 162,365.46 = 162,365.46 and the pool was left variable
+```
+
+**REVERT** ok.
+
+**PLANT P5** — cost of sales grown with the inflation index instead of
+revenue growth. **RED (plant)** `3 failed, 22 passed`:
+
+```
+E   AssertionError: agras: plan-year-one cost of sales 70,557,114.68, expected 70,557,114.68 x 0.8 = 56,445,691.74
+```
+
+(realestate, whose cost of sales is nil, cannot see this plant — the TC-3
+companion asserts a book with cost of sales is in scope). **REVERT** ok.
+
+**PLANT P6** — fixed shares ignored (every pool fully variable). **RED
+(plant)** `4 failed, 21 passed`:
+
+```
+E   AssertionError: agras: plan-year-one operating costs 23,883,925.42, the 5.3 formula gives 28,300,097.59 (delta -4,416,172.17)
+E     personnel base 20,642,734.00 fixed 100.0000% -> fixed part 20,642,734.00 + variable part 0.00
+```
+
+**REVERT** ok.
+
+**IT CANNOT SEE:** a shock (B5, scenario-cost-behaviour); the two-point fit
+rung (B7); the served bytes of the pools (B6); a wrong prefix-to-pool map
+that still ties to the cent (the classification is pack data, argued in
+`cost_behaviour.yaml`, not measured here).
+
+### forecast-base-parity — plan/2 B4b: parity mode
+
+Re-pointed from delta mode (B2/B3) to PARITY MODE (contract 5.3). Reference
+`tests/engine/fixtures/forecast/base_b3_growth0.json` (recorded fa2a04c: the
+B3 engine over the B4a-repaired books, `revenue_growth` 0, four books,
+total_years 5, windows 12 and 24). Today's engine runs with `revenue_growth`
+AND `inflation` at 0 and no shocks; revenue must match exactly in every
+period and plan year; every other cell may differ only within a bound
+RENDERED FROM THE RUN and printed beside it: per share-priced line and period
+`ceil(|revenue_p| / (2 x MICRO))` (the B3 share rounded to micros) +
+`ceil(share_micros / MICRO)` (the revenue slice's minor-unit rounding
+multiplied through the share — on realestate operating cost is 180x revenue,
+so one minor unit of revenue moved the B3 line by 180) + 1 (final rounding)
++ 2 per pool (a pool sliced in two parts); EBITDA the sum of the three;
+balances and every line downstream of a balance the accumulation since the
+anchor; the year-to-date tax line and what it reaches twice the accumulation
+(a period's charge is the difference of two accumulated figures). The bound
+inputs (revenue, the three B3 shares in micros, pool counts) are printed per
+book and window.
+
+| | |
+|---|---|
+| work count | `GATE-WORK forecast-base-parity units=(\d+)` (measured 12084 over both windows), floor 12000 (was 4700 in delta mode) |
+| canaries | `SCOPE forecast-base-parity (parity mode, plan/2 B4b)`, `366-day plan year per book`, `bound inputs` |
+
+**GREEN** — `7 passed`; differences w12 1504, w24 2284, 0 outside bound; the
+tightest cell is carniprod w12 pl.operating_costs FY2027 delta -4720 against
+bound 4744 (the share rounding at its theoretical maximum on an annual
+period), then realestate pl.ebitda 2026-02 +135 against 207 (the slice
+multiplied through the 180x share). Revenue exact on 16 + 28 periods per book.
+
+**RED (parent commit)** — the file on fa2a04c, `5 failed, 2 passed`:
+
+```
+E   engine.forecast.errors.AssumptionError: assumption 'overrides': unknown driver(s): inflation. Known: revenue_growth, cogs_pct_of_revenue, opex_pct_of_revenue, other_operating_income_pct_of_revenue, ...
+```
+
+(the parent knows no `inflation` driver and still carries the three share
+keys, so the parity run cannot even be made against it).
+
+**PLANT** (held in the file) — one minor unit above the bound on agras
+pl.cost_of_sales 2026-01 reds naming `agras w12 pl.cost_of_sales 2026-01 ...
+[OUTSIDE BOUND]`; revenue sliced by `days_m / days_basis` reds the 366-day
+plan year (`agras w12 pl.revenue plan year 3`); a move inside the bound is
+printed, not red.
+
+**RETIRED** with the re-point: `test_base_parity_delta_mode_moves_only_the_changed_closure`
+and the CHANGED-closure law (its B2 plant, one minor unit of other financial
+expense outside the closure, is replaced by the bound plant above; B4b's held
+other operating income and the pools move every operating line, so a closure
+law over `base_get_b0.json` would have needed every line in CHANGED).
+`base_get_b0.json` stays as the blast-radius baseline only.
+
+### forecast-route — plan/2 B4b: the GET canary (28.3 B4)
+
+`test_get_through_the_real_app_answers_200_with_no_clause_violation`: GET
+through `create_app()` (the org and per-user seams replaced as
+`scripts/measure_plan_blast_radius.py` replaces them) on the four books at
+horizons 3 and 5 answers 200, `contract.clause_violations(body) == []`, and
+the served assumptions carry the EXPANDED pool ids (`pool_fixed_share.<pool>`,
+`pool_level.<pool>`), never a `.*` template. Floor 22 -> 30 (31 tests).
+
+**PLANT P7** — one pool template (`pool_level.*`) dropped from
+`Projection.fp1_assumptions`. **RED (plant)** `8 failed`:
+
+```
+ERROR engine.api._forecast_routes: [forecast] contract refused period blast-radius-period: fp1 contract broken — figure_names_unknown_assumption: figure 'pl.ebit'/'2026-01' ...
+E   AssertionError: ('agras', 3, 500, "{'detail': 'The projection did not satisfy its own serving contract, so it was not served.'}")
+```
+
+**REVERT** ok. **RED (parent commit)**: on fa2a04c the GET answers 200 but no
+served assumption id starts with `pool_fixed_share.` (the parent has no
+pools), so the canary reds on its id check.
+
+### plan/2 B4 REPAIR ROUND (2026-09-20) — the verifier's unheld behaviours, each with its red
+
+Every plant below was applied by byte-exact replacement, run, and reverted by
+byte copy of the pre-plant file (`scratchpad/b4r/plant.py`; log
+`scratchpad/b4r/plants.log`). Each names WHAT IT REDS ON AFTER THE REPAIR
+(TC-11): none of these tests pins a served number that the repair itself
+would have to move.
+
+**R1 — absent cost total read as zero** (forecast-model,
+`test_an_absent_cost_total_refuses_the_plan_by_its_pool`; 8 cases = cogs / opex
+× agras / retail × missing / null, + the served-unavailable cases + the true-nil
+control on realestate). Plant: `split_for_payload` reads
+`cents_from(pl.get("cogs") or 0)` again. **RED**:
+
+```
+tests/engine/test_forecast_model.py:1761: Failed: DID NOT RAISE <class 'engine.forecast.errors.AssumptionError'>
+FAILED ...::test_an_absent_cost_total_refuses_the_plan_by_its_pool[pool_fixed_share.cost_of_sales-agras-cogs-missing]
+```
+
+Reds after the repair on: any path that projects a cost line whose assembled
+total is missing or null. Does not red on a true 0.00 (realestate control).
+
+**R2 — inflation dropped from the fixed part** (forecast-pools,
+`test_inflation_moves_each_pools_fixed_part_and_leaves_the_variable_part`, growth 0 /
+inflation 5% / two plan years / four books). Plant: `fixed_total =
+_round(pool.base_cents * share)`. **RED**:
+
+```
+AssertionError: agras plan year 1 at growth 0, inflation 5%: operating costs 29,854,906.77, sum of round(B x f x C^n) + variable 30,958,949.80 (delta -1,104,043.03)
+```
+
+**R3 — other operating income grown with revenue** (forecast-pools,
+`test_other_operating_income_is_held_at_the_anchor_amount_through_a_fall`, which also
+holds EBITDA = revenue − cost of sales − operating costs + held income per plan
+year). Plant: `_slice_by_days(_round(ooi_annual * growth_factor), periods)`. **RED**:
+
+```
+AssertionError: agras plan year 1 at revenue -20%: other operating income 312,072.44, the anchor holds 390,090.55 (it scales with neither volume nor growth)
+```
+
+R2 + R3 together are the verifier's VP5 + VP6, which passed the whole engine
+suite (6861 passed) on 50cc222.
+
+**R4 — a net-credit pool served fully fixed** (forecast-pools,
+`test_retail_materials_non_inventory_is_a_net_credit_served_fully_variable`). Plant:
+the `#negative_pool` branch serves `fixed_share_micros=MICRO`. **RED**:
+`AssertionError: (1000000, 'convention', 'packs/forecast/cost_behaviour.yaml#negative_pool')`.
+
+**R5 — the max-unallocated refusal switched off** (forecast-pools,
+`test_a_book_with_more_unallocated_than_the_pack_allows_refuses_the_split`; SYNTHETIC
+agras with its class-64 rows re-coded to an account no pool lists; the untouched
+book is the not-refused control). Plant: `if False and share > ...`. **RED**:
+`AssertionError: (False, None)`.
+
+**R6 — the route-to-pools join deleted** (forecast-route canary). Plant:
+`"line_items": line_items,` removed from `_forecast_routes._load_period`. **RED**:
+
+```
+AssertionError: agras h3: the served pools are ['pool_fixed_share.cost_of_sales', 'pool_fixed_share.operating_costs'] — the statement line items did not reach the engine (complete and unreachable)
+```
+
+On 50cc222 this plant left forecast-route, forecast-pools, forecast-base-parity,
+forecast-serving-boundary and forecast-authority green (139 passed) with the
+real app answering 200 over the refused single pool.
+
+**R7 — an absent profit-tax charge read as a measured nil** (forecast-model
+`test_a_tying_book_with_no_profit_tax_row_takes_the_statutory_rung`, control
+`..._whose_profit_tax_row_closes_at_nil_keeps_the_book_rung`; forecast-drivers hx1 /
+hx2b; forecast-authority's two synthetic tying shapes). Plant: `charge_absent =
+False`. **RED**: `AssertionError: ('book', 'derived', 0)`.
+
+**R8 — PARSER_VERSION not bumped** (`scripts/corpus_replay.py`, byte compare of
+18 cases). Plant: `PARSER_VERSION = "tb_parser_v5"`. **RED** (exit 1):
+`✗ $.extraction.parser_version: expected 'tb_parser_v6', actual 'tb_parser_v5'`
+on every deterministic case.
+
+**R9 / R10 / R11 — the contra decision rule** (statements-anchor-gap, four
+SYNTHETIC documents test-built from the retail corpus rows: 609-only, 709-only,
+mixed, storno-heavy). R9 decides by row count (`entry[1] += (1 if st_c > 0 else
+-1)`), R10 lets only the 709 family decide, R11 forces the document net onto both
+families (`decided = None`). **RED** each; R11:
+
+```
+AssertionError: SYNTHETIC mixed (709 natural-signed, 609 magnitudes): opex_excluding_cogs_and_da 16640349.00, the same ledger printed in one convention gives 14105136.48 (delta 2535212.52)
+```
+
+On 50cc222 the verifier's VP3 / VP4 passed both gates (44 passed): every real
+book prints both families on one sign, so the rule was unobservable.
+
+**Floors**: forecast-pools 50 → 85 (87 measured); statements-anchor-gap 45 → 58
+(61 without the two local Scandia books, 63 with).
+
+**WHAT THE REPAIRED GATES STILL CANNOT SEE**: `pool_level.*` is served neutral
+and a projection that ignored it would still pass (B5 compiles the first
+non-neutral level and owns that red — VP9); the anchor-gap residual beyond the
+production-stock movement is PRINTED, not judged (agras 1,018,671.15, carniprod
+185,677.27, realestate −0.05).
+
+## forecast-balance
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row F1). `tests/engine/test_forecast_levers_f1.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. Every projected period of every run project_plan makes (base and plan) closes assets to equity plus liabilities to the minor unit, over four books x monthly_months {12, 24} x total_years {3, 5} x one lever set per shock op plus a behaviour override with a debt schedule. The test re-adds the balance sheet from the served lines; it never reads the engine's own balance_delta.
+
+THE DEFECT. Before B5 nothing projected a lever set: the engine had no shocks, no per-year drivers and no debt rows by plan year, so F1 was held on the base run only (forecast-model). The Scenarios page computed its own cascade in the browser with no balance sheet at all (defect 0.5).
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. add 1 minor unit to closing PP&E in one period (project.py: closing_ppe + (1 if period.index == 5 else 0)). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f1-1-ppe-plus-one.log).
+
+RED (plant):
+
+    E   engine.forecast.errors.BalanceViolation: projected period 2026-06 does not balance: assets 42,910,075.48 − (equity + liabilities) 42,910,075.47 = 0.01 (must be exactly 0)
+    FAILED tests/engine/test_forecast_levers_f1.py::test_every_period_of_every_run_closes[agras-12-3]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'BehaviourOverride' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): any period of any run kind with a non-zero difference; a run that catches BalanceViolation and continues; a run kind of this batch missing from the scope line; a matrix cell that projected nothing. The legacy-opening plant (OpeningPositionError at period zero) stays in forecast-model, where it has lived since B0; the tornado-probe, FY-aggregate and export plants land with B11, B6 and B20, which create those run kinds.
+
+## scenario-funding-line
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row S3). `tests/engine/test_scenario_funding_line.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. On the Plan returned by project_plan: over four books x three template-like shock sets x volume_index {0 .. -1.0} at monthly_months 24, closing cash never below min_cash, every draw equal to the shortfall, the revolver equal to cumulative draws less repayments, next-period funding interest equal to the _period_charge identity at revolver_rate, summary and runway per 6.6, the ShortfallRefusal of 6.5 wherever a book cannot price the line it draws, and the runway annual-tail case found by integer bisection on retail.
+
+THE DEFECT. Defect 0.3, engine half: an unpriceable funding line refused the WHOLE plan as a bare AssumptionError naming no period, so a probe could not count it as a breach and a reader got a blanket 422; the page had no floor at all (cash 6.105M to -107.630M on Scandia). There was no runway.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. funding draw forced to 0. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-1-draw-zero.log).
+
+RED (plant):
+
+    E   engine.forecast.errors.BalanceViolation: projected period 2026-02 does not balance: assets -1,278,497.27 − (equity + liabilities) 0.00 = -1,278,497.27 (must be exactly 0)
+    E   AssertionError: ('agras vol 0 recession-like', BalanceViolation('projected period 2026-02 does not balance: assets -1,278,497.27 − (equity + liabilities) 0.00 = -1,278,497.27 (must be exactly 0)'))
+    E   assert None == 'days_not_measured'
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. revolver interest 0. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-2-revolver-interest-zero.log).
+
+RED (plant):
+
+    E   AssertionError: ('agras vol 0 recession-like', '2026-03')
+    E   assert -0 == 829044
+    E    +  where 829044 = _period_charge(127849727, 76350, 31, 365)
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. revolver_rate defaulted to 0 when unavailable (`or 0`). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-3-rate-defaults-to-zero.log).
+
+RED (plant):
+
+    E   AssertionError: ('carniprod vol 0 recession-like', '2027-12')
+    E   assert None is not None
+    FAILED tests/engine/test_scenario_funding_line.py::test_the_funding_line_identities_hold_over_the_grid[carniprod]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 4. the bare AssumptionError without a period (period_label dropped). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-4-bare-error-no-period.log).
+
+RED (plant):
+
+    E   AssertionError: carniprod vol 0 recession-like
+    E   assert None == '2027-11'
+    E    +  where None = AssumptionError("assumption 'revolver_rate': the plan draws 19,851.61 on the funding line in 2027-11 and this book can...% would be an invented rate, and the cheapest one. Supply revolver_rate, or change the plan so the line is not drawn.").period_label
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 5. count the annual index as months in the runway. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/s3-5-annual-index-as-months.log).
+
+RED (plant):
+
+    E   AssertionError: {'bound': 'exact', 'facility_limit': {'refused': {'code': 'facility_limit_not_loaded', 'text': 'facility limit not loaded'}}, 'first_shortfall_period': 'FY2027', 'months': 12, ...}
+    E   assert ('exact' == 'at_least'
+    E     
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): served cash below the floor, a draw not equal to the shortfall, funding interest not at revolver_rate, an unpriceable line served at a zero rate or refused without its period, a runway that reads an annual period as months. AS-BUILT B0-8: carniprod's BASE plan never draws (measured), so the refusal is asserted on every cell that draws an unpriceable line (17 carniprod cells, printed) and zero such cells reds. The page-fixture plant lands with B13.
+
+## scenario-cost-behaviour
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row S1). `tests/engine/test_scenario_cost_behaviour.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. The shock half of S1 on four books with revenue_growth and inflation overridden to 0: template growth_pp -0.20 moves year-one cost of sales to mul_div(base, 800000, MICRO); volume_index -0.20 moves every monthly cost of sales; price_index -0.10 leaves cost of sales byte-identical; the EBITDA law where variable bases fit inside revenue; and B4R-8a: a volume move over a refused cost split refuses by name (cost_split_refused).
+
+THE DEFECT. Defect 0.1: the page cascade held cost of sales flat under a revenue move (Scandia Recession EBITDA 54.444M to -20.257M, 42.407M understated). Over a refused split the B4 engine made every cost fully variable, the optimistic end in a downturn: measured at B4RV-4, retail served +1,956,107.72 where the measured split gives -805,701.65 (a loss served as a profit).
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. hold cost_of_sales flat against volume (the cascade). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-1-cogs-flat.log).
+
+RED (plant):
+
+    E   AssertionError: agras 2026-01: cost of sales -5,992,522.07, expected -4,794,017.66
+    E   assert -599252207 == -479401766
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_volume_index_moves_every_monthly_cost_of_sales[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. drop G from the variable part. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-2-drop-G.log).
+
+RED (plant):
+
+    E   AssertionError: agras: year-one cost of sales -70,557,114.68 under growth -20%, expected -56,445,691.74 (base -70,557,114.68)
+    E   assert -7055711468 == -5644569174
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_growth_pp_moves_year_one_cost_of_sales_in_full[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. serve a volume move over a refused split. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/scb-3-serve-refused-split.log).
+
+RED (plant):
+
+    E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>
+    FAILED tests/engine/test_scenario_cost_behaviour.py::test_a_volume_move_over_a_refused_split_refuses_by_name
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 4. ignore the pool level (project.py: `operating_costs += parts`). B4R-8b: pool_level.<pool> was held by no gate; the check added here moves every opex pool's level by -5% on the four books and holds each monthly operating cost to 95% of base within one minor unit per pool, revenue and cost of sales byte-identical.
+
+RED (plant):
+
+    E   AssertionError: agras 2026-01: operating costs -2,535,622.20, 95% of base is -2,408,841.09 (band 8 minor units, one per pool)
+
+REVERT. Byte-exact; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): a pool flat against volume, cost of sales following the selling price, a variable part that ignores growth, a downturn that raises EBITDA where costs fit inside revenue, a volume or input-price move served over a refused split, zero books meeting the law's precondition.
+
+## forecast-magnitude
+
+plan/2 B5 (plan_contract_v2 28.3 B5, gate row F6). `tests/engine/test_forecast_magnitude_f6.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. Year-one revenue equals source x (1 + effective year-one growth) with the effective volume and price indices applied per period, within the number of rounding operations the run itself counted on year-one revenue (Projection.work; half a minor unit each). At zero growth and neutral indices year one equals source exactly. An absent source revenue refuses.
+
+THE DEFECT. B4RV-2: pools.py read an absent assembled_pl.revenue as 0 and the engine projected revenue 0.00 (agras year-one EBITDA -102,532,231.44), where wave/plan-b3 refused the same payload. No gate compared projected revenue with its source under levers, because there were no levers.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. multiply revenue by 100 in the by-year loop. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-1-revenue-x100.log).
+
+RED (plant):
+
+    E   AssertionError: agras [default]: year-one revenue 11,356,826,687.00, source 110,798,309.14 x (1 + 1/40) with the indices applied is 113,568,266.86; difference 22486516840263/20 minor units, band 13/2 (13 rounding operations)
+    E   assert Fraction(22486516840263, 20) <= Fraction(13, 2)
+    E    +  where Fraction(22486516840263, 20) = abs((1135682668700 - Fraction(227136533737, 20)))
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. stamp a year-one growth of 0.08 without applying it. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-2-growth-stamped-not-applied.log).
+
+RED (plant):
+
+    E   AssertionError: agras [growth override 0.08]: year-one revenue 113,568,266.87, source 110,798,309.14 x (1 + 2/25) with the indices applied is 119,662,173.87; difference -15234767503/25 minor units, band 13/2 (13 rounding operations)
+    E   assert Fraction(15234767503, 25) <= Fraction(13, 2)
+    E    +  where Fraction(15234767503, 25) = abs((11356826687 - Fraction(299155434678, 25)))
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 3. read an absent source revenue as nil. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/f6-3-absent-revenue-as-nil.log).
+
+RED (plant):
+
+    E   TypeError: unsupported operand type(s) for *: 'NoneType' and 'Fraction'
+    FAILED tests/engine/test_forecast_magnitude_f6.py::test_an_absent_source_revenue_refuses_and_is_never_read_as_nil
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): year-one revenue outside the band on any book, a stamped growth that was never applied, a missing source revenue projected, a band the run did not render (zero counted roundings reds as vacuous). The frontend-fixture and export-formatter plants land with B9 and B20.
+
+## period-loader-parity
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_load_period_rows.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. pipeline.load_period_rows, the one module-scope period reader, rebuilds the statements GET /api/period/{id} serves: assembled_pl, assembled_bs, assembled_cf and assembled_canonical_v1 byte for byte on four books, through create_app. A rebuild failure raises StatementsRebuildError and the forecast GET answers 409 with its sentence; a period outside the resolved workspace is not found.
+
+THE DEFECT. The forecast route had its own copy of the period read and swallowed a rebuild failure into statements=None, then projected off it. get_period, nested in a router factory, could not be imported as a loader.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. drop the last line item before the rebuild. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/loader-1-drop-last-row.log).
+
+RED (plant):
+
+    E   AssertionError: agras: assembled_pl differs; assembled_cf differs; assembled_canonical_v1 differs
+    E   assert not ['assembled_pl differs', 'assembled_cf differs', 'assembled_canonical_v1 differs']
+    FAILED tests/engine/test_load_period_rows.py::test_loader_statements_equal_the_statements_get_period_serves[agras]
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. swallow the rebuild failure into statements None. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/loader-2-swallow-rebuild-failure.log).
+
+RED (plant):
+
+    E   Failed: DID NOT RAISE <class 'engine.api.pipeline.StatementsRebuildError'>
+    FAILED tests/engine/test_load_period_rows.py::test_a_rebuild_failure_raises_and_a_foreign_org_is_not_found
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   AttributeError: module 'engine.api.pipeline' has no attribute 'load_period_rows'
+
+AFTER THE REPAIR IT REDS ON (TC-11): any byte of the four keys differing on any book (named by key and book), a key absent on either side, a swallowed rebuild failure, a foreign-org period returned.
+
+## forecast-get-b4-parity
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_forecast_get_b4_parity.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. GET /api/forecast bytes on four books at horizons 3 and 5 equal the recorded B4 GET (tests/engine/fixtures/forecast/get_b4.json, a digest recorded from 5bf8b23 by the file's own --record), except the named org-row field company_name, which is printed with both values (null -> organizations.name).
+
+THE DEFECT. Not a defect gate: B5 moves GET onto project_plan and the loader, and this gate is the proof no served byte moved. It is retired by B6 when fp1.2 replaces the bytes.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. add one minor unit to month-one revenue. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/getb4-1-one-cent-of-revenue.log).
+
+RED (plant):
+
+    E   AssertionError: GET moved off the recorded B4 bytes:
+    E       agras:h3 figure bs.ar 2026-01: recorded 872621972, served 872621973
+    E       agras:h3 figure bs.cash 2026-02: recorded 201209777, served 201209778
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+PLANT 2. let the organization name leak into a field outside the allowed list (notes). Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/getb4-2-org-name-into-notes.log).
+
+RED (plant):
+
+    E   AssertionError: GET moved off the recorded B4 bytes:
+    E       agras:h3 root key 'notes' moved
+    E       agras:h5 root key 'notes' moved
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): not applicable in the usual sense and recorded as such: the fixture IS the parent commit's GET, so the gate is green on 5bf8b23 by construction. Its two plant reds above stand in for it; the census marker is kept so the entry reads as a gate that lands with a change (the GET's move onto project_plan), not as a registration of an existing test.
+
+AFTER THE REPAIR IT REDS ON (TC-11): any served byte outside company_name differing from the recorded B4 GET, a changed status, a fixture that does not cover the eight cells.
+
+## forecast-debt-timing
+
+plan/2 B5 (plan_contract_v2 28.3 B5). `tests/engine/test_forecast_debt_timing.py`, registered in `scripts/run_battery.py` under the plan/2 B5 anchor.
+
+WHAT IT HOLDS. packs/forecast/levers.yaml#debt_timing: a debt_schedule row's draws land in the first period of its plan year and its repayments in the last, on four books at monthly_months 12 and 24, with identical per-plan-year sums at both; a year beyond total_years is refused naming it.
+
+THE DEFECT. DebtSchedule was indexed by period index, so the same plan-year schedule meant different cash timing at monthly_months 12 and 24, and a request could not state a plan year at all.
+
+SCOPE. Printed by the test on every run (TC-13) with its GATE-WORK line; books are the four corpus fixtures, each from its own anchor; SYNTHETIC inputs are named in the scope line.
+
+PLANT 1. land draws in the last period of the plan year. Applied to the product source, observed, reverted byte-exact (scratchpad/b5/plants.py; log scratchpad/b5/plants/debt-1-draws-land-last.log).
+
+RED (plant):
+
+    E   AssertionError: agras mm12: a draw of 200000000 landed in 2026-12, the first period of plan year 1 is 2026-01
+    E   assert '2026-12' == '2026-01'
+    E     
+
+REVERT. `git status` clean on the planted file after the run; the gate is green again.
+
+RED (parent commit): the gate file run inside the parent tree (wave/plan-b4 5bf8b23), where the entry point it tests does not exist:
+
+    E   ImportError: cannot import name 'DebtRow' from 'engine.forecast'
+
+AFTER THE REPAIR IT REDS ON (TC-11): a draw or repayment in any other period of its year, per-year sums that depend on the monthly window, a year beyond the horizon accepted, a schedule that moved nothing.
+
+## forecast-wc-unwind (joins forecast-model)
+
+plan/2 B5 (contract 6.2; 28.3 B5 "forecast-model command extended with test_forecast_wc_unwind.py"). Not a first registration: `tests/engine/test_forecast_wc_unwind.py` joins the forecast-model battery command, with two canaries added under the B5 anchor.
+
+PLANT. Restore the full re-price in the period a lever lands (project.py: the unwind branch disabled).
+
+RED (plant), both tests, as the contract requires:
+
+    E   AssertionError: agras 2026-01 inventory 7,325,332.54, the 6.2 formula gives 7,928,198.65 (target 7,325,332.54, base target 9,156,665.67)
+    E   assert 732533254 == 792819865
+    E   AssertionError: retail 2026-01 inventory moved 2,089,525.72 in the month the lever landed; a month of its flow change is 1,655,171.64
+    E   assert 208952572 <= 165517164
+
+REVERT. Byte-exact; green again. SCOPE printed by the test. Measured fact recorded in the test: on agras the receivable days (28.05) are shorter than the first month, so receivables land on target inside it and only inventory (46.21 days) and payables (37.18 days) can show a full re-price; the test walks all three balances and reds as vacuous when none is still mid-unwind after month one.
+
+RED (parent commit): `E   ImportError: cannot import name 'PlanRequest' from 'engine.forecast'` (the parent tree has no lever path to unwind).
+
+### plan/2 B5 REPAIR ROUND (2026-09-20) — the verifier's unheld behaviours, each with its red
+
+Eighteen plants. R1-R16 were applied by byte-exact replacement, run and
+reverted by byte copy (`scratchpad/b5r2/plants.py`, log
+`scratchpad/suite/b5r2_plants.log`); R17-R18 the same way by hand
+(`scratchpad/b5r3`). Each names WHAT IT REDS ON AFTER THE REPAIR (TC-11); none
+pins a served number the repair itself would have to move.
+
+**R1 — the unwind measured from the first divergence ever, never reset**
+(forecast-wc-unwind, `test_a_lever_that_lands_after_an_earlier_one_still_unwinds`
+and the every-month formula test). Plant: the closing balance ramps from the
+first period whose target ever left the base target. **RED**:
+
+    E   AssertionError: agras 2026-04 inventory 7,325,332.53, the 6.2 trailing window gives 7,325,332.54 (target 7,325,332.53, base target 9,156,665.68)
+    2 failed, 3 passed
+
+Reds after the repair on: a lever that lands after an earlier one on the same
+flow and books more than (days of the month / days in force) of ITS OWN move in
+its landing month, measured against the same request without it; a shock that
+ends and snaps back. Does not red on the single-step case, where the trailing
+window and the contract's min(E, D) / D are the same number.
+
+**R2 (V8) — op rank swapped, level_pct before set** (forecast-balance command,
+test_plan_request_validation.py). **RED**: `E   AssertionError: ('a', 500000)` /
+`assert 500000 == 550000`. Reds on: set-then-level order on one driver.
+
+**R3 (V9) — end_month ignored.** **RED**:
+`E   assert [1000000, 800...00000, 800000] == [1000000, 800...0000, 1000000]`.
+Reds on: a windowed shock still in force after its end month.
+
+**R4 (V10) — the annual tail takes the last month.** **RED**:
+`E   AssertionError: (700000, 0.7246575342465753)` / `assert Fraction(9, 365) <= Fraction(1, 1000000)`.
+Reds on: an annual-period compiled value that is not the day-weighted mean.
+
+**R5 (V11) — a behaviour override's fixed_share never reaches the pool**
+(scenario-cost-behaviour). **RED**:
+
+    E   AssertionError: agras [personnel fixed share 0.50] year-one operating costs 28,300,097.58, the 5.3 formula gives 26,235,824.17 (band 384 minor units)
+
+**R6 (V12) — tax_rate lever ignored.** **RED**: `E   assert -130963805 == -245557135`.
+
+**R7 (V13) — volume_elasticity 0 ignored.** **RED**:
+
+    E   AssertionError: agras [personnel fixed share 0.50, volume elasticity 0] year-one operating costs 26,235,824.17, the 5.3 formula gives 28,300,097.57 (band 384 minor units)
+
+**R8 (V14) — min_cash lever ignored.** **RED**: `E   assert 0 == (248978821 - 148978821)`
+(the draw moves by exactly the floor's move).
+
+**R9 (V1) — the fixed part follows volume**, now held by a direct 5.3 formula
+check under volume -20% on agras and retail (the owner's measured-split ruling),
+not only by realestate's EBITDA law. **RED** (6 failed):
+
+    E   AssertionError: agras [the measured split] year-one operating costs 23,883,925.44, the 5.3 formula gives 28,300,097.57 (band 384 minor units)
+
+**R10 (V2) — only growth needs the split.** The refused-split test now sends
+volume_index, input_price_index and inflation each ALONE, with no `_flat`
+override. **RED** (4 failed): `E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>`.
+
+**R11 — inflation served over a refused split** (inflation dropped from
+`_SPLIT_DEPENDENT`). **RED** (2 failed): `E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>`.
+Reds on: any inflation lever projected over `#no_line_items` (agras served
+11,036,035.43 = base where the measured split gives 8,827,949.35).
+
+**R12 (V3) — the route serves a truncated plan** (forecast-route; SYNTHETIC
+carniprod whose base plan draws: payout 0.95, min_cash 2M, capex 20%, through
+`create_app`). Plant: the route's `stop_at_unpriced_draw=False` flipped. **RED**:
+
+    E   AssertionError: the GET answered 200 with 6 period(s) of 16 on a base plan that draws a line this book cannot price
+    E   assert 200 == 422
+
+**R13 — the loader accepts statements with no assembled P&L**
+(period-loader-parity). Plant: the presence check loops over `()`. **RED**:
+`E   Failed: DID NOT RAISE <class 'engine.api.pipeline.StatementsRebuildError'>`.
+Reds on: a rebuild that swallowed its own assembly failure reaching a caller as
+statements; the route answers 409 statements_rebuild_failed.
+
+**R14 — the wire elasticity truncated** (`int(Fraction)`). **RED**:
+`E   Failed: DID NOT RAISE <class 'engine.forecast.errors.PlanRequestError'>` ("0.5", "1.9", "-0.4").
+
+**R15 — an unpriced rate refused in a days driver's words.** **RED**:
+`E   assert 'days_not_measured' == 'rate_not_measured'`.
+
+**R16 (B4RV-3) — a payload with no statement rows keeps the nil tax rate**
+(forecast-model, `-k tying_book`). **RED**: `E   AssertionError: ('book', 'derived', 0)` /
+`assert ('book', 'derived') == ('macro', 'engine_default')`.
+
+**R17 — the base run inherits every override** (decision B5R-4; SYNTHETIC agras
+with its interest expense removed). Plant: the base is compiled from
+`request.overrides`. **RED**: `E   assert [1035129409, ...] == [964552404, ...]`
+(the base's revenue moved with the request's growth). **R18 — no inheritance**
+(`_BASE_PRICING_RATES = ()`). **RED**:
+
+    E   engine.forecast.errors.AssumptionError: assumption 'interest_rate_debt': the plan carries 3,640,202.33 of interest-bearing debt in 2026-01 and this book cannot price it ...
+
+Reds after the repair on: a request that supplies the rate the base refused for
+and is still refused, or a base that takes anything but that rate. Does not red
+on a request that omits the rate: it refuses, as before.
+<!-- ═══ plan/2 B1 (plan_contract_v2 28.3, section 7, S7): sign flips ════════
+     One battery gate (sign-flip) and two vitest canaries, landed in the
+     same commit as the repair they guard (0.5): each section records the
+     plant red AND the red on the parent commit eb2ff8f. -->
+
+## sign-flip
+
+`tests/engine/test_change_kind.py` + `tests/engine/test_comparatives.py` — S7,
+defect 0.4. A change from zero, to zero or across sign is one of seven kinds
+(R21) from ONE classifier per runtime (`src/engine/serving/change_kind.py`,
+`frontend/lib/changeKind.ts`), both held to
+`tests/fixtures/contracts/change_kind_truth_table.json`; only the kind
+`compared` with a non-zero base carries a `delta_pct`
+(`packs/serving/change_kind.yaml#delta_pct_places`, rounded once, half away
+from zero, on the EXACT value of each binary64 in both runtimes).
+`engine.comparatives.columns` keeps its disclosure statuses, sets
+`change_kind` only on `compared` / `compared_no_base`, and serves no
+cross-sign or to-zero percentage.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_change_kind.py tests/engine/test_comparatives.py -v -s` |
+| work count | sum of the printed `GATE-WORK sign-flip units=` lines (truth-table rows 70 + converted consumers 14 + comparative columns swept 255 = 339), floor **300** |
+| canary | `test_the_python_classifier_matches_every_truth_table_row`, `test_a_cross_sign_column_carries_its_kind_and_no_percentage`, `SIGN-FLIP truth table (python)` |
+
+**SCOPE** — the truth table: every sign pair with null and zero on both
+sides in integer minor units (floor 0) and in rounded major-unit money
+(floor 0.005, with sub-floor values of both signs), the floor edge, the
+rounding ties, and the two defect pairs measured on Scandia FY2025 (cash
+6,104,815.29 to -107,630,000; EBITDA 54,444,000 to -20,257,000; aggregates
+only, no client book committed); the 14 consumers contract 7 names; the
+comparatives column model over hand-built envelopes and the committed
+regression baselines `scandia_fy2025` (analytic), its condensed roll-up and
+`eei_dec_2025` (synthetic), 255 columns, 173 carrying a change kind, 6 of
+them a word kind (a real cross-sign EBITDA between the two books). No
+forecast book: compare_base rows and waterfall steps join at B8.
+
+**GREEN** — `PASS sign-flip (2.4s, 339 truth-table rows + consumers + columns)`.
+
+**PLANT 1** — restore the columns.py cross-sign percent (contract S7 plant):
+
+```
+-            elif change.kind != CHANGE_COMPARED:
++            elif False and change.kind != CHANGE_COMPARED:
+```
+
+**RED (plant)** — through `scripts/run_battery.py`'s runner, exit `1`:
+
+```
+FAIL sign-flip (exit 1, 2.7s)
+E   AssertionError: a sign flip served a percentage: -18.630345
+E   AssertionError: assert (-0.999995, 'to_zero') == (None, 'to_zero')
+E   AssertionError: ('pl.ebitda', 'flip_to_positive')
+FAILED tests/engine/test_comparatives.py::test_a_cross_sign_column_carries_its_kind_and_no_percentage
+FAILED tests/engine/test_comparatives.py::test_a_move_to_zero_or_from_zero_is_a_kind_never_a_hundred_percent
+FAILED tests/engine/test_comparatives.py::test_change_kind_is_set_exactly_on_movement_statuses_over_every_orientation
+========================= 3 failed, 59 passed in 1.02s =========================
+```
+
+**PLANT 2** — the truth table loses its null-base rows (TC-3 on the fixture):
+
+```
+E   AssertionError: the table must exercise all seven kinds: Counter({'compared': 25, 'absent_plan': 8, 'to_zero': 8, 'from_zero': 8, 'flip_to_negative': 7, 'flip_to_positive': 4})
+E   AssertionError: minor_units_floor_0 is missing sign pairs [('null', 'neg'), ('null', 'null'), ('null', 'pos'), ('null', 'zero')]
+========================= 2 failed, 17 passed in 3.80s =========================
+```
+
+**RED (parent commit)** — the new comparatives tests copied onto eb2ff8f
+(`wt-plan-b1-parent`, detached) and run against the unrepaired columns.py:
+the defect itself, the -19x source value served as a percentage:
+
+```
+E   AssertionError: a sign flip served a percentage: -18.630345
+E   assert -18.630345 is None
+E   AttributeError: 'ComparativeColumn' object has no attribute 'change_kind'
+FAILED tests/engine/test_comparatives.py::test_a_cross_sign_column_carries_its_kind_and_no_percentage
+FAILED tests/engine/test_comparatives.py::test_a_move_to_zero_or_from_zero_is_a_kind_never_a_hundred_percent
+FAILED tests/engine/test_comparatives.py::test_change_kind_is_set_exactly_on_movement_statuses_over_every_orientation
+======================= 3 failed, 40 deselected in 0.70s =======================
+```
+
+**REVERT** — both files restored from their copies; `PASS sign-flip (2.4s, 339 ...)`.
+
+**After the repair it reds on (TC-11):** a truth-table row the Python
+classifier classifies differently (kind or delta_pct byte); a delta_pct on
+any kind but compared with a non-zero base; a comparatives column that
+serves a percentage across zero or to zero, or a change_kind on a refusal
+status; the TS pack mirror disagreeing with the pack; the rounded-money
+floor drifting from `PCT_BASE_FLOOR`; a converted consumer that stops
+importing the classifier (directly or through `computeDeltas.delta`) or
+divides a difference by its own `|base|`; a truth table that stops
+enumerating every sign pair, both zero-floor groups, or all seven kinds.
+**It cannot see:** what a page paints (the vitest canaries below) or
+whether the TS classifier agrees (changeKind.test.ts; the fixture is the
+join); sign-flip percentages in consumers contract 7 does not list
+(`lib/capsuleTier0.ts:673`, `lib/reportComparatives.ts:143`,
+`lib/financialExports.ts:752`, `components/cfo/PublicRecordsQuickCard.tsx:106`,
+`components/cfo/ComparativesPanel.tsx` movers) — recorded in
+plan_as_built B1 for an owner ruling.
+
+### vitest — sign-flip canaries (plan/2 B1)
+
+`frontend/lib/__tests__/changeKind.test.ts` (the TS classifier against the
+shared truth table) and `frontend/components/scenarios/__tests__/signFlip.test.tsx`
+(every converted DOM consumer renders a flipping pair as words, with a
+same-sign percent control on each surface) — canaries of the `vitest` gate,
+path literals in `scripts/check_vitest.mjs` CANARIES and the battery.
+
+**SCOPE** — 70 truth-table rows (typescript); rendered flips on
+ScenarioComparison, VarianceTable, KpiVarianceStrip, Money/DeltaBadge,
+KeyMetricsRow, StoryOverview, CmpCells, BsCmpCells and Amount in ro (11
+flip renderings printed); the Scandia FY2025 cash and EBITDA aggregates and
+hand-built fixtures; en and ro; jsdom, no browser (the page walk is B13's).
+
+**PLANT A** — revert `delta()` to absolute over `|comparison|` (contract S7):
+
+```
+-  return { absolute, pct: deltaPctNumber(change), change };
++  return { absolute, pct: comparison === 0 ? null : absolute / Math.abs(comparison), change: { kind: "compared", ... } };
+```
+
+**RED (plant)** — `npx vitest run --root . frontend/components/scenarios/__tests__/signFlip.test.tsx`:
+
+```
+× ScenarioComparison: cash 6,104,815.29 → -107,630,000 is 'turned negative', no percent, no multiplier
+  → expected '−19×' to contain 'turned negative'
+× VarianceTable and KpiVarianceStrip: EBITDA vs last year crossing zero shows words beside the money change
+× Money + DeltaBadge: a comparison across zero and a comparison from zero are words
+  → expected '↓1863.0%' to contain 'turned negative'
+Tests  4 failed | 2 passed (6)
+```
+
+**PLANT B** — revert only VarianceTable (the file restored from eb2ff8f):
+
+```
+× VarianceTable and KpiVarianceStrip: EBITDA vs last year crossing zero shows words beside the money change
+Received: "EBITDA−20.3 M54.4 M−74.7 M"
+Tests  1 failed | 5 passed (6)
+```
+
+**PLANT C** — change only the TS classifier (`flip_to_negative` falls through to compared):
+
+```
+× classifies every truth-table row exactly as the table says
++   "row 58 defect_0.4 base=6104815.29 plan=-107630000 floor=0.005: want (flip_to_negative, null), got (compared, -18.630345)",
++   "row 59 defect_0.4 base=54444000 plan=-20257000 floor=0.005: want (flip_to_negative, null), got (compared, -1.372070)",
+× renders the measured defect pairs as flips, never a ratio
+```
+
+**RED (parent commit)** — signFlip.test.tsx on eb2ff8f with the cases whose
+props exist there (ScenarioComparison, Variance, Money, CmpCells): the
+defect exactly as the live page painted it:
+
+```
+× ScenarioComparison ... → expected '−19×' to contain 'turned negative'
+Received: "EBITDA−20.3 M54.4 M−74.7 M−137.2%"
+Received: "↓1863.0%"
+Tests  4 failed (4)
+```
+
+**REVERT** — every planted file restored from its copy; `Tests 6 passed (6)`
+and `Tests 5 passed (5)`; the full vitest gate lists both canaries `ran`.
+
+**After the repair it reds on:** a money change across zero or sign rendered
+as a percent or a multiplier on any of the nine surfaces above; a flip
+without its words in en or ro; a same-sign control that stops painting its
+percent; the TS classifier disagreeing with any fixture row.
+**It cannot see:** the live page in a browser (B13's no-intercept walk) or
+the forecast compare_base rows (B8).
+
+
+<!-- ═══ plan/2 B6 (plan_contract_v2 28.3): fp1.2 serving and POST recompute ═══
+     B6 appends below this anchor only (contract 0.6). -->
+
+## plan-gate-census — three loopholes closed (plan/2 B6)
+
+The B0 re-verifier left three ways for `plan_gates.json` to claim a gate the
+battery does not run. `scripts/check_plan_gates.py` now closes each. The three
+plants are copies of `plan_gates.json` in the session scratchpad, read through
+`--plan-gates`; the tree's file was never edited. Each was also run against the
+parent commit's census (`git show d4f2b5c:scripts/check_plan_gates.py`), which
+is the defect itself.
+
+**SCOPE** — every entry of `docs/engine_book/plan_gates.json` (22 at this
+commit), every batch that has landed (B0, B1, B2, B3, B4, B5).
+
+**PLANT 1 — an id borrowed as a second name.** The `forecast-balance` entry's
+`gate` re-pointed to `forecast-model` (canaries dropped so nothing else reds):
+`required_gates[B5]` names `forecast-balance`, and `_met_gate` accepted
+`e["id"] == name`, so a batch could meet its required gate with an entry that
+runs another gate.
+
+```
+RED (plant)
+  · plan_gates.json entry 'forecast-balance': id must be 'forecast-model' (the gate name); an id is never a second name for another gate
+  · required_gates[B5]: gate 'forecast-balance' has no plan_gates.json entry landed in B5 (an earlier batch's entry does not count)
+RED (parent commit) — the defect: the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**PLANT 2 — a runner entry with zero canaries.** `vitest:B1` with
+`"canaries": []`. The shared runner exists for every batch, so the entry met
+`required_gates[B1] = vitest` while naming no file of its own.
+
+```
+RED (plant)
+  · plan_gates.json entry 'vitest:B1': an entry on the shared runner 'vitest' names ZERO canaries; the runner's own existence is not this batch's gate (TC-3)
+RED (parent commit) — the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**PLANT 3 — retired by a batch that has not landed.** `forecast-get-b4-parity`
+given `"retired_in": "B6"` on a registry where B6 has no entry and no
+`required_*` key: the census stopped every battery check for it.
+
+```
+RED (plant)
+  · plan_gates.json entry 'forecast-get-b4-parity': retired_in 'B6' names a batch that has not landed (landed: B0, B1, B2, B3, B4, B5); the gate stays in the battery until the batch that retires it lands
+RED (parent commit) — the d4f2b5c census on the same copy printed
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**REVERT** — the copies discarded; `PASS plan-gate-census` on the tree.
+
+**After the repair it reds on:** an entry whose id is not its gate name (or
+`<gate>:<landed_in>` on vitest or playwright); a vitest or playwright entry
+that lists no canary; a `retired_in` whose batch has no entry and no
+`required_gates` / `required_rows` key. **It cannot see:** whether a named
+canary file asserts anything (tests/engine/test_gate_canaries.py), or a
+retirement the contract never named (the RETIREMENTS table, unchanged).
+
+### B6 route gates — how the plants and the parent reds were taken
+
+Eight gates land with the repair they guard (contract 0.5): fp1.2 serving and
+`POST /api/forecast/{period_id}/recompute`. Every plant below was applied by
+monkeypatch from a scratch test module (session scratchpad `b6/plants_gates.py`
+and `b6/plants_cache.py`, never committed; the no-plants gate forbids plant
+code in product source), observed, and discarded. The parent commit is
+`d4f2b5c` (wave/plan-b5). Run against it, every one of these gates reds for one
+reason, recorded once here and quoted under each heading:
+
+```
+RED (parent commit) d4f2b5c, probed through create_app on agras:
+d4f2b5c POST /api/forecast/{id}/recompute -> 404 {"detail":"Not Found"}
+d4f2b5c GET contract fp1 | body_hash None | drivers False | series False | lever_ids on a figure False | per-figure basis prose True
+d4f2b5c _forecast_history cache: False
+the eight gate files copied onto d4f2b5c: 33 failed, 3 passed, 6 errors
+```
+
+## forecast-server-side
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_recompute_f2.py -q -s` |
+| canary | `SCOPE forecast-server-side (plan/2 B6, gate row F2)` |
+| work count | `GATE-WORK forecast-server-side units=(\d+)`, floor **4000** (measured 4300) |
+
+**SCOPE** — books agras, carniprod, retail, realestate; requests base 3y/12m,
+base 2y/24m, levered 3y/12m (every lever kind B6 accepts); through create_app
+and the committed-book row server.
+
+**PLANT** — `blocks/series._value` returns fcf_cumulative one minor unit high.
+
+```
+RED (plant)
+E   AssertionError: ('agras', '2026-01')
+E   assert 32174118 == 32174117
+```
+
+**RED (parent commit)** — no series, summary, strip or FY aggregate is served
+on d4f2b5c (`series False` above): every total a surface wanted was the
+browser's to compute, which is the F2 defect.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a series point, FY aggregate, balance-sheet
+total, summary amount or strip amount that differs from the integer walk over
+the served figures of the same run; a float in the body. **It cannot see**
+what a page does with the values (forecast-boundary, vitest).
+
+## forecast-provenance
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_provenance_f4.py -q -s` |
+| canary | `SCOPE forecast-provenance (plan/2 B6, gate row F4)` |
+| work count | `GATE-WORK forecast-provenance units=(\d+)`, floor **8000** (measured 8712) |
+
+**SCOPE** — the four corpus books, base and levered 3y/12m.
+
+**PLANT** — the "six-key normalisation" restored: `blocks/drivers._basis`
+drops the `book` evidence object (and the builder's own clause check is
+silenced, so the bytes leave).
+
+```
+RED (plant)
+E   AssertionError: ('agras', 'interest_rate_debt', 'book', [])
+E   assert [] == ['book']
+```
+
+**RED (parent commit)** — `drivers False` above: fp1 served an assumption as
+{id, label, unit, values, basis, derived_from}, with no tier and no evidence.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** an id that resolves in neither drivers nor
+conventions; a tier without exactly its evidence object; a user tier without
+its original; a figure naming a driver the same response marks inert; a line
+outside a driver's consumed_by. **It cannot see** whether a driver's value is
+right (forecast-authority, forecast-defaults).
+
+## forecast-byte-stability
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_byte_stability_f8.py -q -s` |
+| canary | `SCOPE forecast-byte-stability (plan/2 B6, gate row F8)`, `PYTHONHASHSEED=12345` |
+| work count | `GATE-WORK forecast-byte-stability units=(\d+)`, floor **16** (measured 16) |
+
+**SCOPE** — the four corpus books, base and levered; two calls in process and
+one fresh interpreter with its own hash seed.
+
+**PLANT** — a process fact in the body: `plan_response._sentences` appends a
+note carrying `os.getpid()` (in the parent process only).
+
+```
+RED (plant)
+E   AssertionError: another process serves different bytes: ['agras', 'carniprod', 'realestate', 'retail']
+```
+
+**RED (parent commit)** — `body_hash None` above: fp1 carried no hash, so
+nothing could be compared across processes at all.
+
+**REVERT** — monkeypatch undone; `2 passed`.
+
+**After the repair it reds on:** one request giving two body hashes, in or
+across processes; recompute_ms inside the hash; lever_set_hash depending on
+lever order or a decimal's spelling. **It cannot see** saved-case replay
+(B15), compares (B11) or the export (B20).
+
+## forecast-latency
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_recompute_f9.py -q -s` |
+| canary | `SCOPE forecast-latency (plan/2 B6, gate row F9, in process)`, `bytes (cap` |
+| work count | `GATE-WORK forecast-latency units=(\d+)`, floor **80** (measured 80 = N 20 x 4 books) |
+
+**SCOPE** — chart profile, monthly_months 24, two shocks, N=20 per book; the
+clock includes the loader, the statements rebuild and the TestClient. Measured
+p50 136-186 ms against the packed 1500; largest body 339,293 bytes against the
+packed cap 400,000 (both thresholds printed from
+`packs/forecast/levers.yaml#latency`, TC-10).
+
+**PLANT 1** — a wrapper that delays the handler by 2 s.
+**PLANT 2** — per-point basis prose back on the series block.
+
+```
+RED (plant) 1
+E   AssertionError: ('agras', 2189.4847910000053)
+E   assert 2189.4847910000053 <= 1500
+RED (plant) 2
+E   AssertionError: ('agras', 1606826)
+E   assert 1606826 <= 400000
+```
+
+**RED (parent commit)** — `per-figure basis prose True` above: the fp1 GET
+inlined the full basis of every driver into every figure (the recorded B4 GET
+bodies were ~5 MB each), and there was no chart profile to time.
+
+**REVERT** — monkeypatches undone; `1 passed`.
+
+**After the repair it reds on:** in-process p50 above the packed budget; a
+chart-profile body above the packed cap; N below 20. **It cannot see** the
+browser (B9), the analysis profile (B11) or the network.
+
+## forecast-lever-reach
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_lever_reach.py -q -s` |
+| canary | `SCOPE forecast-lever-reach (plan/2 B6, contract 12)`, `levers declared 38`, `cross-book: ` (B6 repair) |
+| work count | `GATE-WORK forecast-lever-reach units=(\d+)`, floor **350** (measured 376 nudges) |
+
+**SCOPE** — the four corpus books, 3y/12m; every driver key x every allowed
+op, nudged by its served reach_step through POST recompute (overrides, shocks,
+behaviour overrides); printed per book: levers declared, moved, the inert list
+with the engine's sentences, the nudges the engine refused and why.
+
+**PLANT** — volume_index compiles to a no-op (`_Compiler.compile` drops it).
+The first version of this gate PASSED the plant: the engine's own nudge was
+blind in the same way, so it served "moving volume index changes no figure"
+and the gate took the sentence as the answer. The gate now refuses an inert
+sentence on a driver the registry wires directly to pl.revenue or
+pl.cost_of_sales while that line carries an amount.
+
+```
+RED (plant)
+E   AssertionError: agras: volume_index is served as inert while pl.revenue, pl.cost_of_sales carries an amount in the base plan: the lever compiles to nothing
+```
+
+**RED (parent commit)** — no POST route (404 above), so no lever reached
+anything through a route. Built against the B6 tree before its repairs, the
+gate also found two attribution defects, both repaired in this batch
+(`project.py`): `bs_totals.current_liabilities` moved under a pool fixed-share
+nudge on realestate, outside the driver's consumed_by; and a dso_days nudge
+moved pl.pretax_result, pl.net_income and bs.equity_retained on realestate
+(the funding interest is priced on a balance everything that moves cash has
+sized):
+
+```
+E   AssertionError: realestate: nudging dso_days (override) moved ['bs.equity_retained', 'bs_totals.equity', 'cf.net_income', 'pl.net_income', 'pl.pretax_result'], outside its consumed_by
+```
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a nudge that moves nothing on a driver not
+served as inert; an inert driver whose nudge moves a number; a revenue or
+cost-of-sales lever served as inert on a book that has the line; changed lines
+outside consumed_by; a driver with no consumer or no tier. **It cannot see**
+pool and debt reach steps of their own (not packed in B6) or block-field
+consumers (B12).
+
+## scenario-one-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scenario_one_engine.py -q -s` |
+| canary | `SCOPE scenario-one-engine (plan/2 B6, gate row S4` |
+| work count | `GATE-WORK scenario-one-engine units=(\d+)`, floor **10** (measured 10) |
+
+**SCOPE** — the four corpus books x horizons 3 and 5; the mounted
+/api/forecast routes. The Scenarios cascade, the Capsule preview and
+forecast_drivers cases are NOT yet on this engine (B13); the scope line says so.
+
+**PLANT 1** — cost_of_sales multiplied by 1.0001 in the POST path only.
+**PLANT 2** — a `/api/forecast/{period_id}/scenario` path mounted.
+
+```
+RED (plant) 1
+E   AssertionError: ('agras', 3)
+E   assert 'sha256:6d2d8...0b6a32dc8a14c' == 'sha256:ceaf7...d43a4318153bd'
+RED (plant) 2
+E   AssertionError: [('/api/forecast/{period_id}', ('GET',)), ('/api/forecast/{period_id}/recompute', ('POST',)), ('/api/forecast/{period_id}/scenario', ('POST',))]
+```
+
+**RED (parent commit)** — the POST answers 404 above; the GET built its body
+through project_plan, the fp1 adapter and the fp1 gateway, a path no lever
+could enter.
+
+**REVERT** — monkeypatch undone, the planted route removed; `10 passed`.
+
+**After the repair it reds on:** GET and the default POST differing in
+body_hash; either verb not going through the one handler; the handler calling
+project_payload, the fp1 adapter or the fp1 gateway; a mounted path ending in
+/scenario. **It cannot see** the three calculators B13 removes.
+
+## scenario-provenance
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_scenario_provenance.py -q -s` |
+| canary | `SCOPE scenario-provenance (plan/2 B6, gate row S6)`, `realestate/windowed: figures and series points checked` (B6 repair) |
+| work count | `GATE-WORK scenario-provenance units=(\d+)`, floor **8000** (measured 8408: figures and series points, LEVERED and WINDOWED; was 3400 over figures only) |
+
+**SCOPE** — the four corpus books, 3y/12m; lever kinds shock, shock group,
+override, behaviour override, debt row; SYNTHETIC debt rate 8% where the book
+cannot price debt; every removal run re-POSTed by the test, never read from
+the response under test.
+
+**PLANT** — an FY aggregate takes the union of its months' lever ids. This is
+the defect the gate found while B6 was being built (a closing balance is
+reached only by what reaches the closing month); it was repaired in
+`blocks/figures.py` (`lever_ids_of`: the aggregate's own removal test) and is
+re-applied here as the plant.
+
+```
+RED (plant)
+E   AssertionError: agras ('pl.revenue', 'FY2026') lists ['rail:volume_index', 'template:t', 'override:dividend_payout_pct', 'behaviour:personnel', 'debt:2']; removing each lever in turn changes it for ['rail:volume_index', 'template:t']
+```
+
+**RED (parent commit)** — `lever_ids on a figure False` above, and no route
+took a lever.
+
+**REVERT** — monkeypatch undone; `5 passed`.
+
+**After the repair it reds on:** a figure listing a lever whose removal does
+not change it; a figure that changes on a removal and does not list the lever;
+a figure that differs from the base run and names none; a lever id the request
+never sent. **It cannot see** slot, track and contribution figures (B8), case
+and spread levers (B11).
+
+## forecast-cache
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_cache.py -q -s` |
+| canary | `SCOPE forecast-cache (plan/2 B6, contract 1.5)` |
+| work count | `GATE-WORK forecast-cache units=(\d+)`, floor **8** (measured 8) |
+
+**SCOPE** — the REAL tenancy double (FirmWorld, row visibility evaluated from
+the migrations' policy text), ORG_A1's period carrying the agras corpus book;
+the owner POSTs base, shocked, base; strangers SOLO and B_OWNER POST the same
+period id with their own and with the victim's org header.
+
+**PLANT 1** — the cache keyed without org_id and read before the select.
+**PLANT 2** — the cache hands out live objects and the shocked run edits one.
+
+```
+RED (plant) 1
+E   AssertionError: SOLO [00000000-0000-0000-0000-0000000000cc] was answered 200 on a period whose rows are cached: {"kind":"projection","contract":"fp1.2","currency":"RON","base_period":{"label":"2025-12-31","period_id":"00000000-0000-0000-0000-00000000012d",...
+RED (plant) 2
+E   AssertionError: the base body changed after a shocked run: a run mutated the cached rows
+E   assert 'sha256:0658c...77af4d2948589' == 'sha256:dceb7...6f3164523e1a9'
+```
+
+**RED (parent commit)** — `_forecast_history cache: False` above: every GET
+re-read and re-rebuilt the period.
+
+**REVERT** — monkeypatches undone; `3 passed`.
+
+**After the repair it reds on:** a base body_hash that changes after a shocked
+run; a stranger answered anything but 401/403/404 on a cached period; the
+cache read before the org-filtered select (a deleted row still served); a
+cached value that is not immutable bytes; a changed updated_at reusing an
+entry. **It cannot see** history periods in the key (B7) or a second process.
+
+## cross-org sweep — POST /api/forecast/{period_id}/recompute (plan/2 B6)
+
+`tests/engine/test_cross_org_reads.py` lists the POST beside the GET in its
+route table, on the REAL tenancy double with ORG_A1's period carrying the agras
+book (fixture `book_world`), so the owner's answer is an fp1.2 body and not a
+refusal a stranger's 422 could hide behind.
+
+**SCOPE** — GET and POST recompute, requested by SOLO and B_OWNER (members of
+other workspaces) with their own org header, with the victim's org header and
+with none; the owner's expected 200 on the same table.
+
+**PLANT** — the classic service-role defect, taken in an isolated copy of the
+tree (scratchpad b6/pt; the branch was never edited): `_forecast_history.
+load_plan_inputs` opens `_supabase.admin()` instead of `per_user(jwt)`, and
+`_forecast_routes.recompute` trusts `X-Org-Id` instead of `resolve_org`.
+
+```
+RED (plant) — 3 failed, 3 passed
+E   AssertionError: CROSS-ORG READ — SOLO holds a membership in 00000000-0000-0000-0000-0000000000cc and none in ORG_A1, but these routes answered with something other than a refusal:
+E       POST /api/forecast/00000000-0000-0000-0000-00000000012d/recompute [victim-org-header] -> 422 {"detail":{"code":"no_statutory_tax_rate",...
+E   AssertionError: ('SOLO', '00000000-0000-0000-0000-0000000000c9', 200, '{"kind":"projection","contract":"fp1.2","currency":"RON","base_period":{"label":"2025-12-31",...
+E   assert 200 in {401, 403, 404}
+FAILED tests/engine/test_cross_org_reads.py::test_a_stranger_cannot_recompute_the_book_the_owner_can
+```
+
+**REVERT** — the copy discarded; 6 passed on the tree.
+
+**After the repair it reds on:** a non-member answered anything but 401, 403
+or 404 on the POST (a 422 that names the book's own refusal counts as a read);
+the owner not getting fp1.2 on the same period. **It cannot see:** a wall that
+holds only because the double's RLS holds while the route's own org filter is
+gone (either half alone keeps it green — `forecast-cache` PLANT 1 holds the
+cache half), or a cross-org WRITE (the route writes nothing).
+
+## B6 repair round — six plants on the verifier's defects (plan/2 B6 repair)
+
+Every plant was applied to the product file in the worktree, observed and
+reverted from a saved copy (`git status` clean of it afterwards); none is in
+product source. Reds are verbatim.
+
+**A. forecast-server-side (F2) — a partial serve's strip headline.** The gate's
+walk held the truncation as law: it compared `strip.closing_cash` with
+`bs.cash` at the last SERVED label, so the cash of 2026-10 passed as the
+closing cash of a horizon ending FY2028 (TC-11: a gate encoding the defect).
+The walk now takes a partial-refusal request (carniprod, volume_index level_pct
+-0.6) and asserts the three strip headlines equal `{refused: <the refusal's
+sentence>}`. Plant: `strip.py` guards only an empty period tuple, so a partial
+serve answers the last served month again.
+
+```
+RED (plant A)
+E   AssertionError: ('carniprod-partial', 'cumulative_fcf', {'amount_minor': -893273171, 'driver_ids': ['revenue_growth', 'volume_index', ...], 'formula': 'sum of operating and investing cash over the served periods', 'joint': False, ...})
+1 failed, 1 passed
+```
+
+**B. forecast-route — a refusal that begins in the first period.**
+`test_a_refusal_that_begins_in_the_first_period_is_200_with_nothing_served`
+(carniprod, `overrides.min_cash ["12000000"]`, opening cash about 10.0M RON, no
+priceable funding line; default want, `["strip"]` alone, and all four blocks).
+Plant: `strip.py` indexes `periods[-1]` whenever there is a shortfall.
+
+```
+RED (plant B, and the parent 63fee82)
+E   AssertionError: (None, 500, "{'error': {'code': 'internal_error', ...}}")
+E   assert 500 == 200
+IndexError: tuple index out of range
+```
+
+After the repair it reds on: a 500; a from_period other than labels[0]; a
+served_through; a strip field, series point or figure carrying an amount. It
+cannot see a refusal that begins later (the partial test beside it holds that).
+
+**C. scenario-provenance (S6) — a series point's own removal test.** The gate's
+docstring claimed series lever ids were checked; the code only checked they
+were a subset of the ids sent. It now re-derives every series point's lever ids
+from the same removal re-POSTs, and runs a second WINDOWED request (volume
+-20%, months 1-3). Against the parent it found the verifier's fcf_cumulative
+points and two defects nobody had reported: `series.funding_draw` named levers
+that do not move it, and `series.min_cash` did not name a lever whose removal
+run refuses. Plant: `series.py` tests fcf_cumulative over its own month only.
+
+```
+RED (parent 63fee82)
+E   AssertionError: agras series ('funding_draw', '2026-03') lists ['rail:volume_index', 'template:t', 'behaviour:personnel']; removing each lever in turn changes it for []
+E   AssertionError: carniprod series ('min_cash', '2026-01') lists []; removing each lever in turn changes it for ['override:interest_rate_debt']
+E   AssertionError: agras/windowed series ('fcf_cumulative', '2026-08') lists []; removing each lever in turn changes it for ['rail:volume_index']
+E   AssertionError: carniprod/windowed series ('fcf_cumulative', 'FY2027') lists []; removing each lever in turn changes it for ['rail:volume_index']
+7 failed, 2 passed
+RED (plant C)
+E   AssertionError: agras/windowed series ('fcf_cumulative', '2026-08') lists []; removing each lever in turn changes it for ['rail:volume_index']
+E   AssertionError: retail/windowed series ('fcf_cumulative', '2026-07') lists []; removing each lever in turn changes it for ['rail:volume_index']
+7 failed, 2 passed
+```
+
+It cannot see: `series.min_cash` when two levers both set the floor (the floor
+is not a line of a projected period; its test is "the served floor left the
+book's own"); slot, track and contribution figures (B8).
+
+**D. forecast-lever-reach — a lever dead on every book.** The verifier's plant:
+`dso_days` popped from the CompiledPlan at the end of `_Compiler.compile`
+(overrides, shocks and the engine's own inert nudge all become no-ops). The
+parent gate: `5 passed`. The gate now holds, across the four books, that every
+(driver, op) nudge moves a number on at least one corpus book, or on a labelled
+SYNTHETIC request (`interest_income_rate add_pp` on agras with a stated 2%
+rate: no corpus book measures a rate on cash), or is a pool key every book
+serves as nil with a zero base (`cost_behaviour.yaml#nil_pool`, evidence
+value_minor 0 — the book's evidence, not the inert sentence). Measured: 95
+nudges, 90 live on a corpus book, 1 SYNTHETIC, 4 nil pool.
+
+```
+RED (plant D)
+E   AssertionError: moves a number on no corpus book, no SYNTHETIC row shows it live and no book explains it (a lever that compiles to nothing): dso_days override, dso_days shock:add_days, dso_days shock:set
+1 failed, 5 passed
+```
+
+It still cannot see: a lever dead on ONE book and live on another, for a driver
+not wired directly to pl.revenue or pl.cost_of_sales — there the engine's
+inert sentence is taken at its word.
+
+**E. plan-gate-census — a carried registration is a debt with a name.**
+`plan_gates.json#owed` rows {what, carried_from, owed_in, closed_by}. Plant: a
+copy of the registry in which B8 has landed (`required_gates.B8 = []`) and the
+seven B6 carries are still open.
+
+```
+RED (plant E)
+  · plan_gates.json owed[0]: forecast-defaults extended over served bytes (tests/engine/test_forecast_defaults_f3.py) was carried from B6 and owed in B8, which has landed; no closed_by names the gate that carries it
+```
+
+**F. request refusals.** `"1/3"`, `"1e-1"` and `source "ai:proposal"` each
+answered 200 on the parent (three rows of
+`test_an_invalid_request_is_422_with_code_text_and_field`, `3 failed, 8
+passed`); they now answer 422 `not_exact` / `shock_source_unknown`.
+
+## vitest — fp1.2 reader canaries (plan/2 B6)
+
+| | |
+|---|---|
+| canaries | `frontend/lib/__tests__/forecastFactsReader.test.ts`, `frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx` |
+
+**SCOPE** — `readProjection` over `fp1_2_agras_served.json` (the bytes GET
+/api/forecast really serves on agras, held to the route by
+test_forecast_serving_boundary.py); `periodPayloadSnapshotId` against the
+engine's rule on the four corpus books; the magnitude band over the served FY
+aggregate of plan year one.
+
+**PLANT** — the reader pointed back at the fp1 shape (the state of the tree
+between the route change and the reader change, observed while B6 was built).
+
+```
+RED (plant)
+ Failed Tests 51
+ FAIL  frontend/lib/__tests__/forecastFactsBoundary.test.ts > the wire form the engine actually serves > reads as a projection at all
+ FAIL  frontend/pages/cfo/__tests__/forecastPage.test.tsx > the forecast page > paints a projected figure WITH its marker, never as a bare number
+```
+
+**RED (parent commit)** — forecastMagnitude.test.tsx:190-192 on d4f2b5c left
+the band by `if (!match) return;` when no basis named the source revenue: a
+payload with nothing to stand on PASSED. Both early returns are now
+assertions.
+
+**REVERT** — the reader reads fp1.2; `Tests 72 passed (72)` on the four
+forecast files, `13 passed` on forecastFactsReader.test.ts.
+
+**After the repair it reds on:** a driver losing its tier or its plan-year
+value; a convention painted as a quantity; an FY aggregate missing or not read
+as a served figure; a refused aggregate painted as a number; the TypeScript
+snapshot-id rule disagreeing with the engine's; a magnitude band with no source
+revenue behind it.
+
+<!-- ═══ plan/2 B13, minimal cut (2026-09-21): the Scenarios page on the engine ═══
+The page stops computing: every figure comes from POST /api/forecast/{id}/recompute
+through lib/forecastFacts. Two battery gates and one vitest canary. Not entered in
+plan_gates.json: the full B13 (scenario-closure, playwright) has not landed. -->
+
+## scenario-page-templates
+
+`tests/engine/test_scenario_page_templates.py`, registered in `scripts/run_battery.py`
+under the plan/2 B13 anchor.
+
+**SCOPE** — the four corpus books, each from its own anchor; the Scenarios horizon
+(monthly_months 12, total_years omitted and filled from the pack, contract 2.2); every
+template of `frontend/lib/scenarioTemplates.json` (base, recession, input_cost_inflation,
+price_pressure, working_capital_squeeze) compiled as the page compiles it and put through
+the route's wire path (PlanRequestBody -> _wire -> plan_request_from_body -> project_plan).
+Printed on every run with its GATE-WORK line. Measured: 19 projected, 1 refused by name
+(realestate/working_capital_squeeze, days_not_measured), 515 units.
+
+**PLANT 1** — the recession template's volume shock set to `"0"` in the data file
+(cost of sales held flat under a downturn: the cascade's shape, defect 0.1). Applied,
+observed, reverted byte-exact.
+
+```
+RED (plant)
+E   AssertionError: agras/recession: year-one cost of sales -7232104255 against base -7232104255 — a volume fall must reach cost of sales (defect 0.1)
+E   AssertionError: carniprod/recession: year-one cost of sales -5886554114 against base -5886554114 — a volume fall must reach cost of sales (defect 0.1)
+E   AssertionError: retail/recession: year-one cost of sales -6496103699 against base -6496103699 — a volume fall must reach cost of sales (defect 0.1)
+========================= 3 failed, 3 passed in 0.47s ==========================
+```
+
+**PLANT 2** — price_pressure pointed at `input_price_index` (cost of sales following the
+selling price, R2).
+
+```
+RED (plant)
+E   AssertionError: agras/price_pressure: cost of sales moved with the SELLING price (R2)
+E   AssertionError: carniprod/price_pressure: cost of sales moved with the SELLING price (R2)
+E   AssertionError: retail/price_pressure: cost of sales moved with the SELLING price (R2)
+========================= 3 failed, 3 passed in 0.49s ==========================
+```
+
+**RED (parent commit)** — no repair on the engine side in this commit: the engine already
+carried cost of sales with volume, held other operating income and floored cash (B4, B5).
+The repair is the page's; its parent-commit red is recorded under `scenarios-closure`.
+
+**REVERT** — the data file restored byte-exact; `6 passed`.
+
+**After the repair it reds on:** a page template the engine refuses for any reason other
+than a named book refusal (days_not_measured, rate_not_measured, cost_split_refused); a
+projected period with negative cash or an open balance sheet; recession leaving cost of
+sales flat or moving other operating income; price pressure moving cost of sales; input
+cost inflation leaving cost of sales flat or moving revenue; the working-capital squeeze
+moving revenue or EBITDA; a pool pattern expanding over nothing; zero projected templates.
+
+## scenarios-closure
+
+`scripts/check_forecast_boundary.mjs` (the forecast-boundary script, its B13 section),
+registered in `scripts/run_battery.py` under the plan/2 B13 anchor with its own work count
+(`GATE-WORK forecast-boundary-scenarios`) and canaries.
+
+**SCOPE** — the import closure of `frontend/pages/cfo/Scenarios.tsx` (static imports,
+re-exports and literal dynamic imports resolved inside frontend/; measured 78 modules),
+checked against `frontend/lib/scenarios/**` and `frontend/stores/scenario.tsx`. The old
+cascade renderers under `frontend/components/scenarios/` stay on disk (the sign-flip
+canary renders ScenarioComparison) and are printed by name as unreachable from the page,
+never counted as coverage.
+
+**PLANT** — `import { applyCascade } from "@/lib/scenarios/cascade";` added to the page.
+
+```
+RED (plant)
+FAIL — a projected figure can be painted as a fact:
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/cascade.ts through its imports. The Scenarios page computes nothing: ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/types.ts through its imports. ...
+```
+
+**RED (parent commit)** — the gate run over the parent commit's page
+(`git show HEAD:frontend/pages/cfo/Scenarios.tsx`):
+
+```
+FAIL — a projected figure can be painted as a fact:
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/baseline.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/cascade.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/covenants.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/dashboardCanon.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/levers.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/templates.ts through its imports. ...
+  · frontend/pages/cfo/Scenarios.tsx reaches frontend/lib/scenarios/types.ts through its imports. ...
+```
+
+**REVERT** — the page restored; `PASS — 14 forecast-namespace consumer(s)`.
+
+**After the repair it reds on:** the page or anything it imports reaching a module under
+`frontend/lib/scenarios/` or `frontend/stores/scenario.tsx`; the closure not reaching
+`frontend/lib/forecastFacts.ts`; the page no longer calling `forecastRecompute`; the page
+file missing.
+
+## vitest — Scenarios engine canary (plan/2 B13, minimal cut)
+
+| | |
+|---|---|
+| canary | `frontend/pages/cfo/__tests__/scenariosEngine.test.tsx` |
+
+**SCOPE** — the page rendered over `fp1_2_agras_served.json` with
+`cfoApi.forecastRecompute` the only seam; en and ro.
+
+**PLANT A** — the cascade imported by the page: `reaches no client scenario-math module`
+and `names no cascade` red (2 failed). **PLANT B** — the negative-cash guard in
+`ScenarioOutcome.CashFigure` disabled: `paints the served funding line instead` red.
+**PLANT C** — recession `-0.20` -> `-0.25` in the data file: the literal shock-set pin and
+the card text red (2 failed). **PLANT D** — `rent` added to the en chrome, then `chiria`
+to the ro chrome: the en and the ro industry-word tests red in turn. **PLANT E** — the
+body stating `total_years`: the base and all four template POST pins red (5 failed).
+
+```
+RED (plant A)
+   × the page computes nothing (one engine) > reaches no client scenario-math module, through any import
+     → the Scenarios page reaches client scenario math: frontend/lib/scenarios/cascade.ts, frontend/lib/scenarios/types.ts: expected [ …(2) ] to deeply equal []
+RED (plant B)
+   × a served negative cash is never the page's cash > paints the served funding line instead, and withholds the chart
+RED (plant D, ro)
+   × no industry word on the page > ro: base plus every template, every rendered word
+     → ro: /\bchiri(e|i|ile|a)\b/i appears on the Scenarios page
+```
+
+**RED (parent commit)** — the parent commit's page against this suite: the boundary
+tests red, and every template/render test reds with `Unable to find an element by:
+[data-testid="scenarios-outcome-table"]` (the page never asked the engine).
+
+**REVERT** — every plant restored byte-exact; `Tests 17 passed (17)`.
+
+**After the repair it reds on:** client scenario math in the page's closure; a template
+POSTing anything but its pinned set (or a body stating total_years); a template the data
+file declares that the suite does not pin; a 409/422 painting anything but the engine's
+sentence, or painting the previous template's figures while a new one loads; an industry
+word in the rendered page (en, ro); a served negative cash painted as cash or drawn on the
+chart.
+
+<!-- ═══ plan/2 B13 repair (2026-09-21): arithmetic planted in the page stayed green ═══
+An adversarial review of feat/scenarios-engine @ adc994a planted arithmetic in the page's
+own files. Every plant passed forecast-boundary, scenarios-closure and the vitest canary.
+Two repairs, one per half: the static gate reads the page-owned files for value reads, and
+the canary asserts that every digit on the rendered page is served. -->
+
+## scenarios-closure — the page-owned files read no value (B13 repair)
+
+`scripts/check_forecast_boundary.mjs`, the same gate as `scenarios-closure` above. Two
+changes:
+
+1. **The `<ProjectedAmount>` presence test reads code, not prose.** The rule "a `.tsx`
+   that reaches a projected value must use `<ProjectedAmount>`" tested the RAW source.
+   Scenarios.tsx's header comment names the primitive (`and <ProjectedAmount>. No delta
+   column…`), so the comment alone satisfied the rule and it never fired on the page.
+   The reviewer's own evidence: the same plant with that comment reworded went red. The
+   presence test now runs on `presenceCode(src)` (`stripProse`, then trailing `//`
+   comments). That errs toward stripping more, because for a presence test a false red
+   is loud and a false green is silent.
+2. **A new rule for the page-owned files in the closure** (`pages/cfo/Scenarios.tsx`,
+   `components/scenarios/*`, `lib/scenarioTemplates.ts`), with comments stripped by
+   `absenceCode`. That stripper errs toward stripping less: whole `//` lines go first,
+   then only block comments that start a line or a JSX expression. It reds on:
+   `unwrapProjected` or `projectedDisplay`, named at all; `amountMinor` / `amount_minor`
+   in any spelling, including bracket access; `as any`, `as unknown`, `<any>`, or a
+   ts-ignore / ts-expect-error / ts-nocheck directive; a namespace or dynamic import of
+   lib/forecastFacts; fewer than three page-owned code files found, or the page or
+   ScenarioOutcome missing from them.
+   Scope printed on every run as `page-owned, checked for value reads and type escapes:
+   <path>` (4 files). Two of those lines are battery canaries.
+
+**PLANT A** (the rendered form is A2): in Scenarios.tsx, `unwrapProjected(baseView.figure("pl.revenue",
+"FY2026"), …) - 1`, painted through `Intl.NumberFormat` as `<p data-testid="plant-delta">`.
+The header comment was left intact.
+**PLANT B** — in Scenarios.tsx, `Number((baseView.figure(…) as any)["amountMinor"]) / 100 * 1.1`
+painted as `<p data-testid="plant-scaled">`.
+**PLANT C** — in ScenarioOutcome.tsx, a delta row: `unwrapProjected(template revenue)/100 -
+unwrapProjected(base revenue)/100`, painted with the table's `format()`.
+**PLANT D** — in ScenarioOutcome.tsx, `const plantD = (f) => unwrapProjected(f, "", (m) => m * 2)`
+placed between `// the old cascade lived under lib/scenarios/*` and `/* end of the plant */`.
+Block-first stripping would open a "block" at the `/*` in the `//` line and swallow the
+plant.
+
+```
+GREEN (plants A, B, C against the gate as it stood at adc994a)
+exit 0 — PASS — 14 forecast-namespace consumer(s); no laundering cast, no raw-wire read, ...
+
+RED (plant A, repaired gate) exit 1
+  · frontend/pages/cfo/Scenarios.tsx reaches a projected VALUE but does not use <ProjectedAmount>. ...
+  · frontend/pages/cfo/Scenarios.tsx:50 names unwrapProjected — the door that hands over a projected number ("unwrapProjected"). ...
+RED (plant B) exit 1
+  · frontend/pages/cfo/Scenarios.tsx:318 reads amountMinor / amount_minor — the projected amount itself ("amountMinor"). ...
+  · frontend/pages/cfo/Scenarios.tsx:318 casts to any — a way around the opaque ProjectedMinor type ("as any"). ...
+RED (plant C) exit 1
+  · frontend/components/scenarios/ScenarioOutcome.tsx:26 names unwrapProjected — the door that hands over a projected number ("unwrapProjected"). ...
+RED (plant D) exit 1
+  · frontend/components/scenarios/ScenarioOutcome.tsx:245 names unwrapProjected — ...
+```
+
+**REVERT** — both files restored byte-exact (Scenarios.tsx sha `7daf1346`,
+ScenarioOutcome.tsx sha `fc26bfdf`); `PASS`, `--probe-vacuity` `PROBE OK`.
+
+**After the repair it reds on:** everything listed for scenarios-closure above. It also
+reds on a page-owned Scenarios file that names unwrapProjected or projectedDisplay, reads
+amountMinor in any form, or carries a type escape or a namespace/dynamic import of
+lib/forecastFacts, and on a forecast-namespace `.tsx` whose only mention of
+`<ProjectedAmount>` is a comment.
+**CANNOT SEE:** a value reached through a key built at runtime from a plain import
+(`Object.values(fig)`, `fig[k]`); a shared, non-page-owned module that computes and hands
+the page a string. The DOM half below catches both.
+
+## vitest — Scenarios engine canary: every digit is served (B13 repair)
+
+`frontend/pages/cfo/__tests__/scenariosEngine.test.tsx`, section 8, and
+`expectEveryDigitServed` called from sections 3, 5, 6, 7. Every text node on the rendered
+page that carries a digit must be one of four things:
+
+- inside `[data-projected="true"]` (a `<ProjectedAmount>`);
+- a served sentence, verbatim (runway, funding-rate basis, a refusal);
+- the served runway month count, in the runway row;
+- made of digits that all belong to served period labels.
+
+Two regions are out of scope, by name: the template picker (declared shock values) and
+the lever rail. The test counts what it checked, so it cannot pass vacuously: more than
+ten projected nodes, and more checked nodes than projected ones.
+
+```
+RED (plant A2)  × every digit ... > en: base plus every template   (and ro, and the digit checks in sections 3, 5, 6)
+     → a number is painted on the Scenarios page that is not a served figure, label or sentence:
+       expected [ '"<the planted delta>" (in plant-delta)' ] to deeply equal []      Tests 6 failed | 20 passed (26)
+RED (plant B)   the same six; offender '"<the planted figure>" (in plant-scaled)'   Tests 6 failed | 20 passed (26)
+RED (plant C)   × every digit ... > en / ro; offender '"RON 0" (in plant-delta-row)' Tests 2 failed | 24 passed (26)
+```
+
+(Plant C paints "RON 0" because the mock serves the same payload to both columns. That is
+still a number the page computed, and it reds.)
+
+**REVERT** — `Tests 26 passed (26)`.
+
+**After the repair it reds on:** a number painted anywhere on the page, outside the
+picker and the lever rail, that is not a served figure inside `<ProjectedAmount>`, a
+served sentence, the served runway count or a served period label.
+**CANNOT SEE:** a computed number painted INSIDE the template picker or the lever rail.
+The static rule above covers the picker's file. Also out of reach: pixels, and a number
+drawn as SVG geometry rather than text.

@@ -1,0 +1,112 @@
+# COST BEHAVIOUR — the pools an operating cost splits into and how each
+# part moves (plan_contract_v2 section 5, S1; plan/2 B4b).
+#
+# Pack data, never code (TC-10): the prefix-to-pool map, the fixed /
+# variable classification of each prefix group, the two cutoffs and every
+# sentence the pool split serves live here and are read through
+# src/engine/forecast/pools.py. Addresses are written
+# packs/forecast/cost_behaviour.yaml#<key>. A value is a decimal string
+# (parsed exactly, never through a float); a sentence carries no numeral —
+# where it names an amount measured from the book it writes {amount}, which
+# the engine renders from the integer it used.
+schema_version: "cost_behaviour/1"
+pack_id: "forecast-cost-behaviour"
+
+# The served opex pools, in served order (3a.2), each with the RAS account
+# prefixes it collects. Longest prefix wins; a prefix listed under two pools
+# refuses at load; a row matching no prefix goes to unallocated_operating.
+prefix_to_pool:
+  personnel: ["641", "642", "643", "644", "645", "646"]
+  energy_utilities: ["605"]
+  rent_insurance: ["612", "613", "614"]
+  transport_logistics: ["624"]
+  third_party_services: ["611", "622", "623", "625", "626", "627", "628"]
+  other_operating: ["635", "652", "658"]
+  materials_non_inventory: ["602", "603", "604", "608", "609", "615", "617", "618"]
+
+# The convention classification rung (5.2, rung 3): each prefix group is
+# fixed or variable by the NATURE of the cost. A pool's fixed share is its
+# fixed-classified amount over its amount. A prefix in neither list is
+# refused at load: a cost that is neither is a classification gap, not a
+# silent half.
+nature:
+  fixed: ["641", "642", "643", "644", "645", "646", "612", "613", "614", "635"]
+  variable: ["605", "624", "611", "622", "623", "625", "626", "627", "628",
+             "652", "658", "602", "603", "604", "608", "609", "615", "617", "618"]
+
+# 5.1: when the unallocated share of operating cost exceeds this, the split
+# refuses by name and one pool operating_costs is served at the aggregate
+# classification share of the rows that did classify.
+max_unallocated_share:
+  value: "0.10"
+  sentence: >-
+    operating costs could not be split into pools: {amount} of them fall
+    under no pooled account prefix, more than the pack allows, so they are
+    carried as one pool at the aggregate classification share of the rows
+    that did classify
+
+# 5.2 cap: an opex pool whose variable base would exceed this share of the
+# anchor's revenue cannot move with sales volume and is served fully fixed.
+variable_base_max_share_of_revenue:
+  value: "1.0"
+  sentence: >-
+    this cost pool is larger than revenue, so it cannot move with sales
+    volume
+
+cogs_variable:
+  sentence: >-
+    cost of sales follows volume in full: its fixed share is nil by
+    convention, and only a behaviour override moves it
+
+classification:
+  sentence: >-
+    fixed share by the convention classification of this pool's account
+    prefixes by the nature of the cost (fixed-classified {amount} of the
+    pool)
+
+nil_pool:
+  sentence: >-
+    this cost pool is nil on this book
+
+# A pool whose anchor base is a net credit — on the retail corpus book the
+# supplier discounts received (609) outweigh the non-inventory materials
+# they sit with. A credit that scales with purchases follows volume.
+negative_pool:
+  sentence: >-
+    this cost pool is a net credit on this book, so it follows sales volume
+    in full
+
+unallocated_follows_allocated:
+  sentence: >-
+    the residual operating cost under no pooled prefix ({amount}) follows
+    the amount-weighted fixed share of the pooled operating costs
+
+# The anchor's line items did not reach the projection at all (a payload
+# built without them, or a synthetic book). Nothing can be split, so the
+# whole operating cost is one pool that follows volume in full — the
+# pre-B4 behaviour, stated by name rather than assumed.
+no_line_items:
+  sentence: >-
+    no statement line items reached this projection, so operating costs
+    cannot be split into pools and are carried as one pool that follows
+    sales volume in full
+
+# The sum of the anchor's operating-cost rows disagrees with the assembled
+# operating cost, so the rows cannot be the pools of that figure.
+rows_disagree:
+  sentence: >-
+    the operating-cost line items sum to a different amount than the
+    assembled operating cost, so they cannot be split into pools of it;
+    the assembled figure is carried as one pool that follows sales volume
+    in full
+
+# The assembled statement carries NO total for a cost line (the key is
+# missing or null). Absent is never nil: the pool has no base, its driver
+# is served unavailable and the projection is refused by that driver's
+# name (plan/2 B4 repair; owner ruling "absent inputs refuse").
+absent_total:
+  sentence: >-
+    the assembled statement carries no total for this cost line while its
+    line items sum to {amount}; an absent total is never read as nil, so
+    the pool has no base to project and the plan is refused until the
+    period is re-processed with the total present

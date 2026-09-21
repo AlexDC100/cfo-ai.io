@@ -20,10 +20,19 @@
 //   instead of "+X%". TypeScript catches any attempt to render a null pct
 //   as a percentage string.
 //
-// Zero-denominator handling: never divide by zero. When the comparison
-// value is 0, `pct` becomes null (treated like a ratio delta — no
-// meaningful percentage change exists when starting from zero). The
-// `absolute` field still carries the full change.
+// Zero and sign handling (plan_contract_v2 section 7, S7): the ONE
+// classifier (lib/changeKind.ts) decides whether a percentage exists. A
+// change from zero, to zero, or across sign carries `pct: null` and a
+// `change.kind` the renderer states in WORDS beside the absolute change —
+// 6.1M becoming -107.6M is "turned negative", never "-19x" (defect 0.4).
+// The `absolute` field still carries the full change.
+
+import {
+  ROUNDED_MONEY_ZERO_FLOOR,
+  classifyChange,
+  deltaPctNumber,
+  type ChangeResult,
+} from "@/lib/changeKind";
 
 export interface Delta {
   /** The arithmetic difference: primary − comparison. Signed. */
@@ -31,19 +40,22 @@ export interface Delta {
   /** Relative change as a decimal fraction (0.05 = +5%). NULL when:
    *  - The underlying value is itself a ratio/percentage (delta must be
    *    rendered in percentage points, not percent-of-percent)
-   *  - The comparison value is 0 (would divide by zero) */
+   *  - The change is not the classifier's "compared" with a non-zero
+   *    base (from zero, to zero, or across sign) */
   pct: number | null;
+  /** The classifier's verdict for an ABSOLUTE value; null for a RATIO
+   *  delta (rendered in percentage points, never classified). */
+  change: ChangeResult | null;
 }
 
 /** Delta for an ABSOLUTE value (currency, count, etc.). Returns:
  *  - absolute: primary − comparison (signed)
- *  - pct: (primary − comparison) / |comparison| OR null if comparison === 0 */
+ *  - change: classifyChange(comparison, primary) at the rounded-money floor
+ *  - pct: the classifier's delta_pct, or null for every other kind */
 export function delta(primary: number, comparison: number): Delta {
   const absolute = primary - comparison;
-  if (comparison === 0) {
-    return { absolute, pct: null };
-  }
-  return { absolute, pct: absolute / Math.abs(comparison) };
+  const change = classifyChange(comparison, primary, ROUNDED_MONEY_ZERO_FLOOR);
+  return { absolute, pct: deltaPctNumber(change), change };
 }
 
 /** Delta for a RATIO value (margin, percentage, multiple). Returns:
@@ -57,6 +69,7 @@ export function deltaRatio(primary: number, comparison: number): Delta {
   return {
     absolute: primary - comparison,
     pct: null,
+    change: null,
   };
 }
 

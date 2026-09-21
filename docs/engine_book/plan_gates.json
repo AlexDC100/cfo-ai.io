@@ -1,0 +1,609 @@
+{
+  "schema": "plan_gates/2",
+  "contract": "plan_contract_v2 section 26; rulings in docs/engine_book/plan_rulings.md",
+  "checked_by": "scripts/check_plan_gates.py (battery gate plan-gate-census)",
+  "entry_fields": {
+    "id": "unique; defaults to gate. Shared runners (vitest, playwright) use <gate>:<batch>",
+    "gate": "the scripts/run_battery.py gate name",
+    "rows": "contract rows F1-F10 / S1-S8 this gate carries, or 'supporting' (26.3)",
+    "landed_in": "the batch that registered the entry",
+    "registration_only": "true when an existing, passing test was registered with no repair (0.5)",
+    "test_files": "what the gate runs",
+    "canaries": "optional; each must be a canary of the battery gate (and, for vitest/playwright, in the runner's CANARIES)",
+    "plant_log": "optional gates.md heading; defaults to the gate name",
+    "retired_in": "optional; only for a retirement contract 28.3 names (forecast-get-b4-parity, B6); the entry and its plant log stay, the battery checks stop",
+    "required_rows": "keyed by batch: the rows whose 26.1 Lands column is that batch, each met only by an entry landed in that batch (B21: any)",
+    "required_gates": "keyed by batch: every battery gate 28.3 says that batch first registers (vitest/playwright entries use id <gate>:<batch>), each met only by an entry landed in that batch; B21 names every 26.1 battery gate",
+    "owed": "top-level list: a registration a batch carried instead of landing {what, carried_from, owed_in, closed_by}; once owed_in lands, closed_by must name an entry id or the census reds"
+  },
+  "required_rows": {
+    "B0": [
+      "F5",
+      "F10"
+    ],
+    "B1": [
+      "S7"
+    ],
+    "B2": [],
+    "B3": [
+      "F3"
+    ],
+    "B4a": [],
+    "B4b": [],
+    "B5": [
+      "F1",
+      "F6",
+      "S1",
+      "S3"
+    ],
+    "B6": [
+      "F2",
+      "F4",
+      "F8",
+      "F9",
+      "S4",
+      "S6"
+    ]
+  },
+  "required_gates": {
+    "B0": [
+      "forecast-model",
+      "forecast-serving-boundary",
+      "forecast-drivers",
+      "forecast-ai-write-path",
+      "forecast-boundary",
+      "plan-gate-census"
+    ],
+    "B1": [
+      "sign-flip",
+      "vitest"
+    ],
+    "B2": [
+      "forecast-base-parity"
+    ],
+    "B3": [
+      "forecast-authority",
+      "forecast-defaults"
+    ],
+    "B4a": [
+      "statements-anchor-gap"
+    ],
+    "B4b": [
+      "forecast-pools"
+    ],
+    "B5": [
+      "forecast-balance",
+      "scenario-funding-line",
+      "scenario-cost-behaviour",
+      "forecast-magnitude",
+      "period-loader-parity",
+      "forecast-get-b4-parity",
+      "forecast-debt-timing"
+    ],
+    "B6": [
+      "forecast-server-side",
+      "forecast-provenance",
+      "forecast-byte-stability",
+      "forecast-latency",
+      "forecast-lever-reach",
+      "scenario-one-engine",
+      "scenario-provenance",
+      "forecast-cache",
+      "vitest"
+    ]
+  },
+  "owed": [
+    {
+      "what": "forecast-defaults extended over served bytes (tests/engine/test_forecast_defaults_f3.py)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-balance floor raised over the recompute route's runs",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "scenario-funding-line extended through the route (test_scenario_funding_line.py), beyond the partial-refusal tests of test_forecast_route.py",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-model clock-attribute ban (perf_counter, process_time under src/engine/forecast*)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "fp1 in-process gateway/adapter classes, adapter.exact_minor and their fp1-only tests deleted or moved onto fp1.2",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "forecast-levers F1 extended over lever-reach nudges and removal runs (test_forecast_levers_f1.py)",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    },
+    {
+      "what": "stable pack codes for AssumptionError / ShortfallRefusal / StatementsRebuildError refusals; GET bad-horizon 422 as {code,text,field}; a packed upper bound for min_cash",
+      "carried_from": "B6",
+      "owed_in": "B8",
+      "closed_by": null
+    }
+  ],
+  "gates": [
+    {
+      "id": "forecast-model",
+      "gate": "forecast-model",
+      "rows": [
+        "F1"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_model.py"
+      ],
+      "canaries": [
+        "test_f1_every_projected_period_closes_to_zero",
+        "test_f1_one_cent_is_enough_to_red_it",
+        "test_f1_the_cash_flow_statement_articulates_the_balance_sheet",
+        "test_f3_no_clock_is_read_and_the_calendar_comes_from_the_book"
+      ]
+    },
+    {
+      "id": "forecast-serving-boundary",
+      "gate": "forecast-serving-boundary",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_serving_boundary.py"
+      ]
+    },
+    {
+      "id": "forecast-drivers",
+      "gate": "forecast-drivers",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_drivers.py"
+      ]
+    },
+    {
+      "id": "forecast-ai-write-path",
+      "gate": "forecast-ai-write-path",
+      "rows": [
+        "F5"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "tests/engine/test_forecast_no_ai_write_path.py"
+      ]
+    },
+    {
+      "id": "forecast-boundary",
+      "gate": "forecast-boundary",
+      "rows": [
+        "F2"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "scripts/check_forecast_boundary.mjs"
+      ]
+    },
+    {
+      "id": "plan-gate-census",
+      "gate": "plan-gate-census",
+      "rows": [
+        "F10"
+      ],
+      "landed_in": "B0",
+      "registration_only": true,
+      "test_files": [
+        "scripts/check_plan_gates.py",
+        "docs/engine_book/plan_gates.json"
+      ]
+    },
+    {
+      "id": "sign-flip",
+      "gate": "sign-flip",
+      "rows": [
+        "S7"
+      ],
+      "landed_in": "B1",
+      "test_files": [
+        "tests/engine/test_change_kind.py",
+        "tests/engine/test_comparatives.py",
+        "tests/fixtures/contracts/change_kind_truth_table.json"
+      ],
+      "canaries": [
+        "test_the_python_classifier_matches_every_truth_table_row",
+        "test_a_cross_sign_column_carries_its_kind_and_no_percentage"
+      ]
+    },
+    {
+      "id": "vitest:B1",
+      "gate": "vitest",
+      "rows": [
+        "S7"
+      ],
+      "landed_in": "B1",
+      "test_files": [
+        "frontend/lib/__tests__/changeKind.test.ts",
+        "frontend/components/scenarios/__tests__/signFlip.test.tsx"
+      ],
+      "canaries": [
+        "frontend/lib/__tests__/changeKind.test.ts",
+        "frontend/components/scenarios/__tests__/signFlip.test.tsx"
+      ],
+      "plant_log": "vitest — sign-flip canaries (plan/2 B1)"
+    },
+    {
+      "id": "forecast-base-parity",
+      "gate": "forecast-base-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B2",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_base_parity.py",
+        "tests/engine/fixtures/forecast/base_b3_growth0.json"
+      ],
+      "canaries": [
+        "SCOPE forecast-base-parity (parity mode, plan/2 B4b)",
+        "366-day plan year per book",
+        "bound inputs"
+      ],
+      "plant_log": "forecast-base-parity"
+    },
+    {
+      "id": "forecast-authority",
+      "gate": "forecast-authority",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B3",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_driver_authority.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-authority (plan/2 B3, contract 4)",
+        "covered concepts",
+        "each concept compared alone and after the hand-over"
+      ]
+    },
+    {
+      "id": "forecast-defaults",
+      "gate": "forecast-defaults",
+      "rows": [
+        "F3"
+      ],
+      "landed_in": "B3",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_tier_ladders.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-defaults (engine half, plan/2 B3)",
+        "jurisdiction source per corpus book",
+        "responses with an absent driver that projected",
+        "built step shapes",
+        "ratio-table quotes checked"
+      ]
+    },
+    {
+      "id": "statements-anchor-gap",
+      "gate": "statements-anchor-gap",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B4a",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_statements_anchor_gap.py"
+      ],
+      "canaries": [
+        "SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
+        "floor from packs/ro/statements_anchor.yaml#anchor_gap",
+        "convention per document",
+        "mirrored contra rows checked"
+      ],
+      "plant_log": "statements-anchor-gap"
+    },
+    {
+      "id": "forecast-pools",
+      "gate": "forecast-pools",
+      "rows": [
+        "S1"
+      ],
+      "landed_in": "B4b",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_pools.py",
+        "packs/forecast/cost_behaviour.yaml"
+      ],
+      "canaries": [
+        "SCOPE forecast-pools (plan/2 B4b, contract 5.6)",
+        "capped pools per book",
+        "nil pools per book"
+      ],
+      "plant_log": "forecast-pools"
+    },
+    {
+      "id": "forecast-balance",
+      "gate": "forecast-balance",
+      "rows": [
+        "F1"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_levers_f1.py",
+        "src/engine/forecast/levers.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-balance (plan/2 B5, gate row F1)",
+        "run kinds covered: base, plan"
+      ],
+      "plant_log": "forecast-balance"
+    },
+    {
+      "id": "scenario-funding-line",
+      "gate": "scenario-funding-line",
+      "rows": [
+        "S3"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_scenario_funding_line.py",
+        "src/engine/forecast/levers.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-funding-line (plan/2 B5, contract 6.4-6.6, S3 engine half)",
+        "ShortfallRefusal cells (6.5)",
+        "runway annual tail: bracket"
+      ],
+      "plant_log": "scenario-funding-line"
+    },
+    {
+      "id": "scenario-cost-behaviour",
+      "gate": "scenario-cost-behaviour",
+      "rows": [
+        "S1"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_scenario_cost_behaviour.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-cost-behaviour (plan/2 B5, contract 5.6)",
+        "law precondition met on"
+      ],
+      "plant_log": "scenario-cost-behaviour"
+    },
+    {
+      "id": "forecast-magnitude",
+      "gate": "forecast-magnitude",
+      "rows": [
+        "F6"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_magnitude_f6.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-magnitude (plan/2 B5, gate row F6 engine half)",
+        "bands rendered from the run"
+      ],
+      "plant_log": "forecast-magnitude"
+    },
+    {
+      "id": "period-loader-parity",
+      "gate": "period-loader-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_load_period_rows.py",
+        "src/engine/api/_forecast_history.py"
+      ],
+      "canaries": [
+        "SCOPE period-loader-parity (plan/2 B5, contract 1.4)"
+      ],
+      "plant_log": "period-loader-parity"
+    },
+    {
+      "id": "forecast-get-b4-parity",
+      "gate": "forecast-get-b4-parity",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_get_b4_parity.py",
+        "tests/engine/fixtures/forecast/get_b4.json"
+      ],
+      "canaries": [
+        "SCOPE forecast-get-b4-parity (plan/2 B5, contract 28.3 B5)",
+        "allowed org-row fields ['company_name']"
+      ],
+      "plant_log": "forecast-get-b4-parity",
+      "retired_in": "B6"
+    },
+    {
+      "id": "forecast-debt-timing",
+      "gate": "forecast-debt-timing",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B5",
+      "registration_only": false,
+      "test_files": [
+        "tests/engine/test_forecast_debt_timing.py",
+        "packs/forecast/levers.yaml"
+      ],
+      "canaries": [
+        "SCOPE forecast-debt-timing (plan/2 B5, contract 6.7)"
+      ],
+      "plant_log": "forecast-debt-timing"
+    },
+    {
+      "id": "forecast-server-side",
+      "gate": "forecast-server-side",
+      "rows": [
+        "F2"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_recompute_f2.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-server-side (plan/2 B6, gate row F2)"
+      ],
+      "plant_log": "forecast-server-side"
+    },
+    {
+      "id": "forecast-provenance",
+      "gate": "forecast-provenance",
+      "rows": [
+        "F4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_provenance_f4.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-provenance (plan/2 B6, gate row F4)"
+      ],
+      "plant_log": "forecast-provenance"
+    },
+    {
+      "id": "forecast-byte-stability",
+      "gate": "forecast-byte-stability",
+      "rows": [
+        "F8"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_byte_stability_f8.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-byte-stability (plan/2 B6, gate row F8)"
+      ],
+      "plant_log": "forecast-byte-stability"
+    },
+    {
+      "id": "forecast-latency",
+      "gate": "forecast-latency",
+      "rows": [
+        "F9"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_recompute_f9.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-latency (plan/2 B6, gate row F9, in process)"
+      ],
+      "plant_log": "forecast-latency"
+    },
+    {
+      "id": "forecast-lever-reach",
+      "gate": "forecast-lever-reach",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_lever_reach.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-lever-reach (plan/2 B6, contract 12)"
+      ],
+      "plant_log": "forecast-lever-reach"
+    },
+    {
+      "id": "scenario-one-engine",
+      "gate": "scenario-one-engine",
+      "rows": [
+        "S4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_scenario_one_engine.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-one-engine (plan/2 B6, gate row S4"
+      ],
+      "plant_log": "scenario-one-engine"
+    },
+    {
+      "id": "scenario-provenance",
+      "gate": "scenario-provenance",
+      "rows": [
+        "S6"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_scenario_provenance.py"
+      ],
+      "canaries": [
+        "SCOPE scenario-provenance (plan/2 B6, gate row S6)"
+      ],
+      "plant_log": "scenario-provenance"
+    },
+    {
+      "id": "forecast-cache",
+      "gate": "forecast-cache",
+      "rows": [
+        "supporting"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "tests/engine/test_forecast_cache.py"
+      ],
+      "canaries": [
+        "SCOPE forecast-cache (plan/2 B6, contract 1.5)"
+      ],
+      "plant_log": "forecast-cache"
+    },
+    {
+      "id": "vitest:B6",
+      "gate": "vitest",
+      "rows": [
+        "F2",
+        "F4"
+      ],
+      "landed_in": "B6",
+      "test_files": [
+        "frontend/lib/__tests__/forecastFactsReader.test.ts",
+        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx"
+      ],
+      "canaries": [
+        "frontend/lib/__tests__/forecastFactsReader.test.ts",
+        "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx"
+      ],
+      "plant_log": "vitest — fp1.2 reader canaries (plan/2 B6)"
+    }
+  ]
+}

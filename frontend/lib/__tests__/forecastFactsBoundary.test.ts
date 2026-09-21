@@ -70,14 +70,14 @@ import { toDisplay } from "@/lib/servedFacts";
 import { formatAmount } from "@/lib/amountFormat";
 
 const REPO = resolve(__dirname, "../../..");
-const FP1 = resolve(REPO, "tests/engine/fixtures/forecast/fp1_agras.json");
+const FP1 = resolve(REPO, "tests/engine/fixtures/forecast/fp1_2_agras.json");
 // The SERVED wire form — what `ProjectionGateway.as_dict()` really puts on the
 // wire, and therefore what a browser really receives. See the round-trip
 // describe block near the bottom of this file for why it is here and what its
 // absence cost.
 const FP1_SERVED = resolve(
   REPO,
-  "tests/engine/fixtures/forecast/fp1_agras_served.json",
+  "tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 const AGRAS = resolve(REPO, "tests/engine/fixtures/firm/saga_10_col_agras.json");
 
@@ -282,7 +282,7 @@ describe("every projected figure resolves to its drivers", () => {
 
   it("a figure whose assumptions do not resolve is refused, not numbered", () => {
     const root = JSON.parse(readFileSync(FP1, "utf8"));
-    root.figures[0].assumption_ids = ["a_driver_nobody_declared"];
+    root.figures[0].driver_ids = ["a_driver_nobody_declared"];
     const v = readProjection(root);
     const figure = v!.figure("revenue", "FY+1");
     expect(isProjectionRefusal(figure)).toBe(true);
@@ -351,7 +351,7 @@ describe("fp1 constants agree with the engine's own contract module", () => {
   );
 
   it("the version and the discriminant", () => {
-    expect(contractPy).toContain(`CONTRACT_VERSION = "${FORECAST_CONTRACT_VERSION}"`);
+    expect(contractPy).toContain(`PLAN_CONTRACT_VERSION = "${FORECAST_CONTRACT_VERSION}"`);
     expect(contractPy).toContain(`KIND = "${PROJECTION_KIND}"`);
   });
 
@@ -482,19 +482,44 @@ describe("the wire form the engine actually serves", () => {
     expect(() => assertNoActualProvenance(root)).not.toThrow();
   });
 
-  it("still reads the unmistakable amount name, so neither can be dropped", () => {
-    // Both names ride on the wire and carry the identical integer. The
-    // unmistakable one exists so no actuals consumer reaches it by habit;
-    // the contract's one exists so the payload reads back. Emitting only one
-    // is what caused the em-dash above, in either direction.
-    const figures = (served() as { figures: Record<string, unknown>[] }).figures;
-    for (const f of figures) {
-      expect(f.amount_minor).toBe(f.amount_minor_projected);
-      expect(f.assumption_ids).toEqual(
-        (f.basis as { id: string }[]).map((a) => a.id),
-      );
-      expect(f[PROJECTED_MARKER]).toBe(true);
+  it("the REAL served fp1.2 bytes: every figure is kinded, integer and resolves", () => {
+    // plan/2 B6 retires the fp1 pin "amount_minor === amount_minor_projected
+    // and assumption_ids === basis ids": fp1.2 carries ONE amount name, a
+    // figure kind instead of a marker, and ids instead of basis prose. What
+    // replaces it is read off the bytes GET /api/forecast really serves on
+    // agras (fp1_2_agras_served.json, held to the route by
+    // test_forecast_serving_boundary.py).
+    const real = JSON.parse(
+      readFileSync(
+        resolve(REPO, "tests/engine/fixtures/forecast/fp1_2_agras_served.json"),
+        "utf8",
+      ),
+    ) as {
+      figures: Record<string, unknown>[];
+      drivers: Record<string, unknown>;
+      conventions: Record<string, unknown>;
+    };
+    expect(real.figures.length).toBeGreaterThan(500);
+    for (const f of real.figures) {
+      expect(["projected", "projected_aggregate"]).toContain(f.kind);
+      expect(Number.isInteger(f.amount_minor)).toBe(true);
+      expect("basis" in f).toBe(false);
+      expect("amount_minor_projected" in f).toBe(false);
+      const ids = f.driver_ids as string[];
+      expect(ids.length).toBeGreaterThan(0);
+      for (const id of ids) {
+        expect(id in real.drivers || id in real.conventions).toBe(true);
+      }
     }
+    const view = readProjection(real);
+    expect(view).not.toBeNull();
+    const painted = view!.figures().filter(isProjectedFigure);
+    expect(painted.length).toBe(real.figures.length);
+    // an FY aggregate is a SERVED total, read like any figure (F2)
+    expect(view!.horizonAnnual.length).toBe(1);
+    expect(
+      isProjectedFigure(view!.figure("pl.revenue", view!.horizonAnnual[0])),
+    ).toBe(true);
   });
 });
 
@@ -590,7 +615,7 @@ describe("the producer-facing constants agree with the engine's", () => {
 describe("a driver value the payload does not state reads as ABSENT", () => {
   const withValues = (values: unknown) => {
     const root = JSON.parse(readFileSync(FP1, "utf8"));
-    root.assumptions[0].values = values;
+    root.drivers.revenue_growth.values = values;
     return readProjection(root)!.figure("revenue", "FY+1");
   };
 

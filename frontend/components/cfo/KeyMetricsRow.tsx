@@ -8,7 +8,11 @@
 // magnitude — "295,1 M" beside "17,7 M", never "295,1 M" beside "17.703.055".
 // Values convert to the display currency HERE (one place, the shared
 // useConvertedAmounts hook Simple also reads) and render through <Amount>;
-// the YoY delta is a chip with <Amount kind="percent">.
+// the YoY delta is a chip with <Amount kind="percent" change>: the one
+// classifier (lib/changeKind.ts, plan_contract_v2 section 7) decides, so a
+// change from zero, to zero or across sign shows the money change and its
+// words ("turned negative"), never a percent — EBITDA 54.4M to −20.3M used
+// to read "−137.2%" (defect 0.4).
 //
 // PROVENANCE rides on the item. The page builds it ONCE beside the figure
 // (`lib/headlineProvenance`) and passes the same object to Simple's twins,
@@ -23,12 +27,51 @@ import { Amount, AmountGroup } from "@/components/instrument/Amount";
 import type { AmountProvenance } from "@/components/instrument/Provenance";
 import { Chip } from "@/components/instrument/Panel";
 import { useConvertedAmounts } from "@/components/cfo/simple/convertedAmounts";
+import {
+  ROUNDED_MONEY_ZERO_FLOOR,
+  classifyChange,
+  deltaPctNumber,
+  isWordKind,
+  type ChangeResult,
+} from "@/lib/changeKind";
+
+/** A vs-last-period move: the two values in the statement currency, never
+ *  a pre-divided ratio (a ratio cannot tell a flip from a same-sign move). */
+export interface MetricTrend {
+  base: number;
+  current: number;
+  prevLabel: string;
+}
+
+/** The chip for a trend: percent for a same-sign move, the converted money
+ *  change plus words for every other kind. */
+export function TrendChange({
+  change,
+  convertedDelta,
+  currency,
+}: {
+  change: ChangeResult;
+  convertedDelta: number | null;
+  currency: string;
+}) {
+  const words = isWordKind(change.kind) || change.deltaPct === null;
+  return (
+    <>
+      {words && (
+        <span className="mr-1">
+          <Amount value={convertedDelta} currency={currency} signed />
+        </span>
+      )}
+      <Amount kind="percent" value={deltaPctNumber(change)} change={change} fractionDigits={1} />
+    </>
+  );
+}
 
 export interface KeyMetricItem {
   label: string;
   desc: string;
   value: number;
-  trend: { pct: number; prevLabel: string } | null;
+  trend: MetricTrend | null;
   testid: string;
   /** Where the figure came from, when the payload says. Omitted or null
    *  → the figure renders without the affordance. */
@@ -38,6 +81,10 @@ export interface KeyMetricItem {
 export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; currency: string }) {
   const { converted, symbol: displaySymbol } = useConvertedAmounts(
     items.map((it) => it.value),
+    currency,
+  );
+  const { converted: convertedDeltas } = useConvertedAmounts(
+    items.map((it) => (it.trend ? it.trend.current - it.trend.base : null)),
     currency,
   );
   return (
@@ -54,6 +101,7 @@ export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; cur
             value={converted[i] ?? 0}
             displayCurrency={displaySymbol}
             trend={it.trend}
+            convertedDelta={convertedDeltas[i] ?? null}
             testid={it.testid}
             provenance={it.provenance ?? null}
           />
@@ -72,6 +120,7 @@ function KeyMetricCard({
   value,
   displayCurrency,
   trend,
+  convertedDelta,
   testid,
   provenance,
 }: {
@@ -79,7 +128,8 @@ function KeyMetricCard({
   desc: string;
   value: number;
   displayCurrency: string;
-  trend: { pct: number; prevLabel: string } | null;
+  trend: MetricTrend | null;
+  convertedDelta: number | null;
   testid?: string;
   provenance: AmountProvenance | null;
 }) {
@@ -96,7 +146,11 @@ function KeyMetricCard({
             className="shrink-0"
             title={t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
           >
-            <Amount kind="percent" value={trend.pct} fractionDigits={1} />
+            <TrendChange
+              change={classifyChange(trend.base, trend.current, ROUNDED_MONEY_ZERO_FLOOR)}
+              convertedDelta={convertedDelta}
+              currency={displayCurrency}
+            />
           </Chip>
         )}
       </div>

@@ -3303,7 +3303,84 @@
     "balance": {
       "ok": "Every projected period balances to the cent. The check is exact, not a tolerance band.",
       "broken": "The projected balance sheet does not close in: {{periods}}. This is a hard error, not a rounding note — the projection is built in integer minor units so the check is exact."
-    }
+    },
+    "tier": {
+      "book": "book",
+      "sector": "sector",
+      "macro": "macro",
+      "user": "you",
+      "convention": "convention",
+      "absent": "absent"
+    },
+    "chart": {
+      "trajectory": "Revenue and EBITDA",
+      "grain": "Served periods: {{first}} → {{last}}",
+      "revenue": "Revenue",
+      "ebitda": "EBITDA",
+      "peak": "Peak",
+      "cash": "Cash",
+      "closingCash": "Closing cash",
+      "minCash": "Cash floor",
+      "onTheLine": "On the funding line",
+      "trough": "Trough",
+      "fcf": "Free cash flow",
+      "perPeriod": "Per period",
+      "cumulative": "Cumulative",
+      "weakest": "Weakest",
+      "capex": "Capex and depreciation",
+      "capexBar": "Capex",
+      "depreciation": "Depreciation",
+      "signNote": "Both are cash and charge OUT, as the engine signs them",
+      "refused": "Not served from {{period}}: ",
+      "months": "months",
+      "years": "years",
+      "fcfBarsNote": "The per-period bars stop where the monthly periods do: this engine serves no financial-year total for free cash flow, and one summed here would be a figure the projection never stated. The cumulative line runs the whole horizon.",
+      "overHorizon": "Over the horizon",
+      "fcfScaleNote": "The bars and the cumulative line are drawn on separate vertical scales: a running total ends at the sum of every bar, so on one scale the bars would be a flat line on the axis. Compare each series with itself, not with the other."
+    },
+    "strip": {
+      "peakFunding": "Peak funding need",
+      "peakAt": "Peak reached in {{period}}",
+      "noDraw": "The plan never draws on the funding line",
+      "firstBreach": "First covenant breach",
+      "shortfallInstead": "A cash shortfall — a different fact from a covenant breach — begins {{period}}.",
+      "cumulativeFcf": "Cumulative free cash flow",
+      "closingCash": "Closing cash",
+      "atPeriod": "At {{period}}",
+      "unexpected": "—"
+    },
+    "growth": {
+      "title": "Revenue growth stands on",
+      "absentInput": "not measurable from this book"
+    },
+    "levers": {
+      "title": "Levers",
+      "lead": "Move one and the whole projection is rebuilt on the server. Nothing on this page changes until it answers.",
+      "recomputing": "Recomputing…",
+      "settled": "Up to date",
+      "notServed": "Not served by this engine",
+      "undeclared": "this projection declares no such driver, so there is no honest control for it"
+    },
+    "lever": {
+      "resetTo": "Reset to {{tier}}",
+      "useTier": "Use the {{tier}} figure",
+      "revenue_growth": "Revenue growth",
+      "dso_days": "Days sales outstanding",
+      "dio_cogs_days": "Days inventory on hand",
+      "dpo_cogs_days": "Days payable outstanding",
+      "capex_pct_of_revenue": "Capex, share of revenue",
+      "dividend_payout_pct": "Dividend payout",
+      "gross_margin": "Gross margin",
+      "opex_growth": "Operating cost growth",
+      "range": "Takes {{min}} to {{max}}{{suffix}}",
+      "step": ", in steps of {{step}}"
+    },
+    "grain": {
+      "showFy": "Show financial years",
+      "showMonthly": "Show months of year one",
+      "note": "Both grains are served by the engine"
+    },
+    "stale": "The server would not take that change, so every figure below is still the last projection it produced. Your edit is in the rail; correct it or reset the lever."
   },
   "radar": {
     "eyebrow": "Radar",
@@ -3336,6 +3413,123 @@
       "held": "{{count}} held back by the cap",
       "heldTitle": "The cap surfaces the highest-ranked findings; the rest are on the Radar page.",
       "open": "Open Radar"
+    }
+  },
+  "changeKind": {
+    "flip_to_negative": "turned negative",
+    "flip_to_positive": "turned positive",
+    "from_zero": "from zero",
+    "to_zero": "to zero",
+    "absent_base": "not in the base",
+    "absent_plan": "no longer present",
+    "compared": "compared",
+    "no_change": "no change"
+  },
+  "scenarios": {
+    "eyebrow": "Analysis",
+    "title": "Scenario planning",
+    "context": "What-if on the projection of {{period}}. Every figure is computed by the forecast engine.",
+    "actualsLocked": "Actuals never change",
+    "banner": {
+      "eyebrow": "Every figure on this page is a projection",
+      "body": "Each number is produced by the forecast engine from the closing position of {{period}} and the shocks and levers listed on this page. Nothing here changes your trial balance."
+    },
+    "empty": {
+      "eyebrow": "Scenario planning",
+      "title": "Stress-test your plan before it happens",
+      "subtitle": "Scenarios run named sets of shocks through the forecast engine: sales volume, selling and purchase prices, operating costs and working-capital days. Upload or open a period to begin; your actuals are never changed.",
+      "dashboard": "Go to dashboard",
+      "ask": "Ask CFO AI",
+      "askPrompt": "What can scenario planning do for me once my trial balance is uploaded? Walk me through the templates and the levers they move."
+    },
+    "templates": {
+      "title": "Templates",
+      "lead": "Each template is a named set of shocks sent to the forecast engine. Pick one to see it beside the base plan.",
+      "changes": "What this template changes",
+      "noShocks": "Nothing: the engine's own plan, with only the levers you set below.",
+      "window": "Every shock runs from the first plan month to the end of the plan."
+    },
+    "template": {
+      "base": {
+        "name": "Base plan",
+        "question": "Where does the plan go with no shock at all?"
+      },
+      "recession": {
+        "name": "Recession",
+        "question": "What if sales volume falls and operating costs are cut back?",
+        "note": "Cost of sales follows volume in the engine; other operating income is held."
+      },
+      "input_cost_inflation": {
+        "name": "Input cost inflation",
+        "question": "What if purchase prices rise and selling prices do not?",
+        "note": "Only the variable part of cost of sales follows purchase prices."
+      },
+      "price_pressure": {
+        "name": "Price pressure",
+        "question": "What if selling prices have to come down?",
+        "note": "Cost of sales does not follow the selling price."
+      },
+      "working_capital_squeeze": {
+        "name": "Working-capital squeeze",
+        "question": "What if customers pay later and stock sits longer?",
+        "note": "Days move balances, not EBITDA: the effect lands on cash, the funding line and its interest."
+      }
+    },
+    "shock": {
+      "volume_index": "Sales volume",
+      "price_index": "Selling prices",
+      "input_price_index": "Purchase prices in cost of sales",
+      "pool_level": "Operating costs, every cost pool this book serves",
+      "pool_level_count_one": "Operating costs, the one cost pool this book serves",
+      "pool_level_count_other": "Operating costs, all {{count}} cost pools this book serves",
+      "dso_days": "Days sales outstanding",
+      "dio_cogs_days": "Days inventory on hand",
+      "dpo_cogs_days": "Days payable outstanding"
+    },
+    "op": {
+      "level_pct": "{{value}}%",
+      "add_days": "{{value}} days",
+      "add_pp": "{{value}} pp"
+    },
+    "outcome": {
+      "title": "Outcome by plan year",
+      "lead": "Served figures from separate engine runs, placed side by side. No difference is computed on this page.",
+      "figure": "Figure",
+      "loading": "Projecting…",
+      "cellLoading": "…",
+      "recomputing": "Recomputing…",
+      "refusedColumn": "{{name}}: no projection",
+      "cashFloored": "The engine served cash below zero here, which it must not; cash is never shown below zero. The funding line balance it served at the close of this period:",
+      "chartWithheld": "The cash chart is withheld: the engine served a cash point below zero, and cash is never drawn below zero on this page.",
+      "chartFor": "Cash and the funding line: {{name}}",
+      "row": {
+        "revenue": "Revenue",
+        "ebitda": "EBITDA",
+        "net_income": "Net income",
+        "closing_cash": "Closing cash",
+        "funding_line": "Funding line at year end",
+        "funding_interest": "Interest on the funding line"
+      }
+    },
+    "summary": {
+      "title": "Funding line and cash floor, over the plan",
+      "peak": "Peak funding line",
+      "peakAt": "reached in {{period}}",
+      "neverDraws": "the plan never draws on it",
+      "interest": "Interest on the funding line, whole plan",
+      "firstShortfall": "First shortfall",
+      "runway": "Months until cash reaches the floor",
+      "runwayAtLeast": "at least {{months}}",
+      "fundingRate": "How the funding line is priced:",
+      "dscrNotServed": "Debt service coverage is not in this build's served response, so it is not shown."
+    },
+    "levers": {
+      "lead": "The levers below apply to every column: the base plan and the selected template both carry them."
+    },
+    "refusal": {
+      "title": "No projection",
+      "fallback": "The engine did not return a projection.",
+      "noServedKeys": "this book serves no operating-cost pool, so the operating-cost shock of this template cannot be applied, and the template is not run in part"
     }
   }
 }

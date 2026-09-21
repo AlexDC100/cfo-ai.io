@@ -51,7 +51,7 @@ import {
 
 const FP1 = resolve(
   __dirname,
-  "../../../../tests/engine/fixtures/forecast/fp1_agras.json",
+  "../../../../tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 
 const view = () => {
@@ -199,7 +199,7 @@ describe("<ProjectedAmount>", () => {
 
 const FP1_SERVED = resolve(
   __dirname,
-  "../../../../tests/engine/fixtures/forecast/fp1_agras_served.json",
+  "../../../../tests/engine/fixtures/forecast/fp1_2_agras.json",
 );
 
 describe("<ProjectedAmount> over the bytes the engine actually serves", () => {

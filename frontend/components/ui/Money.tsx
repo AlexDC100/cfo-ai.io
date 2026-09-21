@@ -82,6 +82,11 @@ export interface MoneyProps {
    *  Set `showAbsolute=true` to display "+€3.2M" instead of the default
    *  relative "+5.4%". Useful when the absolute number tells the story
    *  better than the percentage (small base values).
+   *
+   *  A change from zero, to zero or across sign has NO percentage (the one
+   *  classifier, lib/changeKind.ts, plan_contract_v2 section 7): the badge
+   *  renders the absolute change and its words ("turned negative") —
+   *  never a percent or a multiplier (defect 0.4).
    */
   comparison?: {
     amount: number;

@@ -53,7 +53,14 @@
  *     no code path paints one without the other;
  *   · a projected figure rendered through an ACTUALS primitive by name
  *     (`<Amount>`, `<Money>`, `<LearnableNumber>`, `<TraceableNumber>` …)
- *     in any file that also reads the forecast namespace.
+ *     in any file that also reads the forecast namespace;
+ *   · (plan/2 B13) the Scenarios page's import closure reaching client
+ *     scenario math, and — added by the B13 repair — any page-owned
+ *     Scenarios file naming unwrapProjected / projectedDisplay, reading
+ *     amountMinor in any form, or carrying a type escape (see that section).
+ *
+ * The `<ProjectedAmount>` presence test reads CODE, never comments: a header
+ * comment naming the primitive once satisfied it for a whole page (B13 plant).
  *
  * ══ WHAT IT CANNOT SEE (TC-11) ═══════════════════════════════════════
  *
@@ -225,6 +232,32 @@ const stripProse = (src, lang) => {
     .filter((line) => !lineComment.test(line))
     .join("\n");
 };
+
+/** Code for a PRESENCE test ("does this file use X?"): `stripProse`, then any
+ *  trailing `// ...` after code. Over-stripping here can only make a presence
+ *  test fail (a false red, loud); under-stripping lets a comment satisfy it
+ *  (a false green, silent) — so this errs on removing more. */
+const presenceCode = (src) =>
+  stripProse(src, "ts")
+    .split("\n")
+    .map((line) => line.replace(/(^|\s)\/\/.*$/, "$1"))
+    .join("\n");
+
+/** Code for an ABSENCE test ("this file must not contain X"). The opposite
+ *  trade: under-stripping can only make it fail (a comment naming X reds,
+ *  loud, fixed by rewording), over-stripping hides code (silent). So only what
+ *  is unambiguously a comment goes — whole `//` lines FIRST (a `//` line that
+ *  names a path ending in `/*` must not open a "block"), then block comments
+ *  that start a line or a JSX `{/* ... *\/}` expression. A `/*` inside a
+ *  string on a code line is left alone, and so is the code after it. */
+const absenceCode = (src) =>
+  src
+    .split("\n")
+    .map((line) => (/^\s*\/\//.test(line) ? "" : line))
+    .join("\n")
+    .replace(/(^[ \t]*|\{\s*)\/\*[\s\S]*?\*\//gm, (m, lead) =>
+      lead + m.slice(lead.length).replace(/[^\n]/g, ""),
+    );
 
 if (!PROBE_VACUITY) {
   const boundaryPy = read(join(ROOT, ENGINE_PROJECTION, "boundary.py"));
@@ -403,10 +436,18 @@ for (const file of files) {
   // the gate being wrong (TC-11). The AI-surface roster in
   // engine/forecast_serving/boundary.py carries the same lesson, learned
   // the same way.
+  //
+  // The PRESENCE of the primitive is read from CODE, never from prose. Found
+  // by plant (2026-09-21): Scenarios.tsx's header comment said "and
+  // <ProjectedAmount>", which satisfied this test by itself, so a planted
+  // `unwrapProjected(...) - 1` painted through Intl.NumberFormat on the page
+  // stayed green; the same plant with the comment reworded went red. The
+  // value test above stays on the raw source on purpose: it decides whether
+  // the rule APPLIES, and a comment that trips it only makes the rule stricter.
   const touchesAValue =
     /\bprojectedDisplay\s*\(|\bunwrapProjected\s*\(|\.amountMinor\b/.test(src);
   if (path.endsWith(".tsx") && path !== PRIMITIVE && !isTest && touchesAValue) {
-    if (!/\bProjectedAmount\b/.test(src)) {
+    if (!/\bProjectedAmount\b/.test(presenceCode(src))) {
       fail(
         `${path} reaches a projected VALUE but does not use ` +
           `<ProjectedAmount>. It is the one sanctioned consumer of the ` +
@@ -431,9 +472,253 @@ for (const file of files) {
 
 console.log("FORECAST BOUNDARY GATE (F2, static half)");
 console.log("=".repeat(62));
+// `units=` is the count scripts/run_battery.py reads (plan/2 B0). The
+// per-runtime counts stay on the same line so a collapse of one runtime
+// cannot hide inside the total.
 console.log(
-  `GATE-WORK forecast-boundary ts=${tsChecked} py=${pyChecked} ` +
-    `consumers=${consumers} label=files-scanned`,
+  `GATE-WORK forecast-boundary units=${tsChecked + pyChecked} ts=${tsChecked} ` +
+    `py=${pyChecked} consumers=${consumers} label=files-scanned`,
+);
+// A scan over nothing is a broken gate, never a clean one (TC-3). The
+// floors below catch a partial collapse; this names the total one.
+if (tsChecked + pyChecked === 0) {
+  fail(
+    "ZERO FILES SCANNED — discovery found no .ts, .tsx or .py file under " +
+      "frontend/ or src/engine/. Nothing was checked, so nothing may pass.",
+  );
+}
+
+// ── plan/2 B13 (minimal cut): THE SCENARIOS PAGE COMPUTES NOTHING ──────
+//
+// Until B13 the Scenarios page ran its own cascade in the browser
+// (`lib/scenarios/cascade.ts` over `baseline.ts`, defect 0.5) and never read
+// the forecast namespace, so every rule above was green over it by vacuity and
+// this gate printed it as EXCLUDED. At the cut-over it joins the scope, and it
+// joins with a rule of its own: the page's whole import CLOSURE — the page,
+// every module it imports, and theirs, resolved inside frontend/ — may not
+// reach a client scenario-math module. A direct-import check alone would pass
+// a page that reaches the cascade through a component (the old page imported
+// it through ScenarioComparison and CovenantPanel as well as directly).
+//
+// RED ON (TC-11): the page, or anything it imports, importing a module under
+// frontend/lib/scenarios/ (cascade, baseline, covenants, levers, templates,
+// types, dashboardCanon) or the old input store frontend/stores/scenario.tsx;
+// the closure not reaching frontend/lib/forecastFacts.ts (the one reader of
+// a served projection); the page no longer POSTing the engine
+// (`forecastRecompute`); the page file missing (a closure over nothing).
+//
+// CANNOT SEE: a dynamic import built from a string; a surface that copies the
+// fp1 JSON into its own local interface (the header above says the same).
+//
+// The old cascade renderers under frontend/components/scenarios/ stay on disk
+// (a sign-flip canary still renders ScenarioComparison) and are printed below
+// as unreachable from the page, so their presence is never read as coverage.
+
+const SCENARIOS_PAGE = "frontend/pages/cfo/Scenarios.tsx";
+const SCENARIOS_CLIENT_MATH = [
+  /^frontend\/lib\/scenarios\//,
+  /^frontend\/stores\/scenario\.tsx$/,
+];
+
+/** Every module a file reaches through static imports, re-exports and
+ *  literal dynamic imports, resolved inside frontend/ (`@/` and relative
+ *  specifiers; packages are outside the question). */
+export function importClosure(root, startRel) {
+  const exts = ["", ".ts", ".tsx", ".json", "/index.ts", "/index.tsx"];
+  const resolveSpec = (fromAbs, spec) => {
+    let base;
+    if (spec.startsWith("@/")) base = join(root, "frontend", spec.slice(2));
+    else if (spec.startsWith(".")) base = join(fromAbs, "..", spec);
+    else return null;
+    for (const ext of exts) {
+      const candidate = base + ext;
+      try {
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        /* not this extension */
+      }
+    }
+    return null;
+  };
+  const importRx =
+    /(?:import|export)\s+(?:type\s+)?(?:[^"']*?\sfrom\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+  const seen = new Set();
+  const stack = [join(root, startRel)];
+  while (stack.length > 0) {
+    const abs = stack.pop();
+    if (seen.has(abs)) continue;
+    let src;
+    try {
+      src = readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    seen.add(abs);
+    if (abs.endsWith(".json")) continue;
+    for (const m of src.matchAll(importRx)) {
+      const target = resolveSpec(abs, m[1] ?? m[2]);
+      if (target && !seen.has(target)) stack.push(target);
+    }
+  }
+  return [...seen].map((abs) => relative(root, abs).split("\\").join("/")).sort();
+}
+
+let scenariosClosure = [];
+if (!PROBE_VACUITY) {
+  const pageSource = read(join(ROOT, SCENARIOS_PAGE));
+  if (!pageSource) {
+    fail(`ROSTER STALE: ${SCENARIOS_PAGE} does not exist — a closure over nothing checks nothing`);
+  } else {
+    scenariosClosure = importClosure(ROOT, SCENARIOS_PAGE);
+    for (const mod of scenariosClosure) {
+      if (SCENARIOS_CLIENT_MATH.some((rx) => rx.test(mod))) {
+        fail(
+          `${SCENARIOS_PAGE} reaches ${mod} through its imports. The Scenarios ` +
+            `page computes nothing: every figure it shows is served by ` +
+            `/api/forecast/{id}/recompute and read through ${FORECAST_LIB} ` +
+            `(plan/2 B13, one engine). A client scenario-math module in its ` +
+            `closure is a second calculator wearing the engine's labels.`,
+        );
+      }
+    }
+    if (!scenariosClosure.includes(FORECAST_LIB)) {
+      fail(
+        `${SCENARIOS_PAGE} no longer reaches ${FORECAST_LIB}. A Scenarios page ` +
+          `that does not read the served projection is painting figures from ` +
+          `somewhere else.`,
+      );
+    }
+    // Line comments first, then blocks: a `//` line naming a path that ends
+    // in `/*` would otherwise open a block that swallows the code after it.
+    const pageCode = pageSource
+      .split("\n")
+      .filter((line) => !/^\s*\/\//.test(line))
+      .join("\n")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    if (!/\bforecastRecompute\s*\(/.test(pageCode)) {
+      fail(
+        `${SCENARIOS_PAGE} no longer POSTs /api/forecast/{id}/recompute ` +
+          `(cfoApi.forecastRecompute). Its templates are lever sets the ENGINE ` +
+          `runs; a page that stops asking the engine is computing its own.`,
+      );
+    }
+  }
+}
+const scenariosSurface = scenariosClosure.filter((p) =>
+  /^frontend\/(pages\/cfo\/Scenarios\.tsx|components\/scenarios\/|lib\/scenarioTemplates)/.test(p),
+);
+
+// ── plan/2 B13 repair (2026-09-21): THE PAGE-OWNED FILES READ NO VALUE ──
+//
+// The closure rule above stops the page REACHING a client calculator. It says
+// nothing about arithmetic written in the page's own files, and the rule that
+// might have — "a .tsx that reaches a projected value must use
+// <ProjectedAmount>" — was satisfied by a comment. Three plants proved it
+// (docs/engine_book/gates.md, "scenarios-closure", plants A/A2, B, C): an
+// `unwrapProjected(...) - 1` painted through Intl.NumberFormat on the page; a
+// `Number((fig as any)["amountMinor"]) * 1.1`; a delta row in ScenarioOutcome
+// taking `unwrapProjected(template) - unwrapProjected(base)`. All green.
+//
+// The page paints served figures side by side and computes nothing, so its
+// OWN files have no business holding a projected number at all. The one
+// question it asks of a value — its sign, for the cash floor — is asked at the
+// gateway (`projectedSign` in lib/forecastFacts.ts), and every figure is
+// painted by <ProjectedAmount>, which is not a page-owned file.
+//
+// RED ON (TC-11), in the page-owned files of the closure (pages/cfo/Scenarios.tsx,
+// components/scenarios/*, lib/scenarioTemplates.ts), comments aside:
+//   · `unwrapProjected` or `projectedDisplay`, called or merely named (an alias
+//     is the same door) — projectedDisplay belongs to <ProjectedAmount> only;
+//   · `amountMinor` / `amount_minor` in any spelling or access form — a
+//     property, a bracket string, the raw wire field;
+//   · a type escape: `as any`, `as unknown`, `<any>`, or a ts-ignore /
+//     ts-expect-error / ts-nocheck directive — the opaque ProjectedMinor type
+//     is the compile barrier and these are the ways around it;
+//   · a namespace or dynamic import of lib/forecastFacts, which makes a
+//     computed member access (`ff["unwrap" + "Projected"]`) possible;
+//   · fewer than three page-owned code files found, or the page or
+//     ScenarioOutcome missing from them (a rule over nothing, TC-3).
+// CANNOT SEE: a value reached through a key assembled at runtime from a plain
+// import (`Object.values(fig)`, `fig[k]`); a shared, non-page-owned module
+// that does the arithmetic and hands the page a string. The DOM half —
+// scenariosEngine.test.tsx, "every digit on the page is served" — is what
+// catches a painted number whatever route it took.
+const SCENARIOS_VALUE_READS = [
+  [/\bunwrapProjected\b/, "names unwrapProjected — the door that hands over a projected number"],
+  [/\bprojectedDisplay\b/, "names projectedDisplay — only <ProjectedAmount> may take delivery of a display value"],
+  [/amount_?minor/i, "reads amountMinor / amount_minor — the projected amount itself"],
+  [/\bas\s+any\b|<any>/, "casts to any — a way around the opaque ProjectedMinor type"],
+  [/\bas\s+unknown\b/, "casts through unknown — the laundering path around ProjectedMinor"],
+  [
+    /import\s*\*\s*as\s+\w+\s+from\s+["'][^"']*forecastFacts["']|import\(\s*["'][^"']*forecastFacts["']\s*\)/,
+    "imports lib/forecastFacts as a namespace or dynamically — computed access to its doors",
+  ],
+];
+const SCENARIOS_TYPE_DIRECTIVE = /@ts-(ignore|expect-error|nocheck)\b/;
+const scenariosOwnedCode = scenariosSurface.filter(
+  (p) => /\.(ts|tsx)$/.test(p) && !/__tests__|\.test\./.test(p),
+);
+if (!PROBE_VACUITY && scenariosClosure.length > 0) {
+  if (
+    scenariosOwnedCode.length < 3 ||
+    !scenariosOwnedCode.includes(SCENARIOS_PAGE) ||
+    !scenariosOwnedCode.includes("frontend/components/scenarios/ScenarioOutcome.tsx")
+  ) {
+    fail(
+      `the Scenarios page-owned files found in its closure are ` +
+        `[${scenariosOwnedCode.join(", ")}] — the page or ScenarioOutcome is ` +
+        `missing, so the no-value-read rule would pass over nothing`,
+    );
+  }
+  for (const path of scenariosOwnedCode) {
+    const src = read(join(ROOT, path));
+    const code = absenceCode(src);
+    for (const [rx, why] of SCENARIOS_VALUE_READS) {
+      const m = code.match(rx);
+      if (m) {
+        const line = code.slice(0, m.index).split("\n").length;
+        fail(
+          `${path}:${line} ${why} ("${m[0]}"). The Scenarios page paints ` +
+            `served figures side by side and computes nothing: a projected ` +
+            `number held in a page-owned file is one step from a second model ` +
+            `(a delta, a scaled figure) painted as the engine's.`,
+        );
+      }
+    }
+    if (SCENARIOS_TYPE_DIRECTIVE.test(src)) {
+      fail(
+        `${path} carries a ${src.match(SCENARIOS_TYPE_DIRECTIVE)[0]} directive — ` +
+          `a type escape in a page-owned Scenarios file, where the opaque ` +
+          `ProjectedMinor type is the barrier.`,
+      );
+    }
+  }
+}
+
+const unreachableScenarios = files
+  .map(rel)
+  .filter(
+    (p) =>
+      /^frontend\/(components\/scenarios\/|lib\/scenarios\/|stores\/scenario\.tsx)/.test(p) &&
+      !/__tests__/.test(p) &&
+      !scenariosClosure.includes(p),
+  )
+  .sort();
+console.log(
+  `  scope: forecast-namespace consumers in frontend/ and the two serving ` +
+    `namespaces in src/engine/; the Scenarios page's import closure ` +
+    `(${scenariosClosure.length} module(s)) against client scenario math:`,
+);
+for (const p of scenariosSurface) console.log(`    in the Scenarios closure: ${p}`);
+for (const p of scenariosOwnedCode) {
+  console.log(`    page-owned, checked for value reads and type escapes: ${p}`);
+}
+for (const p of unreachableScenarios) {
+  console.log(`    unreachable from the Scenarios page (not coverage): ${p}`);
+}
+console.log(
+  `GATE-WORK forecast-boundary-scenarios units=${scenariosClosure.length} ` +
+    `label=modules-in-scenarios-closure`,
 );
 // The floors run in BOTH modes on purpose: emptying discovery has to break
 // something, and these are what it breaks. Floors derived from the measured

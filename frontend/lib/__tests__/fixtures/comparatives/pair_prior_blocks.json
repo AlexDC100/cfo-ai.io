@@ -522,6 +522,7 @@
   },
   "columns": [
    {
+    "change_kind": "compared",
     "current": 110798309.14,
     "current_disclosure": "reported",
     "delta": 16288369.18,
@@ -537,6 +538,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 70557114.68,
     "current_disclosure": "reported",
     "delta": 13127318.45,
@@ -552,6 +554,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 40241194.46,
     "current_disclosure": "reported",
     "delta": 3161050.73,
@@ -567,6 +570,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 29854906.77,
     "current_disclosure": "reported",
     "delta": -3637478.44,
@@ -582,6 +586,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 386101.85,
     "current_disclosure": "reported",
     "delta": -559801.74,
@@ -597,6 +602,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 2955346.39,
     "current_disclosure": "reported",
     "delta": -740179.2,
@@ -612,6 +618,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 10776378.24,
     "current_disclosure": "reported",
     "delta": 5782398.65,
@@ -627,6 +634,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 7821031.85,
     "current_disclosure": "reported",
     "delta": 6522577.85,
@@ -642,6 +650,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": 277930.35,
     "current_disclosure": "reported",
     "delta": null,
@@ -657,6 +666,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -672,6 +682,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 456384.14,
     "current_disclosure": "reported",
     "delta": 95840.41,
@@ -687,6 +698,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 343877.0,
     "current_disclosure": "reported",
     "delta": 221249.33,
@@ -702,6 +714,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 112507.14,
     "current_disclosure": "reported",
     "delta": -125408.92,
@@ -717,6 +730,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 7933538.99,
     "current_disclosure": "reported",
     "delta": 6397168.93,
@@ -732,6 +746,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 1471550.0,
     "current_disclosure": "reported",
     "delta": 1183864.0,
@@ -747,6 +762,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 6461988.99,
     "current_disclosure": "reported",
     "delta": 5213304.93,
@@ -762,6 +778,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 7533676.02,
     "current_disclosure": "reported",
     "delta": 6098142.43,
@@ -777,6 +794,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 1168047.04,
     "current_disclosure": "reported",
     "delta": -8956822.0,
@@ -792,6 +810,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 8513384.96,
     "current_disclosure": "reported",
     "delta": -2316336.11,
@@ -807,6 +826,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 8933332.42,
     "current_disclosure": "reported",
     "delta": -862694.38,
@@ -822,6 +842,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 8861292.52,
     "current_disclosure": "reported",
     "delta": 8294602.96,
@@ -837,6 +858,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 27371337.47,
     "current_disclosure": "reported",
     "delta": -3662670.05,
@@ -852,6 +874,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 11055449.54,
     "current_disclosure": "reported",
     "delta": -83370431.82,
@@ -867,6 +890,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 673090.13,
     "current_disclosure": "reported",
     "delta": 579926.69,
@@ -882,6 +906,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 67904.42,
     "current_disclosure": "reported",
     "delta": 18063.18,
@@ -897,6 +922,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 11947776.62,
     "current_disclosure": "reported",
     "delta": -82904408.37,
@@ -912,6 +938,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 39319114.09,
     "current_disclosure": "reported",
     "delta": -86567078.42,
@@ -927,6 +954,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 7554847.25,
     "current_disclosure": "reported",
     "delta": -5837898.98,
@@ -942,6 +970,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": 2199783.1,
     "current_disclosure": "reported",
     "delta": null,
@@ -957,6 +986,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 3258346.42,
     "current_disclosure": "reported",
     "delta": -412965.66,
@@ -972,6 +1002,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": 1440419.23,
     "current_disclosure": "reported",
     "delta": null,
@@ -987,6 +1018,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 941634.37,
     "current_disclosure": "reported",
     "delta": -968781.69,
@@ -1002,6 +1034,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "from_zero",
     "current": 3640202.33,
     "current_disclosure": "reported",
     "delta": 3640202.33,
@@ -1017,6 +1050,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 15395030.37,
     "current_disclosure": "reported",
     "delta": -3595194.23,
@@ -1032,6 +1066,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 8795850.0,
     "current_disclosure": "reported",
     "delta": 8745850.0,
@@ -1047,6 +1082,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": -61628.4,
     "current_disclosure": "reported",
     "delta": 14884123.98,
@@ -1062,6 +1098,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 7656186.1,
     "current_disclosure": "reported",
     "delta": -112700000.6,
@@ -1077,6 +1114,7 @@
     "unit": "money"
    },
    {
+    "change_kind": "compared",
     "current": 23924083.72,
     "current_disclosure": "reported",
     "delta": -82971884.19,
@@ -1092,6 +1130,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1107,6 +1146,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1122,6 +1162,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1137,6 +1178,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1152,6 +1194,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1167,6 +1210,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1182,6 +1226,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1197,6 +1242,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "absent",
     "delta": null,
@@ -1212,6 +1258,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "not_disclosed_at_this_detail_level",
     "delta": null,
@@ -1227,6 +1274,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "not_disclosed_at_this_detail_level",
     "delta": null,
@@ -1242,6 +1290,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "not_disclosed_at_this_detail_level",
     "delta": null,
@@ -1257,6 +1306,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "not_disclosed_at_this_detail_level",
     "delta": null,
@@ -1272,6 +1322,7 @@
     "unit": "money"
    },
    {
+    "change_kind": null,
     "current": null,
     "current_disclosure": "not_disclosed_at_this_detail_level",
     "delta": null,

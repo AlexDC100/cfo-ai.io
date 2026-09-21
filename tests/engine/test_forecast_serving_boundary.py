@@ -1114,3 +1114,58 @@ def test_the_committed_served_fixture_reads_back_through_the_gateway():
     assert figure.projected_minor == 11966217387
     assert [(a.id, a.value) for a in figure.basis] == [("revenue_growth", 0.08)]
     assert gateway.unbalanced_periods() == ()
+
+
+# ── plan/2 B6: the fp1.2 fixtures the frontend reads, kept honest, and the
+# 3.13 provenance boundary on the REAL POST bytes ─────────────────────────
+
+def test_the_committed_fp12_stand_in_is_exactly_what_the_builder_produces():
+    """RED ON: fp1_2_agras.json edited by hand, or the builder changing
+    without the file being regenerated (engine and FE read IDENTICAL bytes)."""
+    from forecast_boundary_fixture import FP12_FIXTURE, fp12_bytes
+    assert FP12_FIXTURE.read_text(encoding="utf-8") == fp12_bytes(), (
+        "tests/engine/fixtures/forecast/fp1_2_agras.json is stale; regenerate it "
+        "from forecast_boundary_fixture.fp12_bytes()")
+
+
+def test_the_committed_fp12_served_fixture_is_what_the_real_route_serves():
+    """RED ON: fp1_2_agras_served.json drifting from what GET
+    /api/forecast/{id}?horizon=3 answers on agras through create_app. The
+    frontend paints THESE bytes; a fixture nobody feeds back is a shape
+    nobody has read. recompute_ms is a clock reading and is not recorded."""
+    from test_forecast_route import _call
+    status, body = _call("agras", "GET", 3)
+    assert status == 200
+    body.pop("recompute_ms")
+    on_disk = json.loads((REPO / "tests" / "engine" / "fixtures" / "forecast"
+                          / "fp1_2_agras_served.json").read_text(encoding="utf-8"))
+    assert on_disk["body_hash"] == body["body_hash"], (
+        "fp1_2_agras_served.json is stale; regenerate it from the route "
+        "(as-built B6: scratchpad b6/gen_fixtures.py)")
+    assert on_disk == body
+
+
+def test_no_actual_provenance_on_real_post_bytes(capsys):
+    """3.13. The accepted want keys are read at run time from the
+    PlanRequestBody validator, so a block a later batch adds is covered
+    without editing this file. Each key alone and all together, on the four
+    books. RED ON: any served block carrying an ACTUAL_PROVENANCE_FIELDS key
+    outside base_period; zero keys swept (TC-3)."""
+    from engine.api._forecast_routes import PlanRequestBody
+    from engine.forecast_serving import boundary as B
+    from test_forecast_route import BOOKS, _call
+    keys = PlanRequestBody.accepted_want_keys()
+    assert keys, "TC-3: the validator accepts no want key; nothing was swept"
+    posts = 0
+    for name in BOOKS:
+        for want in [[k] for k in keys] + [list(keys)]:
+            status, body = _call(name, "POST", body={
+                "horizon": {"total_years": 3, "monthly_months": 12}, "want": want})
+            assert status == 200, (name, want, str(body)[:200])
+            for k in keys:
+                assert (k in body) == (k in want), (name, want, k)
+            B.assert_no_actual_provenance(body)
+            posts += 1
+    with capsys.disabled():
+        print("\nSCOPE forecast-serving-boundary 3.13: books %s; want keys %d (%s); "
+              "POSTs %d" % (", ".join(BOOKS), len(keys), ", ".join(keys), posts))

@@ -53,70 +53,90 @@ vi.mock("@/lib/cfoApi", async () => {
   };
 });
 
-/** A projection in the fp1 wire shape. Small on purpose — the real payload
- *  for one 3-year run is ~800 figures, and its shape is pinned on the engine
- *  side against the real bytes. */
+/** A projection in the fp1.2 wire shape (plan/2 B6: the fp1 inline payload
+ *  this file carried is retired with the contract it spoke). Small on purpose:
+ *  the real payload for one 3-year run is ~800 figures, and its shape is pinned
+ *  on the engine side against the real bytes (fp1_2_agras_served.json). */
+function driver(
+  key: string,
+  values: Array<number | null>,
+  tier: string,
+  text: string,
+) {
+  const absent = tier === "absent";
+  return {
+    key,
+    model_key: key,
+    pack_key: null,
+    label: { code: key, text: key.replace(/_/g, " ") },
+    unit: "ratio_micros",
+    shape: "per_year",
+    granularity: "annual",
+    values,
+    inert_in_this_plan: null,
+    basis: {
+      tier,
+      sentence: { code: key, text },
+      book: null,
+      sector: null,
+      macro: null,
+      convention: null,
+      fallback_steps: absent
+        ? [{ tier: "book", outcome: "absent", reason: { code: "book_absent", text } }]
+        : [],
+      original: absent ? null : { values: [25000, 25000], basis: null },
+      accepted_from_proposal: null,
+      source: absent ? null : "override",
+    },
+  };
+}
+
 function projection(overrides: Record<string, unknown> = {}) {
   return {
     kind: "projection",
-    contract: "fp1",
+    contract: "fp1.2",
     currency: "RON",
     base_period: { label: "Dec 2025", snapshot_id: "snap-1" },
-    horizon: ["FY2026", "FY2027"],
-    assumptions: [
-      {
-        id: "revenue_growth",
-        label: "revenue growth",
-        unit: "ratio",
-        values: { FY2026: 0.08, FY2027: 0.08 },
-        basis: "supplied by the caller [caller]",
-        derived_from: [],
-      },
-      {
-        id: "depreciation_rate",
-        label: "depreciation rate",
-        unit: "ratio",
-        values: { FY2026: null, FY2027: null },
-        basis:
-          "this book carries no depreciable base, so no rate is implied [engine_default]",
-        derived_from: [],
-      },
-      {
+    horizon: {
+      labels: ["FY2026", "FY2027"],
+      labels_annual: [],
+      year_of: { FY2026: 1, FY2027: 2 },
+      served_through: "FY2027",
+    },
+    driver_order: ["revenue_growth", "depreciation_rate"],
+    drivers: {
+      revenue_growth: driver(
+        "revenue_growth", [80000, 80000], "user", "supplied by the caller [caller]"),
+      depreciation_rate: driver(
+        "depreciation_rate", [null, null], "absent",
+        "this book carries no depreciable base, so no rate is implied [engine_default]"),
+    },
+    conventions: {
+      held_at_opening_balance: {
         id: "held_at_opening_balance",
-        label: "held at opening balance",
-        unit: "convention",
-        values: { FY2026: null, FY2027: null },
-        basis:
+        sentence:
           "balance-sheet lines this model does not drive are HELD at their opening balance [engine_default]",
-        derived_from: [],
       },
-    ],
+    },
     figures: [
       {
         line: "pl.revenue",
         period: "FY2026",
+        kind: "projected",
         amount_minor: 12806296521,
-        amount_minor_projected: 12806296521,
-        projected: true,
-        assumption_ids: ["revenue_growth"],
-        basis: [
-          {
-            id: "revenue_growth",
-            label: "revenue growth",
-            unit: "ratio",
-            value: 0.08,
-            basis: "supplied by the caller [caller]",
-            derived_from: [],
-          },
-        ],
+        driver_ids: ["revenue_growth"],
+        lever_ids: [],
+        joint: false,
         formula: "prior.revenue * (1 + revenue_growth)",
       },
     ],
     balance_check: [
-      { period: "FY2026", difference_minor: 0, balances: true },
-      { period: "FY2027", difference_minor: 0, balances: true },
+      { period: "FY2026", difference_minor: 0 },
+      { period: "FY2027", difference_minor: 0 },
     ],
     unbalanced_periods: [],
+    refusal: null,
+    notes: [],
     ...overrides,
   };
 }

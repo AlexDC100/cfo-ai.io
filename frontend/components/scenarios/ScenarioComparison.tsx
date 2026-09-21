@@ -5,9 +5,12 @@
 // (the cascaded what-if), and the change between them.
 //
 // Math discipline (locked in computeDeltas.ts):
-//   · currency rows  → delta() → relative % (rendered through <Amount
-//     kind="percent">, so a near-zero base explodes into a signed
-//     multiplier — "−108×" — instead of "↓10834.3%")
+//   · currency rows  → delta() → the one classifier (lib/changeKind.ts,
+//     plan_contract_v2 section 7): a same-sign change renders its percent
+//     through <Amount kind="percent" change>; a change from zero, to zero
+//     or across sign renders the absolute change and its WORDS ("turned
+//     negative"), never a percent and never a multiplier — cash 6.1M to
+//     −107.6M used to read "−19×" (defect 0.4)
 //   · percentage rows→ deltaRatio() → percentage POINTS (pp)
 //   · multiple rows  → absolute change in × units ("+5.28×"); pp would be
 //     wrong (5.92×→11.2× is +5.28×, not +528pp)
@@ -45,6 +48,7 @@ import {
   sentimentFor,
   type DeltaSentiment,
 } from "@/lib/learning/computeDeltas";
+import { isWordKind } from "@/lib/changeKind";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -149,10 +153,12 @@ function RowDelta({
   row,
   base,
   scen,
+  currency,
 }: {
   row: ScenarioMetricRow;
   base: number | null;
   scen: number | null;
+  currency: string;
 }) {
   if (base === null || scen === null)
     return <span className="text-ink-soft text-[10px]">—</span>;
@@ -171,12 +177,19 @@ function RowDelta({
       </BadgeShell>
     );
   }
-  // currency — relative % through the percent-sanity gate.
+  // currency — the classifier decides: a percent for a same-sign change,
+  // the absolute change plus words for every other kind.
   const d = deltaAbs(scen, base);
   const s = sentimentFor(d, { invert: !row.higherIsBetter });
+  const words = d.change !== null && (isWordKind(d.change.kind) || d.pct === null);
   return (
     <BadgeShell sentiment={s} sign={d.absolute > 0 ? "pos" : d.absolute < 0 ? "neg" : "zero"}>
-      <Amount kind="percent" value={d.pct} />
+      {words && (
+        <span className="mr-1">
+          <MoneyAmount value={d.absolute} fromCurrency={currency as Currency} unit={false} signed />
+        </span>
+      )}
+      <Amount kind="percent" value={d.pct} change={d.change} />
     </BadgeShell>
   );
 }
@@ -282,7 +295,7 @@ export function ScenarioComparison({ baseline, scenario, currency, active }: Pro
                   )}
                 </div>
                 <div className="text-right min-w-[68px]">
-                  {active ? <RowDelta row={row} base={base} scen={scen} /> : null}
+                  {active ? <RowDelta row={row} base={base} scen={scen} currency={currency} /> : null}
                 </div>
               </div>
             </div>

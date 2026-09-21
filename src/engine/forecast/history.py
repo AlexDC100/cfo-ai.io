@@ -46,8 +46,7 @@ class PlHistory(object):
                  "interest_income", "pretax", "income_tax", "net_income",
                  "ebitda", "other_operating_income", "financial_income",
                  "financial_expense_total", "provision_reversals",
-                 "capitalized_own_work", "filed_net_income_121",
-                 "tax_charge_rows")
+                 "capitalized_own_work", "filed_net_income_121")
 
     def __init__(self, revenue: Optional[int] = None, cogs: Optional[int] = None,
                  opex: Optional[int] = None, depreciation: Optional[int] = None,
@@ -62,8 +61,7 @@ class PlHistory(object):
                  financial_expense_total: Optional[int] = None,
                  provision_reversals: Optional[int] = None,
                  capitalized_own_work: Optional[int] = None,
-                 filed_net_income_121: Optional[int] = None,
-                 tax_charge_rows: Optional[int] = None) -> None:
+                 filed_net_income_121: Optional[int] = None) -> None:
         self.revenue = revenue
         self.cogs = cogs
         self.opex = opex
@@ -80,14 +78,6 @@ class PlHistory(object):
         self.financial_expense_total = financial_expense_total
         self.provision_reversals = provision_reversals
         self.capitalized_own_work = capitalized_own_work
-        #: How many statement rows this book files as a profit-tax charge
-        #: (bucket `taxExpense` / RAS class 69); None when the payload
-        #: carried no line items. A COUNT, not money. A book with NO such
-        #: row has an ABSENT charge: its assembled 0.00 is what an empty
-        #: bucket sums to, not a charge measured at nil — and so does a
-        #: payload with no line items at all, which cannot show the row
-        #: either (v15 B4RV-3; see `assumptions.derive_assumptions`, tax).
-        self.tax_charge_rows = tax_charge_rows
 
     # ── the two NET figures the model has a line for but the book does
     # not name directly. Both are differences, so both are ABSENT when
@@ -173,8 +163,6 @@ class PlHistory(object):
         from .money import to_float
         out = {}
         for name in self.__slots__:
-            if name == "tax_charge_rows":
-                continue  # a row count, not a money figure
             value = getattr(self, name)
             out[name] = None if value is None else to_float(value)
         for name in ("other_financial_income", "other_financial_expense",
@@ -228,31 +216,7 @@ def pl_history_from_payload(payload: Dict[str, Any]) -> PlHistory:
         # row survived — see `unexplained_vs_filed` for why this and not
         # `assembled_pl.net_income_statutory`.
         filed_net_income_121=_cents_or_none(_p121_cross_check(payload)),
-        tax_charge_rows=_tax_charge_rows(payload),
     )
-
-
-#: The statement bucket the Romanian assembly files a profit-tax charge
-#: under, and the chart class of those accounts (RAS class 69: 691 impozit
-#: pe profit, 698). Chart identities — they say which rows ARE a tax
-#: charge, never how big one is. `forecast_drivers.derive._INCOME_TAX_-
-#: PREFIXES` reads the same class for the same question.
-_TAX_BUCKET = "taxExpense"
-_TAX_ACCOUNT_CLASS = "69"
-
-
-def _tax_charge_rows(payload: Dict[str, Any]) -> Optional[int]:
-    """How many line items file a profit-tax charge; None when the
-    payload carries no line items (nothing to count is not zero rows)."""
-    items = payload.get("line_items") if isinstance(payload, dict) else None
-    if not isinstance(items, list):
-        return None
-    return sum(
-        1 for r in items
-        if isinstance(r, dict) and (
-            str(r.get("bucket") or "") == _TAX_BUCKET
-            or str(r.get("ro_account_code") or r.get("code") or "")
-            .strip().startswith(_TAX_ACCOUNT_CLASS)))
 
 
 def _p121_cross_check(payload: Dict[str, Any]) -> Any:
