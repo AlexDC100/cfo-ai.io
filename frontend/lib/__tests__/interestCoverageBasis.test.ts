@@ -22,12 +22,16 @@ import { computeCreditScore } from "@/lib/financialValuation";
 import { statementsFor, type Book } from "./exportBooks";
 
 // EBIT / interest as served by the engine for the same books (D14 blast
-// radius) — literals, NOT recomputed here from the statements.
+// radius) — literals, NOT recomputed here from the statements. Re-read from
+// the tb_parser_v6 capture (tests/engine/fixtures/firm/served_metrics.json,
+// `interest_coverage` / `ebitda_to_interest`) after the 609/709
+// contra-convention repair moved agras and retail; before it they were
+// agras 55.64 / 66.28 and retail -0.52 / 0.09.
 const EBIT_BASIS: Array<[Book, number, number]> = [
   // book, EBIT / interest, EBITDA / interest (what the row must NOT be)
-  ["agras", 55.64, 66.28],
+  ["agras", 28.14, 38.77],
   ["realestate", -25.13, -25.08],
-  ["retail", -0.52, 0.09],
+  ["retail", 0.32, 0.93],
 ];
 
 describe("the no-envelope credit model's coverage row divides EBIT", () => {
@@ -116,8 +120,11 @@ describe("the no-envelope model refuses or declares the rung on a zero interest 
     },
   );
 
-  it("a non-positive EBIT declares nothing (retail: EBIT < 0, with its interest zeroed and its debt removed)", () => {
-    const s = statementsFor("retail");
+  // realestate, not retail: under tb_parser_v6 retail's EBIT is positive,
+  // so it no longer carries the non-positive-EBIT case this test is about.
+  it("a non-positive EBIT declares nothing (realestate: EBIT < 0, with its interest zeroed and its debt removed)", () => {
+    const s = statementsFor("realestate");
+    expect(s.assembled_pl?.ebit ?? Number.NaN).toBeLessThan(0);
     s.incomeStatement = { ...s.incomeStatement, interestExpense: 0 };
     s.balanceSheet = { ...s.balanceSheet, shortTermDebt: 0, longTermDebt: 0 };
     if (s.assembled_pl) s.assembled_pl = { ...s.assembled_pl, interest_expense: 0 };
