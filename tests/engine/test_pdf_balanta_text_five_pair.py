@@ -604,6 +604,58 @@ def test_the_repeat_may_come_right_after_the_code():
     assert got is not None and by_cont(got, "1007.01")["name"] == "CAPITAL 7"
 
 
+# ── a wrapped row whose two lines straddle a heading or total ────────────
+#
+# Before the repair a heading or total between a held line and its figure
+# line settled the held line into the previous account's name and read the
+# figure line as an account on its own, unchecked: the client's figures
+# went to account 404 and 4111.05 vanished — every total still tied.
+
+
+def _client_after_a_supplier() -> List[str]:
+    rs = rows()
+    rs.append(Row("4011.09", "Furnizor Y", si=(Z, Decimal("7000.00")), rl=(Z, Decimal("500.00"))))
+    rs.append(Row("4111.05", "Client 404 Media SRL", si=(Decimal("7000.00"), Z), rl=(Decimal("500.00"), Z)))
+    return render(rs)
+
+
+def _split_client_by(between: str, move: bool = False) -> List[str]:
+    """Wrap 4111.05 as "4111.05 Client" / "404 Media SRL <ten figures>", with
+    `between` printed between the two lines — moved there from where the
+    book prints it when `move`."""
+    out = _wrap(_client_after_a_supplier(), "4111.05", "4111.05 Client")
+    if move:
+        out.remove(between)
+    out.insert(out.index("4111.05 Client") + 1, between)
+    return out
+
+
+def test_the_supplier_then_client_book_is_read():  # the control for the tests below
+    got = P.parse_lines(_client_after_a_supplier())
+    assert by_cont(got, "4111.05")["figures"][8] == Decimal("7500.00")
+    assert by_cont(got, "4011.09")["name"] == "Furnizor Y"
+
+
+def test_a_class_heading_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
+    # the heading repeated where a page breaks inside the row
+    lines = _split_client_by("Clasa 4")
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by 'Clasa 4'")
+
+
+def test_a_class_total_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
+    # the printed class-4 total still counts the client's figures, and so
+    # does 404 (a class-4 code): every sum ties
+    total = next(l for l in _client_after_a_supplier() if l.startswith("Total clasa 4:"))
+    lines = _split_client_by(total, move=True)
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by 'Total clasa 4:")
+
+
+def test_a_held_line_at_the_end_of_the_document_refuses(caplog):
+    lines = book()
+    lines.insert(lines.index(FOOTER[0]), "4111.05 Client")
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by the end of the document")
+
+
 def test_a_parent_beside_its_children_refuses_even_when_the_totals_count_both(caplog):
     # parents 100 and 510 printed beside their children, the document's own
     # class totals and grand total counting BOTH levels: every sum ties,
