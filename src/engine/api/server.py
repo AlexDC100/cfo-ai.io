@@ -755,6 +755,12 @@ def create_app(
     app.include_router(create_financial_statements_router())
     # Phase 3 — async pipeline orchestrator + period read endpoint
     app.include_router(create_pipeline_router())
+    # The quota ledger's heartbeat + orphaned-reservation sweep (verifier
+    # lens S, S8): a reservation a restart orphaned is given back instead of
+    # counting against the plan for the rest of the month. Inert without a
+    # configured database or with ENGINE_QUOTA_LEDGER_MAINTENANCE=0.
+    from .pipeline import start_quota_ledger_maintenance
+    start_quota_ledger_maintenance()
     # Ask CFO AI — streaming SSE endpoint backed by Opus 4.7 (Phase III) —
     # removed 2026-07-24 (ask.py deleted). It had tool-use + live pipeline
     # re-grounding the Edge Function doesn't replicate, but nothing in the

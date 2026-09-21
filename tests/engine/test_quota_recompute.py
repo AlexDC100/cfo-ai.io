@@ -255,9 +255,23 @@ def test_apply_never_overwrites_a_run_that_committed_after_the_read(prod_like, m
     assert (row["uploads"], row["uploads_reserved"]) == (3, 0), row   # a1/a2 + b1 + the new one
 
 
-def test_apply_never_writes_the_current_months_reservations(prod_like):
-    prod_like.rows("user_usage")[0]["uploads_reserved"] = 1
+def test_apply_keeps_exactly_the_current_months_reservations_a_live_run_holds(prod_like):
+    """This gate used to assert the current month's reservations are NEVER
+    written — the defect verifier lens S (S8) found: a run a restart killed
+    kept its slot for the rest of the month and the restore "reconciled"
+    nothing. The rule now: down to the reservations still LIVE in the quota
+    ledger (their owning engine process heartbeats), never below them —
+    a run in flight while the script runs keeps its slot."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    prod_like.rows("user_usage")[0]["uploads_reserved"] = 3
+    prod_like.rows("document_quota_ledger").append({
+        "document_id": "in-flight", "user_id": U1, "month": "2026-09", "was_extra": False,
+        "reservation_id": "r1", "reserved_at": now, "heartbeat_at": now, "owner": "engine:1"})
     mod = _load("recompute_document_quota.py")
     assert mod.main(["--apply", "--no-hash-missing"]) == 0
-    writes = [p for t, p, _f in prod_like.updates if t == "user_usage"]
-    assert writes and all("uploads_reserved" not in p for p in writes), writes
+    assert prod_like.rows("user_usage")[0]["uploads_reserved"] == 1
+    # and a second run changes nothing: the live run's slot stays
+    prod_like.updates.clear()
+    assert mod.main(["--apply", "--no-hash-missing"]) == 0
+    assert [p for t, p, _f in prod_like.updates if t == "user_usage"] == []

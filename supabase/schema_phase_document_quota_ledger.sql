@@ -19,6 +19,18 @@
 --                   copy of the same book (company, uploader, content,
 --                   scope, period) — with committed_at set is never metered,
 --                   committed or billed again.
+--     reserved_at   an OUTSTANDING reservation of this document's slot
+--                   (reserve_user_upload / reserve_user_upload_extra), with
+--                   its `reservation_id`, `was_extra`, `month`, the engine
+--                   process that holds it (`owner`) and that process's
+--                   `heartbeat_at`. It used to live only in the engine's
+--                   memory: a deploy restart mid-run lost it and the slot
+--                   stayed in user_usage.uploads_reserved — counted against
+--                   the cap — for the rest of the month (lens S, S8). Now
+--                   the document's next run ADOPTS it, and a reservation
+--                   whose owner stopped heartbeating is released (the
+--                   engine's sweep, scripts/recompute_document_quota.py).
+--     nonro_*       the same for the non-RO meter's reservation.
 --   Backfill: every document analysed before this table existed is taken to
 --   have been counted (the meter counted analysed documents; a re-run of an
 --   analysed document was already a free correction).
@@ -52,9 +64,24 @@ create table if not exists document_quota_ledger (
   month         text not null,
   was_extra     boolean not null default false,
   committed_at  timestamptz,
+  -- The outstanding reservation (null = none).
+  reservation_id     text,
+  reserved_at        timestamptz,
+  released_at        timestamptz,
+  release_token      text,
+  owner              text,
+  heartbeat_at       timestamptz,
+  nonro_user_id      uuid,
+  nonro_was_extra    boolean not null default false,
+  nonro_month        text,
+  nonro_reserved_at  timestamptz,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+create index if not exists document_quota_ledger_outstanding_idx
+  on document_quota_ledger (heartbeat_at)
+  where reserved_at is not null;
 
 create index if not exists document_quota_ledger_user_committed_idx
   on document_quota_ledger (user_id)

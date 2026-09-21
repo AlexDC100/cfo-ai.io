@@ -3814,45 +3814,111 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
 # and reserves like /run (`_start_rerun`) — only an analysed document's
 # re-run is free.
 #
-# In-process on purpose: the reservation and the daemon thread that settles
-# it live in the one engine process. A restart mid-run loses the entry and
-# leaves that one reservation outstanding — exactly what a killed daemon
-# thread did before — and `scripts/recompute_document_quota.py` reconciles.
+# The in-process entry is what the run's own terminal settles; every
+# reservation is ALSO written to the document's row of the server-only quota
+# ledger (`_quota_ledger`, verifier lens S, S8, 2026-09-21). A restart
+# mid-run kills the daemon thread and loses the in-process entry; the slot
+# used to stay in `user_usage.uploads_reserved` — counted against the cap —
+# for the rest of the month, and `scripts/recompute_document_quota.py` did
+# NOT reconcile it (it left the current month's reservations alone). Now
+# the document's next run ADOPTS the orphaned reservation
+# (`_meter_first_analysis`), and a reservation whose owner stopped
+# heartbeating is released by the ledger's sweep
+# (`start_quota_ledger_maintenance`) and by the restore script.
 
 
 class _QuotaRun:
-    __slots__ = ("user_id", "was_extra", "doc_reserved", "nonro_user", "nonro_reserved", "nonro_extra")
+    __slots__ = ("user_id", "was_extra", "doc_reserved", "month",
+                 "nonro_user", "nonro_reserved", "nonro_extra", "nonro_month")
 
     def __init__(self) -> None:
         self.user_id: Optional[str] = None
         self.was_extra = False
         self.doc_reserved = False
+        #: The month the reservation was made in — where it settles.
+        self.month: Optional[str] = None
         self.nonro_user: Optional[str] = None
         self.nonro_reserved = False
         self.nonro_extra = False
+        self.nonro_month: Optional[str] = None
 
 
 _QUOTA_RUNS: Dict[str, _QuotaRun] = {}
 _QUOTA_RUNS_LOCK = threading.Lock()
 
 
-def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool) -> None:
+def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
+                        month: Optional[str] = None) -> None:
     """Record that THIS run of `document_id` holds a document-slot
-    reservation made under the verified `user_id`."""
+    reservation made under the verified `user_id` in `month` (default: now)
+    — in process, for the run's own terminal, and in the quota ledger, for
+    a restart."""
+    from . import _usage_gate as _ug
+    month = month or _ug._month_bucket()
     with _QUOTA_RUNS_LOCK:
         run = _QUOTA_RUNS.setdefault(str(document_id), _QuotaRun())
         run.user_id = str(user_id)
         run.was_extra = bool(was_extra)
         run.doc_reserved = True
+        run.month = month
+    _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
+                                     was_extra=bool(was_extra), month=month)
 
 
 def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool) -> None:
     """The non-RO gate reserved its meter mid-run; settle it with the run."""
+    from . import _usage_gate as _ug
+    month = _ug._month_bucket()
     with _QUOTA_RUNS_LOCK:
         run = _QUOTA_RUNS.setdefault(str(document_id), _QuotaRun())
         run.nonro_user = str(user_id)
         run.nonro_reserved = True
         run.nonro_extra = bool(was_extra)
+        run.nonro_month = month
+    _quota_ledger.record_nonro_reservation(str(document_id), user_id=str(user_id),
+                                           was_extra=bool(was_extra), month=month)
+
+
+def _release_run_reservation(document_id: str, run: Optional["_QuotaRun"]) -> None:
+    """Give back what a run that will not settle normally holds (refused,
+    errored before its hand-off, a failed landing): the meter, in the month
+    each reservation was made in, and its ledger row."""
+    if run is None:
+        return
+    from . import _usage_gate as _ug
+    if run.doc_reserved and run.user_id:
+        _ug.release_document(run.user_id, was_extra=run.was_extra, month=run.month)
+    if run.nonro_reserved and run.nonro_user:
+        _ug.release_nonro_document(run.nonro_user, was_extra=run.nonro_extra, month=run.nonro_month)
+    _quota_ledger.record_release(str(document_id))
+
+
+def _reservation_is_live(document_id: str) -> bool:
+    """Does THIS process hold `document_id`'s reservation — a run in flight
+    or in the in-process ledger, or a confirmed-extra grant? The ledger's
+    sweep never releases one that does."""
+    from . import _usage_gate as _ug
+    key = str(document_id)
+    with _QUOTA_RUNS_LOCK:
+        if key in _QUOTA_RUNS:
+            return True
+    return _doc_dedupe.in_flight(key) is not None or _ug.has_extra_grant(key)
+
+
+def _live_reservation_ids() -> List[str]:
+    """Every document whose reservation this process holds (heartbeat)."""
+    from . import _usage_gate as _ug
+    with _QUOTA_RUNS_LOCK:
+        ids = [k for k, r in _QUOTA_RUNS.items() if r.doc_reserved or r.nonro_reserved]
+    return ids + _ug.granted_document_ids()
+
+
+def start_quota_ledger_maintenance() -> bool:
+    """Heartbeat this process's reservations and release the ones a dead
+    process left behind (`_quota_ledger.start_maintenance`). Started once by
+    `server.create_app`."""
+    return _quota_ledger.start_maintenance(live_ids=_live_reservation_ids,
+                                           is_live=_reservation_is_live)
 
 
 def _doc_slot_holder(document_id: str) -> Optional[str]:
@@ -3899,6 +3965,7 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         )
         return
     if not _ug.enforcement_enabled():
+        _quota_ledger.record_release(document_id)
         return
     try:
         # A success is refused — released, never committed or billed — when
@@ -3926,11 +3993,13 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
 
         if run.doc_reserved and run.user_id:
             if settle_as_success:
-                _ug.commit_document(run.user_id, was_extra=run.was_extra)
+                # Into the month the reservation was made in.
+                _ug.commit_document(run.user_id, was_extra=run.was_extra, month=run.month)
                 # The fact every later entry reads back: THIS document was
                 # counted (a table the browser cannot write).
                 _quota_ledger.record_commit(document_id, user_id=run.user_id,
-                                            was_extra=run.was_extra, month=_ug._month_bucket())
+                                            was_extra=run.was_extra,
+                                            month=run.month or _ug._month_bucket())
                 # WS2 — a successful PAID EXTRA records one usage unit on the
                 # user's Stripe metered item. Idempotency key = document_id.
                 if run.was_extra:
@@ -3958,7 +4027,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                             "this charge. doc=%s user=%s", document_id, run.user_id,
                         )
             else:
-                _ug.release_document(run.user_id, was_extra=run.was_extra)
+                _ug.release_document(run.user_id, was_extra=run.was_extra, month=run.month)
+                _quota_ledger.record_release(document_id)
 
         # Non-RO meter — reserved mid-run by `_enforce_nonro_plan_gate`,
         # settled with the run under the same success-only discipline.
@@ -3980,7 +4050,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                     )
                     nonro_success = False
             if nonro_success:
-                _ug.commit_nonro_document(run.nonro_user, was_extra=run.nonro_extra)
+                _ug.commit_nonro_document(run.nonro_user, was_extra=run.nonro_extra,
+                                          month=run.nonro_month)
                 if run.nonro_extra:
                     try:
                         from . import _billing
@@ -4001,7 +4072,9 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                             "doc=%s user=%s", document_id, run.nonro_user,
                         )
             else:
-                _ug.release_nonro_document(run.nonro_user, was_extra=run.nonro_extra)
+                _ug.release_nonro_document(run.nonro_user, was_extra=run.nonro_extra,
+                                           month=run.nonro_month)
+                _quota_ledger.record_release(document_id)
     except Exception:
         logger.exception(
             "[pipeline] _commit_pipeline_quota(%s, success=%s) failed",
@@ -4050,9 +4123,11 @@ def _meter_first_analysis(document_id: str, user_id: str) -> Any:
     _usage_limits.check_quota(user_id, "upload")
     from . import _usage_gate as _ug
     decision = (_ug.claim_extra_grant(user_id, document_id)
+                or _adopt_reservation(document_id, user_id, take_extra=True)
                 or _ug.reserve_document(user_id))
     if decision.kind == "allowed":
-        _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra))
+        _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra),
+                            month=decision.month or None)
     if decision.kind == "blocked":
         raise HTTPException(
             status_code=429,
@@ -4089,16 +4164,33 @@ def _meter_first_analysis(document_id: str, user_id: str) -> Any:
     return decision
 
 
+def _adopt_reservation(document_id: str, user_id: str, *, take_extra: bool) -> Any:
+    """The document's OWN outstanding reservation that a restart orphaned
+    (the quota ledger), taken over by the run the caller just claimed —
+    instead of reserving the same document a second time (verifier lens S,
+    S8). A confirmed extra only for the document's own run (`take_extra`).
+    None when there is none: the caller asks the meter."""
+    from . import _usage_gate as _ug
+    if not _ug.enforced_for(user_id):
+        return None
+    with _QUOTA_RUNS_LOCK:
+        if str(document_id) in _QUOTA_RUNS:
+            return None
+    row = _quota_ledger.adopt(str(document_id), user_id=str(user_id), take_extra=take_extra)
+    if row is None:
+        return None
+    return _ug.DocReserveDecision(
+        kind="allowed", plan_key="", used=0, reserved=0, cap=0, extra_doc_eur=None,
+        message="", was_extra=bool(row.get("was_extra")), month=str(row.get("month") or ""))
+
+
 def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
     """An entry that claimed but never handed its run off (refused by the
     meter, or a write failed): the claim goes back — a dismissed dialog must
     not leave a phantom "running" original behind for the next upload to
     hit — and a reservation already taken is released, never leaked."""
     _doc_dedupe.release_claim(entry.released_row())
-    orphan = _take_quota_run(document_id)
-    if orphan is not None and orphan.doc_reserved and orphan.user_id:
-        from . import _usage_gate as _ug_release
-        _ug_release.release_document(orphan.user_id, was_extra=orphan.was_extra)
+    _release_run_reservation(document_id, _take_quota_run(document_id))
 
 
 def _book_already_counted(row: Optional[Dict[str, Any]]) -> Optional[bool]:
@@ -4282,6 +4374,11 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
     doc_id = str(row.get("id") or "")
     if _ug.has_extra_grant(doc_id):
         return "skipped", {}
+    lost = _quota_ledger.outstanding(doc_id)
+    if lost is not None and lost.get("was_extra"):
+        # A confirmed extra a restart took out of memory: still this
+        # document's, spent only by its own /run (or given back by the sweep).
+        return "skipped", {}
     entry = _doc_dedupe.enter_analysis(row, caller_id, now_iso=_now_iso(), mode=_doc_dedupe.RECOVER)
     if entry.kind == _doc_dedupe.DUPLICATE:
         return "duplicate", {
@@ -4301,12 +4398,14 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
             enqueued = True
             return "recovered", {}
         try:
-            decision = _ug.reserve_document(caller_id)
+            decision = (_adopt_reservation(doc_id, caller_id, take_extra=False)
+                        or _ug.reserve_document(caller_id))
         except Exception:  # noqa: BLE001 — an unreachable meter refuses
             logger.exception("[pipeline] recovery: meter unreachable for doc %s", doc_id)
             return "needs_confirmation", {"reason": "metering_unavailable"}
         if decision.kind == "allowed":
-            _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra))
+            _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra),
+                                month=decision.month or None)
         if decision.kind not in ("allowed", "disabled"):
             logger.info("[pipeline] recovery: doc %s not re-enqueued — meter says %s",
                         doc_id, decision.kind)
@@ -4322,9 +4421,7 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
     finally:
         if not enqueued:
             _doc_dedupe.release_claim(entry.released_row())
-            orphan = _take_quota_run(doc_id)
-            if orphan is not None and orphan.doc_reserved and orphan.user_id:
-                _ug.release_document(orphan.user_id, was_extra=orphan.was_extra)
+            _release_run_reservation(doc_id, _take_quota_run(doc_id))
 
 
 def _run_pipeline_sync(document_id: str) -> None:

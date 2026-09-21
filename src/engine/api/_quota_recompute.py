@@ -26,8 +26,13 @@ analysed with enforcement off) is reported and left alone — back-filling it
 would bill for the past.
 
 Past months' reservations (`uploads_reserved`) go to 0: a month that is over
-holds no run in flight. The current month's reservations are left untouched
-— a run may be in flight while the script runs.
+holds no run in flight. The current month's go down to the reservations
+still LIVE in the quota ledger (`live_reserved`: a run or a confirmed extra
+whose owning engine process still heartbeats — `_quota_ledger`). A slot a
+restart orphaned (verifier lens S, S8) used to be left there for the rest of
+the month, counted against the cap; the script's note that it "reconciled"
+it was wrong. Without the ledger (`live_reserved` None) the current month's
+reservations are left untouched — nothing proves a run is not in flight.
 """
 
 from __future__ import annotations
@@ -132,12 +137,15 @@ def recompute(
     included_docs_for: Callable[[Dict[str, Any]], "tuple[str, int]"],
     period_end_of: Optional[Dict[str, str]] = None,
     counted_ids: Optional[Iterable[str]] = None,
+    live_reserved: Optional[Dict[tuple, int]] = None,
 ) -> RecomputePlan:
     """The whole restore, decided. `included_docs_for(subscription_row)` →
     (plan_key, included documents per month); `period_end_of` (period id →
     period_end) lets an undated copy take the period it was analysed into,
     as the live gate does; `counted_ids` (the quota ledger's committed
-    documents) keeps a counted book counted after its analysis failed."""
+    documents) keeps a counted book counted after its analysis failed;
+    `live_reserved` ((user, month) → reservations still live in the quota
+    ledger) caps the current month's `uploads_reserved`."""
     counts = unique_successful_by_user_month(documents, period_end_of, counted_ids)
     plan = RecomputePlan(current_month=current_month)
     for u in sorted(usage_rows, key=lambda r: (str(r.get("user_id")), str(r.get("month")))):
@@ -146,7 +154,12 @@ def recompute(
         before = _int(u.get("uploads"))
         after = min(before, unique)
         reserved_before = _int(u.get("uploads_reserved"))
-        reserved_after = reserved_before if month >= current_month else 0
+        if month < current_month:
+            reserved_after = 0
+        elif live_reserved is None:
+            reserved_after = reserved_before
+        else:
+            reserved_after = min(reserved_before, int(live_reserved.get((uid, month), 0)))
         note = ""
         if unique > before:
             note = "counter below unique successful documents — left as is (a restore never raises a counter)"

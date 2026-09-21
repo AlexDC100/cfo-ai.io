@@ -670,7 +670,8 @@ def _prod_release_reservation(doc_id: str, user_id: str, was_extra: bool) -> Non
     from . import pipeline as _pipeline
     run = _pipeline._take_quota_run(doc_id)
     if run is not None and run.doc_reserved and run.user_id:
-        _ug.release_document(run.user_id, was_extra=run.was_extra)
+        # The meter in the reservation's month, and its quota-ledger row.
+        _pipeline._release_run_reservation(doc_id, run)
         return
     _ug.release_document(user_id, was_extra=was_extra)
 

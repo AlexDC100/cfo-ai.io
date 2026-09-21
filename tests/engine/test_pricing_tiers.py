@@ -465,11 +465,17 @@ def test_pipeline_nonro_gate_allowed_stamps_document(monkeypatch):
             pipeline._enforce_nonro_plan_gate({"id": "doc-9",
                                                "uploaded_by": "u-1"})
     assert ctx.updates, "documents row must be stamped for the terminal commit"
-    table, patch_, filters = ctx.updates[0]
-    assert table == "documents"
+    stamps = [(t, p, f) for t, p, f in ctx.updates if t == "documents"]
+    assert len(stamps) == 1, ctx.updates
+    table, patch_, filters = stamps[0]
     assert patch_["nonro_doc"] is True
     assert patch_["nonro_metered_extra"] is True
     assert filters == {"id": "eq.doc-9"}
+    # ... and the reservation is in the quota ledger too, so a restart
+    # before the terminal cannot orphan it (verifier lens S, S8).
+    ledger = [(p, f) for t, p, f in ctx.updates if t == "document_quota_ledger"]
+    assert ledger and ledger[0][0]["nonro_reserved_at"] and ledger[0][0]["nonro_was_extra"] is True
+    assert ledger[0][1] == {"document_id": "eq.doc-9"}
 
 
 def test_pipeline_nonro_gate_a_rerun_reserves_nothing_but_is_still_gated(monkeypatch):

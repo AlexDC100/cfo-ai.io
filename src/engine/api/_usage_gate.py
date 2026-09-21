@@ -69,7 +69,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
-from . import _plan_state, _pricing_config, _supabase, _unmetered
+from . import _plan_state, _pricing_config, _quota_ledger, _supabase, _unmetered
 
 
 logger = logging.getLogger(__name__)
@@ -116,6 +116,10 @@ class DocReserveDecision:
     # remember this so the eventual commit/release call passes the same
     # flag (which controls subscriptions.extra_docs_billed_period).
     was_extra: bool = False
+    # The user_usage month bucket the reservation was made in — where its
+    # commit / release must land (a run reserved on 30 Sep and settled on
+    # 1 Oct releases September's reservation). "" = the current month.
+    month: str = ""
 
 
 NonRoReserveKind = Literal["allowed", "refused", "blocked", "disabled"]
@@ -268,6 +272,7 @@ def reserve_document(user_id: str) -> DocReserveDecision:
             extra_doc_eur=plan.extra_doc_eur,
             message="",
             was_extra=False,
+            month=month,
         )
 
     if kind == "extra_required":
@@ -320,8 +325,12 @@ def reserve_document(user_id: str) -> DocReserveDecision:
 # lives seconds (the browser posts /run right after the confirm). A grant
 # nobody claims within EXTRA_GRANT_TTL_S — the tab closed, the upload turned
 # out to be a duplicate — gives its reservation back (`release_user_upload`,
-# was_extra) instead of lingering; a restart loses it with no charge (the
-# reservation is then what scripts/recompute_document_quota.py reconciles).
+# was_extra) instead of lingering. The grant's reservation is ALSO written
+# to the document's row of the quota ledger (verifier lens S, 2026-09-21):
+# a restart used to lose it with reserved+1 and extra_docs_pending+1 left
+# behind. Now the document's own /run adopts it after a restart
+# (`pipeline._meter_first_analysis`), and a grant nobody adopts is released
+# by the ledger's sweep once its owner stops heartbeating.
 
 EXTRA_GRANT_TTL_S = 30 * 60
 
@@ -358,7 +367,8 @@ def _expire_extra_grants() -> None:
     for doc, g in stale:
         logger.info("[usage-gate] extra-document grant for %s expired unclaimed — "
                     "reservation released, nothing billed", doc)
-        release_document(g.user_id, was_extra=True)
+        release_document(g.user_id, was_extra=True, month=g.decision.month or None)
+        _quota_ledger.record_release(doc)
 
 
 def note_extra_required(user_id: str, document_id: str) -> None:
@@ -380,6 +390,13 @@ def last_extra_required(user_id: str) -> Optional[str]:
 def has_extra_grant(document_id: str) -> bool:
     with _GRANTS_LOCK:
         return str(document_id) in _EXTRA_GRANTS
+
+
+def granted_document_ids() -> "list[str]":
+    """The documents holding a grant in THIS process (their reservations
+    heartbeat with the process — `_quota_ledger.heartbeat`)."""
+    with _GRANTS_LOCK:
+        return list(_EXTRA_GRANTS.keys())
 
 
 def claim_extra_grant(user_id: str, document_id: str) -> Optional[DocReserveDecision]:
@@ -405,7 +422,8 @@ def cancel_extra_grant(document_id: str) -> None:
     with _GRANTS_LOCK:
         grant = _EXTRA_GRANTS.pop(str(document_id), None)
     if grant is not None:
-        release_document(grant.user_id, was_extra=True)
+        release_document(grant.user_id, was_extra=True, month=grant.decision.month or None)
+        _quota_ledger.record_release(str(document_id))
 
 
 def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> DocReserveDecision:
@@ -462,9 +480,10 @@ def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> D
                 message="This plan doesn't allow extra documents.",
             )
 
+        month = _month_bucket()
         body = _rpc("reserve_user_upload_extra", {
             "p_user_id": user_id,
-            "p_month":   _month_bucket(),
+            "p_month":   month,
         })
         if body is None:
             logger.error(
@@ -488,38 +507,43 @@ def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> D
             extra_doc_eur=plan.extra_doc_eur,
             message="",
             was_extra=True,
+            month=month,
         )
         with _GRANTS_LOCK:
             _EXTRA_GRANTS[doc] = _ExtraGrant(user_id=str(user_id), granted_at=_now_mono(),
                                              decision=decision)
+        # Durable too: a restart must neither lose the user's confirmation
+        # nor leave its reservation (and extra_docs_pending) behind.
+        _quota_ledger.record_reservation(doc, user_id=str(user_id), was_extra=True, month=month)
         return decision
 
 
-def commit_document(user_id: str, *, was_extra: bool) -> None:
+def commit_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Pipeline reported analysis SUCCESS. Convert reservation →
     consumed (and, if `was_extra`, bump the billed-extras tally so the
     next renewal invoice sees this charge — gap D: bill only on success).
     Idempotency: floors prevent underflow; calling twice is a no-op
-    after the first call.
-    """
+    after the first call. `month` = the month the reservation was made in
+    (default: now)."""
     if not enforced_for(user_id):
         return
     _rpc("commit_user_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
 
-def release_document(user_id: str, *, was_extra: bool) -> None:
+def release_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Pipeline reported analysis FAILURE. Drop the reservation; no
-    quota consumed, no charge (gap D).
+    quota consumed, no charge (gap D). `month` = the month the reservation
+    was made in (default: now).
     """
     if not enforced_for(user_id):
         return
     _rpc("release_user_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
@@ -678,7 +702,7 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     )
 
 
-def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
+def commit_nonro_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Analysis of a non-RO doc SUCCEEDED — reservation → consumed; when
     `was_extra`, the billed-extras tally bumps too (the Stripe metered
     usage record is the caller's job, mirroring commit_document)."""
@@ -686,18 +710,18 @@ def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
         return
     _rpc("commit_user_nonro_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
 
-def release_nonro_document(user_id: str, *, was_extra: bool) -> None:
+def release_nonro_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Analysis of a non-RO doc FAILED — drop the reservation, no bill."""
     if not enforced_for(user_id):
         return
     _rpc("release_user_nonro_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
