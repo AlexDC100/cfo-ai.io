@@ -33,12 +33,10 @@ const API_URL =
 // Types
 // ──────────────────────────────────────────────────────────────────────
 
-// `preview` (2026-09-21, workspace redesign): the feature is live only for a
-// signed-in user who opted in — `user_prefs.prefs.preview_features` holds its
-// key (see lib/previewFeatures.ts). For everyone else it behaves exactly like
-// `hidden`: no route opens on it (FeatureRoute opens on `active` only) and
-// shouldRenderFeature() keeps its row out. The engine's CFO_FEATURES_ACTIVE
-// env promotes a key to `active` for everyone without a rebuild.
+// `preview` (2026-09-21): shipped for the signed-in users who opted in
+// (`user_prefs.prefs.preview_features` names the key) and OFF for everyone
+// else. Every helper below treats it as off, so a preview row changes
+// nothing until a caller resolves it for the signed-in user.
 export type FeatureStatus = "active" | "coming_soon" | "hidden" | "preview";
 
 /** Stable string keys — mirror `FEATURES` in `_features.py`. Adding a
@@ -97,9 +95,7 @@ export type FeatureKey =
   | "roadmap"
   | "firm_cockpit"
   | "anomaly_radar"
-  // ── WORKSPACE REDESIGN (2026-09-21) — one company per workspace, one
-  // upload component, three screens. Ships as `preview`; see
-  // lib/previewFeatures.ts for who sees it.
+  // ── WORKSPACE REDESIGN (2026-09-21) — `preview` server-side.
   | "workspace_v2";
 
 export interface FeatureDefinition {

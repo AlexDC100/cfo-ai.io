@@ -57,13 +57,12 @@ import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
-import { useEnsureCurrentPeriod } from "@/hooks/useEnsureCurrentPeriod";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { ContentLoader } from "./AppLoader";
 import { UsageWarningBanner } from "./UsageWarningBanner";
 import { UploadFlowHost } from "./upload/UploadFlowHost";
 import { UploadDropOverlay } from "./upload/UploadDrop";
-import { useWorkspaceV2State } from "@/lib/previewFeatures";
+import { useWorkspaceV2 } from "@/lib/previewFeatures";
 import { useActiveOrg } from "@/lib/org";
 import { useOrgParamHold } from "@/lib/companyOnScreen";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
@@ -75,20 +74,18 @@ interface Props {
 
 export function AppShell({ children }: Props) {
   const { t } = useTranslation();
-  // Workspace redesign (`workspace_v2`, preview-gated): one upload component,
-  // drag-and-drop anywhere, the header bound to the company on screen.
-  const workspaceV2State = useWorkspaceV2State();
-  const workspaceV2 = workspaceV2State.enabled;
-  // A workspace always has at least one period — if the active one has none,
-  // this creates an empty container for the current month. Lives here (one
-  // mount, app-wide) so two surfaces can't race to create the same month.
-  // NOT in the redesign (G4): there a period exists only once an analysed
-  // document backs it, so no empty container is ever created — and nothing
-  // is created until the registry has said which world this is.
-  useEnsureCurrentPeriod(!workspaceV2State.loading && !workspaceV2);
+  // G4 (2026-09-21): no period exists without an analysed file behind it.
+  // This shell used to create an EMPTY current-month period in every
+  // workspace on every page (useEnsureCurrentPeriod, now deleted) — the
+  // source of the file-less 2026-05..09 rows in production. A period is
+  // created by the engine when its trial balance is analysed, and nowhere
+  // else.
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
+  // Workspace redesign (`workspace_v2`, preview-gated): one upload component,
+  // drag-and-drop anywhere, the header bound to the company on screen.
+  const workspaceV2 = useWorkspaceV2();
   const { org: activeOrg } = useActiveOrg();
   // `?org=` on a redesign link: switch to that company and hold the page
   // until the header names it (lib/companyOnScreen).
