@@ -27,6 +27,7 @@ import {
   type ProjectedResult,
   type ProjectionView,
 } from "@/lib/forecastFacts";
+import { servedSentence } from "@/lib/forecastSentences";
 import { planYearLabels } from "@/lib/forecastLevers";
 
 /** What one column of the comparison holds. A column is either a served
@@ -253,7 +254,7 @@ export function ScenarioOutcome({
   columns: readonly OutcomeColumn[];
   locale: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const projectedLabel = t("forecast.projected", "projected");
   // The plan years come from the served horizon of the first column that has
   // one — the base, whenever it is served. Every column asks the engine for
@@ -517,7 +518,7 @@ export function ScenarioOutcome({
                     {/* The engine's own sentence: which period cash reaches the
                         floor in, or that it does not within the horizon. */}
                     <span className="block text-[11px] text-ink-soft">
-                      {view.summary.runwaySentence}
+                      {servedSentence(t, i18n.language, view.summary.runwayCode, view.summary.runwaySentence)}
                     </span>
                   </>
                 )}

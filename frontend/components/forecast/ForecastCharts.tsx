@@ -623,7 +623,9 @@ export function CapexDepreciationChart({
         <>
           <Swatch className="bg-brand" label={t("forecast.chart.capexBar", "Capex")} />
           <Swatch className="bg-ink-mute" label={t("forecast.chart.depreciation", "Depreciation")} />
-          <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+          {/* Wraps below sm: in Romanian the note is longer than a 390 px
+              screen and a nowrap line was cut off at the edge. */}
+          <span className="min-w-0 font-mono text-[10px] uppercase tracking-wider text-ink-mute sm:whitespace-nowrap">
             {t("forecast.chart.signNote", "Both are cash and charge OUT, as the engine signs them")}
           </span>
         </>

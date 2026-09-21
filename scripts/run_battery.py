@@ -677,8 +677,9 @@ def _engine_gates() -> List[Gate]:
         # served bytes (vitest). Named on its own, like ratio-byte-match,
         # because each defect it covers paints a believable page: a year 0
         # that is a second opinion about the actuals, "RON 0" where the
-        # engine served cents, another company's saved scenario. Measured 55
-        # tests, floor 50. Plant log: gates.md "forecast-f-page".
+        # engine served cents, another company's saved scenario, an English
+        # engine sentence on a Romanian page. Measured 57 tests, floor 50.
+        # Plant log: gates.md "forecast-f-page".
         Gate("forecast-f-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
@@ -688,7 +689,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/featuresPreview.test.ts",
               "--reporter=verbose"],
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
-             units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in)",
+             units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",
                        "gate F5: no dash and no zero where the engine served a figure",

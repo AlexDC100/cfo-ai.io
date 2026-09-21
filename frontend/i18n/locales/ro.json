@@ -3424,6 +3424,16 @@
       "ebitda": "EBITDA",
       "netProfit": "Profit net",
       "cash": "Numerar"
+    },
+    "served": {
+      "not_served_in_this_build": "motorul nu servește încă această cifră",
+      "runway_none": "nicio lipsă de numerar în orizontul planului",
+      "facility_limit_not_loaded": "limita liniei de credit nu este încărcată"
+    },
+    "formula": {
+      "cumulativeFcf": "suma numerarului din exploatare și din investiții pe perioadele servite",
+      "closingCash": "numerarul de închidere din situația fluxurilor de numerar",
+      "fundingLine": "sold inițial + trageri pe linia de finanțare - rambursări"
     }
   },
   "radar": {

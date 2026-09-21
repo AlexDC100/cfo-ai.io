@@ -254,6 +254,10 @@ export interface ProjectionRefusal {
   readonly period: string;
   readonly code: "not_projected" | "no_assumptions_behind_it" | "outside_horizon";
   readonly detail: string;
+  /** The ENGINE's code for `detail` when it served one (a refused slot's
+   *  {code, text}); lets the page print a fixed sentence in the reader's
+   *  language (lib/forecastSentences). Never a figure. */
+  readonly servedCode?: string | null;
 }
 
 export type ProjectedResult = ProjectedFigure | ProjectionRefusal;
@@ -317,6 +321,8 @@ export interface SummaryView {
   readonly fundingInterestTotal: ProjectedResult | null;
   readonly fundingRateSentence: string;
   readonly runwaySentence: string;
+  /** The engine's code for `runwaySentence` (lib/forecastSentences). */
+  readonly runwayCode: string | null;
   /** plan/2 B13: the served runway count (6.6) — whole monthly periods before
    *  cash first reaches the floor — and whether it is `exact` or an
    *  `at_least` bound. `null` when not served; never defaulted to a number. */
@@ -1014,6 +1020,7 @@ export function readProjection(payload: unknown): ProjectionView | null {
         period,
         code: "not_projected",
         detail: asString(refusedBy.text),
+        servedCode: asString(refusedBy.code) || null,
       };
     }
     const basis = basisFor(raw, period);
@@ -1173,6 +1180,7 @@ export function readProjection(payload: unknown): ProjectionView | null {
       asRecord(summaryRaw.funding_rate_basis)?.sentence,
     ),
     runwaySentence: sentenceText(runway.sentence),
+    runwayCode: asString(asRecord(runway.sentence)?.code) || null,
     runwayMonths: asInt(runway.months),
     runwayBound:
       runway.bound === "exact" || runway.bound === "at_least" ? runway.bound : null,

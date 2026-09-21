@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 
 import { ProjectedAmount } from "@/components/forecast/ProjectedAmount";
 import { isProjectedFigure, type ProjectionView } from "@/lib/forecastFacts";
+import { servedFormula, servedSentence } from "@/lib/forecastSentences";
 
 export interface ExecutiveStripProps {
   readonly view: ProjectionView;
@@ -68,7 +69,8 @@ export function ExecutiveStrip({
   format,
   projectedLabel,
 }: ExecutiveStripProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const { strip, summary } = view;
   const breach = strip.firstBreachPeriod.result;
   const peak = strip.peakFundingGap;
@@ -109,7 +111,7 @@ export function ExecutiveStrip({
                 "A cash shortfall — a different fact from a covenant breach — begins {{period}}.",
                 { period: summary.firstShortfallPeriod },
               )
-            : summary.runwaySentence
+            : servedSentence(t, lang, summary.runwayCode, summary.runwaySentence)
         }
       >
         {/* The engine's sentence, verbatim. There is no covenant input in this
@@ -119,7 +121,7 @@ export function ExecutiveStrip({
           className="block text-[12px] font-normal leading-snug text-ink-soft"
         >
           {"refused" in breach && breach.refused
-            ? breach.detail
+            ? servedSentence(t, lang, breach.servedCode, breach.detail)
             : t("forecast.strip.unexpected", "—")}
         </span>
       </Cell>
@@ -129,7 +131,7 @@ export function ExecutiveStrip({
         label={t("forecast.strip.cumulativeFcf", "Cumulative free cash flow")}
         note={
           isProjectedFigure(strip.cumulativeFcf.result)
-            ? strip.cumulativeFcf.result.formula
+            ? servedFormula(t, lang, strip.cumulativeFcf.result.formula)
             : undefined
         }
       >

@@ -27,6 +27,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
+import i18n from "@/i18n";
 import Forecast from "../Forecast";
 import { __clearFeaturesForTest, __setFeaturesForTest } from "@/lib/features";
 
@@ -176,5 +177,51 @@ describe("the company on screen", () => {
     expect(cards.getAttribute("data-reason")).toBe("no_company");
     expect((screen.getByTestId("company-cards-sentence").textContent ?? "").length).toBeGreaterThan(10);
     expect(forecast).not.toHaveBeenCalled();
+  });
+});
+
+describe("the engine's FIXED sentences read in the page's language", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("ro: the covenant refusal, the runway and the strip formula are Romanian; en prints the served words", async () => {
+    // The served English, straight from the bytes.
+    const breachServed = (SERVED.strip.first_breach_period.refused as Json).text as string;
+    const runwayServed = (SERVED.summary.runway.sentence as Json).text as string;
+    const formulaServed = (SERVED.strip.cumulative_fcf as Json).formula as string;
+
+    await i18n.changeLanguage("en");
+    const en = wrap();
+    await screen.findByTestId("forecast-strip");
+    expect(screen.getByTestId("forecast-strip-breach-refusal").textContent).toBe(breachServed);
+    expect(screen.getByTestId("forecast-strip-first-breach").textContent).toContain(runwayServed);
+    expect(screen.getByTestId("forecast-strip-cumulative-fcf").textContent).toContain(formulaServed);
+    en.unmount();
+
+    await i18n.changeLanguage("ro");
+    wrap();
+    await screen.findByTestId("forecast-strip");
+    const breach = screen.getByTestId("forecast-strip-breach-refusal").textContent ?? "";
+    expect(breach).toBe(i18n.t("forecast.served.not_served_in_this_build"));
+    expect(breach).not.toBe(breachServed);
+    const firstBreach = screen.getByTestId("forecast-strip-first-breach").textContent ?? "";
+    expect(firstBreach).toContain(i18n.t("forecast.served.runway_none"));
+    expect(firstBreach).not.toContain(runwayServed);
+    const fcf = screen.getByTestId("forecast-strip-cumulative-fcf").textContent ?? "";
+    expect(fcf).toContain(i18n.t("forecast.formula.cumulativeFcf"));
+    expect(fcf).not.toContain(formulaServed);
+  });
+
+  it("en: an engine that rewords a fixed sentence is printed as served, never overruled by a copy", async () => {
+    const reworded = JSON.parse(JSON.stringify(SERVED)) as Json;
+    reworded.strip.first_breach_period.refused.text = "covenants are not modelled for this book yet";
+    forecast.mockResolvedValue(reworded);
+    await i18n.changeLanguage("en");
+    wrap();
+    await screen.findByTestId("forecast-strip");
+    expect(screen.getByTestId("forecast-strip-breach-refusal").textContent).toBe(
+      "covenants are not modelled for this book yet",
+    );
   });
 });

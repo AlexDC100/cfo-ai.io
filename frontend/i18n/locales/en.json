@@ -3400,6 +3400,16 @@
       "ebitda": "EBITDA",
       "netProfit": "Net profit",
       "cash": "Cash"
+    },
+    "served": {
+      "not_served_in_this_build": "this is not served in this build",
+      "runway_none": "no shortfall within the horizon",
+      "facility_limit_not_loaded": "facility limit not loaded"
+    },
+    "formula": {
+      "cumulativeFcf": "sum of operating and investing cash over the served periods",
+      "closingCash": "closing cash of the cash flow statement",
+      "fundingLine": "opening + funding line draw - funding line repayment"
     }
   },
   "radar": {

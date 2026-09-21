@@ -8714,7 +8714,7 @@ template differing from the plan with no template.
 |---|---|
 | command | `npx vitest run --root . frontend/components/forecast/__tests__/forecastYearZero.test.tsx frontend/pages/cfo/__tests__/forecastCompanyAndPlaceholders.test.tsx frontend/pages/cfo/__tests__/scenariosSaved.test.tsx frontend/pages/cfo/__tests__/scenariosEngine.test.tsx frontend/lib/__tests__/featuresPreview.test.ts --reporter=verbose` |
 | canary | `gate F1: year 0 is the dashboard's headline`, `gate F5 on the Forecast statements`, `gate F5: no dash and no zero where the engine served a figure`, `gate F6: a saved scenario survives reload and belongs to its company` |
-| work count | `Tests N passed`, floor **50** (measured 55) |
+| work count | `Tests N passed`, floor **50** (measured 57) |
 
 **SCOPE** — the PAGE half of the owner's gates, rendered over the real served
 bytes (fp1_2_agras_served.json, the engine's own scenario_catalogue.json, the
@@ -8773,6 +8773,27 @@ AssertionError: summary first-shortfall is a bare placeholder: expected '—' no
 **REVERT** — each file restored byte-exact (sha256 checked by the runner,
 scratchpad fcst_tools/plants_fe.py); `Tests 55 passed (55)`.
 
+**Language of the engine's fixed sentences** (added the same day, found on the
+Romanian 390 px screenshots: the covenant slot, the runway and the strip formula
+read in English on a Romanian page). lib/forecastSentences.ts translates an
+ALLOWLIST of fixed served sentences (by code; the strip formulas by their
+served text) and prints the served words verbatim in English.
+**PLANT ro-served-english** — the translator returns the served text in every
+language. **PLANT en-overruled** — English prints the copy instead of the served
+words (a reworded engine sentence would be overruled).
+
+```
+RED (plant ro-served-english)
+AssertionError: expected 'this is not served in this build' to be 'motorul nu servește încă această cifră' // Object.is equality
+RED (plant en-overruled)
+AssertionError: expected 'this is not served in this build' to be 'covenants are not modelled for this b…' // Object.is equality
+```
+
+REVERT — restored byte-exact; `Tests 57 passed (57)` over the gate's files. A
+first en-overruled run stayed GREEN (the English copy equals today's served
+text); the reworded-sentence test was added so the plant has something to red
+on, rather than counting it.
+
 A first f6-wrong-org plant (`p_org_id` taken from the list's last entry) stayed
 GREEN — every entry already names the company on screen, so it moved nothing;
 it was replaced by a plant that really sends the write elsewhere rather than
@@ -8781,7 +8802,9 @@ recorded as coverage.
 **After the repair it reds on:** a year-0 figure on the Forecast page that is
 not the dashboard function's, or not the served field the engine's anchor reads;
 the dashboard's headline no longer computed by that function; a non-zero served
-figure painted as a blank, a dash or a zero on either page; a period with debt
+figure painted as a blank, a dash or a zero on either page; an allowlisted fixed
+engine sentence left in English on a Romanian page, or an English page printing
+anything but the served words; a period with debt
 painting no interest; a saved scenario written to any org but the company on
 screen, lost on reload, listed on another company, or re-opened with anything
 but its saved template and levers. **It cannot see** RLS on org_prefs (the
