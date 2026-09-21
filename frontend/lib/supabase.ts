@@ -757,6 +757,7 @@ export async function checkDuplicateUpload(
   contentHash: string,
   periodEndHint: string | null,
   orgId: string,
+  scope: "financial" | "sku" = "financial",
 ): Promise<AlreadyUploaded | null> {
   if (!client) return null;
   const { data } = await client.auth.getSession();
@@ -771,7 +772,9 @@ export async function checkDuplicateUpload(
         Authorization: `Bearer ${token}`,
         "X-Org-Id": orgId,
       },
-      body: JSON.stringify({ content_hash: contentHash, period_end_hint: periodEndHint }),
+      // scope: a dashboard analysis and a Products analysis of the same
+      // workbook are different analyses (the server's SCOPE clause).
+      body: JSON.stringify({ content_hash: contentHash, period_end_hint: periodEndHint, scope }),
     });
     if (!res.ok) return null;
     const body = (await res.json().catch(() => null)) as {
@@ -908,7 +911,8 @@ export async function uploadDocument(
     console.warn("[supabase] content hash unavailable — the server will hash the stored bytes:", e);
   }
   if (contentHash) {
-    const dup = await checkDuplicateUpload(contentHash, options.periodEndHint ?? null, orgId);
+    const dup = await checkDuplicateUpload(contentHash, options.periodEndHint ?? null, orgId,
+      options.scope ?? "financial");
     if (dup) return { row: null, error: null, duplicate: dup };
   }
 

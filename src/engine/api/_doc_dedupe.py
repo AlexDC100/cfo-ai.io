@@ -28,6 +28,8 @@ A document DUPLICATES a live one when all four agree:
                theirs, and a colleague's entry never archives an upload.
   * COMPANY  — `documents.org_id` is the same workspace. The same file in
                a DIFFERENT company is not a duplicate.
+  * SCOPE    — `documents.scope`: a financial analysis and a Products
+               (SKU) analysis of the same workbook are different analyses.
   * PERIOD   — when the new upload carries a user-confirmed closing date
                (`period_end_hint`), the original matches only if its own
                date — its hint, else the period it was analysed into — is
@@ -453,7 +455,19 @@ def _hit(row: Dict[str, Any]) -> DuplicateHit:
     )
 
 
-def _candidates(org_id: str, user_id: str, content_hash: str) -> List[Dict[str, Any]]:
+#: `documents.scope` values (schema_phase3.sql documents_scope_check).
+SCOPES = ("financial", "sku")
+
+
+def normalize_scope(value: Any) -> str:
+    """The SCOPE clause: a financial analysis and a Products (SKU) analysis
+    of the same workbook are different analyses. Unknown / absent → the
+    column's default, financial."""
+    s = str(value or "").strip().lower()
+    return s if s in SCOPES else "financial"
+
+
+def _candidates(org_id: str, user_id: str, content_hash: str, scope: str) -> List[Dict[str, Any]]:
     # columns="*": `period_end_hint` is an optional migration; naming it
     # would 400 on a database that lacks it.
     with _supabase.admin() as ac:
@@ -463,6 +477,7 @@ def _candidates(org_id: str, user_id: str, content_hash: str) -> List[Dict[str, 
                 "org_id": f"eq.{org_id}",
                 "uploaded_by": f"eq.{user_id}",
                 "content_hash": f"eq.{content_hash}",
+                "scope": f"eq.{scope}",
                 "deleted_at": "is.null",
             },
             order="created_at.asc",
@@ -507,6 +522,7 @@ def _unhashed_candidates(org_id: str, user_id: str, self_row: Dict[str, Any],
         "org_id": f"eq.{org_id}",
         "uploaded_by": f"eq.{user_id}",
         "content_hash": "is.null",
+        "scope": f"eq.{normalize_scope(self_row.get('scope'))}",
         "deleted_at": "is.null",
         "status": "in.(" + ",".join(["analyzed"] + sorted(RUNNING_STATUSES)) + ")",
     }
@@ -537,17 +553,24 @@ def find_live_original(
     hint: Any = None,
     self_row: Optional[Dict[str, Any]] = None,
     hasher: Optional[Callable[[Dict[str, Any]], Optional[str]]] = None,
+    scope: Any = None,
 ) -> Optional[DuplicateHit]:
     """The live original of (company, account, content, period), or None.
 
     For an analysis entry (`self_row` given) copies stored without a hash
     are hashed from storage and compared too (`_unhashed_candidates`); the
     pre-storage check, which runs while the browser waits, compares hashed
-    copies only — /run repeats the check before anything is reserved."""
+    copies only — /run repeats the check before anything is reserved.
+
+    `scope` is the new upload's (the row's own at an analysis entry): the
+    same workbook analysed on the dashboard is not a duplicate of the same
+    workbook uploaded to Products, and "open it" would lead nowhere."""
     h = normalize_hash(content_hash)
     if not (h and org_id and user_id):
         return None
-    rows = _candidates(str(org_id), str(user_id), h)
+    if scope is None and self_row is not None:
+        scope = self_row.get("scope")
+    rows = _candidates(str(org_id), str(user_id), h, normalize_scope(scope))
     if self_row is not None:
         rows = rows + _unhashed_candidates(str(org_id), str(user_id), self_row,
                                            hasher or hash_stored_object, h)
@@ -832,12 +855,12 @@ def month_of(ts: Any) -> Optional[str]:
 
 def unique_successful(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """The documents that count: analysed, not an archived duplicate, one per
-    (org, content, period). Rows without a hash are unique by id — nothing
+    (org, scope, content, period). Rows without a hash are unique by id — nothing
     proves them equal. A later copy with a DIFFERENT confirmed date is a
     different period; one without a date collapses into the first copy.
     Returned in created order (the first of each group represents it)."""
     kept: List[Dict[str, Any]] = []
-    groups: Dict[Tuple[str, str], List[Optional[str]]] = {}
+    groups: Dict[Tuple[str, str, str], List[Optional[str]]] = {}
     for row in sorted(rows, key=lambda r: (str(r.get("created_at") or ""), str(r.get("id") or ""))):
         if str(row.get("status") or "").lower() != "analyzed" or is_archived_duplicate(row):
             continue
@@ -845,7 +868,7 @@ def unique_successful(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not h:
             kept.append(row)
             continue
-        key = (str(row.get("org_id") or ""), h)
+        key = (str(row.get("org_id") or ""), normalize_scope(row.get("scope")), h)
         date = _date10(row.get("period_end_hint"))
         seen = groups.setdefault(key, [])
         if any(date is None or s is None or s == date for s in seen):

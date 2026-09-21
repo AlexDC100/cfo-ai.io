@@ -5718,6 +5718,9 @@ class DuplicateCheckRequest(BaseModel):
 
     content_hash: str
     period_end_hint: Optional[str] = None
+    # "financial" (the dashboard) or "sku" (Products) — the SCOPE clause.
+    # Absent (an older bundle) → financial, the column's default.
+    scope: Optional[str] = None
 
 
 class ReviewReanalyzeRequest(BaseModel):
@@ -5852,7 +5855,7 @@ def build_router() -> APIRouter:
             raise HTTPException(422, "content_hash must be the 64-hex SHA-256 of the file bytes.")
         hit = _doc_dedupe.find_live_original(
             org_id=org_id, user_id=user_id, content_hash=content_hash,
-            hint=req.period_end_hint,
+            hint=req.period_end_hint, scope=req.scope,
         )
         if hit is None:
             return {"duplicate": False}

@@ -113,8 +113,18 @@ describe("uploadDocument — duplicate check before storage", () => {
     expect(headers["X-Org-Id"]).toBe(ORG);
     expect(headers.Authorization).toBe("Bearer jwt");
     expect(JSON.parse(String(calls[0].init.body))).toEqual({
-      content_hash: BYTES_SHA256, period_end_hint: "2025-12-31",
+      content_hash: BYTES_SHA256, period_end_hint: "2025-12-31", scope: "financial",
     });
+  });
+
+  it("a Products (SKU) upload asks about SKU copies only — the SCOPE clause", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ duplicate: false }), { status: 200 });
+    }));
+    await sb.uploadDocument(file(), { scope: "sku" });
+    expect(JSON.parse(String(calls[0].init.body)).scope).toBe("sku");
   });
 
   it("not a duplicate → the upload proceeds and the row carries the same hash", async () => {

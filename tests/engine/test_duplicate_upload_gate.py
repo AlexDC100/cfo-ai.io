@@ -819,6 +819,24 @@ def test_a_legacy_original_without_a_content_hash_is_compared(world, monkeypatch
     assert world["meter"].calls == []
 
 
+def test_the_same_workbook_on_products_is_not_a_duplicate_of_its_financial_analysis(world):
+    """The duplicate key ignored `scope`: a workbook analysed on the
+    dashboard (financial) made the same bytes un-uploadable on Products
+    (SKU) — and "open it" sent the user to /products, where the original is
+    not."""
+    world["db"].rows("documents").append(_doc("fin-1", status="analyzed", period_id=PERIOD))
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA, "scope": "sku"}, org=ORG).json()
+    assert r == {"duplicate": False}, r
+    world["db"].rows("documents").append(dict(_doc("sku-1"), scope="sku"))
+    assert world["post"]("/api/pipeline/run", {"document_id": "sku-1"}).json()["status"] == "queued"
+    # ... while the same scope still dedupes, and an older bundle (no scope) means financial
+    r = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA}, org=ORG).json()
+    assert r["duplicate"] is True and r["existing_document_id"] == "fin-1"
+    # and the banner counts the two analyses as two, as the meter does
+    world["finish"]("sku-1", "analyzed")
+    assert len(_doc_dedupe.unique_successful(world["db"].rows("documents"))) == 2
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 
